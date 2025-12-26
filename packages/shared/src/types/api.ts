@@ -18,6 +18,11 @@ import type {
   Timestamp,
 } from './domain';
 
+import type {
+  CallTranscript,
+  TranscriptSegment,
+} from './telephony';
+
 // ============================================================================
 // Standard API Response Wrapper
 // ============================================================================
