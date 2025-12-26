@@ -1,0 +1,51 @@
+import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
+import { AuthModule } from './modules/auth/auth.module';
+import { CompaniesModule } from './modules/companies/companies.module';
+import { UsersModule } from './modules/users/users.module';
+import { ContactsModule } from './modules/contacts/contacts.module';
+import { CallsModule } from './modules/calls/calls.module';
+import { AppointmentsModule } from './modules/appointments/appointments.module';
+import { KnowledgeModule } from './modules/knowledge/knowledge.module';
+import { FlaggedQuestionsModule } from './modules/flagged-questions/flagged-questions.module';
+import { AgentConfigModule } from './modules/agent-config/agent-config.module';
+import { PricingRulesModule } from './modules/pricing-rules/pricing-rules.module';
+import { TelephonyModule } from './modules/telephony/telephony.module';
+import { RagModule } from './modules/rag/rag.module';
+import { DashboardModule } from './modules/dashboard/dashboard.module';
+import { DatabaseModule } from './infrastructure/database/database.module';
+import { StorageModule } from './infrastructure/storage/storage.module';
+import { AppController } from './app.controller';
+import { AppService } from './app.service';
+
+@Module({
+  imports: [
+    // Configuration
+    ConfigModule.forRoot({
+      isGlobal: true,
+      envFilePath: ['.env.local', '.env'],
+    }),
+
+    // Infrastructure
+    DatabaseModule,
+    StorageModule,
+
+    // Core modules
+    AuthModule,
+    CompaniesModule,
+    UsersModule,
+    ContactsModule,
+    CallsModule,
+    AppointmentsModule,
+    KnowledgeModule,
+    FlaggedQuestionsModule,
+    AgentConfigModule,
+    PricingRulesModule,
+    TelephonyModule,
+    RagModule,
+    DashboardModule,
+  ],
+  controllers: [AppController],
+  providers: [AppService],
+})
+export class AppModule {}

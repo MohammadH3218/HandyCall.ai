@@ -1,0 +1,352 @@
+/**
+ * API request/response types
+ * Standard patterns for all API endpoints
+ */
+
+import type {
+  Company,
+  User,
+  Contact,
+  Call,
+  Appointment,
+  KnowledgeItem,
+  FlaggedQuestion,
+  AgentConfig,
+  PricingRule,
+  SMS,
+  UUID,
+  Timestamp,
+} from './domain';
+
+// ============================================================================
+// Standard API Response Wrapper
+// ============================================================================
+
+export interface ApiResponse<T = unknown> {
+  success: boolean;
+  data?: T;
+  error?: ApiError;
+  meta?: ResponseMeta;
+}
+
+export interface ApiError {
+  code: string;
+  message: string;
+  details?: Record<string, unknown>;
+}
+
+export interface ResponseMeta {
+  timestamp: Timestamp;
+  request_id?: string;
+  pagination?: PaginationMeta;
+}
+
+export interface PaginationMeta {
+  total: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+  has_next: boolean;
+  has_prev: boolean;
+}
+
+// ============================================================================
+// Pagination & Filtering
+// ============================================================================
+
+export interface PaginationParams {
+  page?: number;
+  page_size?: number;
+  cursor?: string; // For DynamoDB cursor-based pagination
+}
+
+export interface DateRangeFilter {
+  start_date?: Timestamp;
+  end_date?: Timestamp;
+}
+
+// ============================================================================
+// Auth Endpoints
+// ============================================================================
+
+export interface LoginRequest {
+  email: string;
+  password: string;
+}
+
+export interface LoginResponse {
+  user: User;
+  company: Company;
+  access_token: string;
+  refresh_token: string;
+  expires_in: number; // seconds
+}
+
+export interface RegisterRequest {
+  company_name: string;
+  service_type: string;
+  email: string;
+  password: string;
+  phone_number: string;
+  first_name: string;
+  last_name: string;
+  timezone: string;
+}
+
+export interface RegisterResponse {
+  user: User;
+  company: Company;
+  access_token: string;
+  refresh_token: string;
+}
+
+export interface RefreshTokenRequest {
+  refresh_token: string;
+}
+
+export interface RefreshTokenResponse {
+  access_token: string;
+  expires_in: number;
+}
+
+// ============================================================================
+// Company Endpoints
+// ============================================================================
+
+export interface UpdateCompanyRequest {
+  company_name?: string;
+  phone_number?: string;
+  email?: string;
+  timezone?: string;
+  business_hours?: Company['business_hours'];
+}
+
+export type GetCompanyResponse = Company;
+
+// ============================================================================
+// Contact/Lead Endpoints
+// ============================================================================
+
+export interface CreateContactRequest {
+  phone_number: string;
+  email?: string;
+  first_name?: string;
+  last_name?: string;
+  notes?: string;
+}
+
+export interface ListContactsRequest extends PaginationParams {
+  lead_status?: string;
+  search?: string;
+}
+
+export interface ListContactsResponse {
+  contacts: Contact[];
+  pagination: PaginationMeta;
+}
+
+// ============================================================================
+// Call Endpoints
+// ============================================================================
+
+export interface ListCallsRequest extends PaginationParams, DateRangeFilter {
+  contact_id?: UUID;
+  status?: string;
+  ai_handled?: boolean;
+}
+
+export interface ListCallsResponse {
+  calls: Call[];
+  pagination: PaginationMeta;
+}
+
+export interface GetCallResponse {
+  call: Call;
+  transcript?: CallTranscript;
+  highlights?: CallHighlight[];
+}
+
+export interface CallTranscript {
+  segments: TranscriptSegment[];
+}
+
+export interface TranscriptSegment {
+  speaker: 'AI' | 'CALLER';
+  text: string;
+  timestamp_seconds: number;
+  confidence?: number;
+}
+
+export interface CallHighlight {
+  timestamp_seconds: number;
+  type: string;
+  description: string;
+}
+
+// ============================================================================
+// Appointment Endpoints
+// ============================================================================
+
+export interface CreateAppointmentRequest {
+  contact_id: UUID;
+  scheduled_start: Timestamp;
+  scheduled_end: Timestamp;
+  service_type: string;
+  description?: string;
+  address?: {
+    street: string;
+    city: string;
+    state: string;
+    zip: string;
+  };
+}
+
+export interface ListAppointmentsRequest extends PaginationParams, DateRangeFilter {
+  status?: string;
+  contact_id?: UUID;
+}
+
+export interface ListAppointmentsResponse {
+  appointments: Appointment[];
+  pagination: PaginationMeta;
+}
+
+export interface UpdateAppointmentRequest {
+  status?: string;
+  scheduled_start?: Timestamp;
+  scheduled_end?: Timestamp;
+  notes?: string;
+}
+
+// ============================================================================
+// Knowledge Base Endpoints
+// ============================================================================
+
+export interface CreateKnowledgeItemRequest {
+  type: string;
+  question: string;
+  answer: string;
+  status?: string;
+}
+
+export interface UpdateKnowledgeItemRequest {
+  question?: string;
+  answer?: string;
+  status?: string;
+}
+
+export interface ListKnowledgeItemsRequest extends PaginationParams {
+  type?: string;
+  status?: string;
+  search?: string;
+}
+
+export interface ListKnowledgeItemsResponse {
+  knowledge_items: KnowledgeItem[];
+  pagination: PaginationMeta;
+}
+
+// ============================================================================
+// Flagged Questions Endpoints
+// ============================================================================
+
+export interface ListFlaggedQuestionsRequest extends PaginationParams {
+  status?: string;
+}
+
+export interface ListFlaggedQuestionsResponse {
+  flagged_questions: FlaggedQuestion[];
+  pagination: PaginationMeta;
+}
+
+export interface ResolveFlaggedQuestionRequest {
+  answer: string;
+  create_knowledge_item?: boolean;
+  knowledge_type?: string;
+}
+
+export interface ResolveFlaggedQuestionResponse {
+  flagged_question: FlaggedQuestion;
+  knowledge_item?: KnowledgeItem;
+}
+
+// ============================================================================
+// Agent Config Endpoints
+// ============================================================================
+
+export interface UpdateAgentConfigRequest {
+  greeting_tone?: string;
+  custom_greeting?: string;
+  booking_mode?: string;
+  can_discuss_pricing?: boolean;
+  can_handle_emergencies?: boolean;
+  escalation_threshold?: number;
+  require_callback_confirmation?: boolean;
+  send_sms_summary?: boolean;
+}
+
+export type GetAgentConfigResponse = AgentConfig;
+
+// ============================================================================
+// Pricing Rules Endpoints
+// ============================================================================
+
+export interface CreatePricingRuleRequest {
+  service_name: string;
+  base_price?: number;
+  price_range_min?: number;
+  price_range_max?: number;
+  unit?: string;
+  description: string;
+  can_quote_exact?: boolean;
+  requires_inspection?: boolean;
+}
+
+export interface ListPricingRulesResponse {
+  pricing_rules: PricingRule[];
+}
+
+// ============================================================================
+// Mock Telephony (Development)
+// ============================================================================
+
+export interface MockInboundCallRequest {
+  from_number: string;
+  caller_intent?: string;
+  caller_questions?: string[];
+}
+
+export interface MockInboundSMSRequest {
+  from_number: string;
+  message_body: string;
+}
+
+// ============================================================================
+// Dashboard/Analytics
+// ============================================================================
+
+export interface DashboardStatsResponse {
+  today: {
+    total_calls: number;
+    ai_handled_calls: number;
+    new_leads: number;
+    appointments_scheduled: number;
+    flagged_questions: number;
+  };
+  week: {
+    total_calls: number;
+    ai_handled_calls: number;
+    new_leads: number;
+    appointments_scheduled: number;
+  };
+  recent_calls: Call[];
+  recent_leads: Contact[];
+  urgent_items: UrgentItem[];
+}
+
+export interface UrgentItem {
+  type: 'FLAGGED_QUESTION' | 'MISSED_CALL' | 'COMPLAINT';
+  id: UUID;
+  description: string;
+  created_at: Timestamp;
+}
