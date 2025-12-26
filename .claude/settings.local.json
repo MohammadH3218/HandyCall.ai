@@ -6,7 +6,9 @@
       "Bash(./create-cognito-pools-simple.sh:*)",
       "Bash(test:*)",
       "Bash(git ls-files:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(grep:*)",
+      "Bash(sort:*)"
     ]
   }
 }
