@@ -8,6 +8,7 @@ import type {
   User,
   Contact,
   Call,
+  CallHighlight,
   Appointment,
   KnowledgeItem,
   FlaggedQuestion,
