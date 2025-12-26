@@ -177,11 +177,8 @@ export interface TranscriptSegment {
   confidence?: number;
 }
 
-export interface CallHighlight {
-  timestamp_seconds: number;
-  type: string;
-  description: string;
-}
+// CallHighlight is imported from domain.ts
+// Removed duplicate definition
 
 // ============================================================================
 // Appointment Endpoints
