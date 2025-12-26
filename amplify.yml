@@ -1,0 +1,23 @@
+version: 1
+frontend:
+  phases:
+    preBuild:
+      commands:
+        - npm ci
+    build:
+      commands:
+        - cd packages/web
+        - npm run build
+  artifacts:
+    baseDirectory: packages/web
+    files:
+      - '.next/**/*'
+      - 'public/**/*'
+      - 'node_modules/**/*'
+      - 'package.json'
+      - 'next.config.js'
+  cache:
+    paths:
+      - node_modules/**/*
+      - packages/*/node_modules/**/*
+      - packages/web/.next/cache/**/*
