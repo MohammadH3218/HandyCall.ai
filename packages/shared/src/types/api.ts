@@ -14,14 +14,12 @@ import type {
   FlaggedQuestion,
   AgentConfig,
   PricingRule,
-  SMS,
   UUID,
   Timestamp,
 } from './domain';
 
 import type {
   CallTranscript,
-  TranscriptSegment,
 } from './telephony';
 
 // ============================================================================
@@ -172,7 +170,7 @@ export interface GetCallResponse {
   highlights?: CallHighlight[];
 }
 
-// CallTranscript and TranscriptSegment are imported from telephony.ts
+// CallTranscript is imported from telephony.ts
 // CallHighlight is imported from domain.ts
 
 // ============================================================================
