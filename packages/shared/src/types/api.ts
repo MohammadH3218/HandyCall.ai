@@ -166,19 +166,8 @@ export interface GetCallResponse {
   highlights?: CallHighlight[];
 }
 
-export interface CallTranscript {
-  segments: TranscriptSegment[];
-}
-
-export interface TranscriptSegment {
-  speaker: 'AI' | 'CALLER';
-  text: string;
-  timestamp_seconds: number;
-  confidence?: number;
-}
-
+// CallTranscript and TranscriptSegment are imported from telephony.ts
 // CallHighlight is imported from domain.ts
-// Removed duplicate definition
 
 // ============================================================================
 // Appointment Endpoints
