@@ -10,13 +10,9 @@ frontend:
         - cd packages/web
         - npm run build
   artifacts:
-    baseDirectory: packages/web
+    baseDirectory: packages/web/out
     files:
-      - '.next/**/*'
-      - 'public/**/*'
-      - 'node_modules/**/*'
-      - 'package.json'
-      - 'next.config.js'
+      - '**/*'
   cache:
     paths:
       - node_modules/**/*
