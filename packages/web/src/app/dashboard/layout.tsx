@@ -9,7 +9,7 @@ import { Home, Phone, Calendar, MessageSquare, Settings, LogOut } from 'lucide-r
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
-  const { isAuthenticated, isLoading, logout, checkAuth } = useAuthStore();
+  const { isAuthenticated, isLoading, logout, checkAuth, userRole } = useAuthStore();
 
   useEffect(() => {
     checkAuth();
@@ -18,8 +18,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
       router.push('/login');
+    } else if (!isLoading && isAuthenticated && userRole === 'admin') {
+      // Redirect admins to admin dashboard
+      router.push('/admin');
     }
-  }, [isAuthenticated, isLoading, router]);
+  }, [isAuthenticated, isLoading, userRole, router]);
 
   const handleLogout = () => {
     logout();

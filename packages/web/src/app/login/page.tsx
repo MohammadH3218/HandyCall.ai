@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -31,7 +30,12 @@ export default function LoginPage() {
       if (result.requiresPasswordChange) {
         setShowPasswordChange(true);
       } else {
-        router.push('/dashboard');
+        // Redirect based on user role
+        if (result.userRole === 'admin') {
+          router.push('/admin');
+        } else {
+          router.push('/dashboard');
+        }
       }
     } catch (err: any) {
       setError(err.message || 'Invalid email or password');
@@ -58,7 +62,13 @@ export default function LoginPage() {
 
     try {
       await changePassword(email, newPassword, passwordChangeSession!);
-      router.push('/dashboard');
+      // Get user role from store after password change
+      const userRole = useAuthStore.getState().userRole;
+      if (userRole === 'admin') {
+        router.push('/admin');
+      } else {
+        router.push('/dashboard');
+      }
     } catch (err: any) {
       setError(err.message || 'Failed to change password');
     } finally {
@@ -114,16 +124,10 @@ export default function LoginPage() {
                     />
                   </div>
                 </CardContent>
-                <CardFooter className="flex flex-col space-y-4">
+                <CardFooter>
                   <Button type="submit" className="w-full" disabled={isLoading}>
                     {isLoading ? 'Signing in...' : 'Sign In'}
                   </Button>
-                  <p className="text-center text-sm text-gray-600">
-                    Don't have an account?{' '}
-                    <Link href="/register" className="font-medium text-primary hover:underline">
-                      Create one
-                    </Link>
-                  </p>
                 </CardFooter>
               </form>
             </>

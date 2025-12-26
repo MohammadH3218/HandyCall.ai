@@ -1,6 +1,9 @@
 import { create } from 'zustand';
 import { User, Company } from '@handycall/shared';
 import { apiClient } from '@/lib/api-client';
+import { extractUserRole } from '@/lib/jwt';
+
+type UserRole = 'admin' | 'customer';
 
 interface AuthState {
   user: User | null;
@@ -9,13 +12,14 @@ interface AuthState {
   idToken: string | null;
   refreshToken: string | null;
   email: string | null;
+  userRole: UserRole | null;
   isAuthenticated: boolean;
   isLoading: boolean;
   requiresPasswordChange: boolean;
   passwordChangeSession: string | null;
 
   // Actions
-  login: (email: string, password: string) => Promise<{ requiresPasswordChange: boolean }>;
+  login: (email: string, password: string) => Promise<{ requiresPasswordChange: boolean; userRole: UserRole | null }>;
   changePassword: (email: string, newPassword: string, session: string) => Promise<void>;
   register: (data: any) => Promise<void>;
   logout: () => void;
@@ -30,6 +34,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   idToken: null,
   refreshToken: null,
   email: null,
+  userRole: null,
   isAuthenticated: false,
   isLoading: true,
   requiresPasswordChange: false,
@@ -47,8 +52,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           email,
           isLoading: false,
         });
-        return { requiresPasswordChange: true };
+        return { requiresPasswordChange: true, userRole: null };
       }
+
+      // Extract user role from ID token
+      const userRole = response.id_token ? extractUserRole(response.id_token) : null;
 
       // Set tokens
       apiClient.setAccessToken(response.access_token);
@@ -58,6 +66,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         localStorage.setItem('id_token', response.id_token);
         localStorage.setItem('refresh_token', response.refresh_token);
         localStorage.setItem('email', email);
+        if (userRole) {
+          localStorage.setItem('user_role', userRole);
+        }
       }
 
       set({
@@ -66,13 +77,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         idToken: response.id_token,
         refreshToken: response.refresh_token,
         email,
+        userRole,
         isAuthenticated: true,
         isLoading: false,
         requiresPasswordChange: false,
         passwordChangeSession: null,
       });
 
-      return { requiresPasswordChange: false };
+      return { requiresPasswordChange: false, userRole };
     } catch (error) {
       set({ isLoading: false });
       throw error;
@@ -83,6 +95,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       const response = await apiClient.changePassword(email, newPassword, session);
 
+      // Extract user role from ID token
+      const userRole = response.id_token ? extractUserRole(response.id_token) : null;
+
       // Set tokens after password change
       apiClient.setAccessToken(response.access_token);
 
@@ -91,6 +106,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         localStorage.setItem('id_token', response.id_token);
         localStorage.setItem('refresh_token', response.refresh_token);
         localStorage.setItem('email', email);
+        if (userRole) {
+          localStorage.setItem('user_role', userRole);
+        }
       }
 
       set({
@@ -99,6 +117,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         idToken: response.id_token,
         refreshToken: response.refresh_token,
         email,
+        userRole,
         isAuthenticated: true,
         isLoading: false,
         requiresPasswordChange: false,
@@ -144,6 +163,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       localStorage.removeItem('id_token');
       localStorage.removeItem('refresh_token');
       localStorage.removeItem('email');
+      localStorage.removeItem('user_role');
     }
 
     set({
@@ -153,6 +173,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       idToken: null,
       refreshToken: null,
       email: null,
+      userRole: null,
       isAuthenticated: false,
       isLoading: false,
       requiresPasswordChange: false,
@@ -186,14 +207,19 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const idToken = localStorage.getItem('id_token');
     const refreshToken = localStorage.getItem('refresh_token');
     const email = localStorage.getItem('email');
+    const userRole = localStorage.getItem('user_role') as UserRole | null;
 
     if (accessToken && refreshToken && email) {
+      // If role not in localStorage, try to extract from token
+      const extractedRole = idToken ? extractUserRole(idToken) : userRole;
+      
       apiClient.setAccessToken(accessToken);
       set({
         accessToken,
         idToken,
         refreshToken,
         email,
+        userRole: extractedRole || userRole,
         isAuthenticated: true,
         isLoading: false,
       });
