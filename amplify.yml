@@ -4,6 +4,7 @@ frontend:
     preBuild:
       commands:
         - npm ci
+        - npm run build -w packages/shared
     build:
       commands:
         - cd packages/web
