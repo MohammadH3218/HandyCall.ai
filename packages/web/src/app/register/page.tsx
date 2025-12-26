@@ -66,7 +66,7 @@ export default function RegisterPage() {
                 </div>
               )}
 
-              {/* Business Information */}
+              {/* Business Information Here */}
               <div className="space-y-4">
                 <h3 className="text-sm font-semibold text-gray-900">Business Information</h3>
 

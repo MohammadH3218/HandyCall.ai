@@ -4,7 +4,9 @@
       "Bash(chmod:*)",
       "Bash(./create-cognito-pools.sh:*)",
       "Bash(./create-cognito-pools-simple.sh:*)",
-      "Bash(test:*)"
+      "Bash(test:*)",
+      "Bash(git ls-files:*)",
+      "Bash(git add:*)"
     ]
   }
 }
