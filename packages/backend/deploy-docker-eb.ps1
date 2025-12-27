@@ -67,10 +67,17 @@ Write-Host "Step 4: Building Docker image..." -ForegroundColor Cyan
 Write-Host "This may take a few minutes..." -ForegroundColor Yellow
 
 # Build from project root to include both packages/shared and packages/backend
-Push-Location ../..
-docker build -f packages/backend/Dockerfile -t $IMAGE_NAME:latest .
-$buildResult = $LASTEXITCODE
-Pop-Location
+$scriptPath = Split-Path -Parent $MyInvocation.MyCommand.Path
+$projectRoot = Split-Path -Parent (Split-Path -Parent $scriptPath)
+$originalLocation = Get-Location
+
+try {
+    Set-Location $projectRoot
+    docker build -f packages/backend/Dockerfile -t $IMAGE_NAME:latest .
+    $buildResult = $LASTEXITCODE
+} finally {
+    Set-Location $originalLocation
+}
 
 if ($buildResult -ne 0) {
     Write-Host "ERROR: Docker build failed" -ForegroundColor Red
@@ -85,23 +92,24 @@ $TIMESTAMP = Get-Date -Format "yyyyMMdd-HHmmss"
 $IMAGE_TAG = "${ECR_REPO}:${TIMESTAMP}"
 $IMAGE_LATEST = "${ECR_REPO}:latest"
 
-docker tag "$IMAGE_NAME:latest" $IMAGE_TAG
-docker tag "$IMAGE_NAME:latest" $IMAGE_LATEST
+docker tag "${IMAGE_NAME}:latest" $IMAGE_TAG
+docker tag "${IMAGE_NAME}:latest" $IMAGE_LATEST
 
 Write-Host "Pushing tagged image: $IMAGE_TAG" -ForegroundColor Yellow
 docker push $IMAGE_TAG
 if ($LASTEXITCODE -ne 0) {
-    Write-Host "ERROR: Failed to push tagged image" -ForegroundColor Red
-    exit 1
+  Write-Host "ERROR: Failed to push tagged image" -ForegroundColor Red
+  exit 1
 }
 
 Write-Host "Pushing latest image: $IMAGE_LATEST" -ForegroundColor Yellow
 docker push $IMAGE_LATEST
 if ($LASTEXITCODE -ne 0) {
-    Write-Host "ERROR: Failed to push latest image" -ForegroundColor Red
-    exit 1
+  Write-Host "ERROR: Failed to push latest image" -ForegroundColor Red
+  exit 1
 }
 Write-Host "Images pushed to ECR" -ForegroundColor Green
+Write-Host "Using image tag: $IMAGE_TAG" -ForegroundColor Green
 
 # Step 6: Create Dockerrun.aws.json with ECR image
 Write-Host ""
@@ -124,7 +132,9 @@ $dockerrunContent = @"
 }
 "@
 
-$dockerrunContent | Out-File -FilePath "Dockerrun.aws.json" -Encoding utf8 -NoNewline
+# Use UTF8NoBOM encoding to avoid BOM issues
+$utf8NoBomEncoding = New-Object System.Text.UTF8Encoding $false
+[System.IO.File]::WriteAllText((Resolve-Path ".").Path + "\Dockerrun.aws.json", $dockerrunContent, $utf8NoBomEncoding)
 
 # Create deployment zip
 if (Test-Path "deploy.zip") { Remove-Item "deploy.zip" -Force }
