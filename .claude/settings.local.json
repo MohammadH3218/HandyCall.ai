@@ -100,7 +100,23 @@
       "Bash(do aws elasticbeanstalk describe-environments --application-name handycall-api --environment-names handycall-api-docker --region us-east-1 --query \"Environments[0].[Status,Health]\" --output text)",
       "Bash(docker --version:*)",
       "Bash(aws elasticbeanstalk terminate-environment:*)",
-      "Bash(xargs rm:*)"
+      "Bash(xargs rm:*)",
+      "Bash(powershell.exe -ExecutionPolicy Bypass -Command \"& { .\\\\deploy-docker-eb.ps1 }\")",
+      "Bash(powershell.exe -Command \"docker --version\")",
+      "Bash(aws ecr get-login-password:*)",
+      "Bash(docker login:*)",
+      "Bash(docker tag:*)",
+      "Bash(docker push:*)",
+      "Bash(powershell.exe -Command \"Compress-Archive -Path ''Dockerrun.aws.json'' -DestinationPath ''deploy.zip'' -Force\")",
+      "Bash(do echo \"=== Check $i ===\")",
+      "Bash(aws iam attach-role-policy:*)",
+      "Bash(aws elasticbeanstalk restart-app-server:*)",
+      "Bash(timeout 10 docker run:*)",
+      "Bash(powershell.exe -Command \"Expand-Archive -Path ''eb-logs-success.zip'' -DestinationPath ''eb-logs-success'' -Force\")",
+      "Bash(dir:*)",
+      "Bash(findstr:*)",
+      "Bash(powershell.exe -Command \"Get-ChildItem -Recurse -File | Select-Object FullName | Out-String\")",
+      "Bash(powershell.exe -Command \"Get-ChildItem -File | Select-Object -First 1 -ExpandProperty FullName\")"
     ]
   }
 }

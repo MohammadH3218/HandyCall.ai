@@ -1,0 +1,23 @@
+Dec 27 15:45:07 ip-172-31-12-15 docker[1907]: time="2025-12-27T15:45:07.074394969Z" level=info msg="Starting up"
+Dec 27 15:45:07 ip-172-31-12-15 docker[1907]: time="2025-12-27T15:45:07.236225583Z" level=info msg="Loading containers: start."
+Dec 27 15:45:07 ip-172-31-12-15 docker[1907]: time="2025-12-27T15:45:07.757159523Z" level=info msg="Loading containers: done."
+Dec 27 15:45:07 ip-172-31-12-15 docker[1907]: time="2025-12-27T15:45:07.777329545Z" level=info msg="Docker daemon" commit=165516e containerd-snapshotter=false storage-driver=overlay2 version=25.0.13
+Dec 27 15:45:07 ip-172-31-12-15 docker[1907]: time="2025-12-27T15:45:07.777478438Z" level=info msg="Daemon has completed initialization"
+Dec 27 15:45:07 ip-172-31-12-15 docker[1907]: time="2025-12-27T15:45:07.829416118Z" level=info msg="API listen on /run/docker.sock"
+Dec 27 15:45:34 ip-172-31-12-15 docker[1907]: 2025/12/27 15:45:34 http: superfluous response.WriteHeader call from go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp.(*respWriterWrapper).WriteHeader (wrap.go:98)
+Dec 27 15:45:36 ip-172-31-12-15 docker[1907]: 2025/12/27 15:45:36 http2: server: error reading preface from client @: read unix /run/docker.sock->@: read: connection reset by peer
+Dec 27 15:45:36 ip-172-31-12-15 docker[1907]: 2025/12/27 15:45:36 http2: server: error reading preface from client @: read unix /run/docker.sock->@: read: connection reset by peer
+Dec 27 15:46:09 ip-172-31-12-15 docker[1907]: 2025/12/27 15:46:09 http2: server: error reading preface from client @: read unix /run/docker.sock->@: read: connection reset by peer
+Dec 27 15:48:37 ip-172-31-12-15 docker[1907]: 2025/12/27 15:48:37 http: superfluous response.WriteHeader call from go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp.(*respWriterWrapper).WriteHeader (wrap.go:98)
+Dec 27 16:32:24 ip-172-31-12-15 docker[1907]: time="2025-12-27T16:32:24.409498551Z" level=info msg="Container failed to exit within 10s of signal 15 - using the force" container=78ba8969274fe6f600c4e686c2569b260b0121ec9fd331342c9989b35ed99808
+Dec 27 16:32:24 ip-172-31-12-15 docker[1907]: time="2025-12-27T16:32:24.458699752Z" level=info msg="ignoring event" container=78ba8969274fe6f600c4e686c2569b260b0121ec9fd331342c9989b35ed99808 module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+Dec 27 16:35:07 ip-172-31-12-15 docker[1907]: time="2025-12-27T16:35:07.526660938Z" level=info msg="Container failed to exit within 10s of signal 15 - using the force" container=78ba8969274fe6f600c4e686c2569b260b0121ec9fd331342c9989b35ed99808
+Dec 27 16:35:07 ip-172-31-12-15 docker[1907]: time="2025-12-27T16:35:07.588341856Z" level=info msg="ignoring event" container=78ba8969274fe6f600c4e686c2569b260b0121ec9fd331342c9989b35ed99808 module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+Dec 27 16:35:10 ip-172-31-12-15 docker[1907]: time="2025-12-27T16:35:10.098141609Z" level=info msg="ignoring event" container=24a51d5876088be93408d002421dc9bece688c1d47c9049652f4dfef3216aee1 module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+Dec 27 16:35:14 ip-172-31-12-15 docker[1907]: 2025/12/27 16:35:14 http: superfluous response.WriteHeader call from go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp.(*respWriterWrapper).WriteHeader (wrap.go:98)
+Dec 27 16:43:35 ip-172-31-12-15 docker[1907]: 2025/12/27 16:43:35 http2: server: error reading preface from client @: read unix /run/docker.sock->@: read: connection reset by peer
+Dec 27 16:43:39 ip-172-31-12-15 docker[1907]: time="2025-12-27T16:43:39.658804504Z" level=info msg="ignoring event" container=225cab70ac7daefe6fa58f098683f3f91d17b84ebf9ae11db827194663d031f0 module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+Dec 27 16:43:44 ip-172-31-12-15 docker[1907]: 2025/12/27 16:43:44 http: superfluous response.WriteHeader call from go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp.(*respWriterWrapper).WriteHeader (wrap.go:98)
+Dec 27 17:05:37 ip-172-31-12-15 docker[1907]: 2025/12/27 17:05:37 http2: server: error reading preface from client @: read unix /run/docker.sock->@: read: connection reset by peer
+Dec 27 17:05:37 ip-172-31-12-15 docker[1907]: 2025/12/27 17:05:37 http2: server: error reading preface from client @: read unix /run/docker.sock->@: read: connection reset by peer
+Dec 27 17:05:48 ip-172-31-12-15 docker[1907]: 2025/12/27 17:05:48 http: superfluous response.WriteHeader call from go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp.(*respWriterWrapper).WriteHeader (wrap.go:98)

@@ -8,6 +8,9 @@ FROM node:20-alpine AS shared-builder
 
 WORKDIR /build
 
+# Copy root tsconfig (needed by shared package)
+COPY tsconfig.json ./
+
 # Copy shared package
 COPY packages/shared/package*.json ./packages/shared/
 COPY packages/shared/tsconfig.json ./packages/shared/
@@ -22,6 +25,9 @@ RUN npm run build
 # Stage 2: Build backend
 # =============================================================================
 FROM node:20-alpine AS backend-builder
+
+# Install build dependencies for native modules (bcrypt, etc.)
+RUN apk add --no-cache python3 make g++
 
 WORKDIR /build
 
@@ -85,5 +91,5 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3 \
 ENTRYPOINT ["dumb-init", "--"]
 
 # Start the application
-# The build output is at dist/packages/backend/src/main.js based on nest build
-CMD ["node", "dist/packages/backend/src/main.js"]
+# NestJS outputs to dist/backend/src/main.js in the container
+CMD ["node", "dist/backend/src/main.js"]

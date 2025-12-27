@@ -29,10 +29,14 @@ Write-Host ""
 Write-Host "Step 2: Setting up ECR repository..." -ForegroundColor Cyan
 $ECR_REPO = "$ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$IMAGE_NAME"
 
+$ErrorActionPreference = "Continue"
 $repoCheck = aws ecr describe-repositories --repository-names $IMAGE_NAME --region $REGION 2>&1
-if ($LASTEXITCODE -ne 0) {
+$repoExists = $LASTEXITCODE -eq 0
+$ErrorActionPreference = "Stop"
+
+if (-not $repoExists) {
     Write-Host "Creating ECR repository..." -ForegroundColor Yellow
-    aws ecr create-repository --repository-name $IMAGE_NAME --region $REGION --no-cli-pager
+    aws ecr create-repository --repository-name $IMAGE_NAME --region $REGION
     if ($LASTEXITCODE -ne 0) {
         Write-Host "ERROR: Failed to create ECR repository" -ForegroundColor Red
         exit 1
@@ -78,8 +82,8 @@ Write-Host "Docker image built successfully" -ForegroundColor Green
 Write-Host ""
 Write-Host "Step 5: Pushing to ECR..." -ForegroundColor Cyan
 $TIMESTAMP = Get-Date -Format "yyyyMMdd-HHmmss"
-$IMAGE_TAG = "$ECR_REPO:$TIMESTAMP"
-$IMAGE_LATEST = "$ECR_REPO:latest"
+$IMAGE_TAG = "${ECR_REPO}:${TIMESTAMP}"
+$IMAGE_LATEST = "${ECR_REPO}:latest"
 
 docker tag "$IMAGE_NAME:latest" $IMAGE_TAG
 docker tag "$IMAGE_NAME:latest" $IMAGE_LATEST
