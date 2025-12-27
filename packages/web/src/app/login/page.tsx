@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Logo } from '@/components/ui/logo';
 import { useAuthStore } from '@/stores/auth-store';
 
 export default function LoginPage() {
@@ -17,10 +18,12 @@ export default function LoginPage() {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [companyName, setCompanyName] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showPasswordChangeModal, setShowPasswordChangeModal] = useState(false);
-  
+
   // Determine if company name is required (only for users pool, not admin)
   const requiresCompanyName = passwordChangePoolType === 'users';
 
@@ -97,6 +100,17 @@ export default function LoginPage() {
       return;
     }
 
+    // First and last name validation (only for users pool)
+    if (requiresCompanyName && !firstName.trim()) {
+      setError('First name is required');
+      return;
+    }
+
+    if (requiresCompanyName && !lastName.trim()) {
+      setError('Last name is required');
+      return;
+    }
+
     if (!passwordChangeSession) {
       setError('Session expired. Please login again.');
       return;
@@ -107,12 +121,16 @@ export default function LoginPage() {
     try {
       // Only send company_name for users pool
       const companyNameToSend = requiresCompanyName ? companyName.trim() : undefined;
-      await changePassword(email, newPassword, passwordChangeSession!, passwordChangePoolType || undefined, companyNameToSend);
+      const firstNameToSend = requiresCompanyName ? firstName.trim() : undefined;
+      const lastNameToSend = requiresCompanyName ? lastName.trim() : undefined;
+      await changePassword(email, newPassword, passwordChangeSession!, passwordChangePoolType || undefined, companyNameToSend, firstNameToSend, lastNameToSend);
       // Close modal and reset form
       setShowPasswordChangeModal(false);
       setNewPassword('');
       setConfirmPassword('');
       setCompanyName('');
+      setFirstName('');
+      setLastName('');
       // Get user role from store after password change
       const userRole = useAuthStore.getState().userRole;
       if (userRole === 'admin') {
@@ -128,11 +146,11 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4 py-12">
+    <div className="flex min-h-screen items-center justify-center bg-background px-4 py-12">
       <div className="w-full max-w-md">
-        <div className="mb-8 text-center">
-          <h1 className="text-3xl font-bold text-gray-900">HandyCall</h1>
-          <p className="mt-2 text-sm text-gray-600">AI Receptionist for Your Business</p>
+        <div className="mb-8 flex flex-col items-center space-y-3">
+          <Logo variant="words" width={240} height={60} />
+          <p className="text-sm text-muted-foreground">AI Receptionist for Your Business</p>
         </div>
 
         <Card>
@@ -188,7 +206,7 @@ export default function LoginPage() {
               <DialogTitle>Change Password</DialogTitle>
               <DialogDescription>
                 Your account requires a password change. Please set a new password for your account.
-                {requiresCompanyName && ' You will also need to provide your company name.'}
+                {requiresCompanyName && ' You will also need to provide your name and company name.'}
               </DialogDescription>
             </DialogHeader>
             <form onSubmit={handlePasswordChange}>
@@ -225,25 +243,53 @@ export default function LoginPage() {
                   />
                 </div>
 
-                {/* Company Name - Only for users pool, not admin */}
+                {/* Company Name, First Name, Last Name - Only for users pool, not admin */}
                 {requiresCompanyName && (
-                  <div className="space-y-2">
-                    <Label htmlFor="company-name">Company Name</Label>
-                    <Input
-                      id="company-name"
-                      type="text"
-                      placeholder="Enter your company name"
-                      value={companyName}
-                      onChange={(e) => setCompanyName(e.target.value)}
-                      required
-                      disabled={isLoading}
-                    />
-                  </div>
+                  <>
+                    <div className="space-y-2">
+                      <Label htmlFor="first-name">First Name</Label>
+                      <Input
+                        id="first-name"
+                        type="text"
+                        placeholder="Enter your first name"
+                        value={firstName}
+                        onChange={(e) => setFirstName(e.target.value)}
+                        required
+                        disabled={isLoading}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="last-name">Last Name</Label>
+                      <Input
+                        id="last-name"
+                        type="text"
+                        placeholder="Enter your last name"
+                        value={lastName}
+                        onChange={(e) => setLastName(e.target.value)}
+                        required
+                        disabled={isLoading}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="company-name">Company Name</Label>
+                      <Input
+                        id="company-name"
+                        type="text"
+                        placeholder="Enter your company name"
+                        value={companyName}
+                        onChange={(e) => setCompanyName(e.target.value)}
+                        required
+                        disabled={isLoading}
+                      />
+                    </div>
+                  </>
                 )}
 
-                <div className="rounded-md bg-blue-50 p-3 text-sm text-blue-700">
+                <div className="rounded-md bg-secondary p-3 text-sm text-muted-foreground border border-border">
                   Password must be at least 8 characters with uppercase, lowercase, and numbers.
-                  {requiresCompanyName && ' Please also provide your company name.'}
+                  {requiresCompanyName && ' Please also provide your name and company name.'}
                 </div>
               </div>
               <DialogFooter>

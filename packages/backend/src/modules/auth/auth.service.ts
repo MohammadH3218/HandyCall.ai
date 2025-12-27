@@ -280,7 +280,9 @@ export class AuthService {
     newPassword: string,
     session: string,
     poolType: 'users' | 'admin' = 'users',
-    companyName?: string
+    companyName?: string,
+    firstName?: string,
+    lastName?: string
   ) {
     try {
       const result = await this.cognitoService.respondToNewPasswordChallenge(
@@ -322,13 +324,22 @@ export class AuthService {
 
           companyId = company.company_id;
 
-          // Update Cognito user attributes with company_id and company_name
+          // Update Cognito user attributes with company_id, company_name, and name
+          const attributesToUpdate: Record<string, string> = {
+            'custom:company_id': companyId,
+            'custom:company_name': companyName,
+          };
+
+          if (firstName) {
+            attributesToUpdate['given_name'] = firstName;
+          }
+          if (lastName) {
+            attributesToUpdate['family_name'] = lastName;
+          }
+
           await this.cognitoService.updateUserAttributes(
             email,
-            {
-              'custom:company_id': companyId,
-              'custom:company_name': companyName,
-            },
+            attributesToUpdate,
             poolType
           );
 
@@ -336,16 +347,16 @@ export class AuthService {
           try {
             const existingUser = await this.usersService.findByEmail(email);
             if (!existingUser) {
-              // Get user info from Cognito attributes
-              const firstName = result.userAttributes?.['given_name'] || result.userAttributes?.['name']?.split(' ')[0] || 'User';
-              const lastName = result.userAttributes?.['family_name'] || result.userAttributes?.['name']?.split(' ').slice(1).join(' ') || '';
-              
+              // Get user info from provided parameters or Cognito attributes
+              const userFirstName = firstName || result.userAttributes?.['given_name'] || result.userAttributes?.['name']?.split(' ')[0] || 'User';
+              const userLastName = lastName || result.userAttributes?.['family_name'] || result.userAttributes?.['name']?.split(' ').slice(1).join(' ') || '';
+
               await this.usersService.createUser(
                 companyId,
                 email,
                 '', // Password not needed, using Cognito
-                firstName,
-                lastName,
+                userFirstName,
+                userLastName,
                 UserRole.OWNER,
                 phoneNumber !== '+10000000000' ? phoneNumber : undefined
               );

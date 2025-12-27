@@ -22,4 +22,14 @@ export class ChangePasswordDto {
   @IsString()
   @IsNotEmpty()
   company_name?: string; // Required for users pool, optional for admin pool
+
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  first_name?: string; // Optional for all pools
+
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  last_name?: string; // Optional for all pools
 }

@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/stores/auth-store';
+import { Logo } from '@/components/ui/logo';
+import { ProfileDropdown } from '@/components/profile-dropdown';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 
@@ -29,7 +31,7 @@ interface Company {
 
 export default function AdminDashboardPage() {
   const router = useRouter();
-  const { userRole, isAuthenticated, isLoading, logout } = useAuthStore();
+  const { userRole, isAuthenticated, isLoading } = useAuthStore();
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [isLoadingStats, setIsLoadingStats] = useState(true);
@@ -89,11 +91,6 @@ export default function AdminDashboardPage() {
     }
   };
 
-  const handleLogout = () => {
-    logout();
-    router.push('/login');
-  };
-
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
@@ -111,25 +108,34 @@ export default function AdminDashboardPage() {
 
   if (isLoading || isLoadingStats) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="text-lg">Loading...</div>
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <div className="text-center">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent mx-auto"></div>
+          <p className="mt-4 text-sm text-muted-foreground">Loading...</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="bg-white shadow-sm">
+      <header className="bg-card shadow-sm border-b border-border sticky top-0 z-10">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="flex h-16 items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Admin Dashboard</h1>
-              <p className="text-sm text-gray-600">HandyCall Platform Management</p>
+          <div className="flex h-16 items-center justify-between gap-4">
+            <div className="flex items-center space-x-2 sm:space-x-4 flex-1 min-w-0">
+              <div className="hidden sm:block">
+                <Logo variant="words" width={160} height={40} />
+              </div>
+              <div className="sm:hidden">
+                <Logo variant="icon" width={40} height={40} />
+              </div>
+              <div className="border-l border-border pl-2 sm:pl-4 min-w-0 flex-1">
+                <h1 className="text-base sm:text-xl font-semibold text-foreground truncate">Admin Dashboard</h1>
+                <p className="text-xs text-muted-foreground hidden sm:block">Platform Management</p>
+              </div>
             </div>
-            <Button onClick={handleLogout} variant="outline">
-              Logout
-            </Button>
+            <ProfileDropdown />
           </div>
         </div>
       </header>
@@ -138,7 +144,7 @@ export default function AdminDashboardPage() {
       <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         {/* Stats Grid */}
         <div className="mb-8 grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-          <Card>
+          <Card className="transition-all duration-200 hover:shadow-md">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
             </CardHeader>
@@ -148,19 +154,19 @@ export default function AdminDashboardPage() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="transition-all duration-200 hover:shadow-md">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Profit</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-green-600">
+              <div className="text-2xl font-bold text-primary">
                 {formatCurrency(stats?.totalProfit || 0)}
               </div>
               <p className="text-xs text-muted-foreground">After expenses</p>
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="transition-all duration-200 hover:shadow-md">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Companies</CardTitle>
             </CardHeader>
@@ -170,7 +176,7 @@ export default function AdminDashboardPage() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="transition-all duration-200 hover:shadow-md">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Subscriptions</CardTitle>
             </CardHeader>
@@ -180,7 +186,7 @@ export default function AdminDashboardPage() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="transition-all duration-200 hover:shadow-md">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Monthly Revenue</CardTitle>
             </CardHeader>
@@ -190,19 +196,19 @@ export default function AdminDashboardPage() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="transition-all duration-200 hover:shadow-md">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Monthly Profit</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-green-600">
+              <div className="text-2xl font-bold text-primary">
                 {formatCurrency(stats?.monthlyProfit || 0)}
               </div>
               <p className="text-xs text-muted-foreground">This month</p>
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="transition-all duration-200 hover:shadow-md">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Active Users</CardTitle>
             </CardHeader>
@@ -212,7 +218,7 @@ export default function AdminDashboardPage() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="transition-all duration-200 hover:shadow-md">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Average Revenue</CardTitle>
             </CardHeader>
@@ -234,77 +240,79 @@ export default function AdminDashboardPage() {
             <CardDescription>Manage all companies on the platform</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b">
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">
-                      Company Name
-                    </th>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">
-                      Service Type
-                    </th>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Status</th>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Tier</th>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">
-                      Revenue
-                    </th>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">
-                      Subscriptions
-                    </th>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">
-                      Created
-                    </th>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {companies.length === 0 ? (
-                    <tr>
-                      <td colSpan={8} className="px-4 py-8 text-center text-sm text-gray-500">
-                        No companies found
-                      </td>
+            <div className="overflow-x-auto -mx-6 sm:mx-0">
+              <div className="inline-block min-w-full align-middle">
+                <table className="min-w-full divide-y divide-border">
+                  <thead>
+                    <tr className="border-b border-border">
+                      <th className="px-3 sm:px-4 py-3 text-left text-sm font-medium text-foreground whitespace-nowrap">
+                        Company Name
+                      </th>
+                      <th className="px-3 sm:px-4 py-3 text-left text-sm font-medium text-foreground hidden md:table-cell">
+                        Service Type
+                      </th>
+                      <th className="px-3 sm:px-4 py-3 text-left text-sm font-medium text-foreground">Status</th>
+                      <th className="px-3 sm:px-4 py-3 text-left text-sm font-medium text-foreground hidden lg:table-cell">Tier</th>
+                      <th className="px-3 sm:px-4 py-3 text-left text-sm font-medium text-foreground hidden sm:table-cell">
+                        Revenue
+                      </th>
+                      <th className="px-3 sm:px-4 py-3 text-left text-sm font-medium text-foreground hidden xl:table-cell">
+                        Subscriptions
+                      </th>
+                      <th className="px-3 sm:px-4 py-3 text-left text-sm font-medium text-foreground hidden lg:table-cell">
+                        Created
+                      </th>
+                      <th className="px-3 sm:px-4 py-3 text-left text-sm font-medium text-foreground">
+                        Actions
+                      </th>
                     </tr>
-                  ) : (
-                    companies.map((company) => (
-                      <tr key={company.company_id} className="border-b hover:bg-gray-50">
-                        <td className="px-4 py-3 text-sm font-medium">{company.company_name}</td>
-                        <td className="px-4 py-3 text-sm text-gray-600">{company.service_type}</td>
-                        <td className="px-4 py-3">
-                          <span
-                            className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${
-                              company.status === 'ACTIVE'
-                                ? 'bg-green-100 text-green-800'
-                                : 'bg-gray-100 text-gray-800'
-                            }`}
-                          >
-                            {company.status}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-sm text-gray-600">
-                          {company.subscription_tier}
-                        </td>
-                        <td className="px-4 py-3 text-sm font-medium">
-                          {formatCurrency(company.revenue)}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-gray-600">
-                          {company.subscription_count}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-gray-600">
-                          {formatDate(company.created_at)}
-                        </td>
-                        <td className="px-4 py-3">
-                          <Button variant="outline" size="sm">
-                            View
-                          </Button>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {companies.length === 0 ? (
+                      <tr>
+                        <td colSpan={8} className="px-4 py-8 text-center text-sm text-muted-foreground">
+                          No companies found
                         </td>
                       </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
+                    ) : (
+                      companies.map((company) => (
+                        <tr key={company.company_id} className="hover:bg-secondary transition-colors duration-150">
+                          <td className="px-3 sm:px-4 py-3 text-sm font-medium whitespace-nowrap">{company.company_name}</td>
+                          <td className="px-3 sm:px-4 py-3 text-sm text-muted-foreground hidden md:table-cell">{company.service_type}</td>
+                          <td className="px-3 sm:px-4 py-3">
+                            <span
+                              className={`inline-flex rounded-full px-2 py-1 text-xs font-medium transition-colors duration-150 ${
+                                company.status === 'ACTIVE'
+                                  ? 'bg-primary/10 text-primary'
+                                  : 'bg-secondary text-muted-foreground'
+                              }`}
+                            >
+                              {company.status}
+                            </span>
+                          </td>
+                          <td className="px-3 sm:px-4 py-3 text-sm text-muted-foreground hidden lg:table-cell">
+                            {company.subscription_tier}
+                          </td>
+                          <td className="px-3 sm:px-4 py-3 text-sm font-medium hidden sm:table-cell">
+                            {formatCurrency(company.revenue)}
+                          </td>
+                          <td className="px-3 sm:px-4 py-3 text-sm text-muted-foreground hidden xl:table-cell">
+                            {company.subscription_count}
+                          </td>
+                          <td className="px-3 sm:px-4 py-3 text-sm text-muted-foreground hidden lg:table-cell">
+                            {formatDate(company.created_at)}
+                          </td>
+                          <td className="px-3 sm:px-4 py-3">
+                            <Button variant="outline" size="sm" className="transition-colors duration-200 whitespace-nowrap">
+                              View
+                            </Button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </CardContent>
         </Card>
