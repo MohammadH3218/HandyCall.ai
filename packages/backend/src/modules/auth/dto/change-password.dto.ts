@@ -13,8 +13,8 @@ export class ChangePasswordDto {
   @IsNotEmpty()
   session!: string;
 
-  @IsString()
   @IsOptional()
+  @IsString()
   @IsIn(['users', 'admin'])
   pool_type?: 'users' | 'admin';
 }
