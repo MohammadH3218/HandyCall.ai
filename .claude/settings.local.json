@@ -116,7 +116,15 @@
       "Bash(dir:*)",
       "Bash(findstr:*)",
       "Bash(powershell.exe -Command \"Get-ChildItem -Recurse -File | Select-Object FullName | Out-String\")",
-      "Bash(powershell.exe -Command \"Get-ChildItem -File | Select-Object -First 1 -ExpandProperty FullName\")"
+      "Bash(powershell.exe -Command \"Get-ChildItem -File | Select-Object -First 1 -ExpandProperty FullName\")",
+      "Bash(aws cloudfront list-distributions:*)",
+      "Bash(c:UsersPCDocumentsVSCode~ProjectsHandyCallpackagesbackendcloudfront-config.json)",
+      "Bash(powershell.exe -Command \"$config = Get-Content cloudfront-config.json | ConvertFrom-Json; $config.DistributionConfig.Origins.Items[0].DomainName = ''handycall-api-docker.eba-pmfyttgp.us-east-1.elasticbeanstalk.com''; $config.DistributionConfig | ConvertTo-Json -Depth 20 | Set-Content cloudfront-config-updated.json; Write-Output ''Updated origin to: handycall-api-docker.eba-pmfyttgp.us-east-1.elasticbeanstalk.com''\")",
+      "Bash(powershell.exe -ExecutionPolicy Bypass -File update-cloudfront.ps1)",
+      "Bash(aws cloudfront update-distribution:*)",
+      "Bash(aws cloudfront create-invalidation:*)",
+      "Bash(do echo \"=== Check $i \\(waiting 30s\\) ===\")",
+      "Bash(aws cognito-idp:*)"
     ]
   }
 }
