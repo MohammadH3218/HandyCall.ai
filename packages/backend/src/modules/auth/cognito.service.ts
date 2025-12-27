@@ -128,8 +128,19 @@ export class CognitoService {
         userAttributes,
       };
     } catch (error: any) {
-      console.error('New password challenge error:', error);
-      throw new BadRequestException('Failed to set new password');
+      console.error('[CognitoService] New password challenge error:', error);
+      console.error('[CognitoService] Error details:', {
+        name: error.name,
+        message: error.message,
+        code: error.$metadata?.httpStatusCode,
+      });
+      
+      // Re-throw the original error to preserve error type and message
+      if (error.name === 'NotAuthorizedException') {
+        throw error; // Let AuthService handle this with better message
+      }
+      
+      throw new BadRequestException(error.message || 'Failed to set new password');
     }
   }
 

@@ -127,7 +127,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
 
       set({
-        company: response.company,
+        company: response.company || null,
         accessToken: response.access_token,
         idToken: response.id_token,
         refreshToken: response.refresh_token,
@@ -138,9 +138,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         requiresPasswordChange: false,
         passwordChangeSession: null,
       });
-    } catch (error) {
+    } catch (error: any) {
       set({ isLoading: false });
-      throw error;
+      // Re-throw with better error message if available
+      if (error.message) {
+        throw error;
+      }
+      throw new Error('Failed to change password. Please try again.');
     }
   },
 

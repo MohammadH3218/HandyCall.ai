@@ -234,32 +234,63 @@ export class AuthService {
   }
 
   async changePassword(email: string, newPassword: string, session: string) {
-    const result = await this.cognitoService.respondToNewPasswordChallenge(
-      email,
-      newPassword,
-      session
-    );
+    try {
+      const result = await this.cognitoService.respondToNewPasswordChallenge(
+        email,
+        newPassword,
+        session
+      );
 
-    // Get company info
-    const companyId = result.userAttributes?.['custom:company_id'];
+      // Get company info - handle case where user might not have company_id yet
+      const companyId = result.userAttributes?.['custom:company_id'];
 
-    if (!companyId) {
-      throw new UnauthorizedException('User not properly configured');
+      // If user doesn't have company_id, they might be a new user who hasn't completed setup
+      // Allow password change but return minimal response
+      if (!companyId) {
+        return {
+          access_token: result.accessToken,
+          id_token: result.idToken,
+          refresh_token: result.refreshToken,
+          email,
+          requiresCompanySetup: true,
+        };
+      }
+
+      const company = await this.companiesService.findById(companyId);
+      if (!company) {
+        // Company not found in DB, but password change succeeded
+        // Return tokens but indicate company setup needed
+        return {
+          access_token: result.accessToken,
+          id_token: result.idToken,
+          refresh_token: result.refreshToken,
+          email,
+          requiresCompanySetup: true,
+        };
+      }
+
+      return {
+        access_token: result.accessToken,
+        id_token: result.idToken,
+        refresh_token: result.refreshToken,
+        company,
+        email,
+        company_id: companyId,
+      };
+    } catch (error: any) {
+      console.error('[AuthService] Password change error:', error);
+      
+      // Provide more specific error messages
+      if (error.name === 'NotAuthorizedException' || error.message?.includes('Invalid session')) {
+        throw new UnauthorizedException('Session expired or invalid. Please login again.');
+      }
+      
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      
+      throw new BadRequestException('Failed to change password. Please try again.');
     }
-
-    const company = await this.companiesService.findById(companyId);
-    if (!company) {
-      throw new UnauthorizedException('Company not found');
-    }
-
-    return {
-      access_token: result.accessToken,
-      id_token: result.idToken,
-      refresh_token: result.refreshToken,
-      company,
-      email,
-      company_id: companyId,
-    };
   }
 
   async refreshWithCognito(refreshToken: string, email: string) {
