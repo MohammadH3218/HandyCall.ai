@@ -37,8 +37,12 @@ export function decodeJWT(token: string): JWTPayload | null {
 
 /**
  * Extract user role from JWT token
- * Checks for role in custom:role attribute, cognito:groups, or token_use
- * Admin pool users typically don't have company_id in their token
+ * Checks for role in custom:role attribute or cognito:groups
+ * Note: This is a fallback - the backend should always provide userRole in the login response
+ * 
+ * IMPORTANT: Do NOT use company_id presence to determine role, as customer users
+ * may not have company_id set yet. The poolType (admin vs users) is the source of truth,
+ * which is determined server-side during login.
  */
 export function extractUserRole(token: string): 'admin' | 'customer' | null {
   const payload = decodeJWT(token);
@@ -56,19 +60,9 @@ export function extractUserRole(token: string): 'admin' | 'customer' | null {
     }
   }
 
-  // Admin pool users typically don't have custom:company_id attribute
-  // If token doesn't have company_id, it's likely an admin user
-  if (!payload['custom:company_id'] && !payload.company_id) {
-    // Check if this is a Cognito ID token (has 'token_use' field)
-    if (payload.token_use === 'id') {
-      // For admin users, the token might not have company_id
-      // We'll check if email domain or other indicators suggest admin
-      // For now, if no company_id and it's an ID token, check email or default to admin
-      return 'admin';
-    }
-  }
-
-  // Default to customer if no admin indicators found
+  // Cannot reliably determine role from token alone without poolType information
+  // The backend should always provide userRole, so this should rarely be called
+  // Default to customer as a safe fallback (prevents unauthorized admin access)
   return 'customer';
 }
 

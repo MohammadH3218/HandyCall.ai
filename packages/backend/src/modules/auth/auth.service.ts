@@ -203,10 +203,9 @@ export class AuthService {
 
     // Check if user needs to change password
     if (result.challengeName === 'NEW_PASSWORD_REQUIRED') {
-      // Determine if this is an admin user based on pool type or company_id
+      // Determine if this is an admin user based on pool type only
       const poolType = result.poolType || 'users';
-      const companyId = result.userAttributes?.['custom:company_id'];
-      const isAdmin = poolType === 'admin' || !companyId;
+      const isAdmin = poolType === 'admin';
       
       return {
         requiresPasswordChange: true,
@@ -221,9 +220,10 @@ export class AuthService {
     const companyId = result.userAttributes?.['custom:company_id'];
     const poolType = result.poolType || 'users';
 
-    // If no company_id or poolType is admin, this is an admin user
-    if (!companyId || poolType === 'admin') {
-      // Admin users don't have company_id - return admin role
+    // Determine user role based on poolType - this is the source of truth
+    // Admin pool users are admins, users pool users are customers
+    if (poolType === 'admin') {
+      // Admin users - return admin role
       return {
         requiresPasswordChange: false,
         access_token: result.accessToken,
@@ -235,19 +235,42 @@ export class AuthService {
       };
     }
 
-    const company = await this.companiesService.findById(companyId);
-    if (!company) {
-      throw new UnauthorizedException('Company not found');
+    // Users pool = customer user, even if company_id is not yet set
+    // Try to fetch company if company_id exists
+    if (companyId) {
+      const company = await this.companiesService.findById(companyId);
+      if (!company) {
+        // Company ID exists in Cognito but not in DynamoDB - still customer but missing company
+        return {
+          requiresPasswordChange: false,
+          access_token: result.accessToken,
+          id_token: result.idToken,
+          refresh_token: result.refreshToken,
+          email,
+          company_id: companyId,
+          userRole: 'customer',
+        };
+      }
+
+      return {
+        requiresPasswordChange: false,
+        access_token: result.accessToken,
+        id_token: result.idToken,
+        refresh_token: result.refreshToken,
+        company,
+        email,
+        company_id: companyId,
+        userRole: 'customer',
+      };
     }
 
+    // Customer user from users pool but no company_id set yet
     return {
       requiresPasswordChange: false,
       access_token: result.accessToken,
       id_token: result.idToken,
       refresh_token: result.refreshToken,
-      company,
       email,
-      company_id: companyId,
       userRole: 'customer',
     };
   }

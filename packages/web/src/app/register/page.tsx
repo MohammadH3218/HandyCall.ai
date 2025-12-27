@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -12,7 +12,7 @@ import { ServiceType } from '@handycall/shared';
 
 export default function RegisterPage() {
   const router = useRouter();
-  const register = useAuthStore((state) => state.register);
+  const { register, isAuthenticated, userRole, checkAuth, isLoading } = useAuthStore();
   const [formData, setFormData] = useState({
     company_name: '',
     service_type: 'HANDYMAN' as ServiceType,
@@ -24,20 +24,37 @@ export default function RegisterPage() {
     timezone: 'America/New_York',
   });
   const [error, setError] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+  const [isRegistering, setIsRegistering] = useState(false);
+
+  // Check auth status on mount
+  useEffect(() => {
+    checkAuth();
+  }, [checkAuth]);
+
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (!isLoading && isAuthenticated) {
+      if (userRole === 'admin') {
+        router.push('/admin');
+      } else {
+        router.push('/dashboard');
+      }
+    }
+  }, [isAuthenticated, userRole, isLoading, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    setIsLoading(true);
+    setIsRegistering(true);
 
     try {
       await register(formData);
+      // Redirect will happen via useEffect when isAuthenticated becomes true
       router.push('/dashboard');
     } catch (err: any) {
       setError(err.message || 'Registration failed');
     } finally {
-      setIsLoading(false);
+      setIsRegistering(false);
     }
   };
 
@@ -78,7 +95,7 @@ export default function RegisterPage() {
                     onChange={(e) => updateField('company_name', e.target.value)}
                     placeholder="Joe's Handyman Services"
                     required
-                    disabled={isLoading}
+                    disabled={isRegistering}
                   />
                 </div>
 
@@ -90,7 +107,7 @@ export default function RegisterPage() {
                       value={formData.service_type}
                       onChange={(e) => updateField('service_type', e.target.value)}
                       className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                      disabled={isLoading}
+                      disabled={isRegistering}
                     >
                       <option value="HANDYMAN">Handyman</option>
                       <option value="PEST_CONTROL">Pest Control</option>
@@ -112,7 +129,7 @@ export default function RegisterPage() {
                       onChange={(e) => updateField('phone_number', e.target.value)}
                       placeholder="+15551234567"
                       required
-                      disabled={isLoading}
+                      disabled={isRegistering}
                     />
                     <p className="text-xs text-gray-500">Format: +1234567890</p>
                   </div>
@@ -131,7 +148,7 @@ export default function RegisterPage() {
                       value={formData.first_name}
                       onChange={(e) => updateField('first_name', e.target.value)}
                       required
-                      disabled={isLoading}
+                      disabled={isRegistering}
                     />
                   </div>
 
@@ -142,7 +159,7 @@ export default function RegisterPage() {
                       value={formData.last_name}
                       onChange={(e) => updateField('last_name', e.target.value)}
                       required
-                      disabled={isLoading}
+                      disabled={isRegistering}
                     />
                   </div>
                 </div>
@@ -156,7 +173,7 @@ export default function RegisterPage() {
                     onChange={(e) => updateField('email', e.target.value)}
                     placeholder="joe@example.com"
                     required
-                    disabled={isLoading}
+                    disabled={isRegistering}
                   />
                 </div>
 
@@ -168,7 +185,7 @@ export default function RegisterPage() {
                     value={formData.password}
                     onChange={(e) => updateField('password', e.target.value)}
                     required
-                    disabled={isLoading}
+                    disabled={isRegistering}
                   />
                   <p className="text-xs text-gray-500">Minimum 8 characters</p>
                 </div>
