@@ -239,6 +239,15 @@ export class AuthService {
     // Try to fetch company if company_id exists
     if (companyId) {
       const company = await this.companiesService.findById(companyId);
+
+      // Fetch user data from DynamoDB
+      let user = null;
+      try {
+        user = await this.usersService.findByEmail(email);
+      } catch (userError) {
+        console.warn('[AuthService] Failed to fetch user from DynamoDB:', userError);
+      }
+
       if (!company) {
         // Company ID exists in Cognito but not in DynamoDB - still customer but missing company
         return {
@@ -246,6 +255,7 @@ export class AuthService {
           access_token: result.accessToken,
           id_token: result.idToken,
           refresh_token: result.refreshToken,
+          user,
           email,
           company_id: companyId,
           userRole: 'customer',
@@ -258,6 +268,7 @@ export class AuthService {
         id_token: result.idToken,
         refresh_token: result.refreshToken,
         company,
+        user,
         email,
         company_id: companyId,
         userRole: 'customer',
@@ -417,20 +428,32 @@ export class AuthService {
       let company = null;
       try {
         company = await this.companiesService.findById(companyId);
-        
-        // If company_name was provided, update it
+
+        // Update user attributes if provided
+        const attributesToUpdate: Record<string, string> = {};
+
         if (companyName && company) {
           // Update company name in DynamoDB
           await this.companiesService.updateCompany(companyId, { company_name: companyName });
-          
-          // Update Cognito attribute
+          attributesToUpdate['custom:company_name'] = companyName;
+          company.company_name = companyName;
+        }
+
+        // Always update name attributes if provided
+        if (firstName) {
+          attributesToUpdate['given_name'] = firstName;
+        }
+        if (lastName) {
+          attributesToUpdate['family_name'] = lastName;
+        }
+
+        // Update Cognito attributes if any were set
+        if (Object.keys(attributesToUpdate).length > 0) {
           await this.cognitoService.updateUserAttributes(
             email,
-            { 'custom:company_name': companyName },
+            attributesToUpdate,
             poolType
           );
-          
-          company.company_name = companyName;
         }
       } catch (dbError: any) {
         // If DynamoDB access fails (e.g., IAM permissions), log but continue
@@ -451,11 +474,20 @@ export class AuthService {
         };
       }
 
+      // Fetch user data from DynamoDB to include in response
+      let user = null;
+      try {
+        user = await this.usersService.findByEmail(email);
+      } catch (userError) {
+        console.warn('[AuthService] Failed to fetch user from DynamoDB:', userError);
+      }
+
       return {
         access_token: result.accessToken,
         id_token: result.idToken,
         refresh_token: result.refreshToken,
         company,
+        user,
         email,
         company_id: companyId,
         userRole: 'customer',
