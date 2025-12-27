@@ -21,7 +21,11 @@ async function bootstrap() {
   );
 
   // CORS configuration
-  const corsOrigins = configService.get<string>('CORS_ORIGINS')?.split(',') || ['http://localhost:3001'];
+  const corsOrigins = configService.get<string>('CORS_ORIGINS')?.split(',') || [
+    'http://localhost:3001',
+    'https://master.dwonwh39izoea.amplifyapp.com',
+    'https://*.amplifyapp.com',
+  ];
   app.enableCors({
     origin: corsOrigins,
     credentials: true,
@@ -31,7 +35,8 @@ async function bootstrap() {
   const apiPrefix = configService.get<string>('API_PREFIX') || 'api/v1';
   app.setGlobalPrefix(apiPrefix);
 
-  const port = configService.get<number>('PORT') || 3000;
+  // Elastic Beanstalk uses PORT environment variable
+  const port = process.env.PORT || configService.get<number>('PORT') || 3000;
   await app.listen(port);
 
   console.log(`🚀 HandyCall API is running on: http://localhost:${port}/${apiPrefix}`);

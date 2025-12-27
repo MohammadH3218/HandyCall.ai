@@ -5,7 +5,7 @@ import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
-import { LoginResponse, RegisterResponse, RefreshTokenResponse } from '@handycall/shared';
+import { RegisterResponse } from '@handycall/shared';
 
 @Controller('auth')
 export class AuthController {

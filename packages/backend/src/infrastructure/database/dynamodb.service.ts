@@ -13,9 +13,9 @@ import {
 
 @Injectable()
 export class DynamoDBService implements OnModuleInit {
-  private client: DynamoDBClient;
-  private docClient: DynamoDBDocumentClient;
-  private tablePrefix: string;
+  private client!: DynamoDBClient;
+  private docClient!: DynamoDBDocumentClient;
+  private tablePrefix!: string;
 
   constructor(private configService: ConfigService) {}
 

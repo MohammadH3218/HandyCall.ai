@@ -5,6 +5,8 @@
   "private": true,
   "scripts": {
     "build": "nest build",
+    "build:shared": "cd ../shared && npm run build",
+    "build:eb": "npm run build:shared && npm run build",
     "format": "prettier --write \"src/**/*.ts\"",
     "start": "nest start",
     "dev": "nest start --watch",
@@ -22,6 +24,7 @@
     "@aws-sdk/client-dynamodb": "^3.490.0",
     "@aws-sdk/client-s3": "^3.490.0",
     "@aws-sdk/lib-dynamodb": "^3.490.0",
+    "@aws-sdk/s3-request-presigner": "^3.958.0",
     "@handycall/shared": "*",
     "@nestjs/common": "^10.3.0",
     "@nestjs/config": "^3.1.1",

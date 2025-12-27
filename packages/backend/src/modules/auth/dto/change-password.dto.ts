@@ -3,13 +3,13 @@ import { IsString, IsNotEmpty, MinLength } from 'class-validator';
 export class ChangePasswordDto {
   @IsString()
   @IsNotEmpty()
-  email: string;
+  email!: string;
 
   @IsString()
   @MinLength(8)
-  new_password: string;
+  new_password!: string;
 
   @IsString()
   @IsNotEmpty()
-  session: string;
+  session!: string;
 }

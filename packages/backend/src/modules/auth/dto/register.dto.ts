@@ -4,33 +4,33 @@ import { ServiceType } from '@handycall/shared';
 export class RegisterDto {
   @IsString()
   @IsNotEmpty()
-  company_name: string;
+  company_name!: string;
 
   @IsEnum(ServiceType)
   @IsNotEmpty()
-  service_type: ServiceType;
+  service_type!: ServiceType;
 
   @IsEmail()
   @IsNotEmpty()
-  email: string;
+  email!: string;
 
   @IsString()
   @MinLength(8)
-  password: string;
+  password!: string;
 
   @IsString()
   @IsNotEmpty()
-  phone_number: string;
+  phone_number!: string;
 
   @IsString()
   @IsNotEmpty()
-  first_name: string;
+  first_name!: string;
 
   @IsString()
   @IsNotEmpty()
-  last_name: string;
+  last_name!: string;
 
   @IsString()
   @IsNotEmpty()
-  timezone: string;
+  timezone!: string;
 }

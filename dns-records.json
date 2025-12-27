@@ -1,0 +1,18 @@
+{
+  "Comment": "Create api.handycall.org CNAME to Elastic Beanstalk",
+  "Changes": [
+    {
+      "Action": "CREATE",
+      "ResourceRecordSet": {
+        "Name": "api.handycall.org",
+        "Type": "CNAME",
+        "TTL": 300,
+        "ResourceRecords": [
+          {
+            "Value": "handycall-api-prod.eba-pmfyttgp.us-east-1.elasticbeanstalk.com"
+          }
+        ]
+      }
+    }
+  ]
+}

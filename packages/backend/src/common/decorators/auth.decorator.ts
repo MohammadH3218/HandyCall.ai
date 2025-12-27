@@ -6,7 +6,7 @@ import { AuthContext } from '@handycall/shared';
  * Usage: @Auth() auth: AuthContext
  */
 export const Auth = createParamDecorator(
-  (data: unknown, ctx: ExecutionContext): AuthContext => {
+  (_data: unknown, ctx: ExecutionContext): AuthContext => {
     const request = ctx.switchToHttp().getRequest();
     return request.user;
   }
@@ -17,7 +17,7 @@ export const Auth = createParamDecorator(
  * Usage: @CompanyId() companyId: string
  */
 export const CompanyId = createParamDecorator(
-  (data: unknown, ctx: ExecutionContext): string => {
+  (_data: unknown, ctx: ExecutionContext): string => {
     const request = ctx.switchToHttp().getRequest();
     return request.user?.company_id;
   }
@@ -28,7 +28,7 @@ export const CompanyId = createParamDecorator(
  * Usage: @UserId() userId: string
  */
 export const UserId = createParamDecorator(
-  (data: unknown, ctx: ExecutionContext): string => {
+  (_data: unknown, ctx: ExecutionContext): string => {
     const request = ctx.switchToHttp().getRequest();
     return request.user?.user_id;
   }
