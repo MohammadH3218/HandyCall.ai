@@ -5,7 +5,6 @@ import {
   AdminInitiateAuthCommand,
   AdminRespondToAuthChallengeCommand,
   AdminGetUserCommand,
-  AdminUpdateUserAttributesCommand,
   AuthFlowType,
   ChallengeNameType,
 } from '@aws-sdk/client-cognito-identity-provider';
@@ -18,7 +17,6 @@ export interface CognitoLoginResult {
   challengeName?: string;
   session?: string;
   userAttributes?: Record<string, string>;
-  poolType?: 'users' | 'admin'; // Track which pool was used
 }
 
 @Injectable()
@@ -27,9 +25,6 @@ export class CognitoService {
   private usersPoolId: string;
   private usersClientId: string;
   private usersClientSecret: string;
-  private adminPoolId: string;
-  private adminClientId: string;
-  private adminClientSecret: string;
 
   constructor(private configService: ConfigService) {
     const region = this.configService.get<string>('AWS_REGION');
@@ -38,11 +33,6 @@ export class CognitoService {
     this.usersPoolId = this.configService.get<string>('AWS_COGNITO_USERS_POOL_ID')!;
     this.usersClientId = this.configService.get<string>('AWS_COGNITO_USERS_CLIENT_ID')!;
     this.usersClientSecret = this.configService.get<string>('AWS_COGNITO_USERS_CLIENT_SECRET')!;
-    
-    // Admin pool credentials (optional - may not be set in all environments)
-    this.adminPoolId = this.configService.get<string>('AWS_COGNITO_ADMIN_POOL_ID') || '';
-    this.adminClientId = this.configService.get<string>('AWS_COGNITO_ADMIN_CLIENT_ID') || '';
-    this.adminClientSecret = this.configService.get<string>('AWS_COGNITO_ADMIN_CLIENT_SECRET') || '';
   }
 
   private calculateSecretHash(username: string, clientId: string, clientSecret: string): string {
@@ -52,105 +42,67 @@ export class CognitoService {
     return hmac.digest('base64');
   }
 
-  async login(email: string, password: string, poolType: 'auto' | 'users' | 'admin' = 'auto'): Promise<CognitoLoginResult> {
-    const poolsToTry: Array<'users' | 'admin'> = poolType === 'auto' ? ['users', 'admin'] : [poolType];
+  async login(email: string, password: string): Promise<CognitoLoginResult> {
+    const secretHash = this.calculateSecretHash(email, this.usersClientId, this.usersClientSecret);
 
-    let lastError: any = null;
+    try {
+      const command = new AdminInitiateAuthCommand({
+        UserPoolId: this.usersPoolId,
+        ClientId: this.usersClientId,
+        AuthFlow: AuthFlowType.ADMIN_USER_PASSWORD_AUTH,
+        AuthParameters: {
+          USERNAME: email,
+          PASSWORD: password,
+          SECRET_HASH: secretHash,
+        },
+      });
 
-    for (const pool of poolsToTry) {
-      try {
-        const result = await this.loginWithPool(email, password, pool);
-        return result;
-      } catch (error: any) {
-        lastError = error;
-        // If this is NotAuthorizedException and we have more pools to try, continue
-        if (error.name === 'NotAuthorizedException' && poolsToTry.length > 1 && poolsToTry.indexOf(pool) < poolsToTry.length - 1) {
-          continue;
-        }
-        // Otherwise, re-throw the error
-        throw error;
+      const response = await this.cognitoClient.send(command);
+
+      // Check if user needs to change password (first login with temp password)
+      if (response.ChallengeName === ChallengeNameType.NEW_PASSWORD_REQUIRED) {
+        return {
+          accessToken: '',
+          idToken: '',
+          challengeName: 'NEW_PASSWORD_REQUIRED',
+          session: response.Session,
+          userAttributes: {},
+        };
       }
-    }
 
-    // If we get here, all pools failed
-    if (lastError?.name === 'NotAuthorizedException' || lastError?.name === 'UserNotFoundException') {
-      throw new UnauthorizedException('Invalid email or password');
-    }
-    throw lastError || new UnauthorizedException('Authentication failed');
-  }
+      if (!response.AuthenticationResult) {
+        throw new UnauthorizedException('Authentication failed');
+      }
 
-  private async loginWithPool(email: string, password: string, poolType: 'users' | 'admin'): Promise<CognitoLoginResult> {
-    const poolId = poolType === 'admin' ? this.adminPoolId : this.usersPoolId;
-    const clientId = poolType === 'admin' ? this.adminClientId : this.usersClientId;
-    const clientSecret = poolType === 'admin' ? this.adminClientSecret : this.usersClientSecret;
+      // Get user attributes
+      const userAttributes = await this.getUserAttributes(email);
 
-    if (!poolId || !clientId || !clientSecret) {
-      throw new UnauthorizedException(`Pool ${poolType} not configured`);
-    }
-
-    const secretHash = this.calculateSecretHash(email, clientId, clientSecret);
-
-    const command = new AdminInitiateAuthCommand({
-      UserPoolId: poolId,
-      ClientId: clientId,
-      AuthFlow: AuthFlowType.ADMIN_USER_PASSWORD_AUTH,
-      AuthParameters: {
-        USERNAME: email,
-        PASSWORD: password,
-        SECRET_HASH: secretHash,
-      },
-    });
-
-    const response = await this.cognitoClient.send(command);
-
-    // Check if user needs to change password (first login with temp password)
-    if (response.ChallengeName === ChallengeNameType.NEW_PASSWORD_REQUIRED) {
       return {
-        accessToken: '',
-        idToken: '',
-        challengeName: 'NEW_PASSWORD_REQUIRED',
-        session: response.Session,
-        userAttributes: {},
-        poolType,
+        accessToken: response.AuthenticationResult.AccessToken!,
+        idToken: response.AuthenticationResult.IdToken!,
+        refreshToken: response.AuthenticationResult.RefreshToken,
+        userAttributes,
       };
+    } catch (error: any) {
+      console.error('Cognito login error:', error);
+      if (error.name === 'NotAuthorizedException' || error.name === 'UserNotFoundException') {
+        throw new UnauthorizedException('Invalid email or password');
+      }
+      throw error;
     }
-
-    if (!response.AuthenticationResult) {
-      throw new UnauthorizedException('Authentication failed');
-    }
-
-    // Get user attributes from the correct pool
-    const userAttributes = await this.getUserAttributes(email, poolType);
-
-    return {
-      accessToken: response.AuthenticationResult.AccessToken!,
-      idToken: response.AuthenticationResult.IdToken!,
-      refreshToken: response.AuthenticationResult.RefreshToken,
-      userAttributes,
-      poolType,
-    };
   }
 
   async respondToNewPasswordChallenge(
     email: string,
     newPassword: string,
-    session: string,
-    poolType: 'users' | 'admin' = 'users'
+    session: string
   ): Promise<CognitoLoginResult> {
-    const poolId = poolType === 'admin' ? this.adminPoolId : this.usersPoolId;
-    const clientId = poolType === 'admin' ? this.adminClientId : this.usersClientId;
-    const clientSecret = poolType === 'admin' ? this.adminClientSecret : this.usersClientSecret;
-
-    if (!poolId || !clientId || !clientSecret) {
-      throw new BadRequestException(`Pool ${poolType} not configured`);
-    }
-
-    const secretHash = this.calculateSecretHash(email, clientId, clientSecret);
+    const secretHash = this.calculateSecretHash(email, this.usersClientId, this.usersClientSecret);
 
     try {
       const command = new AdminRespondToAuthChallengeCommand({
-        UserPoolId: poolId,
-        ClientId: clientId,
+        UserPoolId: this.usersPoolId,
+        ClientId: this.usersClientId,
         ChallengeName: ChallengeNameType.NEW_PASSWORD_REQUIRED,
         ChallengeResponses: {
           USERNAME: email,
@@ -166,45 +118,25 @@ export class CognitoService {
         throw new BadRequestException('Failed to set new password');
       }
 
-      // Get user attributes from the correct pool
-      const userAttributes = await this.getUserAttributes(email, poolType);
+      // Get user attributes
+      const userAttributes = await this.getUserAttributes(email);
 
       return {
         accessToken: response.AuthenticationResult.AccessToken!,
         idToken: response.AuthenticationResult.IdToken!,
         refreshToken: response.AuthenticationResult.RefreshToken,
         userAttributes,
-        poolType,
       };
     } catch (error: any) {
-      console.error('[CognitoService] New password challenge error:', error);
-      console.error('[CognitoService] Error details:', {
-        name: error.name,
-        message: error.message,
-        code: error.$metadata?.httpStatusCode,
-        poolType,
-      });
-      
-      // Re-throw the original error to preserve error type and message
-      if (error.name === 'NotAuthorizedException') {
-        throw error; // Let AuthService handle this with better message
-      }
-      
-      throw new BadRequestException(error.message || 'Failed to set new password');
+      console.error('New password challenge error:', error);
+      throw new BadRequestException('Failed to set new password');
     }
   }
 
-  async getUserAttributes(email: string, poolType: 'users' | 'admin' = 'users'): Promise<Record<string, string>> {
-    const poolId = poolType === 'admin' ? this.adminPoolId : this.usersPoolId;
-    
-    if (!poolId) {
-      console.warn(`[CognitoService] Pool ${poolType} not configured, cannot get user attributes`);
-      return {};
-    }
-
+  async getUserAttributes(email: string): Promise<Record<string, string>> {
     try {
       const command = new AdminGetUserCommand({
-        UserPoolId: poolId,
+        UserPoolId: this.usersPoolId,
         Username: email,
       });
 
@@ -219,7 +151,7 @@ export class CognitoService {
 
       return attributes;
     } catch (error) {
-      console.error(`[CognitoService] Failed to get user attributes from ${poolType} pool:`, error);
+      console.error('Failed to get user attributes:', error);
       return {};
     }
   }
@@ -250,36 +182,6 @@ export class CognitoService {
       };
     } catch (error) {
       throw new UnauthorizedException('Invalid refresh token');
-    }
-  }
-
-  async updateUserAttributes(
-    email: string,
-    attributes: Record<string, string>,
-    poolType: 'users' | 'admin' = 'users'
-  ): Promise<void> {
-    const poolId = poolType === 'admin' ? this.adminPoolId : this.usersPoolId;
-
-    if (!poolId) {
-      throw new BadRequestException(`Pool ${poolType} not configured`);
-    }
-
-    try {
-      const userAttributes = Object.entries(attributes).map(([key, value]) => ({
-        Name: key,
-        Value: value,
-      }));
-
-      const command = new AdminUpdateUserAttributesCommand({
-        UserPoolId: poolId,
-        Username: email,
-        UserAttributes: userAttributes,
-      });
-
-      await this.cognitoClient.send(command);
-    } catch (error: any) {
-      console.error('[CognitoService] Failed to update user attributes:', error);
-      throw new BadRequestException(`Failed to update user attributes: ${error.message}`);
     }
   }
 }

@@ -306,71 +306,87 @@ export class AuthService {
 
       // If user doesn't have company_id and company_name is provided, create company
       if (!companyId && companyName) {
-        // Create company with defaults for required fields
-        const serviceType = ServiceType.HANDYMAN; // Default, can be updated later
-        const phoneNumber = result.userAttributes?.['phone_number'] || '+10000000000'; // Placeholder, should be updated
-        const timezone = result.userAttributes?.['custom:timezone'] || 'America/New_York'; // Default timezone
-
-        const company = await this.companiesService.createCompany(
-          companyName,
-          serviceType,
-          email,
-          phoneNumber,
-          timezone
-        );
-
-        companyId = company.company_id;
-
-        // Update Cognito user attributes with company_id and company_name
-        await this.cognitoService.updateUserAttributes(
-          email,
-          {
-            'custom:company_id': companyId,
-            'custom:company_name': companyName,
-          },
-          poolType
-        );
-
-        // Create user record in DynamoDB if it doesn't exist
         try {
-          const existingUser = await this.usersService.findByEmail(email);
-          if (!existingUser) {
-            // Get user info from Cognito attributes
-            const firstName = result.userAttributes?.['given_name'] || result.userAttributes?.['name']?.split(' ')[0] || 'User';
-            const lastName = result.userAttributes?.['family_name'] || result.userAttributes?.['name']?.split(' ').slice(1).join(' ') || '';
-            
-            await this.usersService.createUser(
-              companyId,
-              email,
-              '', // Password not needed, using Cognito
-              firstName,
-              lastName,
-              UserRole.OWNER,
-              phoneNumber !== '+10000000000' ? phoneNumber : undefined
-            );
+          // Create company with defaults for required fields
+          const serviceType = ServiceType.HANDYMAN; // Default, can be updated later
+          const phoneNumber = result.userAttributes?.['phone_number'] || '+10000000000'; // Placeholder, should be updated
+          const timezone = result.userAttributes?.['custom:timezone'] || 'America/New_York'; // Default timezone
+
+          const company = await this.companiesService.createCompany(
+            companyName,
+            serviceType,
+            email,
+            phoneNumber,
+            timezone
+          );
+
+          companyId = company.company_id;
+
+          // Update Cognito user attributes with company_id and company_name
+          await this.cognitoService.updateUserAttributes(
+            email,
+            {
+              'custom:company_id': companyId,
+              'custom:company_name': companyName,
+            },
+            poolType
+          );
+
+          // Create user record in DynamoDB if it doesn't exist
+          try {
+            const existingUser = await this.usersService.findByEmail(email);
+            if (!existingUser) {
+              // Get user info from Cognito attributes
+              const firstName = result.userAttributes?.['given_name'] || result.userAttributes?.['name']?.split(' ')[0] || 'User';
+              const lastName = result.userAttributes?.['family_name'] || result.userAttributes?.['name']?.split(' ').slice(1).join(' ') || '';
+              
+              await this.usersService.createUser(
+                companyId,
+                email,
+                '', // Password not needed, using Cognito
+                firstName,
+                lastName,
+                UserRole.OWNER,
+                phoneNumber !== '+10000000000' ? phoneNumber : undefined
+              );
+            }
+          } catch (userError) {
+            console.warn('[AuthService] Failed to create user record in DynamoDB:', userError);
+            // Continue even if user creation fails - Cognito user exists
           }
-        } catch (userError) {
-          console.warn('[AuthService] Failed to create user record in DynamoDB:', userError);
-          // Continue even if user creation fails - Cognito user exists
-        }
 
-        // Create default agent config
-        try {
-          await this.agentConfigService.createDefaultConfig(companyId);
-        } catch (configError) {
-          console.warn('[AuthService] Failed to create default agent config:', configError);
-          // Continue even if config creation fails
-        }
+          // Create default agent config
+          try {
+            await this.agentConfigService.createDefaultConfig(companyId);
+          } catch (configError) {
+            console.warn('[AuthService] Failed to create default agent config:', configError);
+            // Continue even if config creation fails
+          }
 
-        return {
-          access_token: result.accessToken,
-          id_token: result.idToken,
-          refresh_token: result.refreshToken,
-          company,
-          email,
-          company_id: companyId,
-          userRole: 'customer',
-        };
+          return {
+            access_token: result.accessToken,
+            id_token: result.idToken,
+            refresh_token: result.refreshToken,
+            company,
+            email,
+            company_id: companyId,
+            userRole: 'customer',
+          };
+        } catch (dbError: any) {
+          // If DynamoDB access fails (e.g., IAM permissions), still succeed password change
+          // but indicate company setup is needed
+          console.warn('[AuthService] DynamoDB access failed during company creation (password change succeeded):', dbError?.name || dbError?.message);
+          
+          // Password change succeeded, return tokens but indicate company setup needed
+          return {
+            access_token: result.accessToken,
+            id_token: result.idToken,
+            refresh_token: result.refreshToken,
+            email,
+            userRole: 'customer',
+            requiresCompanySetup: true,
+          };
+        }
       }
 
       // If user doesn't have company_id and no company_name provided, require company setup
@@ -386,25 +402,33 @@ export class AuthService {
       }
 
       // User has company_id - fetch company from DynamoDB
-      const company = await this.companiesService.findById(companyId);
-      
-      // If company_name was provided, update it
-      if (companyName && company) {
-        // Update company name in DynamoDB
-        await this.companiesService.updateCompany(companyId, { company_name: companyName });
+      // Wrap in try-catch to handle DynamoDB permission errors gracefully
+      let company = null;
+      try {
+        company = await this.companiesService.findById(companyId);
         
-        // Update Cognito attribute
-        await this.cognitoService.updateUserAttributes(
-          email,
-          { 'custom:company_name': companyName },
-          poolType
-        );
-        
-        company.company_name = companyName;
+        // If company_name was provided, update it
+        if (companyName && company) {
+          // Update company name in DynamoDB
+          await this.companiesService.updateCompany(companyId, { company_name: companyName });
+          
+          // Update Cognito attribute
+          await this.cognitoService.updateUserAttributes(
+            email,
+            { 'custom:company_name': companyName },
+            poolType
+          );
+          
+          company.company_name = companyName;
+        }
+      } catch (dbError: any) {
+        // If DynamoDB access fails (e.g., IAM permissions), log but continue
+        // Password change in Cognito succeeded, so we should still return success
+        console.warn('[AuthService] DynamoDB access failed during password change (password change succeeded):', dbError?.name || dbError?.message);
       }
 
       if (!company) {
-        // Company not found in DB, but password change succeeded
+        // Company not found in DB or DB access failed, but password change succeeded
         // Return tokens but indicate company setup needed
         return {
           access_token: result.accessToken,
