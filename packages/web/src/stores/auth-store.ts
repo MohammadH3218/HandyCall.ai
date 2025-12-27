@@ -21,7 +21,7 @@ interface AuthState {
 
   // Actions
   login: (email: string, password: string) => Promise<{ requiresPasswordChange: boolean; userRole: UserRole | null }>;
-  changePassword: (email: string, newPassword: string, session: string, poolType?: 'users' | 'admin') => Promise<void>;
+  changePassword: (email: string, newPassword: string, session: string, poolType?: 'users' | 'admin', companyName?: string) => Promise<void>;
   register: (data: any) => Promise<void>;
   logout: () => void;
   setTokens: (accessToken: string, idToken: string, refreshToken: string) => void;
@@ -118,11 +118,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
-  changePassword: async (email: string, newPassword: string, session: string, poolType?: 'users' | 'admin') => {
+  changePassword: async (email: string, newPassword: string, session: string, poolType?: 'users' | 'admin', companyName?: string) => {
     try {
       // Use provided poolType or get from store
       const poolTypeToUse = poolType || get().passwordChangePoolType || 'users';
-      const response = await apiClient.changePassword(email, newPassword, session, poolTypeToUse);
+      const response = await apiClient.changePassword(email, newPassword, session, poolTypeToUse, companyName);
 
       // Ensure response has required fields
       if (!response || !response.access_token) {

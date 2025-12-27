@@ -11,14 +11,18 @@ import { useAuthStore } from '@/stores/auth-store';
 
 export default function LoginPage() {
   const router = useRouter();
-  const { login, changePassword, requiresPasswordChange, passwordChangeSession, passwordChangePoolType, email: storeEmail } = useAuthStore();
+  const { login, changePassword, requiresPasswordChange, passwordChangeSession, passwordChangePoolType, email: storeEmail, isAuthenticated, userRole } = useAuthStore();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [companyName, setCompanyName] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showPasswordChangeModal, setShowPasswordChangeModal] = useState(false);
+  
+  // Determine if company name is required (only for users pool, not admin)
+  const requiresCompanyName = passwordChangePoolType === 'users';
 
   // Sync email from store if available (for password change flow)
   useEffect(() => {
@@ -34,6 +38,17 @@ export default function LoginPage() {
     }
   }, [requiresPasswordChange]);
 
+  // Redirect after successful authentication (backup redirect)
+  useEffect(() => {
+    if (isAuthenticated && !requiresPasswordChange && !showPasswordChangeModal) {
+      if (userRole === 'admin') {
+        router.push('/admin');
+      } else if (userRole === 'customer') {
+        router.push('/dashboard');
+      }
+    }
+  }, [isAuthenticated, userRole, requiresPasswordChange, showPasswordChangeModal, router]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -45,10 +60,13 @@ export default function LoginPage() {
       if (result && result.requiresPasswordChange) {
         setShowPasswordChangeModal(true);
       } else {
+        // Get userRole from store after login (more reliable than result)
+        const userRole = useAuthStore.getState().userRole;
+        
         // Redirect based on user role
-        if (result && result.userRole === 'admin') {
+        if (userRole === 'admin') {
           router.push('/admin');
-        } else if (result) {
+        } else {
           router.push('/dashboard');
         }
       }
@@ -73,6 +91,12 @@ export default function LoginPage() {
       return;
     }
 
+    // Company name is required only for users pool (not admin)
+    if (requiresCompanyName && !companyName.trim()) {
+      setError('Company name is required');
+      return;
+    }
+
     if (!passwordChangeSession) {
       setError('Session expired. Please login again.');
       return;
@@ -81,11 +105,14 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      await changePassword(email, newPassword, passwordChangeSession!, passwordChangePoolType || undefined);
+      // Only send company_name for users pool
+      const companyNameToSend = requiresCompanyName ? companyName.trim() : undefined;
+      await changePassword(email, newPassword, passwordChangeSession!, passwordChangePoolType || undefined, companyNameToSend);
       // Close modal and reset form
       setShowPasswordChangeModal(false);
       setNewPassword('');
       setConfirmPassword('');
+      setCompanyName('');
       // Get user role from store after password change
       const userRole = useAuthStore.getState().userRole;
       if (userRole === 'admin') {
@@ -161,6 +188,7 @@ export default function LoginPage() {
               <DialogTitle>Change Password</DialogTitle>
               <DialogDescription>
                 Your account requires a password change. Please set a new password for your account.
+                {requiresCompanyName && ' You will also need to provide your company name.'}
               </DialogDescription>
             </DialogHeader>
             <form onSubmit={handlePasswordChange}>
@@ -197,8 +225,25 @@ export default function LoginPage() {
                   />
                 </div>
 
+                {/* Company Name - Only for users pool, not admin */}
+                {requiresCompanyName && (
+                  <div className="space-y-2">
+                    <Label htmlFor="company-name">Company Name</Label>
+                    <Input
+                      id="company-name"
+                      type="text"
+                      placeholder="Enter your company name"
+                      value={companyName}
+                      onChange={(e) => setCompanyName(e.target.value)}
+                      required
+                      disabled={isLoading}
+                    />
+                  </div>
+                )}
+
                 <div className="rounded-md bg-blue-50 p-3 text-sm text-blue-700">
                   Password must be at least 8 characters with uppercase, lowercase, and numbers.
+                  {requiresCompanyName && ' Please also provide your company name.'}
                 </div>
               </div>
               <DialogFooter>

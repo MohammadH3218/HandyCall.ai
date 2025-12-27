@@ -17,4 +17,9 @@ export class ChangePasswordDto {
   @IsString()
   @IsIn(['users', 'admin'])
   pool_type?: 'users' | 'admin';
+
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  company_name?: string; // Required for users pool, optional for admin pool
 }

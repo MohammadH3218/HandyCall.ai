@@ -5,6 +5,7 @@ import {
   AdminInitiateAuthCommand,
   AdminRespondToAuthChallengeCommand,
   AdminGetUserCommand,
+  AdminUpdateUserAttributesCommand,
   AuthFlowType,
   ChallengeNameType,
 } from '@aws-sdk/client-cognito-identity-provider';
@@ -249,6 +250,36 @@ export class CognitoService {
       };
     } catch (error) {
       throw new UnauthorizedException('Invalid refresh token');
+    }
+  }
+
+  async updateUserAttributes(
+    email: string,
+    attributes: Record<string, string>,
+    poolType: 'users' | 'admin' = 'users'
+  ): Promise<void> {
+    const poolId = poolType === 'admin' ? this.adminPoolId : this.usersPoolId;
+
+    if (!poolId) {
+      throw new BadRequestException(`Pool ${poolType} not configured`);
+    }
+
+    try {
+      const userAttributes = Object.entries(attributes).map(([key, value]) => ({
+        Name: key,
+        Value: value,
+      }));
+
+      const command = new AdminUpdateUserAttributesCommand({
+        UserPoolId: poolId,
+        Username: email,
+        UserAttributes: userAttributes,
+      });
+
+      await this.cognitoClient.send(command);
+    } catch (error: any) {
+      console.error('[CognitoService] Failed to update user attributes:', error);
+      throw new BadRequestException(`Failed to update user attributes: ${error.message}`);
     }
   }
 }

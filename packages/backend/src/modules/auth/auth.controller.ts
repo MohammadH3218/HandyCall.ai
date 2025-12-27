@@ -41,7 +41,8 @@ export class AuthController {
       dto.email,
       dto.new_password,
       dto.session,
-      dto.pool_type || 'users'
+      dto.pool_type || 'users',
+      dto.company_name
     );
   }
 

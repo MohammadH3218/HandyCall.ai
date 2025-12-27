@@ -88,10 +88,15 @@ class ApiClient {
     return response.data ?? response;
   }
 
-  async changePassword(email: string, newPassword: string, session: string, poolType: 'users' | 'admin' = 'users'): Promise<any> {
+  async changePassword(email: string, newPassword: string, session: string, poolType: 'users' | 'admin' = 'users', companyName?: string): Promise<any> {
+    const body: any = { email, new_password: newPassword, session, pool_type: poolType };
+    // Only include company_name for users pool
+    if (companyName && poolType === 'users') {
+      body.company_name = companyName;
+    }
     const response = await this.request<any>('/auth/change-password', {
       method: 'POST',
-      body: JSON.stringify({ email, new_password: newPassword, session, pool_type: poolType }),
+      body: JSON.stringify(body),
     });
     // Handle both wrapped (ApiResponse) and unwrapped responses
     return response.data ?? response;
