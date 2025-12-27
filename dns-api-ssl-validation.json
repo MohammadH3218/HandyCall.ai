@@ -1,0 +1,18 @@
+{
+  "Comment": "SSL certificate validation for api.handycall.org",
+  "Changes": [
+    {
+      "Action": "CREATE",
+      "ResourceRecordSet": {
+        "Name": "_8c781eed4e79abaabc10996ae16e0995.api.handycall.org",
+        "Type": "CNAME",
+        "TTL": 300,
+        "ResourceRecords": [
+          {
+            "Value": "_1a1901b6e0b98e20704ec154300c836a.jkddzztszm.acm-validations.aws."
+          }
+        ]
+      }
+    }
+  ]
+}

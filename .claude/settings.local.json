@@ -37,7 +37,17 @@
       "Bash(aws amplify get-domain-association:*)",
       "Bash(curl:*)",
       "Bash(aws elasticbeanstalk update-environment:*)",
-      "Bash(aws elasticbeanstalk describe-configuration-settings:*)"
+      "Bash(aws elasticbeanstalk describe-configuration-settings:*)",
+      "Bash(nslookup:*)",
+      "Bash(ipconfig /flushdns)",
+      "Bash(cmd.exe /c \"ipconfig /flushdns\")",
+      "Bash(aws amplify get-app:*)",
+      "Bash(aws amplify update-app:*)",
+      "Bash(aws amplify start-job:*)",
+      "Bash(aws amplify get-job:*)",
+      "Bash(aws acm request-certificate:*)",
+      "Bash(aws acm describe-certificate:*)",
+      "Bash(aws cloudfront get-distribution:*)"
     ]
   }
 }
