@@ -37,7 +37,12 @@ export class AuthController {
   @Post('change-password')
   @HttpCode(HttpStatus.OK)
   async changePassword(@Body() dto: ChangePasswordDto) {
-    return this.authService.changePassword(dto.email, dto.new_password, dto.session);
+    return this.authService.changePassword(
+      dto.email,
+      dto.new_password,
+      dto.session,
+      dto.pool_type || 'users'
+    );
   }
 
   @Public()

@@ -199,22 +199,40 @@ export class AuthService {
   // ========================================================================
 
   async loginWithCognito(email: string, password: string) {
-    const result = await this.cognitoService.login(email, password);
+    const result = await this.cognitoService.login(email, password, 'auto');
 
     // Check if user needs to change password
     if (result.challengeName === 'NEW_PASSWORD_REQUIRED') {
+      // Determine if this is an admin user based on pool type or company_id
+      const poolType = result.poolType || 'users';
+      const companyId = result.userAttributes?.['custom:company_id'];
+      const isAdmin = poolType === 'admin' || !companyId;
+      
       return {
         requiresPasswordChange: true,
         session: result.session,
         email,
+        userRole: isAdmin ? 'admin' : 'customer',
+        poolType: poolType, // Include pool type so we can use it for password change
       };
     }
 
     // Get company and user info from DynamoDB using custom attributes
     const companyId = result.userAttributes?.['custom:company_id'];
+    const poolType = result.poolType || 'users';
 
-    if (!companyId) {
-      throw new UnauthorizedException('User not properly configured');
+    // If no company_id or poolType is admin, this is an admin user
+    if (!companyId || poolType === 'admin') {
+      // Admin users don't have company_id - return admin role
+      return {
+        requiresPasswordChange: false,
+        access_token: result.accessToken,
+        id_token: result.idToken,
+        refresh_token: result.refreshToken,
+        email,
+        userRole: 'admin',
+        isAdmin: true,
+      };
     }
 
     const company = await this.companiesService.findById(companyId);
@@ -230,29 +248,32 @@ export class AuthService {
       company,
       email,
       company_id: companyId,
+      userRole: 'customer',
     };
   }
 
-  async changePassword(email: string, newPassword: string, session: string) {
+  async changePassword(email: string, newPassword: string, session: string, poolType: 'users' | 'admin' = 'users') {
     try {
       const result = await this.cognitoService.respondToNewPasswordChallenge(
         email,
         newPassword,
-        session
+        session,
+        poolType
       );
 
       // Get company info - handle case where user might not have company_id yet
       const companyId = result.userAttributes?.['custom:company_id'];
 
-      // If user doesn't have company_id, they might be a new user who hasn't completed setup
-      // Allow password change but return minimal response
+      // If user doesn't have company_id, they might be an admin user or new user
+      // Admin pool users don't have company_id
       if (!companyId) {
         return {
           access_token: result.accessToken,
           id_token: result.idToken,
           refresh_token: result.refreshToken,
           email,
-          requiresCompanySetup: true,
+          userRole: 'admin', // No company_id means admin user
+          requiresCompanySetup: false,
         };
       }
 
@@ -265,6 +286,7 @@ export class AuthService {
           id_token: result.idToken,
           refresh_token: result.refreshToken,
           email,
+          userRole: 'customer',
           requiresCompanySetup: true,
         };
       }
@@ -276,6 +298,7 @@ export class AuthService {
         company,
         email,
         company_id: companyId,
+        userRole: 'customer',
       };
     } catch (error: any) {
       console.error('[AuthService] Password change error:', error);

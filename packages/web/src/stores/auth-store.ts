@@ -17,10 +17,11 @@ interface AuthState {
   isLoading: boolean;
   requiresPasswordChange: boolean;
   passwordChangeSession: string | null;
+  passwordChangePoolType: 'users' | 'admin' | null;
 
   // Actions
   login: (email: string, password: string) => Promise<{ requiresPasswordChange: boolean; userRole: UserRole | null }>;
-  changePassword: (email: string, newPassword: string, session: string) => Promise<void>;
+  changePassword: (email: string, newPassword: string, session: string, poolType?: 'users' | 'admin') => Promise<void>;
   register: (data: any) => Promise<void>;
   logout: () => void;
   setTokens: (accessToken: string, idToken: string, refreshToken: string) => void;
@@ -39,6 +40,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   isLoading: true,
   requiresPasswordChange: false,
   passwordChangeSession: null,
+  passwordChangePoolType: null,
 
   login: async (email: string, password: string) => {
     try {
@@ -51,13 +53,19 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       // Check if password change is required (safely handle undefined/null response)
       if (response.requiresPasswordChange === true) {
+        // Extract user role from response if provided
+        const userRole = response.userRole ? (response.userRole === 'admin' ? 'admin' : 'customer') : null;
+        const poolType = response.poolType || 'users';
+        
         set({
           requiresPasswordChange: true,
           passwordChangeSession: response.session || null,
+          passwordChangePoolType: poolType,
           email,
+          userRole,
           isLoading: false,
         });
-        return { requiresPasswordChange: true, userRole: null };
+        return { requiresPasswordChange: true, userRole };
       }
 
       // Ensure response has required fields for successful login
@@ -65,8 +73,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         throw new Error('Invalid login response: missing access token');
       }
 
-      // Extract user role from ID token
-      const userRole = response.id_token ? extractUserRole(response.id_token) : null;
+      // Extract user role - check response first, then fall back to token extraction
+      let userRole: UserRole | null = null;
+      
+      // Check if backend explicitly provided userRole
+      if (response.userRole) {
+        userRole = response.userRole === 'admin' ? 'admin' : 'customer';
+      } else if (response.id_token) {
+        // Fall back to extracting from token
+        userRole = extractUserRole(response.id_token);
+      }
 
       // Set tokens
       apiClient.setAccessToken(response.access_token);
@@ -82,7 +98,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
 
       set({
-        company: response.company,
+        company: response.company || null,
         accessToken: response.access_token,
         idToken: response.id_token,
         refreshToken: response.refresh_token,
@@ -92,6 +108,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         isLoading: false,
         requiresPasswordChange: false,
         passwordChangeSession: null,
+        passwordChangePoolType: null,
       });
 
       return { requiresPasswordChange: false, userRole };
@@ -101,17 +118,27 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
-  changePassword: async (email: string, newPassword: string, session: string) => {
+  changePassword: async (email: string, newPassword: string, session: string, poolType?: 'users' | 'admin') => {
     try {
-      const response = await apiClient.changePassword(email, newPassword, session);
+      // Use provided poolType or get from store
+      const poolTypeToUse = poolType || get().passwordChangePoolType || 'users';
+      const response = await apiClient.changePassword(email, newPassword, session, poolTypeToUse);
 
       // Ensure response has required fields
       if (!response || !response.access_token) {
         throw new Error('Invalid password change response');
       }
 
-      // Extract user role from ID token
-      const userRole = response.id_token ? extractUserRole(response.id_token) : null;
+      // Extract user role - check response first, then fall back to token extraction
+      let userRole: UserRole | null = null;
+      
+      // Check if backend explicitly provided userRole
+      if (response.userRole) {
+        userRole = response.userRole === 'admin' ? 'admin' : 'customer';
+      } else if (response.id_token) {
+        // Fall back to extracting from token
+        userRole = extractUserRole(response.id_token);
+      }
 
       // Set tokens after password change
       apiClient.setAccessToken(response.access_token);
@@ -137,6 +164,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         isLoading: false,
         requiresPasswordChange: false,
         passwordChangeSession: null,
+        passwordChangePoolType: null,
       });
     } catch (error: any) {
       set({ isLoading: false });
@@ -197,6 +225,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       isLoading: false,
       requiresPasswordChange: false,
       passwordChangeSession: null,
+      passwordChangePoolType: null,
     });
   },
 

@@ -88,10 +88,10 @@ class ApiClient {
     return response.data ?? response;
   }
 
-  async changePassword(email: string, newPassword: string, session: string): Promise<any> {
+  async changePassword(email: string, newPassword: string, session: string, poolType: 'users' | 'admin' = 'users'): Promise<any> {
     const response = await this.request<any>('/auth/change-password', {
       method: 'POST',
-      body: JSON.stringify({ email, new_password: newPassword, session }),
+      body: JSON.stringify({ email, new_password: newPassword, session, pool_type: poolType }),
     });
     // Handle both wrapped (ApiResponse) and unwrapped responses
     return response.data ?? response;

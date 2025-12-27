@@ -11,7 +11,7 @@ import { useAuthStore } from '@/stores/auth-store';
 
 export default function LoginPage() {
   const router = useRouter();
-  const { login, changePassword, requiresPasswordChange, passwordChangeSession, email: storeEmail } = useAuthStore();
+  const { login, changePassword, requiresPasswordChange, passwordChangeSession, passwordChangePoolType, email: storeEmail } = useAuthStore();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -81,7 +81,7 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      await changePassword(email, newPassword, passwordChangeSession);
+      await changePassword(email, newPassword, passwordChangeSession!, passwordChangePoolType || undefined);
       // Close modal and reset form
       setShowPasswordChangeModal(false);
       setNewPassword('');

@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, MinLength } from 'class-validator';
+import { IsString, IsNotEmpty, MinLength, IsOptional, IsIn } from 'class-validator';
 
 export class ChangePasswordDto {
   @IsString()
@@ -12,4 +12,9 @@ export class ChangePasswordDto {
   @IsString()
   @IsNotEmpty()
   session!: string;
+
+  @IsString()
+  @IsOptional()
+  @IsIn(['users', 'admin'])
+  pool_type?: 'users' | 'admin';
 }
