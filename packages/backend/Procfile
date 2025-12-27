@@ -1,1 +1,0 @@
-web: node dist/packages/backend/src/main.js

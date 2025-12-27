@@ -199,29 +199,68 @@ export class AuthService {
   // ========================================================================
 
   async loginWithCognito(email: string, password: string) {
-    const result = await this.cognitoService.login(email, password);
+    console.log(`[AuthService] Attempting login for: ${email}`);
+    try {
+      const result = await this.cognitoService.login(email, password, 'auto');
+      console.log(`[AuthService] Login successful, poolType: ${result.poolType}`);
+      return this.processLoginResult(result, email);
+    } catch (error: any) {
+      console.error('[AuthService] Login error:', error);
+      console.error('[AuthService] Error details:', {
+        name: error?.name,
+        message: error?.message,
+        stack: error?.stack,
+      });
+      throw error;
+    }
+  }
+
+  private async processLoginResult(result: any, email: string) {
 
     // Check if user needs to change password
     if (result.challengeName === 'NEW_PASSWORD_REQUIRED') {
+      console.log(`[AuthService] Password change required for: ${email}, poolType: ${result.poolType}`);
       return {
         requiresPasswordChange: true,
         session: result.session,
         email,
+        poolType: result.poolType,
       };
     }
 
-    // Get company and user info from DynamoDB using custom attributes
+    // For admin pool, company_id might not be required (admin users)
     const companyId = result.userAttributes?.['custom:company_id'];
+    console.log(`[AuthService] Processing login result, poolType: ${result.poolType}, companyId: ${companyId || 'none'}`);
 
+    // Admin pool users might not have company_id - that's OK for admin dashboard
+    if (result.poolType === 'admin') {
+      // Admin login - return admin-specific response
+      console.log(`[AuthService] Admin login successful for: ${email}`);
+      return {
+        requiresPasswordChange: false,
+        access_token: result.accessToken,
+        id_token: result.idToken,
+        refresh_token: result.refreshToken,
+        email,
+        poolType: 'admin',
+        company_id: companyId || null,
+        company: companyId ? await this.companiesService.findById(companyId).catch(() => null) : null,
+      };
+    }
+
+    // Users pool - company_id is required
     if (!companyId) {
+      console.error(`[AuthService] Users pool login failed - no company_id for: ${email}`);
       throw new UnauthorizedException('User not properly configured');
     }
 
     const company = await this.companiesService.findById(companyId);
     if (!company) {
+      console.error(`[AuthService] Users pool login failed - company not found: ${companyId}`);
       throw new UnauthorizedException('Company not found');
     }
 
+    console.log(`[AuthService] Users pool login successful for: ${email}, company: ${companyId}`);
     return {
       requiresPasswordChange: false,
       access_token: result.accessToken,
@@ -230,19 +269,44 @@ export class AuthService {
       company,
       email,
       company_id: companyId,
+      poolType: 'users',
     };
   }
 
-  async changePassword(email: string, newPassword: string, session: string) {
+  async changePassword(email: string, newPassword: string, session: string, poolType?: 'users' | 'admin'): Promise<any> {
+    // If poolType not provided, try both pools (session is pool-specific, so only one will work)
+    if (!poolType) {
+      // Try admin pool first, then users pool
+      try {
+        return await this.changePassword(email, newPassword, session, 'admin');
+      } catch (error) {
+        return await this.changePassword(email, newPassword, session, 'users');
+      }
+    }
     const result = await this.cognitoService.respondToNewPasswordChallenge(
       email,
       newPassword,
-      session
+      session,
+      poolType
     );
 
     // Get company info
     const companyId = result.userAttributes?.['custom:company_id'];
 
+    // Admin pool users might not have company_id
+    if (result.poolType === 'admin') {
+      return {
+        access_token: result.accessToken,
+        id_token: result.idToken,
+        refresh_token: result.refreshToken,
+        email,
+        poolType: 'admin',
+        company_id: companyId || null,
+        company: companyId ? await this.companiesService.findById(companyId).catch(() => null) : null,
+      };
+    }
+
+    // Users pool - company_id is required
     if (!companyId) {
       throw new UnauthorizedException('User not properly configured');
     }
@@ -259,6 +323,7 @@ export class AuthService {
       company,
       email,
       company_id: companyId,
+      poolType: 'users',
     };
   }
 
