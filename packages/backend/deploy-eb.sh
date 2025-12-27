@@ -22,3 +22,4 @@ zip -r deploy.zip . -x "node_modules/*" "src/*" "test/*" "*.md" ".env*" ".git/*"
 echo "✅ Deployment package created: deploy.zip"
 echo "Now you can deploy using: aws elasticbeanstalk create-application-version ..."
 
+

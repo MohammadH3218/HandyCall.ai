@@ -42,10 +42,50 @@ Write-Host ""
 Write-Host "Step 3: Creating package..." -ForegroundColor Cyan
 if (Test-Path deploy.zip) { Remove-Item deploy.zip -Force }
 
-$itemsToZip = @("dist", "node_modules", "package.json", ".ebextensions", ".npmrc")
-if (Test-Path "package-lock.json") { $itemsToZip += "package-lock.json" }
+# For monorepo, we need to copy root node_modules
+Write-Host "  Copying root node_modules..." -ForegroundColor Yellow
+$tempDir = "deploy_temp"
+if (Test-Path $tempDir) { Remove-Item $tempDir -Recurse -Force }
+New-Item -ItemType Directory -Path $tempDir | Out-Null
 
-Compress-Archive -Path $itemsToZip -DestinationPath deploy.zip -Force
+# Copy dist, package.json, Procfile
+Copy-Item -Path "dist" -Destination "$tempDir/dist" -Recurse -Force
+Copy-Item -Path "package.json" -Destination "$tempDir/package.json" -Force
+if (Test-Path "Procfile") { Copy-Item -Path "Procfile" -Destination "$tempDir/Procfile" -Force }
+if (Test-Path "package-lock.json") { Copy-Item -Path "package-lock.json" -Destination "$tempDir/package-lock.json" -Force }
+if (Test-Path ".npmrc") { Copy-Item -Path ".npmrc" -Destination "$tempDir/.npmrc" -Force }
+
+# Copy root node_modules (monorepo dependencies)
+Write-Host "  Copying root node_modules (this may take a while)..." -ForegroundColor Yellow
+$rootNodeModules = "../../node_modules"
+if (Test-Path $rootNodeModules) {
+    Copy-Item -Path $rootNodeModules -Destination "$tempDir/node_modules" -Recurse -Force
+} else {
+    Write-Host "  Warning: Root node_modules not found, using local node_modules" -ForegroundColor Yellow
+    if (Test-Path "node_modules") {
+        Copy-Item -Path "node_modules" -Destination "$tempDir/node_modules" -Recurse -Force
+    }
+}
+
+# Create zip with forward slashes (Windows compatibility)
+Write-Host "  Creating zip file..." -ForegroundColor Yellow
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+$zipPath = Resolve-Path "deploy.zip"
+if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
+
+$zip = [System.IO.Compression.ZipFile]::Open($zipPath, [System.IO.Compression.ZipArchiveMode]::Create)
+
+Get-ChildItem -Path $tempDir -Recurse | ForEach-Object {
+    $relativePath = $_.FullName.Substring((Resolve-Path $tempDir).Path.Length + 1)
+    $relativePath = $relativePath.Replace('\', '/')  # Use forward slashes
+    if (-not $_.PSIsContainer) {
+        [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile($zip, $_.FullName, $relativePath) | Out-Null
+    }
+}
+
+$zip.Dispose()
+Remove-Item $tempDir -Recurse -Force
+
 $size = (Get-Item deploy.zip).Length / 1MB
 Write-Host "Package created: $([math]::Round($size, 2)) MB" -ForegroundColor Green
 
@@ -116,7 +156,6 @@ if ($LASTEXITCODE -ne 0 -or $envCheck -like "*No Environment found*") {
             "Namespace=aws:elasticbeanstalk:application:environment,OptionName=BEDROCK_MODEL_ID,Value=$($envVars.BEDROCK_MODEL_ID)" `
             "Namespace=aws:elasticbeanstalk:application:environment,OptionName=BEDROCK_EMBEDDING_MODEL_ID,Value=$($envVars.BEDROCK_EMBEDDING_MODEL_ID)" `
             "Namespace=aws:elasticbeanstalk:application:environment,OptionName=CORS_ORIGINS,Value=https://master.dwonwh39izoea.amplifyapp.com" `
-            "Namespace=aws:elasticbeanstalk:container:nodejs,OptionName=NodeCommand,Value=npm run start:prod" `
             "Namespace=aws:autoscaling:launchconfiguration,OptionName=IamInstanceProfile,Value=aws-elasticbeanstalk-ec2-role" `
             "Namespace=aws:elasticbeanstalk:environment,OptionName=EnvironmentType,Value=SingleInstance" `
         --no-cli-pager

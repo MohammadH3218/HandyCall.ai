@@ -47,7 +47,18 @@
       "Bash(aws amplify get-job:*)",
       "Bash(aws acm request-certificate:*)",
       "Bash(aws acm describe-certificate:*)",
-      "Bash(aws cloudfront get-distribution:*)"
+      "Bash(aws cloudfront get-distribution:*)",
+      "Bash(aws cloudfront get-distribution-config:*)",
+      "Bash(aws elasticbeanstalk describe-environment-health:*)",
+      "Bash(aws elasticbeanstalk describe-events:*)",
+      "Bash(aws elasticbeanstalk describe-application-versions:*)",
+      "Bash(aws sts get-caller-identity:*)",
+      "Bash(aws elasticbeanstalk create-application-version:*)",
+      "Bash(aws elasticbeanstalk request-environment-info:*)",
+      "Bash(aws elasticbeanstalk retrieve-environment-info:*)",
+      "Bash(python create_deployment.py:*)",
+      "Bash(python check_zip.py:*)",
+      "Bash(python:*)"
     ]
   }
 }

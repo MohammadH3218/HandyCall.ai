@@ -59,3 +59,4 @@ export function extractUserRole(token: string): 'admin' | 'customer' | null {
   return 'customer';
 }
 
+

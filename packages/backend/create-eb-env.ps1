@@ -87,3 +87,4 @@ Write-Host ""
 Write-Host "✅ Deployment initiated!" -ForegroundColor Green
 Write-Host "   Check status: aws elasticbeanstalk describe-environments --application-name $APP_NAME --environment-names $ENV_NAME --region $REGION" -ForegroundColor Gray
 
+
