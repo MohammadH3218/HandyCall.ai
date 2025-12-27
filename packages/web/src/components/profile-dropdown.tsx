@@ -25,9 +25,14 @@ export function ProfileDropdown() {
 
   // Get user initials for avatar
   const getInitials = () => {
+    // Try to get from user object first
     if (user?.first_name && user?.last_name) {
       return `${user.first_name[0]}${user.last_name[0]}`.toUpperCase();
     }
+    if (user?.first_name) {
+      return user.first_name.substring(0, 2).toUpperCase();
+    }
+    // Fallback to email
     if (email) {
       return email.substring(0, 2).toUpperCase();
     }
@@ -36,12 +41,14 @@ export function ProfileDropdown() {
 
   // Get display name
   const getDisplayName = () => {
+    // Try to get from user object first
     if (user?.first_name && user?.last_name) {
       return `${user.first_name} ${user.last_name}`;
     }
     if (user?.first_name) {
       return user.first_name;
     }
+    // Fallback to email username
     if (email) {
       return email.split('@')[0];
     }

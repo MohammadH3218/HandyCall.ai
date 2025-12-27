@@ -148,9 +148,9 @@ export default function LoginPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4 py-12">
       <div className="w-full max-w-md">
-        <div className="mb-8 flex flex-col items-center space-y-3">
+        <div className="mb-8 flex flex-col items-center justify-center space-y-4">
           <Logo variant="words" width={240} height={60} />
-          <p className="text-sm text-muted-foreground">AI Receptionist for Your Business</p>
+          <p className="text-base text-center text-muted-foreground font-medium">AI Receptionist for Your Business</p>
         </div>
 
         <Card>

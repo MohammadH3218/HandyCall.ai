@@ -69,8 +69,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </Button>
         </div>
 
-        <div className="p-6 flex items-center justify-center border-b border-border">
+        <div className="p-6 flex flex-col items-center justify-center border-b border-border">
           <Logo variant="words" width={160} height={40} />
+          {company?.company_name && (
+            <p className="mt-2 text-sm font-medium text-foreground text-center">{company.company_name}</p>
+          )}
         </div>
 
         <nav className="flex-1 px-4 py-4 space-y-1 overflow-y-auto">
@@ -98,38 +101,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Top Header with Company Name and Mobile Menu */}
-        <header className="bg-card border-b border-border px-4 lg:px-6 h-16 flex items-center justify-between">
-          {/* Mobile menu button */}
+        {/* Mobile menu button */}
+        <div className="lg:hidden p-4 border-b border-border">
           <Button
             variant="ghost"
             size="sm"
-            className="lg:hidden h-10 w-10 p-0"
+            className="h-10 w-10 p-0"
             onClick={() => setSidebarOpen(true)}
           >
             <Menu className="h-5 w-5" />
           </Button>
-
-          {/* Company Name */}
-          {company?.company_name && (
-            <div className="flex-1 lg:flex-none">
-              <h1 className="text-lg lg:text-xl font-semibold text-foreground truncate">
-                {company.company_name}
-              </h1>
-              <p className="text-xs text-muted-foreground hidden sm:block">Dashboard</p>
-            </div>
-          )}
-
-          {/* Desktop Profile Dropdown */}
-          <div className="hidden lg:block">
-            <ProfileDropdown />
-          </div>
-
-          {/* Mobile Profile Icon */}
-          <div className="lg:hidden">
-            <ProfileDropdown />
-          </div>
-        </header>
+        </div>
 
         {/* Main Content Area */}
         <main className="flex-1 overflow-auto p-4 sm:p-6 lg:p-8">

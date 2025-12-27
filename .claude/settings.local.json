@@ -124,7 +124,12 @@
       "Bash(aws cloudfront update-distribution:*)",
       "Bash(aws cloudfront create-invalidation:*)",
       "Bash(do echo \"=== Check $i \\(waiting 30s\\) ===\")",
-      "Bash(aws cognito-idp:*)"
+      "Bash(aws cognito-idp:*)",
+      "Bash(npm run build:eb:*)",
+      "Bash(npx nest build:*)",
+      "Bash(./node_modules/.bin/nest build:*)",
+      "Bash(powershell -Command \"Compress-Archive -Path Dockerrun.aws.json -DestinationPath dockerrun-deployment.zip -Force\")",
+      "Bash(echo:*)"
     ]
   }
 }
