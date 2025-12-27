@@ -44,15 +44,25 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       const response = await apiClient.login({ email, password });
 
-      // Check if password change is required
-      if (response.requiresPasswordChange) {
+      // Handle null/undefined response
+      if (!response) {
+        throw new Error('No response received from server');
+      }
+
+      // Check if password change is required (safely handle undefined/null response)
+      if (response.requiresPasswordChange === true) {
         set({
           requiresPasswordChange: true,
-          passwordChangeSession: response.session,
+          passwordChangeSession: response.session || null,
           email,
           isLoading: false,
         });
         return { requiresPasswordChange: true, userRole: null };
+      }
+
+      // Ensure response has required fields for successful login
+      if (!response.access_token) {
+        throw new Error('Invalid login response: missing access token');
       }
 
       // Extract user role from ID token
@@ -94,6 +104,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   changePassword: async (email: string, newPassword: string, session: string) => {
     try {
       const response = await apiClient.changePassword(email, newPassword, session);
+
+      // Ensure response has required fields
+      if (!response || !response.access_token) {
+        throw new Error('Invalid password change response');
+      }
 
       // Extract user role from ID token
       const userRole = response.id_token ? extractUserRole(response.id_token) : null;

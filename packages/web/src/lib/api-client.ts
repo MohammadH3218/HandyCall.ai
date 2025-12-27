@@ -46,16 +46,27 @@ class ApiClient {
         headers,
       });
 
-      const data = await response.json();
+      let data: any;
+      try {
+        data = await response.json();
+      } catch (jsonError) {
+        // If response is not JSON, create error response
+        const text = await response.text();
+        throw new Error(`Invalid JSON response: ${text.substring(0, 100)}`);
+      }
 
       if (!response.ok) {
-        throw new Error(data.error?.message || 'Request failed');
+        const errorMessage = data?.error?.message || data?.message || `Request failed with status ${response.status}`;
+        throw new Error(errorMessage);
       }
 
       return data;
     } catch (error) {
       console.error('API request failed:', error);
-      throw error;
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error('An unexpected error occurred');
     }
   }
 
@@ -73,7 +84,8 @@ class ApiClient {
       method: 'POST',
       body: JSON.stringify(data),
     });
-    return response.data!;
+    // Handle both wrapped (ApiResponse) and unwrapped responses
+    return response.data ?? response;
   }
 
   async changePassword(email: string, newPassword: string, session: string): Promise<any> {
@@ -81,7 +93,8 @@ class ApiClient {
       method: 'POST',
       body: JSON.stringify({ email, new_password: newPassword, session }),
     });
-    return response.data!;
+    // Handle both wrapped (ApiResponse) and unwrapped responses
+    return response.data ?? response;
   }
 
   async refreshToken(refreshToken: string, email: string): Promise<{ access_token: string; id_token: string }> {
