@@ -1,0 +1,128 @@
+{
+  "Version": "2019-10-30",
+  "StartAction": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "Metadata": {
+    "entryPointPosition": {
+      "x": 39,
+      "y": 15
+    },
+    "snapToGrid": false,
+    "ActionMetadata": {
+      "a1b2c3d4-e5f6-7890-abcd-ef1234567890": {
+        "position": {
+          "x": 193,
+          "y": 50
+        },
+        "useDynamic": false
+      },
+      "b1b2c3d4-e5f6-7890-abcd-ef1234567890": {
+        "position": {
+          "x": 450,
+          "y": 50
+        },
+        "useDynamic": false
+      },
+      "c1b2c3d4-e5f6-7890-abcd-ef1234567890": {
+        "position": {
+          "x": 707,
+          "y": 50
+        },
+        "useDynamic": false
+      },
+      "d1b2c3d4-e5f6-7890-abcd-ef1234567890": {
+        "position": {
+          "x": 707,
+          "y": 250
+        },
+        "useDynamic": false
+      },
+      "e1b2c3d4-e5f6-7890-abcd-ef1234567890": {
+        "position": {
+          "x": 964,
+          "y": 150
+        },
+        "useDynamic": false
+      }
+    }
+  },
+  "Actions": [
+    {
+      "Identifier": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "Type": "UpdateContactAttributes",
+      "Parameters": {
+        "Attributes": {
+          "UserInput": ""
+        }
+      },
+      "Transitions": {
+        "NextAction": "b1b2c3d4-e5f6-7890-abcd-ef1234567890",
+        "Errors": [
+          {
+            "NextAction": "e1b2c3d4-e5f6-7890-abcd-ef1234567890",
+            "ErrorType": "NoMatchingError"
+          }
+        ],
+        "Conditions": []
+      }
+    },
+    {
+      "Identifier": "b1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "Type": "InvokeLambdaFunction",
+      "Parameters": {
+        "LambdaFunctionARN": "arn:aws:lambda:us-east-1:982081079378:function:handycall-call-orchestrator",
+        "InvocationTimeLimitSeconds": "8"
+      },
+      "Transitions": {
+        "NextAction": "c1b2c3d4-e5f6-7890-abcd-ef1234567890",
+        "Errors": [
+          {
+            "NextAction": "d1b2c3d4-e5f6-7890-abcd-ef1234567890",
+            "ErrorType": "NoMatchingError"
+          }
+        ],
+        "Conditions": []
+      }
+    },
+    {
+      "Identifier": "c1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "Type": "MessageParticipant",
+      "Parameters": {
+        "Text": "$.External.response"
+      },
+      "Transitions": {
+        "NextAction": "e1b2c3d4-e5f6-7890-abcd-ef1234567890",
+        "Errors": [
+          {
+            "NextAction": "e1b2c3d4-e5f6-7890-abcd-ef1234567890",
+            "ErrorType": "NoMatchingError"
+          }
+        ],
+        "Conditions": []
+      }
+    },
+    {
+      "Identifier": "d1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "Type": "MessageParticipant",
+      "Parameters": {
+        "Text": "I apologize, but I'm experiencing technical difficulties. Please try calling again later."
+      },
+      "Transitions": {
+        "NextAction": "e1b2c3d4-e5f6-7890-abcd-ef1234567890",
+        "Errors": [
+          {
+            "NextAction": "e1b2c3d4-e5f6-7890-abcd-ef1234567890",
+            "ErrorType": "NoMatchingError"
+          }
+        ],
+        "Conditions": []
+      }
+    },
+    {
+      "Identifier": "e1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "Type": "DisconnectParticipant",
+      "Parameters": {},
+      "Transitions": {}
+    }
+  ]
+}
+

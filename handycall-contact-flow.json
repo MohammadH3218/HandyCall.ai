@@ -1,0 +1,205 @@
+{
+  "Version": "2019-10-30",
+  "StartAction": "set-user-input",
+  "Metadata": {
+    "entryPointPosition": {
+      "x": 39,
+      "y": 15
+    },
+    "snapToGrid": false,
+    "ActionMetadata": {
+      "set-user-input": {
+        "position": {
+          "x": 193,
+          "y": 50
+        },
+        "useDynamic": false
+      },
+      "invoke-lambda": {
+        "position": {
+          "x": 450,
+          "y": 50
+        },
+        "useDynamic": false
+      },
+      "play-response": {
+        "position": {
+          "x": 707,
+          "y": 50
+        },
+        "useDynamic": false
+      },
+      "get-input": {
+        "position": {
+          "x": 964,
+          "y": 50
+        },
+        "useDynamic": false
+      },
+      "store-input": {
+        "position": {
+          "x": 1221,
+          "y": 50
+        },
+        "useDynamic": false
+      },
+      "error-msg": {
+        "position": {
+          "x": 707,
+          "y": 250
+        },
+        "useDynamic": false
+      },
+      "disconnect": {
+        "position": {
+          "x": 1478,
+          "y": 150
+        },
+        "useDynamic": false
+      }
+    }
+  },
+  "Actions": [
+    {
+      "Identifier": "set-user-input",
+      "Type": "UpdateContactAttributes",
+      "Parameters": {
+        "Attributes": {
+          "UserInput": ""
+        }
+      },
+      "Transitions": {
+        "NextAction": "invoke-lambda",
+        "Errors": [
+          {
+            "NextAction": "disconnect",
+            "ErrorType": "NoMatchingError"
+          }
+        ],
+        "Conditions": []
+      }
+    },
+    {
+      "Identifier": "invoke-lambda",
+      "Type": "InvokeLambdaFunction",
+      "Parameters": {
+        "LambdaFunctionARN": "arn:aws:lambda:us-east-1:982081079378:function:handycall-call-orchestrator",
+        "InvocationTimeLimitSeconds": "8",
+        "LambdaInvocationAttributes": {
+          "UserInput": "$.Attributes.UserInput"
+        }
+      },
+      "Transitions": {
+        "NextAction": "play-response",
+        "Errors": [
+          {
+            "NextAction": "error-msg",
+            "ErrorType": "NoMatchingError"
+          }
+        ],
+        "Conditions": []
+      }
+    },
+    {
+      "Identifier": "play-response",
+      "Type": "MessageParticipant",
+      "Parameters": {
+        "Text": "$.External.response"
+      },
+      "Transitions": {
+        "NextAction": "get-input",
+        "Errors": [
+          {
+            "NextAction": "disconnect",
+            "ErrorType": "NoMatchingError"
+          }
+        ],
+        "Conditions": []
+      }
+    },
+    {
+      "Identifier": "get-input",
+      "Type": "GetParticipantInput",
+      "Parameters": {
+        "InputTimeLimitSeconds": "10",
+        "Text": "I'm listening. Please continue speaking, or press star to end the call.",
+        "DTMFConfiguration": {
+          "InputTerminationSequence": "*"
+        },
+        "TextToSpeechConfiguration": {
+          "Engine": "Neural",
+          "VoiceId": "Matthew"
+        },
+        "StoreInput": "StoredCustomerInput"
+      },
+      "Transitions": {
+        "NextAction": "store-input",
+        "Errors": [
+          {
+            "NextAction": "disconnect",
+            "ErrorType": "InputTimeLimitExceeded"
+          },
+          {
+            "NextAction": "disconnect",
+            "ErrorType": "NoMatchingError"
+          }
+        ],
+        "Conditions": [
+          {
+            "NextAction": "disconnect",
+            "Condition": {
+              "Operator": "Equals",
+              "Operands": [
+                "*",
+                "$.CustomerInput"
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "Identifier": "store-input",
+      "Type": "UpdateContactAttributes",
+      "Parameters": {
+        "Attributes": {
+          "UserInput": "$.StoredCustomerInput"
+        }
+      },
+      "Transitions": {
+        "NextAction": "invoke-lambda",
+        "Errors": [
+          {
+            "NextAction": "invoke-lambda",
+            "ErrorType": "NoMatchingError"
+          }
+        ],
+        "Conditions": []
+      }
+    },
+    {
+      "Identifier": "error-msg",
+      "Type": "MessageParticipant",
+      "Parameters": {
+        "Text": "I apologize, but I'm experiencing technical difficulties. Please try calling again later."
+      },
+      "Transitions": {
+        "NextAction": "disconnect",
+        "Errors": [
+          {
+            "NextAction": "disconnect",
+            "ErrorType": "NoMatchingError"
+          }
+        ],
+        "Conditions": []
+      }
+    },
+    {
+      "Identifier": "disconnect",
+      "Type": "DisconnectParticipant",
+      "Parameters": {},
+      "Transitions": {}
+    }
+  ]
+}
+

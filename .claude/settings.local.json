@@ -129,7 +129,23 @@
       "Bash(npx nest build:*)",
       "Bash(./node_modules/.bin/nest build:*)",
       "Bash(powershell -Command \"Compress-Archive -Path Dockerrun.aws.json -DestinationPath dockerrun-deployment.zip -Force\")",
-      "Bash(echo:*)"
+      "Bash(echo:*)",
+      "Bash(aws bedrock list-foundation-models:*)",
+      "Bash(aws connect list-instances:*)",
+      "Bash(aws lambda list-functions:*)",
+      "Bash(bash create-dynamodb-tables.sh:*)",
+      "Bash(/tmp/lambda-permissions-policy.json <<'EOF'\n{\n  \"Version\": \"2012-10-17\",\n  \"Statement\": [\n    {\n      \"Sid\": \"CloudWatchLogs\",\n      \"Effect\": \"Allow\",\n      \"Action\": [\n        \"logs:CreateLogGroup\",\n        \"logs:CreateLogStream\",\n        \"logs:PutLogEvents\"\n      ],\n      \"Resource\": \"arn:aws:logs:us-east-1:982081079378:log-group:/aws/lambda/handycall-*\"\n    },\n    {\n      \"Sid\": \"DynamoDBAccess\",\n      \"Effect\": \"Allow\",\n      \"Action\": [\n        \"dynamodb:GetItem\",\n        \"dynamodb:PutItem\",\n        \"dynamodb:UpdateItem\",\n        \"dynamodb:DeleteItem\",\n        \"dynamodb:Query\",\n        \"dynamodb:Scan\",\n        \"dynamodb:BatchGetItem\",\n        \"dynamodb:BatchWriteItem\"\n      ],\n      \"Resource\": [\n        \"arn:aws:dynamodb:us-east-1:982081079378:table/handycall_prod_*\",\n        \"arn:aws:dynamodb:us-east-1:982081079378:table/handycall_prod_*/index/*\"\n      ]\n    },\n    {\n      \"Sid\": \"BedrockAccess\",\n      \"Effect\": \"Allow\",\n      \"Action\": [\n        \"bedrock:InvokeModel\",\n        \"bedrock:InvokeModelWithResponseStream\"\n      ],\n      \"Resource\": [\n        \"arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-3-5-sonnet-20241022-v2:0\",\n        \"arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-3-haiku-20240307-v1:0\",\n        \"arn:aws:bedrock:us-east-1::foundation-model/amazon.titan-embed-text-v1\"\n      ]\n    },\n    {\n      \"Sid\": \"S3Access\",\n      \"Effect\": \"Allow\",\n      \"Action\": [\n        \"s3:GetObject\",\n        \"s3:PutObject\",\n        \"s3:DeleteObject\",\n        \"s3:ListBucket\"\n      ],\n      \"Resource\": [\n        \"arn:aws:s3:::handycall-recordings-prod\",\n        \"arn:aws:s3:::handycall-recordings-prod/*\",\n        \"arn:aws:s3:::handycall-transcripts-prod\",\n        \"arn:aws:s3:::handycall-transcripts-prod/*\"\n      ]\n    },\n    {\n      \"Sid\": \"TranscribeAccess\",\n      \"Effect\": \"Allow\",\n      \"Action\": [\n        \"transcribe:StartStreamTranscription\",\n        \"transcribe:StartCallAnalyticsStreamTranscription\",\n        \"transcribe:StartTranscriptionJob\",\n        \"transcribe:GetTranscriptionJob\"\n      ],\n      \"Resource\": \"*\"\n    },\n    {\n      \"Sid\": \"PollyAccess\",\n      \"Effect\": \"Allow\",\n      \"Action\": [\n        \"polly:SynthesizeSpeech\"\n      ],\n      \"Resource\": \"*\"\n    },\n    {\n      \"Sid\": \"ConnectAccess\",\n      \"Effect\": \"Allow\",\n      \"Action\": [\n        \"connect:GetContactAttributes\",\n        \"connect:UpdateContactAttributes\"\n      ],\n      \"Resource\": \"arn:aws:connect:us-east-1:982081079378:instance/*\"\n    }\n  ]\n}\nEOF)",
+      "Bash(aws iam create-role:*)",
+      "Bash(aws iam get-role:*)",
+      "Bash(aws connect:*)",
+      "Bash(CONNECT_INSTANCE_ID=\"e55edc1b-5259-45ce-bb2c-1b3248c6031b\":*)",
+      "Bash(aws lambda create-function:*)",
+      "Bash(aws lambda add-permission:*)",
+      "Bash(aws s3api put-bucket-notification-configuration:*)",
+      "Bash(aws s3api get-bucket-notification-configuration:*)",
+      "Bash(aws lambda get-function:*)",
+      "Bash(aws dynamodb put-item:*)",
+      "Bash(aws dynamodb get-item:*)"
     ]
   }
 }
