@@ -2,6 +2,8 @@
  * JWT token decoding utilities
  */
 
+import { UserRole } from '@handycall/shared';
+
 interface JWTPayload {
   sub?: string;
   email?: string;
@@ -39,31 +41,34 @@ export function decodeJWT(token: string): JWTPayload | null {
  * Extract user role from JWT token
  * Checks for role in custom:role attribute or cognito:groups
  * Note: This is a fallback - the backend should always provide userRole in the login response
- * 
+ *
  * IMPORTANT: Do NOT use company_id presence to determine role, as customer users
  * may not have company_id set yet. The poolType (admin vs users) is the source of truth,
  * which is determined server-side during login.
  */
-export function extractUserRole(token: string): 'admin' | 'customer' | null {
+export function extractUserRole(token: string): UserRole | null {
   const payload = decodeJWT(token);
   if (!payload) return null;
 
   // Check custom:role attribute
   if (payload['custom:role']) {
-    return payload['custom:role'].toLowerCase() === 'admin' ? 'admin' : 'customer';
+    const role = payload['custom:role'].toUpperCase();
+    if (role === 'ADMIN') return UserRole.ADMIN;
+    if (role === 'OWNER') return UserRole.OWNER;
+    if (role === 'STAFF') return UserRole.STAFF;
   }
 
   // Check cognito:groups
   if (payload['cognito:groups'] && Array.isArray(payload['cognito:groups'])) {
     if (payload['cognito:groups'].some((group: string) => group.toLowerCase().includes('admin'))) {
-      return 'admin';
+      return UserRole.ADMIN;
     }
   }
 
   // Cannot reliably determine role from token alone without poolType information
   // The backend should always provide userRole, so this should rarely be called
-  // Default to customer as a safe fallback (prevents unauthorized admin access)
-  return 'customer';
+  // Default to OWNER as a safe fallback (prevents unauthorized admin access)
+  return UserRole.OWNER;
 }
 
 
