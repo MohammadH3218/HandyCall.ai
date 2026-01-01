@@ -1,0 +1,22 @@
+version: 1
+applications:
+  - appRoot: packages/web
+    frontend:
+      phases:
+        preBuild:
+          commands:
+            - echo "Installing dependencies for Next.js..."
+            - npm ci
+        build:
+          commands:
+            - echo "Building Next.js application..."
+            - echo "API URL - $NEXT_PUBLIC_API_URL"
+            - npm run build
+      artifacts:
+        baseDirectory: .
+        files:
+          - '**/*'
+      cache:
+        paths:
+          - node_modules/**/*
+          - .next/cache/**/*
