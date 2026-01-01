@@ -188,7 +188,7 @@ class ApiClient {
     const response = await this.request<any[]>(`/calls/search?${params.toString()}`, {
       method: 'GET',
     });
-    return response.data ?? response;
+    return response.data || [];
   }
 
   // Knowledge endpoints
