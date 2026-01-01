@@ -8,6 +8,7 @@ import { ProfileDropdown } from '@/components/profile-dropdown';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Building2, Users, BarChart3 } from 'lucide-react';
+import { UserRole } from '@handycall/shared';
 
 interface AdminStats {
   totalRevenue: number;
@@ -38,12 +39,12 @@ export default function AdminDashboardPage() {
   const [isLoadingStats, setIsLoadingStats] = useState(true);
 
   useEffect(() => {
-    if (!isLoading && (!isAuthenticated || userRole !== 'admin')) {
+    if (!isLoading && (!isAuthenticated || userRole !== UserRole.ADMIN)) {
       router.push('/login');
       return;
     }
 
-    if (isAuthenticated && userRole === 'admin') {
+    if (isAuthenticated && userRole === UserRole.ADMIN) {
       loadAdminData();
     }
   }, [isAuthenticated, userRole, isLoading, router]);
