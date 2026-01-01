@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { ArrowLeft, Users, Phone, BarChart3 } from 'lucide-react';
+import { UserRole } from '@handycall/shared';
 
 interface Company {
   company_id: string;
@@ -57,12 +58,12 @@ export default function CompanyDetailsPage() {
   const companyId = params.id as string;
 
   useEffect(() => {
-    if (!isLoading && (!isAuthenticated || userRole !== 'ADMIN')) {
+    if (!isLoading && (!isAuthenticated || userRole !== UserRole.ADMIN)) {
       router.push('/login');
       return;
     }
 
-    if (isAuthenticated && userRole === 'ADMIN') {
+    if (isAuthenticated && userRole === UserRole.ADMIN) {
       loadCompanyDetails();
     }
   }, [isAuthenticated, userRole, isLoading, router, companyId]);

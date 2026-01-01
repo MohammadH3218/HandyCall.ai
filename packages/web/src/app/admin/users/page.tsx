@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { Search, UserPlus } from 'lucide-react';
+import { UserRole } from '@handycall/shared';
 
 interface User {
   user_id: string;
@@ -43,12 +44,12 @@ export default function UsersPage() {
   const [selectedCompany, setSelectedCompany] = useState<string>('all');
 
   useEffect(() => {
-    if (!isLoading && (!isAuthenticated || userRole !== 'ADMIN')) {
+    if (!isLoading && (!isAuthenticated || userRole !== UserRole.ADMIN)) {
       router.push('/login');
       return;
     }
 
-    if (isAuthenticated && userRole === 'ADMIN') {
+    if (isAuthenticated && userRole === UserRole.ADMIN) {
       loadData();
     }
   }, [isAuthenticated, userRole, isLoading, router]);

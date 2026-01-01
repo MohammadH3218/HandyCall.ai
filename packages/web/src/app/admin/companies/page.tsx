@@ -13,6 +13,7 @@ import { CreateCompanyDialog } from '@/components/admin/create-company-dialog';
 import { DeleteConfirmDialog } from '@/components/admin/delete-confirm-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { Plus, Search, Building2, Trash2, Edit } from 'lucide-react';
+import { UserRole } from '@handycall/shared';
 
 interface Company {
   company_id: string;
@@ -40,12 +41,12 @@ export default function CompaniesPage() {
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
 
   useEffect(() => {
-    if (!isLoading && (!isAuthenticated || userRole !== 'ADMIN')) {
+    if (!isLoading && (!isAuthenticated || userRole !== UserRole.ADMIN)) {
       router.push('/login');
       return;
     }
 
-    if (isAuthenticated && userRole === 'ADMIN') {
+    if (isAuthenticated && userRole === UserRole.ADMIN) {
       loadCompanies();
     }
   }, [isAuthenticated, userRole, isLoading, router]);
