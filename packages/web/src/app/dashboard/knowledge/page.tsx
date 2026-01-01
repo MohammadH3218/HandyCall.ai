@@ -26,10 +26,15 @@ export default function KnowledgePage() {
   const [error, setError] = useState<string | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<KnowledgeItem | null>(null);
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<{
+    title: string;
+    content: string;
+    type: 'FAQ' | 'SERVICE' | 'POLICY' | 'PRODUCT' | 'SAFETY';
+    tags: string;
+  }>({
     title: '',
     content: '',
-    type: 'FAQ' as const,
+    type: 'FAQ',
     tags: '',
   });
 
