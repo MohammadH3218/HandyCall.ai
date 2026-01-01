@@ -156,12 +156,12 @@ class ApiClient {
   }
 
   // Calls endpoints
-  async getCalls(limit?: number, lastEvaluatedKey?: string) {
+  async getCalls(limit?: number, lastEvaluatedKey?: string): Promise<{ calls: any[]; lastEvaluatedKey?: any }> {
     const params = new URLSearchParams();
     if (limit) params.append('limit', limit.toString());
     if (lastEvaluatedKey) params.append('lastEvaluatedKey', lastEvaluatedKey);
 
-    const response = await this.request(`/calls?${params.toString()}`, {
+    const response = await this.request<{ calls: any[]; lastEvaluatedKey?: any }>(`/calls?${params.toString()}`, {
       method: 'GET',
     });
     return response.data ?? response;
