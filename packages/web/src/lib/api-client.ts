@@ -118,15 +118,15 @@ class ApiClient {
   }
 
   // Company endpoints
-  async getMyCompany() {
-    const response = await this.request('/companies/me', {
+  async getMyCompany(): Promise<any> {
+    const response = await this.request<any>('/companies/me', {
       method: 'GET',
     });
     return response.data;
   }
 
-  async updateMyCompany(updates: any) {
-    const response = await this.request('/companies/me', {
+  async updateMyCompany(updates: any): Promise<any> {
+    const response = await this.request<any>('/companies/me', {
       method: 'PUT',
       body: JSON.stringify(updates),
     });
@@ -134,22 +134,22 @@ class ApiClient {
   }
 
   // Dashboard endpoints
-  async getDashboardStats() {
-    const response = await this.request('/dashboard/stats', {
+  async getDashboardStats(): Promise<any> {
+    const response = await this.request<any>('/dashboard/stats', {
       method: 'GET',
     });
     return response.data ?? response;
   }
 
-  async getRecentCalls() {
-    const response = await this.request('/dashboard/recent-calls', {
+  async getRecentCalls(): Promise<any> {
+    const response = await this.request<any>('/dashboard/recent-calls', {
       method: 'GET',
     });
     return response.data ?? response;
   }
 
-  async getUpcomingAppointments() {
-    const response = await this.request('/dashboard/upcoming-appointments', {
+  async getUpcomingAppointments(): Promise<any> {
+    const response = await this.request<any>('/dashboard/upcoming-appointments', {
       method: 'GET',
     });
     return response.data ?? response;
@@ -167,15 +167,15 @@ class ApiClient {
     return response.data ?? response;
   }
 
-  async getCallById(callId: string) {
-    const response = await this.request(`/calls/${callId}`, {
+  async getCallById(callId: string): Promise<any> {
+    const response = await this.request<any>(`/calls/${callId}`, {
       method: 'GET',
     });
     return response.data ?? response;
   }
 
-  async getCallRecordingUrl(callId: string) {
-    const response = await this.request(`/calls/${callId}/recording`, {
+  async getCallRecordingUrl(callId: string): Promise<any> {
+    const response = await this.request<any>(`/calls/${callId}/recording`, {
       method: 'GET',
     });
     return response.data ?? response;
@@ -192,140 +192,140 @@ class ApiClient {
   }
 
   // Knowledge endpoints
-  async getKnowledgeItems(type?: string, status?: string, limit?: number) {
+  async getKnowledgeItems(type?: string, status?: string, limit?: number): Promise<any> {
     const params = new URLSearchParams();
     if (type) params.append('type', type);
     if (status) params.append('status', status);
     if (limit) params.append('limit', limit.toString());
 
-    const response = await this.request(`/knowledge-items?${params.toString()}`, {
+    const response = await this.request<any>(`/knowledge-items?${params.toString()}`, {
       method: 'GET',
     });
     return response.data ?? response;
   }
 
-  async getKnowledgeItem(knowledgeId: string) {
-    const response = await this.request(`/knowledge-items/${knowledgeId}`, {
+  async getKnowledgeItem(knowledgeId: string): Promise<any> {
+    const response = await this.request<any>(`/knowledge-items/${knowledgeId}`, {
       method: 'GET',
     });
     return response.data ?? response;
   }
 
-  async createKnowledgeItem(data: any) {
-    const response = await this.request('/knowledge-items', {
+  async createKnowledgeItem(data: any): Promise<any> {
+    const response = await this.request<any>('/knowledge-items', {
       method: 'POST',
       body: JSON.stringify(data),
     });
     return response.data ?? response;
   }
 
-  async updateKnowledgeItem(knowledgeId: string, data: any) {
-    const response = await this.request(`/knowledge-items/${knowledgeId}`, {
+  async updateKnowledgeItem(knowledgeId: string, data: any): Promise<any> {
+    const response = await this.request<any>(`/knowledge-items/${knowledgeId}`, {
       method: 'PUT',
       body: JSON.stringify(data),
     });
     return response.data ?? response;
   }
 
-  async deleteKnowledgeItem(knowledgeId: string) {
-    const response = await this.request(`/knowledge-items/${knowledgeId}`, {
+  async deleteKnowledgeItem(knowledgeId: string): Promise<any> {
+    const response = await this.request<any>(`/knowledge-items/${knowledgeId}`, {
       method: 'DELETE',
     });
     return response.data ?? response;
   }
 
-  async searchKnowledge(query: string, topK?: number) {
+  async searchKnowledge(query: string, topK?: number): Promise<any> {
     const params = new URLSearchParams({ q: query });
     if (topK) params.append('topK', topK.toString());
 
-    const response = await this.request(`/knowledge-items/search?${params.toString()}`, {
+    const response = await this.request<any>(`/knowledge-items/search?${params.toString()}`, {
       method: 'GET',
     });
     return response.data ?? response;
   }
 
   // Flagged Questions endpoints
-  async getFlaggedQuestions(status?: string, callId?: string, limit?: number) {
+  async getFlaggedQuestions(status?: string, callId?: string, limit?: number): Promise<any> {
     const params = new URLSearchParams();
     if (status) params.append('status', status);
     if (callId) params.append('call_id', callId);
     if (limit) params.append('limit', limit.toString());
 
-    const response = await this.request(`/flagged-questions?${params.toString()}`, {
+    const response = await this.request<any>(`/flagged-questions?${params.toString()}`, {
       method: 'GET',
     });
     return response.data ?? response;
   }
 
-  async getFlaggedQuestion(flaggedId: string) {
-    const response = await this.request(`/flagged-questions/${flaggedId}`, {
+  async getFlaggedQuestion(flaggedId: string): Promise<any> {
+    const response = await this.request<any>(`/flagged-questions/${flaggedId}`, {
       method: 'GET',
     });
     return response.data ?? response;
   }
 
-  async resolveFlaggedQuestion(flaggedId: string, data: any) {
-    const response = await this.request(`/flagged-questions/${flaggedId}/resolve`, {
+  async resolveFlaggedQuestion(flaggedId: string, data: any): Promise<any> {
+    const response = await this.request<any>(`/flagged-questions/${flaggedId}/resolve`, {
       method: 'PUT',
       body: JSON.stringify(data),
     });
     return response.data ?? response;
   }
 
-  async dismissFlaggedQuestion(flaggedId: string) {
-    const response = await this.request(`/flagged-questions/${flaggedId}/dismiss`, {
+  async dismissFlaggedQuestion(flaggedId: string): Promise<any> {
+    const response = await this.request<any>(`/flagged-questions/${flaggedId}/dismiss`, {
       method: 'PUT',
     });
     return response.data ?? response;
   }
 
   // Contacts endpoints
-  async getContacts(limit?: number, lastEvaluatedKey?: string) {
+  async getContacts(limit?: number, lastEvaluatedKey?: string): Promise<any> {
     const params = new URLSearchParams();
     if (limit) params.append('limit', limit.toString());
     if (lastEvaluatedKey) params.append('lastEvaluatedKey', lastEvaluatedKey);
 
-    const response = await this.request(`/contacts?${params.toString()}`, {
+    const response = await this.request<any>(`/contacts?${params.toString()}`, {
       method: 'GET',
     });
     return response.data ?? response;
   }
 
-  async getContact(contactId: string) {
-    const response = await this.request(`/contacts/${contactId}`, {
+  async getContact(contactId: string): Promise<any> {
+    const response = await this.request<any>(`/contacts/${contactId}`, {
       method: 'GET',
     });
     return response.data ?? response;
   }
 
-  async createContact(data: any) {
-    const response = await this.request('/contacts', {
+  async createContact(data: any): Promise<any> {
+    const response = await this.request<any>('/contacts', {
       method: 'POST',
       body: JSON.stringify(data),
     });
     return response.data ?? response;
   }
 
-  async updateContact(contactId: string, data: any) {
-    const response = await this.request(`/contacts/${contactId}`, {
+  async updateContact(contactId: string, data: any): Promise<any> {
+    const response = await this.request<any>(`/contacts/${contactId}`, {
       method: 'PUT',
       body: JSON.stringify(data),
     });
     return response.data ?? response;
   }
 
-  async deleteContact(contactId: string) {
-    const response = await this.request(`/contacts/${contactId}`, {
+  async deleteContact(contactId: string): Promise<any> {
+    const response = await this.request<any>(`/contacts/${contactId}`, {
       method: 'DELETE',
     });
     return response.data ?? response;
   }
 
-  async searchContacts(query: string, limit?: number) {
+  async searchContacts(query: string, limit?: number): Promise<any> {
     const params = new URLSearchParams({ q: query });
     if (limit) params.append('limit', limit.toString());
 
-    const response = await this.request(`/contacts/search?${params.toString()}`, {
+    const response = await this.request<any>(`/contacts/search?${params.toString()}`, {
       method: 'GET',
     });
     return response.data ?? response;
