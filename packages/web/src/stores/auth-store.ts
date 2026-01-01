@@ -1,9 +1,7 @@
 import { create } from 'zustand';
-import { User, Company } from '@handycall/shared';
+import { User, Company, UserRole } from '@handycall/shared';
 import { apiClient } from '@/lib/api-client';
 import { extractUserRole } from '@/lib/jwt';
-
-type UserRole = 'admin' | 'customer';
 
 interface AuthState {
   user: User | null;
@@ -54,7 +52,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // Check if password change is required (safely handle undefined/null response)
       if (response.requiresPasswordChange === true) {
         // Extract user role from response if provided
-        const userRole = response.userRole ? (response.userRole === 'admin' ? 'admin' : 'customer') : null;
+        const userRole = response.userRole ? (response.userRole as UserRole) : null;
         const poolType = response.poolType || 'users';
         
         set({
@@ -78,7 +76,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       
       // Check if backend explicitly provided userRole
       if (response.userRole) {
-        userRole = response.userRole === 'admin' ? 'admin' : 'customer';
+        userRole = response.userRole as UserRole;
       } else if (response.id_token) {
         // Fall back to extracting from token
         userRole = extractUserRole(response.id_token);
@@ -134,7 +132,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       
       // Check if backend explicitly provided userRole
       if (response.userRole) {
-        userRole = response.userRole === 'admin' ? 'admin' : 'customer';
+        userRole = response.userRole as UserRole;
       } else if (response.id_token) {
         // Fall back to extracting from token
         userRole = extractUserRole(response.id_token);
