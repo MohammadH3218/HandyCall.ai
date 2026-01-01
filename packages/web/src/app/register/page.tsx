@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuthStore } from '@/stores/auth-store';
-import { ServiceType } from '@handycall/shared';
+import { ServiceType, UserRole } from '@handycall/shared';
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -34,7 +34,7 @@ export default function RegisterPage() {
   // Redirect if already authenticated
   useEffect(() => {
     if (!isLoading && isAuthenticated) {
-      if (userRole === 'admin') {
+      if (userRole === UserRole.ADMIN) {
         router.push('/admin');
       } else {
         router.push('/dashboard');

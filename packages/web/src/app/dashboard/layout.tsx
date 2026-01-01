@@ -8,6 +8,7 @@ import { Logo } from '@/components/ui/logo';
 import { ProfileDropdown } from '@/components/profile-dropdown';
 import { Button } from '@/components/ui/button';
 import { Home, Phone, Calendar, MessageSquare, Settings, Menu, X } from 'lucide-react';
+import { UserRole } from '@handycall/shared';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -21,7 +22,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
       router.push('/login');
-    } else if (!isLoading && isAuthenticated && userRole === 'admin') {
+    } else if (!isLoading && isAuthenticated && userRole === UserRole.ADMIN) {
       // Redirect admins to admin dashboard
       router.push('/admin');
     }

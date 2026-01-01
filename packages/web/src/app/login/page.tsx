@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Logo } from '@/components/ui/logo';
 import { useAuthStore } from '@/stores/auth-store';
+import { UserRole } from '@handycall/shared';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -44,7 +45,7 @@ export default function LoginPage() {
   // Redirect after successful authentication (backup redirect)
   useEffect(() => {
     if (isAuthenticated && !requiresPasswordChange && !showPasswordChangeModal) {
-      if (userRole === 'admin') {
+      if (userRole === UserRole.ADMIN) {
         router.push('/admin');
       } else if (userRole === 'customer') {
         router.push('/dashboard');
@@ -67,7 +68,7 @@ export default function LoginPage() {
         const userRole = useAuthStore.getState().userRole;
         
         // Redirect based on user role
-        if (userRole === 'admin') {
+        if (userRole === UserRole.ADMIN) {
           router.push('/admin');
         } else {
           router.push('/dashboard');
@@ -133,7 +134,7 @@ export default function LoginPage() {
       setLastName('');
       // Get user role from store after password change
       const userRole = useAuthStore.getState().userRole;
-      if (userRole === 'admin') {
+      if (userRole === UserRole.ADMIN) {
         router.push('/admin');
       } else {
         router.push('/dashboard');
