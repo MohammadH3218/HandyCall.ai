@@ -196,7 +196,26 @@
       "Bash(powershell -ExecutionPolicy Bypass -File .deploy-docker-eb.ps1:*)",
       "Bash(powershell -ExecutionPolicy Bypass -File \"c:\\\\Users\\\\PC\\\\Documents\\\\VSCode Projects\\\\HandyCall\\\\packages\\\\backend\\\\deploy-docker-eb.ps1\")",
       "Bash(timeout 120 powershell:*)",
-      "Bash(Start-Sleep -Seconds 3)"
+      "Bash(Start-Sleep -Seconds 3)",
+      "Bash(git commit:*)",
+      "Bash(git push)",
+      "Bash(aws route53 list-hosted-zones:*)",
+      "Bash(aws amplify list-jobs:*)",
+      "Bash(ConvertFrom-Json)",
+      "Bash(Select-Object -ExpandProperty job)",
+      "Bash(Select-Object -ExpandProperty steps)",
+      "Bash(Where-Object { $_stepName -eq \"BUILD\" })",
+      "Bash(Select-Object -ExpandProperty logUrl)",
+      "Bash(xargs curl -s)",
+      "Bash(git fetch:*)",
+      "Bash(timeout 15 powershell:*)",
+      "Bash(powershell -ExecutionPolicy Bypass -Command:*)",
+      "Bash(aws ecr describe-repositories:*)",
+      "Bash(docker images:*)",
+      "Bash(zip:*)",
+      "Bash(tar:*)",
+      "Bash(for i in {1..30})",
+      "Bash(do aws elasticbeanstalk describe-environments --environment-names handycall-api-docker --query 'Environments[0].[Status,Health,HealthStatus]' --output text)"
     ]
   }
 }

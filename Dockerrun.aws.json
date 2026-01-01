@@ -1,7 +1,7 @@
 {
   "AWSEBDockerrunVersion": "1",
   "Image": {
-    "Name": "982081079378.dkr.ecr.us-east-1.amazonaws.com/handycall-backend:20260101-064915",
+    "Name": "982081079378.dkr.ecr.us-east-1.amazonaws.com/handycall-backend:docker-v-20260101-184228",
     "Update": "true"
   },
   "Ports": [

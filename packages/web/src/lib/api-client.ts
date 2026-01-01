@@ -181,11 +181,11 @@ class ApiClient {
     return response.data ?? response;
   }
 
-  async searchCalls(query: string, limit?: number) {
+  async searchCalls(query: string, limit?: number): Promise<any[]> {
     const params = new URLSearchParams({ q: query });
     if (limit) params.append('limit', limit.toString());
 
-    const response = await this.request(`/calls/search?${params.toString()}`, {
+    const response = await this.request<any[]>(`/calls/search?${params.toString()}`, {
       method: 'GET',
     });
     return response.data ?? response;
