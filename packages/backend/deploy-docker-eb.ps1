@@ -73,7 +73,14 @@ $originalLocation = Get-Location
 
 try {
     Set-Location $projectRoot
-    docker build -f packages/backend/Dockerfile -t $IMAGE_NAME:latest .
+    Write-Host "Building from: $(Get-Location)" -ForegroundColor Gray
+    Write-Host "Dockerfile: packages/backend/Dockerfile" -ForegroundColor Gray
+    
+    # Build Docker image - use regular docker build (Docker Desktop handles buildx automatically)
+    # Build the command as a string and execute via cmd to avoid PowerShell parsing issues
+    $buildCmd = "docker build -f packages/backend/Dockerfile -t $IMAGE_NAME`:latest ."
+    Write-Host "Executing: $buildCmd" -ForegroundColor Gray
+    cmd /c $buildCmd
     $buildResult = $LASTEXITCODE
 } finally {
     Set-Location $originalLocation
@@ -173,7 +180,7 @@ aws elasticbeanstalk create-application-version `
     --version-label $VERSION_LABEL `
     --source-bundle "S3Bucket=$S3_BUCKET,S3Key=$S3_KEY" `
     --region $REGION `
-    --no-cli-pager
+    --output json | Out-Null
 
 if ($LASTEXITCODE -ne 0) {
     Write-Host "ERROR: Failed to create application version" -ForegroundColor Red
@@ -204,35 +211,16 @@ if ($currentPlatform -notlike "*Docker*") {
 Write-Host ""
 Write-Host "Step 10: Deploying to environment..." -ForegroundColor Cyan
 
-# Read .env file for environment variables
-$envVars = @{}
-if (Test-Path ".env") {
-    Get-Content .env | ForEach-Object {
-        if ($_ -match '^([^#][^=]+)=(.+)$') {
-            $envVars[$matches[1].Trim()] = $matches[2].Trim()
-        }
-    }
-}
+# Simply update the version label - environment variables are already set correctly
+# This avoids any issues with comma-separated values in CORS_ORIGINS
+Write-Host "Updating environment with version $VERSION_LABEL (environment variables unchanged)..." -ForegroundColor Yellow
 
-# Build option settings array
-$optionSettings = @(
-    "Namespace=aws:elasticbeanstalk:application:environment,OptionName=NODE_ENV,Value=production",
-    "Namespace=aws:elasticbeanstalk:application:environment,OptionName=PORT,Value=8080"
-)
-
-# Add environment variables from .env
-foreach ($key in $envVars.Keys) {
-    $optionSettings += "Namespace=aws:elasticbeanstalk:application:environment,OptionName=$key,Value=$($envVars[$key])"
-}
-
-# Update environment
 aws elasticbeanstalk update-environment `
     --application-name $APP_NAME `
     --environment-name $ENV_NAME `
     --version-label $VERSION_LABEL `
-    --option-settings $optionSettings `
     --region $REGION `
-    --no-cli-pager
+    --output json | Out-Null
 
 if ($LASTEXITCODE -ne 0) {
     Write-Host "ERROR: Failed to update environment" -ForegroundColor Red

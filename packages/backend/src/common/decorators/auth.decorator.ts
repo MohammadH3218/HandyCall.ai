@@ -33,3 +33,14 @@ export const UserId = createParamDecorator(
     return request.user?.user_id;
   }
 );
+
+/**
+ * Extract user role from auth context
+ * Usage: @UserRole() role: UserRole
+ */
+export const UserRole = createParamDecorator(
+  (_data: unknown, ctx: ExecutionContext): string => {
+    const request = ctx.switchToHttp().getRequest();
+    return request.user?.role;
+  }
+);

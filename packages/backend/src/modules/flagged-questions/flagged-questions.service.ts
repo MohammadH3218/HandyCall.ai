@@ -82,7 +82,7 @@ export class FlaggedQuestionsService {
       });
 
       return flaggedQuestion;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error creating flagged question:', error);
       throw new Error(`Failed to create flagged question: ${error.message}`);
     }
@@ -155,7 +155,7 @@ export class FlaggedQuestionsService {
       );
 
       return updated;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error resolving flagged question:', error);
       throw new Error(`Failed to resolve flagged question: ${error.message}`);
     }
@@ -196,7 +196,7 @@ export class FlaggedQuestionsService {
         resolved_by: userId,
         updated_at: now,
       };
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error dismissing flagged question:', error);
       throw new Error(`Failed to dismiss flagged question: ${error.message}`);
     }
@@ -215,8 +215,8 @@ export class FlaggedQuestionsService {
         flagged_id: flaggedId,
       });
 
-      return result.Item as FlaggedQuestion || null;
-    } catch (error) {
+      return (result?.Item as FlaggedQuestion) || null;
+    } catch (error: any) {
       console.error('Error getting flagged question:', error);
       throw new Error(`Failed to get flagged question: ${error.message}`);
     }
@@ -260,7 +260,7 @@ export class FlaggedQuestionsService {
         );
       }
 
-      let items = (result.Items || []) as FlaggedQuestion[];
+      let items = (result.items || []) as FlaggedQuestion[];
 
       // Apply filters
       if (filters?.status) {
@@ -277,7 +277,7 @@ export class FlaggedQuestionsService {
       items.sort((a, b) => b.created_at - a.created_at);
 
       return items;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error listing flagged questions:', error);
       throw new Error(`Failed to list flagged questions: ${error.message}`);
     }
@@ -292,7 +292,7 @@ export class FlaggedQuestionsService {
         status: 'OPEN',
       });
       return openQuestions.length;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error getting open questions count:', error);
       throw new Error(`Failed to get open questions count: ${error.message}`);
     }
@@ -307,7 +307,7 @@ export class FlaggedQuestionsService {
   ): Promise<FlaggedQuestion[]> {
     try {
       return await this.listFlaggedQuestions(companyId, { call_id: callId });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error getting flagged questions for call:', error);
       throw new Error(`Failed to get flagged questions for call: ${error.message}`);
     }
@@ -332,7 +332,7 @@ export class FlaggedQuestionsService {
       try {
         await this.resolveFlaggedQuestion(companyId, flaggedId, userId, data);
         results.success++;
-      } catch (error) {
+      } catch (error: any) {
         results.failed++;
         results.errors.push(`${flaggedId}: ${error.message}`);
       }

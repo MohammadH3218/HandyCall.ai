@@ -14,7 +14,7 @@ export class RagService {
   ) {
     const region = this.configService.get<string>('AWS_REGION');
     this.bedrockClient = new BedrockRuntimeClient({ region });
-    this.embeddingModelId = this.configService.get<string>('BEDROCK_EMBEDDING_MODEL_ID');
+    this.embeddingModelId = this.configService.get<string>('BEDROCK_EMBEDDING_MODEL_ID') || 'amazon.titan-embed-text-v1';
   }
 
   /**
@@ -32,9 +32,9 @@ export class RagService {
       const response = await this.bedrockClient.send(command);
       const result = JSON.parse(new TextDecoder().decode(response.body));
       return result.embedding;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error generating embedding:', error);
-      throw new Error(`Failed to generate embedding: ${error.message}`);
+      throw new Error(`Failed to generate embedding: ${(error as any)?.message || String(error)}`);
     }
   }
 
@@ -67,9 +67,9 @@ export class RagService {
           created_at: Date.now(),
         });
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error chunking and storing knowledge:', error);
-      throw new Error(`Failed to chunk and store knowledge: ${error.message}`);
+      throw new Error(`Failed to chunk and store knowledge: ${(error as any)?.message || String(error)}`);
     }
   }
 
@@ -90,29 +90,29 @@ export class RagService {
 
       // Get all chunks for company (in production, use vector DB for efficiency)
       const result = await this.dynamodb.scan(tableName, {
-        FilterExpression: 'company_id = :company_id',
-        ExpressionAttributeValues: {
+        filterExpression: 'company_id = :company_id',
+        expressionAttributeValues: {
           ':company_id': companyId,
         },
       });
 
-      if (!result.Items || result.Items.length === 0) {
+      if (!result.items || result.items.length === 0) {
         return [];
       }
 
       // Calculate similarities
-      const rankedChunks = result.Items.map((chunk) => ({
+      const rankedChunks = result.items.map((chunk: any) => ({
         text: chunk.text,
         knowledge_id: chunk.knowledge_id,
         similarity: this.cosineSimilarity(queryEmbedding, chunk.embedding),
       }))
-        .sort((a, b) => b.similarity - a.similarity)
+        .sort((a: any, b: any) => b.similarity - a.similarity)
         .slice(0, topK);
 
       return rankedChunks;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error retrieving relevant knowledge:', error);
-      throw new Error(`Failed to retrieve relevant knowledge: ${error.message}`);
+      throw new Error(`Failed to retrieve relevant knowledge: ${error?.message || String(error)}`);
     }
   }
 
@@ -177,17 +177,18 @@ export class RagService {
       );
 
       // Delete each chunk
-      if (result.Items && result.Items.length > 0) {
-        for (const chunk of result.Items) {
+      const items = Array.isArray(result) ? result : (result as any).items || [];
+      if (items.length > 0) {
+        for (const chunk of items) {
           await this.dynamodb.delete(tableName, {
             company_knowledge: chunk.company_knowledge,
             chunk_index: chunk.chunk_index,
           });
         }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error deleting knowledge chunks:', error);
-      throw new Error(`Failed to delete knowledge chunks: ${error.message}`);
+      throw new Error(`Failed to delete knowledge chunks: ${error?.message || String(error)}`);
     }
   }
 }

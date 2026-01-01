@@ -7,6 +7,7 @@ import { Logo } from '@/components/ui/logo';
 import { ProfileDropdown } from '@/components/profile-dropdown';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Building2, Users, BarChart3 } from 'lucide-react';
 
 interface AdminStats {
   totalRevenue: number;
@@ -50,40 +51,46 @@ export default function AdminDashboardPage() {
   const loadAdminData = async () => {
     setIsLoadingStats(true);
     try {
-      // TODO: Replace with actual API calls
-      // For now, using mock data
-      setStats({
-        totalRevenue: 125000,
-        totalProfit: 87500,
-        totalCompanies: 42,
-        totalSubscriptions: 127,
-        monthlyRevenue: 15200,
-        monthlyProfit: 10640,
-        activeUsers: 312,
-      });
+      const token = localStorage.getItem('access_token');
 
-      setCompanies([
-        {
-          company_id: '1',
-          company_name: 'ABC Plumbing',
-          service_type: 'PLUMBING',
-          status: 'ACTIVE',
-          subscription_tier: 'PRO',
-          created_at: Date.now() - 86400000 * 30,
-          revenue: 3500,
-          subscription_count: 3,
-        },
-        {
-          company_id: '2',
-          company_name: 'XYZ Electric',
-          service_type: 'ELECTRICIAN',
-          status: 'ACTIVE',
-          subscription_tier: 'BASIC',
-          created_at: Date.now() - 86400000 * 15,
-          revenue: 2100,
-          subscription_count: 2,
-        },
+      const [statsRes, companiesRes] = await Promise.all([
+        fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/stats`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+        fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/top-companies?limit=5`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
       ]);
+
+      if (statsRes.ok && companiesRes.ok) {
+        const [statsData, companiesData] = await Promise.all([
+          statsRes.json(),
+          companiesRes.json(),
+        ]);
+
+        setStats({
+          totalRevenue: statsData.total_revenue || 0,
+          totalProfit: 0,
+          totalCompanies: statsData.total_companies || 0,
+          totalSubscriptions: 0,
+          monthlyRevenue: 0,
+          monthlyProfit: 0,
+          activeUsers: statsData.total_users || 0,
+        });
+
+        setCompanies(companiesData.map((company: any) => ({
+          company_id: company.company_id,
+          company_name: company.company_name,
+          service_type: company.service_type,
+          status: company.status,
+          subscription_tier: company.subscription_tier || 'TRIAL',
+          created_at: company.created_at,
+          revenue: 0,
+          subscription_count: company.total_users || 0,
+        })));
+      } else {
+        throw new Error('Failed to load admin data');
+      }
     } catch (error) {
       console.error('Failed to load admin data:', error);
     } finally {
@@ -142,6 +149,48 @@ export default function AdminDashboardPage() {
 
       {/* Main Content */}
       <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+        {/* Quick Actions */}
+        <div className="mb-8 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <Card
+            className="cursor-pointer transition-all duration-200 hover:shadow-lg hover:border-primary"
+            onClick={() => router.push('/admin/companies')}
+          >
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Building2 className="h-5 w-5" />
+                Manage Companies
+              </CardTitle>
+              <CardDescription>View and manage all companies</CardDescription>
+            </CardHeader>
+          </Card>
+
+          <Card
+            className="cursor-pointer transition-all duration-200 hover:shadow-lg hover:border-primary"
+            onClick={() => router.push('/admin/users')}
+          >
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Users className="h-5 w-5" />
+                Manage Users
+              </CardTitle>
+              <CardDescription>View and manage all users</CardDescription>
+            </CardHeader>
+          </Card>
+
+          <Card
+            className="cursor-pointer transition-all duration-200 hover:shadow-lg hover:border-primary"
+            onClick={() => router.push('/dashboard')}
+          >
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <BarChart3 className="h-5 w-5" />
+                Analytics
+              </CardTitle>
+              <CardDescription>View system analytics</CardDescription>
+            </CardHeader>
+          </Card>
+        </div>
+
         {/* Stats Grid */}
         <div className="mb-8 grid gap-6 md:grid-cols-2 lg:grid-cols-4">
           <Card className="transition-all duration-200 hover:shadow-md">
@@ -320,6 +369,7 @@ export default function AdminDashboardPage() {
     </div>
   );
 }
+
 
 
 

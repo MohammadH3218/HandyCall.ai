@@ -261,17 +261,11 @@ async function createFlaggedQuestion(
 }
 
 /**
- * Create Connect response
+ * Create Connect response (STRING_MAP format for Amazon Connect)
  */
 function createResponse(message: string): ConnectResponse {
   return {
-    statusCode: 200,
-    body: JSON.stringify({
-      response: message,
-      timestamp: new Date().toISOString(),
-    }),
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    response: message,
+    timestamp: new Date().toISOString(),
   };
 }

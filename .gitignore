@@ -60,3 +60,8 @@ venv/
 
 # DynamoDB Local
 .dynamodb/
+nul
+*.zip
+build-output.txt
+query-phone.json
+test-*.json

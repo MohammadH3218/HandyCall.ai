@@ -40,9 +40,8 @@ export interface ConnectContactFlowEvent {
 }
 
 export interface ConnectResponse {
-  statusCode: number;
-  body: string;
-  headers?: Record<string, string>;
+  response: string;
+  timestamp: string;
 }
 
 export interface Company {

@@ -14,6 +14,7 @@ import { PricingRulesModule } from './modules/pricing-rules/pricing-rules.module
 import { TelephonyModule } from './modules/telephony/telephony.module';
 import { RagModule } from './modules/rag/rag.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
+import { AdminModule } from './modules/admin/admin.module';
 import { DatabaseModule } from './infrastructure/database/database.module';
 import { StorageModule } from './infrastructure/storage/storage.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
@@ -46,6 +47,7 @@ import { AppService } from './app.service';
     TelephonyModule,
     RagModule,
     DashboardModule,
+    AdminModule,
   ],
   controllers: [AppController],
   providers: [

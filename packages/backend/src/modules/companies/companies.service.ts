@@ -1,7 +1,21 @@
 import { Injectable, ConflictException, NotFoundException } from '@nestjs/common';
 import { DynamoDBService } from '../../infrastructure/database/dynamodb.service';
-import { Company, CompanyStatus, ServiceType, BusinessHours } from '@handycall/shared';
+import { Company, CompanyStatus, ServiceType, BusinessHours, User } from '@handycall/shared';
 import { v4 as uuidv4 } from 'uuid';
+
+export interface CompanyStats {
+  total_calls: number;
+  total_users: number;
+  ai_handled_calls: number;
+  ai_handled_percentage: number;
+  total_contacts: number;
+  total_appointments: number;
+  revenue?: number;
+}
+
+export interface CompanyListItem extends Company {
+  stats?: CompanyStats;
+}
 
 @Injectable()
 export class CompaniesService {
@@ -96,6 +110,8 @@ export class CompaniesService {
       email?: string;
       timezone?: string;
       business_hours?: BusinessHours;
+      status?: CompanyStatus;
+      subscription_tier?: string;
     }
   ): Promise<Company> {
     const company = await this.findById(companyId);
@@ -111,5 +127,163 @@ export class CompaniesService {
     const result = await this.dynamodb.update(this.tableName, { company_id: companyId }, updatedData);
 
     return result as Company;
+  }
+
+  /**
+   * List all companies (admin only)
+   */
+  async listAll(limit = 100): Promise<Company[]> {
+    const result = await this.dynamodb.scan(this.tableName, { limit });
+    return result.items as Company[];
+  }
+
+  /**
+   * Delete a company and all associated data (admin only)
+   * WARNING: This is a destructive operation
+   */
+  async deleteCompany(companyId: string): Promise<void> {
+    const company = await this.findById(companyId);
+    if (!company) {
+      throw new NotFoundException('Company not found');
+    }
+
+    // Delete from companies table
+    await this.dynamodb.delete(this.tableName, { company_id: companyId });
+
+    // Delete all related data
+    // Note: In a production system, you'd want to do this in a transaction or use DynamoDB Streams
+    await Promise.all([
+      this.deleteRelatedData('users', companyId),
+      this.deleteRelatedData('calls', companyId),
+      this.deleteRelatedData('contacts', companyId),
+      this.deleteRelatedData('appointments', companyId),
+      this.deleteRelatedData('knowledge', companyId),
+      this.deleteRelatedData('flagged_questions', companyId),
+      this.deleteRelatedData('agent_config', companyId),
+      this.deleteRelatedData('pricing_rules', companyId),
+    ]);
+  }
+
+  /**
+   * Helper to delete all items for a company from a table
+   */
+  private async deleteRelatedData(tableName: string, companyId: string): Promise<void> {
+    try {
+      const result = await this.dynamodb.query(
+        tableName,
+        '#company_id = :company_id',
+        { '#company_id': 'company_id' },
+        { ':company_id': companyId }
+      );
+
+      // Delete each item
+      for (const item of result.items) {
+        const keys = this.getTableKeys(tableName, item);
+        if (keys) {
+          await this.dynamodb.delete(tableName, keys);
+        }
+      }
+    } catch (error) {
+      console.error(`Failed to delete related data from ${tableName}:`, error);
+      // Continue with other deletions even if one fails
+    }
+  }
+
+  /**
+   * Get the primary key for a table item
+   */
+  private getTableKeys(tableName: string, item: any): any {
+    const keyMap: Record<string, string[]> = {
+      users: ['company_id', 'user_id'],
+      calls: ['call_id'],
+      contacts: ['contact_id'],
+      appointments: ['appointment_id'],
+      knowledge: ['knowledge_id'],
+      flagged_questions: ['flagged_id'],
+      agent_config: ['config_id'],
+      pricing_rules: ['pricing_id'],
+    };
+
+    const keyNames = keyMap[tableName];
+    if (!keyNames) return null;
+
+    const keys: any = {};
+    for (const keyName of keyNames) {
+      if (item[keyName]) {
+        keys[keyName] = item[keyName];
+      }
+    }
+
+    return Object.keys(keys).length > 0 ? keys : null;
+  }
+
+  /**
+   * Get company statistics (admin only)
+   */
+  async getCompanyStats(companyId: string): Promise<CompanyStats> {
+    const company = await this.findById(companyId);
+    if (!company) {
+      throw new NotFoundException('Company not found');
+    }
+
+    // Get total users
+    const usersResult = await this.dynamodb.query(
+      'users',
+      '#company_id = :company_id',
+      { '#company_id': 'company_id' },
+      { ':company_id': companyId }
+    );
+
+    // Get total calls
+    const callsResult = await this.dynamodb.query(
+      'calls',
+      '#company_id = :company_id',
+      { '#company_id': 'company_id' },
+      { ':company_id': companyId }
+    );
+
+    // Count AI handled calls
+    const aiHandledCalls = callsResult.items.filter((call: any) => call.ai_handled === true).length;
+
+    // Get total contacts
+    const contactsResult = await this.dynamodb.query(
+      'contacts',
+      '#company_id = :company_id',
+      { '#company_id': 'company_id' },
+      { ':company_id': companyId }
+    );
+
+    // Get total appointments
+    const appointmentsResult = await this.dynamodb.query(
+      'appointments',
+      '#company_id = :company_id',
+      { '#company_id': 'company_id' },
+      { ':company_id': companyId }
+    );
+
+    const totalCalls = callsResult.items.length;
+    const aiHandledPercentage = totalCalls > 0 ? (aiHandledCalls / totalCalls) * 100 : 0;
+
+    return {
+      total_calls: totalCalls,
+      total_users: usersResult.items.length,
+      ai_handled_calls: aiHandledCalls,
+      ai_handled_percentage: Math.round(aiHandledPercentage * 100) / 100,
+      total_contacts: contactsResult.items.length,
+      total_appointments: appointmentsResult.items.length,
+    };
+  }
+
+  /**
+   * Search companies by name or email
+   */
+  async searchCompanies(searchTerm: string): Promise<Company[]> {
+    const allCompanies = await this.listAll();
+
+    const lowercaseSearch = searchTerm.toLowerCase();
+    return allCompanies.filter(company =>
+      company.company_name.toLowerCase().includes(lowercaseSearch) ||
+      company.email.toLowerCase().includes(lowercaseSearch)
+    );
   }
 }

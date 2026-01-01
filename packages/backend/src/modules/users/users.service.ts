@@ -1,5 +1,6 @@
-import { Injectable, ConflictException } from '@nestjs/common';
+import { Injectable, ConflictException, NotFoundException } from '@nestjs/common';
 import { DynamoDBService } from '../../infrastructure/database/dynamodb.service';
+import { CognitoService } from '../auth/cognito.service';
 import { User, UserRole } from '@handycall/shared';
 import { v4 as uuidv4 } from 'uuid';
 import * as bcrypt from 'bcrypt';
@@ -8,7 +9,10 @@ import * as bcrypt from 'bcrypt';
 export class UsersService {
   private readonly tableName = 'users';
 
-  constructor(private dynamodb: DynamoDBService) {}
+  constructor(
+    private dynamodb: DynamoDBService,
+    private cognitoService: CognitoService
+  ) {}
 
   async createUser(
     companyId: string,
@@ -41,6 +45,10 @@ export class UsersService {
       created_at: timestamp,
       updated_at: timestamp,
     };
+
+    // Create user in Cognito
+    const fullName = `${firstName} ${lastName}`;
+    await this.cognitoService.createUser(email, password, companyId, fullName, 'users');
 
     // Store user with password hash (password_hash not in User type, stored separately)
     const dbUser = {
@@ -105,5 +113,115 @@ export class UsersService {
       const { password_hash, ...userWithoutPassword } = user;
       return userWithoutPassword as User;
     });
+  }
+
+  /**
+   * List all users across all companies (admin only)
+   */
+  async listAllUsers(): Promise<User[]> {
+    const result = await this.dynamodb.scan(this.tableName);
+
+    // Remove password hashes from all users
+    return result.items.map((user: any) => {
+      const { password_hash, ...userWithoutPassword } = user;
+      return userWithoutPassword as User;
+    });
+  }
+
+  /**
+   * Update user details (admin only)
+   */
+  async updateUser(
+    companyId: string,
+    userId: string,
+    updates: {
+      email?: string;
+      first_name?: string;
+      last_name?: string;
+      role?: UserRole;
+      phone_number?: string;
+      is_active?: boolean;
+    }
+  ): Promise<User> {
+    const user = await this.findById(companyId, userId);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    const updatedData = {
+      ...updates,
+      updated_at: Date.now(),
+    };
+
+    const result = await this.dynamodb.update(
+      this.tableName,
+      { company_id: companyId, user_id: userId },
+      updatedData
+    );
+
+    const { password_hash, ...userWithoutPassword } = result as any;
+    return userWithoutPassword as User;
+  }
+
+  /**
+   * Delete user from Cognito and DynamoDB (admin only)
+   */
+  async deleteUser(companyId: string, userId: string, email: string): Promise<void> {
+    const user = await this.findById(companyId, userId);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    // Delete from Cognito
+    await this.cognitoService.deleteUser(email, 'users');
+
+    // Delete from DynamoDB
+    await this.dynamodb.delete(this.tableName, { company_id: companyId, user_id: userId });
+  }
+
+  /**
+   * Disable user account (admin only)
+   */
+  async disableUser(companyId: string, userId: string, email: string): Promise<User> {
+    const user = await this.findById(companyId, userId);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    // Disable in Cognito
+    await this.cognitoService.disableUser(email, 'users');
+
+    // Update in DynamoDB
+    const result = await this.dynamodb.update(
+      this.tableName,
+      { company_id: companyId, user_id: userId },
+      { is_active: false, updated_at: Date.now() }
+    );
+
+    const { password_hash, ...userWithoutPassword } = result as any;
+    return userWithoutPassword as User;
+  }
+
+  /**
+   * Enable user account (admin only)
+   */
+  async enableUser(companyId: string, userId: string, email: string): Promise<User> {
+    const user = await this.findById(companyId, userId);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    // Enable in Cognito
+    await this.cognitoService.enableUser(email, 'users');
+
+    // Update in DynamoDB
+    const result = await this.dynamodb.update(
+      this.tableName,
+      { company_id: companyId, user_id: userId },
+      { is_active: true, updated_at: Date.now() }
+    );
+
+    const { password_hash, ...userWithoutPassword } = result as any;
+    return userWithoutPassword as User;
   }
 }

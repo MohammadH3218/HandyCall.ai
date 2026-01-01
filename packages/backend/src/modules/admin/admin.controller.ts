@@ -1,0 +1,55 @@
+import { Controller, Get, Query, UseGuards, NotFoundException } from '@nestjs/common';
+import { AdminService } from './admin.service';
+import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { UserRole as UserRoleDecorator } from '../../common/decorators/auth.decorator';
+import { UserRole } from '@handycall/shared';
+
+@Controller('admin')
+@UseGuards(JwtAuthGuard)
+export class AdminController {
+  constructor(private adminService: AdminService) {}
+
+  /**
+   * Get system-wide statistics (admin only)
+   */
+  @Get('stats')
+  async getSystemStats(@UserRoleDecorator() role: UserRole) {
+    if (role !== UserRole.ADMIN) {
+      throw new NotFoundException('Not found');
+    }
+
+    return this.adminService.getSystemStats();
+  }
+
+  /**
+   * Get recent activity across all companies (admin only)
+   */
+  @Get('activity')
+  async getRecentActivity(
+    @UserRoleDecorator() role: UserRole,
+    @Query('limit') limit?: string
+  ) {
+    if (role !== UserRole.ADMIN) {
+      throw new NotFoundException('Not found');
+    }
+
+    const limitNum = limit ? parseInt(limit, 10) : 20;
+    return this.adminService.getRecentActivity(limitNum);
+  }
+
+  /**
+   * Get top companies by usage/revenue (admin only)
+   */
+  @Get('top-companies')
+  async getTopCompanies(
+    @UserRoleDecorator() role: UserRole,
+    @Query('limit') limit?: string
+  ) {
+    if (role !== UserRole.ADMIN) {
+      throw new NotFoundException('Not found');
+    }
+
+    const limitNum = limit ? parseInt(limit, 10) : 10;
+    return this.adminService.getTopCompanies(limitNum);
+  }
+}

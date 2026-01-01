@@ -82,7 +82,7 @@ export class KnowledgeService {
       await this.ragService.chunkAndStoreKnowledge(companyId, knowledgeId, fullText);
 
       return knowledgeItem;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error creating knowledge item:', error);
       throw new Error(`Failed to create knowledge item: ${error.message}`);
     }
@@ -136,7 +136,7 @@ export class KnowledgeService {
       }
 
       return updated;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error updating knowledge item:', error);
       throw new Error(`Failed to update knowledge item: ${error.message}`);
     }
@@ -155,7 +155,7 @@ export class KnowledgeService {
         company_id: companyId,
         knowledge_id: knowledgeId,
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error deleting knowledge item:', error);
       throw new Error(`Failed to delete knowledge item: ${error.message}`);
     }
@@ -174,8 +174,8 @@ export class KnowledgeService {
         knowledge_id: knowledgeId,
       });
 
-      return result.Item as KnowledgeItem || null;
-    } catch (error) {
+      return (result?.Item as KnowledgeItem) || null;
+    } catch (error: any) {
       console.error('Error getting knowledge item:', error);
       throw new Error(`Failed to get knowledge item: ${error.message}`);
     }
@@ -231,7 +231,7 @@ export class KnowledgeService {
         );
       }
 
-      let items = (result.Items || []) as KnowledgeItem[];
+      let items = (result.items || []) as KnowledgeItem[];
 
       // Apply additional filters
       if (filters?.type) {
@@ -245,7 +245,7 @@ export class KnowledgeService {
       }
 
       return items;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error listing knowledge items:', error);
       throw new Error(`Failed to list knowledge items: ${error.message}`);
     }
@@ -268,7 +268,7 @@ export class KnowledgeService {
       try {
         await this.createKnowledgeItem(companyId, item);
         results.success++;
-      } catch (error) {
+      } catch (error: any) {
         results.failed++;
         results.errors.push(`${item.title}: ${error.message}`);
       }
@@ -310,7 +310,7 @@ export class KnowledgeService {
       }
 
       return items.sort((a, b) => b.similarity - a.similarity);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error searching knowledge:', error);
       throw new Error(`Failed to search knowledge: ${error.message}`);
     }

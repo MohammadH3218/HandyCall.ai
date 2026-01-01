@@ -6,8 +6,15 @@ import {
   AdminRespondToAuthChallengeCommand,
   AdminGetUserCommand,
   AdminUpdateUserAttributesCommand,
+  AdminCreateUserCommand,
+  AdminDeleteUserCommand,
+  AdminDisableUserCommand,
+  AdminEnableUserCommand,
+  AdminSetUserPasswordCommand,
+  ListUsersCommand,
   AuthFlowType,
   ChallengeNameType,
+  MessageActionType,
 } from '@aws-sdk/client-cognito-identity-provider';
 import { createHmac } from 'crypto';
 
@@ -288,6 +295,151 @@ export class CognitoService {
       };
     } catch (error) {
       throw new UnauthorizedException('Invalid refresh token');
+    }
+  }
+
+  /**
+   * Create a new user in Cognito user pool
+   */
+  async createUser(
+    email: string,
+    tempPassword: string,
+    companyId: string,
+    name?: string,
+    poolType: 'users' | 'admin' = 'users'
+  ): Promise<void> {
+    const poolId = poolType === 'admin' ? this.adminPoolId : this.usersPoolId;
+
+    if (!poolId) {
+      throw new BadRequestException(`Pool ${poolType} not configured`);
+    }
+
+    try {
+      const userAttributes = [
+        { Name: 'email', Value: email },
+        { Name: 'email_verified', Value: 'true' },
+        { Name: 'custom:company_id', Value: companyId },
+      ];
+
+      if (name) {
+        userAttributes.push({ Name: 'name', Value: name });
+      }
+
+      const command = new AdminCreateUserCommand({
+        UserPoolId: poolId,
+        Username: email,
+        UserAttributes: userAttributes,
+        TemporaryPassword: tempPassword,
+        MessageAction: MessageActionType.SUPPRESS, // Don't send welcome email
+      });
+
+      await this.cognitoClient.send(command);
+
+      // Set permanent password immediately
+      const setPasswordCommand = new AdminSetUserPasswordCommand({
+        UserPoolId: poolId,
+        Username: email,
+        Password: tempPassword,
+        Permanent: true,
+      });
+
+      await this.cognitoClient.send(setPasswordCommand);
+    } catch (error: any) {
+      console.error('[CognitoService] Failed to create user:', error);
+      throw new BadRequestException(`Failed to create user: ${error.message}`);
+    }
+  }
+
+  /**
+   * Delete a user from Cognito
+   */
+  async deleteUser(email: string, poolType: 'users' | 'admin' = 'users'): Promise<void> {
+    const poolId = poolType === 'admin' ? this.adminPoolId : this.usersPoolId;
+
+    if (!poolId) {
+      throw new BadRequestException(`Pool ${poolType} not configured`);
+    }
+
+    try {
+      const command = new AdminDeleteUserCommand({
+        UserPoolId: poolId,
+        Username: email,
+      });
+
+      await this.cognitoClient.send(command);
+    } catch (error: any) {
+      console.error('[CognitoService] Failed to delete user:', error);
+      throw new BadRequestException(`Failed to delete user: ${error.message}`);
+    }
+  }
+
+  /**
+   * Disable a user account
+   */
+  async disableUser(email: string, poolType: 'users' | 'admin' = 'users'): Promise<void> {
+    const poolId = poolType === 'admin' ? this.adminPoolId : this.usersPoolId;
+
+    if (!poolId) {
+      throw new BadRequestException(`Pool ${poolType} not configured`);
+    }
+
+    try {
+      const command = new AdminDisableUserCommand({
+        UserPoolId: poolId,
+        Username: email,
+      });
+
+      await this.cognitoClient.send(command);
+    } catch (error: any) {
+      console.error('[CognitoService] Failed to disable user:', error);
+      throw new BadRequestException(`Failed to disable user: ${error.message}`);
+    }
+  }
+
+  /**
+   * Enable a user account
+   */
+  async enableUser(email: string, poolType: 'users' | 'admin' = 'users'): Promise<void> {
+    const poolId = poolType === 'admin' ? this.adminPoolId : this.usersPoolId;
+
+    if (!poolId) {
+      throw new BadRequestException(`Pool ${poolType} not configured`);
+    }
+
+    try {
+      const command = new AdminEnableUserCommand({
+        UserPoolId: poolId,
+        Username: email,
+      });
+
+      await this.cognitoClient.send(command);
+    } catch (error: any) {
+      console.error('[CognitoService] Failed to enable user:', error);
+      throw new BadRequestException(`Failed to enable user: ${error.message}`);
+    }
+  }
+
+  /**
+   * List all users in a pool (with pagination)
+   */
+  async listUsers(poolType: 'users' | 'admin' = 'users', limit = 60): Promise<any[]> {
+    const poolId = poolType === 'admin' ? this.adminPoolId : this.usersPoolId;
+
+    if (!poolId) {
+      throw new BadRequestException(`Pool ${poolType} not configured`);
+    }
+
+    try {
+      const command = new ListUsersCommand({
+        UserPoolId: poolId,
+        Limit: limit,
+      });
+
+      const response = await this.cognitoClient.send(command);
+      return response.Users || [];
+    } catch (error: any) {
+      console.error('[CognitoService] Failed to list users:', error);
+      throw new BadRequestException(`Failed to list users: ${error.message}`);
     }
   }
 }
