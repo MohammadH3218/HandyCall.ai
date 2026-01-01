@@ -294,8 +294,3 @@ export default function CompanyDetailsPage() {
     </div>
   );
 }
-
-// Required for static export with dynamic routes
-export async function generateStaticParams() {
-  return [];
-}
