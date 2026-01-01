@@ -215,7 +215,8 @@
       "Bash(zip:*)",
       "Bash(tar:*)",
       "Bash(for i in {1..30})",
-      "Bash(do aws elasticbeanstalk describe-environments --environment-names handycall-api-docker --query 'Environments[0].[Status,Health,HealthStatus]' --output text)"
+      "Bash(do aws elasticbeanstalk describe-environments --environment-names handycall-api-docker --query 'Environments[0].[Status,Health,HealthStatus]' --output text)",
+      "Bash(npx tsc:*)"
     ]
   }
 }

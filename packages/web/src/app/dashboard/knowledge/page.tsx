@@ -232,7 +232,7 @@ export default function KnowledgePage() {
               <select
                 id="type"
                 value={formData.type}
-                onChange={(e) => setFormData({ ...formData, type: e.target.value as any })}
+                onChange={(e) => setFormData({ ...formData, type: e.target.value as 'FAQ' | 'SERVICE' | 'POLICY' | 'PRODUCT' | 'SAFETY' })}
                 className="w-full border border-gray-300 rounded-md p-2"
               >
                 <option value="FAQ">FAQ</option>

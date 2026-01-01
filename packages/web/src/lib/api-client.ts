@@ -164,7 +164,7 @@ class ApiClient {
     const response = await this.request<{ calls: any[]; lastEvaluatedKey?: any }>(`/calls?${params.toString()}`, {
       method: 'GET',
     });
-    return response.data ?? response;
+    return response.data || { calls: [], lastEvaluatedKey: undefined };
   }
 
   async getCallById(callId: string): Promise<any> {
