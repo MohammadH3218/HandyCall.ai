@@ -47,7 +47,7 @@ export default function LoginPage() {
     if (isAuthenticated && !requiresPasswordChange && !showPasswordChangeModal) {
       if (userRole === UserRole.ADMIN) {
         router.push('/admin');
-      } else if (userRole === 'customer') {
+      } else if (userRole === UserRole.OWNER || userRole === UserRole.STAFF) {
         router.push('/dashboard');
       }
     }
