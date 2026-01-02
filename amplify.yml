@@ -5,12 +5,9 @@ applications:
       phases:
         preBuild:
           commands:
-            - echo "Installing dependencies for Next.js..."
             - npm ci
         build:
           commands:
-            - echo "Building Next.js application..."
-            - echo "API URL - $NEXT_PUBLIC_API_URL"
             - npm run build
       artifacts:
         baseDirectory: .next
