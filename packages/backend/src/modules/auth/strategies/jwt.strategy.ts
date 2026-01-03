@@ -36,15 +36,26 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   async validate(payload: any): Promise<AuthContext> {
     // CRITICAL: We need to find the user in YOUR database to get the company_id.
     // We try to find the user by email (from ID Token) or username (from Access Token).
+    this.logger.log('[JwtStrategy] validate() called with payload:', JSON.stringify(payload));
     const email = payload.email || payload['cognito:username'] || payload.username;
+    const companyIdFromToken =
+      payload['custom:company_id'] || payload.company_id || payload['company_id'];
 
     if (!email) {
       this.logger.error('Token is valid but contains no email/username claim');
       throw new UnauthorizedException('Invalid token claims');
     }
 
-    // Look up user in database
-    const user = await this.usersService.findByEmail(email);
+    this.logger.log(`[JwtStrategy] Looking up user by email: ${email}`);
+
+    // Look up user in database (prefer company-scoped query when company_id is present)
+    let user = null;
+    if (companyIdFromToken) {
+      user = await this.usersService.findByEmailForCompany(email, companyIdFromToken);
+    }
+    if (!user) {
+      user = await this.usersService.findByEmail(email);
+    }
 
     if (!user) {
       // If user is in Cognito but not in your DB, you might want to create them here
@@ -52,6 +63,8 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       this.logger.warn(`User with email ${email} not found in database`);
       throw new UnauthorizedException('User not found in system');
     }
+
+    this.logger.log(`[JwtStrategy] User found: ${user.email}, company_id: ${user.company_id}, role: ${user.role}`);
 
     // Attach user context to the Request object
     return {

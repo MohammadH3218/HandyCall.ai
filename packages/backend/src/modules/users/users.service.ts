@@ -62,11 +62,27 @@ export class UsersService {
   }
 
   async findByEmail(email: string): Promise<(User & { password_hash: string }) | null> {
+    // The email-index in production uses company_id as the partition key and email as the sort key.
+    // Since we don't always have company_id, fall back to a small scan with a filter on email.
+    const result = await this.dynamodb.scan(this.tableName, {
+      filterExpression: '#email = :email',
+      expressionAttributeNames: { '#email': 'email' },
+      expressionAttributeValues: { ':email': email },
+      limit: 1,
+    });
+
+    return result.items.length > 0 ? (result.items[0] as any) : null;
+  }
+
+  async findByEmailForCompany(
+    email: string,
+    companyId: string
+  ): Promise<(User & { password_hash: string }) | null> {
     const result = await this.dynamodb.query(
       this.tableName,
-      '#email = :email',
-      { '#email': 'email' },
-      { ':email': email },
+      '#company_id = :company_id AND #email = :email',
+      { '#company_id': 'company_id', '#email': 'email' },
+      { ':company_id': companyId, ':email': email },
       { indexName: 'email-index', limit: 1 }
     );
 

@@ -30,11 +30,18 @@ export class CompaniesController {
 
   @Get('me')
   async getMyCompany(@CompanyId() companyId: string): Promise<Company> {
-    const company = await this.companiesService.findById(companyId);
-    if (!company) {
-      throw new NotFoundException('Company not found');
+    console.log('[CompaniesController] getMyCompany called with companyId:', companyId);
+    try {
+      const company = await this.companiesService.findById(companyId);
+      console.log('[CompaniesController] Company found:', company ? 'yes' : 'no');
+      if (!company) {
+        throw new NotFoundException('Company not found');
+      }
+      return company;
+    } catch (error) {
+      console.error('[CompaniesController] Error in getMyCompany:', error);
+      throw error;
     }
-    return company;
   }
 
   @Put('me')

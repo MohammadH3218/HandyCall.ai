@@ -278,7 +278,13 @@
       "Bash(git commit -m \"$\\(cat <<''EOF''\nFix Cognito authentication: Add error handling to loginWithCognito\n\n- Added try-catch block to loginWithCognito method for better error handling\n- Log detailed error information when authentication fails\n- Re-throw known exceptions \\(UnauthorizedException, BadRequestException\\)\n- Return generic error message for unknown exceptions to avoid exposing internals\n\nThis improves debugging and provides better error messages to users.\n\n🤖 Generated with [Claude Code]\\(https://claude.com/claude-code\\)\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
       "Bash(git push:*)",
       "Bash(__NEW_LINE__ docker push 982081079378.dkr.ecr.us-east-1.amazonaws.com/handycall-backend:20260103234332)",
-      "Bash(__NEW_LINE__ cd \"c:\\\\Users\\\\PC\\\\Documents\\\\VSCode Projects\\\\HandyCall\")"
+      "Bash(__NEW_LINE__ cd \"c:\\\\Users\\\\PC\\\\Documents\\\\VSCode Projects\\\\HandyCall\")",
+      "Bash(node setup-user.js:*)",
+      "Bash(aws dynamodb query:*)",
+      "Bash(node test-companies-me.js:*)",
+      "Bash(node -pe:*)",
+      "Bash(node -e:*)",
+      "Bash(eb deploy:*)"
     ]
   }
 }
