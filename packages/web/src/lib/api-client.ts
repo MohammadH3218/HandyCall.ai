@@ -1,7 +1,8 @@
 import { ApiResponse, LoginRequest, LoginResponse, RegisterRequest, RegisterResponse } from '@handycall/shared';
-import { fetchAuthSession } from 'aws-amplify/auth';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api/v1';
+// BFF Pattern: Point to Next.js internal API proxy instead of external NestJS
+// The proxy handles authentication server-side using NextAuth cookies
+const API_URL = '/api/proxy';
 
 class ApiClient {
   private baseUrl: string;
@@ -11,43 +12,26 @@ class ApiClient {
   }
 
   setAccessToken(token: string | null) {
-    // Legacy method - no longer needed with Amplify, but keeping for compatibility
-    if (typeof window !== 'undefined') {
-      if (token) {
-        localStorage.setItem('access_token', token);
-      } else {
-        localStorage.removeItem('access_token');
-      }
-    }
+    // Legacy method - no longer needed with BFF pattern
+    // Tokens are handled server-side via NextAuth cookies
   }
 
   private async request<T>(
     endpoint: string,
     options: RequestInit = {}
   ): Promise<ApiResponse<T>> {
-    const url = `${this.baseUrl}${endpoint}`;
+    // Remove leading slash if present to avoid double slashes
+    const cleanEndpoint = endpoint.startsWith('/') ? endpoint.slice(1) : endpoint;
+    const url = `${this.baseUrl}/${cleanEndpoint}`;
 
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       ...(options.headers as Record<string, string>),
     };
 
-    // Get Cognito token from Amplify session for API requests (not auth endpoints)
-    // IMPORTANT: Use ID Token (not Access Token) because it contains the email claim
-    // which is required for backend user lookup
-    if (!endpoint.includes('/auth/') && typeof window !== 'undefined') {
-      try {
-        const session = await fetchAuthSession();
-        // Use ID token instead of access token - ID tokens contain email claim
-        const token = session.tokens?.idToken?.toString();
-        if (token) {
-          headers['Authorization'] = `Bearer ${token}`;
-        }
-      } catch (error) {
-        // User is not logged in - continue without token
-        console.debug('No auth session found');
-      }
-    }
+    // No need to add Authorization header here!
+    // The Next.js proxy (/api/proxy/[...path]) handles authentication server-side
+    // using NextAuth session cookies
 
     try {
       const response = await fetch(url, {

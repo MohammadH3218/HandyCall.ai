@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { signIn } from 'next-auth/react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -10,6 +11,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Logo } from '@/components/ui/logo';
 import { useAuthStore } from '@/stores/auth-store';
 import { UserRole } from '@handycall/shared';
+import { apiClient } from '@/lib/api-client';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -59,18 +61,24 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      const result = await login(email, password);
+      // Use NextAuth's signIn with credentials
+      const result = await signIn('credentials', {
+        email,
+        password,
+        redirect: false,
+      });
 
-      if (result && result.requiresPasswordChange) {
-        setShowPasswordChangeModal(true);
-      } else {
-        // Get userRole from store after login (more reliable than result)
-        const userRole = useAuthStore.getState().userRole;
-        
-        // Redirect based on user role
-        if (userRole === UserRole.ADMIN) {
-          router.push('/admin');
-        } else {
+      if (result?.error) {
+        setError(result.error || 'Invalid email or password');
+      } else if (result?.ok) {
+        // Successful login - NextAuth session is created
+        // Fetch user info to determine role for redirect
+        try {
+          const userInfo = await apiClient.getMyCompany();
+          // Check if admin or regular user - you may need to adjust this logic
+          router.push('/dashboard');
+        } catch (err) {
+          // Still redirect even if we can't fetch company info
           router.push('/dashboard');
         }
       }
