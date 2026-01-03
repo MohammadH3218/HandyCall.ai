@@ -1,8 +1,7 @@
 import { create } from 'zustand';
 import { User, Company, UserRole } from '@handycall/shared';
 import { apiClient } from '@/lib/api-client';
-import { extractUserRole, decodeJWT } from '@/lib/jwt';
-import { signIn, signOut, fetchAuthSession, getCurrentUser } from 'aws-amplify/auth';
+import { extractUserRole } from '@/lib/jwt';
 
 interface AuthState {
   user: User | null;
@@ -42,106 +41,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   passwordChangePoolType: null,
 
   login: async (email: string, password: string) => {
-    try {
-      // Sign in with Cognito using Amplify
-      const result = await signIn({ username: email, password });
-
-      // Check if password change is required
-      if (result.nextStep?.signInStep === 'CONFIRM_SIGN_IN_WITH_NEW_PASSWORD_REQUIRED') {
-        // Handle new password required challenge
-        // Note: Amplify handles password changes differently - may need backend endpoint for full flow
-        set({
-          requiresPasswordChange: true,
-          email,
-          isLoading: false,
-        });
-        return { requiresPasswordChange: true, userRole: null };
-      }
-
-      // If not signed in, there's a challenge
-      if (!result.isSignedIn) {
-        throw new Error('Login incomplete. Please complete the required challenge.');
-      }
-
-      // Get the current session and user info
-      const session = await fetchAuthSession();
-      const cognitoUser = await getCurrentUser();
-      
-      if (!session.tokens?.accessToken) {
-        throw new Error('Failed to get authentication tokens');
-      }
-
-      // Decode the ID token to extract user info
-      const idToken = session.tokens.idToken?.toString();
-      const accessToken = session.tokens.accessToken.toString();
-      const payload = idToken ? decodeJWT(idToken) : null;
-
-      // Extract user role from token
-      let userRole: UserRole | null = null;
-      if (payload) {
-        // Check custom:role attribute
-        if (payload['custom:role']) {
-          const role = payload['custom:role'].toUpperCase();
-          if (role === 'ADMIN') userRole = UserRole.ADMIN;
-          else if (role === 'OWNER') userRole = UserRole.OWNER;
-          else if (role === 'STAFF') userRole = UserRole.STAFF;
-        }
-        
-        // Check cognito:groups
-        if (!userRole && payload['cognito:groups'] && Array.isArray(payload['cognito:groups'])) {
-          if (payload['cognito:groups'].some((group: string) => group.toLowerCase().includes('admin'))) {
-            userRole = UserRole.ADMIN;
-          }
-        }
-      }
-
-      // Default to OWNER if role cannot be determined
-      if (!userRole) {
-        userRole = UserRole.OWNER;
-      }
-
-      // Fetch user and company info from backend
-      let company = null;
-      let user = null;
-      try {
-        company = await apiClient.getMyCompany();
-        // User info might be in the company response or we might need a separate endpoint
-      } catch (error) {
-        console.warn('Failed to fetch company info:', error);
-      }
-
-      // Store email
-      const userEmail = payload?.email || email;
-
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('email', userEmail);
-        localStorage.setItem('user_role', userRole);
-      }
-
-      set({
-        company,
-        user,
-        accessToken,
-        idToken: idToken || null,
-        refreshToken: null, // Refresh tokens are handled internally by Amplify
-        email: userEmail,
-        userRole,
-        isAuthenticated: true,
-        isLoading: false,
-        requiresPasswordChange: false,
-        passwordChangeSession: null,
-        passwordChangePoolType: null,
-      });
-
-      return { requiresPasswordChange: false, userRole };
-    } catch (error: any) {
-      set({ isLoading: false });
-      // Provide user-friendly error messages
-      if (error.name === 'NotAuthorizedException' || error.message?.includes('Incorrect username or password')) {
-        throw new Error('Invalid email or password');
-      }
-      throw error;
-    }
+    // Login is handled by NextAuth credentials; this store just tracks derived state.
+    set({ isLoading: false });
+    return { requiresPasswordChange: false, userRole: null };
   },
 
   changePassword: async (email: string, newPassword: string, session: string, poolType?: 'users' | 'admin', companyName?: string, firstName?: string, lastName?: string) => {
@@ -230,12 +132,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   logout: async () => {
-    try {
-      await signOut();
-    } catch (error) {
-      console.error('Error signing out from Amplify:', error);
-    }
-
+    // No Amplify in production - just clear tokens and store
     apiClient.setAccessToken(null);
 
     if (typeof window !== 'undefined') {
@@ -285,67 +182,22 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
 
     try {
-      // Check if user is signed in with Amplify
-      const session = await fetchAuthSession();
-      
-      if (session.tokens?.accessToken) {
-        const user = await getCurrentUser();
-        const idToken = session.tokens.idToken?.toString();
-        const accessToken = session.tokens.accessToken.toString();
-        const payload = idToken ? decodeJWT(idToken) : null;
+      // Rely on server-side NextAuth session and proxy; just fetch company to confirm auth.
+      const company = await apiClient.getMyCompany();
+      const email = company?.email || localStorage.getItem('email') || null;
+      const userRole = (localStorage.getItem('user_role') as UserRole | null) || UserRole.OWNER;
 
-        // Extract user role from token
-        let userRole: UserRole | null = null;
-        if (payload) {
-          if (payload['custom:role']) {
-            const role = payload['custom:role'].toUpperCase();
-            if (role === 'ADMIN') userRole = UserRole.ADMIN;
-            else if (role === 'OWNER') userRole = UserRole.OWNER;
-            else if (role === 'STAFF') userRole = UserRole.STAFF;
-          }
-          
-          if (!userRole && payload['cognito:groups'] && Array.isArray(payload['cognito:groups'])) {
-            if (payload['cognito:groups'].some((group: string) => group.toLowerCase().includes('admin'))) {
-              userRole = UserRole.ADMIN;
-            }
-          }
-        }
+      if (email) localStorage.setItem('email', email);
+      if (userRole) localStorage.setItem('user_role', userRole);
 
-        // Default to OWNER if role cannot be determined
-        if (!userRole) {
-          userRole = UserRole.OWNER;
-        }
-
-        const email = payload?.email || localStorage.getItem('email') || '';
-
-        // Store email and role in localStorage for quick access
-        if (email) localStorage.setItem('email', email);
-        if (userRole) localStorage.setItem('user_role', userRole);
-
-        // Try to fetch company info
-        let company = null;
-        try {
-          company = await apiClient.getMyCompany();
-        } catch (error) {
-          console.warn('Failed to fetch company info on auth check:', error);
-        }
-
-        set({
-          accessToken,
-          idToken: idToken || null,
-          refreshToken: null, // Refresh tokens are handled internally by Amplify
-          email,
-          userRole,
-          company,
-          isAuthenticated: true,
-          isLoading: false,
-        });
-      } else {
-        set({ isLoading: false, isAuthenticated: false });
-      }
+      set({
+        company,
+        email,
+        userRole,
+        isAuthenticated: true,
+        isLoading: false,
+      });
     } catch (error) {
-      // User is not authenticated
-      console.debug('Auth check failed:', error);
       set({ isLoading: false, isAuthenticated: false });
     }
   },
