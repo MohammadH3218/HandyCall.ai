@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import { useAuthStore } from '@/stores/auth-store';
 import { Logo } from '@/components/ui/logo';
@@ -12,23 +13,27 @@ import { UserRole } from '@handycall/shared';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
+  const { status } = useSession();
   const { isAuthenticated, isLoading, checkAuth, userRole, company } = useAuthStore();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
-    checkAuth().catch(console.error);
-  }, [checkAuth]);
+    if (status === 'authenticated') {
+      // Populate store for company/role display; ignore result for gating
+      checkAuth().catch(console.error);
+    }
+  }, [status, checkAuth]);
 
   useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
+    if (status === 'unauthenticated') {
       router.push('/login');
-    } else if (!isLoading && isAuthenticated && userRole === UserRole.ADMIN) {
+    } else if (status === 'authenticated' && userRole === UserRole.ADMIN) {
       // Redirect admins to admin dashboard
       router.push('/admin');
     }
-  }, [isAuthenticated, isLoading, userRole, router]);
+  }, [status, userRole, router]);
 
-  if (isLoading || !isAuthenticated) {
+  if (status === 'loading' || status === 'unauthenticated') {
     return (
       <div className="flex h-screen items-center justify-center bg-background">
         <div className="text-center">
