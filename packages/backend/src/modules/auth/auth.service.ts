@@ -270,21 +270,38 @@ export class AuthService {
   // ========================================================================
 
   async loginWithCognito(email: string, password: string) {
-    const result = await this.cognitoService.login(email, password, 'auto');
+    try {
+      const result = await this.cognitoService.login(email, password, 'auto');
 
-    // Check if user needs to change password
-    if (result.challengeName === 'NEW_PASSWORD_REQUIRED') {
-      // Determine if this is an admin user based on pool type only
-      const poolType = result.poolType || 'users';
-      const isAdmin = poolType === 'admin';
-      
-      return {
-        requiresPasswordChange: true,
-        session: result.session,
-        email,
-        userRole: isAdmin ? 'admin' : 'customer',
-        poolType: poolType, // Include pool type so we can use it for password change
-      };
+      // Check if user needs to change password
+      if (result.challengeName === 'NEW_PASSWORD_REQUIRED') {
+        // Determine if this is an admin user based on pool type only
+        const poolType = result.poolType || 'users';
+        const isAdmin = poolType === 'admin';
+
+        return {
+          requiresPasswordChange: true,
+          session: result.session,
+          email,
+          userRole: isAdmin ? 'admin' : 'customer',
+          poolType: poolType, // Include pool type so we can use it for password change
+        };
+      }
+    } catch (error: any) {
+      console.error('[AuthService] loginWithCognito error:', {
+        name: error.name,
+        message: error.message,
+        email: email,
+        stack: error.stack
+      });
+
+      // Re-throw known errors
+      if (error instanceof UnauthorizedException || error instanceof BadRequestException) {
+        throw error;
+      }
+
+      // For unknown errors, throw a generic error with logging
+      throw new UnauthorizedException('Authentication failed. Please try again later.');
     }
 
     // Get company and user info from DynamoDB using custom attributes
