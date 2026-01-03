@@ -42,7 +42,8 @@ export class DashboardService {
       companyId,
       {
         keyCondition: '#created_at >= :today',
-        filterExpression: undefined,
+        expressionAttributeNames: { '#created_at': 'created_at' },
+        expressionAttributeValues: { ':today': todayTimestamp },
       },
       {
         indexName: 'company_id-created_at-index',
@@ -55,6 +56,8 @@ export class DashboardService {
       companyId,
       {
         keyCondition: '#created_at >= :today',
+        expressionAttributeNames: { '#created_at': 'created_at' },
+        expressionAttributeValues: { ':today': todayTimestamp },
       },
       {
         indexName: 'company_id-created_at-index',
@@ -68,6 +71,8 @@ export class DashboardService {
       {
         keyCondition: '#scheduled_time >= :now',
         filterExpression: '#status = :active',
+        expressionAttributeNames: { '#scheduled_time': 'scheduled_time', '#status': 'status' },
+        expressionAttributeValues: { ':now': todayTimestamp, ':active': 'active' },
       },
       {
         indexName: 'company_id-scheduled_time-index',
@@ -80,6 +85,8 @@ export class DashboardService {
       companyId,
       {
         filterExpression: '#status = :pending',
+        expressionAttributeNames: { '#status': 'status' },
+        expressionAttributeValues: { ':pending': 'pending' },
       }
     );
 
@@ -115,6 +122,8 @@ export class DashboardService {
       {
         keyCondition: '#scheduled_time >= :now',
         filterExpression: '#status IN (:confirmed, :pending)',
+        expressionAttributeNames: { '#scheduled_time': 'scheduled_time', '#status': 'status' },
+        expressionAttributeValues: { ':now': now, ':confirmed': 'confirmed', ':pending': 'pending' },
       },
       {
         indexName: 'company_id-scheduled_time-index',

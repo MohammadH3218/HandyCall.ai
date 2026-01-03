@@ -160,6 +160,8 @@ export class DynamoDBService implements OnModuleInit {
     additionalConditions?: {
       keyCondition?: string;
       filterExpression?: string;
+      expressionAttributeNames?: Record<string, string>;
+      expressionAttributeValues?: Record<string, any>;
     },
     options?: {
       indexName?: string;
@@ -175,6 +177,14 @@ export class DynamoDBService implements OnModuleInit {
     const expressionAttributeValues: Record<string, any> = {
       ':company_id': companyId,
     };
+
+    // Merge in caller-provided names/values to support secondary attributes
+    if (additionalConditions?.expressionAttributeNames) {
+      Object.assign(expressionAttributeNames, additionalConditions.expressionAttributeNames);
+    }
+    if (additionalConditions?.expressionAttributeValues) {
+      Object.assign(expressionAttributeValues, additionalConditions.expressionAttributeValues);
+    }
 
     if (additionalConditions?.keyCondition) {
       keyConditionExpression += ` AND ${additionalConditions.keyCondition}`;
