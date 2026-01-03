@@ -1,21 +1,17 @@
 import { ApiResponse, LoginRequest, LoginResponse, RegisterRequest, RegisterResponse } from '@handycall/shared';
+import { fetchAuthSession } from 'aws-amplify/auth';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api/v1';
 
 class ApiClient {
   private baseUrl: string;
-  private accessToken: string | null = null;
 
   constructor(baseUrl: string) {
     this.baseUrl = baseUrl;
-    // Try to load token from localStorage (client-side only)
-    if (typeof window !== 'undefined') {
-      this.accessToken = localStorage.getItem('access_token');
-    }
   }
 
   setAccessToken(token: string | null) {
-    this.accessToken = token;
+    // Legacy method - no longer needed with Amplify, but keeping for compatibility
     if (typeof window !== 'undefined') {
       if (token) {
         localStorage.setItem('access_token', token);
@@ -36,8 +32,18 @@ class ApiClient {
       ...(options.headers as Record<string, string>),
     };
 
-    if (this.accessToken && !endpoint.includes('/auth/')) {
-      headers['Authorization'] = `Bearer ${this.accessToken}`;
+    // Get Cognito token from Amplify session for API requests (not auth endpoints)
+    if (!endpoint.includes('/auth/') && typeof window !== 'undefined') {
+      try {
+        const session = await fetchAuthSession();
+        const token = session.tokens?.accessToken?.toString();
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`;
+        }
+      } catch (error) {
+        // User is not logged in - continue without token
+        console.debug('No auth session found');
+      }
     }
 
     try {

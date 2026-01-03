@@ -28,7 +28,7 @@ export default function RegisterPage() {
 
   // Check auth status on mount
   useEffect(() => {
-    checkAuth();
+    checkAuth().catch(console.error);
   }, [checkAuth]);
 
   // Redirect if already authenticated

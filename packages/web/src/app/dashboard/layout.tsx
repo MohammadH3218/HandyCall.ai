@@ -16,7 +16,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
-    checkAuth();
+    checkAuth().catch(console.error);
   }, [checkAuth]);
 
   useEffect(() => {

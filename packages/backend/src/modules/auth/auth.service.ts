@@ -195,6 +195,77 @@ export class AuthService {
   }
 
   // ========================================================================
+  // HYBRID AUTHENTICATION (Cognito validation + Custom JWT)
+  // ========================================================================
+
+  async loginHybrid(email: string, password: string): Promise<LoginResponse> {
+    // Validate with Cognito
+    const result = await this.cognitoService.login(email, password, 'auto');
+
+    // Check if user needs to change password
+    if (result.challengeName === 'NEW_PASSWORD_REQUIRED') {
+      const poolType = result.poolType || 'users';
+      const isAdmin = poolType === 'admin';
+
+      return {
+        requiresPasswordChange: true,
+        session: result.session,
+        email,
+        userRole: isAdmin ? UserRole.ADMIN : UserRole.OWNER,
+        poolType: poolType,
+      } as any;
+    }
+
+    // Get user info from Cognito attributes
+    const companyId = result.userAttributes?.['custom:company_id'];
+    const userId = result.userAttributes?.['sub']; // Cognito user ID
+    const poolType = result.poolType || 'users';
+
+    // Determine role
+    let role: UserRole;
+    if (poolType === 'admin') {
+      role = UserRole.ADMIN;
+    } else {
+      role = UserRole.OWNER; // Default for customer users
+    }
+
+    // Try to fetch user and company from DynamoDB
+    let user = null;
+    let company = null;
+
+    if (companyId) {
+      try {
+        company = await this.companiesService.findById(companyId);
+        user = await this.usersService.findByEmail(email);
+        if (user) {
+          role = user.role; // Use role from database if available
+        }
+      } catch (error) {
+        console.warn('[AuthService] Failed to fetch user/company from DynamoDB:', error);
+      }
+    }
+
+    // Generate custom JWT tokens
+    const tokens = this.generateTokens(
+      userId || email, // Use Cognito sub as user_id
+      companyId || 'no-company',
+      email,
+      role
+    );
+
+    // Remove password_hash from user object if present
+    const userResponse = user ? { ...user, password_hash: undefined } : null;
+
+    return {
+      user: userResponse as any,
+      company: company as any,
+      access_token: tokens.access_token,
+      refresh_token: tokens.refresh_token,
+      expires_in: parseInt(this.configService.get<string>('JWT_EXPIRES_IN') || '3600'),
+    };
+  }
+
+  // ========================================================================
   // COGNITO-BASED AUTHENTICATION
   // ========================================================================
 

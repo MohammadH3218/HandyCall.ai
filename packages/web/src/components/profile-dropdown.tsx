@@ -18,8 +18,8 @@ export function ProfileDropdown() {
   const router = useRouter();
   const { user, email, logout } = useAuthStore();
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     router.push('/login');
   };
 
