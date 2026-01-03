@@ -33,10 +33,13 @@ class ApiClient {
     };
 
     // Get Cognito token from Amplify session for API requests (not auth endpoints)
+    // IMPORTANT: Use ID Token (not Access Token) because it contains the email claim
+    // which is required for backend user lookup
     if (!endpoint.includes('/auth/') && typeof window !== 'undefined') {
       try {
         const session = await fetchAuthSession();
-        const token = session.tokens?.accessToken?.toString();
+        // Use ID token instead of access token - ID tokens contain email claim
+        const token = session.tokens?.idToken?.toString();
         if (token) {
           headers['Authorization'] = `Bearer ${token}`;
         }

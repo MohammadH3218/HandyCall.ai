@@ -1,13 +1,19 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, UnauthorizedException, Logger } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { passportJwtSecret } from 'jwks-rsa';
 import { ConfigService } from '@nestjs/config';
 import { AuthContext } from '@handycall/shared';
+import { UsersService } from '../../users/users.service';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
-  constructor(private configService: ConfigService) {
+  private readonly logger = new Logger(JwtStrategy.name);
+
+  constructor(
+    private configService: ConfigService,
+    private usersService: UsersService,
+  ) {
     const userPoolId = configService.get<string>('AWS_COGNITO_USERS_POOL_ID');
     const region = configService.get<string>('AWS_REGION');
     const authority = `https://cognito-idp.${region}.amazonaws.com/${userPoolId}`;
@@ -17,7 +23,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       ignoreExpiration: false,
       audience: configService.get<string>('AWS_COGNITO_USERS_CLIENT_ID'),
       issuer: authority,
-      algorithms: ['RS256'],
+      algorithms: ['RS256'], // Cognito uses RS256 signature
       secretOrKeyProvider: passportJwtSecret({
         cache: true,
         rateLimit: true,
@@ -28,21 +34,30 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   async validate(payload: any): Promise<AuthContext> {
-    // Extract user info from Cognito token
-    const userId = payload.sub;
-    const companyId = payload['custom:company_id'] || 'no-company';
-    const groups = payload['cognito:groups'] || [];
+    // CRITICAL: We need to find the user in YOUR database to get the company_id.
+    // We try to find the user by email (from ID Token) or username (from Access Token).
+    const email = payload.email || payload['cognito:username'] || payload.username;
 
-    // Determine role from Cognito groups or attributes
-    let role = payload['custom:role'] || 'owner';
-    if (groups.includes('admin')) {
-      role = 'admin';
+    if (!email) {
+      this.logger.error('Token is valid but contains no email/username claim');
+      throw new UnauthorizedException('Invalid token claims');
     }
 
+    // Look up user in database
+    const user = await this.usersService.findByEmail(email);
+
+    if (!user) {
+      // If user is in Cognito but not in your DB, you might want to create them here
+      // or throw an error.
+      this.logger.warn(`User with email ${email} not found in database`);
+      throw new UnauthorizedException('User not found in system');
+    }
+
+    // Attach user context to the Request object
     return {
-      user_id: userId,
-      company_id: companyId,
-      role: role as any,
+      user_id: user.user_id,
+      company_id: user.company_id,
+      role: user.role,
     };
   }
 }
