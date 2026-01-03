@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useSession } from 'next-auth/react';
+import { signOut, useSession } from 'next-auth/react';
 import Link from 'next/link';
 import { useAuthStore } from '@/stores/auth-store';
 import { Logo } from '@/components/ui/logo';
@@ -18,10 +18,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
-    if (status === 'authenticated') {
-      // Populate store for company/role display; ignore result for gating
-      checkAuth().catch(console.error);
-    }
+    const populate = async () => {
+      if (status === 'authenticated') {
+        try {
+          await checkAuth();
+        } catch (err) {
+          console.error('checkAuth failed, signing out', err);
+          await signOut({ callbackUrl: '/login' });
+        }
+      }
+    };
+    populate();
   }, [status, checkAuth]);
 
   useEffect(() => {

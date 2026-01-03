@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { signIn } from 'next-auth/react';
+import { signIn, signOut } from 'next-auth/react';
 import { useSession } from 'next-auth/react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -48,15 +48,24 @@ export default function LoginPage() {
 
   // Redirect after successful authentication (backup redirect)
   useEffect(() => {
-    if ((status === 'authenticated' || isAuthenticated) && !requiresPasswordChange && !showPasswordChangeModal) {
-      if (userRole === UserRole.ADMIN) {
-        router.push('/admin');
-      } else if (userRole === UserRole.OWNER || userRole === UserRole.STAFF) {
-        router.push('/dashboard');
-      } else {
-        router.push('/dashboard');
+    const ensureSessionValid = async () => {
+      if ((status === 'authenticated' || isAuthenticated) && !requiresPasswordChange && !showPasswordChangeModal) {
+        try {
+          // Validate backend session; if it fails, force logout so user sees login
+          await apiClient.getMyCompany();
+        } catch (err) {
+          await signOut({ callbackUrl: '/login' });
+          return;
+        }
+
+        if (userRole === UserRole.ADMIN) {
+          router.push('/admin');
+        } else {
+          router.push('/dashboard');
+        }
       }
-    }
+    };
+    ensureSessionValid();
   }, [status, isAuthenticated, userRole, requiresPasswordChange, showPasswordChangeModal, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
