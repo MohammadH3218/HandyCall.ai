@@ -270,8 +270,10 @@ export class AuthService {
   // ========================================================================
 
   async loginWithCognito(email: string, password: string) {
+    let result;
+
     try {
-      const result = await this.cognitoService.login(email, password, 'auto');
+      result = await this.cognitoService.login(email, password, 'auto');
 
       // Check if user needs to change password
       if (result.challengeName === 'NEW_PASSWORD_REQUIRED') {
