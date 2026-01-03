@@ -1,6 +1,9 @@
 import { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 
+// Ensure base URLs are set even if env isn't injected at runtime
+const NEXTAUTH_URL = process.env.NEXTAUTH_URL || "https://handycall.org";
+process.env.NEXTAUTH_URL = NEXTAUTH_URL;
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://api.handycall.org/api/v1";
 
 export const authOptions: NextAuthOptions = {
