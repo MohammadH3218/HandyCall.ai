@@ -71,19 +71,29 @@ export const authOptions: NextAuthOptions = {
     async jwt({ token, user }) {
       // Persist tokens from credentials provider
       if (user) {
+        console.log('[NextAuth JWT] User object received:', {
+          hasAccessToken: !!(user as any).accessToken,
+          hasIdToken: !!(user as any).idToken,
+          hasRefreshToken: !!(user as any).refreshToken,
+        });
         token.accessToken = (user as any).accessToken;
         token.idToken = (user as any).idToken;
         token.refreshToken = (user as any).refreshToken;
         token.sub = user.id;
         token.email = user.email;
       }
-      
+
       return token;
     },
     async session({ session, token }) {
       // Store tokens in session for server-side proxy to use
       // In a true BFF, tokens are NOT exposed to the client
       // They're only used server-side in the proxy route
+      console.log('[NextAuth Session] Token object:', {
+        hasAccessToken: !!token.accessToken,
+        hasIdToken: !!token.idToken,
+        hasRefreshToken: !!token.refreshToken,
+      });
       if (token) {
         (session as any).accessToken = token.accessToken as string;
         (session as any).idToken = token.idToken as string;
