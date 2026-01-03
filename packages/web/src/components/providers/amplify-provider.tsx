@@ -8,6 +8,12 @@ const amplifyConfig = {
     Cognito: {
       userPoolId: process.env.NEXT_PUBLIC_COGNITO_USER_POOL_ID || 'us-east-1_gBsGtRPnM',
       userPoolClientId: process.env.NEXT_PUBLIC_COGNITO_CLIENT_ID || '3vhh0artoakoardoi4e9rdm3m9',
+      loginWith: {
+        email: true,
+        username: false,
+        phone: false,
+      },
+      signUpVerificationMethod: 'code' as const,
     },
   },
 };
