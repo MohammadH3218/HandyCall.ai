@@ -4,6 +4,14 @@ import { authOptions } from "@/lib/auth-config";
 
 const NEST_API_URL = process.env.NEXT_PUBLIC_API_URL || "https://api.handycall.org/api/v1";
 
+// Public paths that don't require authentication (chicken-and-egg fix)
+const PUBLIC_PATHS = [
+  "auth/login",
+  "auth/register",
+  "auth/refresh",
+  "auth/change-password", // Allow password changes without auth
+];
+
 export async function GET(
   req: NextRequest,
   { params }: { params: { path: string[] } }
@@ -37,15 +45,22 @@ async function handleRequest(
   params: { path: string[] },
   method: string
 ) {
+  // Reconstruct the path early to check if it's public
+  const path = params.path.join("/");
+  
+  // Check if this is a public path that doesn't require authentication
+  const isPublicPath = PUBLIC_PATHS.some(publicPath => path.startsWith(publicPath));
+  
+  // Get session (will be null for unauthenticated users)
   const session = await getServerSession(authOptions);
 
-  // 1. Check if user is authenticated via NextAuth cookie
-  if (!session || !session.idToken) {
+  // 1. Check if user is authenticated (SKIP check if path is public)
+  // This fixes the "chicken and egg" problem - users need to login before having a session
+  if (!isPublicPath && (!session || !session.idToken)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // 2. Reconstruct the path (e.g., /companies/me)
-  const path = params.path.join("/");
+  // 2. Construct the full backend URL
   const url = `${NEST_API_URL}/${path}${req.nextUrl.search}`;
 
   // 3. Get request body if applicable
@@ -58,14 +73,21 @@ async function handleRequest(
     }
   }
 
-  // 4. Forward request to NestJS with the secure ID token
+  // 4. Forward request to NestJS
   try {
+    // Build headers conditionally - only add Authorization if we have a session
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+    
+    // Only add Authorization header if we have a session (not needed for public paths)
+    if (session && session.idToken) {
+      headers["Authorization"] = `Bearer ${session.idToken}`; // Use ID token for backend user lookup
+    }
+    
     const response = await fetch(url, {
       method: method,
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${session.idToken}`, // Use ID token for backend user lookup
-      },
+      headers: headers,
       body: body,
     });
 
