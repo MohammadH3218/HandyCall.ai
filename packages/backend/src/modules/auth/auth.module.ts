@@ -12,6 +12,7 @@ import { JwtStrategy } from './strategies/jwt.strategy';
 
 @Module({
   imports: [
+    ConfigModule,
     PassportModule.register({ defaultStrategy: 'jwt' }),
     forwardRef(() => UsersModule),
     CompaniesModule,
@@ -29,6 +30,6 @@ import { JwtStrategy } from './strategies/jwt.strategy';
   ],
   controllers: [AuthController],
   providers: [AuthService, CognitoService, JwtStrategy],
-  exports: [AuthService, CognitoService],
+  exports: [PassportModule, JwtStrategy, AuthService, CognitoService],
 })
 export class AuthModule {}
