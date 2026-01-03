@@ -78,13 +78,13 @@ export class UsersService {
     email: string,
     companyId: string
   ): Promise<(User & { password_hash: string }) | null> {
-    const result = await this.dynamodb.query(
-      this.tableName,
-      '#company_id = :company_id AND #email = :email',
-      { '#company_id': 'company_id', '#email': 'email' },
-      { ':company_id': companyId, ':email': email },
-      { indexName: 'email-index', limit: 1 }
-    );
+    // Production email index keys differ; safest is a filtered scan scoped by company_id + email.
+    const result = await this.dynamodb.scan(this.tableName, {
+      filterExpression: '#company_id = :company_id AND #email = :email',
+      expressionAttributeNames: { '#company_id': 'company_id', '#email': 'email' },
+      expressionAttributeValues: { ':company_id': companyId, ':email': email },
+      limit: 1,
+    });
 
     return result.items.length > 0 ? (result.items[0] as any) : null;
   }
