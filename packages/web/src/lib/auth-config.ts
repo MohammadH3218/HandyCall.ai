@@ -1,19 +1,7 @@
 import { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
-import { CognitoIdentityProviderClient, InitiateAuthCommand } from "@aws-sdk/client-cognito-identity-provider";
-import { createHmac } from "crypto";
 
-const cognitoClient = new CognitoIdentityProviderClient({ 
-  region: process.env.NEXT_PUBLIC_AWS_REGION || 'us-east-1' 
-});
-
-// Calculate secret hash for Cognito client with secret
-function calculateSecretHash(username: string, clientId: string, clientSecret: string): string {
-  const message = username + clientId;
-  const hmac = createHmac('sha256', clientSecret);
-  hmac.update(message);
-  return hmac.digest('base64');
-}
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://api.handycall.org/api/v1";
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -29,49 +17,52 @@ export const authOptions: NextAuthOptions = {
         }
 
         try {
-          const clientId = process.env.NEXT_PUBLIC_COGNITO_CLIENT_ID!;
-          const clientSecret = process.env.COGNITO_USERS_CLIENT_SECRET!;
-
-          // Calculate secret hash for client with secret
-          const secretHash = calculateSecretHash(credentials.email, clientId, clientSecret);
-
-          // Authenticate with Cognito using USER_PASSWORD_AUTH flow
-          const command = new InitiateAuthCommand({
-            AuthFlow: "USER_PASSWORD_AUTH",
-            ClientId: clientId,
-            AuthParameters: {
-              USERNAME: credentials.email,
-              PASSWORD: credentials.password,
-              SECRET_HASH: secretHash,
+          // Use backend's login endpoint which handles Cognito authentication
+          // This avoids needing client secret in Next.js and reuses existing backend logic
+          const response = await fetch(`${API_URL}/auth/login`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
             },
+            body: JSON.stringify({
+              email: credentials.email,
+              password: credentials.password,
+            }),
           });
 
-          const response = await cognitoClient.send(command);
-
-          if (response.AuthenticationResult) {
-            // Return user info and tokens
-            return {
-              id: credentials.email,
-              email: credentials.email,
-              accessToken: response.AuthenticationResult.AccessToken!,
-              idToken: response.AuthenticationResult.IdToken!,
-              refreshToken: response.AuthenticationResult.RefreshToken,
-            };
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            const errorMessage = errorData.error?.message || errorData.message || "Authentication failed";
+            throw new Error(errorMessage);
           }
 
-          // Handle challenge (like NEW_PASSWORD_REQUIRED)
-          if (response.ChallengeName) {
-            throw new Error(`Challenge required: ${response.ChallengeName}`);
+          const data = await response.json();
+          
+          // Backend returns Cognito tokens via loginWithCognito
+          // Extract tokens from response
+          const idToken = data.id_token || data.idToken;
+          const accessToken = data.access_token || data.accessToken;
+          const refreshToken = data.refresh_token || data.refreshToken;
+
+          if (!idToken || !accessToken) {
+            throw new Error("Invalid response from authentication server");
           }
 
-          return null;
+          // Return user info and tokens for NextAuth to store
+          return {
+            id: credentials.email,
+            email: credentials.email,
+            accessToken: accessToken,
+            idToken: idToken,
+            refreshToken: refreshToken,
+          };
         } catch (error: any) {
-          console.error("Cognito auth error:", error);
-          // Return more user-friendly error messages
-          if (error.name === 'NotAuthorizedException') {
-            throw new Error("Invalid email or password");
+          console.error("Auth error:", error);
+          // Return user-friendly error messages
+          if (error.message) {
+            throw error;
           }
-          throw new Error(error.message || "Authentication failed");
+          throw new Error("Authentication failed. Please check your credentials.");
         }
       },
     }),
@@ -106,5 +97,8 @@ export const authOptions: NextAuthOptions = {
   pages: {
     signIn: '/login',
   },
+  // Set the base URL for NextAuth callbacks
+  useSecureCookies: process.env.NODE_ENV === 'production',
+  debug: process.env.NODE_ENV === 'development',
 };
 
