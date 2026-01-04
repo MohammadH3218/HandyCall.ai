@@ -76,40 +76,20 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      // Use NextAuth's signIn with credentials
+      // Let NextAuth handle redirect; middleware will route admins to /admin
       const result = await signIn('credentials', {
         email,
         password,
-        redirect: false,
+        redirect: true,
+        callbackUrl: '/dashboard',
       });
 
       if (result?.error) {
         setError(result.error || 'Invalid email or password');
-      } else if (result?.ok) {
-        // Successful login - NextAuth session is created
-        // Fetch user info to determine role for redirect
-        try {
-          const session = await getSession();
-          const role =
-            (session as any)?.user?.role as UserRole | undefined ||
-            (session as any)?.userRole as UserRole | undefined;
-
-          if (role === UserRole.ADMIN) {
-            router.push('/admin');
-            return;
-          }
-
-          // Customer flow
-          await apiClient.getMyCompany().catch(() => {});
-          router.push('/dashboard');
-        } catch (err) {
-          // Still redirect even if we can't fetch company info
-          router.push('/dashboard');
-        }
+        setIsLoading(false);
       }
     } catch (err: any) {
       setError(err.message || 'Invalid email or password');
-    } finally {
       setIsLoading(false);
     }
   };

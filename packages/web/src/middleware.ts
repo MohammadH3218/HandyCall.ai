@@ -22,12 +22,19 @@ export async function middleware(request: NextRequest) {
 
   // Public routes that don't require auth
   const publicRoutes = ['/login', '/register'];
-  if (publicRoutes.includes(pathname)) {
+  const isPublic = publicRoutes.includes(pathname);
+  if (isPublic && !token) {
     return NextResponse.next();
   }
 
   const token = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET });
   const userRole = (token as any)?.userRole as string | undefined;
+
+  if (isPublic && token) {
+    // Already signed in -> send to appropriate home
+    const target = userRole === 'admin' ? '/admin' : '/dashboard';
+    return NextResponse.redirect(new URL(target, request.url));
+  }
 
   const isAdminRoute = pathname.startsWith('/admin');
   const isDashboardRoute = pathname.startsWith('/dashboard');
