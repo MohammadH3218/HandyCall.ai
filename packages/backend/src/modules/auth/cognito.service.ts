@@ -209,6 +209,27 @@ export class CognitoService {
     }
   }
 
+  async userExists(email: string, poolType: 'users' | 'admin' = 'users'): Promise<boolean> {
+    const poolId = poolType === 'admin' ? this.adminPoolId : this.usersPoolId;
+    if (!poolId) return false;
+
+    try {
+      await this.cognitoClient.send(
+        new AdminGetUserCommand({
+          UserPoolId: poolId,
+          Username: email,
+        })
+      );
+      return true;
+    } catch (error: any) {
+      if (error.name === 'UserNotFoundException') {
+        return false;
+      }
+      // For other errors, bubble up so callers can decide
+      throw error;
+    }
+  }
+
   async getUserAttributes(email: string, poolType: 'users' | 'admin' = 'users'): Promise<Record<string, string>> {
     const poolId = poolType === 'admin' ? this.adminPoolId : this.usersPoolId;
     

@@ -47,7 +47,16 @@ export class UsersService {
     // Check if user with email already exists
     const existingUser = await this.findByEmail(email);
     if (existingUser) {
-      throw new ConflictException('User with this email already exists');
+      // If Cognito doesn't have this user, treat it as stale and remove from DynamoDB
+      const cognitoUserExists = await this.cognitoService.userExists(email, poolType).catch(() => true);
+      if (!cognitoUserExists) {
+        await this.dynamodb.delete(this.tableName, {
+          company_id: existingUser.company_id,
+          user_id: existingUser.user_id,
+        });
+      } else {
+        throw new ConflictException('User with this email already exists');
+      }
     }
 
     const userId = uuidv4();
