@@ -108,8 +108,11 @@ export const authOptions: NextAuthOptions = {
         (session as any).accessToken = token.accessToken as string;
         (session as any).idToken = token.idToken as string;
         (session as any).refreshToken = token.refreshToken as string;
-        session.user.id = token.sub as string;
-        session.user.role = (token.userRole as string) ?? UserRole.OWNER;
+        if (session.user) {
+          session.user.id = token.sub as string;
+          // Extend the user object with role for client-side checks
+          (session.user as any).role = (token.userRole as string) ?? UserRole.OWNER;
+        }
         (session as any).userRole = token.userRole ?? UserRole.OWNER;
         (session as any).poolType = token.poolType;
       }
