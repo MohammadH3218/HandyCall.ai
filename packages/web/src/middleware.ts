@@ -41,12 +41,12 @@ export async function middleware(request: NextRequest) {
   }
 
   // Admin user hitting customer dashboard -> send to admin
-  if (userRole === 'admin' && isDashboardRoute) {
+  if (userRole === UserRole.ADMIN && isDashboardRoute) {
     return NextResponse.redirect(new URL('/admin', request.url));
   }
 
   // Customer hitting admin -> redirect to dashboard
-  if (userRole !== 'admin' && isAdminRoute) {
+  if (userRole !== UserRole.ADMIN && isAdminRoute) {
     return NextResponse.redirect(new URL('/dashboard', request.url));
   }
 

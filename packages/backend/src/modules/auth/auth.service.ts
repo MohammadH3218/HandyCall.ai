@@ -285,7 +285,7 @@ export class AuthService {
           requiresPasswordChange: true,
           session: result.session,
           email,
-          userRole: isAdmin ? 'admin' : 'customer',
+          userRole: isAdmin ? UserRole.ADMIN : UserRole.OWNER,
           poolType: poolType, // Include pool type so we can use it for password change
         };
       }
@@ -320,7 +320,7 @@ export class AuthService {
         id_token: result.idToken,
         refresh_token: result.refreshToken,
         email,
-        userRole: 'admin',
+        userRole: UserRole.ADMIN,
         isAdmin: true,
       };
     }
@@ -348,7 +348,7 @@ export class AuthService {
           user,
           email,
           company_id: companyId,
-          userRole: 'customer',
+          userRole: UserRole.OWNER,
         };
       }
 
@@ -361,7 +361,7 @@ export class AuthService {
         user,
         email,
         company_id: companyId,
-        userRole: 'customer',
+        userRole: UserRole.OWNER,
       };
     }
 
@@ -372,7 +372,7 @@ export class AuthService {
       id_token: result.idToken,
       refresh_token: result.refreshToken,
       email,
-      userRole: 'customer',
+      userRole: UserRole.OWNER,
     };
   }
 
@@ -400,7 +400,7 @@ export class AuthService {
           id_token: result.idToken,
           refresh_token: result.refreshToken,
           email,
-          userRole: 'admin',
+          userRole: UserRole.ADMIN,
         };
       }
 
@@ -482,7 +482,7 @@ export class AuthService {
             company,
             email,
             company_id: companyId,
-            userRole: 'customer',
+            userRole: UserRole.OWNER,
           };
         } catch (dbError: any) {
           // If DynamoDB access fails (e.g., IAM permissions), still succeed password change
@@ -495,7 +495,7 @@ export class AuthService {
             id_token: result.idToken,
             refresh_token: result.refreshToken,
             email,
-            userRole: 'customer',
+            userRole: UserRole.OWNER,
             requiresCompanySetup: true,
           };
         }
@@ -508,7 +508,7 @@ export class AuthService {
           id_token: result.idToken,
           refresh_token: result.refreshToken,
           email,
-          userRole: 'customer',
+          userRole: UserRole.OWNER,
           requiresCompanySetup: true, // Users need company setup if no company_id
         };
       }
@@ -559,7 +559,7 @@ export class AuthService {
           id_token: result.idToken,
           refresh_token: result.refreshToken,
           email,
-          userRole: 'customer',
+          userRole: UserRole.OWNER,
           requiresCompanySetup: true,
         };
       }
@@ -580,7 +580,7 @@ export class AuthService {
         user,
         email,
         company_id: companyId,
-        userRole: 'customer',
+        userRole: UserRole.OWNER,
       };
     } catch (error: any) {
       console.error('[AuthService] Password change error:', error);
