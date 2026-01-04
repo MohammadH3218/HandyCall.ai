@@ -315,53 +315,50 @@ export default function LoginPage() {
                   />
                 </div>
 
-                {/* Company Name, First Name, Last Name - Only for users pool, not admin */}
-                {requiresCompanyName && (
-                  <>
-                    <div className="space-y-2">
-                      <Label htmlFor="first-name">First Name</Label>
-                      <Input
-                        id="first-name"
-                        type="text"
-                        placeholder="Enter your first name"
-                        value={firstName}
-                        onChange={(e) => setFirstName(e.target.value)}
-                        required
-                        disabled={isLoading}
-                      />
-                    </div>
+                <div className="space-y-2">
+                  <Label htmlFor="first-name">First Name</Label>
+                  <Input
+                    id="first-name"
+                    type="text"
+                    placeholder="Enter your first name"
+                    value={firstName}
+                    onChange={(e) => setFirstName(e.target.value)}
+                    required
+                    disabled={isLoading}
+                  />
+                </div>
 
-                    <div className="space-y-2">
-                      <Label htmlFor="last-name">Last Name</Label>
-                      <Input
-                        id="last-name"
-                        type="text"
-                        placeholder="Enter your last name"
-                        value={lastName}
-                        onChange={(e) => setLastName(e.target.value)}
-                        required
-                        disabled={isLoading}
-                      />
-                    </div>
+                <div className="space-y-2">
+                  <Label htmlFor="last-name">Last Name</Label>
+                  <Input
+                    id="last-name"
+                    type="text"
+                    placeholder="Enter your last name"
+                    value={lastName}
+                    onChange={(e) => setLastName(e.target.value)}
+                    required
+                    disabled={isLoading}
+                  />
+                </div>
 
-                    <div className="space-y-2">
-                      <Label htmlFor="company-name">Company Name</Label>
-                      <Input
-                        id="company-name"
-                        type="text"
-                        placeholder="Enter your company name"
-                        value={companyName}
-                        onChange={(e) => setCompanyName(e.target.value)}
-                        required
-                        disabled={isLoading}
-                      />
-                    </div>
-                  </>
-                )}
+                <div className="space-y-2">
+                  <Label htmlFor="company-name">
+                    Company Name {requiresCompanyName ? <span className="text-destructive">*</span> : <span className="text-muted-foreground">(optional for admins)</span>}
+                  </Label>
+                  <Input
+                    id="company-name"
+                    type="text"
+                    placeholder="Enter your company name"
+                    value={companyName}
+                    onChange={(e) => setCompanyName(e.target.value)}
+                    disabled={isLoading}
+                    required={requiresCompanyName}
+                  />
+                </div>
 
                 <div className="rounded-md bg-secondary p-3 text-sm text-muted-foreground border border-border">
                   Password must be at least 8 characters with uppercase, lowercase, and numbers.
-                  {requiresCompanyName && ' Please also provide your name and company name.'}
+                  {' Please also provide your name' + (requiresCompanyName ? ' and company name.' : '.') }
                 </div>
               </div>
               <DialogFooter>
