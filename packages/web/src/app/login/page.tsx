@@ -90,7 +90,9 @@ export default function LoginPage() {
         // Fetch user info to determine role for redirect
         try {
           const session = await getSession();
-          const role = (session as any)?.userRole as UserRole | undefined;
+          const role =
+            (session as any)?.user?.role as UserRole | undefined ||
+            (session as any)?.userRole as UserRole | undefined;
 
           if (role === UserRole.ADMIN) {
             router.push('/admin');

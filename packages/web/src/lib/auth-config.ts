@@ -97,9 +97,7 @@ export const authOptions: NextAuthOptions = {
       return token;
     },
     async session({ session, token }) {
-      // Store tokens in session for server-side proxy to use
-      // In a true BFF, tokens are NOT exposed to the client
-      // They're only used server-side in the proxy route
+      // Store tokens and role in session for server-side proxy to use
       console.log('[NextAuth Session] Token object:', {
         hasAccessToken: !!token.accessToken,
         hasIdToken: !!token.idToken,
@@ -111,7 +109,8 @@ export const authOptions: NextAuthOptions = {
         (session as any).idToken = token.idToken as string;
         (session as any).refreshToken = token.refreshToken as string;
         session.user.id = token.sub as string;
-        (session as any).userRole = token.userRole;
+        session.user.role = (token.userRole as string) ?? UserRole.OWNER;
+        (session as any).userRole = token.userRole ?? UserRole.OWNER;
         (session as any).poolType = token.poolType;
       }
       return session;

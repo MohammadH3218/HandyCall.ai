@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { getToken } from 'next-auth/jwt';
+import { UserRole } from '@handycall/shared';
 
 /**
  * Middleware for route protection
@@ -15,23 +17,38 @@ import type { NextRequest } from 'next/server';
  * - Admin page component (protects /admin routes)
  * - Login/Register pages (redirect if already authenticated)
  */
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
-  
-  // Public routes
-  const publicRoutes = ['/login', '/register'];
-  const isPublicRoute = publicRoutes.includes(pathname);
-  
-  // Protected routes
-  const adminRoutes = ['/admin'];
-  const isAdminRoute = adminRoutes.some(route => pathname.startsWith(route));
-  const dashboardRoutes = ['/dashboard'];
-  const isDashboardRoute = dashboardRoutes.some(route => pathname.startsWith(route));
 
-  // For client-side apps using localStorage, we rely on component-level protection
-  // Middleware here mainly handles initial redirects for better UX
-  // Actual auth checking happens in components (DashboardLayout, Admin page, etc.)
-  
+  // Public routes that don't require auth
+  const publicRoutes = ['/login', '/register'];
+  if (publicRoutes.includes(pathname)) {
+    return NextResponse.next();
+  }
+
+  const token = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET });
+  const userRole = (token as any)?.userRole as string | undefined;
+
+  const isAdminRoute = pathname.startsWith('/admin');
+  const isDashboardRoute = pathname.startsWith('/dashboard');
+
+  // Not signed in -> send to login
+  if (!token) {
+    const loginUrl = new URL('/login', request.url);
+    loginUrl.searchParams.set('callbackUrl', pathname);
+    return NextResponse.redirect(loginUrl);
+  }
+
+  // Admin user hitting customer dashboard -> send to admin
+  if (userRole === 'admin' && isDashboardRoute) {
+    return NextResponse.redirect(new URL('/admin', request.url));
+  }
+
+  // Customer hitting admin -> redirect to dashboard
+  if (userRole !== 'admin' && isAdminRoute) {
+    return NextResponse.redirect(new URL('/dashboard', request.url));
+  }
+
   return NextResponse.next();
 }
 
