@@ -86,7 +86,6 @@ export class UsersController {
       dto.first_name,
       dto.last_name,
       dto.role,
-      dto.phone_number,
       (dto.pool_type as any) || 'users',
       dto.generate_password === true
     );

@@ -34,11 +34,9 @@ export class CreateUserDto {
   @IsString()
   last_name: string;
 
-  @IsNotEmpty()
-  @IsEnum(UserRole)
-  role: UserRole;
-
   @IsOptional()
-  @Matches(/^\+[1-9]\d{1,14}$/, { message: 'Phone number must be in E.164 format (+1234567890)' })
-  phone_number?: string;
+  @IsEnum(UserRole)
+  role?: UserRole;
+
+  // phone_number intentionally removed (future enhancement)
 }

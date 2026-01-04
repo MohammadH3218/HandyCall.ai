@@ -21,20 +21,16 @@ export class UsersService {
     password: string | undefined,
     firstName: string,
     lastName: string,
-    role: UserRole,
-    phoneNumber?: string,
+    role: UserRole | undefined,
     poolType: 'users' | 'admin' = 'users',
     generatePassword = false
   ): Promise<{ user: User; temporary_password?: string }> {
     const isAdminPool = poolType === 'admin';
 
-    if (!isAdminPool && !companyId) {
-      throw new BadRequestException('company_id is required for customer (users pool) accounts');
-    }
-
     // Admin pool users do not belong to a tenant; use a platform placeholder
-    const resolvedCompanyId = companyId || 'platform-admin';
-    const resolvedRole = isAdminPool ? UserRole.ADMIN : role;
+    // Customer users without a company yet get a temporary placeholder; will be updated after setup.
+    const resolvedCompanyId = isAdminPool ? 'platform-admin' : companyId || 'no-company';
+    const resolvedRole = isAdminPool ? UserRole.ADMIN : role || UserRole.OWNER;
 
     // Generate a secure random password if not provided
     const resolvedPassword =
@@ -62,7 +58,7 @@ export class UsersService {
       company_id: resolvedCompanyId,
       user_id: userId,
       email,
-      phone_number: phoneNumber,
+      phone_number: undefined,
       first_name: firstName,
       last_name: lastName,
       role: resolvedRole,
@@ -76,7 +72,7 @@ export class UsersService {
     await this.cognitoService.createUser(
       email,
       resolvedPassword,
-      isAdminPool ? undefined : resolvedCompanyId,
+      isAdminPool ? undefined : (companyId || undefined),
       fullName,
       poolType
     );
@@ -196,6 +192,7 @@ export class UsersService {
     companyId: string,
     userId: string,
     updates: {
+      company_id?: string;
       email?: string;
       first_name?: string;
       last_name?: string;

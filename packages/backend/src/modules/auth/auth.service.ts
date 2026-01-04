@@ -68,8 +68,7 @@ export class AuthService {
       password,
       firstName,
       lastName,
-      UserRole.OWNER,
-      formattedPhone
+      UserRole.OWNER
     );
 
     // Create default agent config
@@ -455,26 +454,31 @@ export class AuthService {
             poolType
           );
 
-          // Create user record in DynamoDB if it doesn't exist
+          // Create or update user record in DynamoDB
           try {
             const existingUser = await this.usersService.findByEmail(email);
-            if (!existingUser) {
-              // Get user info from provided parameters or Cognito attributes
-              const userFirstName = firstName || result.userAttributes?.['given_name'] || result.userAttributes?.['name']?.split(' ')[0] || 'User';
-              const userLastName = lastName || result.userAttributes?.['family_name'] || result.userAttributes?.['name']?.split(' ').slice(1).join(' ') || '';
+            const userFirstName = firstName || result.userAttributes?.['given_name'] || result.userAttributes?.['name']?.split(' ')[0] || 'User';
+            const userLastName = lastName || result.userAttributes?.['family_name'] || result.userAttributes?.['name']?.split(' ').slice(1).join(' ') || '';
 
+            if (!existingUser) {
               await this.usersService.createUser(
-                companyId,
+                company.company_id,
                 email,
                 '', // Password not needed, using Cognito
                 userFirstName,
                 userLastName,
-                UserRole.OWNER,
-                phoneNumber !== '+10000000000' ? phoneNumber : undefined
+                UserRole.OWNER
               );
+            } else if (existingUser.company_id !== company.company_id) {
+              await this.usersService.updateUser(company.company_id, existingUser.user_id, {
+                company_id: company.company_id,
+                first_name: userFirstName,
+                last_name: userLastName,
+                role: existingUser.role || UserRole.OWNER,
+              } as any);
             }
           } catch (userError) {
-            console.warn('[AuthService] Failed to create user record in DynamoDB:', userError);
+            console.warn('[AuthService] Failed to upsert user record in DynamoDB:', userError);
             // Continue even if user creation fails - Cognito user exists
           }
 

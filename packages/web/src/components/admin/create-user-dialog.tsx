@@ -39,8 +39,6 @@ export function CreateUserDialog({ open, onOpenChange, onSuccess, preselectedCom
     password: '',
     first_name: '',
     last_name: '',
-    role: 'STAFF',
-    phone_number: '',
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -76,10 +74,6 @@ export function CreateUserDialog({ open, onOpenChange, onSuccess, preselectedCom
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
 
-    if (poolType === 'users' && !formData.company_id) {
-      newErrors.company_id = 'Company is required';
-    }
-
     if (!formData.email.trim()) {
       newErrors.email = 'Email is required';
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
@@ -104,10 +98,6 @@ export function CreateUserDialog({ open, onOpenChange, onSuccess, preselectedCom
       newErrors.last_name = 'Last name is required';
     }
 
-    if (formData.phone_number && !/^\+[1-9]\d{1,14}$/.test(formData.phone_number)) {
-      newErrors.phone_number = 'Phone must be in E.164 format (e.g., +12345678900)';
-    }
-
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -125,15 +115,14 @@ export function CreateUserDialog({ open, onOpenChange, onSuccess, preselectedCom
     try {
       const token = localStorage.getItem('access_token');
       const payload: any = {
-        company_id: poolType === 'users' ? formData.company_id : undefined,
+        company_id: poolType === 'users' ? formData.company_id || undefined : undefined,
         pool_type: poolType,
         email: formData.email,
         password: passwordMode === 'manual' ? formData.password : undefined,
         generate_password: passwordMode === 'generate',
         first_name: formData.first_name,
         last_name: formData.last_name,
-        role: poolType === 'admin' ? 'ADMIN' : formData.role,
-        phone_number: formData.phone_number || undefined,
+        // Role and phone are omitted; backend will default role based on pool type
       };
 
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/users`, {
@@ -168,8 +157,6 @@ export function CreateUserDialog({ open, onOpenChange, onSuccess, preselectedCom
         password: '',
         first_name: '',
         last_name: '',
-        role: 'STAFF',
-        phone_number: '',
       });
       setPasswordMode('manual');
 
@@ -204,7 +191,7 @@ export function CreateUserDialog({ open, onOpenChange, onSuccess, preselectedCom
                 onValueChange={(value) => {
                   setPoolType(value as 'users' | 'admin');
                   if (value === 'admin') {
-                    setFormData((prev) => ({ ...prev, role: 'ADMIN', company_id: '' }));
+                    setFormData((prev) => ({ ...prev, company_id: '' }));
                   }
                 }}
               >
@@ -228,19 +215,22 @@ export function CreateUserDialog({ open, onOpenChange, onSuccess, preselectedCom
                 disabled={!!preselectedCompanyId || poolType === 'admin'}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Select company" />
+                  <SelectValue placeholder={poolType === 'admin' ? 'Optional for admin' : 'Select company (optional)'} />
                 </SelectTrigger>
                 <SelectContent>
-                  {companies.map((company) => (
-                    <SelectItem key={company.company_id} value={company.company_id}>
-                      {company.company_name}
+                  {companies.length === 0 ? (
+                    <SelectItem value="" disabled>
+                      No companies available
                     </SelectItem>
-                  ))}
+                  ) : (
+                    companies.map((company) => (
+                      <SelectItem key={company.company_id} value={company.company_id}>
+                        {company.company_name}
+                      </SelectItem>
+                    ))
+                  )}
                 </SelectContent>
               </Select>
-              {errors.company_id && (
-                <p className="text-sm text-destructive">{errors.company_id}</p>
-              )}
             </div>
 
             <div className="space-y-2">
@@ -321,40 +311,6 @@ export function CreateUserDialog({ open, onOpenChange, onSuccess, preselectedCom
               )}
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="role">
-                Role <span className="text-destructive">*</span>
-              </Label>
-              <Select
-                value={poolType === 'admin' ? 'ADMIN' : formData.role}
-                onValueChange={(value) => setFormData({ ...formData, role: value })}
-                disabled={poolType === 'admin'}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {(poolType === 'admin' ? USER_ROLES.filter((r) => r.value === 'ADMIN') : USER_ROLES).map((role) => (
-                    <SelectItem key={role.value} value={role.value}>
-                      {role.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="phone_number">Phone Number (Optional)</Label>
-              <Input
-                id="phone_number"
-                value={formData.phone_number}
-                onChange={(e) => setFormData({ ...formData, phone_number: e.target.value })}
-                placeholder="+12345678900"
-              />
-              {errors.phone_number && (
-                <p className="text-sm text-destructive">{errors.phone_number}</p>
-              )}
-            </div>
           </div>
 
           <DialogFooter>
