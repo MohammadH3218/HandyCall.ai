@@ -1,14 +1,14 @@
-﻿{
-    "Logging":  "/var/log/nginx",
-    "Ports":  [
-                  {
-                      "HostPort":  80,
-                      "ContainerPort":  8080
-                  }
-              ],
-    "AWSEBDockerrunVersion":  "1",
-    "Image":  {
-                  "Name":  "982081079378.dkr.ecr.us-east-1.amazonaws.com/handycall-backend:20260104-202630-admin-pool-user",
-                  "Update":  "true"
-              }
+{
+  "AWSEBDockerrunVersion": "1",
+  "Image": {
+    "Name": "982081079378.dkr.ecr.us-east-1.amazonaws.com/handycall-backend:20260104-202630-admin-pool-user",
+    "Update": "true"
+  },
+  "Ports": [
+    {
+      "ContainerPort": 8080,
+      "HostPort": 80
+    }
+  ],
+  "Logging": "/var/log/nginx"
 }
