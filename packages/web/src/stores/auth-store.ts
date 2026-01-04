@@ -185,15 +185,35 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
 
     try {
-      // Get NextAuth session info to populate user/email
+      // Get NextAuth session info to populate user/email/role
       const sessionResponse = await fetch('/api/auth/session', { cache: 'no-store' });
       const session = sessionResponse.ok ? await sessionResponse.json() : null;
 
-      // Fetch company data via proxy to confirm auth and hydrate the store
+      const sessionRole = (session as any)?.userRole as UserRole | undefined;
+      const sessionEmail = (session as any)?.user?.email as string | undefined;
+
+      // If admin role, skip company fetch to avoid 401 and just mark authenticated
+      if (sessionRole === UserRole.ADMIN) {
+        const email = sessionEmail || localStorage.getItem('email') || null;
+        if (email) localStorage.setItem('email', email);
+        localStorage.setItem('user_role', UserRole.ADMIN);
+
+        set({
+          company: null,
+          user: session?.user ? ({ email: sessionEmail, first_name: (session as any)?.user?.name } as User) : null,
+          email,
+          userRole: UserRole.ADMIN,
+          isAuthenticated: true,
+          isLoading: false,
+        });
+        return;
+      }
+
+      // Customer flow: fetch company data via proxy to confirm auth and hydrate the store
       const company = await apiClient.getMyCompany();
 
       const email =
-        session?.user?.email ||
+        sessionEmail ||
         company?.email ||
         localStorage.getItem('email') ||
         null;

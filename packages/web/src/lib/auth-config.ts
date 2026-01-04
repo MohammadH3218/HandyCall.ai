@@ -1,5 +1,6 @@
 import { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
+import { UserRole } from "@handycall/shared";
 
 // Prefer injected env, but fall back to production defaults; avoid mutating env to keep
 // the bundle side-effect free.
@@ -46,6 +47,8 @@ export const authOptions: NextAuthOptions = {
           const idToken = data.id_token || data.idToken;
           const accessToken = data.access_token || data.accessToken;
           const refreshToken = data.refresh_token || data.refreshToken;
+          const userRole = (data.userRole as UserRole | undefined) || undefined;
+          const poolType = (data.poolType as string | undefined) || undefined;
 
           if (!idToken || !accessToken) {
             throw new Error("Invalid response from authentication server");
@@ -58,6 +61,8 @@ export const authOptions: NextAuthOptions = {
             accessToken: accessToken,
             idToken: idToken,
             refreshToken: refreshToken,
+            userRole: userRole ?? UserRole.OWNER,
+            poolType: poolType,
           };
         } catch (error: any) {
           console.error("Auth error:", error);
@@ -78,12 +83,15 @@ export const authOptions: NextAuthOptions = {
           hasAccessToken: !!(user as any).accessToken,
           hasIdToken: !!(user as any).idToken,
           hasRefreshToken: !!(user as any).refreshToken,
+          userRole: (user as any).userRole,
         });
         token.accessToken = (user as any).accessToken;
         token.idToken = (user as any).idToken;
         token.refreshToken = (user as any).refreshToken;
         token.sub = user.id;
         token.email = user.email;
+        token.userRole = (user as any).userRole;
+        token.poolType = (user as any).poolType;
       }
 
       return token;
@@ -96,12 +104,15 @@ export const authOptions: NextAuthOptions = {
         hasAccessToken: !!token.accessToken,
         hasIdToken: !!token.idToken,
         hasRefreshToken: !!token.refreshToken,
+        userRole: token.userRole,
       });
       if (token) {
         (session as any).accessToken = token.accessToken as string;
         (session as any).idToken = token.idToken as string;
         (session as any).refreshToken = token.refreshToken as string;
         session.user.id = token.sub as string;
+        (session as any).userRole = token.userRole;
+        (session as any).poolType = token.poolType;
       }
       return session;
     },

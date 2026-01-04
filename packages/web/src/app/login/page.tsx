@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { signIn, signOut } from 'next-auth/react';
-import { useSession } from 'next-auth/react';
+import { useSession, getSession } from 'next-auth/react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -51,8 +51,10 @@ export default function LoginPage() {
     const ensureSessionValid = async () => {
       if ((status === 'authenticated' || isAuthenticated) && !requiresPasswordChange && !showPasswordChangeModal) {
         try {
-          // Validate backend session; if it fails, force logout so user sees login
-          await apiClient.getMyCompany();
+          // If admin, skip customer company check; otherwise validate backend session
+          if (userRole !== UserRole.ADMIN) {
+            await apiClient.getMyCompany();
+          }
         } catch (err) {
           await signOut({ callbackUrl: '/login' });
           return;
@@ -87,8 +89,16 @@ export default function LoginPage() {
         // Successful login - NextAuth session is created
         // Fetch user info to determine role for redirect
         try {
-          const userInfo = await apiClient.getMyCompany();
-          // Check if admin or regular user - you may need to adjust this logic
+          const session = await getSession();
+          const role = (session as any)?.userRole as UserRole | undefined;
+
+          if (role === UserRole.ADMIN) {
+            router.push('/admin');
+            return;
+          }
+
+          // Customer flow
+          await apiClient.getMyCompany().catch(() => {});
           router.push('/dashboard');
         } catch (err) {
           // Still redirect even if we can't fetch company info
