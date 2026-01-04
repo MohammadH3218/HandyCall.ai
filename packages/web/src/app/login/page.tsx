@@ -76,16 +76,27 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      // Let NextAuth handle redirect; middleware will route admins to /admin
+      // Use NextAuth credentials with manual navigation to avoid callback loops
       const result = await signIn('credentials', {
         email,
         password,
-        redirect: true,
-        callbackUrl: '/dashboard',
+        redirect: false,
       });
 
       if (result?.error) {
         setError(result.error || 'Invalid email or password');
+      } else {
+        // Successful login - decide destination based on session role
+        const session = await getSession();
+        const role =
+          (session as any)?.user?.role as UserRole | undefined ||
+          (session as any)?.userRole as UserRole | undefined;
+
+        if (role === UserRole.ADMIN) {
+          router.push('/admin');
+        } else {
+          router.push('/dashboard');
+        }
       }
     } catch (err: any) {
       setError(err.message || 'Invalid email or password');
