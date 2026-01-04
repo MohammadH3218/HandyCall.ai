@@ -196,6 +196,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         email: (session as any)?.user?.email,
       });
 
+      // If no session or no user in session, user is not authenticated
+      if (!session || !(session as any)?.user) {
+        console.log('[Auth Store] No authenticated user in session');
+        set({ isLoading: false, isAuthenticated: false });
+        return;
+      }
+
       const sessionRole =
         ((session as any)?.user?.role as UserRole | undefined) ||
         ((session as any)?.userRole as UserRole | undefined);
