@@ -57,9 +57,18 @@ export function CreateUserDialog({ open, onOpenChange, onSuccess, preselectedCom
 
   const loadCompanies = async () => {
     try {
-      const response = await fetch(`/api/proxy/companies`, {
-        credentials: 'include',
-      });
+      // Primary: go through NextAuth proxy (cookie auth)
+      let response = await fetch(`/api/proxy/companies`, { credentials: 'include' });
+
+      // Fallback: direct API call with access_token if proxy/session missing
+      if (response.status === 401) {
+        const token = localStorage.getItem('access_token');
+        if (token) {
+          response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/companies`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+        }
+      }
 
       if (response.ok) {
         const data = await response.json();
@@ -123,17 +132,32 @@ export function CreateUserDialog({ open, onOpenChange, onSuccess, preselectedCom
         // Role and phone are omitted; backend will default role based on pool type
       };
 
-      const response = await fetch(`/api/proxy/users`, {
+      // Primary: cookie auth via proxy
+      let response = await fetch(`/api/proxy/users`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify(payload),
       });
 
+      // Fallback: direct API with bearer token if session not attached
+      if (response.status === 401) {
+        const token = localStorage.getItem('access_token');
+        if (!token) {
+          throw new Error('Unauthorized. Please re-login as admin.');
+        }
+        response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/users`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(payload),
+        });
+      }
+
       if (!response.ok) {
-        const error = await response.json();
+        const error = await response.json().catch(() => ({}));
         throw new Error(error.message || 'Failed to create user');
       }
 

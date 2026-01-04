@@ -84,11 +84,29 @@ export default function UsersPage() {
         fetch(`/api/proxy/companies`, { credentials: 'include' }),
       ]);
 
-      if (!usersRes.ok || !companiesRes.ok) {
+      // Fallback to direct API if proxy/session not authorized
+      let usersResponse = usersRes;
+      let companiesResponse = companiesRes;
+      if (usersRes.status === 401 || companiesRes.status === 401) {
+        const token = localStorage.getItem('access_token');
+        if (!token) {
+          throw new Error('Unauthorized. Please re-login as admin.');
+        }
+        [usersResponse, companiesResponse] = await Promise.all([
+          fetch(`${process.env.NEXT_PUBLIC_API_URL}/users`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+          fetch(`${process.env.NEXT_PUBLIC_API_URL}/companies`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+        ]);
+      }
+
+      if (!usersResponse.ok || !companiesResponse.ok) {
         throw new Error('Failed to load data');
       }
 
-      const [usersData, companiesData] = await Promise.all([usersRes.json(), companiesRes.json()]);
+      const [usersData, companiesData] = await Promise.all([usersResponse.json(), companiesResponse.json()]);
 
       setUsers(usersData);
       setCompanies(companiesData);

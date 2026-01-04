@@ -58,10 +58,29 @@ export default function AdminDashboardPage() {
         fetch(`/api/proxy/admin/top-companies?limit=5`, { credentials: 'include' }),
       ]);
 
-      if (statsRes.ok && companiesRes.ok) {
+      let statsResponse = statsRes;
+      let companiesResponse = companiesRes;
+
+      // Fallback to direct API if proxy/session not authorized
+      if (statsRes.status === 401 || companiesRes.status === 401) {
+        const token = localStorage.getItem('access_token');
+        if (!token) {
+          throw new Error('Unauthorized. Please re-login as admin.');
+        }
+        [statsResponse, companiesResponse] = await Promise.all([
+          fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/stats`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+          fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/top-companies?limit=5`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+        ]);
+      }
+
+      if (statsResponse.ok && companiesResponse.ok) {
         const [statsData, companiesData] = await Promise.all([
-          statsRes.json(),
-          companiesRes.json(),
+          statsResponse.json(),
+          companiesResponse.json(),
         ]);
 
         setStats({

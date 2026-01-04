@@ -78,14 +78,36 @@ export default function CompanyDetailsPage() {
         fetch(`/api/proxy/companies/${companyId}/users`, { credentials: 'include' }),
       ]);
 
-      if (!companyRes.ok || !statsRes.ok || !usersRes.ok) {
+      let companyResponse = companyRes;
+      let statsResponse = statsRes;
+      let usersResponse = usersRes;
+
+      if (companyRes.status === 401 || statsRes.status === 401 || usersRes.status === 401) {
+        const token = localStorage.getItem('access_token');
+        if (!token) {
+          throw new Error('Unauthorized. Please re-login as admin.');
+        }
+        [companyResponse, statsResponse, usersResponse] = await Promise.all([
+          fetch(`${process.env.NEXT_PUBLIC_API_URL}/companies/${companyId}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+          fetch(`${process.env.NEXT_PUBLIC_API_URL}/companies/${companyId}/stats`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+          fetch(`${process.env.NEXT_PUBLIC_API_URL}/companies/${companyId}/users`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+        ]);
+      }
+
+      if (!companyResponse.ok || !statsResponse.ok || !usersResponse.ok) {
         throw new Error('Failed to load company details');
       }
 
       const [companyData, statsData, usersData] = await Promise.all([
-        companyRes.json(),
-        statsRes.json(),
-        usersRes.json(),
+        companyResponse.json(),
+        statsResponse.json(),
+        usersResponse.json(),
       ]);
 
       setCompany(companyData);
