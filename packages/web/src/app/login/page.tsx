@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { signIn, signOut } from 'next-auth/react';
 import { useSession, getSession } from 'next-auth/react';
 import { Button } from '@/components/ui/button';
@@ -14,8 +14,10 @@ import { useAuthStore } from '@/stores/auth-store';
 import { UserRole } from '@handycall/shared';
 import { apiClient } from '@/lib/api-client';
 
-export default function LoginPage() {
+function LoginPageInner() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const callbackUrl = searchParams?.get('callbackUrl') || undefined;
   const { status, data: session } = useSession();
   const { login, changePassword, requiresPasswordChange, passwordChangeSession, passwordChangePoolType, email: storeEmail, isAuthenticated, userRole, checkAuth } = useAuthStore();
   const [email, setEmail] = useState('');
@@ -75,7 +77,7 @@ export default function LoginPage() {
             }
             localStorage.setItem('user_role', UserRole.ADMIN);
 
-            router.push('/admin');
+            router.push(callbackUrl || '/admin');
             return;
           }
 
@@ -85,7 +87,7 @@ export default function LoginPage() {
           }
 
           await apiClient.getMyCompany();
-          router.push('/dashboard');
+          router.push(callbackUrl || '/dashboard');
         } catch (err) {
           await signOut({ callbackUrl: '/login' });
           return;
@@ -196,6 +198,29 @@ export default function LoginPage() {
       const firstNameToSend = firstName.trim();
       const lastNameToSend = lastName.trim();
       await changePassword(email, newPassword, passwordChangeSession!, passwordChangePoolType || undefined, companyNameToSend, firstNameToSend, lastNameToSend);
+      // After password change, log in to establish NextAuth session
+      const loginResult = await signIn('credentials', {
+        email,
+        password: newPassword,
+        redirect: false,
+        callbackUrl: callbackUrl || '/dashboard',
+      });
+
+      if (loginResult?.error) {
+        setError(loginResult.error);
+        return;
+      }
+
+      await checkAuth();
+      const postSession = await getSession();
+      const role =
+        (postSession as any)?.user?.role as UserRole | undefined ||
+        (postSession as any)?.userRole as UserRole | undefined;
+      const poolType = (postSession as any)?.poolType as string | undefined;
+      const derivedRole =
+        role ||
+        (poolType === 'admin' ? UserRole.ADMIN : undefined);
+
       // Close modal and reset form
       setShowPasswordChangeModal(false);
       setNewPassword('');
@@ -203,12 +228,16 @@ export default function LoginPage() {
       setCompanyName('');
       setFirstName('');
       setLastName('');
-      // Get user role from store after password change
-      const userRole = useAuthStore.getState().userRole;
-      if (userRole === UserRole.ADMIN) {
-        router.push('/admin');
+
+      if (loginResult?.url) {
+        router.push(loginResult.url);
+        return;
+      }
+
+      if (derivedRole === UserRole.ADMIN) {
+        router.push(callbackUrl || '/admin');
       } else {
-        router.push('/dashboard');
+        router.push(callbackUrl || '/dashboard');
       }
     } catch (err: any) {
       setError(err.message || 'Failed to change password');
@@ -371,5 +400,13 @@ export default function LoginPage() {
         </Dialog>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginPageInner />
+    </Suspense>
   );
 }
