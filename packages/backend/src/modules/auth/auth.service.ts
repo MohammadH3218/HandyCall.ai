@@ -395,14 +395,15 @@ export class AuthService {
 
       // Admin users don't need company setup - return immediately
       if (poolType === 'admin') {
-        if (firstName || lastName) {
+        if (firstName || lastName || companyName) {
           const attrs: Record<string, string> = {};
           if (firstName) attrs['given_name'] = firstName;
           if (lastName) attrs['family_name'] = lastName;
+          if (companyName) attrs['custom:company_name'] = companyName;
           try {
             await this.cognitoService.updateUserAttributes(email, attrs, 'admin');
           } catch (e) {
-            console.warn('[AuthService] Failed to update admin name attributes during password change', e);
+            console.warn('[AuthService] Failed to update admin attributes during password change', e);
           }
         }
         return {

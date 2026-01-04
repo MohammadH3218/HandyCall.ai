@@ -29,7 +29,7 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [showPasswordChangeModal, setShowPasswordChangeModal] = useState(false);
 
-  // Determine if company name is required (only for users pool, not admin)
+  // Company field is required for users pool; still show for admin for profile completeness
   const requiresCompanyName = passwordChangePoolType === 'users';
 
   // Sync email from store if available (for password change flow)
@@ -167,20 +167,19 @@ export default function LoginPage() {
       return;
     }
 
-    // Company name is required only for users pool (not admin)
-    if (requiresCompanyName && !companyName.trim()) {
-      setError('Company name is required');
-      return;
-    }
-
-    // First and last name validation (only for users pool)
-    if (requiresCompanyName && !firstName.trim()) {
+    // Require names for all; company required for users pool
+    if (!firstName.trim()) {
       setError('First name is required');
       return;
     }
 
-    if (requiresCompanyName && !lastName.trim()) {
+    if (!lastName.trim()) {
       setError('Last name is required');
+      return;
+    }
+
+    if (requiresCompanyName && !companyName.trim()) {
+      setError('Company name is required');
       return;
     }
 
@@ -193,9 +192,9 @@ export default function LoginPage() {
 
     try {
       // Only send company_name for users pool
-      const companyNameToSend = requiresCompanyName ? companyName.trim() : undefined;
-      const firstNameToSend = requiresCompanyName ? firstName.trim() : undefined;
-      const lastNameToSend = requiresCompanyName ? lastName.trim() : undefined;
+      const companyNameToSend = companyName.trim() || undefined;
+      const firstNameToSend = firstName.trim();
+      const lastNameToSend = lastName.trim();
       await changePassword(email, newPassword, passwordChangeSession!, passwordChangePoolType || undefined, companyNameToSend, firstNameToSend, lastNameToSend);
       // Close modal and reset form
       setShowPasswordChangeModal(false);
