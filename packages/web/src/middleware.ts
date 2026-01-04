@@ -20,8 +20,8 @@ import { UserRole } from '@handycall/shared';
 export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
 
-  // Public routes that don't require auth
-  const publicRoutes = ['/login', '/register'];
+  // Public routes that don't require auth (include home)
+  const publicRoutes = ['/', '/login', '/register'];
   const isPublic = publicRoutes.includes(pathname);
 
   const token = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET });
@@ -40,10 +40,12 @@ export async function middleware(request: NextRequest) {
   const isAdminRoute = pathname.startsWith('/admin');
   const isDashboardRoute = pathname.startsWith('/dashboard');
 
-  // Not signed in -> send to login
+  // Not signed in -> send to login (with callback, except root)
   if (!token) {
     const loginUrl = new URL('/login', request.url);
-    loginUrl.searchParams.set('callbackUrl', pathname);
+    if (pathname !== '/') {
+      loginUrl.searchParams.set('callbackUrl', pathname);
+    }
     return NextResponse.redirect(loginUrl);
   }
 
