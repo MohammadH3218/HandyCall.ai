@@ -40,13 +40,9 @@ export async function middleware(request: NextRequest) {
   const isAdminRoute = pathname.startsWith('/admin');
   const isDashboardRoute = pathname.startsWith('/dashboard');
 
-  // Not signed in -> send to login (with callback, except root)
+  // Not signed in -> send to login (no callback params to avoid sticky redirects)
   if (!token) {
-    const loginUrl = new URL('/login', request.url);
-    if (pathname !== '/') {
-      loginUrl.searchParams.set('callbackUrl', pathname);
-    }
-    return NextResponse.redirect(loginUrl);
+    return NextResponse.redirect(new URL('/login', request.url));
   }
 
   // Admin user hitting customer dashboard -> send to admin
