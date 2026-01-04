@@ -27,7 +27,10 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  const token = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET });
+  const token = await getToken({
+    req: request,
+    secret: process.env.NEXTAUTH_SECRET || "your-secret-key-change-in-production"
+  });
   const userRole = (token as any)?.userRole as string | undefined;
 
   // Not signed in -> send to login with callback

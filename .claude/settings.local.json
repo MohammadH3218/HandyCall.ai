@@ -284,7 +284,8 @@
       "Bash(node test-companies-me.js:*)",
       "Bash(node -pe:*)",
       "Bash(node -e:*)",
-      "Bash(eb deploy:*)"
+      "Bash(eb deploy:*)",
+      "Bash(openssl rand:*)"
     ]
   }
 }
