@@ -14,6 +14,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Search, UserPlus } from 'lucide-react';
 import { UserRole } from '@handycall/shared';
 import { CreateUserDialog } from '@/components/admin/create-user-dialog';
+import { AdminNav } from '@/components/admin/admin-nav';
 
 interface User {
   user_id: string;
@@ -186,6 +187,9 @@ export default function UsersPage() {
               </div>
             </div>
             <ProfileDropdown />
+          </div>
+          <div className="py-3 border-t border-border">
+            <AdminNav />
           </div>
         </div>
       </header>

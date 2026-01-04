@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { ArrowLeft, Users, Phone, BarChart3 } from 'lucide-react';
 import { UserRole } from '@handycall/shared';
+import { AdminNav } from '@/components/admin/admin-nav';
 
 interface Company {
   company_id: string;
@@ -156,6 +157,9 @@ export default function CompanyDetailsPage() {
               </div>
             </div>
             <ProfileDropdown />
+          </div>
+          <div className="py-3 border-t border-border">
+            <AdminNav />
           </div>
         </div>
       </header>

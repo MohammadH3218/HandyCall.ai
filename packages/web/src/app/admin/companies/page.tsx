@@ -14,6 +14,7 @@ import { DeleteConfirmDialog } from '@/components/admin/delete-confirm-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { Plus, Search, Building2, Trash2, Edit } from 'lucide-react';
 import { UserRole } from '@handycall/shared';
+import { AdminNav } from '@/components/admin/admin-nav';
 
 interface Company {
   company_id: string;
@@ -175,6 +176,9 @@ export default function CompaniesPage() {
               </div>
             </div>
             <ProfileDropdown />
+          </div>
+          <div className="py-3 border-t border-border">
+            <AdminNav />
           </div>
         </div>
       </header>

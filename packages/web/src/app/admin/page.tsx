@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Building2, Users, BarChart3 } from 'lucide-react';
 import { UserRole } from '@handycall/shared';
+import { AdminNav } from '@/components/admin/admin-nav';
 
 interface AdminStats {
   totalRevenue: number;
@@ -144,6 +145,9 @@ export default function AdminDashboardPage() {
               </div>
             </div>
             <ProfileDropdown />
+          </div>
+          <div className="py-3 border-t border-border">
+            <AdminNav />
           </div>
         </div>
       </header>
