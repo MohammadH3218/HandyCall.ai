@@ -57,9 +57,8 @@ export function CreateUserDialog({ open, onOpenChange, onSuccess, preselectedCom
 
   const loadCompanies = async () => {
     try {
-      const token = localStorage.getItem('access_token');
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/companies`, {
-        headers: { Authorization: `Bearer ${token}` },
+      const response = await fetch(`/api/proxy/companies`, {
+        credentials: 'include',
       });
 
       if (response.ok) {
@@ -113,7 +112,6 @@ export function CreateUserDialog({ open, onOpenChange, onSuccess, preselectedCom
     setGeneratedPassword(null);
 
     try {
-      const token = localStorage.getItem('access_token');
       const payload: any = {
         company_id: poolType === 'users' ? formData.company_id || undefined : undefined,
         pool_type: poolType,
@@ -125,12 +123,12 @@ export function CreateUserDialog({ open, onOpenChange, onSuccess, preselectedCom
         // Role and phone are omitted; backend will default role based on pool type
       };
 
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/users`, {
+      const response = await fetch(`/api/proxy/users`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
         },
+        credentials: 'include',
         body: JSON.stringify(payload),
       });
 
@@ -210,7 +208,7 @@ export function CreateUserDialog({ open, onOpenChange, onSuccess, preselectedCom
                 Company {poolType === 'users' && <span className="text-destructive">*</span>}
               </Label>
               <Select
-                value={formData.company_id}
+                value={formData.company_id || undefined}
                 onValueChange={(value) => setFormData({ ...formData, company_id: value })}
                 disabled={!!preselectedCompanyId || poolType === 'admin'}
               >

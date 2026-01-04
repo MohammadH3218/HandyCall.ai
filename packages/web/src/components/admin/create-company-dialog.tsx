@@ -100,13 +100,12 @@ export function CreateCompanyDialog({ open, onOpenChange, onSuccess }: CreateCom
     setLoading(true);
 
     try {
-      const token = localStorage.getItem('access_token');
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/companies`, {
+      const response = await fetch(`/api/proxy/companies`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
         },
+        credentials: 'include',
         body: JSON.stringify(formData),
       });
 

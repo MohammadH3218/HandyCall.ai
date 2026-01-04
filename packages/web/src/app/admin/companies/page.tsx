@@ -68,11 +68,8 @@ export default function CompaniesPage() {
   const loadCompanies = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('access_token');
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/companies`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+      const response = await fetch(`/api/proxy/companies`, {
+        credentials: 'include',
       });
 
       if (!response.ok) {
@@ -98,12 +95,9 @@ export default function CompaniesPage() {
     if (!selectedCompany) return;
 
     try {
-      const token = localStorage.getItem('access_token');
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/companies/${selectedCompany.company_id}`, {
+      const response = await fetch(`/api/proxy/companies/${selectedCompany.company_id}`, {
         method: 'DELETE',
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        credentials: 'include',
       });
 
       if (!response.ok) {

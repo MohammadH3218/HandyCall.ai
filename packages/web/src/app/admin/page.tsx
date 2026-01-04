@@ -53,15 +53,9 @@ export default function AdminDashboardPage() {
   const loadAdminData = async () => {
     setIsLoadingStats(true);
     try {
-      const token = localStorage.getItem('access_token');
-
       const [statsRes, companiesRes] = await Promise.all([
-        fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/stats`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-        fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/top-companies?limit=5`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
+        fetch(`/api/proxy/admin/stats`, { credentials: 'include' }),
+        fetch(`/api/proxy/admin/top-companies?limit=5`, { credentials: 'include' }),
       ]);
 
       if (statsRes.ok && companiesRes.ok) {

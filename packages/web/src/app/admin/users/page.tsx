@@ -79,15 +79,9 @@ export default function UsersPage() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('access_token');
-
       const [usersRes, companiesRes] = await Promise.all([
-        fetch(`${process.env.NEXT_PUBLIC_API_URL}/users`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-        fetch(`${process.env.NEXT_PUBLIC_API_URL}/companies`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
+        fetch(`/api/proxy/users`, { credentials: 'include' }),
+        fetch(`/api/proxy/companies`, { credentials: 'include' }),
       ]);
 
       if (!usersRes.ok || !companiesRes.ok) {
@@ -113,14 +107,13 @@ export default function UsersPage() {
 
   const handleToggleUserStatus = async (user: User) => {
     try {
-      const token = localStorage.getItem('access_token');
       const endpoint = user.is_active
-        ? `${process.env.NEXT_PUBLIC_API_URL}/users/${user.user_id}/disable`
-        : `${process.env.NEXT_PUBLIC_API_URL}/users/${user.user_id}/enable`;
+        ? `/api/proxy/users/${user.user_id}/disable`
+        : `/api/proxy/users/${user.user_id}/enable`;
 
       const response = await fetch(`${endpoint}?company_id=${user.company_id}&email=${user.email}`, {
         method: 'PUT',
-        headers: { Authorization: `Bearer ${token}` },
+        credentials: 'include',
       });
 
       if (!response.ok) {

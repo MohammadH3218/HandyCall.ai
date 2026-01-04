@@ -72,18 +72,10 @@ export default function CompanyDetailsPage() {
   const loadCompanyDetails = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('access_token');
-
       const [companyRes, statsRes, usersRes] = await Promise.all([
-        fetch(`${process.env.NEXT_PUBLIC_API_URL}/companies/${companyId}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-        fetch(`${process.env.NEXT_PUBLIC_API_URL}/companies/${companyId}/stats`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-        fetch(`${process.env.NEXT_PUBLIC_API_URL}/companies/${companyId}/users`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
+        fetch(`/api/proxy/companies/${companyId}`, { credentials: 'include' }),
+        fetch(`/api/proxy/companies/${companyId}/stats`, { credentials: 'include' }),
+        fetch(`/api/proxy/companies/${companyId}/users`, { credentials: 'include' }),
       ]);
 
       if (!companyRes.ok || !statsRes.ok || !usersRes.ok) {
