@@ -217,9 +217,9 @@ export function CreateUserDialog({ open, onOpenChange, onSuccess, preselectedCom
                 </SelectTrigger>
                 <SelectContent>
                   {companies.length === 0 ? (
-                    <SelectItem value="" disabled>
+                    <div className="px-3 py-2 text-sm text-muted-foreground">
                       No companies available
-                    </SelectItem>
+                    </div>
                   ) : (
                     companies.map((company) => (
                       <SelectItem key={company.company_id} value={company.company_id}>

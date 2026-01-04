@@ -56,7 +56,8 @@ async function handleRequest(
 
   // 1. Check if user is authenticated (SKIP check if path is public)
   // This fixes the "chicken and egg" problem - users need to login before having a session
-  if (!isPublicPath && (!session || !session.idToken)) {
+  const bearerToken = (session as any)?.idToken || (session as any)?.accessToken;
+  if (!isPublicPath && (!session || !bearerToken)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -81,8 +82,8 @@ async function handleRequest(
     };
     
     // Only add Authorization header if we have a session (not needed for public paths)
-    if (session && session.idToken) {
-      headers["Authorization"] = `Bearer ${session.idToken}`; // Use ID token for backend user lookup
+    if (bearerToken) {
+      headers["Authorization"] = `Bearer ${bearerToken}`; // Use Cognito token (id or access) for backend auth
     }
     
     const response = await fetch(url, {
