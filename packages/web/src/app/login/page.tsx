@@ -101,6 +101,24 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
+      // First, hit backend directly to detect password challenge and pool type
+      const prelogin = await apiClient.login({ email, password } as any);
+
+      if (prelogin?.requiresPasswordChange && prelogin.session) {
+        useAuthStore.setState({
+          requiresPasswordChange: true,
+          passwordChangeSession: prelogin.session,
+          passwordChangePoolType: (prelogin.poolType as any) || 'users',
+          email,
+          userRole: prelogin.userRole || null,
+          isAuthenticated: false,
+          isLoading: false,
+        });
+        setShowPasswordChangeModal(true);
+        setIsLoading(false);
+        return;
+      }
+
       // Use NextAuth credentials with manual navigation to avoid callback loops
       const result = await signIn('credentials', {
         email,
