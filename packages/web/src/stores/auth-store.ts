@@ -189,10 +189,19 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const sessionResponse = await fetch('/api/auth/session', { cache: 'no-store' });
       const session = sessionResponse.ok ? await sessionResponse.json() : null;
 
+      console.log('[Auth Store] Session fetched:', {
+        hasSession: !!session,
+        userRole: (session as any)?.user?.role,
+        sessionRole: (session as any)?.userRole,
+        email: (session as any)?.user?.email,
+      });
+
       const sessionRole =
         ((session as any)?.user?.role as UserRole | undefined) ||
         ((session as any)?.userRole as UserRole | undefined);
       const sessionEmail = (session as any)?.user?.email as string | undefined;
+
+      console.log('[Auth Store] Extracted role:', sessionRole, 'Expected:', UserRole.ADMIN);
 
       // If admin role, skip company fetch to avoid 401 and just mark authenticated
       if (sessionRole === UserRole.ADMIN) {
