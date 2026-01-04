@@ -86,12 +86,12 @@ export default function LoginPage() {
 
       if (result?.error) {
         setError(result.error || 'Invalid email or password');
-        setIsLoading(false);
       }
     } catch (err: any) {
       setError(err.message || 'Invalid email or password');
-      setIsLoading(false);
     }
+    // Loading ends on navigation or after error above
+    setIsLoading(false);
   };
 
   const handlePasswordChange = async (e: React.FormEvent) => {

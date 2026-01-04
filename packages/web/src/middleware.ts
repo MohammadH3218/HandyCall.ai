@@ -20,29 +20,21 @@ import { UserRole } from '@handycall/shared';
 export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
 
-  // Public routes that don't require auth (include home)
-  const publicRoutes = ['/', '/login', '/register'];
-  const isPublic = publicRoutes.includes(pathname);
+  // Only guard dashboard/admin; everything else is public
+  const isAdminRoute = pathname.startsWith('/admin');
+  const isDashboardRoute = pathname.startsWith('/dashboard');
+  if (!isAdminRoute && !isDashboardRoute) {
+    return NextResponse.next();
+  }
 
   const token = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET });
   const userRole = (token as any)?.userRole as string | undefined;
 
-  if (isPublic && !token) {
-    return NextResponse.next();
-  }
-
-  if (isPublic && token) {
-    // Already signed in -> send to appropriate home
-    const target = userRole === 'admin' ? '/admin' : '/dashboard';
-    return NextResponse.redirect(new URL(target, request.url));
-  }
-
-  const isAdminRoute = pathname.startsWith('/admin');
-  const isDashboardRoute = pathname.startsWith('/dashboard');
-
-  // Not signed in -> send to login (no callback params to avoid sticky redirects)
+  // Not signed in -> send to login with callback
   if (!token) {
-    return NextResponse.redirect(new URL('/login', request.url));
+    const loginUrl = new URL('/login', request.url);
+    loginUrl.searchParams.set('callbackUrl', pathname);
+    return NextResponse.redirect(loginUrl);
   }
 
   // Admin user hitting customer dashboard -> send to admin
