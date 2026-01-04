@@ -42,8 +42,8 @@ export class KnowledgeService {
     private ragService: RagService,
     private configService: ConfigService,
   ) {
-    const tablePrefix = this.configService.get<string>('DYNAMODB_TABLE_PREFIX');
-    this.tableName = `${tablePrefix}knowledge_items`;
+    // Use the base table name and let the shared DynamoDB service prepend the configured prefix
+    this.tableName = 'knowledge_items';
   }
 
   /**
@@ -169,12 +169,12 @@ export class KnowledgeService {
     knowledgeId: string,
   ): Promise<KnowledgeItem | null> {
     try {
-      const result = await this.dynamodb.get(this.tableName, {
+      const item = await this.dynamodb.get(this.tableName, {
         company_id: companyId,
         knowledge_id: knowledgeId,
       });
 
-      return (result?.Item as KnowledgeItem) || null;
+      return (item as KnowledgeItem) || null;
     } catch (error: any) {
       console.error('Error getting knowledge item:', error);
       throw new Error(`Failed to get knowledge item: ${error.message}`);
@@ -193,58 +193,59 @@ export class KnowledgeService {
     },
   ): Promise<KnowledgeItem[]> {
     try {
-      let result;
+      const filterPieces: string[] = [];
+      const expressionAttributeNames: Record<string, string> = {
+        '#company_id': 'company_id',
+      };
+      const expressionAttributeValues: Record<string, any> = {
+        ':company_id': companyId,
+      };
 
       if (filters?.type) {
-        // Query by type using GSI
-        result = await this.dynamodb.query(
-          this.tableName,
-          'company_id = :company_id',
-          {
-            IndexName: 'type-index',
-          },
-          {
-            ':company_id': companyId,
-          },
-        );
-      } else if (filters?.status) {
-        // Query by status using GSI
-        result = await this.dynamodb.query(
-          this.tableName,
-          'company_id = :company_id',
-          {
-            IndexName: 'status-index',
-          },
-          {
-            ':company_id': companyId,
-          },
-        );
-      } else {
-        // Query all for company
-        result = await this.dynamodb.query(
-          this.tableName,
-          'company_id = :company_id',
-          {},
-          {
-            ':company_id': companyId,
-          },
-        );
-      }
-
-      let items = (result.items || []) as KnowledgeItem[];
-
-      // Apply additional filters
-      if (filters?.type) {
-        items = items.filter((item) => item.type === filters.type);
+        filterPieces.push('#type = :type');
+        expressionAttributeNames['#type'] = 'type';
+        expressionAttributeValues[':type'] = filters.type;
       }
       if (filters?.status) {
-        items = items.filter((item) => item.status === filters.status);
-      }
-      if (filters?.limit) {
-        items = items.slice(0, filters.limit);
+        filterPieces.push('#status = :status');
+        expressionAttributeNames['#status'] = 'status';
+        expressionAttributeValues[':status'] = filters.status;
       }
 
-      return items;
+      const filterExpression = filterPieces.length > 0 ? filterPieces.join(' AND ') : undefined;
+
+      let result;
+      try {
+        // Prefer a company-scoped query; it will use the base PK and apply filterExpression if provided.
+        result = await this.dynamodb.queryByCompany(
+          this.tableName,
+          companyId,
+          {
+            filterExpression,
+            expressionAttributeNames,
+            expressionAttributeValues,
+          },
+          {
+            limit: filters?.limit,
+          },
+        );
+      } catch (queryError) {
+        console.warn('[KnowledgeService] Falling back to scan for knowledge items:', queryError);
+        // Fallback to scan if the index/key condition is not available in the deployed table
+        result = await this.dynamodb.scan(this.tableName, {
+          filterExpression: ['#company_id = :company_id', filterExpression].filter(Boolean).join(' AND '),
+          expressionAttributeNames,
+          expressionAttributeValues,
+          limit: filters?.limit,
+        });
+      }
+
+      // Sort newest first by updated_at to keep UI stable
+      const items = ((result.items || []) as KnowledgeItem[]).sort(
+        (a, b) => (b?.updated_at || 0) - (a?.updated_at || 0),
+      );
+
+      return filters?.limit ? items.slice(0, filters.limit) : items;
     } catch (error: any) {
       console.error('Error listing knowledge items:', error);
       throw new Error(`Failed to list knowledge items: ${error.message}`);

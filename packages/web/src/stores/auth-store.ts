@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { User, Company, UserRole } from '@handycall/shared';
 import { apiClient } from '@/lib/api-client';
 import { extractUserRole } from '@/lib/jwt';
+import { signOut } from 'next-auth/react';
 
 interface AuthState {
   user: User | null;
@@ -132,7 +133,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   logout: async () => {
-    // No Amplify in production - just clear tokens and store
+    // Clear local client state
     apiClient.setAccessToken(null);
 
     if (typeof window !== 'undefined') {
@@ -141,6 +142,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       localStorage.removeItem('refresh_token');
       localStorage.removeItem('email');
       localStorage.removeItem('user_role');
+      // Trigger NextAuth sign-out so server session is cleared
+      await signOut({ callbackUrl: '/login' });
     }
 
     set({
@@ -182,16 +185,38 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
 
     try {
-      // Rely on server-side NextAuth session and proxy; just fetch company to confirm auth.
+      // Get NextAuth session info to populate user/email
+      const sessionResponse = await fetch('/api/auth/session', { cache: 'no-store' });
+      const session = sessionResponse.ok ? await sessionResponse.json() : null;
+
+      // Fetch company data via proxy to confirm auth and hydrate the store
       const company = await apiClient.getMyCompany();
-      const email = company?.email || localStorage.getItem('email') || null;
-      const userRole = (localStorage.getItem('user_role') as UserRole | null) || UserRole.OWNER;
+
+      const email =
+        session?.user?.email ||
+        company?.email ||
+        localStorage.getItem('email') ||
+        null;
+
+      const userRole =
+        (company as any)?.userRole ||
+        (localStorage.getItem('user_role') as UserRole | null) ||
+        UserRole.OWNER;
 
       if (email) localStorage.setItem('email', email);
       if (userRole) localStorage.setItem('user_role', userRole);
 
+      // Build a minimal user object from session/company to drive the UI
+      const user: Partial<User> | null = session?.user
+        ? {
+            email: session.user.email || undefined,
+            first_name: (session.user as any)?.name || undefined,
+          }
+        : null;
+
       set({
         company,
+        user: (user as User) || null,
         email,
         userRole,
         isAuthenticated: true,

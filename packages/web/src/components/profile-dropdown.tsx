@@ -1,7 +1,6 @@
 'use client';
 
 import React from 'react';
-import { useRouter } from 'next/navigation';
 import { LogOut, User } from 'lucide-react';
 import { useAuthStore } from '@/stores/auth-store';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -15,12 +14,10 @@ import {
 } from '@/components/ui/dropdown-menu';
 
 export function ProfileDropdown() {
-  const router = useRouter();
   const { user, email, logout } = useAuthStore();
 
   const handleLogout = async () => {
     await logout();
-    router.push('/login');
   };
 
   // Get user initials for avatar
