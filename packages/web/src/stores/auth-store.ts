@@ -196,31 +196,46 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         email: (session as any)?.user?.email,
       });
 
-      // If no session or no user in session, user is not authenticated
-      if (!session || !(session as any)?.user) {
-        console.log('[Auth Store] No authenticated user in session');
-        set({ isLoading: false, isAuthenticated: false });
-        return;
-      }
-
       const sessionRole =
         ((session as any)?.user?.role as UserRole | undefined) ||
         ((session as any)?.userRole as UserRole | undefined);
-      const sessionEmail = (session as any)?.user?.email as string | undefined;
+      const sessionPoolType = (session as any)?.poolType as 'users' | 'admin' | undefined;
+      const derivedRole =
+        sessionRole ||
+        (sessionPoolType === 'admin' ? UserRole.ADMIN : undefined) ||
+        UserRole.OWNER;
+      const sessionEmail =
+        ((session as any)?.user?.email as string | undefined) ||
+        localStorage.getItem('email') ||
+        undefined;
+      const accessToken = (session as any)?.accessToken as string | undefined;
+      const idToken = (session as any)?.idToken as string | undefined;
+      const refreshToken = (session as any)?.refreshToken as string | undefined;
 
-      console.log('[Auth Store] Extracted role:', sessionRole, 'Expected:', UserRole.ADMIN);
+      if (accessToken) localStorage.setItem('access_token', accessToken);
+      if (idToken) localStorage.setItem('id_token', idToken);
+      if (refreshToken) localStorage.setItem('refresh_token', refreshToken);
 
-      // If admin role, skip company fetch to avoid 401 and just mark authenticated
-      if (sessionRole === UserRole.ADMIN) {
-        const email = sessionEmail || localStorage.getItem('email') || null;
+      // If no session at all, mark unauthenticated
+      if (!session) {
+        console.log('[Auth Store] No authenticated user in session');
+        set({ isLoading: false, isAuthenticated: false, userRole: null });
+        return;
+      }
+
+      if (derivedRole === UserRole.ADMIN) {
+        const email = sessionEmail || null;
         if (email) localStorage.setItem('email', email);
         localStorage.setItem('user_role', UserRole.ADMIN);
 
         set({
           company: null,
-          user: session?.user ? ({ email: sessionEmail, first_name: (session as any)?.user?.name } as User) : null,
+          user: session?.user ? ({ email, first_name: (session as any)?.user?.name } as User) : null,
           email,
           userRole: UserRole.ADMIN,
+          accessToken: accessToken || null,
+          idToken: idToken || null,
+          refreshToken: refreshToken || null,
           isAuthenticated: true,
           isLoading: false,
         });
@@ -239,7 +254,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const userRole =
         (company as any)?.userRole ||
         (localStorage.getItem('user_role') as UserRole | null) ||
-        UserRole.OWNER;
+        derivedRole;
 
       if (email) localStorage.setItem('email', email);
       if (userRole) localStorage.setItem('user_role', userRole);
@@ -257,6 +272,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         user: (user as User) || null,
         email,
         userRole,
+        accessToken: accessToken || null,
+        idToken: idToken || null,
+        refreshToken: refreshToken || null,
         isAuthenticated: true,
         isLoading: false,
       });

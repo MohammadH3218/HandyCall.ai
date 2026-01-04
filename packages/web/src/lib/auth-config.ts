@@ -41,14 +41,26 @@ export const authOptions: NextAuthOptions = {
           }
 
           const data = await response.json();
-          
+
           // Backend returns Cognito tokens via loginWithCognito
           // Extract tokens from response
           const idToken = data.id_token || data.idToken;
           const accessToken = data.access_token || data.accessToken;
           const refreshToken = data.refresh_token || data.refreshToken;
-          const userRole = (data.userRole as UserRole | undefined) || undefined;
-          const poolType = (data.poolType as string | undefined) || undefined;
+          const poolTypeFromResponse =
+            (data.poolType as string | undefined) ||
+            (data.pool_type as string | undefined) ||
+            (data.isAdmin ? 'admin' : undefined);
+          const isAdminUser =
+            poolTypeFromResponse === 'admin' ||
+            data.isAdmin === true ||
+            (data.userRole as UserRole | undefined) === UserRole.ADMIN;
+          const resolvedUserRole =
+            (data.userRole as UserRole | undefined) ||
+            (isAdminUser ? UserRole.ADMIN : UserRole.OWNER);
+          const poolType =
+            poolTypeFromResponse ||
+            (resolvedUserRole === UserRole.ADMIN ? 'admin' : 'users');
 
           if (!idToken || !accessToken) {
             throw new Error("Invalid response from authentication server");
@@ -61,7 +73,7 @@ export const authOptions: NextAuthOptions = {
             accessToken: accessToken,
             idToken: idToken,
             refreshToken: refreshToken,
-            userRole: userRole ?? UserRole.OWNER,
+            userRole: resolvedUserRole,
             poolType: poolType,
           };
         } catch (error: any) {
@@ -94,6 +106,16 @@ export const authOptions: NextAuthOptions = {
         token.poolType = (user as any).poolType;
       }
 
+      if (!token.userRole && token.poolType === 'admin') {
+        token.userRole = UserRole.ADMIN;
+      } else if (!token.userRole) {
+        token.userRole = UserRole.OWNER;
+      }
+
+      if (!token.poolType) {
+        token.poolType = token.userRole === UserRole.ADMIN ? 'admin' : 'users';
+      }
+
       return token;
     },
     async session({ session, token }) {
@@ -108,13 +130,24 @@ export const authOptions: NextAuthOptions = {
         (session as any).accessToken = token.accessToken as string;
         (session as any).idToken = token.idToken as string;
         (session as any).refreshToken = token.refreshToken as string;
-        if (session.user) {
-          session.user.id = token.sub as string;
-          // Extend the user object with role for client-side checks
-          (session.user as any).role = (token.userRole as string) ?? UserRole.OWNER;
-        }
-        (session as any).userRole = token.userRole ?? UserRole.OWNER;
-        (session as any).poolType = token.poolType;
+        const email = (token.email as string | undefined) || session.user?.email;
+        const derivedRole =
+          (token.userRole as UserRole | undefined) ||
+          (token.poolType === 'admin' ? UserRole.ADMIN : UserRole.OWNER);
+        const poolType =
+          (token.poolType as string | undefined) ||
+          (derivedRole === UserRole.ADMIN ? 'admin' : 'users');
+
+        session.user = {
+          ...(session.user || {}),
+          id: (token.sub as string | undefined) || (session.user as any)?.id,
+          email,
+          name: session.user?.name || email || undefined,
+        };
+
+        (session.user as any).role = derivedRole;
+        (session as any).userRole = derivedRole;
+        (session as any).poolType = poolType;
       }
       return session;
     },

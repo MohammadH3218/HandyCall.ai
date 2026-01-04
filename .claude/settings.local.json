@@ -285,7 +285,11 @@
       "Bash(node -pe:*)",
       "Bash(node -e:*)",
       "Bash(eb deploy:*)",
-      "Bash(openssl rand:*)"
+      "Bash(openssl rand:*)",
+      "Bash(powershell -Command:*)",
+      "Bash(aws cognito-idp admin-delete-user:*)",
+      "Bash(aws dynamodb delete-item:*)",
+      "Bash(aws amplify list-branches:*)"
     ]
   }
 }

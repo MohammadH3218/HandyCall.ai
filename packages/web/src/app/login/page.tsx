@@ -16,8 +16,8 @@ import { apiClient } from '@/lib/api-client';
 
 export default function LoginPage() {
   const router = useRouter();
-  const { status } = useSession();
-  const { login, changePassword, requiresPasswordChange, passwordChangeSession, passwordChangePoolType, email: storeEmail, isAuthenticated, userRole } = useAuthStore();
+  const { status, data: session } = useSession();
+  const { login, changePassword, requiresPasswordChange, passwordChangeSession, passwordChangePoolType, email: storeEmail, isAuthenticated, userRole, checkAuth } = useAuthStore();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -50,25 +50,50 @@ export default function LoginPage() {
   useEffect(() => {
     const ensureSessionValid = async () => {
       if ((status === 'authenticated' || isAuthenticated) && !requiresPasswordChange && !showPasswordChangeModal) {
+        const sessionRole =
+          ((session as any)?.userRole as UserRole | undefined) ||
+          ((session as any)?.user?.role as UserRole | undefined) ||
+          userRole;
+        const poolType = (session as any)?.poolType as string | undefined;
+        const derivedRole =
+          sessionRole ||
+          (poolType === 'admin' ? UserRole.ADMIN : undefined);
+
         try {
-          // If admin, skip customer company check; otherwise validate backend session
-          if (userRole !== UserRole.ADMIN) {
-            await apiClient.getMyCompany();
+          if (derivedRole === UserRole.ADMIN) {
+            const accessToken = (session as any)?.accessToken as string | undefined;
+            const idToken = (session as any)?.idToken as string | undefined;
+            const refreshToken = (session as any)?.refreshToken as string | undefined;
+
+            if (accessToken && idToken && refreshToken) {
+              useAuthStore.getState().setTokens(accessToken, idToken, refreshToken);
+            }
+
+            const sessionEmail = (session as any)?.user?.email as string | undefined;
+            if (sessionEmail) {
+              localStorage.setItem('email', sessionEmail);
+            }
+            localStorage.setItem('user_role', UserRole.ADMIN);
+
+            router.push('/admin');
+            return;
           }
+
+          // Wait until we know the role to avoid hitting customer endpoints with admin tokens
+          if (!derivedRole) {
+            return;
+          }
+
+          await apiClient.getMyCompany();
+          router.push('/dashboard');
         } catch (err) {
           await signOut({ callbackUrl: '/login' });
           return;
         }
-
-        if (userRole === UserRole.ADMIN) {
-          router.push('/admin');
-        } else {
-          router.push('/dashboard');
-        }
       }
     };
     ensureSessionValid();
-  }, [status, isAuthenticated, userRole, requiresPasswordChange, showPasswordChangeModal, router]);
+  }, [status, isAuthenticated, userRole, requiresPasswordChange, showPasswordChangeModal, router, session]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -88,11 +113,16 @@ export default function LoginPage() {
       } else {
         // Successful login - decide destination based on session role
         const session = await getSession();
+        await checkAuth();
         const role =
           (session as any)?.user?.role as UserRole | undefined ||
           (session as any)?.userRole as UserRole | undefined;
+        const poolType = (session as any)?.poolType as string | undefined;
+        const derivedRole =
+          role ||
+          (poolType === 'admin' ? UserRole.ADMIN : undefined);
 
-        if (role === UserRole.ADMIN) {
+        if (derivedRole === UserRole.ADMIN) {
           router.push('/admin');
         } else {
           router.push('/dashboard');
