@@ -23,12 +23,13 @@ export async function middleware(request: NextRequest) {
   // Public routes that don't require auth
   const publicRoutes = ['/login', '/register'];
   const isPublic = publicRoutes.includes(pathname);
-  if (isPublic && !token) {
-    return NextResponse.next();
-  }
 
   const token = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET });
   const userRole = (token as any)?.userRole as string | undefined;
+
+  if (isPublic && !token) {
+    return NextResponse.next();
+  }
 
   if (isPublic && token) {
     // Already signed in -> send to appropriate home
