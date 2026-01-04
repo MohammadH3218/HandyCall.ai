@@ -62,7 +62,7 @@ export class AuthService {
     );
 
     // Create owner user
-    const user = await this.usersService.createUser(
+    const { user } = await this.usersService.createUser(
       company.company_id,
       email,
       password,
@@ -395,6 +395,16 @@ export class AuthService {
 
       // Admin users don't need company setup - return immediately
       if (poolType === 'admin') {
+        if (firstName || lastName) {
+          const attrs: Record<string, string> = {};
+          if (firstName) attrs['given_name'] = firstName;
+          if (lastName) attrs['family_name'] = lastName;
+          try {
+            await this.cognitoService.updateUserAttributes(email, attrs, 'admin');
+          } catch (e) {
+            console.warn('[AuthService] Failed to update admin name attributes during password change', e);
+          }
+        }
         return {
           access_token: result.accessToken,
           id_token: result.idToken,

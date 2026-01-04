@@ -74,7 +74,7 @@ export class UsersController {
   async createUser(
     @UserRoleDecorator() role: UserRole,
     @Body() dto: CreateUserDto
-  ): Promise<User> {
+  ): Promise<{ user: User; temporary_password?: string }> {
     if (role !== UserRole.ADMIN) {
       throw new NotFoundException('Not found');
     }
@@ -86,7 +86,9 @@ export class UsersController {
       dto.first_name,
       dto.last_name,
       dto.role,
-      dto.phone_number
+      dto.phone_number,
+      (dto.pool_type as any) || 'users',
+      dto.generate_password === true
     );
   }
 

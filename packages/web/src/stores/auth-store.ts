@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { User, Company, UserRole } from '@handycall/shared';
 import { apiClient } from '@/lib/api-client';
-import { extractUserRole } from '@/lib/jwt';
+import { extractUserRole, decodeJWT } from '@/lib/jwt';
 import { signOut } from 'next-auth/react';
 
 interface AuthState {
@@ -211,6 +211,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const accessToken = (session as any)?.accessToken as string | undefined;
       const idToken = (session as any)?.idToken as string | undefined;
       const refreshToken = (session as any)?.refreshToken as string | undefined;
+      const nameFromSession = (session as any)?.user?.name as string | undefined;
+      const firstNameFromSession = (session as any)?.user?.given_name as string | undefined;
+      const lastNameFromSession = (session as any)?.user?.family_name as string | undefined;
+      const decoded = idToken ? decodeJWT(idToken) : null;
+      const firstNameFromToken =
+        decoded?.given_name ||
+        decoded?.name?.split(' ')?.[0];
+      const lastNameFromToken =
+        decoded?.family_name ||
+        decoded?.name?.split(' ')?.slice(1).join(' ');
 
       if (accessToken) localStorage.setItem('access_token', accessToken);
       if (idToken) localStorage.setItem('id_token', idToken);
@@ -228,9 +238,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         if (email) localStorage.setItem('email', email);
         localStorage.setItem('user_role', UserRole.ADMIN);
 
+        const userObj = session?.user
+          ? ({
+              email,
+              first_name: firstNameFromSession || firstNameFromToken || nameFromSession,
+              last_name: lastNameFromSession || lastNameFromToken || undefined,
+            } as User)
+          : null;
+
         set({
           company: null,
-          user: session?.user ? ({ email, first_name: (session as any)?.user?.name } as User) : null,
+          user: userObj,
           email,
           userRole: UserRole.ADMIN,
           accessToken: accessToken || null,
@@ -255,6 +273,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         (company as any)?.userRole ||
         (localStorage.getItem('user_role') as UserRole | null) ||
         derivedRole;
+      const firstName =
+        firstNameFromSession ||
+        firstNameFromToken ||
+        (session?.user as any)?.name?.split(' ')?.[0] ||
+        (company as any)?.first_name;
+      const lastName =
+        lastNameFromSession ||
+        lastNameFromToken ||
+        (session?.user as any)?.name?.split(' ')?.slice(1).join(' ') ||
+        (company as any)?.last_name;
 
       if (email) localStorage.setItem('email', email);
       if (userRole) localStorage.setItem('user_role', userRole);
@@ -263,7 +291,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const user: Partial<User> | null = session?.user
         ? {
             email: session.user.email || undefined,
-            first_name: (session.user as any)?.name || undefined,
+            first_name: firstName || undefined,
+            last_name: lastName || undefined,
           }
         : null;
 

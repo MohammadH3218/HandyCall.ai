@@ -1,6 +1,7 @@
 import { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { UserRole } from "@handycall/shared";
+import { decodeJWT } from "@/lib/jwt";
 
 // Prefer injected env, but fall back to production defaults; avoid mutating env to keep
 // the bundle side-effect free.
@@ -47,6 +48,9 @@ export const authOptions: NextAuthOptions = {
           const idToken = data.id_token || data.idToken;
           const accessToken = data.access_token || data.accessToken;
           const refreshToken = data.refresh_token || data.refreshToken;
+          const nameFromResponse = (data.name as string | undefined) || (data.fullName as string | undefined);
+          const givenNameFromResponse = (data.first_name as string | undefined) || (data.given_name as string | undefined);
+          const familyNameFromResponse = (data.last_name as string | undefined) || (data.family_name as string | undefined);
           const poolTypeFromResponse =
             (data.poolType as string | undefined) ||
             (data.pool_type as string | undefined) ||
@@ -61,6 +65,16 @@ export const authOptions: NextAuthOptions = {
           const poolType =
             poolTypeFromResponse ||
             (resolvedUserRole === UserRole.ADMIN ? 'admin' : 'users');
+          const decoded = idToken ? decodeJWT(idToken) : null;
+          const resolvedName =
+            nameFromResponse ||
+            decoded?.name ||
+            [givenNameFromResponse || decoded?.given_name, familyNameFromResponse || decoded?.family_name]
+              .filter(Boolean)
+              .join(' ') ||
+            undefined;
+          const resolvedGivenName = givenNameFromResponse || (decoded?.given_name as string | undefined);
+          const resolvedFamilyName = familyNameFromResponse || (decoded?.family_name as string | undefined);
 
           if (!idToken || !accessToken) {
             throw new Error("Invalid response from authentication server");
@@ -75,6 +89,9 @@ export const authOptions: NextAuthOptions = {
             refreshToken: refreshToken,
             userRole: resolvedUserRole,
             poolType: poolType,
+            name: resolvedName,
+            given_name: resolvedGivenName,
+            family_name: resolvedFamilyName,
           };
         } catch (error: any) {
           console.error("Auth error:", error);
@@ -96,6 +113,7 @@ export const authOptions: NextAuthOptions = {
           hasIdToken: !!(user as any).idToken,
           hasRefreshToken: !!(user as any).refreshToken,
           userRole: (user as any).userRole,
+          name: (user as any).name || (user as any).given_name,
         });
         token.accessToken = (user as any).accessToken;
         token.idToken = (user as any).idToken;
@@ -104,6 +122,9 @@ export const authOptions: NextAuthOptions = {
         token.email = user.email;
         token.userRole = (user as any).userRole;
         token.poolType = (user as any).poolType;
+        token.name = (user as any).name;
+        token.given_name = (user as any).given_name;
+        token.family_name = (user as any).family_name;
       }
 
       if (!token.userRole && token.poolType === 'admin') {
@@ -125,6 +146,7 @@ export const authOptions: NextAuthOptions = {
         hasIdToken: !!token.idToken,
         hasRefreshToken: !!token.refreshToken,
         userRole: token.userRole,
+        name: token.name || token.given_name,
       });
       if (token) {
         (session as any).accessToken = token.accessToken as string;
@@ -137,15 +159,22 @@ export const authOptions: NextAuthOptions = {
         const poolType =
           (token.poolType as string | undefined) ||
           (derivedRole === UserRole.ADMIN ? 'admin' : 'users');
+        const name =
+          (token.name as string | undefined) ||
+          [token.given_name, token.family_name].filter(Boolean).join(' ') ||
+          session.user?.name ||
+          undefined;
 
         session.user = {
           ...(session.user || {}),
           id: (token.sub as string | undefined) || (session.user as any)?.id,
           email,
-          name: session.user?.name || email || undefined,
+          name: name || email || undefined,
         };
 
         (session.user as any).role = derivedRole;
+        (session.user as any).given_name = token.given_name;
+        (session.user as any).family_name = token.family_name;
         (session as any).userRole = derivedRole;
         (session as any).poolType = poolType;
       }

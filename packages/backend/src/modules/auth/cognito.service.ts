@@ -304,7 +304,7 @@ export class CognitoService {
   async createUser(
     email: string,
     tempPassword: string,
-    companyId: string,
+    companyId?: string,
     name?: string,
     poolType: 'users' | 'admin' = 'users'
   ): Promise<void> {
@@ -318,11 +318,19 @@ export class CognitoService {
       const userAttributes = [
         { Name: 'email', Value: email },
         { Name: 'email_verified', Value: 'true' },
-        { Name: 'custom:company_id', Value: companyId },
       ];
+
+      if (poolType === 'users' && companyId) {
+        userAttributes.push({ Name: 'custom:company_id', Value: companyId });
+      }
 
       if (name) {
         userAttributes.push({ Name: 'name', Value: name });
+        const parts = name.split(' ');
+        if (parts[0]) userAttributes.push({ Name: 'given_name', Value: parts[0] });
+        if (parts.slice(1).join(' ')) {
+          userAttributes.push({ Name: 'family_name', Value: parts.slice(1).join(' ') });
+        }
       }
 
       const command = new AdminCreateUserCommand({

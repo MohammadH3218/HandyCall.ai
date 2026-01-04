@@ -1,22 +1,30 @@
-import { IsEmail, IsEnum, IsNotEmpty, IsOptional, IsString, MinLength, Matches } from 'class-validator';
+import { IsBoolean, IsEmail, IsEnum, IsNotEmpty, IsOptional, IsString, MinLength, Matches } from 'class-validator';
 import { UserRole } from '@handycall/shared';
 
 export class CreateUserDto {
-  @IsNotEmpty()
+  @IsOptional()
   @IsString()
-  company_id: string;
+  company_id?: string;
+
+  @IsOptional()
+  @IsString()
+  pool_type?: 'users' | 'admin';
 
   @IsNotEmpty()
   @IsEmail()
   email: string;
 
-  @IsNotEmpty()
+  @IsOptional()
   @IsString()
   @MinLength(8, { message: 'Password must be at least 8 characters' })
   @Matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/, {
     message: 'Password must contain at least one uppercase letter, one lowercase letter, and one number',
   })
-  password: string;
+  password?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  generate_password?: boolean;
 
   @IsNotEmpty()
   @IsString()

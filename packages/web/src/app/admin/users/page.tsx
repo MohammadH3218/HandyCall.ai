@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/hooks/use-toast';
 import { Search, UserPlus } from 'lucide-react';
 import { UserRole } from '@handycall/shared';
+import { CreateUserDialog } from '@/components/admin/create-user-dialog';
 
 interface User {
   user_id: string;
@@ -42,6 +43,7 @@ export default function UsersPage() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCompany, setSelectedCompany] = useState<string>('all');
+  const [createOpen, setCreateOpen] = useState(false);
 
   useEffect(() => {
     if (!isLoading && (!isAuthenticated || userRole !== UserRole.ADMIN)) {
@@ -148,6 +150,9 @@ export default function UsersPage() {
   };
 
   const getCompanyName = (companyId: string) => {
+    if (companyId === 'platform-admin') {
+      return 'Admin';
+    }
     const company = companies.find((c) => c.company_id === companyId);
     return company?.company_name || 'Unknown';
   };
@@ -193,6 +198,10 @@ export default function UsersPage() {
               {filteredUsers.length} {filteredUsers.length === 1 ? 'user' : 'users'}
             </p>
           </div>
+          <Button onClick={() => setCreateOpen(true)}>
+            <UserPlus className="h-4 w-4 mr-2" />
+            Create User
+          </Button>
         </div>
 
         <Card className="mb-6">
@@ -250,7 +259,7 @@ export default function UsersPage() {
                     filteredUsers.map((user) => (
                       <tr key={user.user_id} className="hover:bg-muted/50">
                         <td className="px-4 py-3 text-sm font-medium">
-                          {user.first_name} {user.last_name}
+                          {[user.first_name, user.last_name].filter(Boolean).join(' ') || user.email}
                         </td>
                         <td className="px-4 py-3 text-sm text-muted-foreground">{user.email}</td>
                         <td className="px-4 py-3 text-sm">{getCompanyName(user.company_id)}</td>
@@ -290,6 +299,15 @@ export default function UsersPage() {
             </div>
           </CardContent>
         </Card>
+
+        <CreateUserDialog
+          open={createOpen}
+          onOpenChange={setCreateOpen}
+          onSuccess={() => {
+            setCreateOpen(false);
+            loadData();
+          }}
+        />
       </main>
     </div>
   );

@@ -1,9 +1,10 @@
-import { Injectable, ConflictException, NotFoundException } from '@nestjs/common';
+import { Injectable, ConflictException, NotFoundException, BadRequestException } from '@nestjs/common';
 import { DynamoDBService } from '../../infrastructure/database/dynamodb.service';
 import { CognitoService } from '../auth/cognito.service';
 import { User, UserRole } from '@handycall/shared';
 import { v4 as uuidv4 } from 'uuid';
 import * as bcrypt from 'bcrypt';
+import { randomBytes } from 'crypto';
 
 @Injectable()
 export class UsersService {
@@ -15,14 +16,38 @@ export class UsersService {
   ) {}
 
   async createUser(
-    companyId: string,
+    companyId: string | undefined,
     email: string,
-    password: string,
+    password: string | undefined,
     firstName: string,
     lastName: string,
     role: UserRole,
-    phoneNumber?: string
-  ): Promise<User> {
+    phoneNumber?: string,
+    poolType: 'users' | 'admin' = 'users',
+    generatePassword = false
+  ): Promise<{ user: User; temporary_password?: string }> {
+    const isAdminPool = poolType === 'admin';
+
+    if (!isAdminPool && !companyId) {
+      throw new BadRequestException('company_id is required for customer (users pool) accounts');
+    }
+
+    // Admin pool users do not belong to a tenant; use a platform placeholder
+    const resolvedCompanyId = companyId || 'platform-admin';
+    const resolvedRole = isAdminPool ? UserRole.ADMIN : role;
+
+    // Generate a secure random password if not provided
+    const resolvedPassword =
+      password && password.length > 0
+        ? password
+        : generatePassword
+        ? this.generateSecurePassword()
+        : null;
+
+    if (!resolvedPassword) {
+      throw new BadRequestException('Password is required unless generate_password is true');
+    }
+
     // Check if user with email already exists
     const existingUser = await this.findByEmail(email);
     if (existingUser) {
@@ -30,17 +55,17 @@ export class UsersService {
     }
 
     const userId = uuidv4();
-    const passwordHash = await bcrypt.hash(password, 10);
+    const passwordHash = await bcrypt.hash(resolvedPassword, 10);
     const timestamp = Date.now();
 
     const user: User = {
-      company_id: companyId,
+      company_id: resolvedCompanyId,
       user_id: userId,
       email,
       phone_number: phoneNumber,
       first_name: firstName,
       last_name: lastName,
-      role,
+      role: resolvedRole,
       is_active: true,
       created_at: timestamp,
       updated_at: timestamp,
@@ -48,17 +73,37 @@ export class UsersService {
 
     // Create user in Cognito
     const fullName = `${firstName} ${lastName}`;
-    await this.cognitoService.createUser(email, password, companyId, fullName, 'users');
+    await this.cognitoService.createUser(
+      email,
+      resolvedPassword,
+      isAdminPool ? undefined : resolvedCompanyId,
+      fullName,
+      poolType
+    );
 
     // Store user with password hash (password_hash not in User type, stored separately)
     const dbUser = {
       ...user,
       password_hash: passwordHash,
+      pool_type: poolType,
     };
 
     await this.dynamodb.put(this.tableName, dbUser);
 
-    return user;
+    return { user, temporary_password: generatePassword ? resolvedPassword : undefined };
+  }
+
+  private generateSecurePassword(): string {
+    // Ensure mix of upper, lower, digits, and symbols, 14 chars
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz0123456789!@#$%^&*()';
+    const bytes = randomBytes(16);
+    let pwd = '';
+    for (let i = 0; i < 14; i++) {
+      pwd += chars[bytes[i] % chars.length];
+    }
+    // Guarantee at least one of each required class
+    pwd += 'A1a!';
+    return pwd;
   }
 
   async findByEmail(email: string): Promise<(User & { password_hash: string }) | null> {
@@ -188,8 +233,13 @@ export class UsersService {
       throw new NotFoundException('User not found');
     }
 
+    const poolType: 'users' | 'admin' =
+      (user as any).pool_type === 'admin' || (user.role === UserRole.ADMIN && user.company_id === 'platform-admin')
+        ? 'admin'
+        : 'users';
+
     // Delete from Cognito
-    await this.cognitoService.deleteUser(email, 'users');
+    await this.cognitoService.deleteUser(email, poolType);
 
     // Delete from DynamoDB
     await this.dynamodb.delete(this.tableName, { company_id: companyId, user_id: userId });
@@ -204,8 +254,13 @@ export class UsersService {
       throw new NotFoundException('User not found');
     }
 
+    const poolType: 'users' | 'admin' =
+      (user as any).pool_type === 'admin' || (user.role === UserRole.ADMIN && user.company_id === 'platform-admin')
+        ? 'admin'
+        : 'users';
+
     // Disable in Cognito
-    await this.cognitoService.disableUser(email, 'users');
+    await this.cognitoService.disableUser(email, poolType);
 
     // Update in DynamoDB
     const result = await this.dynamodb.update(
@@ -227,8 +282,13 @@ export class UsersService {
       throw new NotFoundException('User not found');
     }
 
+    const poolType: 'users' | 'admin' =
+      (user as any).pool_type === 'admin' || (user.role === UserRole.ADMIN && user.company_id === 'platform-admin')
+        ? 'admin'
+        : 'users';
+
     // Enable in Cognito
-    await this.cognitoService.enableUser(email, 'users');
+    await this.cognitoService.enableUser(email, poolType);
 
     // Update in DynamoDB
     const result = await this.dynamodb.update(

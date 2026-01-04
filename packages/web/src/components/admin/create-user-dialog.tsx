@@ -30,6 +30,9 @@ export function CreateUserDialog({ open, onOpenChange, onSuccess, preselectedCom
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [companies, setCompanies] = useState<Company[]>([]);
+  const [poolType, setPoolType] = useState<'users' | 'admin'>('users');
+  const [passwordMode, setPasswordMode] = useState<'manual' | 'generate'>('manual');
+  const [generatedPassword, setGeneratedPassword] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     company_id: preselectedCompanyId || '',
     email: '',
@@ -73,7 +76,7 @@ export function CreateUserDialog({ open, onOpenChange, onSuccess, preselectedCom
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
 
-    if (!formData.company_id) {
+    if (poolType === 'users' && !formData.company_id) {
       newErrors.company_id = 'Company is required';
     }
 
@@ -83,12 +86,14 @@ export function CreateUserDialog({ open, onOpenChange, onSuccess, preselectedCom
       newErrors.email = 'Invalid email format';
     }
 
-    if (!formData.password) {
-      newErrors.password = 'Password is required';
-    } else if (formData.password.length < 8) {
-      newErrors.password = 'Password must be at least 8 characters';
-    } else if (!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(formData.password)) {
-      newErrors.password = 'Password must contain uppercase, lowercase, and number';
+    if (passwordMode === 'manual') {
+      if (!formData.password) {
+        newErrors.password = 'Password is required';
+      } else if (formData.password.length < 8) {
+        newErrors.password = 'Password must be at least 8 characters';
+      } else if (!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(formData.password)) {
+        newErrors.password = 'Password must contain uppercase, lowercase, and number';
+      }
     }
 
     if (!formData.first_name.trim()) {
@@ -115,16 +120,29 @@ export function CreateUserDialog({ open, onOpenChange, onSuccess, preselectedCom
     }
 
     setLoading(true);
+    setGeneratedPassword(null);
 
     try {
       const token = localStorage.getItem('access_token');
+      const payload: any = {
+        company_id: poolType === 'users' ? formData.company_id : undefined,
+        pool_type: poolType,
+        email: formData.email,
+        password: passwordMode === 'manual' ? formData.password : undefined,
+        generate_password: passwordMode === 'generate',
+        first_name: formData.first_name,
+        last_name: formData.last_name,
+        role: poolType === 'admin' ? 'ADMIN' : formData.role,
+        phone_number: formData.phone_number || undefined,
+      };
+
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/users`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(payload),
       });
 
       if (!response.ok) {
@@ -132,10 +150,17 @@ export function CreateUserDialog({ open, onOpenChange, onSuccess, preselectedCom
         throw new Error(error.message || 'Failed to create user');
       }
 
+      const result = await response.json();
+      const tempPassword = result.temporary_password as string | undefined;
+
       toast({
         title: 'Success',
         description: 'User created successfully',
       });
+
+      if (tempPassword) {
+        setGeneratedPassword(tempPassword);
+      }
 
       setFormData({
         company_id: preselectedCompanyId || '',
@@ -146,8 +171,8 @@ export function CreateUserDialog({ open, onOpenChange, onSuccess, preselectedCom
         role: 'STAFF',
         phone_number: '',
       });
+      setPasswordMode('manual');
 
-      onOpenChange(false);
       onSuccess?.();
     } catch (error: any) {
       toast({
@@ -173,13 +198,34 @@ export function CreateUserDialog({ open, onOpenChange, onSuccess, preselectedCom
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2 sm:col-span-2">
+              <Label>User Type</Label>
+              <Select
+                value={poolType}
+                onValueChange={(value) => {
+                  setPoolType(value as 'users' | 'admin');
+                  if (value === 'admin') {
+                    setFormData((prev) => ({ ...prev, role: 'ADMIN', company_id: '' }));
+                  }
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="users">Customer (users pool)</SelectItem>
+                  <SelectItem value="admin">Platform Admin (admin pool)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2 sm:col-span-2">
               <Label htmlFor="company_id">
-                Company <span className="text-destructive">*</span>
+                Company {poolType === 'users' && <span className="text-destructive">*</span>}
               </Label>
               <Select
                 value={formData.company_id}
                 onValueChange={(value) => setFormData({ ...formData, company_id: value })}
-                disabled={!!preselectedCompanyId}
+                disabled={!!preselectedCompanyId || poolType === 'admin'}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select company" />
@@ -245,15 +291,33 @@ export function CreateUserDialog({ open, onOpenChange, onSuccess, preselectedCom
               <Label htmlFor="password">
                 Password <span className="text-destructive">*</span>
               </Label>
-              <Input
-                id="password"
-                type="password"
-                value={formData.password}
-                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                placeholder="••••••••"
-              />
+              <div className="flex items-center gap-2">
+                <Select
+                  value={passwordMode}
+                  onValueChange={(value) => setPasswordMode(value as 'manual' | 'generate')}
+                >
+                  <SelectTrigger className="w-40">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="manual">Set password</SelectItem>
+                    <SelectItem value="generate">Generate</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Input
+                  id="password"
+                  type="text"
+                  disabled={passwordMode === 'generate'}
+                  value={passwordMode === 'generate' ? 'Will be generated' : formData.password}
+                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  placeholder="Strong temporary password"
+                />
+              </div>
               {errors.password && (
                 <p className="text-sm text-destructive">{errors.password}</p>
+              )}
+              {generatedPassword && (
+                <p className="text-sm text-primary">Generated password: {generatedPassword}</p>
               )}
             </div>
 
@@ -262,14 +326,15 @@ export function CreateUserDialog({ open, onOpenChange, onSuccess, preselectedCom
                 Role <span className="text-destructive">*</span>
               </Label>
               <Select
-                value={formData.role}
+                value={poolType === 'admin' ? 'ADMIN' : formData.role}
                 onValueChange={(value) => setFormData({ ...formData, role: value })}
+                disabled={poolType === 'admin'}
               >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {USER_ROLES.map((role) => (
+                  {(poolType === 'admin' ? USER_ROLES.filter((r) => r.value === 'ADMIN') : USER_ROLES).map((role) => (
                     <SelectItem key={role.value} value={role.value}>
                       {role.label}
                     </SelectItem>
