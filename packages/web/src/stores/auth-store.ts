@@ -308,7 +308,28 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         isLoading: false,
       });
     } catch (error) {
-      set({ isLoading: false, isAuthenticated: false });
+      console.error('[Auth Store] checkAuth failed:', error);
+
+      // Clear auth state and localStorage on authentication failure
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('id_token');
+        localStorage.removeItem('refresh_token');
+        localStorage.removeItem('email');
+        localStorage.removeItem('user_role');
+      }
+
+      set({
+        user: null,
+        company: null,
+        accessToken: null,
+        idToken: null,
+        refreshToken: null,
+        email: null,
+        userRole: null,
+        isAuthenticated: false,
+        isLoading: false,
+      });
     }
   },
 }));

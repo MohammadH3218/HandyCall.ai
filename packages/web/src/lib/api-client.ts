@@ -49,6 +49,23 @@ class ApiClient {
       }
 
       if (!response.ok) {
+        // Handle 401 Unauthorized - user needs to log in again
+        if (response.status === 401 || response.status === 403) {
+          console.warn('[API Client] Authentication failed - forcing logout');
+
+          // Clear all auth data from localStorage
+          if (typeof window !== 'undefined') {
+            localStorage.removeItem('access_token');
+            localStorage.removeItem('id_token');
+            localStorage.removeItem('refresh_token');
+            localStorage.removeItem('email');
+            localStorage.removeItem('user_role');
+
+            // Redirect to login page
+            window.location.href = '/login';
+          }
+        }
+
         const errorMessage = data?.error?.message || data?.message || `Request failed with status ${response.status}`;
         throw new Error(errorMessage);
       }
