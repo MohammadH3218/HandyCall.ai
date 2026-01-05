@@ -18,6 +18,8 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { User, UserRole } from '@handycall/shared';
 
+type UserWithCompany = User & { company_name?: string };
+
 @Controller('users')
 @UseGuards(JwtAuthGuard)
 export class UsersController {
@@ -30,7 +32,7 @@ export class UsersController {
   async listUsers(
     @UserRoleDecorator() role: UserRole,
     @Query('company_id') companyId?: string
-  ): Promise<User[]> {
+  ): Promise<UserWithCompany[]> {
     if (role !== UserRole.ADMIN) {
       throw new NotFoundException('Not found');
     }
@@ -50,7 +52,7 @@ export class UsersController {
     @UserRoleDecorator() role: UserRole,
     @Param('id') id: string,
     @Query('company_id') companyId?: string
-  ): Promise<User> {
+  ): Promise<UserWithCompany> {
     if (role !== UserRole.ADMIN) {
       throw new NotFoundException('Not found');
     }

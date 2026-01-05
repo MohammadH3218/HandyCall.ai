@@ -36,11 +36,14 @@ export class UsersService {
     } else if (companyId) {
       resolvedCompanyId = companyId;
     } else if (companyName) {
-      // Create new company
+      // Create new company with generated email from company name
+      const companySlug = companyName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+      const companyEmail = `${companySlug}@company.handycall.local`;
+
       const newCompany = await this.companiesService.createCompany(
         companyName,
         ServiceType.HANDYMAN, // Default service type
-        email,
+        companyEmail,
         '+10000000000', // Placeholder phone, user can update later
         'America/New_York' // Default timezone
       );
@@ -198,7 +201,7 @@ export class UsersService {
     );
   }
 
-  async listCompanyUsers(companyId: string): Promise<User[]> {
+  async listCompanyUsers(companyId: string): Promise<(User & { company_name?: string })[]> {
     const result = await this.dynamodb.query(
       this.tableName,
       '#company_id = :company_id',
@@ -206,25 +209,50 @@ export class UsersService {
       { ':company_id': companyId }
     );
 
-    // Remove password hashes from all users
-    return result.items.map((user: any) => {
+    // Remove password hashes from all users and attach company name
+    const users = result.items.map((user: any) => {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { password_hash, ...userWithoutPassword } = user;
       return userWithoutPassword as User;
     });
+    const company = await this.companiesService.findById(companyId).catch(() => null);
+
+    return users.map((user) => ({
+      ...user,
+      company_name:
+        user.company_id === 'platform-admin'
+          ? 'Admin'
+          : company?.company_name,
+    }));
   }
 
   /**
    * List all users across all companies (admin only)
    */
-  async listAllUsers(): Promise<User[]> {
+  async listAllUsers(): Promise<(User & { company_name?: string })[]> {
     const result = await this.dynamodb.scan(this.tableName);
 
-    // Remove password hashes from all users
+    // Build a map of company_id -> company_name so the UI can render without a second request
+    let companyMap = new Map<string, string>();
+    try {
+      const companies = await this.companiesService.listAll(500);
+      companyMap = new Map(companies.map((company) => [company.company_id, company.company_name]));
+    } catch (error) {
+      console.warn('[UsersService] Failed to load companies while listing users:', error);
+    }
+
+    // Remove password hashes from all users and attach company name when available
     return result.items.map((user: any) => {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { password_hash, ...userWithoutPassword } = user;
-      return userWithoutPassword as User;
+      const companyName =
+        userWithoutPassword.company_id === 'platform-admin'
+          ? 'Admin'
+          : companyMap.get(userWithoutPassword.company_id);
+      return {
+        ...userWithoutPassword,
+        company_name: companyName,
+      } as User & { company_name?: string };
     });
   }
 

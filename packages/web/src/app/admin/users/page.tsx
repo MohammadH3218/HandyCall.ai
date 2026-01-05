@@ -22,6 +22,7 @@ interface User {
   email: string;
   first_name: string;
   last_name: string;
+  company_name?: string;
   role: string;
   is_active: boolean;
   created_at: number;
@@ -37,6 +38,7 @@ export default function UsersPage() {
   const router = useRouter();
   const { userRole, isAuthenticated, isLoading } = useAuthStore();
   const { toast } = useToast();
+  const apiBase = process.env.NEXT_PUBLIC_API_URL || '';
 
   const [users, setUsers] = useState<User[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
@@ -76,40 +78,31 @@ export default function UsersPage() {
     setFilteredUsers(filtered);
   }, [searchTerm, selectedCompany, users]);
 
+  const fetchWithFallback = async <T,>(proxyPath: string, directPath: string): Promise<T> => {
+    let response = await fetch(proxyPath, { credentials: 'include' });
+
+    if (response.status === 401) {
+      const token = localStorage.getItem('access_token');
+      if (!token) {
+        throw new Error('Unauthorized. Please re-login as admin.');
+      }
+      response = await fetch(directPath, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+    }
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch ${proxyPath}`);
+    }
+
+    return response.json();
+  };
+
   const loadData = async () => {
     setLoading(true);
     try {
-      const [usersRes, companiesRes] = await Promise.all([
-        fetch(`/api/proxy/users`, { credentials: 'include' }),
-        fetch(`/api/proxy/companies`, { credentials: 'include' }),
-      ]);
-
-      // Fallback to direct API if proxy/session not authorized
-      let usersResponse = usersRes;
-      let companiesResponse = companiesRes;
-      if (usersRes.status === 401 || companiesRes.status === 401) {
-        const token = localStorage.getItem('access_token');
-        if (!token) {
-          throw new Error('Unauthorized. Please re-login as admin.');
-        }
-        [usersResponse, companiesResponse] = await Promise.all([
-          fetch(`${process.env.NEXT_PUBLIC_API_URL}/users`, {
-            headers: { Authorization: `Bearer ${token}` },
-          }),
-          fetch(`${process.env.NEXT_PUBLIC_API_URL}/companies`, {
-            headers: { Authorization: `Bearer ${token}` },
-          }),
-        ]);
-      }
-
-      if (!usersResponse.ok || !companiesResponse.ok) {
-        throw new Error('Failed to load data');
-      }
-
-      const [usersData, companiesData] = await Promise.all([usersResponse.json(), companiesResponse.json()]);
-
+      const usersData = await fetchWithFallback<User[]>('/api/proxy/users', `${apiBase}/users`);
       setUsers(usersData);
-      setCompanies(companiesData);
       setFilteredUsers(usersData);
     } catch (error) {
       console.error('Failed to load data:', error);
@@ -118,6 +111,13 @@ export default function UsersPage() {
         description: 'Failed to load users',
         variant: 'destructive',
       });
+    }
+
+    try {
+      const companiesData = await fetchWithFallback<Company[]>('/api/proxy/companies', `${apiBase}/companies`);
+      setCompanies(companiesData);
+    } catch (error) {
+      console.error('Failed to load companies:', error);
     } finally {
       setLoading(false);
     }
@@ -161,13 +161,28 @@ export default function UsersPage() {
     });
   };
 
-  const getCompanyName = (companyId: string) => {
-    if (companyId === 'platform-admin') {
+  const getCompanyName = (user: User) => {
+    if (user.company_id === 'platform-admin') {
       return 'Admin';
     }
-    const company = companies.find((c) => c.company_id === companyId);
+    if (user.company_name) {
+      return user.company_name;
+    }
+    const company = companies.find((c) => c.company_id === user.company_id);
     return company?.company_name || 'Unknown';
   };
+
+  const companyOptions =
+    companies.length > 0
+      ? companies
+      : Array.from(
+          users.reduce((map, user) => {
+            if (user.company_id) {
+              map.set(user.company_id, user.company_name || user.company_id);
+            }
+            return map;
+          }, new Map<string, string>())
+        ).map(([company_id, company_name]) => ({ company_id, company_name }));
 
   if (isLoading || loading) {
     return (
@@ -237,7 +252,7 @@ export default function UsersPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Companies</SelectItem>
-                  {companies.map((company) => (
+                  {companyOptions.map((company) => (
                     <SelectItem key={company.company_id} value={company.company_id}>
                       {company.company_name}
                     </SelectItem>
@@ -277,7 +292,7 @@ export default function UsersPage() {
                           {[user.first_name, user.last_name].filter(Boolean).join(' ') || user.email}
                         </td>
                         <td className="px-4 py-3 text-sm text-muted-foreground">{user.email}</td>
-                        <td className="px-4 py-3 text-sm">{getCompanyName(user.company_id)}</td>
+                        <td className="px-4 py-3 text-sm">{getCompanyName(user)}</td>
                         <td className="px-4 py-3">
                           <Badge variant="outline" className="text-xs">
                             {user.role}
