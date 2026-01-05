@@ -61,8 +61,11 @@ class ApiClient {
             localStorage.removeItem('email');
             localStorage.removeItem('user_role');
 
-            // Redirect to login page
-            window.location.href = '/login';
+            // Only redirect if not already on login or register page
+            const currentPath = window.location.pathname;
+            if (currentPath !== '/login' && currentPath !== '/register') {
+              window.location.href = '/login';
+            }
           }
         }
 
