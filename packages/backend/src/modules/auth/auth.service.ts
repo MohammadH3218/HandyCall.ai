@@ -334,7 +334,6 @@ export class AuthService {
     newPassword: string,
     session: string,
     poolType: 'users' | 'admin' = 'users',
-    companyName?: string,
     firstName?: string,
     lastName?: string
   ) {
@@ -348,11 +347,10 @@ export class AuthService {
 
       // Admin users don't need company setup - return immediately
       if (poolType === 'admin') {
-        if (firstName || lastName || companyName) {
+        if (firstName || lastName) {
           const attrs: Record<string, string> = {};
           if (firstName) attrs['given_name'] = firstName;
           if (lastName) attrs['family_name'] = lastName;
-          if (companyName) attrs['custom:company_name'] = companyName;
           try {
             await this.cognitoService.updateUserAttributes(email, attrs, 'admin');
           } catch (e) {
@@ -369,106 +367,9 @@ export class AuthService {
       }
 
       // For users pool: Get company info - handle case where user might not have company_id yet
-      let companyId = result.userAttributes?.['custom:company_id'];
+      const companyId = result.userAttributes?.['custom:company_id'];
 
-      // If user doesn't have company_id and company_name is provided, create company
-      if (!companyId && companyName) {
-        try {
-          // Create company with defaults for required fields
-          const serviceType = ServiceType.HANDYMAN; // Default, can be updated later
-          const phoneNumber = result.userAttributes?.['phone_number'] || '+10000000000'; // Placeholder, should be updated
-          const timezone = result.userAttributes?.['custom:timezone'] || 'America/New_York'; // Default timezone
-
-          const company = await this.companiesService.createCompany(
-            companyName,
-            serviceType,
-            email,
-            phoneNumber,
-            timezone
-          );
-
-          companyId = company.company_id;
-
-          // Update Cognito user attributes with company_id, company_name, and name
-          const attributesToUpdate: Record<string, string> = {
-            'custom:company_id': companyId,
-            'custom:company_name': companyName,
-          };
-
-          if (firstName) {
-            attributesToUpdate['given_name'] = firstName;
-          }
-          if (lastName) {
-            attributesToUpdate['family_name'] = lastName;
-          }
-
-          await this.cognitoService.updateUserAttributes(
-            email,
-            attributesToUpdate,
-            poolType
-          );
-
-          // Create or update user record in DynamoDB
-          try {
-            const existingUser = await this.usersService.findByEmail(email);
-            const userFirstName = firstName || result.userAttributes?.['given_name'] || result.userAttributes?.['name']?.split(' ')[0] || 'User';
-            const userLastName = lastName || result.userAttributes?.['family_name'] || result.userAttributes?.['name']?.split(' ').slice(1).join(' ') || '';
-
-            if (!existingUser) {
-              // Create a DB-only record for tracking (Cognito already has the user)
-              await this.usersService.createUser(
-                company.company_id,
-                undefined, // companyName - already have company_id
-                email,
-                this.generateTemporaryPlaceholderPassword(),
-                userFirstName,
-                userLastName,
-                UserRole.OWNER,
-                'users'
-              );
-            } else if (existingUser.company_id !== company.company_id) {
-              await this.usersService.moveUserToCompany(existingUser, company.company_id, userFirstName, userLastName);
-            }
-          } catch (userError) {
-            console.warn('[AuthService] Failed to upsert user record in DynamoDB:', userError);
-            // Continue even if user creation fails - Cognito user exists
-          }
-
-          // Create default agent config
-          try {
-            await this.agentConfigService.createDefaultConfig(companyId);
-          } catch (configError) {
-            console.warn('[AuthService] Failed to create default agent config:', configError);
-            // Continue even if config creation fails
-          }
-
-          return {
-            access_token: result.accessToken,
-            id_token: result.idToken,
-            refresh_token: result.refreshToken,
-            company,
-            email,
-            company_id: companyId,
-            userRole: UserRole.OWNER,
-          };
-        } catch (dbError: any) {
-          // If DynamoDB access fails (e.g., IAM permissions), still succeed password change
-          // but indicate company setup is needed
-          console.warn('[AuthService] DynamoDB access failed during company creation (password change succeeded):', dbError?.name || dbError?.message);
-          
-          // Password change succeeded, return tokens but indicate company setup needed
-          return {
-            access_token: result.accessToken,
-            id_token: result.idToken,
-            refresh_token: result.refreshToken,
-            email,
-            userRole: UserRole.OWNER,
-            requiresCompanySetup: true,
-          };
-        }
-      }
-
-      // If user doesn't have company_id and no company_name provided, require company setup
+      // If the user somehow lacks a company assignment, require setup instead of creating placeholders
       if (!companyId) {
         return {
           access_token: result.accessToken,
@@ -488,13 +389,6 @@ export class AuthService {
 
         // Update user attributes if provided
         const attributesToUpdate: Record<string, string> = {};
-
-        if (companyName && company) {
-          // Update company name in DynamoDB
-          await this.companiesService.updateCompany(companyId, { company_name: companyName });
-          attributesToUpdate['custom:company_name'] = companyName;
-          company.company_name = companyName;
-        }
 
         // Always update name attributes if provided
         if (firstName) {
@@ -588,10 +482,5 @@ export class AuthService {
       email,
       company_id: companyId,
     };
-  }
-
-  private generateTemporaryPlaceholderPassword(): string {
-    // Strong placeholder used only to satisfy validation when creating DB record after Cognito signup
-    return 'Tmp!' + Math.random().toString(36).slice(2, 10) + 'Aa1';
   }
 }

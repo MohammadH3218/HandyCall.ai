@@ -14,6 +14,27 @@ const USER_ROLES = [
   { value: 'STAFF', label: 'Staff' },
 ];
 
+const SERVICE_TYPES = [
+  { value: 'HANDYMAN', label: 'Handyman' },
+  { value: 'PEST_CONTROL', label: 'Pest Control' },
+  { value: 'ELECTRICIAN', label: 'Electrician' },
+  { value: 'PLUMBING', label: 'Plumbing' },
+  { value: 'HVAC', label: 'HVAC' },
+  { value: 'LANDSCAPING', label: 'Landscaping' },
+  { value: 'CLEANING', label: 'Cleaning' },
+  { value: 'OTHER', label: 'Other' },
+];
+
+const TIMEZONES = [
+  { value: 'America/New_York', label: 'Eastern Time (ET)' },
+  { value: 'America/Chicago', label: 'Central Time (CT)' },
+  { value: 'America/Denver', label: 'Mountain Time (MT)' },
+  { value: 'America/Los_Angeles', label: 'Pacific Time (PT)' },
+  { value: 'America/Phoenix', label: 'Arizona (MST)' },
+  { value: 'America/Anchorage', label: 'Alaska (AKT)' },
+  { value: 'Pacific/Honolulu', label: 'Hawaii (HST)' },
+];
+
 interface Company {
   company_id: string;
   company_name: string;
@@ -34,6 +55,10 @@ export function CreateUserDialog({ open, onOpenChange, onSuccess, preselectedCom
   const [formData, setFormData] = useState({
     company_id: preselectedCompanyId || '',
     company_name: '',
+    company_service_type: '',
+    company_email: '',
+    company_phone: '',
+    company_timezone: 'America/New_York',
     email: '',
     password: '',
     first_name: '',
@@ -80,6 +105,7 @@ export function CreateUserDialog({ open, onOpenChange, onSuccess, preselectedCom
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
+    const creatingNewCompany = poolType === 'users' && !formData.company_id;
 
     if (!formData.email.trim()) {
       newErrors.email = 'Email is required';
@@ -95,9 +121,27 @@ export function CreateUserDialog({ open, onOpenChange, onSuccess, preselectedCom
       newErrors.password = 'Password must contain uppercase, lowercase, and number';
     }
 
-    // Either company_id OR company_name must be provided for customer users
-    if (poolType === 'users' && !formData.company_id && !formData.company_name.trim()) {
-      newErrors.company = 'Please select an existing company or enter a new company name';
+    // Require full company details when creating a new company for a user
+    if (creatingNewCompany) {
+      if (!formData.company_name.trim()) {
+        newErrors.company_name = 'Company name is required';
+      }
+      if (!formData.company_service_type) {
+        newErrors.company_service_type = 'Service type is required';
+      }
+      if (!formData.company_email.trim()) {
+        newErrors.company_email = 'Company email is required';
+      } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.company_email)) {
+        newErrors.company_email = 'Invalid company email format';
+      }
+      if (!formData.company_phone.trim()) {
+        newErrors.company_phone = 'Company phone is required';
+      } else if (!/^\+[1-9]\d{1,14}$/.test(formData.company_phone)) {
+        newErrors.company_phone = 'Phone must be in E.164 format (e.g., +12345678900)';
+      }
+      if (!formData.company_timezone) {
+        newErrors.company_timezone = 'Timezone is required';
+      }
     }
 
     if (!formData.first_name.trim()) {
@@ -134,9 +178,12 @@ export function CreateUserDialog({ open, onOpenChange, onSuccess, preselectedCom
       if (poolType === 'users') {
         if (formData.company_id) {
           payload.company_id = formData.company_id;
-        }
-        if (formData.company_name) {
+        } else {
           payload.company_name = formData.company_name;
+          payload.company_service_type = formData.company_service_type;
+          payload.company_email = formData.company_email;
+          payload.company_phone = formData.company_phone;
+          payload.company_timezone = formData.company_timezone;
         }
       }
 
@@ -177,6 +224,10 @@ export function CreateUserDialog({ open, onOpenChange, onSuccess, preselectedCom
       setFormData({
         company_id: preselectedCompanyId || '',
         company_name: '',
+        company_service_type: '',
+        company_email: '',
+        company_phone: '',
+        company_timezone: 'America/New_York',
         email: '',
         password: '',
         first_name: '',
@@ -215,7 +266,15 @@ export function CreateUserDialog({ open, onOpenChange, onSuccess, preselectedCom
                 onValueChange={(value) => {
                   setPoolType(value as 'users' | 'admin');
                   if (value === 'admin') {
-                    setFormData((prev) => ({ ...prev, company_id: '' }));
+                    setFormData((prev) => ({
+                      ...prev,
+                      company_id: '',
+                      company_name: '',
+                      company_service_type: '',
+                      company_email: '',
+                      company_phone: '',
+                      company_timezone: 'America/New_York',
+                    }));
                   }
                 }}
               >
@@ -238,7 +297,15 @@ export function CreateUserDialog({ open, onOpenChange, onSuccess, preselectedCom
                   <Select
                     value={formData.company_id || undefined}
                     onValueChange={(value) => {
-                      setFormData({ ...formData, company_id: value, company_name: '' });
+                      setFormData({
+                        ...formData,
+                        company_id: value,
+                        company_name: '',
+                        company_service_type: '',
+                        company_email: '',
+                        company_phone: '',
+                        company_timezone: 'America/New_York',
+                      });
                     }}
                     disabled={!!preselectedCompanyId || !!formData.company_name}
                   >
@@ -269,15 +336,103 @@ export function CreateUserDialog({ open, onOpenChange, onSuccess, preselectedCom
                     id="company_name"
                     value={formData.company_name}
                     onChange={(e) => {
-                      setFormData({ ...formData, company_name: e.target.value, company_id: '' });
+                      setFormData({
+                        ...formData,
+                        company_name: e.target.value,
+                        company_id: '',
+                      });
                     }}
                     placeholder="Acme Inc."
                     disabled={!!formData.company_id}
                   />
-                  {errors.company && (
-                    <p className="text-sm text-destructive">{errors.company}</p>
+                  {errors.company_name && (
+                    <p className="text-sm text-destructive">{errors.company_name}</p>
                   )}
                 </div>
+
+                {!formData.company_id && (
+                  <>
+                    <div className="grid gap-4 sm:grid-cols-2 sm:col-span-2">
+                      <div className="space-y-2">
+                        <Label htmlFor="company_service_type">Service Type</Label>
+                        <Select
+                          value={formData.company_service_type}
+                          onValueChange={(value) => setFormData({ ...formData, company_service_type: value })}
+                          disabled={!!formData.company_id}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select service type" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {SERVICE_TYPES.map((type) => (
+                              <SelectItem key={type.value} value={type.value}>
+                                {type.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {errors.company_service_type && (
+                          <p className="text-sm text-destructive">{errors.company_service_type}</p>
+                        )}
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="company_email">Company Email</Label>
+                        <Input
+                          id="company_email"
+                          type="email"
+                          value={formData.company_email}
+                          onChange={(e) => setFormData({ ...formData, company_email: e.target.value })}
+                          placeholder="contact@company.com"
+                          disabled={!!formData.company_id}
+                        />
+                        {errors.company_email && (
+                          <p className="text-sm text-destructive">{errors.company_email}</p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="grid gap-4 sm:grid-cols-2 sm:col-span-2">
+                      <div className="space-y-2">
+                        <Label htmlFor="company_phone">Company Phone</Label>
+                        <Input
+                          id="company_phone"
+                          value={formData.company_phone}
+                          onChange={(e) => setFormData({ ...formData, company_phone: e.target.value })}
+                          placeholder="+12345678900"
+                          disabled={!!formData.company_id}
+                        />
+                        {errors.company_phone && (
+                          <p className="text-sm text-destructive">{errors.company_phone}</p>
+                        )}
+                        <p className="text-xs text-muted-foreground">Format: +12345678900</p>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="company_timezone">Timezone</Label>
+                        <Select
+                          value={formData.company_timezone}
+                          onValueChange={(value) => setFormData({ ...formData, company_timezone: value })}
+                          disabled={!!formData.company_id}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {TIMEZONES.map((tz) => (
+                              <SelectItem key={tz.value} value={tz.value}>
+                                {tz.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {errors.company_timezone && (
+                          <p className="text-sm text-destructive">{errors.company_timezone}</p>
+                        )}
+                      </div>
+                    </div>
+                  </>
+                )}
               </>
             )}
 

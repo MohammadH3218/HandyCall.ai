@@ -89,7 +89,11 @@ export class UsersController {
       dto.first_name,
       dto.last_name,
       dto.role,
-      (dto.pool_type as any) || 'users'
+      (dto.pool_type as any) || 'users',
+      dto.company_service_type,
+      dto.company_email,
+      dto.company_phone,
+      dto.company_timezone
     );
   }
 

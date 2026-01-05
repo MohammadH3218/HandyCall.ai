@@ -1,7 +1,15 @@
 import { Injectable, ConflictException, NotFoundException, BadRequestException, Inject, forwardRef } from '@nestjs/common';
 import { DynamoDBService } from '../../infrastructure/database/dynamodb.service';
 import { CognitoService } from '../auth/cognito.service';
-import { User, UserRole, ServiceType } from '@handycall/shared';
+import {
+  User,
+  UserRole,
+  ServiceType,
+  isValidEmail,
+  isValidPhoneNumber,
+  formatPhoneNumber,
+  isValidTimezone,
+} from '@handycall/shared';
 import { v4 as uuidv4 } from 'uuid';
 import { randomBytes } from 'crypto';
 import { CompaniesService } from '../companies/companies.service';
@@ -25,7 +33,11 @@ export class UsersService {
     firstName: string,
     lastName: string,
     role: UserRole | undefined,
-    poolType: 'users' | 'admin' = 'users'
+    poolType: 'users' | 'admin' = 'users',
+    companyServiceType?: ServiceType,
+    companyEmail?: string,
+    companyPhone?: string,
+    companyTimezone?: string
   ): Promise<{ user: User }> {
     const isAdminPool = poolType === 'admin';
 
@@ -36,18 +48,33 @@ export class UsersService {
     } else if (companyId) {
       resolvedCompanyId = companyId;
     } else if (companyName) {
-      // Create new company with generated email from company name
-      const companySlug = companyName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
-      const companyEmail = `${companySlug}@company.handycall.local`;
+      if (!companyServiceType || !companyEmail || !companyPhone || !companyTimezone) {
+        throw new BadRequestException('Company details are required when creating a new company');
+      }
+
+      if (!isValidEmail(companyEmail)) {
+        throw new BadRequestException('Invalid company email');
+      }
+
+      if (!isValidPhoneNumber(companyPhone)) {
+        throw new BadRequestException('Invalid company phone number (use E.164: +1234567890)');
+      }
+
+      if (!isValidTimezone(companyTimezone)) {
+        throw new BadRequestException('Invalid company timezone');
+      }
+
+      const formattedPhone = formatPhoneNumber(companyPhone);
 
       const newCompany = await this.companiesService.createCompany(
         companyName,
-        ServiceType.HANDYMAN, // Default service type
+        companyServiceType,
         companyEmail,
-        '+10000000000', // Placeholder phone, user can update later
-        'America/New_York' // Default timezone
+        formattedPhone,
+        companyTimezone
       );
       resolvedCompanyId = newCompany.company_id;
+      companyName = newCompany.company_name;
     } else {
       throw new BadRequestException('Either company_id or company_name must be provided for customer users');
     }

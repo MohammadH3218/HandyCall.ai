@@ -10,6 +10,16 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { useAuthStore } from '@/stores/auth-store';
 import { ServiceType, UserRole } from '@handycall/shared';
 
+const TIMEZONES = [
+  { value: 'America/New_York', label: 'Eastern Time (ET)' },
+  { value: 'America/Chicago', label: 'Central Time (CT)' },
+  { value: 'America/Denver', label: 'Mountain Time (MT)' },
+  { value: 'America/Los_Angeles', label: 'Pacific Time (PT)' },
+  { value: 'America/Phoenix', label: 'Arizona (MST)' },
+  { value: 'America/Anchorage', label: 'Alaska (AKT)' },
+  { value: 'Pacific/Honolulu', label: 'Hawaii (HST)' },
+];
+
 export default function RegisterPage() {
   const router = useRouter();
   const { register, isAuthenticated, userRole, checkAuth, isLoading } = useAuthStore();
@@ -131,8 +141,25 @@ export default function RegisterPage() {
                       required
                       disabled={isRegistering}
                     />
-                    <p className="text-xs text-gray-500">Format: +1234567890</p>
+                      <p className="text-xs text-gray-500">Format: +1234567890</p>
                   </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="timezone">Timezone</Label>
+                  <select
+                    id="timezone"
+                    value={formData.timezone}
+                    onChange={(e) => updateField('timezone', e.target.value)}
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    disabled={isRegistering}
+                  >
+                    {TIMEZONES.map((tz) => (
+                      <option key={tz.value} value={tz.value}>
+                        {tz.label}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
 

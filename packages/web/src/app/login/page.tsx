@@ -24,15 +24,9 @@ function LoginPageInner() {
   const [password, setPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [companyName, setCompanyName] = useState('');
-  const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showPasswordChangeModal, setShowPasswordChangeModal] = useState(false);
-
-  // Company field is required for users pool; still show for admin for profile completeness
-  const requiresCompanyName = passwordChangePoolType === 'users';
 
   // Sync email from store if available (for password change flow)
   useEffect(() => {
@@ -169,22 +163,6 @@ function LoginPageInner() {
       return;
     }
 
-    // Require names for all; company required for users pool
-    if (!firstName.trim()) {
-      setError('First name is required');
-      return;
-    }
-
-    if (!lastName.trim()) {
-      setError('Last name is required');
-      return;
-    }
-
-    if (requiresCompanyName && !companyName.trim()) {
-      setError('Company name is required');
-      return;
-    }
-
     if (!passwordChangeSession) {
       setError('Session expired. Please login again.');
       return;
@@ -193,11 +171,7 @@ function LoginPageInner() {
     setIsLoading(true);
 
     try {
-      // Only send company_name for users pool
-      const companyNameToSend = companyName.trim() || undefined;
-      const firstNameToSend = firstName.trim();
-      const lastNameToSend = lastName.trim();
-      await changePassword(email, newPassword, passwordChangeSession!, passwordChangePoolType || undefined, companyNameToSend, firstNameToSend, lastNameToSend);
+      await changePassword(email, newPassword, passwordChangeSession!, passwordChangePoolType || undefined);
       // After password change, log in to establish NextAuth session
       const loginResult = await signIn('credentials', {
         email,
@@ -225,10 +199,6 @@ function LoginPageInner() {
       setShowPasswordChangeModal(false);
       setNewPassword('');
       setConfirmPassword('');
-      setCompanyName('');
-      setFirstName('');
-      setLastName('');
-
       if (loginResult?.url) {
         router.push(loginResult.url);
         return;
@@ -306,8 +276,7 @@ function LoginPageInner() {
             <DialogHeader>
               <DialogTitle>Change Password</DialogTitle>
               <DialogDescription>
-                Your account requires a password change. Please set a new password for your account.
-                {requiresCompanyName && ' You will also need to provide your name and company name.'}
+                Your account requires a password change. Please set a new password to continue.
               </DialogDescription>
             </DialogHeader>
             <form onSubmit={handlePasswordChange}>
@@ -344,50 +313,8 @@ function LoginPageInner() {
                   />
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="first-name">First Name</Label>
-                  <Input
-                    id="first-name"
-                    type="text"
-                    placeholder="Enter your first name"
-                    value={firstName}
-                    onChange={(e) => setFirstName(e.target.value)}
-                    required
-                    disabled={isLoading}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="last-name">Last Name</Label>
-                  <Input
-                    id="last-name"
-                    type="text"
-                    placeholder="Enter your last name"
-                    value={lastName}
-                    onChange={(e) => setLastName(e.target.value)}
-                    required
-                    disabled={isLoading}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="company-name">
-                    Company Name {requiresCompanyName ? <span className="text-destructive">*</span> : <span className="text-muted-foreground">(optional for admins)</span>}
-                  </Label>
-                  <Input
-                    id="company-name"
-                    type="text"
-                    placeholder="Enter your company name"
-                    value={companyName}
-                    onChange={(e) => setCompanyName(e.target.value)}
-                    disabled={isLoading}
-                    required={requiresCompanyName}
-                  />
-                </div>
-
                 <div className="rounded-md bg-secondary p-3 text-sm text-muted-foreground border border-border">
                   Password must be at least 8 characters with uppercase, lowercase, and numbers.
-                  {' Please also provide your name' + (requiresCompanyName ? ' and company name.' : '.') }
                 </div>
               </div>
               <DialogFooter>

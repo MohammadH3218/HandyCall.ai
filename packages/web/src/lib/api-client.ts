@@ -101,12 +101,8 @@ class ApiClient {
     return response.data ?? response;
   }
 
-  async changePassword(email: string, newPassword: string, session: string, poolType: 'users' | 'admin' = 'users', companyName?: string, firstName?: string, lastName?: string): Promise<any> {
+  async changePassword(email: string, newPassword: string, session: string, poolType: 'users' | 'admin' = 'users', firstName?: string, lastName?: string): Promise<any> {
     const body: any = { email, new_password: newPassword, session, pool_type: poolType };
-    // Only include company_name for users pool
-    if (companyName && poolType === 'users') {
-      body.company_name = companyName;
-    }
     // Include first_name and last_name if provided
     if (firstName) {
       body.first_name = firstName;

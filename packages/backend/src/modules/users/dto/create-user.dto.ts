@@ -1,14 +1,38 @@
-import { IsEmail, IsEnum, IsNotEmpty, IsOptional, IsString, MinLength, Matches } from 'class-validator';
-import { UserRole } from '@handycall/shared';
+import { IsEmail, IsEnum, IsNotEmpty, IsOptional, IsString, MinLength, Matches, ValidateIf } from 'class-validator';
+import { UserRole, ServiceType } from '@handycall/shared';
 
 export class CreateUserDto {
+  @ValidateIf((o) => o.pool_type !== 'admin')
   @IsOptional()
   @IsString()
   company_id?: string;
 
-  @IsOptional()
+  @ValidateIf((o) => !o.company_id && o.pool_type !== 'admin')
   @IsString()
+  @IsNotEmpty()
   company_name?: string;
+
+  @ValidateIf((o) => !o.company_id && o.pool_type !== 'admin')
+  @IsEnum(ServiceType)
+  @IsNotEmpty()
+  company_service_type?: ServiceType;
+
+  @ValidateIf((o) => !o.company_id && o.pool_type !== 'admin')
+  @IsEmail()
+  @IsNotEmpty()
+  company_email?: string;
+
+  @ValidateIf((o) => !o.company_id && o.pool_type !== 'admin')
+  @IsString()
+  @Matches(/^\+[1-9]\d{1,14}$/, {
+    message: 'Company phone must be in E.164 format (e.g., +12345678900)',
+  })
+  company_phone?: string;
+
+  @ValidateIf((o) => !o.company_id && o.pool_type !== 'admin')
+  @IsString()
+  @IsNotEmpty()
+  company_timezone?: string;
 
   @IsOptional()
   @IsString()
