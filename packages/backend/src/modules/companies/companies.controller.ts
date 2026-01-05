@@ -31,6 +31,13 @@ export class CompaniesController {
   @Get('me')
   async getMyCompany(@CompanyId() companyId: string): Promise<Company> {
     console.log('[CompaniesController] getMyCompany called with companyId:', companyId);
+
+    // Handle case where user doesn't have a company yet (newly created user)
+    if (companyId === 'no-company' || !companyId) {
+      console.log('[CompaniesController] User has no company yet (temp account)');
+      throw new NotFoundException('User has not completed company setup');
+    }
+
     try {
       const company = await this.companiesService.findById(companyId);
       console.log('[CompaniesController] Company found:', company ? 'yes' : 'no');

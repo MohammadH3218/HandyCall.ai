@@ -341,6 +341,13 @@ export class CognitoService {
     // Default to NOT setting a permanent password so Cognito enforces NEW_PASSWORD_REQUIRED
     const makePasswordPermanent = options?.makePasswordPermanent ?? false;
 
+    console.log('[CognitoService] Creating user:', {
+      email,
+      poolType,
+      hasCompanyId: !!companyId,
+      makePasswordPermanent,
+    });
+
     try {
       const userAttributes = [
         { Name: 'email', Value: email },
@@ -369,9 +376,11 @@ export class CognitoService {
       });
 
       await this.cognitoClient.send(command);
+      console.log('[CognitoService] User created in Cognito (FORCE_CHANGE_PASSWORD state)');
 
       // Set permanent password immediately (skip when we want a forced password change)
       if (makePasswordPermanent) {
+        console.log('[CognitoService] Setting permanent password (user can login immediately)');
         const setPasswordCommand = new AdminSetUserPasswordCommand({
           UserPoolId: poolId,
           Username: email,
@@ -380,6 +389,8 @@ export class CognitoService {
         });
 
         await this.cognitoClient.send(setPasswordCommand);
+      } else {
+        console.log('[CognitoService] Password remains temporary (user must change on first login)');
       }
     } catch (error: any) {
       console.error('[CognitoService] Failed to create user:', error);

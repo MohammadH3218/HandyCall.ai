@@ -78,6 +78,14 @@ export class UsersService {
     // or if an admin is creating them (with a generated/temp password).
     const makePasswordPermanent = !generatePassword && !!password;
 
+    console.log('[UsersService] Creating user:', {
+      email,
+      poolType,
+      generatePassword,
+      hasPassword: !!password,
+      makePasswordPermanent,
+    });
+
     // Create user in Cognito
     const fullName = `${firstName} ${lastName}`;
     await this.cognitoService.createUser(
