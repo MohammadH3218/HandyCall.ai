@@ -31,7 +31,7 @@ export function CreateUserDialog({ open, onOpenChange, onSuccess, preselectedCom
   const [loading, setLoading] = useState(false);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [poolType, setPoolType] = useState<'users' | 'admin'>('users');
-  const [passwordMode, setPasswordMode] = useState<'manual' | 'generate'>('manual');
+  const [passwordMode, setPasswordMode] = useState<'manual' | 'generate'>('generate');
   const [generatedPassword, setGeneratedPassword] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     company_id: preselectedCompanyId || '',
@@ -229,7 +229,7 @@ export function CreateUserDialog({ open, onOpenChange, onSuccess, preselectedCom
 
             <div className="space-y-2 sm:col-span-2">
               <Label htmlFor="company_id">
-                Company {poolType === 'users' && <span className="text-destructive">*</span>}
+                Company <span className="text-muted-foreground text-xs">(select existing or leave blank to let user create)</span>
               </Label>
               <Select
                 value={formData.company_id || undefined}
@@ -301,7 +301,7 @@ export function CreateUserDialog({ open, onOpenChange, onSuccess, preselectedCom
 
             <div className="space-y-2">
               <Label htmlFor="password">
-                Password <span className="text-destructive">*</span>
+                Temporary Password <span className="text-destructive">*</span>
               </Label>
               <div className="flex items-center gap-2">
                 <Select
@@ -329,8 +329,11 @@ export function CreateUserDialog({ open, onOpenChange, onSuccess, preselectedCom
                 <p className="text-sm text-destructive">{errors.password}</p>
               )}
               {generatedPassword && (
-                <p className="text-sm text-primary">Generated password: {generatedPassword}</p>
+                <p className="text-sm text-primary">Temporary password to share: {generatedPassword}</p>
               )}
+              <p className="text-xs text-muted-foreground">
+                Users will be required to change this password on first login and finish setting up their company (name and profile).
+              </p>
             </div>
 
           </div>

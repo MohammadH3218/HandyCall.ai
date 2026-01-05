@@ -327,13 +327,19 @@ export class CognitoService {
     tempPassword: string,
     companyId?: string,
     name?: string,
-    poolType: 'users' | 'admin' = 'users'
+    poolType: 'users' | 'admin' = 'users',
+    options?: {
+      makePasswordPermanent?: boolean;
+    }
   ): Promise<void> {
     const poolId = poolType === 'admin' ? this.adminPoolId : this.usersPoolId;
 
     if (!poolId) {
       throw new BadRequestException(`Pool ${poolType} not configured`);
     }
+
+    // Default to NOT setting a permanent password so Cognito enforces NEW_PASSWORD_REQUIRED
+    const makePasswordPermanent = options?.makePasswordPermanent ?? false;
 
     try {
       const userAttributes = [
@@ -364,15 +370,17 @@ export class CognitoService {
 
       await this.cognitoClient.send(command);
 
-      // Set permanent password immediately
-      const setPasswordCommand = new AdminSetUserPasswordCommand({
-        UserPoolId: poolId,
-        Username: email,
-        Password: tempPassword,
-        Permanent: true,
-      });
+      // Set permanent password immediately (skip when we want a forced password change)
+      if (makePasswordPermanent) {
+        const setPasswordCommand = new AdminSetUserPasswordCommand({
+          UserPoolId: poolId,
+          Username: email,
+          Password: tempPassword,
+          Permanent: true,
+        });
 
-      await this.cognitoClient.send(setPasswordCommand);
+        await this.cognitoClient.send(setPasswordCommand);
+      }
     } catch (error: any) {
       console.error('[CognitoService] Failed to create user:', error);
       throw new BadRequestException(`Failed to create user: ${error.message}`);

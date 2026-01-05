@@ -68,7 +68,9 @@ export class AuthService {
       password,
       firstName,
       lastName,
-      UserRole.OWNER
+      UserRole.OWNER,
+      'users',
+      false
     );
 
     // Create default agent config
@@ -85,55 +87,7 @@ export class AuthService {
     };
   }
 
-  async login(email: string, password: string): Promise<LoginResponse> {
-    // Find user by email
-    const user = await this.usersService.findByEmail(email);
 
-    if (!user) {
-      throw new UnauthorizedException('Invalid credentials');
-    }
-
-    // Validate password
-    const isPasswordValid = await this.usersService.validatePassword(user, password);
-
-    if (!isPasswordValid) {
-      throw new UnauthorizedException('Invalid credentials');
-    }
-
-    // Check if user is active
-    if (!user.is_active) {
-      throw new UnauthorizedException('User account is inactive');
-    }
-
-    // Get company
-    const company = await this.companiesService.findById(user.company_id);
-
-    if (!company) {
-      throw new UnauthorizedException('Company not found');
-    }
-
-    // Check company status
-    if (company.status === 'SUSPENDED' || company.status === 'CANCELLED') {
-      throw new UnauthorizedException('Company account is not active');
-    }
-
-    // Update last login
-    await this.usersService.updateLastLogin(user.company_id, user.user_id);
-
-    // Generate tokens
-    const tokens = this.generateTokens(user.user_id, company.company_id, email, user.role);
-
-    // Remove password_hash from user object
-    const { password_hash, ...userWithoutPassword } = user;
-
-    return {
-      user: userWithoutPassword,
-      company,
-      access_token: tokens.access_token,
-      refresh_token: tokens.refresh_token,
-      expires_in: parseInt(this.configService.get<string>('JWT_EXPIRES_IN') || '3600'),
-    };
-  }
 
   async refreshToken(refreshToken: string): Promise<RefreshTokenResponse> {
     try {
@@ -461,21 +415,19 @@ export class AuthService {
             const userLastName = lastName || result.userAttributes?.['family_name'] || result.userAttributes?.['name']?.split(' ').slice(1).join(' ') || '';
 
             if (!existingUser) {
+              // Create a DB-only record for tracking (Cognito already has the user)
               await this.usersService.createUser(
                 company.company_id,
                 email,
-                '', // Password not needed, using Cognito
+                this.generateTemporaryPlaceholderPassword(),
                 userFirstName,
                 userLastName,
-                UserRole.OWNER
+                UserRole.OWNER,
+                'users',
+                false
               );
             } else if (existingUser.company_id !== company.company_id) {
-              await this.usersService.updateUser(company.company_id, existingUser.user_id, {
-                company_id: company.company_id,
-                first_name: userFirstName,
-                last_name: userLastName,
-                role: existingUser.role || UserRole.OWNER,
-              } as any);
+              await this.usersService.moveUserToCompany(existingUser, company.company_id, userFirstName, userLastName);
             }
           } catch (userError) {
             console.warn('[AuthService] Failed to upsert user record in DynamoDB:', userError);
@@ -636,5 +588,10 @@ export class AuthService {
       email,
       company_id: companyId,
     };
+  }
+
+  private generateTemporaryPlaceholderPassword(): string {
+    // Strong placeholder used only to satisfy validation when creating DB record after Cognito signup
+    return 'Tmp!' + Math.random().toString(36).slice(2, 10) + 'Aa1';
   }
 }

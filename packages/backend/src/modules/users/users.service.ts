@@ -3,7 +3,6 @@ import { DynamoDBService } from '../../infrastructure/database/dynamodb.service'
 import { CognitoService } from '../auth/cognito.service';
 import { User, UserRole } from '@handycall/shared';
 import { v4 as uuidv4 } from 'uuid';
-import * as bcrypt from 'bcrypt';
 import { randomBytes } from 'crypto';
 
 @Injectable()
@@ -60,7 +59,6 @@ export class UsersService {
     }
 
     const userId = uuidv4();
-    const passwordHash = await bcrypt.hash(resolvedPassword, 10);
     const timestamp = Date.now();
 
     const user: User = {
@@ -76,6 +74,10 @@ export class UsersService {
       updated_at: timestamp,
     };
 
+    // This logic determines if the user is self-registering (and provides a password)
+    // or if an admin is creating them (with a generated/temp password).
+    const makePasswordPermanent = !generatePassword && !!password;
+
     // Create user in Cognito
     const fullName = `${firstName} ${lastName}`;
     await this.cognitoService.createUser(
@@ -83,19 +85,22 @@ export class UsersService {
       resolvedPassword,
       isAdminPool ? undefined : (companyId || undefined),
       fullName,
-      poolType
+      poolType,
+      { makePasswordPermanent }
     );
 
-    // Store user with password hash (password_hash not in User type, stored separately)
+    // Store user data. No password hash stored.
     const dbUser = {
       ...user,
-      password_hash: passwordHash,
       pool_type: poolType,
     };
 
     await this.dynamodb.put(this.tableName, dbUser);
 
-    return { user, temporary_password: generatePassword ? resolvedPassword : undefined };
+    // Only return a temporary password if one was generated.
+    const tempPassword = generatePassword ? resolvedPassword : undefined;
+
+    return { user, temporary_password: tempPassword };
   }
 
   private generateSecurePassword(): string {
@@ -111,7 +116,7 @@ export class UsersService {
     return pwd;
   }
 
-  async findByEmail(email: string): Promise<(User & { password_hash: string }) | null> {
+  async findByEmail(email: string): Promise<User | null> {
     // The email-index in production uses company_id as the partition key and email as the sort key.
     // Since we don't always have company_id, fall back to a small scan with a filter on email.
     const result = await this.dynamodb.scan(this.tableName, {
@@ -121,13 +126,18 @@ export class UsersService {
       limit: 1,
     });
 
-    return result.items.length > 0 ? (result.items[0] as any) : null;
+    if (result.items.length === 0) {
+        return null;
+    }
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { password_hash, ...user } = result.items[0] as any;
+    return user as User;
   }
 
   async findByEmailForCompany(
     email: string,
     companyId: string
-  ): Promise<(User & { password_hash: string }) | null> {
+  ): Promise<User | null> {
     // Production email index keys differ; safest is a filtered scan scoped by company_id + email.
     const result = await this.dynamodb.scan(this.tableName, {
       filterExpression: '#company_id = :company_id AND #email = :email',
@@ -136,7 +146,12 @@ export class UsersService {
       limit: 1,
     });
 
-    return result.items.length > 0 ? (result.items[0] as any) : null;
+    if (result.items.length === 0) {
+        return null;
+    }
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { password_hash, ...user } = result.items[0] as any;
+    return user as User;
   }
 
   async findById(companyId: string, userId: string): Promise<User | null> {
@@ -150,12 +165,9 @@ export class UsersService {
     }
 
     // Remove password_hash from response
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { password_hash, ...userWithoutPassword } = user as any;
     return userWithoutPassword as User;
-  }
-
-  async validatePassword(user: User & { password_hash: string }, password: string): Promise<boolean> {
-    return bcrypt.compare(password, user.password_hash);
   }
 
   async updateLastLogin(companyId: string, userId: string): Promise<void> {
@@ -176,6 +188,7 @@ export class UsersService {
 
     // Remove password hashes from all users
     return result.items.map((user: any) => {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { password_hash, ...userWithoutPassword } = user;
       return userWithoutPassword as User;
     });
@@ -189,6 +202,7 @@ export class UsersService {
 
     // Remove password hashes from all users
     return result.items.map((user: any) => {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { password_hash, ...userWithoutPassword } = user;
       return userWithoutPassword as User;
     });
@@ -226,6 +240,7 @@ export class UsersService {
       updatedData
     );
 
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { password_hash, ...userWithoutPassword } = result as any;
     return userWithoutPassword as User;
   }
@@ -275,6 +290,7 @@ export class UsersService {
       { is_active: false, updated_at: Date.now() }
     );
 
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { password_hash, ...userWithoutPassword } = result as any;
     return userWithoutPassword as User;
   }
@@ -303,7 +319,40 @@ export class UsersService {
       { is_active: true, updated_at: Date.now() }
     );
 
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { password_hash, ...userWithoutPassword } = result as any;
+    return userWithoutPassword as User;
+  }
+
+  /**
+   * Move an existing user record to a new company_id (used after initial setup)
+   */
+  async moveUserToCompany(
+    existingUser: any,
+    newCompanyId: string,
+    firstName?: string,
+    lastName?: string
+  ): Promise<User> {
+    const timestamp = Date.now();
+
+    // Remove old record keyed by previous company_id
+    await this.dynamodb.delete(this.tableName, {
+      company_id: existingUser.company_id,
+      user_id: existingUser.user_id,
+    });
+
+    const updatedRecord = {
+      ...existingUser,
+      company_id: newCompanyId,
+      first_name: firstName || existingUser.first_name,
+      last_name: lastName || existingUser.last_name,
+      updated_at: timestamp,
+    };
+
+    await this.dynamodb.put(this.tableName, updatedRecord);
+
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { password_hash, ...userWithoutPassword } = updatedRecord as any;
     return userWithoutPassword as User;
   }
 }
