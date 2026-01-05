@@ -1,9 +1,10 @@
-import { Injectable, ConflictException, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, ConflictException, NotFoundException, BadRequestException, Inject, forwardRef } from '@nestjs/common';
 import { DynamoDBService } from '../../infrastructure/database/dynamodb.service';
 import { CognitoService } from '../auth/cognito.service';
-import { User, UserRole } from '@handycall/shared';
+import { User, UserRole, ServiceType } from '@handycall/shared';
 import { v4 as uuidv4 } from 'uuid';
 import { randomBytes } from 'crypto';
+import { CompaniesService } from '../companies/companies.service';
 
 @Injectable()
 export class UsersService {
@@ -11,37 +12,44 @@ export class UsersService {
 
   constructor(
     private dynamodb: DynamoDBService,
-    private cognitoService: CognitoService
+    private cognitoService: CognitoService,
+    @Inject(forwardRef(() => CompaniesService))
+    private companiesService: CompaniesService
   ) {}
 
   async createUser(
     companyId: string | undefined,
+    companyName: string | undefined,
     email: string,
-    password: string | undefined,
+    password: string,
     firstName: string,
     lastName: string,
     role: UserRole | undefined,
-    poolType: 'users' | 'admin' = 'users',
-    generatePassword = false
-  ): Promise<{ user: User; temporary_password?: string }> {
+    poolType: 'users' | 'admin' = 'users'
+  ): Promise<{ user: User }> {
     const isAdminPool = poolType === 'admin';
 
-    // Admin pool users do not belong to a tenant; use a platform placeholder
-    // Customer users without a company yet get a temporary placeholder; will be updated after setup.
-    const resolvedCompanyId = isAdminPool ? 'platform-admin' : companyId || 'no-company';
-    const resolvedRole = isAdminPool ? UserRole.ADMIN : role || UserRole.OWNER;
-
-    // Generate a secure random password if not provided
-    const resolvedPassword =
-      password && password.length > 0
-        ? password
-        : generatePassword
-        ? this.generateSecurePassword()
-        : null;
-
-    if (!resolvedPassword) {
-      throw new BadRequestException('Password is required unless generate_password is true');
+    // If company_name is provided but no company_id, create a new company
+    let resolvedCompanyId: string;
+    if (isAdminPool) {
+      resolvedCompanyId = 'platform-admin';
+    } else if (companyId) {
+      resolvedCompanyId = companyId;
+    } else if (companyName) {
+      // Create new company
+      const newCompany = await this.companiesService.createCompany(
+        companyName,
+        ServiceType.HANDYMAN, // Default service type
+        email,
+        '+10000000000', // Placeholder phone, user can update later
+        'America/New_York' // Default timezone
+      );
+      resolvedCompanyId = newCompany.company_id;
+    } else {
+      throw new BadRequestException('Either company_id or company_name must be provided for customer users');
     }
+
+    const resolvedRole = isAdminPool ? UserRole.ADMIN : role || UserRole.OWNER;
 
     // Check if user with email already exists
     const existingUser = await this.findByEmail(email);
@@ -74,28 +82,35 @@ export class UsersService {
       updated_at: timestamp,
     };
 
-    // This logic determines if the user is self-registering (and provides a password)
-    // or if an admin is creating them (with a generated/temp password).
-    const makePasswordPermanent = !generatePassword && !!password;
+    // Always set password as permanent - users can change later in settings
+    const makePasswordPermanent = true;
 
     console.log('[UsersService] Creating user:', {
       email,
       poolType,
-      generatePassword,
-      hasPassword: !!password,
+      companyId: resolvedCompanyId,
       makePasswordPermanent,
     });
 
-    // Create user in Cognito
+    // Create user in Cognito with proper attributes
     const fullName = `${firstName} ${lastName}`;
     await this.cognitoService.createUser(
       email,
-      resolvedPassword,
-      isAdminPool ? undefined : (companyId || undefined),
+      password,
+      isAdminPool ? undefined : resolvedCompanyId,
       fullName,
       poolType,
       { makePasswordPermanent }
     );
+
+    // Update Cognito custom attributes with company name if provided
+    if (!isAdminPool && companyName) {
+      await this.cognitoService.updateUserAttributes(
+        email,
+        { 'custom:company_name': companyName },
+        poolType
+      );
+    }
 
     // Store user data. No password hash stored.
     const dbUser = {
@@ -105,10 +120,7 @@ export class UsersService {
 
     await this.dynamodb.put(this.tableName, dbUser);
 
-    // Only return a temporary password if one was generated.
-    const tempPassword = generatePassword ? resolvedPassword : undefined;
-
-    return { user, temporary_password: tempPassword };
+    return { user };
   }
 
   private generateSecurePassword(): string {

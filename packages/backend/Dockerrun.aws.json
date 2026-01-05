@@ -1,7 +1,7 @@
 {
   "AWSEBDockerrunVersion": "1",
   "Image": {
-    "Name": "982081079378.dkr.ecr.us-east-1.amazonaws.com/handycall-backend:20260104-202630-admin-pool-user",
+    "Name": "982081079378.dkr.ecr.us-east-1.amazonaws.com/handycall-backend:20260105-235003-admin-role-fix",
     "Update": "true"
   },
   "Ports": [

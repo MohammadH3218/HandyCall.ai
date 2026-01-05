@@ -145,11 +145,13 @@ export class CompaniesController {
 
       await this.usersService.createUser(
         company.company_id,
+        undefined, // companyName - already have company_id
         dto.initial_admin_email,
         dto.initial_admin_password,
         firstName,
         lastName,
-        UserRole.OWNER
+        UserRole.OWNER,
+        'users'
       );
     }
 

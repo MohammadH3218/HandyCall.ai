@@ -289,7 +289,13 @@
       "Bash(powershell -Command:*)",
       "Bash(aws cognito-idp admin-delete-user:*)",
       "Bash(aws dynamodb delete-item:*)",
-      "Bash(aws amplify list-branches:*)"
+      "Bash(aws amplify list-branches:*)",
+      "Bash(git checkout:*)",
+      "Bash(npm run deploy:prod:*)",
+      "Bash(tee:*)",
+      "Bash(npm run:*)",
+      "Bash(powershell -Command \"Compress-Archive -Path Dockerrun.aws.json -DestinationPath backend-20260105-232741-admin-role-fix.zip -Force\")",
+      "Bash(do sleep 15)"
     ]
   }
 }

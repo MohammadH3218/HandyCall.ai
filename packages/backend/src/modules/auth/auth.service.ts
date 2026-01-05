@@ -64,13 +64,13 @@ export class AuthService {
     // Create owner user
     const { user } = await this.usersService.createUser(
       company.company_id,
+      undefined, // companyName - already have company_id
       email,
       password,
       firstName,
       lastName,
       UserRole.OWNER,
-      'users',
-      false
+      'users'
     );
 
     // Create default agent config
@@ -418,13 +418,13 @@ export class AuthService {
               // Create a DB-only record for tracking (Cognito already has the user)
               await this.usersService.createUser(
                 company.company_id,
+                undefined, // companyName - already have company_id
                 email,
                 this.generateTemporaryPlaceholderPassword(),
                 userFirstName,
                 userLastName,
                 UserRole.OWNER,
-                'users',
-                false
+                'users'
               );
             } else if (existingUser.company_id !== company.company_id) {
               await this.usersService.moveUserToCompany(existingUser, company.company_id, userFirstName, userLastName);

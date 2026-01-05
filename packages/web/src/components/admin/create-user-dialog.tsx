@@ -31,10 +31,9 @@ export function CreateUserDialog({ open, onOpenChange, onSuccess, preselectedCom
   const [loading, setLoading] = useState(false);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [poolType, setPoolType] = useState<'users' | 'admin'>('users');
-  const [passwordMode, setPasswordMode] = useState<'manual' | 'generate'>('generate');
-  const [generatedPassword, setGeneratedPassword] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     company_id: preselectedCompanyId || '',
+    company_name: '',
     email: '',
     password: '',
     first_name: '',
@@ -88,14 +87,17 @@ export function CreateUserDialog({ open, onOpenChange, onSuccess, preselectedCom
       newErrors.email = 'Invalid email format';
     }
 
-    if (passwordMode === 'manual') {
-      if (!formData.password) {
-        newErrors.password = 'Password is required';
-      } else if (formData.password.length < 8) {
-        newErrors.password = 'Password must be at least 8 characters';
-      } else if (!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(formData.password)) {
-        newErrors.password = 'Password must contain uppercase, lowercase, and number';
-      }
+    if (!formData.password) {
+      newErrors.password = 'Password is required';
+    } else if (formData.password.length < 8) {
+      newErrors.password = 'Password must be at least 8 characters';
+    } else if (!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(formData.password)) {
+      newErrors.password = 'Password must contain uppercase, lowercase, and number';
+    }
+
+    // Either company_id OR company_name must be provided for customer users
+    if (poolType === 'users' && !formData.company_id && !formData.company_name.trim()) {
+      newErrors.company = 'Please select an existing company or enter a new company name';
     }
 
     if (!formData.first_name.trim()) {
@@ -118,19 +120,25 @@ export function CreateUserDialog({ open, onOpenChange, onSuccess, preselectedCom
     }
 
     setLoading(true);
-    setGeneratedPassword(null);
 
     try {
       const payload: any = {
-        company_id: poolType === 'users' ? formData.company_id || undefined : undefined,
         pool_type: poolType,
         email: formData.email,
-        password: passwordMode === 'manual' ? formData.password : undefined,
-        generate_password: passwordMode === 'generate',
+        password: formData.password,
         first_name: formData.first_name,
         last_name: formData.last_name,
-        // Role and phone are omitted; backend will default role based on pool type
       };
+
+      // For customer users, include company info
+      if (poolType === 'users') {
+        if (formData.company_id) {
+          payload.company_id = formData.company_id;
+        }
+        if (formData.company_name) {
+          payload.company_name = formData.company_name;
+        }
+      }
 
       // Primary: cookie auth via proxy
       let response = await fetch(`/api/proxy/users`, {
@@ -161,28 +169,22 @@ export function CreateUserDialog({ open, onOpenChange, onSuccess, preselectedCom
         throw new Error(error.message || 'Failed to create user');
       }
 
-      const result = await response.json();
-      const tempPassword = result.temporary_password as string | undefined;
-
       toast({
         title: 'Success',
         description: 'User created successfully',
       });
 
-      if (tempPassword) {
-        setGeneratedPassword(tempPassword);
-      }
-
       setFormData({
         company_id: preselectedCompanyId || '',
+        company_name: '',
         email: '',
         password: '',
         first_name: '',
         last_name: '',
       });
-      setPasswordMode('manual');
 
       onSuccess?.();
+      onOpenChange(false);
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -227,33 +229,57 @@ export function CreateUserDialog({ open, onOpenChange, onSuccess, preselectedCom
               </Select>
             </div>
 
-            <div className="space-y-2 sm:col-span-2">
-              <Label htmlFor="company_id">
-                Company <span className="text-muted-foreground text-xs">(select existing or leave blank to let user create)</span>
-              </Label>
-              <Select
-                value={formData.company_id || undefined}
-                onValueChange={(value) => setFormData({ ...formData, company_id: value })}
-                disabled={!!preselectedCompanyId || poolType === 'admin'}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder={poolType === 'admin' ? 'Optional for admin' : 'Select company (optional)'} />
-                </SelectTrigger>
-                <SelectContent>
-                  {companies.length === 0 ? (
-                    <div className="px-3 py-2 text-sm text-muted-foreground">
-                      No companies available
-                    </div>
-                  ) : (
-                    companies.map((company) => (
-                      <SelectItem key={company.company_id} value={company.company_id}>
-                        {company.company_name}
-                      </SelectItem>
-                    ))
+            {poolType === 'users' && (
+              <>
+                <div className="space-y-2 sm:col-span-2">
+                  <Label htmlFor="company_id">
+                    Existing Company <span className="text-muted-foreground text-xs">(select if user belongs to existing company)</span>
+                  </Label>
+                  <Select
+                    value={formData.company_id || undefined}
+                    onValueChange={(value) => {
+                      setFormData({ ...formData, company_id: value, company_name: '' });
+                    }}
+                    disabled={!!preselectedCompanyId || !!formData.company_name}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select existing company (optional)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {companies.length === 0 ? (
+                        <div className="px-3 py-2 text-sm text-muted-foreground">
+                          No companies available
+                        </div>
+                      ) : (
+                        companies.map((company) => (
+                          <SelectItem key={company.company_id} value={company.company_id}>
+                            {company.company_name}
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2 sm:col-span-2">
+                  <Label htmlFor="company_name">
+                    Or New Company Name <span className="text-muted-foreground text-xs">(enter to create new company)</span>
+                  </Label>
+                  <Input
+                    id="company_name"
+                    value={formData.company_name}
+                    onChange={(e) => {
+                      setFormData({ ...formData, company_name: e.target.value, company_id: '' });
+                    }}
+                    placeholder="Acme Inc."
+                    disabled={!!formData.company_id}
+                  />
+                  {errors.company && (
+                    <p className="text-sm text-destructive">{errors.company}</p>
                   )}
-                </SelectContent>
-              </Select>
-            </div>
+                </div>
+              </>
+            )}
 
             <div className="space-y-2">
               <Label htmlFor="first_name">
@@ -301,38 +327,20 @@ export function CreateUserDialog({ open, onOpenChange, onSuccess, preselectedCom
 
             <div className="space-y-2">
               <Label htmlFor="password">
-                Temporary Password <span className="text-destructive">*</span>
+                Password <span className="text-destructive">*</span>
               </Label>
-              <div className="flex items-center gap-2">
-                <Select
-                  value={passwordMode}
-                  onValueChange={(value) => setPasswordMode(value as 'manual' | 'generate')}
-                >
-                  <SelectTrigger className="w-40">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="manual">Set password</SelectItem>
-                    <SelectItem value="generate">Generate</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Input
-                  id="password"
-                  type="text"
-                  disabled={passwordMode === 'generate'}
-                  value={passwordMode === 'generate' ? 'Will be generated' : formData.password}
-                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  placeholder="Strong temporary password"
-                />
-              </div>
+              <Input
+                id="password"
+                type="text"
+                value={formData.password}
+                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                placeholder="Strong password (min 8 chars, uppercase, lowercase, number)"
+              />
               {errors.password && (
                 <p className="text-sm text-destructive">{errors.password}</p>
               )}
-              {generatedPassword && (
-                <p className="text-sm text-primary">Temporary password to share: {generatedPassword}</p>
-              )}
               <p className="text-xs text-muted-foreground">
-                Users will be required to change this password on first login and finish setting up their company (name and profile).
+                User can change this password later in their settings.
               </p>
             </div>
 
