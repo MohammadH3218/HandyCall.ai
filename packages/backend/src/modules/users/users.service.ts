@@ -71,7 +71,8 @@ export class UsersService {
         companyServiceType,
         companyEmail,
         formattedPhone,
-        companyTimezone
+        companyTimezone,
+        { allowExisting: true }
       );
       resolvedCompanyId = newCompany.company_id;
       companyName = newCompany.company_name;

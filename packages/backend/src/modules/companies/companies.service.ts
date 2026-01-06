@@ -28,17 +28,24 @@ export class CompaniesService {
     serviceType: ServiceType,
     email: string,
     phoneNumber: string,
-    timezone: string
+    timezone: string,
+    options?: { allowExisting?: boolean }
   ): Promise<Company> {
     // Check if company with email already exists
     const existingByEmail = await this.findByEmail(email);
     if (existingByEmail) {
+      if (options?.allowExisting) {
+        return existingByEmail;
+      }
       throw new ConflictException('Company with this email already exists');
     }
 
     // Check if company with phone already exists
     const existingByPhone = await this.findByPhone(phoneNumber);
     if (existingByPhone) {
+      if (options?.allowExisting) {
+        return existingByPhone;
+      }
       throw new ConflictException('Company with this phone number already exists');
     }
 
