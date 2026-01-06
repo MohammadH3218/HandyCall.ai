@@ -1,14 +1,14 @@
 {
-  "AWSEBDockerrunVersion": "1",
-  "Image": {
-    "Name": "982081079378.dkr.ecr.us-east-1.amazonaws.com/handycall-backend:20260106-051806-debug-duplicate-check",
-    "Update": "true"
-  },
-  "Ports": [
-    {
-      "ContainerPort": 8080,
-      "HostPort": 80
-    }
-  ],
-  "Logging": "/var/log/nginx"
+    "Logging":  "/var/log/nginx",
+    "Ports":  [
+                  {
+                      "HostPort":  "80",
+                      "ContainerPort":  "8080"
+                  }
+              ],
+    "AWSEBDockerrunVersion":  "1",
+    "Image":  {
+                  "Name":  "982081079378.dkr.ecr.us-east-1.amazonaws.com/handycall-backend:20260106-065912-deploy",
+                  "Update":  "true"
+              }
 }
