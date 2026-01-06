@@ -66,6 +66,7 @@ export function CreateUserDialog({ open, onOpenChange, onSuccess, preselectedCom
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [serverError, setServerError] = useState('');
 
   useEffect(() => {
     if (open) {
@@ -158,6 +159,7 @@ export function CreateUserDialog({ open, onOpenChange, onSuccess, preselectedCom
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setServerError('');
 
     if (!validateForm()) {
       return;
@@ -213,7 +215,14 @@ export function CreateUserDialog({ open, onOpenChange, onSuccess, preselectedCom
 
       if (!response.ok) {
         const error = await response.json().catch(() => ({}));
-        throw new Error(error.message || 'Failed to create user');
+        const fields = (error as any)?.fields || {};
+        setErrors((prev) => ({ ...prev, ...fields }));
+        const topMessage =
+          error.message ||
+          Object.values(fields)[0] ||
+          'Failed to create user';
+        setServerError(topMessage);
+        throw new Error(topMessage);
       }
 
       toast({
@@ -258,6 +267,11 @@ export function CreateUserDialog({ open, onOpenChange, onSuccess, preselectedCom
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          {serverError && (
+            <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+              {serverError}
+            </div>
+          )}
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2 sm:col-span-2">
               <Label>User Type</Label>
@@ -333,26 +347,26 @@ export function CreateUserDialog({ open, onOpenChange, onSuccess, preselectedCom
                     Or New Company Name <span className="text-muted-foreground text-xs">(enter to create new company)</span>
                   </Label>
                   <Input
-                    id="company_name"
-                    value={formData.company_name}
-                    onChange={(e) => {
-                      setFormData({
-                        ...formData,
-                        company_name: e.target.value,
-                        company_id: '',
-                      });
-                    }}
-                    placeholder="Acme Inc."
-                    disabled={!!formData.company_id}
-                  />
-                  {errors.company_name && (
-                    <p className="text-sm text-destructive">{errors.company_name}</p>
-                  )}
-                </div>
+                id="company_name"
+                value={formData.company_name}
+                onChange={(e) => {
+                  setFormData({
+                    ...formData,
+                    company_name: e.target.value,
+                    company_id: '',
+                  });
+                }}
+                placeholder="Acme Inc."
+                disabled={!!formData.company_id}
+              />
+              {errors.company_name && (
+                <p className="text-sm text-destructive">{errors.company_name}</p>
+              )}
+            </div>
 
-                {!formData.company_id && (
-                  <>
-                    <div className="grid gap-4 sm:grid-cols-2 sm:col-span-2">
+            {!formData.company_id && (
+              <>
+                <div className="grid gap-4 sm:grid-cols-2 sm:col-span-2">
                       <div className="space-y-2">
                         <Label htmlFor="company_service_type">Service Type</Label>
                         <Select

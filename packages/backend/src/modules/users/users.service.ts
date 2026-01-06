@@ -52,6 +52,15 @@ export class UsersService {
         throw new BadRequestException('Company details are required when creating a new company');
       }
 
+      // Check for duplicate user email up front
+      const existingUser = await this.findByEmail(email);
+      if (existingUser) {
+        throw new ConflictException({
+          message: 'User with this email already exists',
+          fields: { email: 'User with this email already exists' },
+        });
+      }
+
       if (!isValidEmail(companyEmail)) {
         throw new BadRequestException('Invalid company email');
       }
@@ -71,8 +80,7 @@ export class UsersService {
         companyServiceType,
         companyEmail,
         formattedPhone,
-        companyTimezone,
-        { allowExisting: true }
+        companyTimezone
       );
       resolvedCompanyId = newCompany.company_id;
       companyName = newCompany.company_name;
@@ -82,7 +90,7 @@ export class UsersService {
 
     const resolvedRole = isAdminPool ? UserRole.ADMIN : role || UserRole.OWNER;
 
-    // Check if user with email already exists
+    // Check if user with email already exists (for existing company path)
     const existingUser = await this.findByEmail(email);
     if (existingUser) {
       // If Cognito doesn't have this user, treat it as stale and remove from DynamoDB
@@ -93,7 +101,10 @@ export class UsersService {
           user_id: existingUser.user_id,
         });
       } else {
-        throw new ConflictException('User with this email already exists');
+        throw new ConflictException({
+          message: 'User with this email already exists',
+          fields: { email: 'User with this email already exists' },
+        });
       }
     }
 
@@ -149,7 +160,17 @@ export class UsersService {
       pool_type: poolType,
     };
 
-    await this.dynamodb.put(this.tableName, dbUser);
+    try {
+      await this.dynamodb.put(this.tableName, dbUser);
+    } catch (dbErr) {
+      // Roll back Cognito user to avoid orphaned identities
+      try {
+        await this.cognitoService.deleteUser(email, poolType);
+      } catch (rollbackErr) {
+        console.error('[UsersService] Failed to rollback Cognito user after DB error:', rollbackErr);
+      }
+      throw dbErr;
+    }
 
     return { user };
   }

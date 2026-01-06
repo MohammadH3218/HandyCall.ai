@@ -23,6 +23,22 @@ export class CompaniesService {
 
   constructor(private dynamodb: DynamoDBService) {}
 
+  async findByName(companyName: string): Promise<Company | null> {
+    // Case-insensitive match via scan (tables are small enough for admin operations)
+    const result = await this.dynamodb.scan(this.tableName, {
+      filterExpression: 'contains(#name, :name)',
+      expressionAttributeNames: { '#name': 'company_name' },
+      expressionAttributeValues: { ':name': companyName },
+      limit: 5,
+    });
+
+    return (
+      result.items.find(
+        (item: any) => item.company_name?.toLowerCase() === companyName.toLowerCase()
+      ) as Company | null
+    ) ?? null;
+  }
+
   async createCompany(
     companyName: string,
     serviceType: ServiceType,
@@ -31,22 +47,35 @@ export class CompaniesService {
     timezone: string,
     options?: { allowExisting?: boolean }
   ): Promise<Company> {
+    // Collect conflicts to report them all at once
+    const conflicts: Record<string, string> = {};
+
     // Check if company with email already exists
     const existingByEmail = await this.findByEmail(email);
     if (existingByEmail) {
-      if (options?.allowExisting) {
-        return existingByEmail;
-      }
-      throw new ConflictException('Company with this email already exists');
+      if (options?.allowExisting) return existingByEmail;
+      conflicts.email = 'Company with this email already exists';
     }
 
     // Check if company with phone already exists
     const existingByPhone = await this.findByPhone(phoneNumber);
     if (existingByPhone) {
-      if (options?.allowExisting) {
-        return existingByPhone;
-      }
-      throw new ConflictException('Company with this phone number already exists');
+      if (options?.allowExisting) return existingByPhone;
+      conflicts.phone_number = 'Company with this phone number already exists';
+    }
+
+    // Check company name uniqueness (case-insensitive)
+    const existingByName = await this.findByName(companyName);
+    if (existingByName) {
+      if (options?.allowExisting) return existingByName;
+      conflicts.company_name = 'Company with this name already exists';
+    }
+
+    if (Object.keys(conflicts).length > 0) {
+      throw new ConflictException({
+        message: 'Company already exists',
+        fields: conflicts,
+      });
     }
 
     const companyId = uuidv4();
