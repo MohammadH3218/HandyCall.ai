@@ -41,6 +41,16 @@ export class UsersService {
   ): Promise<{ user: User }> {
     const isAdminPool = poolType === 'admin';
 
+    // Early duplicate check across DynamoDB and Cognito
+    const existingUser = await this.findByEmail(email);
+    const cognitoUserExists = await this.cognitoService.userExists(email, poolType).catch(() => false);
+    if (existingUser || cognitoUserExists) {
+      throw new ConflictException({
+        message: 'User with this email already exists',
+        fields: { email: 'User with this email already exists' },
+      });
+    }
+
     // If company_name is provided but no company_id, create a new company
     let resolvedCompanyId: string;
     if (isAdminPool) {
@@ -50,15 +60,6 @@ export class UsersService {
     } else if (companyName) {
       if (!companyServiceType || !companyEmail || !companyPhone || !companyTimezone) {
         throw new BadRequestException('Company details are required when creating a new company');
-      }
-
-      // Check for duplicate user email up front
-      const existingUser = await this.findByEmail(email);
-      if (existingUser) {
-        throw new ConflictException({
-          message: 'User with this email already exists',
-          fields: { email: 'User with this email already exists' },
-        });
       }
 
       if (!isValidEmail(companyEmail)) {
@@ -89,24 +90,6 @@ export class UsersService {
     }
 
     const resolvedRole = isAdminPool ? UserRole.ADMIN : role || UserRole.OWNER;
-
-    // Check if user with email already exists (for existing company path)
-    const existingUser = await this.findByEmail(email);
-    if (existingUser) {
-      // If Cognito doesn't have this user, treat it as stale and remove from DynamoDB
-      const cognitoUserExists = await this.cognitoService.userExists(email, poolType).catch(() => true);
-      if (!cognitoUserExists) {
-        await this.dynamodb.delete(this.tableName, {
-          company_id: existingUser.company_id,
-          user_id: existingUser.user_id,
-        });
-      } else {
-        throw new ConflictException({
-          message: 'User with this email already exists',
-          fields: { email: 'User with this email already exists' },
-        });
-      }
-    }
 
     const userId = uuidv4();
     const timestamp = Date.now();
