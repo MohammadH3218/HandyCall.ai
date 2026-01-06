@@ -79,25 +79,25 @@ export class CompaniesService {
   }
 
   async findByEmail(email: string): Promise<Company | null> {
-    const result = await this.dynamodb.query(
-      this.tableName,
-      '#email = :email',
-      { '#email': 'email' },
-      { ':email': email },
-      { indexName: 'email-index', limit: 1 }
-    );
+    // Production email index uses company_id as the partition key; safest is a filtered scan by email.
+    const result = await this.dynamodb.scan(this.tableName, {
+      filterExpression: '#email = :email',
+      expressionAttributeNames: { '#email': 'email' },
+      expressionAttributeValues: { ':email': email },
+      limit: 1,
+    });
 
     return result.items.length > 0 ? (result.items[0] as Company) : null;
   }
 
   async findByPhone(phoneNumber: string): Promise<Company | null> {
-    const result = await this.dynamodb.query(
-      this.tableName,
-      '#phone_number = :phone_number',
-      { '#phone_number': 'phone_number' },
-      { ':phone_number': phoneNumber },
-      { indexName: 'phone-index', limit: 1 }
-    );
+    // Phone index keys differ between environments; use filtered scan to avoid key schema issues.
+    const result = await this.dynamodb.scan(this.tableName, {
+      filterExpression: '#phone_number = :phone_number',
+      expressionAttributeNames: { '#phone_number': 'phone_number' },
+      expressionAttributeValues: { ':phone_number': phoneNumber },
+      limit: 1,
+    });
 
     return result.items.length > 0 ? (result.items[0] as Company) : null;
   }
