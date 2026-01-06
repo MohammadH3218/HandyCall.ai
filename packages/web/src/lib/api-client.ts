@@ -339,6 +339,81 @@ class ApiClient {
     });
     return response.data ?? response;
   }
+
+  // Billing endpoints
+  async createSetupIntent(): Promise<{ client_secret: string }> {
+    const response = await this.request<{ client_secret: string }>('/billing/setup-intent', {
+      method: 'POST',
+    });
+    return response.data!;
+  }
+
+  async createSubscription(data: { plan: string; payment_method_id: string }): Promise<any> {
+    const response = await this.request<any>('/billing/subscription', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    return response.data ?? response;
+  }
+
+  async getMySubscription(): Promise<any> {
+    const response = await this.request<any>('/billing/subscription', {
+      method: 'GET',
+    });
+    return response.data ?? response;
+  }
+
+  async updateSubscription(data: { plan: string }): Promise<any> {
+    const response = await this.request<any>('/billing/subscription', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+    return response.data ?? response;
+  }
+
+  async cancelSubscription(): Promise<any> {
+    const response = await this.request<any>('/billing/subscription', {
+      method: 'DELETE',
+    });
+    return response.data ?? response;
+  }
+
+  async getUsageMetrics(): Promise<any> {
+    const response = await this.request<any>('/billing/usage', {
+      method: 'GET',
+    });
+    return response.data ?? response;
+  }
+
+  async getInvoices(): Promise<any[]> {
+    const response = await this.request<any[]>('/billing/invoices', {
+      method: 'GET',
+    });
+    return response.data || [];
+  }
+
+  async updatePaymentMethod(paymentMethodId: string): Promise<any> {
+    const response = await this.request<any>('/billing/payment-method', {
+      method: 'PUT',
+      body: JSON.stringify({ payment_method_id: paymentMethodId }),
+    });
+    return response.data ?? response;
+  }
+
+  // Admin billing endpoints
+  async getAdminSubscriptions(): Promise<any[]> {
+    const response = await this.request<any[]>('/billing/admin/subscriptions', {
+      method: 'GET',
+    });
+    return response.data || [];
+  }
+
+  async getAdminRevenueMetrics(): Promise<any> {
+    const response = await this.request<any>('/billing/admin/revenue', {
+      method: 'GET',
+    });
+    return response.data ?? response;
+  }
 }
 
 export const apiClient = new ApiClient(API_URL);
