@@ -8,7 +8,11 @@ import { Button } from '@/components/ui/button';
 import { useAuthStore } from '@/stores/auth-store';
 import { SubscriptionPlan, SubscriptionStatus } from '@handycall/shared';
 
-const PLAN_DETAILS = {
+const PLAN_DETAILS: Record<SubscriptionPlan, {
+  name: string;
+  price: string;
+  limits: { minutes: number; sms: number; contacts: number };
+}> = {
   [SubscriptionPlan.STARTER]: {
     name: 'Starter',
     price: '$9.99',
@@ -112,7 +116,7 @@ export default function BillingPage() {
     );
   }
 
-  const currentPlan = company?.subscription_plan || subscription?.plan;
+  const currentPlan = (company?.subscription_plan || subscription?.plan) as SubscriptionPlan | undefined;
   const planDetails = currentPlan ? PLAN_DETAILS[currentPlan] : null;
   const status = company?.subscription_status || subscription?.status;
 
