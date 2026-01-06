@@ -13,6 +13,8 @@ import { Logo } from '@/components/ui/logo';
 import { useAuthStore } from '@/stores/auth-store';
 import { UserRole } from '@handycall/shared';
 import { apiClient } from '@/lib/api-client';
+import { Badge } from '@/components/ui/badge';
+import { SiteHeader } from '@/components/marketing/site-header';
 
 function LoginPageInner() {
   const router = useRouter();
@@ -217,20 +219,120 @@ function LoginPageInner() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4 py-12">
-      <div className="w-full max-w-md">
-        <div className="mb-8 flex flex-col items-center justify-center space-y-4">
-          <Logo variant="words" width={240} height={60} />
-          <p className="text-base text-center text-muted-foreground font-medium">AI Receptionist for Your Business</p>
-        </div>
+    <div className="min-h-screen bg-gradient-to-b from-white via-emerald-50/40 to-white text-foreground">
+      <SiteHeader hideLogin />
+      <main className="mx-auto max-w-6xl px-4 pb-16 pt-12">
+        <div className="grid items-start gap-12 lg:grid-cols-[1.1fr_0.9fr]">
+          <div className="space-y-6">
+            <div className="space-y-3">
+              <Badge className="bg-primary/10 text-primary">Welcome back</Badge>
+              <h1 className="text-4xl font-bold leading-tight text-gray-900 md:text-5xl">
+                Sign in and let HandyCall handle the phones.
+              </h1>
+              <p className="text-lg text-muted-foreground">
+                Keep every caller answered, every lead captured, and every appointment confirmed. Log in to manage your
+                agents, review transcripts, and monitor performance.
+              </p>
+            </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Sign In</CardTitle>
-            <CardDescription>Enter your credentials to access your dashboard</CardDescription>
-          </CardHeader>
-          <form onSubmit={handleSubmit}>
-            <CardContent className="space-y-4">
+            <div className="grid gap-4 md:grid-cols-2">
+              {[
+                {
+                  title: '24/7 coverage',
+                  desc: 'AI answers in ~2 seconds with your approved scripts and pricing rules.',
+                },
+                {
+                  title: 'Real-time insights',
+                  desc: 'Transcripts, call summaries, and lead capture in one dashboard.',
+                },
+                {
+                  title: 'Smart scheduling',
+                  desc: 'Book jobs based on your availability and send confirmations automatically.',
+                },
+                {
+                  title: 'Follow-up ready',
+                  desc: 'Automated SMS recaps and reminders to keep prospects warm.',
+                },
+              ].map((item) => (
+                <Card key={item.title} className="border-emerald-100 bg-white/80 shadow-sm">
+                  <CardContent className="space-y-1 p-4">
+                    <h3 className="text-lg font-semibold text-gray-900">{item.title}</h3>
+                    <p className="text-sm text-muted-foreground">{item.desc}</p>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </div>
+
+          <div className="relative">
+            <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-emerald-100/60 via-white to-emerald-50 blur-2xl" />
+            <div className="relative">
+              <div className="mb-6 flex flex-col items-center justify-center space-y-3">
+                <Logo variant="words" width={220} height={54} />
+                <p className="text-sm font-medium text-muted-foreground">Secure login to your HandyCall workspace</p>
+              </div>
+
+              <Card className="shadow-xl shadow-emerald-100">
+                <CardHeader>
+                  <CardTitle>Sign In</CardTitle>
+                  <CardDescription>Access your dashboard to manage calls, leads, and bookings.</CardDescription>
+                </CardHeader>
+                <form onSubmit={handleSubmit}>
+                  <CardContent className="space-y-4">
+                    {error && (
+                      <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+                        {error}
+                      </div>
+                    )}
+
+                    <div className="space-y-2">
+                      <Label htmlFor="email">Email</Label>
+                      <Input
+                        id="email"
+                        type="email"
+                        placeholder="you@business.com"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        required
+                        disabled={isLoading}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="password">Password</Label>
+                      <Input
+                        id="password"
+                        type="password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        required
+                        disabled={isLoading}
+                      />
+                    </div>
+                  </CardContent>
+                  <CardFooter>
+                    <Button type="submit" className="w-full" disabled={isLoading}>
+                      {isLoading ? 'Signing in...' : 'Sign In'}
+                    </Button>
+                  </CardFooter>
+                </form>
+              </Card>
+            </div>
+          </div>
+        </div>
+      </main>
+
+      {/* Password Change Modal */}
+      <Dialog open={showPasswordChangeModal} onOpenChange={setShowPasswordChangeModal}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Change Password</DialogTitle>
+            <DialogDescription>
+              Your account requires a password change. Please set a new password to continue.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handlePasswordChange}>
+            <div className="space-y-4 py-4">
               {error && (
                 <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
                   {error}
@@ -238,94 +340,43 @@ function LoginPageInner() {
               )}
 
               <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="new-password">New Password</Label>
                 <Input
-                  id="email"
-                  type="email"
-                  placeholder="joe@example.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  id="new-password"
+                  type="password"
+                  placeholder="Minimum 8 characters"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
                   required
                   disabled={isLoading}
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
+                <Label htmlFor="confirm-password">Confirm Password</Label>
                 <Input
-                  id="password"
+                  id="confirm-password"
                   type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Re-enter your password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
                   required
                   disabled={isLoading}
                 />
               </div>
-            </CardContent>
-            <CardFooter>
-              <Button type="submit" className="w-full" disabled={isLoading}>
-                {isLoading ? 'Signing in...' : 'Sign In'}
-              </Button>
-            </CardFooter>
-          </form>
-        </Card>
 
-        {/* Password Change Modal */}
-        <Dialog open={showPasswordChangeModal} onOpenChange={setShowPasswordChangeModal}>
-          <DialogContent className="sm:max-w-[425px]">
-            <DialogHeader>
-              <DialogTitle>Change Password</DialogTitle>
-              <DialogDescription>
-                Your account requires a password change. Please set a new password to continue.
-              </DialogDescription>
-            </DialogHeader>
-            <form onSubmit={handlePasswordChange}>
-              <div className="space-y-4 py-4">
-                {error && (
-                  <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
-                    {error}
-                  </div>
-                )}
-
-                <div className="space-y-2">
-                  <Label htmlFor="new-password">New Password</Label>
-                  <Input
-                    id="new-password"
-                    type="password"
-                    placeholder="Minimum 8 characters"
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    required
-                    disabled={isLoading}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="confirm-password">Confirm Password</Label>
-                  <Input
-                    id="confirm-password"
-                    type="password"
-                    placeholder="Re-enter your password"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    required
-                    disabled={isLoading}
-                  />
-                </div>
-
-                <div className="rounded-md bg-secondary p-3 text-sm text-muted-foreground border border-border">
-                  Password must be at least 8 characters with uppercase, lowercase, and numbers.
-                </div>
+              <div className="rounded-md border border-border bg-secondary p-3 text-sm text-muted-foreground">
+                Password must be at least 8 characters with uppercase, lowercase, and numbers.
               </div>
-              <DialogFooter>
-                <Button type="submit" className="w-full" disabled={isLoading}>
-                  {isLoading ? 'Changing password...' : 'Change Password'}
-                </Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
-      </div>
+            </div>
+            <DialogFooter>
+              <Button type="submit" className="w-full" disabled={isLoading}>
+                {isLoading ? 'Changing password...' : 'Change Password'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -15,6 +15,7 @@ import { TelephonyModule } from './modules/telephony/telephony.module';
 import { RagModule } from './modules/rag/rag.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { AdminModule } from './modules/admin/admin.module';
+import { BillingModule } from './modules/billing/billing.module';
 import { DatabaseModule } from './infrastructure/database/database.module';
 import { StorageModule } from './infrastructure/storage/storage.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
@@ -48,6 +49,7 @@ import { AppService } from './app.service';
     RagModule,
     DashboardModule,
     AdminModule,
+    BillingModule,
   ],
   controllers: [AppController],
   providers: [

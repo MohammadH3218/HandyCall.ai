@@ -1,6 +1,8 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { DynamoDBService } from '../../infrastructure/database/dynamodb.service';
 import { S3Service } from '../../infrastructure/storage/s3.service';
+import { UsageService } from '../billing/usage.service';
+import { SubscriptionPlan } from '@handycall/shared';
 
 export interface Call {
   call_id: string;
@@ -22,6 +24,7 @@ export class CallsService {
   constructor(
     private dynamodb: DynamoDBService,
     private s3Service: S3Service,
+    private usageService: UsageService,
   ) {}
 
   async getCalls(
@@ -126,5 +129,23 @@ export class CallsService {
     });
 
     return filtered as Call[];
+  }
+
+  /**
+   * Record usage for a completed call. Intended to be invoked by the telephony
+   * pipeline once a call duration is known (to avoid double-counting on reads).
+   */
+  async recordCallUsage(companyId: string, durationSeconds?: number, plan?: SubscriptionPlan) {
+    if (!durationSeconds || durationSeconds <= 0) {
+      return;
+    }
+    const minutes = Math.max(1, Math.ceil(durationSeconds / 60));
+    await this.usageService.incrementCallMinutes(companyId, minutes);
+
+    // Optional: callers can provide plan to check limits; if omitted we only persist usage
+    if (plan) {
+      const periodStart = Date.now(); // placeholder; caller should pass actual billing period if available
+      await this.usageService.checkLimitsExceeded(companyId, plan, periodStart);
+    }
   }
 }

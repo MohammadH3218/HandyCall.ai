@@ -46,6 +46,17 @@ export interface Company {
   updated_at: Timestamp;
   subscription_tier?: string;
   trial_ends_at?: Timestamp;
+
+  // Billing fields
+  stripe_customer_id?: string;
+  stripe_subscription_id?: string;
+  subscription_plan?: SubscriptionPlan;
+  subscription_status?: SubscriptionStatus;
+  current_period_start?: Timestamp;
+  current_period_end?: Timestamp;
+  payment_method_last4?: string;
+  payment_method_brand?: string;
+  cancel_at_period_end?: boolean;
 }
 
 export interface BusinessHours {
@@ -62,6 +73,51 @@ export interface DaySchedule {
   open: string; // HH:mm format: "09:00"
   close: string; // HH:mm format: "17:00"
   closed?: boolean;
+}
+
+// ============================================================================
+// Billing & Subscriptions
+// ============================================================================
+
+export enum SubscriptionPlan {
+  STARTER = 'STARTER',
+  PRO = 'PRO',
+  MAX = 'MAX',
+}
+
+export enum SubscriptionStatus {
+  TRIALING = 'TRIALING',
+  ACTIVE = 'ACTIVE',
+  PAST_DUE = 'PAST_DUE',
+  CANCELED = 'CANCELED',
+  UNPAID = 'UNPAID',
+  INCOMPLETE = 'INCOMPLETE',
+}
+
+export interface PlanLimits {
+  weekly_minutes: number;
+  sms_limit: number;
+  contacts_limit: number;
+}
+
+export interface UsageMetrics {
+  company_id: UUID;
+  date: string; // YYYY-MM-DD (sort key)
+  minutes_used: number;
+  calls_count: number;
+  sms_sent_count: number;
+  contacts_count: number;
+  created_at: Timestamp;
+  updated_at: Timestamp;
+}
+
+export interface BillingEvent {
+  company_id: UUID;
+  event_id: string; // timestamp-uuid format for sorting
+  event_type: string; // subscription.created, invoice.paid, etc.
+  stripe_event_id?: string;
+  data: any; // Event payload
+  created_at: Timestamp;
 }
 
 // ============================================================================

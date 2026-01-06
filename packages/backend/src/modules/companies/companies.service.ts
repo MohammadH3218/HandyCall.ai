@@ -1,6 +1,13 @@
 import { Injectable, ConflictException, NotFoundException } from '@nestjs/common';
 import { DynamoDBService } from '../../infrastructure/database/dynamodb.service';
-import { Company, CompanyStatus, ServiceType, BusinessHours, User } from '@handycall/shared';
+import {
+  Company,
+  CompanyStatus,
+  ServiceType,
+  BusinessHours,
+  SubscriptionPlan,
+  SubscriptionStatus,
+} from '@handycall/shared';
 import { v4 as uuidv4 } from 'uuid';
 
 export interface CompanyStats {
@@ -148,6 +155,16 @@ export class CompaniesService {
       business_hours?: BusinessHours;
       status?: CompanyStatus;
       subscription_tier?: string;
+      // Billing fields
+      stripe_customer_id?: string;
+      stripe_subscription_id?: string;
+      subscription_plan?: SubscriptionPlan;
+      subscription_status?: SubscriptionStatus;
+      current_period_start?: number;
+      current_period_end?: number;
+      payment_method_last4?: string;
+      payment_method_brand?: string;
+      cancel_at_period_end?: boolean;
     }
   ): Promise<Company> {
     const company = await this.findById(companyId);

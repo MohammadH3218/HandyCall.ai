@@ -1,6 +1,7 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import * as bodyParser from 'body-parser';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
@@ -29,6 +30,10 @@ async function bootstrap() {
     allowedHeaders: ['Content-Type', 'Authorization'],
   });
 
+  // Stripe webhook needs raw body for signature verification
+  const apiPrefix = configService.get<string>('API_PREFIX') || 'api/v1';
+  app.use(`/${apiPrefix}/billing/webhook`, bodyParser.raw({ type: 'application/json' }));
+
   // Global validation pipe
   app.useGlobalPipes(
     new ValidationPipe({
@@ -42,7 +47,6 @@ async function bootstrap() {
   );
 
   // API prefix
-  const apiPrefix = configService.get<string>('API_PREFIX') || 'api/v1';
   app.setGlobalPrefix(apiPrefix);
 
   // Elastic Beanstalk uses PORT environment variable
