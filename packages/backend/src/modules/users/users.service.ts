@@ -44,7 +44,14 @@ export class UsersService {
     // Early duplicate check across DynamoDB and Cognito
     const existingUser = await this.findByEmail(email);
     const cognitoUserExists = await this.cognitoService.userExists(email, poolType).catch(() => false);
+
+    console.log('[DEBUG] Duplicate check for email:', email);
+    console.log('[DEBUG] Existing user in DB:', existingUser);
+    console.log('[DEBUG] User exists in Cognito:', cognitoUserExists);
+    console.log('[DEBUG] Pool type:', poolType);
+
     if (existingUser || cognitoUserExists) {
+      console.log('[DEBUG] DUPLICATE DETECTED - Throwing 409 error');
       throw new ConflictException({
         message: 'User with this email already exists',
         fields: { email: 'User with this email already exists' },
@@ -173,12 +180,13 @@ export class UsersService {
 
   async findByEmail(email: string): Promise<User | null> {
     // The email-index in production uses company_id as the partition key and email as the sort key.
-    // Since we don't always have company_id, fall back to a small scan with a filter on email.
+    // Since we don't always have company_id, fall back to a scan with a filter on email.
+    // Note: Removed limit because DynamoDB Limit applies to items EXAMINED (not returned).
+    // With Limit: 1, if the first item doesn't match the filter, scan stops and misses the actual user.
     const result = await this.dynamodb.scan(this.tableName, {
       filterExpression: '#email = :email',
       expressionAttributeNames: { '#email': 'email' },
       expressionAttributeValues: { ':email': email },
-      limit: 1,
     });
 
     if (result.items.length === 0) {

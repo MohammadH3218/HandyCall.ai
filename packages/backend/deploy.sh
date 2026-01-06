@@ -11,11 +11,11 @@ AWS_ACCOUNT_ID="982081079378"
 ECR_REPOSITORY="handycall-backend"
 ECR_REGISTRY="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
 IMAGE_NAME="${ECR_REGISTRY}/${ECR_REPOSITORY}"
-EB_APP_NAME="handycall-backend"
-EB_ENV_NAME="handycall-backend-env"  # Update this to your actual EB environment name
+EB_APP_NAME="handycall-api"
+EB_ENV_NAME="handycall-api-lb"  # Updated to actual EB environment name
 
 # Generate version tag with timestamp
-VERSION_TAG=$(date +%Y%m%d-%H%M%S)-admin-role-fix
+VERSION_TAG=$(date +%Y%m%d-%H%M%S)-debug-duplicate-check
 echo "Building version: ${VERSION_TAG}"
 
 # Step 1: Build Docker image from monorepo root

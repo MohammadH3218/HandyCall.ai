@@ -138,9 +138,14 @@ export class DynamoDBService implements OnModuleInit {
       exclusiveStartKey?: Record<string, any>;
     }
   ) {
+    // Convert camelCase to PascalCase for AWS SDK v3
     const command = new ScanCommand({
       TableName: this.getTableName(tableName),
-      ...options,
+      ...(options?.filterExpression && { FilterExpression: options.filterExpression }),
+      ...(options?.expressionAttributeNames && { ExpressionAttributeNames: options.expressionAttributeNames }),
+      ...(options?.expressionAttributeValues && { ExpressionAttributeValues: options.expressionAttributeValues }),
+      ...(options?.limit && { Limit: options.limit }),
+      ...(options?.exclusiveStartKey && { ExclusiveStartKey: options.exclusiveStartKey }),
     });
 
     const result = await this.docClient.send(command);
