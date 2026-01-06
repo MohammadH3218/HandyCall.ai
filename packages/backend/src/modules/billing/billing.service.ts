@@ -235,6 +235,38 @@ export class BillingService {
   }
 
   /**
+   * Update payment method for a company
+   */
+  async updatePaymentMethod(companyId: string, paymentMethodId: string): Promise<any> {
+    const company = await this.companiesService.findById(companyId);
+    if (!company) {
+      throw new NotFoundException('Company not found');
+    }
+
+    if (!company.stripe_customer_id) {
+      throw new BadRequestException('No Stripe customer found');
+    }
+
+    // Attach payment method to customer and set as default
+    await this.stripeService.updateCustomerPaymentMethod(company.stripe_customer_id, paymentMethodId);
+
+    // Get payment method details
+    const paymentMethod = await this.stripeService.getPaymentMethod(paymentMethodId);
+    const paymentDetails =
+      paymentMethod.card && paymentMethod.card.last4
+        ? {
+            payment_method_last4: paymentMethod.card.last4,
+            payment_method_brand: paymentMethod.card.brand,
+          }
+        : {};
+
+    // Update company record
+    await this.companiesService.updateCompany(companyId, paymentDetails);
+
+    return { success: true, ...paymentDetails };
+  }
+
+  /**
    * Get usage stats for a company
    */
   async getUsageStats(companyId: string): Promise<any> {

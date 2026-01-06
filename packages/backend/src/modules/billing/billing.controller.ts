@@ -113,6 +113,18 @@ export class BillingController {
   }
 
   /**
+   * Update payment method
+   * PUT /billing/payment-method
+   */
+  @Put('payment-method')
+  async updatePaymentMethod(
+    @CompanyId() companyId: string,
+    @Body() body: { payment_method_id: string }
+  ) {
+    return this.billingService.updatePaymentMethod(companyId, body.payment_method_id);
+  }
+
+  /**
    * Stripe webhook handler
    * POST /billing/webhook
    */

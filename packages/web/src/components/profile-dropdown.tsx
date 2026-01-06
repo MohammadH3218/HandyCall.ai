@@ -4,6 +4,7 @@ import React from 'react';
 import { LogOut, User } from 'lucide-react';
 import { useAuthStore } from '@/stores/auth-store';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { SubscriptionPlan, SubscriptionStatus } from '@handycall/shared';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,8 +14,14 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
+const PLAN_NAMES: Record<SubscriptionPlan, string> = {
+  [SubscriptionPlan.STARTER]: 'Starter',
+  [SubscriptionPlan.PRO]: 'Pro',
+  [SubscriptionPlan.MAX]: 'Max',
+};
+
 export function ProfileDropdown() {
-  const { user, email, logout } = useAuthStore();
+  const { user, email, company, logout } = useAuthStore();
 
   const handleLogout = async () => {
     await logout();
@@ -52,6 +59,37 @@ export function ProfileDropdown() {
     return 'User';
   };
 
+  // Get plan info
+  const getPlanInfo = () => {
+    if (!company?.subscription_plan) {
+      return { text: 'No Plan', color: 'text-muted-foreground' };
+    }
+
+    const planName = PLAN_NAMES[company.subscription_plan as SubscriptionPlan];
+    const status = company.subscription_status;
+
+    let statusText = '';
+    let color = 'text-muted-foreground';
+
+    if (status === SubscriptionStatus.TRIALING) {
+      statusText = ' (Trial)';
+      color = 'text-blue-600';
+    } else if (status === SubscriptionStatus.ACTIVE) {
+      statusText = ' (Active)';
+      color = 'text-green-600';
+    } else if (status === SubscriptionStatus.PAST_DUE) {
+      statusText = ' (Past Due)';
+      color = 'text-yellow-600';
+    } else if (status === SubscriptionStatus.CANCELED) {
+      statusText = ' (Canceled)';
+      color = 'text-red-600';
+    }
+
+    return { text: `${planName}${statusText}`, color };
+  };
+
+  const planInfo = getPlanInfo();
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -63,11 +101,9 @@ export function ProfileDropdown() {
           </Avatar>
           <div className="hidden text-left md:block">
             <p className="text-sm font-medium text-foreground">{getDisplayName()}</p>
-            {email && (
-              <p className="text-xs text-muted-foreground truncate max-w-[150px]">
-                {email}
-              </p>
-            )}
+            <p className={`text-xs truncate max-w-[150px] ${planInfo.color}`}>
+              {planInfo.text}
+            </p>
           </div>
         </button>
       </DropdownMenuTrigger>

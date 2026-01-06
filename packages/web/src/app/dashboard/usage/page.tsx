@@ -85,7 +85,7 @@ export default function UsagePage() {
       setUsage(usageData);
       setSubscriptionPlan(
         (company?.subscription_plan as SubscriptionPlan | undefined) ||
-          (subscription?.plan as SubscriptionPlan | undefined)
+          (subscription?.subscription_plan as SubscriptionPlan | undefined)
       );
     } catch (err: any) {
       console.error('Failed to load usage', err);
@@ -289,7 +289,10 @@ function UsageMeter({
   const percent = calculateUsagePercentage(used, limit);
   const color =
     percent >= 90 ? 'bg-red-500' : percent >= 75 ? 'bg-yellow-500' : 'bg-green-500';
-  const limitLabel = !limit || limit === -1 ? 'Unlimited' : limit;
+
+  // Show "0 / 0" when no limit is set (no plan), "Unlimited" when limit is -1 (unlimited plan)
+  const limitLabel = limit === undefined ? '0' : limit === -1 ? 'Unlimited' : limit;
+  const usageDisplay = limit === undefined ? `${used} / 0` : `${used}`;
 
   return (
     <div className="rounded-lg border bg-card p-4">
@@ -302,8 +305,8 @@ function UsageMeter({
           </div>
         </div>
         <div className="text-right">
-          <p className="text-lg font-semibold text-foreground">{used}</p>
-          {percent > 0 && limit !== -1 && (
+          <p className="text-lg font-semibold text-foreground">{usageDisplay}</p>
+          {percent > 0 && limit !== -1 && limit !== undefined && (
             <p className="text-xs text-muted-foreground">{percent}% used</p>
           )}
         </div>

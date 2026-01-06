@@ -116,9 +116,9 @@ export default function BillingPage() {
     );
   }
 
-  const currentPlan = (company?.subscription_plan || subscription?.plan) as SubscriptionPlan | undefined;
+  const currentPlan = (company?.subscription_plan || subscription?.subscription_plan) as SubscriptionPlan | undefined;
   const planDetails = currentPlan ? PLAN_DETAILS[currentPlan] : null;
-  const status = company?.subscription_status || subscription?.status;
+  const status = company?.subscription_status || subscription?.subscription_status;
 
   return (
     <div className="p-8 max-w-7xl">
