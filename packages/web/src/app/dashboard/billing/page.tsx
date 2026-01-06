@@ -7,6 +7,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { useAuthStore } from '@/stores/auth-store';
 import { SubscriptionPlan, SubscriptionStatus } from '@handycall/shared';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 
 const PLAN_DETAILS: Record<SubscriptionPlan, {
   name: string;
@@ -15,7 +23,7 @@ const PLAN_DETAILS: Record<SubscriptionPlan, {
 }> = {
   [SubscriptionPlan.STARTER]: {
     name: 'Starter',
-    price: '$9.99',
+    price: '$4.99',
     limits: {
       minutes: 50,
       sms: 100,
@@ -24,7 +32,7 @@ const PLAN_DETAILS: Record<SubscriptionPlan, {
   },
   [SubscriptionPlan.PRO]: {
     name: 'Pro',
-    price: '$19.99',
+    price: '$9.99',
     limits: {
       minutes: 150,
       sms: 300,
@@ -33,7 +41,7 @@ const PLAN_DETAILS: Record<SubscriptionPlan, {
   },
   [SubscriptionPlan.MAX]: {
     name: 'Max',
-    price: '$39.99',
+    price: '$19.99',
     limits: {
       minutes: 500,
       sms: 1000,
@@ -44,10 +52,12 @@ const PLAN_DETAILS: Record<SubscriptionPlan, {
 
 export default function BillingPage() {
   const router = useRouter();
-  const { company } = useAuthStore();
+  const { company, checkAuth } = useAuthStore();
   const [subscription, setSubscription] = useState<any>(null);
   const [usage, setUsage] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [showCancelDialog, setShowCancelDialog] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
 
   useEffect(() => {
     loadBillingData();
@@ -66,6 +76,21 @@ export default function BillingPage() {
       console.error('Failed to load billing data:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleCancelSubscription = async () => {
+    try {
+      setCancelling(true);
+      await apiClient.cancelSubscription();
+      await checkAuth(); // Refresh company data
+      await loadBillingData(); // Reload billing data
+      setShowCancelDialog(false);
+    } catch (error: any) {
+      console.error('Failed to cancel subscription:', error);
+      alert(error.message || 'Failed to cancel subscription');
+    } finally {
+      setCancelling(false);
     }
   };
 
@@ -89,7 +114,8 @@ export default function BillingPage() {
   };
 
   const formatDate = (timestamp: number) => {
-    return new Date(timestamp * 1000).toLocaleDateString('en-US', {
+    // Backend already sends timestamps in milliseconds
+    return new Date(timestamp).toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'long',
       day: 'numeric',
@@ -99,6 +125,19 @@ export default function BillingPage() {
   const calculateUsagePercentage = (used: number, limit: number) => {
     if (limit === -1) return 0; // unlimited
     return Math.min(Math.round((used / limit) * 100), 100);
+  };
+
+  const getDaysRemaining = () => {
+    if (!subscription?.current_period_end) return null;
+    const endDate = new Date(subscription.current_period_end);
+    const now = new Date();
+    const diffTime = endDate.getTime() - now.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    const diffHours = Math.ceil(diffTime / (1000 * 60 * 60));
+
+    if (diffDays > 1) return `${diffDays} days`;
+    if (diffHours > 1) return `${diffHours} hours`;
+    return 'less than 1 hour';
   };
 
   if (loading) {
@@ -156,19 +195,32 @@ export default function BillingPage() {
 
                 {subscription?.cancel_at_period_end && (
                   <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+                    <p className="text-sm font-semibold text-yellow-900 mb-1">
+                      Subscription Cancelling
+                    </p>
                     <p className="text-sm text-yellow-800">
-                      Your subscription will cancel at the end of the current billing period.
+                      Your subscription will remain active for {getDaysRemaining()} (until {formatDate(subscription.current_period_end)}).
+                      You'll retain full access until then.
                     </p>
                   </div>
                 )}
 
                 <div className="flex gap-2 pt-4">
-                  <Button onClick={() => router.push('/dashboard/billing/plans')} className="flex-1">
-                    Change Plan
-                  </Button>
-                  <Button onClick={() => router.push('/dashboard/billing/payment-method')} variant="outline">
-                    Payment Method
-                  </Button>
+                  {!subscription?.cancel_at_period_end && (
+                    <>
+                      <Button onClick={() => router.push('/dashboard/billing/plans')} className="flex-1">
+                        Change Plan
+                      </Button>
+                      <Button onClick={() => setShowCancelDialog(true)} variant="destructive">
+                        Cancel Plan
+                      </Button>
+                    </>
+                  )}
+                  {subscription?.cancel_at_period_end && (
+                    <Button onClick={() => router.push('/dashboard/billing/plans')} className="flex-1">
+                      Reactivate Subscription
+                    </Button>
+                  )}
                 </div>
               </>
             ) : (
@@ -334,6 +386,26 @@ export default function BillingPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Cancel Subscription Dialog */}
+      <Dialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Cancel Subscription?</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to cancel your subscription? Your plan will remain active until the end of the current billing period ({formatDate(subscription?.current_period_end)}), and you'll retain full access until then.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCancelDialog(false)} disabled={cancelling}>
+              Keep Subscription
+            </Button>
+            <Button variant="destructive" onClick={handleCancelSubscription} disabled={cancelling}>
+              {cancelling ? 'Cancelling...' : 'Yes, Cancel'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -27,7 +27,7 @@ const PLAN_DETAILS: Record<
 > = {
   [SubscriptionPlan.STARTER]: {
     name: 'Starter',
-    price: '$9.99',
+    price: '$4.99',
     limits: {
       minutes: 50,
       sms: 100,
@@ -36,7 +36,7 @@ const PLAN_DETAILS: Record<
   },
   [SubscriptionPlan.PRO]: {
     name: 'Pro',
-    price: '$19.99',
+    price: '$9.99',
     limits: {
       minutes: 150,
       sms: 300,
@@ -45,7 +45,7 @@ const PLAN_DETAILS: Record<
   },
   [SubscriptionPlan.MAX]: {
     name: 'Max',
-    price: '$39.99',
+    price: '$19.99',
     limits: {
       minutes: 500,
       sms: 1000,
@@ -99,7 +99,8 @@ export default function UsagePage() {
 
   const formatDate = (timestamp?: number) => {
     if (!timestamp) return 'N/A';
-    return new Date(timestamp * 1000).toLocaleDateString('en-US', {
+    // Backend already sends timestamps in milliseconds
+    return new Date(timestamp).toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
