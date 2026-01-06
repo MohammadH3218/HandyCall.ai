@@ -5,7 +5,7 @@ $ErrorActionPreference = "Stop"
 
 # Configuration
 $APP_NAME = "handycall-api"
-$ENV_NAME = "handycall-api-docker"
+$ENV_NAME = "handycall-api-lb"
 $REGION = "us-east-1"
 $IMAGE_NAME = "handycall-backend"
 $PLATFORM = "64bit Amazon Linux 2023 v4.3.0 running Docker"

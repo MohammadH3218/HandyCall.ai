@@ -8,7 +8,7 @@ import { useAuthStore } from '@/stores/auth-store';
 import { Logo } from '@/components/ui/logo';
 import { ProfileDropdown } from '@/components/profile-dropdown';
 import { Button } from '@/components/ui/button';
-import { Home, Phone, Calendar, MessageSquare, Settings, Menu, X } from 'lucide-react';
+import { BarChart3, Calendar, CreditCard, Home, Menu, MessageSquare, Phone, Settings, X } from 'lucide-react';
 import { UserRole } from '@handycall/shared';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -89,22 +89,34 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           )}
         </div>
 
-        <nav className="flex-1 px-4 py-4 space-y-1 overflow-y-auto">
-          <NavLink href="/dashboard" icon={<Home className="h-5 w-5" />} onClick={() => setSidebarOpen(false)}>
-            Dashboard
-          </NavLink>
-          <NavLink href="/dashboard/calls" icon={<Phone className="h-5 w-5" />} onClick={() => setSidebarOpen(false)}>
-            Calls
-          </NavLink>
-          <NavLink href="/dashboard/appointments" icon={<Calendar className="h-5 w-5" />} onClick={() => setSidebarOpen(false)}>
-            Appointments
-          </NavLink>
-          <NavLink href="/dashboard/knowledge" icon={<MessageSquare className="h-5 w-5" />} onClick={() => setSidebarOpen(false)}>
-            Knowledge Base
-          </NavLink>
-          <NavLink href="/dashboard/settings" icon={<Settings className="h-5 w-5" />} onClick={() => setSidebarOpen(false)}>
-            Settings
-          </NavLink>
+        <nav className="flex-1 px-4 py-4 space-y-4 overflow-y-auto">
+          <div className="space-y-1">
+            <NavLink href="/dashboard" icon={<Home className="h-5 w-5" />} onClick={() => setSidebarOpen(false)}>
+              Dashboard
+            </NavLink>
+            <NavLink href="/dashboard/calls" icon={<Phone className="h-5 w-5" />} onClick={() => setSidebarOpen(false)}>
+              Calls
+            </NavLink>
+            <NavLink href="/dashboard/appointments" icon={<Calendar className="h-5 w-5" />} onClick={() => setSidebarOpen(false)}>
+              Appointments
+            </NavLink>
+            <NavLink href="/dashboard/knowledge" icon={<MessageSquare className="h-5 w-5" />} onClick={() => setSidebarOpen(false)}>
+              Knowledge Base
+            </NavLink>
+          </div>
+
+          <div className="pt-2 border-t border-border space-y-1">
+            <p className="px-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Account</p>
+            <NavLink href="/dashboard/usage" icon={<BarChart3 className="h-5 w-5" />} onClick={() => setSidebarOpen(false)}>
+              Usage
+            </NavLink>
+            <NavLink href="/dashboard/billing" icon={<CreditCard className="h-5 w-5" />} onClick={() => setSidebarOpen(false)}>
+              Billing
+            </NavLink>
+            <NavLink href="/dashboard/settings" icon={<Settings className="h-5 w-5" />} onClick={() => setSidebarOpen(false)}>
+              Settings
+            </NavLink>
+          </div>
         </nav>
 
         <div className="p-4 border-t border-border">
