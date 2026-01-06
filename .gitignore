@@ -65,3 +65,6 @@ nul
 build-output.txt
 query-phone.json
 test-*.json
+
+# Claude settings (may contain secrets)
+.claude/settings.local.json

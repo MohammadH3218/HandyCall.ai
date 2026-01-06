@@ -345,7 +345,7 @@ class ApiClient {
     const response = await this.request<{ client_secret: string }>('/billing/setup-intent', {
       method: 'POST',
     });
-    return response.data!;
+    return response.data ?? response;
   }
 
   async createSubscription(data: { plan: string; payment_method_id: string }): Promise<any> {
