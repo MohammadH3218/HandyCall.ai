@@ -30,7 +30,7 @@ const CARD_ELEMENT_OPTIONS = {
 
 function PaymentMethodForm({ selectedPlan }: { selectedPlan?: SubscriptionPlan }) {
   const router = useRouter();
-  const { company } = useAuthStore();
+  const { company, checkAuth } = useAuthStore();
   const stripe = useStripe();
   const elements = useElements();
   const [loading, setLoading] = useState(false);
@@ -80,6 +80,10 @@ function PaymentMethodForm({ selectedPlan }: { selectedPlan?: SubscriptionPlan }
           payment_method_id: paymentMethodId,
         });
         setSuccess(true);
+
+        // Refresh company data in auth store
+        await checkAuth();
+
         setTimeout(() => {
           router.push('/dashboard/billing');
         }, 2000);
@@ -87,6 +91,10 @@ function PaymentMethodForm({ selectedPlan }: { selectedPlan?: SubscriptionPlan }
         // Just update payment method
         await apiClient.updatePaymentMethod(paymentMethodId);
         setSuccess(true);
+
+        // Refresh company data in auth store
+        await checkAuth();
+
         setTimeout(() => {
           router.push('/dashboard/billing');
         }, 2000);
