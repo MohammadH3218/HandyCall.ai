@@ -10,8 +10,6 @@ import { Button } from '@/components/ui/button';
 import { useAuthStore } from '@/stores/auth-store';
 import { SubscriptionPlan } from '@handycall/shared';
 
-const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
-
 const CARD_ELEMENT_OPTIONS = {
   style: {
     base: {
@@ -151,6 +149,10 @@ export default function PaymentMethodPage() {
   const searchParams = useSearchParams();
   const { company } = useAuthStore();
   const selectedPlan = searchParams.get('plan') as SubscriptionPlan | null;
+  const publishableKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
+
+  // Only create the Stripe promise when we actually have a key.
+  const stripePromise = publishableKey ? loadStripe(publishableKey) : null;
 
   const PLAN_NAMES = {
     [SubscriptionPlan.STARTER]: 'Starter ($9.99/week)',
@@ -191,9 +193,15 @@ export default function PaymentMethodPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Elements stripe={stripePromise}>
-            <PaymentMethodForm selectedPlan={selectedPlan || undefined} />
-          </Elements>
+          {!stripePromise ? (
+            <div className="p-3 bg-red-50 border border-red-200 rounded-md text-sm text-red-800">
+              Stripe publishable key is not configured. Please set NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY and redeploy.
+            </div>
+          ) : (
+            <Elements stripe={stripePromise}>
+              <PaymentMethodForm selectedPlan={selectedPlan || undefined} />
+            </Elements>
+          )}
 
           <div className="mt-6 p-4 bg-gray-50 rounded-md">
             <div className="flex items-start gap-2">

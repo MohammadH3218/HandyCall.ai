@@ -91,5 +91,5 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3 \
 ENTRYPOINT ["dumb-init", "--"]
 
 # Start the application
-# NestJS outputs to dist/packages/backend/src/main.js in the container
-CMD ["node", "dist/packages/backend/src/main.js"]
+# Nest build outputs to dist/backend/src/main.js
+CMD ["node", "dist/backend/src/main.js"]
