@@ -9,6 +9,7 @@ import {
   Headers,
   Req,
   UseGuards,
+  Param,
 } from '@nestjs/common';
 import { Request } from 'express';
 import { BillingService } from './billing.service';
@@ -183,5 +184,87 @@ export class BillingController {
       trial_conversions: 0,
       churn_rate: 0,
     };
+  }
+
+  // ============================================================================
+  // Admin: Company Billing Management
+  // ============================================================================
+
+  /**
+   * Get billing info for a specific company (admin only)
+   * GET /billing/admin/company/:companyId
+   */
+  @Get('admin/company/:companyId')
+  async getCompanyBilling(
+    @UserRole() role: UserRoleEnum,
+    @Param('companyId') companyId: string
+  ) {
+    if (role !== UserRoleEnum.ADMIN) {
+      throw new NotFoundException('Not found');
+    }
+    return this.billingService.getBillingInfo(companyId);
+  }
+
+  /**
+   * Get invoices for a specific company (admin only)
+   * GET /billing/admin/company/:companyId/invoices
+   */
+  @Get('admin/company/:companyId/invoices')
+  async getCompanyInvoices(
+    @UserRole() role: UserRoleEnum,
+    @Param('companyId') companyId: string
+  ) {
+    if (role !== UserRoleEnum.ADMIN) {
+      throw new NotFoundException('Not found');
+    }
+    return this.billingService.getInvoices(companyId);
+  }
+
+  /**
+   * Update subscription plan for a company (admin only)
+   * PUT /billing/admin/company/:companyId/subscription
+   */
+  @Put('admin/company/:companyId/subscription')
+  async adminUpdateSubscription(
+    @UserRole() role: UserRoleEnum,
+    @Param('companyId') companyId: string,
+    @Body() dto: UpdateSubscriptionDto
+  ) {
+    if (role !== UserRoleEnum.ADMIN) {
+      throw new NotFoundException('Not found');
+    }
+    return this.billingService.updateSubscription(companyId, dto.plan);
+  }
+
+  /**
+   * Cancel subscription for a company (admin only)
+   * DELETE /billing/admin/company/:companyId/subscription
+   * Query: immediate=true|false
+   */
+  @Delete('admin/company/:companyId/subscription')
+  async adminCancelSubscription(
+    @UserRole() role: UserRoleEnum,
+    @Param('companyId') companyId: string,
+    @Query('immediate') immediate?: string
+  ) {
+    if (role !== UserRoleEnum.ADMIN) {
+      throw new NotFoundException('Not found');
+    }
+    return this.billingService.cancelSubscription(companyId, immediate === 'true');
+  }
+
+  /**
+   * Reactivate a canceled subscription for a company (admin only)
+   * POST /billing/admin/company/:companyId/subscription/reactivate
+   */
+  @Post('admin/company/:companyId/subscription/reactivate')
+  async adminReactivateSubscription(
+    @UserRole() role: UserRoleEnum,
+    @Param('companyId') companyId: string
+  ) {
+    if (role !== UserRoleEnum.ADMIN) {
+      throw new NotFoundException('Not found');
+    }
+    return this.billingService.reactivateSubscription(companyId);
   }
 }

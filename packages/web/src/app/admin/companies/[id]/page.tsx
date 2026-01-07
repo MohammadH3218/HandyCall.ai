@@ -12,6 +12,7 @@ import { useToast } from '@/hooks/use-toast';
 import { ArrowLeft, Users, Phone, BarChart3 } from 'lucide-react';
 import { UserRole } from '@handycall/shared';
 import { AdminNav } from '@/components/admin/admin-nav';
+import { PLAN_CATALOG, getPlanPriceDisplay } from '@/constants/plans';
 
 interface Company {
   company_id: string;
@@ -45,6 +46,34 @@ interface User {
   last_login_at?: number;
 }
 
+interface BillingInfo {
+  subscription_plan?: string;
+  subscription_status?: string;
+  current_period_start?: number;
+  current_period_end?: number;
+  cancel_at_period_end?: boolean;
+  payment_method?: {
+    last4?: string;
+    brand?: string;
+  } | null;
+  payment_method_last4?: string;
+  payment_method_brand?: string;
+}
+
+interface Invoice {
+  id: string;
+  number?: string;
+  amount_paid?: number;
+  amount_due?: number;
+  status: string;
+  currency: string;
+  created: number;
+  period_start?: number;
+  period_end?: number;
+  hosted_invoice_url?: string;
+  invoice_pdf?: string;
+}
+
 export default function CompanyDetailsPage() {
   const router = useRouter();
   const params = useParams();
@@ -54,7 +83,10 @@ export default function CompanyDetailsPage() {
   const [company, setCompany] = useState<Company | null>(null);
   const [stats, setStats] = useState<CompanyStats | null>(null);
   const [users, setUsers] = useState<User[]>([]);
+  const [billing, setBilling] = useState<BillingInfo | null>(null);
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
+  const [billingActionLoading, setBillingActionLoading] = useState(false);
 
   const companyId = params.id as string;
 
@@ -72,22 +104,26 @@ export default function CompanyDetailsPage() {
   const loadCompanyDetails = async () => {
     setLoading(true);
     try {
-      const [companyRes, statsRes, usersRes] = await Promise.all([
+      const [companyRes, statsRes, usersRes, billingRes, invoicesRes] = await Promise.all([
         fetch(`/api/proxy/companies/${companyId}`, { credentials: 'include' }),
         fetch(`/api/proxy/companies/${companyId}/stats`, { credentials: 'include' }),
         fetch(`/api/proxy/companies/${companyId}/users`, { credentials: 'include' }),
+        fetch(`/api/proxy/billing/admin/company/${companyId}`, { credentials: 'include' }),
+        fetch(`/api/proxy/billing/admin/company/${companyId}/invoices`, { credentials: 'include' }),
       ]);
 
       let companyResponse = companyRes;
       let statsResponse = statsRes;
       let usersResponse = usersRes;
+      let billingResponse = billingRes;
+      let invoicesResponse = invoicesRes;
 
-      if (companyRes.status === 401 || statsRes.status === 401 || usersRes.status === 401) {
+      if ([companyRes, statsRes, usersRes, billingRes, invoicesRes].some((r) => r.status === 401)) {
         const token = localStorage.getItem('access_token');
         if (!token) {
           throw new Error('Unauthorized. Please re-login as admin.');
         }
-        [companyResponse, statsResponse, usersResponse] = await Promise.all([
+        [companyResponse, statsResponse, usersResponse, billingResponse, invoicesResponse] = await Promise.all([
           fetch(`${process.env.NEXT_PUBLIC_API_URL}/companies/${companyId}`, {
             headers: { Authorization: `Bearer ${token}` },
           }),
@@ -97,22 +133,32 @@ export default function CompanyDetailsPage() {
           fetch(`${process.env.NEXT_PUBLIC_API_URL}/companies/${companyId}/users`, {
             headers: { Authorization: `Bearer ${token}` },
           }),
+          fetch(`${process.env.NEXT_PUBLIC_API_URL}/billing/admin/company/${companyId}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+          fetch(`${process.env.NEXT_PUBLIC_API_URL}/billing/admin/company/${companyId}/invoices`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
         ]);
       }
 
-      if (!companyResponse.ok || !statsResponse.ok || !usersResponse.ok) {
+      if (!companyResponse.ok || !statsResponse.ok || !usersResponse.ok || !billingResponse.ok || !invoicesResponse.ok) {
         throw new Error('Failed to load company details');
       }
 
-      const [companyData, statsData, usersData] = await Promise.all([
+      const [companyData, statsData, usersData, billingData, invoicesData] = await Promise.all([
         companyResponse.json(),
         statsResponse.json(),
         usersResponse.json(),
+        billingResponse.json(),
+        invoicesResponse.json(),
       ]);
 
       setCompany(companyData);
       setStats(statsData);
       setUsers(usersData);
+      setBilling(billingData);
+      setInvoices(Array.isArray(invoicesData) ? invoicesData : invoicesData?.data || []);
     } catch (error) {
       console.error('Failed to load company details:', error);
       toast({
@@ -141,6 +187,62 @@ export default function CompanyDetailsPage() {
       hour: '2-digit',
       minute: '2-digit',
     });
+  };
+
+  const cancelSubscription = async (immediate = true) => {
+    if (!company) return;
+    setBillingActionLoading(true);
+    try {
+      const res = await fetch(`/api/proxy/billing/admin/company/${company.company_id}/subscription?immediate=${immediate}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      if (!res.ok) throw new Error('Failed to cancel subscription');
+      toast({ title: 'Subscription canceled', description: immediate ? 'Canceled immediately' : 'Will cancel at period end' });
+      await loadCompanyDetails();
+    } catch (error: any) {
+      toast({ title: 'Error', description: error.message || 'Failed to cancel subscription', variant: 'destructive' });
+    } finally {
+      setBillingActionLoading(false);
+    }
+  };
+
+  const reactivateSubscription = async () => {
+    if (!company) return;
+    setBillingActionLoading(true);
+    try {
+      const res = await fetch(`/api/proxy/billing/admin/company/${company.company_id}/subscription/reactivate`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      if (!res.ok) throw new Error('Failed to reactivate subscription');
+      toast({ title: 'Subscription reactivated' });
+      await loadCompanyDetails();
+    } catch (error: any) {
+      toast({ title: 'Error', description: error.message || 'Failed to reactivate subscription', variant: 'destructive' });
+    } finally {
+      setBillingActionLoading(false);
+    }
+  };
+
+  const changePlan = async (plan: string) => {
+    if (!company) return;
+    setBillingActionLoading(true);
+    try {
+      const res = await fetch(`/api/proxy/billing/admin/company/${company.company_id}/subscription`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ plan }),
+      });
+      if (!res.ok) throw new Error('Failed to update plan');
+      toast({ title: 'Plan updated', description: 'Changes take effect immediately' });
+      await loadCompanyDetails();
+    } catch (error: any) {
+      toast({ title: 'Error', description: error.message || 'Failed to update plan', variant: 'destructive' });
+    } finally {
+      setBillingActionLoading(false);
+    }
   };
 
   if (isLoading || loading || !company || !stats) {
@@ -228,6 +330,82 @@ export default function CompanyDetailsPage() {
         </div>
 
         <div className="grid gap-6 lg:grid-cols-2">
+          <Card className="lg:col-span-2">
+            <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <CardTitle>Subscription</CardTitle>
+                <CardDescription>Plan, status, and billing period</CardDescription>
+              </div>
+              {billing?.subscription_plan && (
+                <div className="flex flex-wrap gap-2 items-center">
+                  <select
+                    className="border rounded px-2 py-1 text-sm"
+                    defaultValue={billing.subscription_plan}
+                    onChange={(e) => changePlan(e.target.value)}
+                    disabled={billingActionLoading}
+                  >
+                    {Object.entries(PLAN_CATALOG).map(([key, details]) => (
+                      <option key={key} value={key}>
+                        {details.name} ({getPlanPriceDisplay(key as any).current}/week)
+                      </option>
+                    ))}
+                  </select>
+                  {billing?.cancel_at_period_end ? (
+                    <Button size="sm" variant="outline" onClick={reactivateSubscription} disabled={billingActionLoading}>
+                      Reactivate
+                    </Button>
+                  ) : (
+                    <Button size="sm" variant="destructive" onClick={() => cancelSubscription(true)} disabled={billingActionLoading}>
+                      Cancel now
+                    </Button>
+                  )}
+                </div>
+              )}
+            </CardHeader>
+            <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <div>
+                <p className="text-sm text-muted-foreground">Plan</p>
+                <p className="text-base font-semibold">
+                  {billing?.subscription_plan
+                    ? PLAN_CATALOG[billing.subscription_plan as keyof typeof PLAN_CATALOG]?.name || billing.subscription_plan
+                    : 'No subscription'}
+                </p>
+                {billing?.subscription_status && (
+                  <Badge className="mt-1" variant="outline">
+                    {billing.subscription_status}
+                  </Badge>
+                )}
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Period</p>
+                <p className="text-base">
+                  {billing?.current_period_start
+                    ? `${formatDate(billing.current_period_start)} - ${formatDate(
+                        billing.current_period_end || billing.current_period_start
+                      )}`
+                    : 'N/A'}
+                </p>
+                {billing?.cancel_at_period_end && (
+                  <p className="text-xs text-amber-700">Cancels at period end</p>
+                )}
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Payment Method</p>
+                {billing?.payment_method_last4 || billing?.payment_method?.last4 ? (
+                  <p className="text-base">
+                    {(billing.payment_method_brand ||
+                      billing.payment_method?.brand ||
+                      'Card'
+                    ).toUpperCase()}{' '}
+                    •••• {billing.payment_method_last4 || billing.payment_method?.last4}
+                  </p>
+                ) : (
+                  <p className="text-base">No card on file</p>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader>
               <CardTitle>Company Information</CardTitle>
@@ -305,6 +483,78 @@ export default function CompanyDetailsPage() {
                   ))
                 )}
               </div>
+            </CardContent>
+          </Card>
+
+          <Card className="lg:col-span-2">
+            <CardHeader>
+              <CardTitle>Invoice History</CardTitle>
+              <CardDescription>Past invoices for this company</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {invoices.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-4">No invoices found</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-left text-muted-foreground">
+                        <th className="py-2 pr-4">Invoice</th>
+                        <th className="py-2 pr-4">Amount</th>
+                        <th className="py-2 pr-4">Status</th>
+                        <th className="py-2 pr-4">Created</th>
+                        <th className="py-2 pr-4">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {invoices.map((inv) => {
+                        const amount =
+                          inv.amount_paid ?? inv.amount_due ?? 0;
+                        const currency = inv.currency || 'usd';
+                        return (
+                          <tr key={inv.id} className="border-t">
+                            <td className="py-2 pr-4 font-medium">
+                              {inv.number || inv.id.slice(-8)}
+                            </td>
+                            <td className="py-2 pr-4">
+                              {new Intl.NumberFormat('en-US', {
+                                style: 'currency',
+                                currency: currency.toUpperCase(),
+                              }).format(amount / 100)}
+                            </td>
+                            <td className="py-2 pr-4">
+                              <Badge variant="outline">{inv.status}</Badge>
+                            </td>
+                            <td className="py-2 pr-4">{formatDate(inv.created * 1000 || inv.created)}</td>
+                            <td className="py-2 pr-4">
+                              <div className="flex gap-2">
+                                {inv.hosted_invoice_url && (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => window.open(inv.hosted_invoice_url!, '_blank')}
+                                  >
+                                    View
+                                  </Button>
+                                )}
+                                {inv.invoice_pdf && (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => window.open(inv.invoice_pdf!, '_blank')}
+                                  >
+                                    PDF
+                                  </Button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>

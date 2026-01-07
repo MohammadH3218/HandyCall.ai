@@ -178,6 +178,28 @@ export class BillingService {
   }
 
   /**
+   * Reactivate subscription (admin)
+   */
+  async reactivateSubscription(companyId: string): Promise<{ subscription: any }> {
+    const company = await this.companiesService.findById(companyId);
+    if (!company?.stripe_subscription_id) {
+      throw new BadRequestException('No subscription to reactivate');
+    }
+
+    const subscription = await this.stripeService.reactivateSubscription(company.stripe_subscription_id);
+
+    await this.companiesService.updateCompany(companyId, {
+      cancel_at_period_end: false,
+      subscription_status: this.mapStripeStatus(subscription.status),
+      status: this.getCompanyStatus(subscription.status),
+      current_period_start: subscription.current_period_start * 1000,
+      current_period_end: subscription.current_period_end * 1000,
+    });
+
+    return { subscription };
+  }
+
+  /**
    * Get billing info for a company
    */
   async getBillingInfo(companyId: string): Promise<any> {

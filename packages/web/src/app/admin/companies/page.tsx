@@ -25,6 +25,8 @@ interface Company {
   email: string;
   timezone: string;
   created_at: number;
+  subscription_plan?: string;
+  subscription_status?: string;
   subscription_tier?: string;
 }
 
@@ -263,10 +265,13 @@ export default function CompaniesPage() {
                       <span className="text-muted-foreground">Created:</span>
                       <span>{formatDate(company.created_at)}</span>
                     </div>
-                    {company.subscription_tier && (
+                    {(company.subscription_plan || company.subscription_tier) && (
                       <div className="flex items-center justify-between">
-                        <span className="text-muted-foreground">Tier:</span>
-                        <Badge variant="outline">{company.subscription_tier}</Badge>
+                        <span className="text-muted-foreground">Plan:</span>
+                        <Badge variant="outline">
+                          {company.subscription_plan || company.subscription_tier}
+                          {company.subscription_status ? ` • ${company.subscription_status}` : ''}
+                        </Badge>
                       </div>
                     )}
                   </div>
