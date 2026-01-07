@@ -173,10 +173,6 @@ export default function CompanyDetailsPage() {
     });
   };
 
-  const formatCompanyStatus = (status: string) => {
-    return status.charAt(0) + status.slice(1).toLowerCase();
-  };
-
   const toggleService = async (service: 'calls' | 'sms', enabled: boolean) => {
     if (!company) return;
     if (company.status === 'INACTIVE' || company.status === 'SUSPENDED') {
@@ -318,26 +314,6 @@ export default function CompanyDetailsPage() {
       await loadCompanyDetails();
     } catch (error: any) {
       toast({ title: 'Error', description: error.message || 'Failed to update plan', variant: 'destructive' });
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  const updateCompanyStatus = async (status: string) => {
-    if (!company) return;
-    setActionLoading(true);
-    try {
-      const res = await fetch(`/api/proxy/companies/${company.company_id}`, {
-        method: 'PUT',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status }),
-      });
-      if (!res.ok) throw new Error('Failed to update status');
-      toast({ title: 'Status updated', description: `Company set to ${status}` });
-      await loadCompanyDetails();
-    } catch (error: any) {
-      toast({ title: 'Error', description: error.message || 'Failed to update status', variant: 'destructive' });
     } finally {
       setActionLoading(false);
     }
@@ -541,29 +517,9 @@ export default function CompanyDetailsPage() {
           <Card className="lg:col-span-3">
             <CardHeader>
               <CardTitle>Company Controls</CardTitle>
-              <CardDescription>Manage company status, services, and subscription</CardDescription>
+              <CardDescription>Manage services and subscription</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              {/* Status Control */}
-              <div className="flex flex-wrap gap-3 items-center">
-                <span className="text-sm font-medium text-muted-foreground min-w-[120px]">Company Status</span>
-                <select
-                  className="border rounded-md px-3 py-2 text-sm bg-background"
-                  value={company.status}
-                  onChange={(e) => updateCompanyStatus(e.target.value)}
-                  disabled={actionLoading}
-                >
-                  <option value="ACTIVE">Active</option>
-                  <option value="TRIAL">Trial</option>
-                  <option value="INACTIVE">Inactive</option>
-                  <option value="SUSPENDED">Suspended</option>
-                  <option value="CANCELLED">Cancelled</option>
-                </select>
-                <Badge variant={company.status === 'ACTIVE' ? 'default' : 'secondary'}>
-                  {formatCompanyStatus(company.status)}
-                </Badge>
-              </div>
-
               {/* Service Toggles */}
               <div>
                 <h4 className="text-sm font-medium text-muted-foreground mb-3">Service Controls</h4>
@@ -605,13 +561,46 @@ export default function CompanyDetailsPage() {
                       ))}
                     </select>
                     {canceling ? (
-                      <Button size="sm" onClick={reactivateSubscription} disabled={actionLoading}>
-                        Reactivate
-                      </Button>
+                      <>
+                        <Button size="sm" onClick={reactivateSubscription} disabled={actionLoading}>
+                          Reactivate
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => {
+                            if (confirm('Terminate this subscription immediately?')) {
+                              cancelSubscription(true);
+                            }
+                          }}
+                          disabled={actionLoading}
+                        >
+                          Terminate
+                        </Button>
+                      </>
                     ) : (
-                      <Button size="sm" variant="destructive" onClick={() => cancelSubscription(false)} disabled={actionLoading}>
-                        Cancel
-                      </Button>
+                      <>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => cancelSubscription(false)}
+                          disabled={actionLoading}
+                        >
+                          Cancel
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => {
+                            if (confirm('Terminate this subscription immediately?')) {
+                              cancelSubscription(true);
+                            }
+                          }}
+                          disabled={actionLoading}
+                        >
+                          Terminate
+                        </Button>
+                      </>
                     )}
                   </div>
                 ) : (
