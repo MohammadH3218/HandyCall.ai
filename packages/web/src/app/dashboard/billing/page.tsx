@@ -138,6 +138,16 @@ export default function BillingPage() {
   const priceDisplay = currentPlan ? getPlanPriceDisplay(currentPlan) : null;
   const status = company?.subscription_status || subscription?.subscription_status;
 
+  const paymentMethod =
+    company?.payment_method_last4
+      ? { last4: company.payment_method_last4, brand: company.payment_method_brand }
+      : (subscription as any)?.payment_method
+      ? {
+          last4: (subscription as any).payment_method.last4,
+          brand: (subscription as any).payment_method.brand,
+        }
+      : null;
+
   return (
     <div className="p-8 max-w-7xl">
       <div className="mb-8">
@@ -224,18 +234,18 @@ export default function BillingPage() {
             <CardDescription>Your billing payment details</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {company?.payment_method_last4 ? (
+            {paymentMethod ? (
               <>
                 <div className="flex items-center gap-3">
                   <div className="w-12 h-8 bg-gray-200 rounded flex items-center justify-center">
                     <span className="text-xs font-semibold text-gray-600">
-                      {company.payment_method_brand?.toUpperCase()}
+                      {paymentMethod.brand?.toUpperCase()}
                     </span>
                   </div>
                   <div>
-                    <p className="font-medium">**** **** **** {company.payment_method_last4}</p>
+                    <p className="font-medium">**** **** **** {paymentMethod.last4}</p>
                     <p className="text-sm text-gray-600">
-                      {company.payment_method_brand || 'Card'} ending in {company.payment_method_last4}
+                      {(paymentMethod.brand as string) || 'Card'} ending in {paymentMethod.last4}
                     </p>
                   </div>
                 </div>
