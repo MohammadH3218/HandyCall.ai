@@ -168,12 +168,15 @@ export default function PaymentMethodPage() {
   // Only create the Stripe promise when we actually have a key.
   const stripePromise = publishableKey ? loadStripe(publishableKey) : null;
 
-  const planLabels: Record<SubscriptionPlan, string> = Object.fromEntries(
-    Object.entries(PLAN_CATALOG).map(([plan, details]) => {
-      const price = getPlanPriceDisplay(plan as SubscriptionPlan);
+  const planLabels: Record<SubscriptionPlan, string> = Object.values(SubscriptionPlan).reduce(
+    (acc, plan) => {
+      const details = PLAN_CATALOG[plan];
+      const price = getPlanPriceDisplay(plan);
       const cadence = price.cadence.replace('per ', '');
-      return [plan as SubscriptionPlan, `${details.name} (${price.current}/${cadence})`];
-    })
+      acc[plan] = `${details.name} (${price.current}/${cadence})`;
+      return acc;
+    },
+    {} as Record<SubscriptionPlan, string>
   );
   const selectedPlanDetails = selectedPlan ? PLAN_CATALOG[selectedPlan] : undefined;
   const selectedPlanPrice = selectedPlan ? getPlanPriceDisplay(selectedPlan) : undefined;
