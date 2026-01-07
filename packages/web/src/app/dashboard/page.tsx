@@ -67,7 +67,6 @@ export default function DashboardPage() {
   const [toggleLoading, setToggleLoading] = useState<'calls' | 'sms' | null>(null);
   const [usageLimits, setUsageLimits] = useState<UsageLimits | null>(null);
   const servicesLocked = company?.status === 'INACTIVE' || company?.status === 'SUSPENDED';
-  const controlsDisabled = servicesLocked || !company || isLoading;
 
   useEffect(() => {
     loadDashboardData();
@@ -148,7 +147,19 @@ export default function DashboardPage() {
   };
 
   const toggleService = async (service: 'calls' | 'sms', enabled: boolean) => {
-    if (servicesLocked) {
+    const currentCompany =
+      (await apiClient.getMyCompany().catch(() => null)) || company;
+    if (!currentCompany) {
+      toast({
+        title: 'Account not ready',
+        description: 'Please wait a moment and try again.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    const locked =
+      currentCompany.status === 'INACTIVE' || currentCompany.status === 'SUSPENDED';
+    if (locked) {
       toast({
         title: 'Service unavailable',
         description: 'Services are disabled while the account is inactive or suspended.',
@@ -157,13 +168,13 @@ export default function DashboardPage() {
       return;
     }
     if (enabled) {
-      const subscriptionStatus = company?.subscription_status;
+      const subscriptionStatus = currentCompany.subscription_status;
       const hasPlan =
-        Boolean(company?.subscription_plan) &&
+        Boolean(currentCompany.subscription_plan) &&
         (!subscriptionStatus ||
           subscriptionStatus === 'ACTIVE' ||
           subscriptionStatus === 'TRIALING' ||
-          company?.cancel_at_period_end);
+          currentCompany.cancel_at_period_end);
 
       if (!hasPlan) {
         toast({
@@ -210,6 +221,7 @@ export default function DashboardPage() {
           ? `Your AI receptionist will now handle ${service === 'calls' ? 'incoming calls' : 'incoming SMS messages'}`
           : `${service === 'calls' ? 'Call' : 'SMS'} handling is paused`,
       });
+      await checkAuth();
     } catch (err: any) {
       toast({
         title: 'Error',
@@ -267,7 +279,6 @@ export default function DashboardPage() {
                 icon={<PhoneCall className="h-5 w-5" />}
                 enabled={callsEnabled}
                 loading={toggleLoading === 'calls'}
-                disabled={controlsDisabled}
                 onToggle={(enabled) => toggleService('calls', enabled)}
               />
               <ServiceToggle
@@ -275,7 +286,6 @@ export default function DashboardPage() {
                 icon={<MessageSquare className="h-5 w-5" />}
                 enabled={smsEnabled}
                 loading={toggleLoading === 'sms'}
-                disabled={controlsDisabled}
                 onToggle={(enabled) => toggleService('sms', enabled)}
               />
             </div>
