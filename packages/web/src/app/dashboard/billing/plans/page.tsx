@@ -30,6 +30,7 @@ export default function BillingPlansPage() {
   const [subscription, setSubscription] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [processingPlan, setProcessingPlan] = useState<SubscriptionPlan | null>(null);
+  const planOrder = [SubscriptionPlan.STARTER, SubscriptionPlan.PRO, SubscriptionPlan.MAX];
 
   useEffect(() => {
     loadSubscription();
@@ -55,9 +56,34 @@ export default function BillingPlansPage() {
       return;
     }
 
+    // If subscription is set to cancel at period end, block changes until it ends
+    if (subscription?.cancel_at_period_end) {
+      alert(
+        'Your subscription is scheduled to end at the close of this billing period. You can change plans once the current period finishes.'
+      );
+      return;
+    }
+
+    const currentRank = currentPlan ? planOrder.indexOf(currentPlan) : -1;
+    const targetRank = planOrder.indexOf(plan);
+    const isDowngrade = currentRank !== -1 && targetRank < currentRank;
+    const isUpgrade = currentRank !== -1 && targetRank > currentRank;
+
     // If user has a subscription, they're upgrading/downgrading
     if (currentPlan) {
-      if (confirm(`Are you sure you want to switch to the ${PLANS.find(p => p.plan === plan)?.name} plan?`)) {
+      if (isDowngrade) {
+        alert(
+          'Downgrades take effect after your current billing period ends. Please retry after the period closes.'
+        );
+        return;
+      }
+
+      const planName = PLANS.find((p) => p.plan === plan)?.name || 'selected';
+      const confirmMessage = isUpgrade
+        ? `Switch to ${planName}? This change takes effect immediately and may incur a prorated charge.`
+        : `Switch to ${planName}?`;
+
+      if (confirm(confirmMessage)) {
         try {
           setProcessingPlan(plan);
           await apiClient.updateSubscription({ plan });
