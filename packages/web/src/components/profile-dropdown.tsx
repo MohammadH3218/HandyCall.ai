@@ -1,11 +1,12 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { LogOut, User } from 'lucide-react';
 import { useAuthStore } from '@/stores/auth-store';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { SubscriptionPlan, SubscriptionStatus } from '@handycall/shared';
 import { PLAN_CATALOG, normalizePlan } from '@/constants/plans';
+import { apiClient } from '@/lib/api-client';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -23,6 +24,31 @@ const PLAN_NAMES: Record<SubscriptionPlan, string> = {
 
 export function ProfileDropdown() {
   const { user, email, company, logout } = useAuthStore();
+  const [fallbackPlan, setFallbackPlan] = useState<SubscriptionPlan | undefined>();
+  const [fallbackStatus, setFallbackStatus] = useState<SubscriptionStatus | undefined>();
+
+  useEffect(() => {
+    // If company already has plan info, don't fetch
+    if (company?.subscription_plan) return;
+    let isMounted = true;
+    apiClient
+      .getMySubscription()
+      .then((sub) => {
+        if (!isMounted || !sub) return;
+        if (sub.subscription_plan) {
+          setFallbackPlan(normalizePlan(sub.subscription_plan) as SubscriptionPlan | undefined);
+        }
+        if (sub.subscription_status) {
+          setFallbackStatus(sub.subscription_status as SubscriptionStatus);
+        }
+      })
+      .catch(() => {
+        // Swallow errors; profile should still render
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, [company?.subscription_plan]);
 
   const handleLogout = async () => {
     await logout();
@@ -64,9 +90,10 @@ export function ProfileDropdown() {
   const getPlanInfo = () => {
     const planValue = normalizePlan(
       (company?.subscription_plan as SubscriptionPlan | undefined) ||
-        (company as any)?.subscription_tier
+        (company as any)?.subscription_tier ||
+        fallbackPlan
     );
-    const status = company?.subscription_status;
+    const status = company?.subscription_status || fallbackStatus;
 
     if (!planValue) {
       if (status === SubscriptionStatus.TRIALING) return { text: 'Trialing', color: 'text-blue-600' };
