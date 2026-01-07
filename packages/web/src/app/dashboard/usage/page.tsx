@@ -53,9 +53,10 @@ export default function UsagePage() {
         resolvePlan(subscription?.subscription_plan as SubscriptionPlan | undefined);
 
       setUsage(normalizeUsageResponse(usageData, subscription));
-      const limits =
-        resolvePlanLimits(normalizedPlan, usageData?.plan_limits) ||
-        (normalizedPlan ? PLAN_CATALOG[normalizedPlan].limits : undefined);
+      const limits = normalizedPlan
+        ? resolvePlanLimits(normalizedPlan, usageData?.plan_limits) ||
+          PLAN_CATALOG[normalizedPlan].limits
+        : undefined;
       setPlanLimits(limits);
       setSubscriptionPlan(normalizedPlan);
     } catch (err: any) {
