@@ -87,6 +87,9 @@ export default function CompanyDetailsPage() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [billingActionLoading, setBillingActionLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [statusUpdating, setStatusUpdating] = useState(false);
+  const [usageDelta, setUsageDelta] = useState({ minutes: 0, sms: 0, contacts: 0 });
 
   const companyId = params.id as string;
 
@@ -103,13 +106,14 @@ export default function CompanyDetailsPage() {
 
   const loadCompanyDetails = async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const [companyRes, statsRes, usersRes, billingRes, invoicesRes] = await Promise.all([
         fetch(`/api/proxy/companies/${companyId}`, { credentials: 'include' }),
         fetch(`/api/proxy/companies/${companyId}/stats`, { credentials: 'include' }),
         fetch(`/api/proxy/companies/${companyId}/users`, { credentials: 'include' }),
-        fetch(`/api/proxy/billing/admin/company/${companyId}`, { credentials: 'include' }),
-        fetch(`/api/proxy/billing/admin/company/${companyId}/invoices`, { credentials: 'include' }),
+        fetch(`/api/proxy/billing/admin/company/${companyId}`, { credentials: 'include' }).catch(() => null),
+        fetch(`/api/proxy/billing/admin/company/${companyId}/invoices`, { credentials: 'include' }).catch(() => null),
       ]);
 
       let companyResponse = companyRes;
@@ -118,7 +122,7 @@ export default function CompanyDetailsPage() {
       let billingResponse = billingRes;
       let invoicesResponse = invoicesRes;
 
-      if ([companyRes, statsRes, usersRes, billingRes, invoicesRes].some((r) => r.status === 401)) {
+      if ([companyRes, statsRes, usersRes, billingRes, invoicesRes].some((r) => r && r.status === 401)) {
         const token = localStorage.getItem('access_token');
         if (!token) {
           throw new Error('Unauthorized. Please re-login as admin.');
@@ -133,26 +137,30 @@ export default function CompanyDetailsPage() {
           fetch(`${process.env.NEXT_PUBLIC_API_URL}/companies/${companyId}/users`, {
             headers: { Authorization: `Bearer ${token}` },
           }),
-          fetch(`${process.env.NEXT_PUBLIC_API_URL}/billing/admin/company/${companyId}`, {
-            headers: { Authorization: `Bearer ${token}` },
-          }),
-          fetch(`${process.env.NEXT_PUBLIC_API_URL}/billing/admin/company/${companyId}/invoices`, {
-            headers: { Authorization: `Bearer ${token}` },
-          }),
+          billingRes
+            ? fetch(`${process.env.NEXT_PUBLIC_API_URL}/billing/admin/company/${companyId}`, {
+                headers: { Authorization: `Bearer ${token}` },
+              }).catch(() => null)
+            : null,
+          invoicesRes
+            ? fetch(`${process.env.NEXT_PUBLIC_API_URL}/billing/admin/company/${companyId}/invoices`, {
+                headers: { Authorization: `Bearer ${token}` },
+              }).catch(() => null)
+            : null,
         ]);
       }
 
-      if (!companyResponse.ok || !statsResponse.ok || !usersResponse.ok || !billingResponse.ok || !invoicesResponse.ok) {
+      if (!companyResponse.ok || !statsResponse.ok || !usersResponse.ok) {
         throw new Error('Failed to load company details');
       }
 
-      const [companyData, statsData, usersData, billingData, invoicesData] = await Promise.all([
+      const [companyData, statsData, usersData] = await Promise.all([
         companyResponse.json(),
         statsResponse.json(),
         usersResponse.json(),
-        billingResponse.json(),
-        invoicesResponse.json(),
       ]);
+      const billingData = billingResponse && billingResponse.ok ? await billingResponse.json() : null;
+      const invoicesData = invoicesResponse && invoicesResponse.ok ? await invoicesResponse.json() : null;
 
       setCompany(companyData);
       setStats(statsData);
@@ -161,6 +169,7 @@ export default function CompanyDetailsPage() {
       setInvoices(Array.isArray(invoicesData) ? invoicesData : invoicesData?.data || []);
     } catch (error) {
       console.error('Failed to load company details:', error);
+      setLoadError((error as any)?.message || 'Failed to load company details');
       toast({
         title: 'Error',
         description: 'Failed to load company details',
@@ -245,12 +254,88 @@ export default function CompanyDetailsPage() {
     }
   };
 
-  if (isLoading || loading || !company || !stats) {
+  const updateCompanyStatus = async (status: string) => {
+    if (!company) return;
+    setStatusUpdating(true);
+    try {
+      const res = await fetch(`/api/proxy/companies/${company.company_id}`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status }),
+      });
+      if (!res.ok) throw new Error('Failed to update status');
+      toast({ title: 'Status updated', description: `Company set to ${status}` });
+      await loadCompanyDetails();
+    } catch (error: any) {
+      toast({ title: 'Error', description: error.message || 'Failed to update status', variant: 'destructive' });
+    } finally {
+      setStatusUpdating(false);
+    }
+  };
+
+  const resetUsage = async () => {
+    if (!company) return;
+    setBillingActionLoading(true);
+    try {
+      const res = await fetch(`/api/proxy/billing/admin/company/${company.company_id}/usage/reset`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      if (!res.ok) throw new Error('Failed to reset usage');
+      toast({ title: 'Usage reset', description: 'Today’s usage set to zero' });
+      await loadCompanyDetails();
+    } catch (error: any) {
+      toast({ title: 'Error', description: error.message || 'Failed to reset usage', variant: 'destructive' });
+    } finally {
+      setBillingActionLoading(false);
+    }
+  };
+
+  const applyCredits = async () => {
+    if (!company) return;
+    setBillingActionLoading(true);
+    try {
+      const res = await fetch(`/api/proxy/billing/admin/company/${company.company_id}/usage/adjust`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          minutes: -Math.abs(usageDelta.minutes || 0),
+          sms: -Math.abs(usageDelta.sms || 0),
+          contacts: -Math.abs(usageDelta.contacts || 0),
+        }),
+      });
+      if (!res.ok) throw new Error('Failed to apply credits');
+      toast({ title: 'Credits applied', description: 'Usage reduced for this period' });
+      await loadCompanyDetails();
+    } catch (error: any) {
+      toast({ title: 'Error', description: error.message || 'Failed to apply credits', variant: 'destructive' });
+    } finally {
+      setBillingActionLoading(false);
+    }
+  };
+
+  if (isLoading || loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <div className="text-center">
           <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent mx-auto"></div>
           <p className="mt-4 text-sm text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (loadError || !company || !stats) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <div className="text-center space-y-4">
+          <p className="text-sm text-muted-foreground">{loadError || 'Unable to load company'}</p>
+          <Button onClick={loadCompanyDetails}>Retry</Button>
+          <Button variant="outline" onClick={() => router.push('/admin/companies')}>
+            Back to companies
+          </Button>
         </div>
       </div>
     );
@@ -330,6 +415,85 @@ export default function CompanyDetailsPage() {
         </div>
 
         <div className="grid gap-6 lg:grid-cols-2">
+          <Card className="lg:col-span-2">
+            <CardHeader>
+              <CardTitle>Admin Controls</CardTitle>
+              <CardDescription>Manage company status and usage</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex flex-wrap gap-3 items-center">
+                <span className="text-sm font-medium text-muted-foreground">Company status</span>
+                <select
+                  className="border rounded px-2 py-1 text-sm"
+                  defaultValue={company.status}
+                  onChange={(e) => updateCompanyStatus(e.target.value)}
+                  disabled={statusUpdating}
+                >
+                  <option value="ACTIVE">Active</option>
+                  <option value="TRIAL">Trial</option>
+                  <option value="SUSPENDED">Suspended</option>
+                  <option value="CANCELLED">Cancelled</option>
+                </select>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => updateCompanyStatus('SUSPENDED')}
+                  disabled={statusUpdating}
+                >
+                  Disable company
+                </Button>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                <Button size="sm" variant="destructive" onClick={() => cancelSubscription(true)} disabled={billingActionLoading}>
+                  Cancel immediately
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => cancelSubscription(false)} disabled={billingActionLoading}>
+                  Cancel at period end
+                </Button>
+                <Button size="sm" variant="outline" onClick={reactivateSubscription} disabled={billingActionLoading}>
+                  Reactivate
+                </Button>
+                <Button size="sm" variant="outline" onClick={resetUsage} disabled={billingActionLoading}>
+                  Reset usage
+                </Button>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-4 items-end">
+                <div>
+                  <label className="text-xs text-muted-foreground">Credit minutes</label>
+                  <input
+                    type="number"
+                    className="w-full border rounded px-2 py-1 text-sm"
+                    value={usageDelta.minutes}
+                    onChange={(e) => setUsageDelta({ ...usageDelta, minutes: Number(e.target.value) })}
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">Credit SMS</label>
+                  <input
+                    type="number"
+                    className="w-full border rounded px-2 py-1 text-sm"
+                    value={usageDelta.sms}
+                    onChange={(e) => setUsageDelta({ ...usageDelta, sms: Number(e.target.value) })}
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">Credit contacts</label>
+                  <input
+                    type="number"
+                    className="w-full border rounded px-2 py-1 text-sm"
+                    value={usageDelta.contacts}
+                    onChange={(e) => setUsageDelta({ ...usageDelta, contacts: Number(e.target.value) })}
+                  />
+                </div>
+                <Button size="sm" onClick={applyCredits} disabled={billingActionLoading}>
+                  Apply credits
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
           <Card className="lg:col-span-2">
             <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div>

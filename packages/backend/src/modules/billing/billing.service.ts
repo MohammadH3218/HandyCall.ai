@@ -310,6 +310,23 @@ export class BillingService {
   }
 
   /**
+   * Admin: reset today's usage to zero
+   */
+  async resetTodayUsage(companyId: string): Promise<void> {
+    await this.usageService.setTodayUsage(companyId, { minutes: 0, sms: 0, contacts: 0 });
+  }
+
+  /**
+   * Admin: adjust today's usage by delta (positive adds usage, negative gives credits back)
+   */
+  async adjustTodayUsage(
+    companyId: string,
+    deltas: { minutes?: number; sms?: number; contacts?: number }
+  ): Promise<void> {
+    await this.usageService.adjustTodayUsage(companyId, deltas);
+  }
+
+  /**
    * Handle Stripe webhook events
    */
   async handleWebhook(signature: string, rawBody: Buffer): Promise<void> {

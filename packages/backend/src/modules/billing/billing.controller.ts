@@ -267,4 +267,37 @@ export class BillingController {
     }
     return this.billingService.reactivateSubscription(companyId);
   }
+
+  /**
+   * Admin: reset today's usage to zero
+   * POST /billing/admin/company/:companyId/usage/reset
+   */
+  @Post('admin/company/:companyId/usage/reset')
+  async adminResetUsage(
+    @UserRole() role: UserRoleEnum,
+    @Param('companyId') companyId: string
+  ) {
+    if (role !== UserRoleEnum.ADMIN) {
+      throw new NotFoundException('Not found');
+    }
+    await this.billingService.resetTodayUsage(companyId);
+    return { success: true };
+  }
+
+  /**
+   * Admin: adjust today's usage by delta (positive adds usage; negative grants credits)
+   * POST /billing/admin/company/:companyId/usage/adjust
+   */
+  @Post('admin/company/:companyId/usage/adjust')
+  async adminAdjustUsage(
+    @UserRole() role: UserRoleEnum,
+    @Param('companyId') companyId: string,
+    @Body() body: { minutes?: number; sms?: number; contacts?: number }
+  ) {
+    if (role !== UserRoleEnum.ADMIN) {
+      throw new NotFoundException('Not found');
+    }
+    await this.billingService.adjustTodayUsage(companyId, body || {});
+    return { success: true };
+  }
 }

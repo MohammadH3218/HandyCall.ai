@@ -32,6 +32,8 @@ interface User {
 interface Company {
   company_id: string;
   company_name: string;
+  status?: string;
+  subscription_status?: string;
 }
 
 export default function UsersPage() {
@@ -123,36 +125,6 @@ export default function UsersPage() {
     }
   };
 
-  const handleToggleUserStatus = async (user: User) => {
-    try {
-      const endpoint = user.is_active
-        ? `/api/proxy/users/${user.user_id}/disable`
-        : `/api/proxy/users/${user.user_id}/enable`;
-
-      const response = await fetch(`${endpoint}?company_id=${user.company_id}&email=${user.email}`, {
-        method: 'PUT',
-        credentials: 'include',
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to update user status');
-      }
-
-      toast({
-        title: 'Success',
-        description: `User ${user.is_active ? 'disabled' : 'enabled'} successfully`,
-      });
-
-      loadData();
-    } catch (error: any) {
-      toast({
-        title: 'Error',
-        description: error.message || 'Failed to update user status',
-        variant: 'destructive',
-      });
-    }
-  };
-
   const formatDate = (timestamp: number) => {
     return new Date(timestamp).toLocaleDateString('en-US', {
       year: 'numeric',
@@ -170,6 +142,11 @@ export default function UsersPage() {
     }
     const company = companies.find((c) => c.company_id === user.company_id);
     return company?.company_name || 'Unknown';
+  };
+
+  const getCompanyStatus = (user: User) => {
+    const company = companies.find((c) => c.company_id === user.company_id);
+    return company?.subscription_status || company?.status || (user.is_active ? 'Active' : 'Inactive');
   };
 
   const companyOptions =
@@ -299,15 +276,9 @@ export default function UsersPage() {
                           </Badge>
                         </td>
                         <td className="px-4 py-3">
-                          {user.is_active ? (
-                            <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
-                              Active
-                            </Badge>
-                          ) : (
-                            <Badge className="bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200">
-                              Inactive
-                            </Badge>
-                          )}
+                          <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                            {getCompanyStatus(user)}
+                          </Badge>
                         </td>
                         <td className="px-4 py-3 text-sm text-muted-foreground">
                           {formatDate(user.created_at)}
@@ -316,9 +287,9 @@ export default function UsersPage() {
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => handleToggleUserStatus(user)}
+                            onClick={() => router.push(`/admin/companies/${user.company_id}`)}
                           >
-                            {user.is_active ? 'Disable' : 'Enable'}
+                            View
                           </Button>
                         </td>
                       </tr>

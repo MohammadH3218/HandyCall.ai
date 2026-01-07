@@ -226,4 +226,71 @@ export class UsageService {
       },
     };
   }
+
+  /**
+   * Admin: set today's usage counts explicitly
+   */
+  async setTodayUsage(companyId: string, metrics: { minutes?: number; sms?: number; contacts?: number }) {
+    const today = new Date().toISOString().split('T')[0];
+    const existing = await this.dynamodb.get('usage_metrics', {
+      company_id: companyId,
+      date: today,
+    });
+
+    const next = {
+      minutes_used: metrics.minutes ?? 0,
+      sms_sent_count: metrics.sms ?? 0,
+      contacts_count: metrics.contacts ?? 0,
+      calls_count: existing?.item?.calls_count || 0,
+      updated_at: Date.now(),
+    };
+
+    if (existing?.item) {
+      await this.dynamodb.update('usage_metrics', { company_id: companyId, date: today }, next);
+    } else {
+      await this.dynamodb.put('usage_metrics', {
+        company_id: companyId,
+        date: today,
+        ...next,
+        created_at: Date.now(),
+      });
+    }
+  }
+
+  /**
+   * Admin: adjust today's usage counts by delta (positive adds, negative removes)
+   */
+  async adjustTodayUsage(companyId: string, deltas: { minutes?: number; sms?: number; contacts?: number }) {
+    const today = new Date().toISOString().split('T')[0];
+    const existing = await this.dynamodb.get('usage_metrics', {
+      company_id: companyId,
+      date: today,
+    });
+
+    const base = existing?.item || {
+      minutes_used: 0,
+      sms_sent_count: 0,
+      contacts_count: 0,
+      calls_count: 0,
+    };
+
+    const next = {
+      minutes_used: base.minutes_used + (deltas.minutes ?? 0),
+      sms_sent_count: base.sms_sent_count + (deltas.sms ?? 0),
+      contacts_count: base.contacts_count + (deltas.contacts ?? 0),
+      calls_count: base.calls_count,
+      updated_at: Date.now(),
+    };
+
+    if (existing?.item) {
+      await this.dynamodb.update('usage_metrics', { company_id: companyId, date: today }, next);
+    } else {
+      await this.dynamodb.put('usage_metrics', {
+        company_id: companyId,
+        date: today,
+        ...next,
+        created_at: Date.now(),
+      });
+    }
+  }
 }
