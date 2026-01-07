@@ -47,6 +47,10 @@ export interface Company {
   subscription_tier?: string;
   trial_ends_at?: Timestamp;
 
+  // Service toggles
+  calls_enabled?: boolean;
+  sms_enabled?: boolean;
+
   // Billing fields
   stripe_customer_id?: string;
   stripe_subscription_id?: string;

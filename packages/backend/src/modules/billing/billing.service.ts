@@ -115,6 +115,48 @@ export class BillingService {
   }
 
   /**
+   * Create subscription for a company (admin-initiated, no payment required)
+   */
+  async createAdminSubscription(
+    companyId: string,
+    plan: string
+  ): Promise<{ subscription: any }> {
+    const company = await this.companiesService.findById(companyId);
+    if (!company) {
+      throw new NotFoundException('Company not found');
+    }
+
+    // Check if already has active subscription
+    if (company.stripe_subscription_id) {
+      throw new BadRequestException('Company already has an active subscription. Use update endpoint instead.');
+    }
+
+    // For admin-created subscriptions, we don't create Stripe subscription
+    // Just update company record with plan details
+    const now = Date.now();
+    const oneWeekFromNow = now + (7 * 24 * 60 * 60 * 1000); // 1 week billing period
+
+    await this.companiesService.updateCompany(companyId, {
+      subscription_plan: plan as SubscriptionPlan,
+      subscription_status: SubscriptionStatus.ACTIVE,
+      current_period_start: now,
+      current_period_end: oneWeekFromNow,
+      cancel_at_period_end: false,
+      status: CompanyStatus.ACTIVE,
+    });
+
+    return {
+      subscription: {
+        id: `admin_sub_${companyId}`,
+        plan,
+        status: 'active',
+        current_period_start: Math.floor(now / 1000),
+        current_period_end: Math.floor(oneWeekFromNow / 1000),
+      }
+    };
+  }
+
+  /**
    * Update subscription (upgrade/downgrade)
    */
   async updateSubscription(

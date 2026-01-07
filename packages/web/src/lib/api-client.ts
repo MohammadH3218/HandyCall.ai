@@ -51,7 +51,7 @@ class ApiClient {
       if (!response.ok) {
         // Handle 401 Unauthorized - user needs to log in again
         if (response.status === 401 || response.status === 403) {
-          console.warn('[API Client] Authentication failed - forcing logout');
+          console.warn('[API Client] Authentication failed - clearing tokens');
 
           // Clear all auth data from localStorage
           if (typeof window !== 'undefined') {
@@ -62,9 +62,15 @@ class ApiClient {
             localStorage.removeItem('user_role');
 
             // Only redirect if not already on login or register page
+            // Use a timeout to prevent redirect loops during login flow
             const currentPath = window.location.pathname;
             if (currentPath !== '/login' && currentPath !== '/register') {
-              window.location.href = '/login';
+              // Delay redirect slightly to allow any in-flight auth to complete
+              setTimeout(() => {
+                if (window.location.pathname !== '/login' && window.location.pathname !== '/register') {
+                  window.location.href = '/login';
+                }
+              }, 100);
             }
           }
         }

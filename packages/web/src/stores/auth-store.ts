@@ -17,6 +17,7 @@ interface AuthState {
   requiresPasswordChange: boolean;
   passwordChangeSession: string | null;
   passwordChangePoolType: 'users' | 'admin' | null;
+  _checkAuthInProgress: boolean;
 
   // Actions
   login: (email: string, password: string) => Promise<{ requiresPasswordChange: boolean; userRole: UserRole | null }>;
@@ -40,6 +41,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   requiresPasswordChange: false,
   passwordChangeSession: null,
   passwordChangePoolType: null,
+  _checkAuthInProgress: false,
 
   login: async (email: string, password: string) => {
     // Login is handled by NextAuth credentials; this store just tracks derived state.
@@ -184,6 +186,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       return;
     }
 
+    // Prevent multiple simultaneous checkAuth calls
+    const state = get();
+    if (state._checkAuthInProgress) {
+      console.log('[Auth Store] checkAuth already in progress, skipping');
+      return;
+    }
+
+    set({ _checkAuthInProgress: true });
+
     try {
       // Get NextAuth session info to populate user/email/role
       const sessionResponse = await fetch('/api/auth/session', { cache: 'no-store' });
@@ -229,7 +240,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // If no session at all, mark unauthenticated
       if (!session) {
         console.log('[Auth Store] No authenticated user in session');
-        set({ isLoading: false, isAuthenticated: false, userRole: null });
+        set({ isLoading: false, isAuthenticated: false, userRole: null, _checkAuthInProgress: false });
         return;
       }
 
@@ -256,12 +267,26 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           refreshToken: refreshToken || null,
           isAuthenticated: true,
           isLoading: false,
+          _checkAuthInProgress: false,
         });
         return;
       }
 
       // Customer flow: fetch company data via proxy to confirm auth and hydrate the store
-      const company = await apiClient.getMyCompany();
+      let company = null;
+      try {
+        company = await apiClient.getMyCompany();
+      } catch (error: any) {
+        // If user doesn't have a company yet (404), that's okay - they might be a new user
+        // or an admin that doesn't need a company
+        if (error.message?.includes('Company not found') || error.message?.includes('not completed company setup')) {
+          console.log('[Auth Store] User has no company yet - allowing authentication without company');
+          company = null;
+        } else {
+          // For other errors (network, auth, etc), rethrow
+          throw error;
+        }
+      }
 
       const email =
         sessionEmail ||
@@ -306,6 +331,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         refreshToken: refreshToken || null,
         isAuthenticated: true,
         isLoading: false,
+        _checkAuthInProgress: false,
       });
     } catch (error) {
       console.error('[Auth Store] checkAuth failed:', error);
@@ -329,6 +355,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         userRole: null,
         isAuthenticated: false,
         isLoading: false,
+        _checkAuthInProgress: false,
       });
     }
   },

@@ -82,9 +82,11 @@ function LoginPageInner() {
             return;
           }
 
-          await apiClient.getMyCompany();
+          // For customer users, redirect to dashboard without validating with API
+          // Let the dashboard layout handle the validation to avoid redirect loops
           router.push(callbackUrl || '/dashboard');
         } catch (err) {
+          console.error('[Login] Session validation failed:', err);
           await signOut({ callbackUrl: '/login' });
           return;
         }

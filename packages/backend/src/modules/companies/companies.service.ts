@@ -109,6 +109,8 @@ export class CompaniesService {
       created_at: timestamp,
       updated_at: timestamp,
       trial_ends_at: timestamp + 14 * 24 * 60 * 60 * 1000, // 14 days trial
+      calls_enabled: true, // Enable calls by default
+      sms_enabled: true, // Enable SMS by default
     };
 
     await this.dynamodb.put(this.tableName, company);

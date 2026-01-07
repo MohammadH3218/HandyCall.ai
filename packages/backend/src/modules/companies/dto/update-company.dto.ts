@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsObject } from 'class-validator';
+import { IsString, IsOptional, IsObject, IsBoolean } from 'class-validator';
 import { BusinessHours } from '@handycall/shared';
 
 export class UpdateCompanyDto {
@@ -21,4 +21,12 @@ export class UpdateCompanyDto {
   @IsOptional()
   @IsObject()
   business_hours?: BusinessHours;
+
+  @IsOptional()
+  @IsBoolean()
+  calls_enabled?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  sms_enabled?: boolean;
 }

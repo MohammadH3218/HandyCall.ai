@@ -221,6 +221,22 @@ export class BillingController {
   }
 
   /**
+   * Create subscription for a company (admin only) - no payment required
+   * POST /billing/admin/company/:companyId/subscription
+   */
+  @Post('admin/company/:companyId/subscription')
+  async adminCreateSubscription(
+    @UserRole() role: UserRoleEnum,
+    @Param('companyId') companyId: string,
+    @Body() dto: { plan: string }
+  ) {
+    if (role !== UserRoleEnum.ADMIN) {
+      throw new NotFoundException('Not found');
+    }
+    return this.billingService.createAdminSubscription(companyId, dto.plan);
+  }
+
+  /**
    * Update subscription plan for a company (admin only)
    * PUT /billing/admin/company/:companyId/subscription
    */

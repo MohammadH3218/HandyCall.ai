@@ -89,7 +89,6 @@ export default function CompanyDetailsPage() {
   const [billingActionLoading, setBillingActionLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [statusUpdating, setStatusUpdating] = useState(false);
-  const [usageDelta, setUsageDelta] = useState({ minutes: 0, sms: 0, contacts: 0 });
 
   const companyId = params.id as string;
 
@@ -108,26 +107,26 @@ export default function CompanyDetailsPage() {
     setLoading(true);
     setLoadError(null);
     try {
-      const [companyRes, statsRes, usersRes, billingRes, invoicesRes] = await Promise.all([
+      const [companyRes, statsRes, usersRes] = await Promise.all([
         fetch(`/api/proxy/companies/${companyId}`, { credentials: 'include' }),
         fetch(`/api/proxy/companies/${companyId}/stats`, { credentials: 'include' }),
         fetch(`/api/proxy/companies/${companyId}/users`, { credentials: 'include' }),
-        fetch(`/api/proxy/billing/admin/company/${companyId}`, { credentials: 'include' }).catch(() => null),
-        fetch(`/api/proxy/billing/admin/company/${companyId}/invoices`, { credentials: 'include' }).catch(() => null),
       ]);
+
+      // Fetch billing data separately to handle 404s gracefully
+      const billingRes = await fetch(`/api/proxy/billing/admin/company/${companyId}`, { credentials: 'include' }).catch(() => null);
+      const invoicesRes = await fetch(`/api/proxy/billing/admin/company/${companyId}/invoices`, { credentials: 'include' }).catch(() => null);
 
       let companyResponse = companyRes;
       let statsResponse = statsRes;
       let usersResponse = usersRes;
-      let billingResponse = billingRes;
-      let invoicesResponse = invoicesRes;
 
-      if ([companyRes, statsRes, usersRes, billingRes, invoicesRes].some((r) => r && r.status === 401)) {
+      if ([companyRes, statsRes, usersRes].some((r) => r && r.status === 401)) {
         const token = localStorage.getItem('access_token');
         if (!token) {
           throw new Error('Unauthorized. Please re-login as admin.');
         }
-        [companyResponse, statsResponse, usersResponse, billingResponse, invoicesResponse] = await Promise.all([
+        [companyResponse, statsResponse, usersResponse] = await Promise.all([
           fetch(`${process.env.NEXT_PUBLIC_API_URL}/companies/${companyId}`, {
             headers: { Authorization: `Bearer ${token}` },
           }),
@@ -137,16 +136,6 @@ export default function CompanyDetailsPage() {
           fetch(`${process.env.NEXT_PUBLIC_API_URL}/companies/${companyId}/users`, {
             headers: { Authorization: `Bearer ${token}` },
           }),
-          billingRes
-            ? fetch(`${process.env.NEXT_PUBLIC_API_URL}/billing/admin/company/${companyId}`, {
-                headers: { Authorization: `Bearer ${token}` },
-              }).catch(() => null)
-            : null,
-          invoicesRes
-            ? fetch(`${process.env.NEXT_PUBLIC_API_URL}/billing/admin/company/${companyId}/invoices`, {
-                headers: { Authorization: `Bearer ${token}` },
-              }).catch(() => null)
-            : null,
         ]);
       }
 
@@ -159,8 +148,10 @@ export default function CompanyDetailsPage() {
         statsResponse.json(),
         usersResponse.json(),
       ]);
-      const billingData = billingResponse && billingResponse.ok ? await billingResponse.json() : null;
-      const invoicesData = invoicesResponse && invoicesResponse.ok ? await invoicesResponse.json() : null;
+
+      // Handle billing data gracefully - may not exist for new companies
+      const billingData = billingRes && billingRes.ok ? await billingRes.json() : null;
+      const invoicesData = invoicesRes && invoicesRes.ok ? await invoicesRes.json() : [];
 
       setCompany(companyData);
       setStats(statsData);
@@ -274,43 +265,24 @@ export default function CompanyDetailsPage() {
     }
   };
 
-  const resetUsage = async () => {
+  const createSubscription = async (plan: string = 'STARTER') => {
     if (!company) return;
     setBillingActionLoading(true);
     try {
-      const res = await fetch(`/api/proxy/billing/admin/company/${company.company_id}/usage/reset`, {
-        method: 'POST',
-        credentials: 'include',
-      });
-      if (!res.ok) throw new Error('Failed to reset usage');
-      toast({ title: 'Usage reset', description: 'Today’s usage set to zero' });
-      await loadCompanyDetails();
-    } catch (error: any) {
-      toast({ title: 'Error', description: error.message || 'Failed to reset usage', variant: 'destructive' });
-    } finally {
-      setBillingActionLoading(false);
-    }
-  };
-
-  const applyCredits = async () => {
-    if (!company) return;
-    setBillingActionLoading(true);
-    try {
-      const res = await fetch(`/api/proxy/billing/admin/company/${company.company_id}/usage/adjust`, {
+      const res = await fetch(`/api/proxy/billing/admin/company/${company.company_id}/subscription`, {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          minutes: -Math.abs(usageDelta.minutes || 0),
-          sms: -Math.abs(usageDelta.sms || 0),
-          contacts: -Math.abs(usageDelta.contacts || 0),
-        }),
+        body: JSON.stringify({ plan }),
       });
-      if (!res.ok) throw new Error('Failed to apply credits');
-      toast({ title: 'Credits applied', description: 'Usage reduced for this period' });
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.message || 'Failed to create subscription');
+      }
+      toast({ title: 'Subscription created', description: `${plan} plan activated` });
       await loadCompanyDetails();
     } catch (error: any) {
-      toast({ title: 'Error', description: error.message || 'Failed to apply credits', variant: 'destructive' });
+      toast({ title: 'Error', description: error.message || 'Failed to create subscription', variant: 'destructive' });
     } finally {
       setBillingActionLoading(false);
     }
@@ -418,14 +390,14 @@ export default function CompanyDetailsPage() {
           <Card className="lg:col-span-2">
             <CardHeader>
               <CardTitle>Admin Controls</CardTitle>
-              <CardDescription>Manage company status and usage</CardDescription>
+              <CardDescription>Manage company status and subscription</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex flex-wrap gap-3 items-center">
                 <span className="text-sm font-medium text-muted-foreground">Company status</span>
                 <select
                   className="border rounded px-2 py-1 text-sm"
-                  defaultValue={company.status}
+                  value={company.status}
                   onChange={(e) => updateCompanyStatus(e.target.value)}
                   disabled={statusUpdating}
                 >
@@ -445,51 +417,30 @@ export default function CompanyDetailsPage() {
               </div>
 
               <div className="flex flex-wrap gap-2">
-                <Button size="sm" variant="destructive" onClick={() => cancelSubscription(true)} disabled={billingActionLoading}>
-                  Cancel immediately
-                </Button>
-                <Button size="sm" variant="outline" onClick={() => cancelSubscription(false)} disabled={billingActionLoading}>
-                  Cancel at period end
-                </Button>
-                <Button size="sm" variant="outline" onClick={reactivateSubscription} disabled={billingActionLoading}>
-                  Reactivate
-                </Button>
-                <Button size="sm" variant="outline" onClick={resetUsage} disabled={billingActionLoading}>
-                  Reset usage
-                </Button>
-              </div>
-
-              <div className="grid gap-3 sm:grid-cols-4 items-end">
-                <div>
-                  <label className="text-xs text-muted-foreground">Credit minutes</label>
-                  <input
-                    type="number"
-                    className="w-full border rounded px-2 py-1 text-sm"
-                    value={usageDelta.minutes}
-                    onChange={(e) => setUsageDelta({ ...usageDelta, minutes: Number(e.target.value) })}
-                  />
-                </div>
-                <div>
-                  <label className="text-xs text-muted-foreground">Credit SMS</label>
-                  <input
-                    type="number"
-                    className="w-full border rounded px-2 py-1 text-sm"
-                    value={usageDelta.sms}
-                    onChange={(e) => setUsageDelta({ ...usageDelta, sms: Number(e.target.value) })}
-                  />
-                </div>
-                <div>
-                  <label className="text-xs text-muted-foreground">Credit contacts</label>
-                  <input
-                    type="number"
-                    className="w-full border rounded px-2 py-1 text-sm"
-                    value={usageDelta.contacts}
-                    onChange={(e) => setUsageDelta({ ...usageDelta, contacts: Number(e.target.value) })}
-                  />
-                </div>
-                <Button size="sm" onClick={applyCredits} disabled={billingActionLoading}>
-                  Apply credits
-                </Button>
+                {billing?.subscription_plan ? (
+                  <>
+                    <Button size="sm" variant="destructive" onClick={() => cancelSubscription(true)} disabled={billingActionLoading}>
+                      Cancel subscription
+                    </Button>
+                    {billing?.cancel_at_period_end && (
+                      <Button size="sm" variant="outline" onClick={reactivateSubscription} disabled={billingActionLoading}>
+                        Reactivate subscription
+                      </Button>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <Button size="sm" onClick={() => createSubscription('STARTER')} disabled={billingActionLoading}>
+                      Give STARTER subscription
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => createSubscription('PRO')} disabled={billingActionLoading}>
+                      Give PRO subscription
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => createSubscription('ENTERPRISE')} disabled={billingActionLoading}>
+                      Give ENTERPRISE subscription
+                    </Button>
+                  </>
+                )}
               </div>
             </CardContent>
           </Card>

@@ -4,7 +4,8 @@ import { useEffect, useState } from 'react';
 import { useAuthStore } from '@/stores/auth-store';
 import { apiClient } from '@/lib/api-client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Phone, Users, Calendar, AlertCircle } from 'lucide-react';
+import { Phone, Users, Calendar, AlertCircle, MessageSquare, PhoneCall } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 
 interface DashboardStats {
   todayCalls: number;
@@ -33,21 +34,50 @@ interface UpcomingAppointment {
 }
 
 export default function DashboardPage() {
-  const { company } = useAuthStore();
+  const { company, checkAuth } = useAuthStore();
+  const { toast } = useToast();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [recentCalls, setRecentCalls] = useState<RecentCall[]>([]);
   const [upcomingAppointments, setUpcomingAppointments] = useState<UpcomingAppointment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [callsEnabled, setCallsEnabled] = useState(company?.calls_enabled ?? true);
+  const [smsEnabled, setSmsEnabled] = useState(company?.sms_enabled ?? true);
+  const [toggleLoading, setToggleLoading] = useState<'calls' | 'sms' | null>(null);
 
   useEffect(() => {
     loadDashboardData();
+  }, []);
+
+  useEffect(() => {
+    if (company) {
+      setCallsEnabled(company.calls_enabled ?? true);
+      setSmsEnabled(company.sms_enabled ?? true);
+    }
+  }, [company]);
+
+  useEffect(() => {
+    // Auto-refresh when page becomes visible
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        loadDashboardData();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, []);
 
   const loadDashboardData = async () => {
     try {
       setIsLoading(true);
       setError(null);
+
+      // Refresh company data first to get latest settings
+      await checkAuth();
 
       const [statsData, callsData, appointmentsData] = await Promise.all([
         apiClient.getDashboardStats(),
@@ -83,6 +113,42 @@ export default function DashboardPage() {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
+  const toggleService = async (service: 'calls' | 'sms', enabled: boolean) => {
+    setToggleLoading(service);
+    try {
+      await apiClient.updateMyCompany({
+        [service === 'calls' ? 'calls_enabled' : 'sms_enabled']: enabled,
+      });
+
+      if (service === 'calls') {
+        setCallsEnabled(enabled);
+      } else {
+        setSmsEnabled(enabled);
+      }
+
+      toast({
+        title: enabled ? `${service === 'calls' ? 'Calls' : 'SMS'} enabled` : `${service === 'calls' ? 'Calls' : 'SMS'} disabled`,
+        description: enabled
+          ? `Your AI receptionist will now handle ${service === 'calls' ? 'incoming calls' : 'incoming SMS messages'}`
+          : `${service === 'calls' ? 'Call' : 'SMS'} handling is paused`,
+      });
+    } catch (err: any) {
+      toast({
+        title: 'Error',
+        description: err.message || 'Failed to update service settings',
+        variant: 'destructive',
+      });
+      // Revert on error
+      if (service === 'calls') {
+        setCallsEnabled(!enabled);
+      } else {
+        setSmsEnabled(!enabled);
+      }
+    } finally {
+      setToggleLoading(null);
+    }
+  };
+
   if (error) {
     return (
       <div className="p-8">
@@ -105,6 +171,37 @@ export default function DashboardPage() {
         <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
         <p className="mt-2 text-gray-600">Welcome back to {company?.company_name || 'HandyCall'}</p>
       </div>
+
+      {/* Service Control Panel */}
+      <Card className="mb-8 border-2 border-blue-100 bg-gradient-to-r from-blue-50 to-purple-50">
+        <CardContent className="pt-6">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse"></div>
+                Service Controls
+              </h3>
+              <p className="text-sm text-gray-600 mt-1">Enable or disable incoming calls and SMS</p>
+            </div>
+            <div className="flex gap-6">
+              <ServiceToggle
+                label="Calls"
+                icon={<PhoneCall className="h-5 w-5" />}
+                enabled={callsEnabled}
+                loading={toggleLoading === 'calls'}
+                onToggle={(enabled) => toggleService('calls', enabled)}
+              />
+              <ServiceToggle
+                label="SMS"
+                icon={<MessageSquare className="h-5 w-5" />}
+                enabled={smsEnabled}
+                loading={toggleLoading === 'sms'}
+                onToggle={(enabled) => toggleService('sms', enabled)}
+              />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
@@ -302,5 +399,62 @@ function QuickAction({
       <h4 className="font-semibold text-gray-900">{title}</h4>
       <p className="text-sm text-gray-600 mt-1">{description}</p>
     </a>
+  );
+}
+
+function ServiceToggle({
+  label,
+  icon,
+  enabled,
+  loading,
+  onToggle,
+}: {
+  label: string;
+  icon: React.ReactNode;
+  enabled: boolean;
+  loading: boolean;
+  onToggle: (enabled: boolean) => void;
+}) {
+  return (
+    <div className="flex flex-col items-center gap-2">
+      <div className="flex items-center gap-2">
+        <div className={`transition-colors ${enabled ? 'text-green-600' : 'text-gray-400'}`}>
+          {icon}
+        </div>
+        <span className="text-sm font-medium text-gray-700">{label}</span>
+      </div>
+      <button
+        onClick={() => onToggle(!enabled)}
+        disabled={loading}
+        className={`
+          relative inline-flex h-8 w-14 items-center rounded-full transition-all duration-300 ease-in-out
+          ${enabled ? 'bg-green-500 shadow-lg shadow-green-200' : 'bg-gray-300 shadow-md'}
+          ${loading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:shadow-xl'}
+          focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
+        `}
+        aria-label={`Toggle ${label}`}
+      >
+        <span
+          className={`
+            inline-block h-6 w-6 transform rounded-full bg-white shadow-lg transition-all duration-300 ease-in-out
+            ${enabled ? 'translate-x-7' : 'translate-x-1'}
+            ${loading ? 'animate-pulse' : ''}
+          `}
+        >
+          {loading && (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="h-3 w-3 animate-spin rounded-full border-2 border-gray-300 border-t-blue-600"></div>
+            </div>
+          )}
+        </span>
+        {/* Animated background gradient */}
+        {enabled && !loading && (
+          <div className="absolute inset-0 rounded-full bg-gradient-to-r from-green-400 to-emerald-500 animate-pulse opacity-75"></div>
+        )}
+      </button>
+      <span className={`text-xs font-semibold transition-colors ${enabled ? 'text-green-600' : 'text-gray-500'}`}>
+        {enabled ? 'Active' : 'Paused'}
+      </span>
+    </div>
   );
 }

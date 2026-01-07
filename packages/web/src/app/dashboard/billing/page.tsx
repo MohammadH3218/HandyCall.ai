@@ -26,15 +26,32 @@ export default function BillingPage() {
   const [loading, setLoading] = useState(true);
   const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [cancelling, setCancelling] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [planLimits, setPlanLimits] = useState<{ minutes: number; sms: number; contacts: number }>();
 
   useEffect(() => {
     loadBillingData();
+
+    // Auto-refresh when page becomes visible (user switches back to tab)
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        refreshData();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, []);
 
   const loadBillingData = async () => {
     try {
       setLoading(true);
+      // Refresh company data first to get latest subscription status
+      await checkAuth();
+
       const [subData, usageData] = await Promise.all([
         apiClient.getMySubscription(),
         apiClient.getUsageMetrics(),
@@ -51,6 +68,18 @@ export default function BillingPage() {
       console.error('Failed to load billing data:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const refreshData = async () => {
+    try {
+      setRefreshing(true);
+      await checkAuth(); // Refresh company data from server
+      await loadBillingData(); // Reload billing data
+    } catch (error: any) {
+      console.error('Failed to refresh billing data:', error);
+    } finally {
+      setRefreshing(false);
     }
   };
 
@@ -150,9 +179,34 @@ export default function BillingPage() {
 
   return (
     <div className="p-8 max-w-7xl">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">Billing & Subscription</h1>
-        <p className="mt-2 text-gray-600">Manage your subscription, usage, and billing information</p>
+      <div className="mb-8 flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Billing & Subscription</h1>
+          <p className="mt-2 text-gray-600">Manage your subscription, usage, and billing information</p>
+        </div>
+        <Button
+          onClick={refreshData}
+          disabled={refreshing || loading}
+          variant="outline"
+          size="sm"
+          className="flex items-center gap-2"
+        >
+          <svg
+            className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`}
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+            />
+          </svg>
+          {refreshing ? 'Refreshing...' : 'Refresh'}
+        </Button>
       </div>
 
       <div className="grid gap-6 md:grid-cols-2 mb-6">
