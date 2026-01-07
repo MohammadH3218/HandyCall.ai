@@ -199,7 +199,11 @@ export default function BillingPage() {
                 )}
 
                 <div className="flex gap-2 pt-4">
-                  {!subscription?.cancel_at_period_end && (
+                  {status === SubscriptionStatus.CANCELED || subscription?.cancel_at_period_end ? (
+                    <Button onClick={() => router.push('/dashboard/billing/plans')} className="flex-1">
+                      Reactivate Subscription
+                    </Button>
+                  ) : (
                     <>
                       <Button onClick={() => router.push('/dashboard/billing/plans')} className="flex-1">
                         Change Plan
@@ -208,11 +212,6 @@ export default function BillingPage() {
                         Cancel Plan
                       </Button>
                     </>
-                  )}
-                  {subscription?.cancel_at_period_end && (
-                    <Button onClick={() => router.push('/dashboard/billing/plans')} className="flex-1">
-                      Reactivate Subscription
-                    </Button>
                   )}
                 </div>
               </>
