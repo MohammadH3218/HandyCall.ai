@@ -120,7 +120,8 @@ export class CompaniesService {
   async findById(companyId: string): Promise<Company | null> {
     const company = await this.dynamodb.get(this.tableName, { company_id: companyId });
     if (!company) return null;
-    return this.finalizeExpiredCancellation(company as Company);
+    const finalized = await this.finalizeExpiredCancellation(company as Company);
+    return this.normalizeNoPlanStatus(finalized);
   }
 
   async findByEmail(email: string): Promise<Company | null> {
@@ -157,6 +158,8 @@ export class CompaniesService {
       business_hours?: BusinessHours;
       status?: CompanyStatus;
       subscription_tier?: string;
+      trial_ends_at?: number | null;
+      trial_used_at?: number | null;
       calls_enabled?: boolean;
       sms_enabled?: boolean;
       // Billing fields
@@ -198,7 +201,12 @@ export class CompaniesService {
   async listAll(limit = 100): Promise<Company[]> {
     const result = await this.dynamodb.scan(this.tableName, { limit });
     const companies = result.items as Company[];
-    return Promise.all(companies.map((company) => this.finalizeExpiredCancellation(company)));
+    return Promise.all(
+      companies.map(async (company) => {
+        const finalized = await this.finalizeExpiredCancellation(company);
+        return this.normalizeNoPlanStatus(finalized);
+      })
+    );
   }
 
   /**
@@ -372,6 +380,7 @@ export class CompaniesService {
         current_period_end: null,
         cancel_at_period_end: false,
         status: CompanyStatus.INACTIVE,
+        trial_ends_at: null,
         calls_enabled: false,
         sms_enabled: false,
         updated_at: Date.now(),
@@ -379,5 +388,30 @@ export class CompaniesService {
     );
 
     return updated as Company;
+  }
+
+  private async normalizeNoPlanStatus(company: Company): Promise<Company> {
+    const hasPlan = Boolean(company.subscription_plan || company.stripe_subscription_id);
+    const hasStatus = Boolean(company.subscription_status);
+    const canceling =
+      company.cancel_at_period_end &&
+      company.current_period_end &&
+      company.current_period_end > Date.now();
+
+    if (!hasPlan && !hasStatus && !canceling && company.status !== CompanyStatus.INACTIVE) {
+      const updated = await this.dynamodb.update(
+        this.tableName,
+        { company_id: company.company_id },
+        {
+          status: CompanyStatus.INACTIVE,
+          calls_enabled: false,
+          sms_enabled: false,
+          updated_at: Date.now(),
+        }
+      );
+      return updated as Company;
+    }
+
+    return company;
   }
 }

@@ -79,13 +79,16 @@ export class BillingService {
     // Get price ID for plan
     const priceId = this.stripeService.getPriceIdForPlan(plan);
 
-    // Create subscription with 14-day trial
+    const eligibleForProTrial = plan === SubscriptionPlan.PRO && !company.trial_used_at;
+    const trialDays = eligibleForProTrial ? 14 : 0;
+
+    // Create subscription with trial (Pro only, once)
     const subscription = await this.stripeService.createSubscription(
       customerId,
       priceId,
       paymentMethodId,
       companyId,
-      14 // 14 days trial
+      trialDays
     );
 
     // Get payment method details for UI display
@@ -98,6 +101,13 @@ export class BillingService {
           }
         : {};
 
+    const trialEndsAt = subscription.trial_end
+      ? subscription.trial_end * 1000
+      : trialDays
+      ? Date.now() + trialDays * 24 * 60 * 60 * 1000
+      : null;
+    const trialStartAt = subscription.trial_start ? subscription.trial_start * 1000 : null;
+
     // Update company record
     await this.companiesService.updateCompany(companyId, {
       stripe_customer_id: customerId,
@@ -108,7 +118,9 @@ export class BillingService {
       current_period_end: subscription.current_period_end * 1000,
       cancel_at_period_end: false,
       ...paymentDetails,
-      status: CompanyStatus.TRIAL,
+      status: this.getCompanyStatus(subscription.status),
+      trial_ends_at: eligibleForProTrial ? trialEndsAt : null,
+      ...(eligibleForProTrial ? { trial_used_at: trialStartAt || Date.now() } : {}),
       calls_enabled: true,
       sms_enabled: true,
     });
@@ -145,6 +157,7 @@ export class BillingService {
       current_period_end: oneWeekFromNow,
       cancel_at_period_end: false,
       status: CompanyStatus.ACTIVE,
+      trial_ends_at: null,
       calls_enabled: true,
       sms_enabled: true,
     });
@@ -236,6 +249,7 @@ export class BillingService {
           current_period_end: null,
           cancel_at_period_end: false,
           status: CompanyStatus.INACTIVE,
+          trial_ends_at: null,
           calls_enabled: false,
           sms_enabled: false,
         });
@@ -269,6 +283,7 @@ export class BillingService {
           current_period_start: null,
           current_period_end: null,
           status: CompanyStatus.INACTIVE,
+          trial_ends_at: null,
           calls_enabled: false,
           sms_enabled: false,
         }
@@ -345,6 +360,7 @@ export class BillingService {
         current_period_end: null,
         cancel_at_period_end: false,
         status: CompanyStatus.INACTIVE,
+        trial_ends_at: null,
         calls_enabled: false,
         sms_enabled: false,
       });
@@ -441,13 +457,26 @@ export class BillingService {
 
     const periodStart = company.current_period_start || Date.now();
     const usage = await this.usageService.getCurrentWeekUsage(companyId, periodStart);
-    const plan = company.subscription_plan || SubscriptionPlan.STARTER;
-    const limits = await this.usageService.checkLimitsExceeded(companyId, plan, periodStart);
+    const plan = company.subscription_plan;
+    const limits = plan ? await this.usageService.checkLimitsExceeded(companyId, plan, periodStart) : null;
+
+    if (plan && limits) {
+      const updates: { calls_enabled?: boolean; sms_enabled?: boolean } = {};
+      if (limits.minutes.exceeded && company.calls_enabled) {
+        updates.calls_enabled = false;
+      }
+      if (limits.sms.exceeded && company.sms_enabled) {
+        updates.sms_enabled = false;
+      }
+      if (Object.keys(updates).length > 0) {
+        await this.companiesService.updateCompany(companyId, updates);
+      }
+    }
 
     return {
       usage,
       limits,
-      plan_limits: this.usageService.getPlanLimits(plan),
+      plan_limits: plan ? this.usageService.getPlanLimits(plan) : undefined,
     };
   }
 
@@ -530,6 +559,10 @@ export class BillingService {
     const priceId = subscription.items.data[0]?.price?.id;
     const plan = this.stripeService.getPlanFromPriceId(priceId);
     const isCanceling = subscription.cancel_at_period_end === true;
+    const isTrialing = subscription.status === 'trialing';
+    const trialEndsAt = subscription.trial_end ? subscription.trial_end * 1000 : null;
+    const trialStartedAt = subscription.trial_start ? subscription.trial_start * 1000 : null;
+    const isProTrial = plan === SubscriptionPlan.PRO && isTrialing;
 
     await this.companiesService.updateCompany(companyId, {
       subscription_status: this.mapStripeStatus(subscription.status),
@@ -538,6 +571,8 @@ export class BillingService {
       cancel_at_period_end: subscription.cancel_at_period_end || false,
       subscription_plan: plan ?? undefined,
       status: isCanceling ? CompanyStatus.CANCELLED : this.getCompanyStatus(subscription.status),
+      trial_ends_at: isProTrial ? trialEndsAt : null,
+      ...(isProTrial ? { trial_used_at: trialStartedAt || Date.now() } : {}),
     });
   }
 
@@ -556,6 +591,7 @@ export class BillingService {
       current_period_end: null,
       cancel_at_period_end: false,
       status: CompanyStatus.INACTIVE,
+      trial_ends_at: null,
       calls_enabled: false,
       sms_enabled: false,
     });

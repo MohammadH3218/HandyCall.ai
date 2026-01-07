@@ -8,7 +8,8 @@ import {
   Param,
   Query,
   UseGuards,
-  NotFoundException
+  NotFoundException,
+  BadRequestException
 } from '@nestjs/common';
 import { CompaniesService } from './companies.service';
 import { UsersService } from '../users/users.service';
@@ -17,15 +18,17 @@ import { CompanyId, UserRole as UserRoleDecorator } from '../../common/decorator
 import { UpdateCompanyDto } from './dto/update-company.dto';
 import { CreateCompanyDto } from './dto/create-company.dto';
 import { AdminUpdateCompanyDto } from './dto/admin-update-company.dto';
-import { Company, UserRole } from '@handycall/shared';
+import { Company, UserRole, CompanyStatus, SubscriptionPlan, SubscriptionStatus } from '@handycall/shared';
 import { CompanyStats } from './companies.service';
+import { UsageService } from '../billing/usage.service';
 
 @Controller('companies')
 @UseGuards(JwtAuthGuard)
 export class CompaniesController {
   constructor(
     private companiesService: CompaniesService,
-    private usersService: UsersService
+    private usersService: UsersService,
+    private usageService: UsageService
   ) {}
 
   @Get('me')
@@ -56,6 +59,11 @@ export class CompaniesController {
     @CompanyId() companyId: string,
     @Body() dto: UpdateCompanyDto
   ): Promise<Company> {
+    const company = await this.companiesService.findById(companyId);
+    if (!company) {
+      throw new NotFoundException('Company not found');
+    }
+    await this.validateServiceEnable(company, dto);
     return this.companiesService.updateCompany(companyId, dto);
   }
 
@@ -171,6 +179,11 @@ export class CompaniesController {
       throw new NotFoundException('Not found');
     }
 
+    const company = await this.companiesService.findById(id);
+    if (!company) {
+      throw new NotFoundException('Company not found');
+    }
+    await this.validateServiceEnable(company, dto);
     return this.companiesService.updateCompany(id, dto);
   }
 
@@ -204,5 +217,44 @@ export class CompaniesController {
     }
 
     return this.usersService.listCompanyUsers(companyId);
+  }
+
+  private async validateServiceEnable(
+    company: Company,
+    updates: { calls_enabled?: boolean; sms_enabled?: boolean }
+  ) {
+    const enablingCalls = updates.calls_enabled === true;
+    const enablingSms = updates.sms_enabled === true;
+    if (!enablingCalls && !enablingSms) {
+      return;
+    }
+
+    if (company.status === CompanyStatus.INACTIVE || company.status === CompanyStatus.SUSPENDED) {
+      throw new BadRequestException('Account is inactive or suspended.');
+    }
+
+    const plan = company.subscription_plan as SubscriptionPlan | undefined;
+    if (!plan) {
+      throw new BadRequestException('An active subscription plan is required to enable services.');
+    }
+
+    const status = company.subscription_status as SubscriptionStatus | undefined;
+    const canceling =
+      company.cancel_at_period_end && company.current_period_end && company.current_period_end > Date.now();
+    const statusAllowed =
+      !status || status === SubscriptionStatus.ACTIVE || status === SubscriptionStatus.TRIALING;
+    if (!statusAllowed && !canceling) {
+      throw new BadRequestException('Subscription is not active.');
+    }
+
+    const periodStart = company.current_period_start || Date.now();
+    const limits = await this.usageService.checkLimitsExceeded(company.company_id, plan, periodStart);
+
+    if (enablingCalls && limits.minutes.exceeded) {
+      throw new BadRequestException('Call minutes limit reached for the current billing period.');
+    }
+    if (enablingSms && limits.sms.exceeded) {
+      throw new BadRequestException('SMS limit reached for the current billing period.');
+    }
   }
 }

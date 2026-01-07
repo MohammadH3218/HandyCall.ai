@@ -14,6 +14,19 @@ interface DashboardStats {
   pendingQuestions: number;
 }
 
+interface UsageLimit {
+  used: number;
+  limit: number;
+  percent: number;
+  exceeded: boolean;
+}
+
+interface UsageLimits {
+  minutes: UsageLimit;
+  sms: UsageLimit;
+  contacts: UsageLimit;
+}
+
 interface RecentCall {
   call_id: string;
   caller_phone: string;
@@ -44,15 +57,17 @@ export default function DashboardPage() {
   const [callsEnabled, setCallsEnabled] = useState(
     company?.status === 'INACTIVE' || company?.status === 'SUSPENDED'
       ? false
-      : (company?.calls_enabled ?? true)
+      : (company?.calls_enabled ?? false)
   );
   const [smsEnabled, setSmsEnabled] = useState(
     company?.status === 'INACTIVE' || company?.status === 'SUSPENDED'
       ? false
-      : (company?.sms_enabled ?? true)
+      : (company?.sms_enabled ?? false)
   );
   const [toggleLoading, setToggleLoading] = useState<'calls' | 'sms' | null>(null);
+  const [usageLimits, setUsageLimits] = useState<UsageLimits | null>(null);
   const servicesLocked = company?.status === 'INACTIVE' || company?.status === 'SUSPENDED';
+  const controlsDisabled = servicesLocked || !company || isLoading;
 
   useEffect(() => {
     loadDashboardData();
@@ -89,15 +104,24 @@ export default function DashboardPage() {
       // Refresh company data first to get latest settings
       await checkAuth();
 
-      const [statsData, callsData, appointmentsData] = await Promise.all([
+      const [statsData, callsData, appointmentsData, usageData] = await Promise.all([
         apiClient.getDashboardStats(),
         apiClient.getRecentCalls(),
         apiClient.getUpcomingAppointments(),
+        apiClient.getUsageMetrics().catch(() => null),
       ]);
 
       setStats(statsData);
       setRecentCalls(callsData || []);
       setUpcomingAppointments(appointmentsData || []);
+      const limits = (usageData as any)?.limits || null;
+      setUsageLimits(limits);
+      if (limits?.minutes?.exceeded) {
+        setCallsEnabled(false);
+      }
+      if (limits?.sms?.exceeded) {
+        setSmsEnabled(false);
+      }
     } catch (err: any) {
       console.error('Error loading dashboard:', err);
       setError(err.message || 'Failed to load dashboard data');
@@ -131,6 +155,42 @@ export default function DashboardPage() {
         variant: 'destructive',
       });
       return;
+    }
+    if (enabled) {
+      const subscriptionStatus = company?.subscription_status;
+      const hasPlan =
+        Boolean(company?.subscription_plan) &&
+        (!subscriptionStatus ||
+          subscriptionStatus === 'ACTIVE' ||
+          subscriptionStatus === 'TRIALING' ||
+          company?.cancel_at_period_end);
+
+      if (!hasPlan) {
+        toast({
+          title: 'Plan required',
+          description: 'Select a subscription plan to enable this service.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      if (service === 'calls' && usageLimits?.minutes?.exceeded) {
+        toast({
+          title: 'Call limit reached',
+          description: 'You have used all call minutes for this billing period.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      if (service === 'sms' && usageLimits?.sms?.exceeded) {
+        toast({
+          title: 'SMS limit reached',
+          description: 'You have used all SMS messages for this billing period.',
+          variant: 'destructive',
+        });
+        return;
+      }
     }
     setToggleLoading(service);
     try {
@@ -207,7 +267,7 @@ export default function DashboardPage() {
                 icon={<PhoneCall className="h-5 w-5" />}
                 enabled={callsEnabled}
                 loading={toggleLoading === 'calls'}
-                disabled={servicesLocked}
+                disabled={controlsDisabled}
                 onToggle={(enabled) => toggleService('calls', enabled)}
               />
               <ServiceToggle
@@ -215,7 +275,7 @@ export default function DashboardPage() {
                 icon={<MessageSquare className="h-5 w-5" />}
                 enabled={smsEnabled}
                 loading={toggleLoading === 'sms'}
-                disabled={servicesLocked}
+                disabled={controlsDisabled}
                 onToggle={(enabled) => toggleService('sms', enabled)}
               />
             </div>

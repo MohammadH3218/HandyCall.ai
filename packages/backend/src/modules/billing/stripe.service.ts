@@ -41,7 +41,7 @@ export class StripeService {
     priceId: string,
     paymentMethodId: string,
     companyId: string,
-    trialDays: number = 14
+    trialDays?: number
   ): Promise<Stripe.Subscription> {
     // Attach payment method to customer
     await this.stripe.paymentMethods.attach(paymentMethodId, {
@@ -55,13 +55,22 @@ export class StripeService {
       },
     });
 
-    // Create subscription with trial
-    return this.stripe.subscriptions.create({
+    const payload: Stripe.SubscriptionCreateParams = {
       customer: customerId,
       items: [{ price: priceId }],
-      trial_period_days: trialDays,
       metadata: { company_id: companyId },
-    });
+    };
+
+    if (typeof trialDays === 'number') {
+      if (trialDays > 0) {
+        payload.trial_period_days = trialDays;
+      } else {
+        // Ensure no trial applies even if the price has a default trial configured.
+        payload.trial_end = 'now';
+      }
+    }
+
+    return this.stripe.subscriptions.create(payload);
   }
 
   /**

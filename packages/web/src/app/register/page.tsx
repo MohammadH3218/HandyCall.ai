@@ -83,7 +83,7 @@ export default function RegisterPage() {
         <Card>
           <CardHeader>
             <CardTitle>Create Your Account</CardTitle>
-            <CardDescription>Start your 14-day free trial</CardDescription>
+            <CardDescription>Create your account to get started</CardDescription>
           </CardHeader>
           <form onSubmit={handleSubmit}>
             <CardContent className="space-y-6">

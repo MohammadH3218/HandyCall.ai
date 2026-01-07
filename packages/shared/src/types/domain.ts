@@ -47,6 +47,7 @@ export interface Company {
   updated_at: Timestamp;
   subscription_tier?: string;
   trial_ends_at?: Timestamp;
+  trial_used_at?: Timestamp;
 
   // Service toggles
   calls_enabled?: boolean;

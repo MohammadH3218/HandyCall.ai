@@ -98,7 +98,7 @@ export default function AdminDashboardPage() {
           company_name: company.company_name,
           service_type: company.service_type,
           status: company.status,
-          subscription_tier: company.subscription_tier || 'TRIAL',
+          subscription_tier: company.subscription_plan || company.subscription_tier || 'No Plan',
           created_at: company.created_at,
           revenue: 0,
           subscription_count: company.total_users || 0,

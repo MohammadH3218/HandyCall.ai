@@ -128,7 +128,7 @@ export default function BillingPlansPage() {
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900">Choose Your Plan</h1>
         <p className="mt-2 text-gray-600">
-          Select the plan that best fits your business needs. All plans include a 14-day free trial.
+          Select the plan that best fits your business needs. The Pro plan includes a 14-day free trial.
         </p>
       </div>
 

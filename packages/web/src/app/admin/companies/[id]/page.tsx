@@ -187,6 +187,32 @@ export default function CompanyDetailsPage() {
       });
       return;
     }
+    if (enabled) {
+      const status = company.subscription_status;
+      const canceling =
+        company.cancel_at_period_end &&
+        company.current_period_end &&
+        company.current_period_end > Date.now();
+      const hasPlan = Boolean(company.subscription_plan);
+      const statusAllowed =
+        !status || status === 'ACTIVE' || status === 'TRIALING' || canceling;
+      if (!hasPlan) {
+        toast({
+          title: 'Plan required',
+          description: 'Assign a subscription plan before enabling services.',
+          variant: 'destructive',
+        });
+        return;
+      }
+      if (!statusAllowed) {
+        toast({
+          title: 'Subscription inactive',
+          description: 'The subscription must be active to enable services.',
+          variant: 'destructive',
+        });
+        return;
+      }
+    }
     setToggleLoading(service);
     try {
       const res = await fetch(`/api/proxy/companies/${company.company_id}`, {
@@ -198,7 +224,14 @@ export default function CompanyDetailsPage() {
         }),
       });
 
-      if (!res.ok) throw new Error('Failed to update service settings');
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(
+          errorData?.message ||
+            errorData?.error?.message ||
+            'Failed to update service settings'
+        );
+      }
 
       if (service === 'calls') {
         setCallsEnabled(enabled);
@@ -415,11 +448,20 @@ export default function CompanyDetailsPage() {
     );
   }
 
-  const planName = billing?.subscription_plan
-    ? PLAN_CATALOG[billing.subscription_plan as keyof typeof PLAN_CATALOG]?.name || billing.subscription_plan
+  const planValue = billing?.subscription_plan || company.subscription_plan;
+  const planName = planValue
+    ? PLAN_CATALOG[planValue as keyof typeof PLAN_CATALOG]?.name || planValue
     : null;
   const servicesLocked = company.status === 'INACTIVE' || company.status === 'SUSPENDED';
-  const subscriptionStatus = billing?.cancel_at_period_end ? 'CANCELLED' : billing?.subscription_status;
+  const periodStart = billing?.current_period_start || company.current_period_start;
+  const periodEnd = billing?.current_period_end || company.current_period_end;
+  const canceling =
+    (billing?.cancel_at_period_end ?? company.cancel_at_period_end) &&
+    periodEnd &&
+    periodEnd > Date.now();
+  const subscriptionStatus = canceling
+    ? 'CANCELLED'
+    : billing?.subscription_status || company.subscription_status;
 
   return (
     <div className="min-h-screen bg-background">
@@ -548,11 +590,11 @@ export default function CompanyDetailsPage() {
               {/* Subscription Management */}
               <div>
                 <h4 className="text-sm font-medium text-muted-foreground mb-3">Subscription Management</h4>
-                {billing?.subscription_plan ? (
+                {planValue ? (
                   <div className="flex flex-wrap gap-2 items-center">
                     <select
                       className="border rounded-md px-3 py-2 text-sm bg-background"
-                      value={billing.subscription_plan}
+                      value={planValue}
                       onChange={(e) => changePlan(e.target.value)}
                       disabled={actionLoading}
                     >
@@ -562,7 +604,7 @@ export default function CompanyDetailsPage() {
                         </option>
                       ))}
                     </select>
-                    {billing?.cancel_at_period_end ? (
+                    {canceling ? (
                       <Button size="sm" onClick={reactivateSubscription} disabled={actionLoading}>
                         Reactivate
                       </Button>
@@ -606,16 +648,16 @@ export default function CompanyDetailsPage() {
                     {subscriptionStatus.charAt(0) + subscriptionStatus.slice(1).toLowerCase()}
                   </Badge>
                 )}
-                {billing?.cancel_at_period_end && (
+                {canceling && (
                   <p className="text-xs text-amber-600 mt-1">Cancels at period end</p>
                 )}
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Billing Period</p>
                 <p className="text-sm">
-                  {billing?.current_period_start
-                    ? `${formatDate(billing.current_period_start)} - ${formatDate(
-                        billing.current_period_end || billing.current_period_start
+                  {periodStart
+                    ? `${formatDate(periodStart)} - ${formatDate(
+                        periodEnd || periodStart
                       )}`
                     : 'N/A'}
                 </p>

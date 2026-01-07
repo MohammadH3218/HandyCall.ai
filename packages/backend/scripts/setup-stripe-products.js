@@ -21,18 +21,21 @@ async function setupProducts() {
         description: 'Perfect for small businesses getting started with AI calling',
         price: 999, // $9.99 in cents
         limits: '50 minutes, 100 SMS, 200 contacts per week',
+        trialDays: 0,
       },
       {
         name: 'Pro Plan',
         description: 'For growing businesses with higher call volumes',
         price: 1999, // $19.99 in cents
         limits: '150 minutes, 300 SMS, 500 contacts per week',
+        trialDays: 14,
       },
       {
         name: 'Max Plan',
         description: 'Enterprise-grade solution for maximum capacity',
         price: 3999, // $39.99 in cents
         limits: '500 minutes, 1000 SMS, unlimited contacts per week',
+        trialDays: 0,
       },
     ];
 
@@ -53,14 +56,18 @@ async function setupProducts() {
       console.log(`  ✅ Product created: ${product.id}`);
 
       // Create the recurring price with weekly billing
+      const recurring = {
+        interval: 'week',
+      };
+      if (tier.trialDays && tier.trialDays > 0) {
+        recurring.trial_period_days = tier.trialDays;
+      }
+
       const price = await stripe.prices.create({
         product: product.id,
         unit_amount: tier.price,
         currency: 'usd',
-        recurring: {
-          interval: 'week',
-          trial_period_days: 14, // 14-day free trial
-        },
+        recurring,
         metadata: {
           plan_name: tier.name,
         },

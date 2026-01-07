@@ -52,6 +52,7 @@
   phone_number: string;        // E.164 format
   email: string;
   status: string;              // ACTIVE, INACTIVE, SUSPENDED, TRIAL, CANCELLED
+  trial_used_at?: number;      // first Pro trial start timestamp (ms)
   timezone: string;            // IANA timezone
   business_hours: object;      // BusinessHours type
   created_at: number;          // Unix timestamp (ms)

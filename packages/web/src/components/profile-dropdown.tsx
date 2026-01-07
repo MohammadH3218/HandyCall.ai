@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import { usePathname } from 'next/navigation';
 import { LogOut, User } from 'lucide-react';
 import { useAuthStore } from '@/stores/auth-store';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -24,23 +25,27 @@ const PLAN_NAMES: Record<SubscriptionPlan, string> = {
 
 export function ProfileDropdown() {
   const { user, email, company, logout, userRole } = useAuthStore();
+  const pathname = usePathname();
   const [fallbackPlan, setFallbackPlan] = useState<SubscriptionPlan | undefined>();
   const [fallbackStatus, setFallbackStatus] = useState<SubscriptionStatus | undefined>();
+  const [fallbackCancelAtPeriodEnd, setFallbackCancelAtPeriodEnd] = useState<boolean>(false);
 
   useEffect(() => {
-    // If company already has plan info, don't fetch
-    if (userRole === UserRole.ADMIN || !company?.company_id || company?.subscription_plan) return;
+    if (userRole === UserRole.ADMIN) return;
     let isMounted = true;
     apiClient
       .getMySubscription()
       .then((sub) => {
         if (!isMounted || !sub) return;
-        if (sub.subscription_plan) {
-          setFallbackPlan(normalizePlan(sub.subscription_plan) as SubscriptionPlan | undefined);
-        }
-        if (sub.subscription_status) {
-          setFallbackStatus(sub.subscription_status as SubscriptionStatus);
-        }
+        setFallbackPlan(
+          sub.subscription_plan
+            ? (normalizePlan(sub.subscription_plan) as SubscriptionPlan | undefined)
+            : undefined
+        );
+        setFallbackStatus(
+          sub.subscription_status ? (sub.subscription_status as SubscriptionStatus) : undefined
+        );
+        setFallbackCancelAtPeriodEnd(Boolean(sub.cancel_at_period_end));
       })
       .catch(() => {
         // Swallow errors; profile should still render
@@ -48,7 +53,7 @@ export function ProfileDropdown() {
     return () => {
       isMounted = false;
     };
-  }, [company?.company_id, company?.subscription_plan, userRole]);
+  }, [userRole, pathname]);
 
   const handleLogout = async () => {
     await logout();
@@ -94,6 +99,7 @@ export function ProfileDropdown() {
         fallbackPlan
     );
     const status = company?.subscription_status || fallbackStatus;
+    const canceling = company?.cancel_at_period_end || fallbackCancelAtPeriodEnd;
 
     if (!planValue) {
       if (status === SubscriptionStatus.TRIALING) return { text: 'Trialing', color: 'text-blue-600' };
@@ -106,7 +112,7 @@ export function ProfileDropdown() {
     let statusText = '';
     let color = 'text-muted-foreground';
 
-    if (company?.cancel_at_period_end) {
+    if (canceling) {
       statusText = ' (Cancelled)';
       color = 'text-red-600';
     } else if (status === SubscriptionStatus.TRIALING) {
