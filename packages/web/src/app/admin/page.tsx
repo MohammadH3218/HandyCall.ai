@@ -128,6 +128,10 @@ export default function AdminDashboardPage() {
     });
   };
 
+  const formatCompanyStatus = (status: string) => {
+    return status.charAt(0) + status.slice(1).toLowerCase();
+  };
+
   if (isLoading || isLoadingStats) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
@@ -354,7 +358,7 @@ export default function AdminDashboardPage() {
                                   : 'bg-secondary text-muted-foreground'
                               }`}
                             >
-                              {company.status}
+                              {formatCompanyStatus(company.status)}
                             </span>
                           </td>
                           <td className="px-3 sm:px-4 py-3 text-sm text-muted-foreground hidden lg:table-cell">

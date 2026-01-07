@@ -17,6 +17,11 @@ export default function SettingsPage() {
   });
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState('');
+  const statusLabel = company?.cancel_at_period_end
+    ? 'Cancelled'
+    : company?.status
+    ? company.status.charAt(0) + company.status.slice(1).toLowerCase()
+    : 'Inactive';
 
   useEffect(() => {
     if (company) {
@@ -116,7 +121,7 @@ export default function SettingsPage() {
             <div className="space-y-2">
               <div className="flex justify-between">
                 <span className="text-sm font-medium">Status:</span>
-                <span className="text-sm text-gray-600">{company?.status}</span>
+                <span className="text-sm text-gray-600">{statusLabel}</span>
               </div>
               {company?.trial_ends_at && (
                 <div className="flex justify-between">

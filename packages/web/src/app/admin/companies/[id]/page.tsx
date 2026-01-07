@@ -149,8 +149,9 @@ export default function CompanyDetailsPage() {
       setInvoices(Array.isArray(invoicesData) ? invoicesData : invoicesData?.data || []);
 
       // Initialize service toggle states
-      setCallsEnabled(companyData.calls_enabled ?? true);
-      setSmsEnabled(companyData.sms_enabled ?? true);
+      const locked = companyData.status === 'INACTIVE' || companyData.status === 'SUSPENDED';
+      setCallsEnabled(locked ? false : (companyData.calls_enabled ?? true));
+      setSmsEnabled(locked ? false : (companyData.sms_enabled ?? true));
     } catch (error) {
       console.error('Failed to load company details:', error);
       setLoadError((error as any)?.message || 'Failed to load company details');
@@ -172,8 +173,20 @@ export default function CompanyDetailsPage() {
     });
   };
 
+  const formatCompanyStatus = (status: string) => {
+    return status.charAt(0) + status.slice(1).toLowerCase();
+  };
+
   const toggleService = async (service: 'calls' | 'sms', enabled: boolean) => {
     if (!company) return;
+    if (company.status === 'INACTIVE' || company.status === 'SUSPENDED') {
+      toast({
+        title: 'Service unavailable',
+        description: 'Services are disabled while the account is inactive or suspended.',
+        variant: 'destructive',
+      });
+      return;
+    }
     setToggleLoading(service);
     try {
       const res = await fetch(`/api/proxy/companies/${company.company_id}`, {
@@ -215,7 +228,7 @@ export default function CompanyDetailsPage() {
     }
   };
 
-  const cancelSubscription = async (immediate = true) => {
+  const cancelSubscription = async (immediate = false) => {
     if (!company) return;
     setActionLoading(true);
     try {
@@ -229,7 +242,7 @@ export default function CompanyDetailsPage() {
       }
       toast({
         title: 'Subscription canceled',
-        description: immediate ? 'Subscription canceled immediately' : 'Will cancel at period end'
+        description: immediate ? 'Subscription canceled immediately' : 'Will cancel at period end',
       });
       await loadCompanyDetails();
     } catch (error: any) {
@@ -325,12 +338,14 @@ export default function CompanyDetailsPage() {
     icon,
     enabled,
     loading,
+    disabled,
     onToggle,
   }: {
     label: string;
     icon: React.ReactNode;
     enabled: boolean;
     loading: boolean;
+    disabled?: boolean;
     onToggle: (enabled: boolean) => void;
   }) {
     return (
@@ -348,11 +363,11 @@ export default function CompanyDetailsPage() {
         </div>
         <button
           onClick={() => onToggle(!enabled)}
-          disabled={loading}
+          disabled={loading || disabled}
           className={`
             relative inline-flex h-7 w-12 items-center rounded-full transition-all duration-300 ease-in-out
             ${enabled ? 'bg-green-500 shadow-lg shadow-green-200' : 'bg-gray-300 shadow-md'}
-            ${loading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:shadow-xl'}
+            ${loading || disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:shadow-xl'}
             focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
           `}
           aria-label={`Toggle ${label}`}
@@ -403,6 +418,8 @@ export default function CompanyDetailsPage() {
   const planName = billing?.subscription_plan
     ? PLAN_CATALOG[billing.subscription_plan as keyof typeof PLAN_CATALOG]?.name || billing.subscription_plan
     : null;
+  const servicesLocked = company.status === 'INACTIVE' || company.status === 'SUSPENDED';
+  const subscriptionStatus = billing?.cancel_at_period_end ? 'CANCELLED' : billing?.subscription_status;
 
   return (
     <div className="min-h-screen bg-background">
@@ -495,11 +512,13 @@ export default function CompanyDetailsPage() {
                   disabled={actionLoading}
                 >
                   <option value="ACTIVE">Active</option>
+                  <option value="TRIAL">Trial</option>
+                  <option value="INACTIVE">Inactive</option>
                   <option value="SUSPENDED">Suspended</option>
                   <option value="CANCELLED">Cancelled</option>
                 </select>
                 <Badge variant={company.status === 'ACTIVE' ? 'default' : 'secondary'}>
-                  {company.status}
+                  {formatCompanyStatus(company.status)}
                 </Badge>
               </div>
 
@@ -512,6 +531,7 @@ export default function CompanyDetailsPage() {
                     icon={<Phone className="h-5 w-5" />}
                     enabled={callsEnabled}
                     loading={toggleLoading === 'calls'}
+                    disabled={servicesLocked}
                     onToggle={(enabled) => toggleService('calls', enabled)}
                   />
                   <ServiceToggle
@@ -519,6 +539,7 @@ export default function CompanyDetailsPage() {
                     icon={<MessageSquare className="h-5 w-5" />}
                     enabled={smsEnabled}
                     loading={toggleLoading === 'sms'}
+                    disabled={servicesLocked}
                     onToggle={(enabled) => toggleService('sms', enabled)}
                   />
                 </div>
@@ -546,7 +567,7 @@ export default function CompanyDetailsPage() {
                         Reactivate
                       </Button>
                     ) : (
-                      <Button size="sm" variant="destructive" onClick={() => cancelSubscription(true)} disabled={actionLoading}>
+                      <Button size="sm" variant="destructive" onClick={() => cancelSubscription(false)} disabled={actionLoading}>
                         Cancel
                       </Button>
                     )}
@@ -580,9 +601,9 @@ export default function CompanyDetailsPage() {
                 <p className="text-lg font-semibold">
                   {planName || 'No subscription'}
                 </p>
-                {billing?.subscription_status && (
-                  <Badge className="mt-1" variant={billing.subscription_status === 'ACTIVE' ? 'default' : 'secondary'}>
-                    {billing.subscription_status}
+                {subscriptionStatus && (
+                  <Badge className="mt-1" variant={subscriptionStatus === 'ACTIVE' ? 'default' : 'secondary'}>
+                    {subscriptionStatus.charAt(0) + subscriptionStatus.slice(1).toLowerCase()}
                   </Badge>
                 )}
                 {billing?.cancel_at_period_end && (

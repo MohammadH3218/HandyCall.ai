@@ -28,6 +28,7 @@ interface Company {
   subscription_plan?: string;
   subscription_status?: string;
   subscription_tier?: string;
+  cancel_at_period_end?: boolean;
 }
 
 export default function CompaniesPage() {
@@ -145,11 +146,29 @@ export default function CompaniesPage() {
         return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200';
       case 'TRIAL':
         return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200';
+      case 'CANCELLED':
+        return 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200';
       case 'SUSPENDED':
         return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200';
+      case 'INACTIVE':
+        return 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200';
       default:
         return 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200';
     }
+  };
+
+  const formatCompanyStatus = (status: string) => {
+    return status.charAt(0) + status.slice(1).toLowerCase();
+  };
+
+  const formatSubscriptionStatus = (status?: string, isCanceling?: boolean) => {
+    if (isCanceling) return 'Cancelled';
+    if (!status) return '';
+    const normalized = status.toUpperCase();
+    if (normalized === 'TRIALING') return 'Trial';
+    if (normalized === 'ACTIVE') return 'Active';
+    if (normalized === 'CANCELED' || normalized === 'CANCELLED') return 'Cancelled';
+    return normalized.charAt(0) + normalized.slice(1).toLowerCase().replace('_', ' ');
   };
 
   if (isLoading || loading) {
@@ -246,7 +265,7 @@ export default function CompaniesPage() {
                       <CardTitle className="truncate">{company.company_name}</CardTitle>
                       <CardDescription className="mt-1">{company.service_type.replace('_', ' ')}</CardDescription>
                     </div>
-                    <Badge className={getStatusColor(company.status)}>{company.status}</Badge>
+                    <Badge className={getStatusColor(company.status)}>{formatCompanyStatus(company.status)}</Badge>
                   </div>
                 </CardHeader>
                 <CardContent>
@@ -270,7 +289,9 @@ export default function CompaniesPage() {
                         <span className="text-muted-foreground">Plan:</span>
                         <Badge variant="outline">
                           {company.subscription_plan || company.subscription_tier}
-                          {company.subscription_status ? ` • ${company.subscription_status}` : ''}
+                          {company.subscription_status || company.cancel_at_period_end
+                            ? ` • ${formatSubscriptionStatus(company.subscription_status, company.cancel_at_period_end)}`
+                            : ''}
                         </Badge>
                       </div>
                     )}

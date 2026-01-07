@@ -103,14 +103,13 @@ export class CompaniesService {
       service_type: serviceType,
       phone_number: phoneNumber,
       email,
-      status: CompanyStatus.TRIAL,
+      status: CompanyStatus.INACTIVE,
       timezone,
       business_hours: defaultBusinessHours,
       created_at: timestamp,
       updated_at: timestamp,
-      trial_ends_at: timestamp + 14 * 24 * 60 * 60 * 1000, // 14 days trial
-      calls_enabled: true, // Enable calls by default
-      sms_enabled: true, // Enable SMS by default
+      calls_enabled: false, // Start disabled until a plan is active
+      sms_enabled: false, // Start disabled until a plan is active
     };
 
     await this.dynamodb.put(this.tableName, company);
@@ -120,7 +119,8 @@ export class CompaniesService {
 
   async findById(companyId: string): Promise<Company | null> {
     const company = await this.dynamodb.get(this.tableName, { company_id: companyId });
-    return company as Company | null;
+    if (!company) return null;
+    return this.finalizeExpiredCancellation(company as Company);
   }
 
   async findByEmail(email: string): Promise<Company | null> {
@@ -157,13 +157,15 @@ export class CompaniesService {
       business_hours?: BusinessHours;
       status?: CompanyStatus;
       subscription_tier?: string;
+      calls_enabled?: boolean;
+      sms_enabled?: boolean;
       // Billing fields
       stripe_customer_id?: string;
-      stripe_subscription_id?: string;
-      subscription_plan?: SubscriptionPlan;
-      subscription_status?: SubscriptionStatus;
-      current_period_start?: number;
-      current_period_end?: number;
+      stripe_subscription_id?: string | null;
+      subscription_plan?: SubscriptionPlan | null;
+      subscription_status?: SubscriptionStatus | null;
+      current_period_start?: number | null;
+      current_period_end?: number | null;
       payment_method_last4?: string;
       payment_method_brand?: string;
       cancel_at_period_end?: boolean;
@@ -179,6 +181,12 @@ export class CompaniesService {
       updated_at: Date.now(),
     };
 
+    const nextStatus = updates.status ?? company.status;
+    if (nextStatus === CompanyStatus.INACTIVE || nextStatus === CompanyStatus.SUSPENDED) {
+      updatedData.calls_enabled = false;
+      updatedData.sms_enabled = false;
+    }
+
     const result = await this.dynamodb.update(this.tableName, { company_id: companyId }, updatedData);
 
     return result as Company;
@@ -189,7 +197,8 @@ export class CompaniesService {
    */
   async listAll(limit = 100): Promise<Company[]> {
     const result = await this.dynamodb.scan(this.tableName, { limit });
-    return result.items as Company[];
+    const companies = result.items as Company[];
+    return Promise.all(companies.map((company) => this.finalizeExpiredCancellation(company)));
   }
 
   /**
@@ -340,5 +349,35 @@ export class CompaniesService {
       company.company_name.toLowerCase().includes(lowercaseSearch) ||
       company.email.toLowerCase().includes(lowercaseSearch)
     );
+  }
+
+  private async finalizeExpiredCancellation(company: Company): Promise<Company> {
+    if (
+      company.stripe_subscription_id ||
+      !company.cancel_at_period_end ||
+      !company.current_period_end ||
+      company.current_period_end > Date.now()
+    ) {
+      return company;
+    }
+
+    const updated = await this.dynamodb.update(
+      this.tableName,
+      { company_id: company.company_id },
+      {
+        subscription_plan: null,
+        subscription_status: null,
+        stripe_subscription_id: null,
+        current_period_start: null,
+        current_period_end: null,
+        cancel_at_period_end: false,
+        status: CompanyStatus.INACTIVE,
+        calls_enabled: false,
+        sms_enabled: false,
+        updated_at: Date.now(),
+      }
+    );
+
+    return updated as Company;
   }
 }

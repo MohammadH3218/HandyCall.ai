@@ -17,6 +17,7 @@ export type PhoneNumber = string; // E.164 format: +1234567890
 
 export enum CompanyStatus {
   ACTIVE = 'ACTIVE',
+  INACTIVE = 'INACTIVE',
   SUSPENDED = 'SUSPENDED',
   TRIAL = 'TRIAL',
   CANCELLED = 'CANCELLED',

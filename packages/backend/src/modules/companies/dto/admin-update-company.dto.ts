@@ -1,4 +1,4 @@
-import { IsEmail, IsEnum, IsOptional, IsString, Matches } from 'class-validator';
+import { IsBoolean, IsEmail, IsEnum, IsOptional, IsString, Matches } from 'class-validator';
 import { CompanyStatus, ServiceType, BusinessHours } from '@handycall/shared';
 
 export class AdminUpdateCompanyDto {
@@ -32,4 +32,12 @@ export class AdminUpdateCompanyDto {
   @IsOptional()
   @IsString()
   subscription_tier?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  calls_enabled?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  sms_enabled?: boolean;
 }

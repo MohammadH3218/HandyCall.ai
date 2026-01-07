@@ -41,9 +41,18 @@ export default function DashboardPage() {
   const [upcomingAppointments, setUpcomingAppointments] = useState<UpcomingAppointment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [callsEnabled, setCallsEnabled] = useState(company?.calls_enabled ?? true);
-  const [smsEnabled, setSmsEnabled] = useState(company?.sms_enabled ?? true);
+  const [callsEnabled, setCallsEnabled] = useState(
+    company?.status === 'INACTIVE' || company?.status === 'SUSPENDED'
+      ? false
+      : (company?.calls_enabled ?? true)
+  );
+  const [smsEnabled, setSmsEnabled] = useState(
+    company?.status === 'INACTIVE' || company?.status === 'SUSPENDED'
+      ? false
+      : (company?.sms_enabled ?? true)
+  );
   const [toggleLoading, setToggleLoading] = useState<'calls' | 'sms' | null>(null);
+  const servicesLocked = company?.status === 'INACTIVE' || company?.status === 'SUSPENDED';
 
   useEffect(() => {
     loadDashboardData();
@@ -51,8 +60,9 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (company) {
-      setCallsEnabled(company.calls_enabled ?? true);
-      setSmsEnabled(company.sms_enabled ?? true);
+      const locked = company.status === 'INACTIVE' || company.status === 'SUSPENDED';
+      setCallsEnabled(locked ? false : (company.calls_enabled ?? true));
+      setSmsEnabled(locked ? false : (company.sms_enabled ?? true));
     }
   }, [company]);
 
@@ -114,6 +124,14 @@ export default function DashboardPage() {
   };
 
   const toggleService = async (service: 'calls' | 'sms', enabled: boolean) => {
+    if (servicesLocked) {
+      toast({
+        title: 'Service unavailable',
+        description: 'Services are disabled while the account is inactive or suspended.',
+        variant: 'destructive',
+      });
+      return;
+    }
     setToggleLoading(service);
     try {
       await apiClient.updateMyCompany({
@@ -189,6 +207,7 @@ export default function DashboardPage() {
                 icon={<PhoneCall className="h-5 w-5" />}
                 enabled={callsEnabled}
                 loading={toggleLoading === 'calls'}
+                disabled={servicesLocked}
                 onToggle={(enabled) => toggleService('calls', enabled)}
               />
               <ServiceToggle
@@ -196,6 +215,7 @@ export default function DashboardPage() {
                 icon={<MessageSquare className="h-5 w-5" />}
                 enabled={smsEnabled}
                 loading={toggleLoading === 'sms'}
+                disabled={servicesLocked}
                 onToggle={(enabled) => toggleService('sms', enabled)}
               />
             </div>
@@ -407,12 +427,14 @@ function ServiceToggle({
   icon,
   enabled,
   loading,
+  disabled,
   onToggle,
 }: {
   label: string;
   icon: React.ReactNode;
   enabled: boolean;
   loading: boolean;
+  disabled?: boolean;
   onToggle: (enabled: boolean) => void;
 }) {
   return (
@@ -425,11 +447,11 @@ function ServiceToggle({
       </div>
       <button
         onClick={() => onToggle(!enabled)}
-        disabled={loading}
+        disabled={loading || disabled}
         className={`
           relative inline-flex h-8 w-14 items-center rounded-full transition-all duration-300 ease-in-out
           ${enabled ? 'bg-green-500 shadow-lg shadow-green-200' : 'bg-gray-300 shadow-md'}
-          ${loading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:shadow-xl'}
+          ${loading || disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:shadow-xl'}
           focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
         `}
         aria-label={`Toggle ${label}`}

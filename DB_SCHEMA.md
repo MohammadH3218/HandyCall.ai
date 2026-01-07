@@ -51,7 +51,7 @@
   service_type: string;        // HANDYMAN, PEST_CONTROL, etc.
   phone_number: string;        // E.164 format
   email: string;
-  status: string;              // ACTIVE, SUSPENDED, TRIAL, CANCELLED
+  status: string;              // ACTIVE, INACTIVE, SUSPENDED, TRIAL, CANCELLED
   timezone: string;            // IANA timezone
   business_hours: object;      // BusinessHours type
   created_at: number;          // Unix timestamp (ms)

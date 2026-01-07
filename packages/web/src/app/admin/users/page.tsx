@@ -34,6 +34,7 @@ interface Company {
   company_name: string;
   status?: string;
   subscription_status?: string;
+  cancel_at_period_end?: boolean;
 }
 
 export default function UsersPage() {
@@ -146,7 +147,20 @@ export default function UsersPage() {
 
   const getCompanyStatus = (user: User) => {
     const company = companies.find((c) => c.company_id === user.company_id);
-    return company?.subscription_status || company?.status || (user.is_active ? 'Active' : 'Inactive');
+    if (company?.cancel_at_period_end) {
+      return 'Cancelled';
+    }
+    if (company?.status) {
+      return company.status.charAt(0) + company.status.slice(1).toLowerCase();
+    }
+    if (company?.subscription_status) {
+      const normalized = company.subscription_status.toUpperCase();
+      if (normalized === 'TRIALING') return 'Trial';
+      if (normalized === 'ACTIVE') return 'Active';
+      if (normalized === 'CANCELED' || normalized === 'CANCELLED') return 'Cancelled';
+      return 'Suspended';
+    }
+    return user.is_active ? 'Active' : 'Inactive';
   };
 
   const companyOptions =

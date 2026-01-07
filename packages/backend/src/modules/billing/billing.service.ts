@@ -109,6 +109,8 @@ export class BillingService {
       cancel_at_period_end: false,
       ...paymentDetails,
       status: CompanyStatus.TRIAL,
+      calls_enabled: true,
+      sms_enabled: true,
     });
 
     return { subscription };
@@ -143,6 +145,8 @@ export class BillingService {
       current_period_end: oneWeekFromNow,
       cancel_at_period_end: false,
       status: CompanyStatus.ACTIVE,
+      calls_enabled: true,
+      sms_enabled: true,
     });
 
     return {
@@ -169,7 +173,26 @@ export class BillingService {
     }
 
     if (!company.stripe_subscription_id) {
-      throw new BadRequestException('No active subscription found');
+      if (!company.subscription_plan) {
+        throw new BadRequestException('No active subscription found');
+      }
+
+      const updated = await this.companiesService.updateCompany(companyId, {
+        subscription_plan: newPlan,
+        subscription_status: SubscriptionStatus.ACTIVE,
+        cancel_at_period_end: false,
+        status: CompanyStatus.ACTIVE,
+      });
+
+      return {
+        subscription: {
+          id: `admin_sub_${companyId}`,
+          plan: newPlan,
+          status: 'active',
+          current_period_start: Math.floor((updated.current_period_start || Date.now()) / 1000),
+          current_period_end: Math.floor((updated.current_period_end || Date.now()) / 1000),
+        },
+      };
     }
 
     const newPriceId = this.stripeService.getPriceIdForPlan(newPlan);
@@ -201,7 +224,35 @@ export class BillingService {
     }
 
     if (!company.stripe_subscription_id) {
-      throw new BadRequestException('No active subscription found');
+      if (!company.subscription_plan) {
+        throw new BadRequestException('No active subscription found');
+      }
+
+      if (immediate) {
+        await this.companiesService.updateCompany(companyId, {
+          subscription_plan: null,
+          subscription_status: null,
+          current_period_start: null,
+          current_period_end: null,
+          cancel_at_period_end: false,
+          status: CompanyStatus.INACTIVE,
+          calls_enabled: false,
+          sms_enabled: false,
+        });
+      } else {
+        await this.companiesService.updateCompany(companyId, {
+          cancel_at_period_end: true,
+          status: CompanyStatus.CANCELLED,
+        });
+      }
+
+      return {
+        subscription: {
+          id: `admin_sub_${companyId}`,
+          status: immediate ? 'canceled' : 'active',
+          cancel_at_period_end: !immediate,
+        },
+      };
     }
 
     const subscription = await this.stripeService.cancelSubscription(
@@ -209,12 +260,24 @@ export class BillingService {
       immediate
     );
 
-    // Update company record
-    await this.companiesService.updateCompany(companyId, {
-      cancel_at_period_end: !immediate,
-      subscription_status: immediate ? SubscriptionStatus.CANCELED : company.subscription_status,
-      status: immediate ? CompanyStatus.CANCELLED : company.status,
-    });
+    const cancelUpdates = immediate
+      ? {
+          cancel_at_period_end: false,
+          subscription_status: SubscriptionStatus.CANCELED,
+          subscription_plan: null,
+          stripe_subscription_id: null,
+          current_period_start: null,
+          current_period_end: null,
+          status: CompanyStatus.INACTIVE,
+          calls_enabled: false,
+          sms_enabled: false,
+        }
+      : {
+          cancel_at_period_end: true,
+          status: CompanyStatus.CANCELLED,
+        };
+
+    await this.companiesService.updateCompany(companyId, cancelUpdates);
 
     return { subscription };
   }
@@ -225,7 +288,26 @@ export class BillingService {
   async reactivateSubscription(companyId: string): Promise<{ subscription: any }> {
     const company = await this.companiesService.findById(companyId);
     if (!company?.stripe_subscription_id) {
-      throw new BadRequestException('No subscription to reactivate');
+      if (!company?.subscription_plan) {
+        throw new BadRequestException('No subscription to reactivate');
+      }
+
+      const updated = await this.companiesService.updateCompany(companyId, {
+        cancel_at_period_end: false,
+        subscription_status: SubscriptionStatus.ACTIVE,
+        status: CompanyStatus.ACTIVE,
+        calls_enabled: true,
+        sms_enabled: true,
+      });
+
+      return {
+        subscription: {
+          id: `admin_sub_${companyId}`,
+          status: 'active',
+          current_period_start: Math.floor((updated.current_period_start || Date.now()) / 1000),
+          current_period_end: Math.floor((updated.current_period_end || Date.now()) / 1000),
+        },
+      };
     }
 
     const subscription = await this.stripeService.reactivateSubscription(company.stripe_subscription_id);
@@ -245,9 +327,27 @@ export class BillingService {
    * Get billing info for a company
    */
   async getBillingInfo(companyId: string): Promise<any> {
-    const company = await this.companiesService.findById(companyId);
+    let company = await this.companiesService.findById(companyId);
     if (!company) {
       throw new NotFoundException('Company not found');
+    }
+
+    if (
+      !company.stripe_subscription_id &&
+      company.cancel_at_period_end &&
+      company.current_period_end &&
+      company.current_period_end <= Date.now()
+    ) {
+      company = await this.companiesService.updateCompany(companyId, {
+        subscription_plan: null,
+        subscription_status: null,
+        current_period_start: null,
+        current_period_end: null,
+        cancel_at_period_end: false,
+        status: CompanyStatus.INACTIVE,
+        calls_enabled: false,
+        sms_enabled: false,
+      });
     }
 
     let subscription = null;
@@ -429,6 +529,7 @@ export class BillingService {
 
     const priceId = subscription.items.data[0]?.price?.id;
     const plan = this.stripeService.getPlanFromPriceId(priceId);
+    const isCanceling = subscription.cancel_at_period_end === true;
 
     await this.companiesService.updateCompany(companyId, {
       subscription_status: this.mapStripeStatus(subscription.status),
@@ -436,7 +537,7 @@ export class BillingService {
       current_period_end: subscription.current_period_end * 1000,
       cancel_at_period_end: subscription.cancel_at_period_end || false,
       subscription_plan: plan ?? undefined,
-      status: this.getCompanyStatus(subscription.status),
+      status: isCanceling ? CompanyStatus.CANCELLED : this.getCompanyStatus(subscription.status),
     });
   }
 
@@ -448,8 +549,15 @@ export class BillingService {
     if (!companyId) return;
 
     await this.companiesService.updateCompany(companyId, {
-      subscription_status: SubscriptionStatus.CANCELED,
-      status: CompanyStatus.CANCELLED,
+      subscription_status: null,
+      subscription_plan: null,
+      stripe_subscription_id: null,
+      current_period_start: null,
+      current_period_end: null,
+      cancel_at_period_end: false,
+      status: CompanyStatus.INACTIVE,
+      calls_enabled: false,
+      sms_enabled: false,
     });
   }
 
@@ -514,7 +622,7 @@ export class BillingService {
       case 'unpaid':
         return CompanyStatus.SUSPENDED;
       case 'canceled':
-        return CompanyStatus.CANCELLED;
+        return CompanyStatus.INACTIVE;
       default:
         return CompanyStatus.SUSPENDED;
     }

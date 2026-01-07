@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { LogOut, User } from 'lucide-react';
 import { useAuthStore } from '@/stores/auth-store';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { SubscriptionPlan, SubscriptionStatus } from '@handycall/shared';
+import { SubscriptionPlan, SubscriptionStatus, UserRole } from '@handycall/shared';
 import { PLAN_CATALOG, normalizePlan } from '@/constants/plans';
 import { apiClient } from '@/lib/api-client';
 import {
@@ -23,13 +23,13 @@ const PLAN_NAMES: Record<SubscriptionPlan, string> = {
 };
 
 export function ProfileDropdown() {
-  const { user, email, company, logout } = useAuthStore();
+  const { user, email, company, logout, userRole } = useAuthStore();
   const [fallbackPlan, setFallbackPlan] = useState<SubscriptionPlan | undefined>();
   const [fallbackStatus, setFallbackStatus] = useState<SubscriptionStatus | undefined>();
 
   useEffect(() => {
     // If company already has plan info, don't fetch
-    if (company?.subscription_plan) return;
+    if (userRole === UserRole.ADMIN || !company?.company_id || company?.subscription_plan) return;
     let isMounted = true;
     apiClient
       .getMySubscription()
@@ -48,7 +48,7 @@ export function ProfileDropdown() {
     return () => {
       isMounted = false;
     };
-  }, [company?.subscription_plan]);
+  }, [company?.company_id, company?.subscription_plan, userRole]);
 
   const handleLogout = async () => {
     await logout();
@@ -106,7 +106,10 @@ export function ProfileDropdown() {
     let statusText = '';
     let color = 'text-muted-foreground';
 
-    if (status === SubscriptionStatus.TRIALING) {
+    if (company?.cancel_at_period_end) {
+      statusText = ' (Cancelled)';
+      color = 'text-red-600';
+    } else if (status === SubscriptionStatus.TRIALING) {
       statusText = ' (Trial)';
       color = 'text-blue-600';
     } else if (status === SubscriptionStatus.ACTIVE) {

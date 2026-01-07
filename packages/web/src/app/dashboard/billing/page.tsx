@@ -166,6 +166,7 @@ export default function BillingPage() {
   const planDetails = currentPlan ? PLAN_CATALOG[currentPlan] : null;
   const priceDisplay = currentPlan ? getPlanPriceDisplay(currentPlan) : null;
   const status = company?.subscription_status || subscription?.subscription_status;
+  const isCanceling = Boolean(company?.cancel_at_period_end || subscription?.cancel_at_period_end);
 
   const paymentMethod =
     company?.payment_method_last4
@@ -228,7 +229,7 @@ export default function BillingPage() {
                       <span className="ml-1 text-muted-foreground">{priceDisplay?.cadence}</span>
                     </p>
                   </div>
-                  {getStatusBadge(status)}
+                  {getStatusBadge(isCanceling ? SubscriptionStatus.CANCELED : status)}
                 </div>
 
                 {subscription?.current_period_start && (
@@ -240,7 +241,7 @@ export default function BillingPage() {
                   </div>
                 )}
 
-                {subscription?.cancel_at_period_end && (
+                {isCanceling && subscription?.current_period_end && (
                   <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-md">
                     <p className="text-sm font-semibold text-yellow-900 mb-1">
                       Subscription Cancelling
