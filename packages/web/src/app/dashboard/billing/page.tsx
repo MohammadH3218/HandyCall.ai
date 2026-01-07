@@ -7,6 +7,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { useAuthStore } from '@/stores/auth-store';
 import { SubscriptionPlan, SubscriptionStatus } from '@handycall/shared';
+import { PLAN_CATALOG, getPlanPriceDisplay } from '@/constants/plans';
+import { normalizeUsageResponse, resolvePlan, resolvePlanLimits } from '@/lib/billing-utils';
 import {
   Dialog,
   DialogContent,
@@ -16,40 +18,6 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 
-const PLAN_DETAILS: Record<SubscriptionPlan, {
-  name: string;
-  price: string;
-  limits: { minutes: number; sms: number; contacts: number };
-}> = {
-  [SubscriptionPlan.STARTER]: {
-    name: 'Starter',
-    price: '$4.99',
-    limits: {
-      minutes: 50,
-      sms: 100,
-      contacts: 200,
-    },
-  },
-  [SubscriptionPlan.PRO]: {
-    name: 'Pro',
-    price: '$9.99',
-    limits: {
-      minutes: 150,
-      sms: 300,
-      contacts: 500,
-    },
-  },
-  [SubscriptionPlan.MAX]: {
-    name: 'Max',
-    price: '$19.99',
-    limits: {
-      minutes: 500,
-      sms: 1000,
-      contacts: -1, // unlimited
-    },
-  },
-};
-
 export default function BillingPage() {
   const router = useRouter();
   const { company, checkAuth } = useAuthStore();
@@ -58,6 +26,7 @@ export default function BillingPage() {
   const [loading, setLoading] = useState(true);
   const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [cancelling, setCancelling] = useState(false);
+  const [planLimits, setPlanLimits] = useState<{ minutes: number; sms: number; contacts: number }>();
 
   useEffect(() => {
     loadBillingData();
@@ -70,8 +39,14 @@ export default function BillingPage() {
         apiClient.getMySubscription(),
         apiClient.getUsageMetrics(),
       ]);
+      const plan =
+        resolvePlan(company?.subscription_plan as SubscriptionPlan | undefined) ||
+        resolvePlan(subData?.subscription_plan as SubscriptionPlan | undefined);
+
       setSubscription(subData);
-      setUsage(usageData);
+      setUsage(normalizeUsageResponse(usageData, subData));
+      const limits = resolvePlanLimits(plan, usageData?.plan_limits) || (plan ? PLAN_CATALOG[plan].limits : undefined);
+      setPlanLimits(limits);
     } catch (error: any) {
       console.error('Failed to load billing data:', error);
     } finally {
@@ -123,7 +98,7 @@ export default function BillingPage() {
   };
 
   const calculateUsagePercentage = (used: number, limit: number) => {
-    if (limit === -1) return 0; // unlimited
+    if (!limit || limit === -1) return 0; // unlimited or no limit
     return Math.min(Math.round((used / limit) * 100), 100);
   };
 
@@ -155,8 +130,12 @@ export default function BillingPage() {
     );
   }
 
-  const currentPlan = (company?.subscription_plan || subscription?.subscription_plan) as SubscriptionPlan | undefined;
-  const planDetails = currentPlan ? PLAN_DETAILS[currentPlan] : null;
+  const currentPlan = resolvePlan(
+    (company?.subscription_plan as SubscriptionPlan | undefined) ||
+      (subscription?.subscription_plan as SubscriptionPlan | undefined)
+  );
+  const planDetails = currentPlan ? PLAN_CATALOG[currentPlan] : null;
+  const priceDisplay = currentPlan ? getPlanPriceDisplay(currentPlan) : null;
   const status = company?.subscription_status || subscription?.subscription_status;
 
   return (
@@ -179,7 +158,11 @@ export default function BillingPage() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-2xl font-bold">{planDetails.name} Plan</p>
-                    <p className="text-gray-600">{planDetails.price}/week</p>
+                    <p className="text-gray-600">
+                      <span className="mr-2 line-through">{priceDisplay?.original}</span>
+                      <span className="font-semibold text-foreground">{priceDisplay?.current}</span>
+                      <span className="ml-1 text-muted-foreground">{priceDisplay?.cadence}</span>
+                    </p>
                   </div>
                   {getStatusBadge(status)}
                 </div>
@@ -250,7 +233,7 @@ export default function BillingPage() {
                     </span>
                   </div>
                   <div>
-                    <p className="font-medium">•••• •••• •••• {company.payment_method_last4}</p>
+                    <p className="font-medium">**** **** **** {company.payment_method_last4}</p>
                     <p className="text-sm text-gray-600">
                       {company.payment_method_brand || 'Card'} ending in {company.payment_method_last4}
                     </p>
@@ -292,19 +275,19 @@ export default function BillingPage() {
                 <div className="flex justify-between items-center mb-2">
                   <span className="text-sm font-medium text-gray-700">Call Minutes</span>
                   <span className="text-sm text-gray-600">
-                    {usage.call_minutes || 0} / {planDetails.limits.minutes === -1 ? '∞' : planDetails.limits.minutes}
+                    {usage.call_minutes || 0} / {planLimits?.minutes === -1 ? 'Unlimited' : planLimits?.minutes ?? 0}
                   </span>
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-2">
                   <div
                     className={`h-2 rounded-full ${
-                      calculateUsagePercentage(usage.call_minutes || 0, planDetails.limits.minutes) >= 90
+                      calculateUsagePercentage(usage.call_minutes || 0, planLimits?.minutes || 0) >= 90
                         ? 'bg-red-500'
-                        : calculateUsagePercentage(usage.call_minutes || 0, planDetails.limits.minutes) >= 75
+                        : calculateUsagePercentage(usage.call_minutes || 0, planLimits?.minutes || 0) >= 75
                         ? 'bg-yellow-500'
                         : 'bg-green-500'
                     }`}
-                    style={{ width: `${calculateUsagePercentage(usage.call_minutes || 0, planDetails.limits.minutes)}%` }}
+                    style={{ width: `${calculateUsagePercentage(usage.call_minutes || 0, planLimits?.minutes || 0)}%` }}
                   ></div>
                 </div>
               </div>
@@ -314,19 +297,19 @@ export default function BillingPage() {
                 <div className="flex justify-between items-center mb-2">
                   <span className="text-sm font-medium text-gray-700">SMS Messages</span>
                   <span className="text-sm text-gray-600">
-                    {usage.sms_count || 0} / {planDetails.limits.sms === -1 ? '∞' : planDetails.limits.sms}
+                    {usage.sms_count || 0} / {planLimits?.sms === -1 ? 'Unlimited' : planLimits?.sms ?? 0}
                   </span>
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-2">
                   <div
                     className={`h-2 rounded-full ${
-                      calculateUsagePercentage(usage.sms_count || 0, planDetails.limits.sms) >= 90
+                      calculateUsagePercentage(usage.sms_count || 0, planLimits?.sms || 0) >= 90
                         ? 'bg-red-500'
-                        : calculateUsagePercentage(usage.sms_count || 0, planDetails.limits.sms) >= 75
+                        : calculateUsagePercentage(usage.sms_count || 0, planLimits?.sms || 0) >= 75
                         ? 'bg-yellow-500'
                         : 'bg-green-500'
                     }`}
-                    style={{ width: `${calculateUsagePercentage(usage.sms_count || 0, planDetails.limits.sms)}%` }}
+                    style={{ width: `${calculateUsagePercentage(usage.sms_count || 0, planLimits?.sms || 0)}%` }}
                   ></div>
                 </div>
               </div>
@@ -336,19 +319,19 @@ export default function BillingPage() {
                 <div className="flex justify-between items-center mb-2">
                   <span className="text-sm font-medium text-gray-700">Active Contacts</span>
                   <span className="text-sm text-gray-600">
-                    {usage.active_contacts || 0} / {planDetails.limits.contacts === -1 ? '∞' : planDetails.limits.contacts}
+                    {usage.active_contacts || 0} / {planLimits?.contacts === -1 ? 'Unlimited' : planLimits?.contacts ?? 0}
                   </span>
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-2">
                   <div
                     className={`h-2 rounded-full ${
-                      calculateUsagePercentage(usage.active_contacts || 0, planDetails.limits.contacts) >= 90
+                      calculateUsagePercentage(usage.active_contacts || 0, planLimits?.contacts || 0) >= 90
                         ? 'bg-red-500'
-                        : calculateUsagePercentage(usage.active_contacts || 0, planDetails.limits.contacts) >= 75
+                        : calculateUsagePercentage(usage.active_contacts || 0, planLimits?.contacts || 0) >= 75
                         ? 'bg-yellow-500'
                         : 'bg-green-500'
                     }`}
-                    style={{ width: `${calculateUsagePercentage(usage.active_contacts || 0, planDetails.limits.contacts)}%` }}
+                    style={{ width: `${calculateUsagePercentage(usage.active_contacts || 0, planLimits?.contacts || 0)}%` }}
                   ></div>
                 </div>
               </div>

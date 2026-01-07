@@ -389,7 +389,8 @@ class ApiClient {
     const response = await this.request<any[]>('/billing/invoices', {
       method: 'GET',
     });
-    return response.data || [];
+    if (Array.isArray(response)) return response;
+    return (response as any)?.data || [];
   }
 
   async updatePaymentMethod(paymentMethodId: string): Promise<any> {

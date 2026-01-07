@@ -2,60 +2,27 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { loadStripe } from '@stripe/stripe-js';
 import { apiClient } from '@/lib/api-client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useAuthStore } from '@/stores/auth-store';
 import { SubscriptionPlan } from '@handycall/shared';
+import { PLAN_CATALOG, getPlanPriceDisplay } from '@/constants/plans';
 
-const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
-
-const PLANS = [
-  {
-    plan: SubscriptionPlan.STARTER,
-    name: 'Starter',
-    price: 9.99,
-    description: 'Perfect for small businesses getting started',
-    features: [
-      '50 call minutes per week',
-      '100 SMS messages per week',
-      '200 active contacts',
-      '14-day free trial',
-      'Email support',
-    ],
-  },
-  {
-    plan: SubscriptionPlan.PRO,
-    name: 'Pro',
-    price: 19.99,
-    description: 'For growing businesses with higher call volumes',
-    features: [
-      '150 call minutes per week',
-      '300 SMS messages per week',
-      '500 active contacts',
-      '14-day free trial',
-      'Priority email support',
-      'Advanced analytics',
-    ],
-    popular: true,
-  },
-  {
-    plan: SubscriptionPlan.MAX,
-    name: 'Max',
-    price: 39.99,
-    description: 'Enterprise-grade solution for maximum capacity',
-    features: [
-      '500 call minutes per week',
-      '1000 SMS messages per week',
-      'Unlimited contacts',
-      '14-day free trial',
-      '24/7 priority support',
-      'Advanced analytics',
-      'Custom integrations',
-    ],
-  },
-];
+const PLANS = Object.entries(PLAN_CATALOG).map(([plan, details]) => ({
+  plan: plan as SubscriptionPlan,
+  name: details.name,
+  badge: details.badge,
+  trialLabel: details.trialLabel,
+  priceDisplay: getPlanPriceDisplay(plan as SubscriptionPlan),
+  features: details.featureHighlights,
+  description: details.badge === 'Best value'
+    ? 'For teams that want maximum weekly capacity and routing flexibility'
+    : details.badge === 'Most popular'
+    ? 'For growing businesses with consistent call and SMS volume'
+    : 'For solo operators getting started with AI answering',
+  popular: details.badge === 'Most popular',
+}));
 
 export default function BillingPlansPage() {
   const router = useRouter();
@@ -80,7 +47,8 @@ export default function BillingPlansPage() {
   };
 
   const handleSelectPlan = async (plan: SubscriptionPlan) => {
-    const currentPlan = company?.subscription_plan || subscription?.plan;
+    const currentPlan =
+      company?.subscription_plan || (subscription?.subscription_plan as SubscriptionPlan | undefined);
 
     // If already on this plan, do nothing
     if (currentPlan === plan) {
@@ -108,7 +76,8 @@ export default function BillingPlansPage() {
   };
 
   const isCurrentPlan = (plan: SubscriptionPlan) => {
-    const currentPlan = company?.subscription_plan || subscription?.plan;
+    const currentPlan =
+      company?.subscription_plan || (subscription?.subscription_plan as SubscriptionPlan | undefined);
     return currentPlan === plan;
   };
 
@@ -146,21 +115,33 @@ export default function BillingPlansPage() {
             <Card
               key={planInfo.plan}
               className={`relative ${
-                planInfo.popular ? 'border-blue-500 border-2 shadow-lg' : ''
+                planInfo.popular
+                  ? 'border-blue-500 border-2 shadow-lg'
+                  : planInfo.badge === 'Best value'
+                  ? 'border-emerald-500 border'
+                  : ''
               } ${isCurrent ? 'bg-green-50 border-green-500' : ''}`}
             >
-              {planInfo.popular && (
-                <div className="absolute top-0 right-0 bg-blue-500 text-white px-3 py-1 text-sm font-medium rounded-bl-lg rounded-tr-lg">
-                  Popular
+              {planInfo.badge && (
+                <div className="absolute top-0 right-0 bg-emerald-100 text-emerald-800 px-3 py-1 text-sm font-medium rounded-bl-lg rounded-tr-lg">
+                  {planInfo.badge}
                 </div>
               )}
 
               <CardHeader>
                 <CardTitle className="text-2xl">{planInfo.name}</CardTitle>
                 <CardDescription>{planInfo.description}</CardDescription>
-                <div className="mt-4">
-                  <span className="text-4xl font-bold">${planInfo.price}</span>
-                  <span className="text-gray-600">/week</span>
+                <div className="mt-4 space-y-1">
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-xl text-muted-foreground line-through">
+                      {planInfo.priceDisplay.original}
+                    </span>
+                    <span className="text-4xl font-bold">{planInfo.priceDisplay.current}</span>
+                    <span className="text-gray-600">{planInfo.priceDisplay.cadence}</span>
+                  </div>
+                  {planInfo.trialLabel && (
+                    <p className="text-xs font-medium text-emerald-700">{planInfo.trialLabel}</p>
+                  )}
                 </div>
               </CardHeader>
 
@@ -274,7 +255,7 @@ export default function BillingPlansPage() {
 
       <div className="mt-6 text-center">
         <Button variant="ghost" onClick={() => router.push('/dashboard/billing')}>
-          ← Back to Billing
+          Back to Billing
         </Button>
       </div>
     </div>

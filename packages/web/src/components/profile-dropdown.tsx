@@ -5,6 +5,7 @@ import { LogOut, User } from 'lucide-react';
 import { useAuthStore } from '@/stores/auth-store';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { SubscriptionPlan, SubscriptionStatus } from '@handycall/shared';
+import { PLAN_CATALOG, normalizePlan } from '@/constants/plans';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -61,12 +62,19 @@ export function ProfileDropdown() {
 
   // Get plan info
   const getPlanInfo = () => {
-    if (!company?.subscription_plan) {
+    const planValue = normalizePlan(
+      (company?.subscription_plan as SubscriptionPlan | undefined) ||
+        (company as any)?.subscription_tier
+    );
+    const status = company?.subscription_status;
+
+    if (!planValue) {
+      if (status === SubscriptionStatus.TRIALING) return { text: 'Trialing', color: 'text-blue-600' };
+      if (status === SubscriptionStatus.ACTIVE) return { text: 'Active', color: 'text-green-600' };
       return { text: 'No Plan', color: 'text-muted-foreground' };
     }
 
-    const planName = PLAN_NAMES[company.subscription_plan as SubscriptionPlan];
-    const status = company.subscription_status;
+    const planName = PLAN_CATALOG[planValue]?.name || PLAN_NAMES[planValue];
 
     let statusText = '';
     let color = 'text-muted-foreground';

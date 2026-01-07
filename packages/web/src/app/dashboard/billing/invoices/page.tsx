@@ -235,7 +235,7 @@ export default function InvoicesPage() {
 
       <div className="mt-6 text-center">
         <Button variant="ghost" onClick={() => router.push('/dashboard/billing')}>
-          ← Back to Billing
+          Back to Billing
         </Button>
       </div>
     </div>

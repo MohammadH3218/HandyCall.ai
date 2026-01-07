@@ -2,13 +2,14 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { loadStripe, StripeElements } from '@stripe/stripe-js';
+import { loadStripe } from '@stripe/stripe-js';
 import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import { apiClient } from '@/lib/api-client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useAuthStore } from '@/stores/auth-store';
 import { SubscriptionPlan } from '@handycall/shared';
+import { PLAN_CATALOG, getPlanPriceDisplay } from '@/constants/plans';
 
 const CARD_ELEMENT_OPTIONS = {
   style: {
@@ -100,7 +101,12 @@ function PaymentMethodForm({ selectedPlan }: { selectedPlan?: SubscriptionPlan }
         }, 2000);
       }
     } catch (err: any) {
-      setError(err.message || 'Failed to process payment method');
+      const message = err?.message || 'Failed to process payment method';
+      if (typeof message === 'string' && message.toLowerCase().includes('not found')) {
+        setError('Unable to save the payment method right now. Please try again shortly or contact support so we can enable billing for your account.');
+      } else {
+        setError(message);
+      }
     } finally {
       setLoading(false);
     }
@@ -162,11 +168,15 @@ export default function PaymentMethodPage() {
   // Only create the Stripe promise when we actually have a key.
   const stripePromise = publishableKey ? loadStripe(publishableKey) : null;
 
-  const PLAN_NAMES = {
-    [SubscriptionPlan.STARTER]: 'Starter ($9.99/week)',
-    [SubscriptionPlan.PRO]: 'Pro ($19.99/week)',
-    [SubscriptionPlan.MAX]: 'Max ($39.99/week)',
-  };
+  const planLabels: Record<SubscriptionPlan, string> = Object.fromEntries(
+    Object.entries(PLAN_CATALOG).map(([plan, details]) => {
+      const price = getPlanPriceDisplay(plan as SubscriptionPlan);
+      const cadence = price.cadence.replace('per ', '');
+      return [plan as SubscriptionPlan, `${details.name} (${price.current}/${cadence})`];
+    })
+  );
+  const selectedPlanDetails = selectedPlan ? PLAN_CATALOG[selectedPlan] : undefined;
+  const selectedPlanPrice = selectedPlan ? getPlanPriceDisplay(selectedPlan) : undefined;
 
   return (
     <div className="p-8 max-w-2xl mx-auto">
@@ -174,7 +184,7 @@ export default function PaymentMethodPage() {
         <h1 className="text-3xl font-bold text-gray-900">Payment Method</h1>
         <p className="mt-2 text-gray-600">
           {selectedPlan
-            ? `Add your payment information to start your ${PLAN_NAMES[selectedPlan]} subscription`
+            ? `Add your payment information to start your ${planLabels[selectedPlan]} subscription`
             : 'Update your payment information'}
         </p>
       </div>
@@ -182,9 +192,15 @@ export default function PaymentMethodPage() {
       {selectedPlan && (
         <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
           <h3 className="font-semibold text-blue-900 mb-1">Selected Plan</h3>
-          <p className="text-blue-800">{PLAN_NAMES[selectedPlan]}</p>
+          <div className="flex items-baseline gap-2 text-blue-800">
+            <span className="text-sm line-through text-blue-700">{selectedPlanPrice?.original}</span>
+            <span className="text-lg font-semibold">{selectedPlanPrice?.current}</span>
+            <span className="text-sm text-blue-700">{selectedPlanPrice?.cadence}</span>
+          </div>
           <p className="text-sm text-blue-700 mt-2">
-            Includes 14-day free trial. You won't be charged until the trial ends.
+            {selectedPlanDetails?.trialLabel
+              ? `${selectedPlanDetails.trialLabel}. You won't be charged until the trial ends.`
+              : 'Your plan will start billing immediately after activation.'}
           </p>
         </div>
       )}
@@ -241,7 +257,7 @@ export default function PaymentMethodPage() {
       {!selectedPlan && (
         <div className="mt-6 text-center">
           <Button variant="ghost" onClick={() => router.push('/dashboard/billing')}>
-            ← Back to Billing
+            Back to Billing
           </Button>
         </div>
       )}

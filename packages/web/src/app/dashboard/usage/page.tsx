@@ -7,6 +7,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { useAuthStore } from '@/stores/auth-store';
 import { SubscriptionPlan } from '@handycall/shared';
+import { PLAN_CATALOG, getPlanPriceDisplay } from '@/constants/plans';
+import { normalizeUsageResponse, resolvePlan, resolvePlanLimits } from '@/lib/billing-utils';
 import { AlertTriangle, BarChart3, Clock3, MessageSquare, Users } from 'lucide-react';
 
 type UsageMetrics = {
@@ -17,43 +19,6 @@ type UsageMetrics = {
   active_contacts?: number;
 };
 
-const PLAN_DETAILS: Record<
-  SubscriptionPlan,
-  {
-    name: string;
-    price: string;
-    limits: { minutes: number; sms: number; contacts: number };
-  }
-> = {
-  [SubscriptionPlan.STARTER]: {
-    name: 'Starter',
-    price: '$4.99',
-    limits: {
-      minutes: 50,
-      sms: 100,
-      contacts: 200,
-    },
-  },
-  [SubscriptionPlan.PRO]: {
-    name: 'Pro',
-    price: '$9.99',
-    limits: {
-      minutes: 150,
-      sms: 300,
-      contacts: 500,
-    },
-  },
-  [SubscriptionPlan.MAX]: {
-    name: 'Max',
-    price: '$19.99',
-    limits: {
-      minutes: 500,
-      sms: 1000,
-      contacts: -1, // unlimited
-    },
-  },
-};
-
 export default function UsagePage() {
   const router = useRouter();
   const { company } = useAuthStore();
@@ -61,6 +26,7 @@ export default function UsagePage() {
   const [subscriptionPlan, setSubscriptionPlan] = useState<SubscriptionPlan | undefined>(
     company?.subscription_plan as SubscriptionPlan | undefined
   );
+  const [planLimits, setPlanLimits] = useState<{ minutes: number; sms: number; contacts: number }>();
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -82,11 +48,16 @@ export default function UsagePage() {
         }),
       ]);
 
-      setUsage(usageData);
-      setSubscriptionPlan(
-        (company?.subscription_plan as SubscriptionPlan | undefined) ||
-          (subscription?.subscription_plan as SubscriptionPlan | undefined)
-      );
+      const normalizedPlan =
+        resolvePlan(company?.subscription_plan as SubscriptionPlan | undefined) ||
+        resolvePlan(subscription?.subscription_plan as SubscriptionPlan | undefined);
+
+      setUsage(normalizeUsageResponse(usageData, subscription));
+      const limits =
+        resolvePlanLimits(normalizedPlan, usageData?.plan_limits) ||
+        (normalizedPlan ? PLAN_CATALOG[normalizedPlan].limits : undefined);
+      setPlanLimits(limits);
+      setSubscriptionPlan(normalizedPlan);
     } catch (err: any) {
       console.error('Failed to load usage', err);
       setError(err.message || 'Unable to load usage right now.');
@@ -95,7 +66,8 @@ export default function UsagePage() {
     }
   };
 
-  const planDetails = subscriptionPlan ? PLAN_DETAILS[subscriptionPlan] : undefined;
+  const planDetails = subscriptionPlan ? PLAN_CATALOG[subscriptionPlan] : undefined;
+  const priceDisplay = subscriptionPlan ? getPlanPriceDisplay(subscriptionPlan) : undefined;
 
   const formatDate = (timestamp?: number) => {
     if (!timestamp) return 'N/A';
@@ -113,19 +85,19 @@ export default function UsagePage() {
   };
 
   const alerts = useMemo(() => {
-    if (!planDetails || !usage) return [];
+    if (!planLimits || !usage) return [];
     const warningPoints = [
       {
         label: 'Call minutes',
-        percent: calculateUsagePercentage(usage.call_minutes || 0, planDetails.limits.minutes),
+        percent: calculateUsagePercentage(usage.call_minutes || 0, planLimits.minutes),
       },
       {
         label: 'SMS',
-        percent: calculateUsagePercentage(usage.sms_count || 0, planDetails.limits.sms),
+        percent: calculateUsagePercentage(usage.sms_count || 0, planLimits.sms),
       },
       {
         label: 'Contacts',
-        percent: calculateUsagePercentage(usage.active_contacts || 0, planDetails.limits.contacts),
+        percent: calculateUsagePercentage(usage.active_contacts || 0, planLimits.contacts),
       },
     ];
     return warningPoints.filter((item) => item.percent >= 75 && item.percent < 100 && item.percent !== 0);
@@ -191,7 +163,11 @@ export default function UsagePage() {
             <div className="text-right">
               <p className="text-sm text-muted-foreground">Plan</p>
               <p className="text-lg font-semibold">{planDetails.name}</p>
-              <p className="text-sm text-muted-foreground">{planDetails.price}/week</p>
+              <p className="text-sm text-muted-foreground">
+                <span className="mr-2 line-through">{priceDisplay?.original}</span>
+                <span className="font-semibold text-foreground">{priceDisplay?.current}</span>
+                <span className="ml-1 text-muted-foreground">{priceDisplay?.cadence}</span>
+              </p>
             </div>
           ) : (
             <Button onClick={() => router.push('/dashboard/billing/plans')}>Choose a plan</Button>
@@ -202,21 +178,21 @@ export default function UsagePage() {
             <UsageMeter
               label="Call minutes"
               used={usage?.call_minutes || 0}
-              limit={planDetails?.limits.minutes}
+              limit={planLimits?.minutes}
               icon={<Clock3 className="h-5 w-5 text-blue-600" />}
               calculateUsagePercentage={calculateUsagePercentage}
             />
             <UsageMeter
               label="SMS messages"
               used={usage?.sms_count || 0}
-              limit={planDetails?.limits.sms}
+              limit={planLimits?.sms}
               icon={<MessageSquare className="h-5 w-5 text-green-600" />}
               calculateUsagePercentage={calculateUsagePercentage}
             />
             <UsageMeter
               label="Active contacts"
               used={usage?.active_contacts || 0}
-              limit={planDetails?.limits.contacts}
+              limit={planLimits?.contacts}
               icon={<Users className="h-5 w-5 text-purple-600" />}
               calculateUsagePercentage={calculateUsagePercentage}
             />
@@ -292,8 +268,8 @@ function UsageMeter({
     percent >= 90 ? 'bg-red-500' : percent >= 75 ? 'bg-yellow-500' : 'bg-green-500';
 
   // Show "0 / 0" when no limit is set (no plan), "Unlimited" when limit is -1 (unlimited plan)
-  const limitLabel = limit === undefined ? '0' : limit === -1 ? 'Unlimited' : limit;
-  const usageDisplay = limit === undefined ? `${used} / 0` : `${used}`;
+  const limitLabel = limit === undefined ? 'Set a plan' : limit === -1 ? 'Unlimited' : limit;
+  const usageDisplay = `${used}`;
 
   return (
     <div className="rounded-lg border bg-card p-4">
