@@ -237,10 +237,27 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       if (idToken) localStorage.setItem('id_token', idToken);
       if (refreshToken) localStorage.setItem('refresh_token', refreshToken);
 
-      // If no session at all, mark unauthenticated
+      // If no session at all, mark unauthenticated and clear any stale localStorage
       if (!session) {
         console.log('[Auth Store] No authenticated user in session');
-        set({ isLoading: false, isAuthenticated: false, userRole: null, _checkAuthInProgress: false });
+        // Clear any stale tokens
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('access_token');
+          localStorage.removeItem('id_token');
+          localStorage.removeItem('refresh_token');
+        }
+        set({ 
+          isLoading: false, 
+          isAuthenticated: false, 
+          userRole: null, 
+          company: null,
+          user: null,
+          accessToken: null,
+          idToken: null,
+          refreshToken: null,
+          email: null,
+          _checkAuthInProgress: false 
+        });
         return;
       }
 

@@ -22,14 +22,31 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       if (status === 'authenticated') {
         try {
           await checkAuth();
+          // After checkAuth, verify we actually have valid credentials
+          const state = useAuthStore.getState();
+          // For admin users, check for tokens. For customers, check for company or tokens
+          const hasValidAuth = state.isAuthenticated && (
+            state.accessToken || 
+            (state.userRole === UserRole.ADMIN) ||
+            state.company
+          );
+          
+          if (!hasValidAuth) {
+            // No valid credentials, sign out
+            console.log('[DashboardLayout] No valid credentials after checkAuth, signing out');
+            await signOut({ redirect: false });
+            router.push('/login');
+          }
         } catch (err) {
           console.error('checkAuth failed, signing out', err);
-          await signOut({ callbackUrl: '/login' });
+          // Sign out without redirect to avoid loops, then navigate manually
+          await signOut({ redirect: false });
+          router.push('/login');
         }
       }
     };
     populate();
-  }, [status, checkAuth]);
+  }, [status, checkAuth, router]);
 
   useEffect(() => {
     if (status === 'unauthenticated') {

@@ -44,56 +44,38 @@ function LoginPageInner() {
     }
   }, [requiresPasswordChange]);
 
-  // Redirect after successful authentication (backup redirect)
+  // Clear invalid sessions on login page load
   useEffect(() => {
-    const ensureSessionValid = async () => {
-      if ((status === 'authenticated' || isAuthenticated) && !requiresPasswordChange && !showPasswordChangeModal) {
-        const sessionRole =
-          ((session as any)?.userRole as UserRole | undefined) ||
-          ((session as any)?.user?.role as UserRole | undefined) ||
-          userRole;
-        const poolType = (session as any)?.poolType as string | undefined;
-        const derivedRole =
-          sessionRole ||
-          (poolType === 'admin' ? UserRole.ADMIN : undefined);
-
+    const clearInvalidSession = async () => {
+      // If there's a session but no valid credentials, clear it
+      if (status === 'authenticated') {
         try {
-          if (derivedRole === UserRole.ADMIN) {
-            const accessToken = (session as any)?.accessToken as string | undefined;
-            const idToken = (session as any)?.idToken as string | undefined;
-            const refreshToken = (session as any)?.refreshToken as string | undefined;
-
-            if (accessToken && idToken && refreshToken) {
-              useAuthStore.getState().setTokens(accessToken, idToken, refreshToken);
+          // Check if we can actually get company data (for customers) or have valid admin tokens
+          const accessToken = (session as any)?.accessToken as string | undefined;
+          const idToken = (session as any)?.idToken as string | undefined;
+          
+          // If no tokens in session, clear it
+          if (!accessToken && !idToken) {
+            // Check localStorage as fallback
+            const localToken = localStorage.getItem('access_token');
+            if (!localToken) {
+              // No valid tokens anywhere, sign out
+              await signOut({ redirect: false });
+              return;
             }
-
-            const sessionEmail = (session as any)?.user?.email as string | undefined;
-            if (sessionEmail) {
-              localStorage.setItem('email', sessionEmail);
-            }
-            localStorage.setItem('user_role', UserRole.ADMIN);
-
-            router.push(callbackUrl || '/admin');
-            return;
           }
-
-          // Wait until we know the role to avoid hitting customer endpoints with admin tokens
-          if (!derivedRole) {
-            return;
-          }
-
-          // For customer users, redirect to dashboard without validating with API
-          // Let the dashboard layout handle the validation to avoid redirect loops
-          router.push(callbackUrl || '/dashboard');
         } catch (err) {
-          console.error('[Login] Session validation failed:', err);
-          await signOut({ callbackUrl: '/login' });
-          return;
+          // If session check fails, clear it
+          console.error('[Login] Invalid session detected, clearing:', err);
+          await signOut({ redirect: false });
         }
       }
     };
-    ensureSessionValid();
-  }, [status, isAuthenticated, userRole, requiresPasswordChange, showPasswordChangeModal, router, session]);
+    
+    // Only run this check once on mount, not on every status change
+    clearInvalidSession();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
