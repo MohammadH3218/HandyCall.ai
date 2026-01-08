@@ -47,7 +47,7 @@ interface UpcomingAppointment {
 }
 
 export default function DashboardPage() {
-  const { company } = useAuthStore();
+  const { company, checkAuth } = useAuthStore();
   const { toast } = useToast();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [recentCalls, setRecentCalls] = useState<RecentCall[]>([]);
@@ -76,29 +76,44 @@ export default function DashboardPage() {
   );
 
   useEffect(() => {
+    loadDashboardData();
+  }, []);
+
+  // Sync toggle states when company data changes
+  useEffect(() => {
     if (company) {
       // Initialize service toggle states from company data
       const locked = company.status === 'INACTIVE' || company.status === 'SUSPENDED';
       setCallsEnabled(locked ? false : (company.calls_enabled ?? false));
       setSmsEnabled(locked ? false : (company.sms_enabled ?? false));
     }
-    loadDashboardData();
-  }, []);
+  }, [company]);
 
   useEffect(() => {
     // Auto-refresh when page becomes visible
-    const handleVisibilityChange = () => {
+    const handleVisibilityChange = async () => {
       if (!document.hidden) {
+        // Refresh company data from server to get latest service toggle states
+        await checkAuth();
         loadDashboardData();
       }
     };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
+    // Periodic refresh of company data to pick up changes made by admin
+    // Refresh every 15 seconds to sync service toggle states
+    const refreshInterval = setInterval(async () => {
+      if (!document.hidden) {
+        await checkAuth();
+      }
+    }, 15000);
+
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
+      clearInterval(refreshInterval);
     };
-  }, []);
+  }, [checkAuth]);
 
   const loadDashboardData = async () => {
     try {
