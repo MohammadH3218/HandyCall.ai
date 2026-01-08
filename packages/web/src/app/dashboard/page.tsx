@@ -67,6 +67,13 @@ export default function DashboardPage() {
   const [toggleLoading, setToggleLoading] = useState<'calls' | 'sms' | null>(null);
   const [usageLimits, setUsageLimits] = useState<UsageLimits | null>(null);
   const servicesLocked = company?.status === 'INACTIVE' || company?.status === 'SUSPENDED';
+  // Check if user has an active subscription plan or trial
+  const hasActiveSubscription = Boolean(
+    company?.subscription_plan || 
+    company?.stripe_subscription_id || 
+    (company?.subscription_status && (company.subscription_status === 'ACTIVE' || company.subscription_status === 'TRIALING')) ||
+    (company?.trial_ends_at && company.trial_ends_at > Date.now())
+  );
 
   useEffect(() => {
     loadDashboardData();
@@ -296,7 +303,7 @@ export default function DashboardPage() {
                 icon={<PhoneCall className="h-5 w-5" />}
                 enabled={callsEnabled}
                 loading={toggleLoading === 'calls'}
-                disabled={servicesLocked || (!company?.subscription_plan && !callsEnabled)}
+                disabled={servicesLocked || (!hasActiveSubscription && !callsEnabled)}
                 onToggle={(enabled) => toggleService('calls', enabled)}
               />
               <ServiceToggle
@@ -304,7 +311,7 @@ export default function DashboardPage() {
                 icon={<MessageSquare className="h-5 w-5" />}
                 enabled={smsEnabled}
                 loading={toggleLoading === 'sms'}
-                disabled={servicesLocked || (!company?.subscription_plan && !smsEnabled)}
+                disabled={servicesLocked || (!hasActiveSubscription && !smsEnabled)}
                 onToggle={(enabled) => toggleService('sms', enabled)}
               />
             </div>
