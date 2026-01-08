@@ -36,39 +36,33 @@ export class DashboardService {
     today.setHours(0, 0, 0, 0);
     const todayTimestamp = today.getTime();
 
-    // Get today's calls
+    // Get today's calls - use started_at field and date-index GSI if available, otherwise scan
     const callsResult = await this.queryWithFallback({
       table: 'calls',
       companyId,
       additionalConditions: {
-        keyCondition: '#created_at >= :today',
-        expressionAttributeNames: { '#created_at': 'created_at' },
+        keyCondition: '#started_at >= :today',
+        expressionAttributeNames: { '#started_at': 'started_at' },
         expressionAttributeValues: { ':today': todayTimestamp },
       },
       options: {
-        indexName: 'company_id-created_at-index',
+        indexName: 'date-index',
       },
       fallback: {
-        filterExpression: '#company_id = :company_id AND #created_at >= :today',
-        expressionAttributeNames: { '#company_id': 'company_id', '#created_at': 'created_at' },
+        filterExpression: '#company_id = :company_id AND (#started_at >= :today OR #created_at >= :today)',
+        expressionAttributeNames: { '#company_id': 'company_id', '#started_at': 'started_at', '#created_at': 'created_at' },
         expressionAttributeValues: { ':company_id': companyId, ':today': todayTimestamp },
-        sortBy: 'created_at',
+        sortBy: 'started_at',
         sortDirection: 'desc',
       },
     });
 
-    // Count new leads (contacts created today)
+    // Count new leads (contacts created today) - no GSI, use scan
     const leadsResult = await this.queryWithFallback({
       table: 'contacts',
       companyId,
-      additionalConditions: {
-        keyCondition: '#created_at >= :today',
-        expressionAttributeNames: { '#created_at': 'created_at' },
-        expressionAttributeValues: { ':today': todayTimestamp },
-      },
-      options: {
-        indexName: 'company_id-created_at-index',
-      },
+      additionalConditions: {},
+      options: {},
       fallback: {
         filterExpression: '#company_id = :company_id AND #created_at >= :today',
         expressionAttributeNames: { '#company_id': 'company_id', '#created_at': 'created_at' },
@@ -78,23 +72,24 @@ export class DashboardService {
       },
     });
 
-    // Get upcoming appointments
+    // Get upcoming appointments - use scheduled_start field and date-index GSI if available
     const appointmentsResult = await this.queryWithFallback({
       table: 'appointments',
       companyId,
       additionalConditions: {
-        keyCondition: '#scheduled_time >= :now',
+        keyCondition: '#scheduled_start >= :now',
         filterExpression: '#status = :active',
-        expressionAttributeNames: { '#scheduled_time': 'scheduled_time', '#status': 'status' },
+        expressionAttributeNames: { '#scheduled_start': 'scheduled_start', '#status': 'status' },
         expressionAttributeValues: { ':now': todayTimestamp, ':active': 'active' },
       },
       options: {
-        indexName: 'company_id-scheduled_time-index',
+        indexName: 'date-index',
       },
       fallback: {
-        filterExpression: '#company_id = :company_id AND #scheduled_time >= :now AND #status = :active',
+        filterExpression: '#company_id = :company_id AND (#scheduled_start >= :now OR #scheduled_time >= :now) AND #status = :active',
         expressionAttributeNames: {
           '#company_id': 'company_id',
+          '#scheduled_start': 'scheduled_start',
           '#scheduled_time': 'scheduled_time',
           '#status': 'status',
         },
@@ -103,20 +98,17 @@ export class DashboardService {
           ':now': todayTimestamp,
           ':active': 'active',
         },
-        sortBy: 'scheduled_time',
+        sortBy: 'scheduled_start',
         sortDirection: 'asc',
       },
     });
 
-    // Get pending flagged questions
+    // Get pending flagged questions - use status-index GSI if available, otherwise scan
     const questionsResult = await this.queryWithFallback({
       table: 'flagged_questions',
       companyId,
-      additionalConditions: {
-        filterExpression: '#status = :pending',
-        expressionAttributeNames: { '#status': 'status' },
-        expressionAttributeValues: { ':pending': 'pending' },
-      },
+      additionalConditions: {},
+      options: {},
       fallback: {
         filterExpression: '#company_id = :company_id AND #status = :pending',
         expressionAttributeNames: { '#company_id': 'company_id', '#status': 'status' },
@@ -135,18 +127,40 @@ export class DashboardService {
   }
 
   async getRecentCalls(companyId: string, limit = 5): Promise<RecentCall[]> {
-    const result = await this.dynamodb.queryByCompany(
-      'calls',
-      companyId,
-      {},
-      {
-        indexName: 'company_id-created_at-index',
+    try {
+      const result = await this.dynamodb.queryByCompany(
+        'calls',
+        companyId,
+        {
+          keyCondition: '#started_at >= :zero',
+          expressionAttributeNames: { '#started_at': 'started_at' },
+          expressionAttributeValues: { ':zero': 0 },
+        },
+        {
+          indexName: 'date-index',
+          limit,
+          scanIndexForward: false, // Most recent first
+        }
+      );
+      return result.items as RecentCall[];
+    } catch (error) {
+      // Fallback to scan if GSI doesn't exist
+      console.warn('[DashboardService] Falling back to scan for recent calls:', error);
+      const scanResult = await this.dynamodb.scan('calls', {
+        filterExpression: '#company_id = :company_id',
+        expressionAttributeNames: { '#company_id': 'company_id' },
+        expressionAttributeValues: { ':company_id': companyId },
         limit,
-        scanIndexForward: false, // Most recent first
-      }
-    );
-
-    return result.items as RecentCall[];
+      });
+      let items = (scanResult.items || []) as RecentCall[];
+      // Sort by started_at or created_at descending
+      items = items.sort((a: any, b: any) => {
+        const aVal = (a.started_at || a.created_at || 0) as number;
+        const bVal = (b.started_at || b.created_at || 0) as number;
+        return bVal - aVal;
+      });
+      return items.slice(0, limit);
+    }
   }
 
   async getUpcomingAppointments(companyId: string, limit = 5): Promise<UpcomingAppointment[]> {
@@ -156,21 +170,22 @@ export class DashboardService {
       table: 'appointments',
       companyId,
       additionalConditions: {
-        keyCondition: '#scheduled_time >= :now',
+        keyCondition: '#scheduled_start >= :now',
         filterExpression: '#status IN (:confirmed, :pending)',
-        expressionAttributeNames: { '#scheduled_time': 'scheduled_time', '#status': 'status' },
+        expressionAttributeNames: { '#scheduled_start': 'scheduled_start', '#status': 'status' },
         expressionAttributeValues: { ':now': now, ':confirmed': 'confirmed', ':pending': 'pending' },
       },
       options: {
-        indexName: 'company_id-scheduled_time-index',
+        indexName: 'date-index',
         limit,
         scanIndexForward: true, // Earliest first
       },
       fallback: {
         filterExpression:
-          '#company_id = :company_id AND #scheduled_time >= :now AND (#status = :confirmed OR #status = :pending)',
+          '#company_id = :company_id AND (#scheduled_start >= :now OR #scheduled_time >= :now) AND (#status = :confirmed OR #status = :pending)',
         expressionAttributeNames: {
           '#company_id': 'company_id',
+          '#scheduled_start': 'scheduled_start',
           '#scheduled_time': 'scheduled_time',
           '#status': 'status',
         },
@@ -180,7 +195,7 @@ export class DashboardService {
           ':confirmed': 'confirmed',
           ':pending': 'pending',
         },
-        sortBy: 'scheduled_time',
+        sortBy: 'scheduled_start',
         sortDirection: 'asc',
       },
     });
@@ -218,9 +233,12 @@ export class DashboardService {
         params.additionalConditions,
         params.options
       );
-    } catch (error) {
+    } catch (error: any) {
       // Gracefully fall back to a scan if the index or key condition is invalid in the current environment
-      console.warn(`[DashboardService] Falling back to scan for ${params.table}:`, error);
+      // Only log if it's not a ValidationException (which is expected when GSIs don't exist)
+      if (error?.__type !== 'com.amazon.coral.validate#ValidationException') {
+        console.warn(`[DashboardService] Falling back to scan for ${params.table}:`, error);
+      }
       const scanResult = await this.dynamodb.scan(params.table, {
         filterExpression: params.fallback.filterExpression,
         expressionAttributeNames: params.fallback.expressionAttributeNames,
