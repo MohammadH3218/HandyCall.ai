@@ -198,7 +198,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       // Get NextAuth session info to populate user/email/role
       const sessionResponse = await fetch('/api/auth/session', { cache: 'no-store' });
-      const session = sessionResponse.ok ? await sessionResponse.json() : null;
+      let session = sessionResponse.ok ? await sessionResponse.json() : null;
 
       console.log('[Auth Store] Session fetched:', {
         hasSession: !!session,
