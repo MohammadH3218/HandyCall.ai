@@ -233,28 +233,46 @@ export class CompaniesController {
       throw new BadRequestException('Account is inactive or suspended.');
     }
 
+    // Check if user has an active subscription plan
+    const hasActivePlan = Boolean(company.subscription_plan || company.stripe_subscription_id);
     const plan = company.subscription_plan as SubscriptionPlan | undefined;
-    if (!plan) {
-      throw new BadRequestException('An active subscription plan is required to enable services.');
-    }
-
+    
+    // Check subscription status
     const status = company.subscription_status as SubscriptionStatus | undefined;
-    const canceling =
-      company.cancel_at_period_end && company.current_period_end && company.current_period_end > Date.now();
-    const statusAllowed =
-      !status || status === SubscriptionStatus.ACTIVE || status === SubscriptionStatus.TRIALING;
-    if (!statusAllowed && !canceling) {
-      throw new BadRequestException('Subscription is not active.');
+    const hasActiveStatus = status === SubscriptionStatus.ACTIVE || status === SubscriptionStatus.TRIALING;
+    
+    // Check if user has an active trial (trial_ends_at is in the future)
+    const hasActiveTrial = company.trial_ends_at !== null && 
+                           company.trial_ends_at !== undefined && 
+                           company.trial_ends_at > Date.now();
+    
+    // Check if subscription is canceling but still active until period end
+    const isCancelingButActive =
+      company.cancel_at_period_end &&
+      company.current_period_end &&
+      company.current_period_end > Date.now();
+
+    // User must have either:
+    // 1. An active subscription plan with active status, OR
+    // 2. An active trial (trial_ends_at in the future), OR
+    // 3. A subscription that's canceling but still active
+    const hasSubscription = (hasActivePlan && hasActiveStatus) || hasActiveTrial || isCancelingButActive;
+
+    if (!hasSubscription) {
+      throw new BadRequestException('You must have an active subscription or trial to enable this service.');
     }
 
-    const periodStart = company.current_period_start || Date.now();
-    const limits = await this.usageService.checkLimitsExceeded(company.company_id, plan, periodStart);
+    // If we have a plan, check usage limits
+    if (plan) {
+      const periodStart = company.current_period_start || Date.now();
+      const limits = await this.usageService.checkLimitsExceeded(company.company_id, plan, periodStart);
 
-    if (enablingCalls && limits.minutes.exceeded) {
-      throw new BadRequestException('Call minutes limit reached for the current billing period.');
-    }
-    if (enablingSms && limits.sms.exceeded) {
-      throw new BadRequestException('SMS limit reached for the current billing period.');
+      if (enablingCalls && limits.minutes.exceeded) {
+        throw new BadRequestException('Call minutes limit reached for the current billing period.');
+      }
+      if (enablingSms && limits.sms.exceeded) {
+        throw new BadRequestException('SMS limit reached for the current billing period.');
+      }
     }
   }
 }

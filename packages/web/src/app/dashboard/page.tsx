@@ -75,8 +75,9 @@ export default function DashboardPage() {
   useEffect(() => {
     if (company) {
       const locked = company.status === 'INACTIVE' || company.status === 'SUSPENDED';
-      setCallsEnabled(locked ? false : (company.calls_enabled ?? true));
-      setSmsEnabled(locked ? false : (company.sms_enabled ?? true));
+      // Use actual values from company, defaulting to false if undefined
+      setCallsEnabled(locked ? false : (company.calls_enabled ?? false));
+      setSmsEnabled(locked ? false : (company.sms_enabled ?? false));
     }
   }, [company]);
 
@@ -168,18 +169,30 @@ export default function DashboardPage() {
       return;
     }
     if (enabled) {
+      // Check if user has an active subscription plan
+      const hasActivePlan = Boolean(currentCompany.subscription_plan || currentCompany.stripe_subscription_id);
+      // Check if user has an active subscription status (ACTIVE or TRIALING)
       const subscriptionStatus = currentCompany.subscription_status;
-      const hasPlan =
-        Boolean(currentCompany.subscription_plan) &&
-        (!subscriptionStatus ||
-          subscriptionStatus === 'ACTIVE' ||
-          subscriptionStatus === 'TRIALING' ||
-          currentCompany.cancel_at_period_end);
+      const hasActiveStatus = subscriptionStatus === 'ACTIVE' || subscriptionStatus === 'TRIALING';
+      // Check if user has an active trial (trial_ends_at is in the future)
+      const hasActiveTrial = currentCompany.trial_ends_at !== null && 
+                             currentCompany.trial_ends_at !== undefined && 
+                             currentCompany.trial_ends_at > Date.now();
+      // Check if subscription is canceling but still active until period end
+      const isCancelingButActive = currentCompany.cancel_at_period_end && 
+                                   currentCompany.current_period_end && 
+                                   currentCompany.current_period_end > Date.now();
+      
+      // User must have either:
+      // 1. An active subscription plan with active status, OR
+      // 2. An active trial (trial_ends_at in the future), OR
+      // 3. A subscription that's canceling but still active
+      const hasSubscription = (hasActivePlan && hasActiveStatus) || hasActiveTrial || isCancelingButActive;
 
-      if (!hasPlan) {
+      if (!hasSubscription) {
         toast({
-          title: 'Plan required',
-          description: 'Select a subscription plan to enable this service.',
+          title: 'Subscription required',
+          description: 'You must have an active subscription or trial to enable this service.',
           variant: 'destructive',
         });
         return;
@@ -205,14 +218,40 @@ export default function DashboardPage() {
     }
     setToggleLoading(service);
     try {
-      await apiClient.updateMyCompany({
+      // Call the API to update the service
+      const updatedCompany = await apiClient.updateMyCompany({
         [service === 'calls' ? 'calls_enabled' : 'sms_enabled']: enabled,
       });
 
-      if (service === 'calls') {
-        setCallsEnabled(enabled);
+      // Refresh auth to get latest company data
+      await checkAuth();
+      
+      // Get the updated company data after checkAuth completes
+      // Try to get fresh data from API, fallback to store, then to response
+      let finalCompany = updatedCompany;
+      try {
+        const freshCompany = await apiClient.getMyCompany();
+        finalCompany = freshCompany || updatedCompany || company;
+      } catch {
+        // If getMyCompany fails, use the response or store value
+        finalCompany = updatedCompany || company;
+      }
+
+      // Update state based on the actual company data from the server
+      if (finalCompany) {
+        const locked = finalCompany.status === 'INACTIVE' || finalCompany.status === 'SUSPENDED';
+        if (service === 'calls') {
+          setCallsEnabled(locked ? false : (finalCompany.calls_enabled ?? false));
+        } else {
+          setSmsEnabled(locked ? false : (finalCompany.sms_enabled ?? false));
+        }
       } else {
-        setSmsEnabled(enabled);
+        // Fallback to optimistic update if we don't have company data
+        if (service === 'calls') {
+          setCallsEnabled(enabled);
+        } else {
+          setSmsEnabled(enabled);
+        }
       }
 
       toast({
@@ -221,7 +260,6 @@ export default function DashboardPage() {
           ? `Your AI receptionist will now handle ${service === 'calls' ? 'incoming calls' : 'incoming SMS messages'}`
           : `${service === 'calls' ? 'Call' : 'SMS'} handling is paused`,
       });
-      await checkAuth();
     } catch (err: any) {
       toast({
         title: 'Error',
