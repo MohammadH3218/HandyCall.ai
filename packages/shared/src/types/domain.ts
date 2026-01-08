@@ -53,6 +53,18 @@ export interface Company {
   calls_enabled?: boolean;
   sms_enabled?: boolean;
 
+  // AWS Connect integration
+  connect_phone_number_id?: string; // Phone number ID from AWS Connect
+  connect_phone_number?: PhoneNumber; // E.164 format (e.g., +16057052030)
+  connect_instance_id?: string; // Connect instance ID
+
+  // Cal.com integration
+  calcom_connected?: boolean;
+  calcom_api_key?: string; // Encrypted
+  calcom_username?: string;
+  calcom_event_type_id?: number;
+  use_simple_scheduling?: boolean; // Fallback to simple time slots
+
   // Billing fields
   stripe_customer_id?: string;
   stripe_subscription_id?: string;
@@ -176,7 +188,12 @@ export interface Contact {
   email?: string;
   first_name?: string;
   last_name?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  zipcode?: string;
   source: ContactSource;
+  source_call_id?: UUID; // Call that created this contact
   lead_status: LeadStatus;
   notes?: string;
   created_at: Timestamp;
@@ -211,6 +228,19 @@ export enum CallIntent {
   UNKNOWN = 'UNKNOWN',
 }
 
+export enum CallOutcome {
+  APPOINTMENT_BOOKED = 'APPOINTMENT_BOOKED', // Green
+  LEAD = 'LEAD', // Yellow/Orange
+  NO_INTEREST = 'NO_INTEREST', // Red
+  INFO_ONLY = 'INFO_ONLY', // Gray
+}
+
+export enum LeadQuality {
+  HOT = 'HOT', // Expressed strong interest
+  WARM = 'WARM', // Interested but needs to think
+  COLD = 'COLD', // Slight interest, low priority
+}
+
 export interface Call {
   call_id: UUID;
   company_id: UUID;
@@ -231,6 +261,12 @@ export interface Call {
   started_at: Timestamp;
   ended_at?: Timestamp;
   created_at: Timestamp;
+
+  // Call outcome classification
+  outcome?: CallOutcome;
+  outcome_confidence?: number; // 0-1
+  appointment_id?: UUID; // Link to created appointment
+  lead_quality?: LeadQuality;
 }
 
 export interface CallHighlight {

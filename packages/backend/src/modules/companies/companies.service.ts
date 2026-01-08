@@ -196,6 +196,63 @@ export class CompaniesService {
   }
 
   /**
+   * Update AWS Connect phone number details for a company
+   */
+  async updateConnectPhoneNumber(
+    companyId: string,
+    phoneData: {
+      connect_phone_number_id?: string;
+      connect_phone_number?: string;
+      connect_instance_id?: string;
+    }
+  ): Promise<Company> {
+    const company = await this.findById(companyId);
+    if (!company) {
+      throw new NotFoundException('Company not found');
+    }
+
+    const updatedData = {
+      ...phoneData,
+      updated_at: Date.now(),
+    };
+
+    const result = await this.dynamodb.update(this.tableName, { company_id: companyId }, updatedData);
+    return result as Company;
+  }
+
+  /**
+   * Find company by AWS Connect phone number
+   */
+  async findByConnectPhoneNumber(phoneNumber: string): Promise<Company | null> {
+    try {
+      // Query using phone-index GSI (assuming it exists or we'll create it)
+      const result = await this.dynamodb.query(
+        this.tableName,
+        'connect_phone_number = :phone',
+        {},
+        { ':phone': phoneNumber },
+        { indexName: 'connect-phone-index' }
+      );
+
+      if (!result || result.length === 0) {
+        // Fallback to scan if GSI doesn't exist yet
+        const scanResult = await this.dynamodb.scan(this.tableName, {
+          filterExpression: 'connect_phone_number = :phone',
+          expressionAttributeValues: { ':phone': phoneNumber },
+          limit: 1,
+        });
+
+        return scanResult.items.length > 0 ? (scanResult.items[0] as Company) : null;
+      }
+
+      return result[0] as Company;
+    } catch (error) {
+      console.error('Error finding company by Connect phone number:', error);
+      return null;
+    }
+  }
+
+  /**
    * List all companies (admin only)
    */
   async listAll(limit = 100): Promise<Company[]> {

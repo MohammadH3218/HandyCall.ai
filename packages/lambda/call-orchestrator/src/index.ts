@@ -95,20 +95,36 @@ export const handler = async (event: ConnectContactFlowEvent): Promise<ConnectRe
 };
 
 /**
- * Lookup company by phone number
+ * Lookup company by AWS Connect phone number
  */
 async function lookupCompanyByPhone(phoneNumber: string): Promise<Company | null> {
   try {
-    const companies = await DynamoDBService.query(
+    // Try to query using connect-phone-index GSI
+    try {
+      const companies = await DynamoDBService.query(
+        'companies',
+        'connect_phone_number = :phone',
+        { ':phone': phoneNumber },
+        'connect-phone-index'
+      );
+
+      if (companies.length > 0) {
+        return companies[0] as Company;
+      }
+    } catch (gsiError) {
+      console.warn('GSI query failed, falling back to scan:', gsiError);
+    }
+
+    // Fallback: Scan the table if GSI doesn't exist yet
+    const scanResult = await DynamoDBService.scan(
       'companies',
-      'phone_number = :phone',
-      { ':phone': phoneNumber },
-      'phone-index'
+      'connect_phone_number = :phone',
+      { ':phone': phoneNumber }
     );
 
-    return companies.length > 0 ? companies[0] as Company : null;
+    return scanResult.length > 0 ? scanResult[0] as Company : null;
   } catch (error) {
-    console.error('Error looking up company:', error);
+    console.error('Error looking up company by Connect phone:', error);
     return null;
   }
 }
