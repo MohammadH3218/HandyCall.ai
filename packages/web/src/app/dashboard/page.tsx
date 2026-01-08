@@ -148,9 +148,7 @@ export default function DashboardPage() {
   };
 
   const toggleService = async (service: 'calls' | 'sms', enabled: boolean) => {
-    const currentCompany =
-      (await apiClient.getMyCompany().catch(() => null)) || company;
-    if (!currentCompany) {
+    if (!company) {
       toast({
         title: 'Account not ready',
         description: 'Please wait a moment and try again.',
@@ -158,9 +156,9 @@ export default function DashboardPage() {
       });
       return;
     }
-    const locked =
-      currentCompany.status === 'INACTIVE' || currentCompany.status === 'SUSPENDED';
-    if (locked) {
+    
+    // Check if account is locked
+    if (company.status === 'INACTIVE' || company.status === 'SUSPENDED') {
       toast({
         title: 'Service unavailable',
         description: 'Services are disabled while the account is inactive or suspended.',
@@ -168,36 +166,37 @@ export default function DashboardPage() {
       });
       return;
     }
+    
+    // If enabling, check for subscription
     if (enabled) {
-      // Check if user has an active subscription plan
-      const hasActivePlan = Boolean(currentCompany.subscription_plan || currentCompany.stripe_subscription_id);
-      // Check if user has an active subscription status (ACTIVE or TRIALING)
-      const subscriptionStatus = currentCompany.subscription_status;
-      const hasActiveStatus = subscriptionStatus === 'ACTIVE' || subscriptionStatus === 'TRIALING';
-      // Check if user has an active trial (trial_ends_at is in the future)
-      const hasActiveTrial = currentCompany.trial_ends_at !== null && 
-                             currentCompany.trial_ends_at !== undefined && 
-                             currentCompany.trial_ends_at > Date.now();
-      // Check if subscription is canceling but still active until period end
-      const isCancelingButActive = currentCompany.cancel_at_period_end && 
-                                   currentCompany.current_period_end && 
-                                   currentCompany.current_period_end > Date.now();
+      const status = company.subscription_status;
+      const canceling =
+        company.cancel_at_period_end &&
+        company.current_period_end &&
+        company.current_period_end > Date.now();
+      const hasPlan = Boolean(company.subscription_plan);
+      const statusAllowed =
+        !status || status === 'ACTIVE' || status === 'TRIALING' || canceling;
       
-      // User must have either:
-      // 1. An active subscription plan with active status, OR
-      // 2. An active trial (trial_ends_at in the future), OR
-      // 3. A subscription that's canceling but still active
-      const hasSubscription = (hasActivePlan && hasActiveStatus) || hasActiveTrial || isCancelingButActive;
-
-      if (!hasSubscription) {
+      if (!hasPlan) {
         toast({
-          title: 'Subscription required',
-          description: 'You must have an active subscription or trial to enable this service.',
+          title: 'Plan required',
+          description: 'You must have an active subscription plan to enable this service.',
+          variant: 'destructive',
+        });
+        return;
+      }
+      
+      if (!statusAllowed) {
+        toast({
+          title: 'Subscription inactive',
+          description: 'The subscription must be active to enable services.',
           variant: 'destructive',
         });
         return;
       }
 
+      // Check usage limits
       if (service === 'calls' && usageLimits?.minutes?.exceeded) {
         toast({
           title: 'Call limit reached',
@@ -216,42 +215,22 @@ export default function DashboardPage() {
         return;
       }
     }
+    
     setToggleLoading(service);
     try {
       // Call the API to update the service
-      const updatedCompany = await apiClient.updateMyCompany({
+      await apiClient.updateMyCompany({
         [service === 'calls' ? 'calls_enabled' : 'sms_enabled']: enabled,
       });
 
-      // Refresh auth to get latest company data
+      // Refresh company data to sync with server
       await checkAuth();
       
-      // Get the updated company data after checkAuth completes
-      // Try to get fresh data from API, fallback to store, then to response
-      let finalCompany = updatedCompany;
-      try {
-        const freshCompany = await apiClient.getMyCompany();
-        finalCompany = freshCompany || updatedCompany || company;
-      } catch {
-        // If getMyCompany fails, use the response or store value
-        finalCompany = updatedCompany || company;
-      }
-
-      // Update state based on the actual company data from the server
-      if (finalCompany) {
-        const locked = finalCompany.status === 'INACTIVE' || finalCompany.status === 'SUSPENDED';
-        if (service === 'calls') {
-          setCallsEnabled(locked ? false : (finalCompany.calls_enabled ?? false));
-        } else {
-          setSmsEnabled(locked ? false : (finalCompany.sms_enabled ?? false));
-        }
+      // Update state directly - useEffect will sync with company data
+      if (service === 'calls') {
+        setCallsEnabled(enabled);
       } else {
-        // Fallback to optimistic update if we don't have company data
-        if (service === 'calls') {
-          setCallsEnabled(enabled);
-        } else {
-          setSmsEnabled(enabled);
-        }
+        setSmsEnabled(enabled);
       }
 
       toast({
@@ -317,6 +296,7 @@ export default function DashboardPage() {
                 icon={<PhoneCall className="h-5 w-5" />}
                 enabled={callsEnabled}
                 loading={toggleLoading === 'calls'}
+                disabled={servicesLocked || (!company?.subscription_plan && !callsEnabled)}
                 onToggle={(enabled) => toggleService('calls', enabled)}
               />
               <ServiceToggle
@@ -324,6 +304,7 @@ export default function DashboardPage() {
                 icon={<MessageSquare className="h-5 w-5" />}
                 enabled={smsEnabled}
                 loading={toggleLoading === 'sms'}
+                disabled={servicesLocked || (!company?.subscription_plan && !smsEnabled)}
                 onToggle={(enabled) => toggleService('sms', enabled)}
               />
             </div>
