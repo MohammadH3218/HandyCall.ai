@@ -57,6 +57,8 @@ async function handleRequest(
   // 1. Check if user is authenticated (SKIP check if path is public)
   // This fixes the "chicken and egg" problem - users need to login before having a session
   const bearerToken = (session as any)?.idToken || (session as any)?.accessToken;
+  
+  // For non-public paths, require both session and bearer token
   if (!isPublicPath && (!session || !bearerToken)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

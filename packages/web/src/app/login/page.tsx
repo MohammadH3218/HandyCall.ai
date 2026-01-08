@@ -45,29 +45,49 @@ function LoginPageInner() {
   }, [requiresPasswordChange]);
 
   // Clear invalid sessions on login page load
+  // Only clear if we're already on the login page (not redirected here)
   useEffect(() => {
     const clearInvalidSession = async () => {
-      // If there's a session but no valid credentials, clear it
+      // Only check if we have an authenticated status
       if (status === 'authenticated') {
         try {
-          // Check if we can actually get company data (for customers) or have valid admin tokens
-          const accessToken = (session as any)?.accessToken as string | undefined;
-          const idToken = (session as any)?.idToken as string | undefined;
+          // Wait a moment for session to stabilize
+          await new Promise(resolve => setTimeout(resolve, 500));
           
-          // If no tokens in session, clear it
+          // Re-fetch session to ensure we have latest data
+          const latestSession = await getSession();
+          
+          // Check if we can actually get company data (for customers) or have valid admin tokens
+          const accessToken = (latestSession as any)?.accessToken as string | undefined;
+          const idToken = (latestSession as any)?.idToken as string | undefined;
+          
+          // If no tokens in session, check localStorage as fallback
           if (!accessToken && !idToken) {
-            // Check localStorage as fallback
-            const localToken = localStorage.getItem('access_token');
+            const localToken = localStorage.getItem('access_token') || localStorage.getItem('id_token');
             if (!localToken) {
               // No valid tokens anywhere, sign out
+              console.log('[Login] No valid tokens found, clearing session');
               await signOut({ redirect: false });
               return;
             }
           }
+          
+          // If we have valid tokens, redirect to appropriate dashboard
+          if (accessToken || idToken) {
+            const role = (latestSession as any)?.user?.role as UserRole | undefined ||
+                        (latestSession as any)?.userRole as UserRole | undefined;
+            const poolType = (latestSession as any)?.poolType as string | undefined;
+            const derivedRole = role || (poolType === 'admin' ? UserRole.ADMIN : undefined);
+            
+            if (derivedRole === UserRole.ADMIN) {
+              router.push('/admin');
+            } else {
+              router.push('/dashboard');
+            }
+          }
         } catch (err) {
-          // If session check fails, clear it
-          console.error('[Login] Invalid session detected, clearing:', err);
-          await signOut({ redirect: false });
+          // If session check fails, don't immediately clear - might be transient
+          console.error('[Login] Error checking session:', err);
         }
       }
     };
@@ -111,9 +131,36 @@ function LoginPageInner() {
       if (result?.error) {
         setError(result.error || 'Invalid email or password');
       } else {
-        // Successful login - decide destination based on session role
-        const session = await getSession();
+        // Successful login - wait for session to be established before checking auth
+        // Retry up to 5 times with delay to allow NextAuth session to be fully established
+        let session = null;
+        let attempts = 0;
+        const maxAttempts = 5;
+        
+        while (!session && attempts < maxAttempts) {
+          await new Promise(resolve => setTimeout(resolve, 200 * (attempts + 1))); // Increasing delay
+          session = await getSession();
+          attempts++;
+        }
+        
+        if (!session) {
+          setError('Login successful but session could not be established. Please try again.');
+          setIsLoading(false);
+          return;
+        }
+
+        // Wait a bit more and then check auth
+        await new Promise(resolve => setTimeout(resolve, 300));
         await checkAuth();
+        
+        // Verify auth was successful
+        const state = useAuthStore.getState();
+        if (!state.isAuthenticated) {
+          // Retry checkAuth once more
+          await new Promise(resolve => setTimeout(resolve, 300));
+          await checkAuth();
+        }
+
         const role =
           (session as any)?.user?.role as UserRole | undefined ||
           (session as any)?.userRole as UserRole | undefined;
@@ -171,8 +218,35 @@ function LoginPageInner() {
         return;
       }
 
+      // Wait for session to be established
+      let postSession = null;
+      let attempts = 0;
+      const maxAttempts = 5;
+      
+      while (!postSession && attempts < maxAttempts) {
+        await new Promise(resolve => setTimeout(resolve, 200 * (attempts + 1)));
+        postSession = await getSession();
+        attempts++;
+      }
+      
+      if (!postSession) {
+        setError('Password changed but session could not be established. Please try logging in again.');
+        setIsLoading(false);
+        return;
+      }
+      
+      // Wait a bit more and then check auth
+      await new Promise(resolve => setTimeout(resolve, 300));
       await checkAuth();
-      const postSession = await getSession();
+      
+      // Verify auth was successful
+      const state = useAuthStore.getState();
+      if (!state.isAuthenticated) {
+        // Retry checkAuth once more
+        await new Promise(resolve => setTimeout(resolve, 300));
+        await checkAuth();
+      }
+      
       const role =
         (postSession as any)?.user?.role as UserRole | undefined ||
         (postSession as any)?.userRole as UserRole | undefined;

@@ -21,27 +21,62 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     const populate = async () => {
       if (status === 'authenticated') {
         try {
+          // Give session a moment to stabilize before checking auth
+          await new Promise(resolve => setTimeout(resolve, 300));
+          
           await checkAuth();
+          
+          // Wait a bit more for state to update
+          await new Promise(resolve => setTimeout(resolve, 200));
+          
           // After checkAuth, verify we actually have valid credentials
           const state = useAuthStore.getState();
+          
+          // Only check auth if we're not still loading
+          if (state.isLoading) {
+            return; // Still loading, wait for next cycle
+          }
+          
           // For admin users, check for tokens. For customers, check for company or tokens
+          // But be lenient - if session exists, give it time
           const hasValidAuth = state.isAuthenticated && (
             state.accessToken || 
+            state.idToken ||
             (state.userRole === UserRole.ADMIN) ||
             state.company
           );
           
-          if (!hasValidAuth) {
-            // No valid credentials, sign out
-            console.log('[DashboardLayout] No valid credentials after checkAuth, signing out');
+          // Only sign out if we're definitely unauthenticated and not loading
+          if (!hasValidAuth && !state.isLoading) {
+            // Check session one more time before signing out
+            const sessionCheck = await fetch('/api/auth/session', { cache: 'no-store' }).catch(() => null);
+            const sessionData = sessionCheck?.ok ? await sessionCheck.json() : null;
+            
+            if (!sessionData || (!sessionData.accessToken && !sessionData.idToken)) {
+              // No valid credentials, sign out
+              console.log('[DashboardLayout] No valid credentials after checkAuth, signing out');
+              await signOut({ redirect: false });
+              router.push('/login');
+            }
+          }
+        } catch (err) {
+          console.error('checkAuth failed, checking session before signing out', err);
+          
+          // Don't immediately sign out on error - check session first
+          try {
+            const sessionCheck = await fetch('/api/auth/session', { cache: 'no-store' }).catch(() => null);
+            const sessionData = sessionCheck?.ok ? await sessionCheck.json() : null;
+            
+            if (!sessionData || (!sessionData.accessToken && !sessionData.idToken)) {
+              // Sign out without redirect to avoid loops, then navigate manually
+              await signOut({ redirect: false });
+              router.push('/login');
+            }
+          } catch (checkErr) {
+            // If we can't check session, sign out
             await signOut({ redirect: false });
             router.push('/login');
           }
-        } catch (err) {
-          console.error('checkAuth failed, signing out', err);
-          // Sign out without redirect to avoid loops, then navigate manually
-          await signOut({ redirect: false });
-          router.push('/login');
         }
       }
     };
