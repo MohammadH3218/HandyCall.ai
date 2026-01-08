@@ -137,7 +137,7 @@ class ApiClient {
     const response = await this.request<any>('/companies/me', {
       method: 'GET',
     });
-    return response.data;
+    return response.data ?? response;
   }
 
   async updateMyCompany(updates: any): Promise<any> {
@@ -145,7 +145,7 @@ class ApiClient {
       method: 'PUT',
       body: JSON.stringify(updates),
     });
-    return response.data;
+    return response.data ?? response;
   }
 
   // Dashboard endpoints

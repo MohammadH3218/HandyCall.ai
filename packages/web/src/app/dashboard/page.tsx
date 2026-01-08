@@ -47,7 +47,7 @@ interface UpcomingAppointment {
 }
 
 export default function DashboardPage() {
-  const { company, checkAuth } = useAuthStore();
+  const { company } = useAuthStore();
   const { toast } = useToast();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [recentCalls, setRecentCalls] = useState<RecentCall[]>([]);
@@ -76,17 +76,14 @@ export default function DashboardPage() {
   );
 
   useEffect(() => {
-    loadDashboardData();
-  }, []);
-
-  useEffect(() => {
     if (company) {
+      // Initialize service toggle states from company data
       const locked = company.status === 'INACTIVE' || company.status === 'SUSPENDED';
-      // Use actual values from company, defaulting to false if undefined
       setCallsEnabled(locked ? false : (company.calls_enabled ?? false));
       setSmsEnabled(locked ? false : (company.sms_enabled ?? false));
     }
-  }, [company]);
+    loadDashboardData();
+  }, []);
 
   useEffect(() => {
     // Auto-refresh when page becomes visible
@@ -107,9 +104,6 @@ export default function DashboardPage() {
     try {
       setIsLoading(true);
       setError(null);
-
-      // Refresh company data first to get latest settings
-      await checkAuth();
 
       const [statsData, callsData, appointmentsData, usageData] = await Promise.all([
         apiClient.getDashboardStats(),
@@ -155,16 +149,7 @@ export default function DashboardPage() {
   };
 
   const toggleService = async (service: 'calls' | 'sms', enabled: boolean) => {
-    if (!company) {
-      toast({
-        title: 'Account not ready',
-        description: 'Please wait a moment and try again.',
-        variant: 'destructive',
-      });
-      return;
-    }
-    
-    // Check if account is locked
+    if (!company) return;
     if (company.status === 'INACTIVE' || company.status === 'SUSPENDED') {
       toast({
         title: 'Service unavailable',
@@ -173,8 +158,6 @@ export default function DashboardPage() {
       });
       return;
     }
-    
-    // If enabling, check for subscription
     if (enabled) {
       const status = company.subscription_status;
       const canceling =
@@ -184,16 +167,14 @@ export default function DashboardPage() {
       const hasPlan = Boolean(company.subscription_plan);
       const statusAllowed =
         !status || status === 'ACTIVE' || status === 'TRIALING' || canceling;
-      
       if (!hasPlan) {
         toast({
           title: 'Plan required',
-          description: 'You must have an active subscription plan to enable this service.',
+          description: 'Assign a subscription plan before enabling services.',
           variant: 'destructive',
         });
         return;
       }
-      
       if (!statusAllowed) {
         toast({
           title: 'Subscription inactive',
@@ -222,18 +203,26 @@ export default function DashboardPage() {
         return;
       }
     }
-    
     setToggleLoading(service);
     try {
-      // Call the API to update the service
-      await apiClient.updateMyCompany({
-        [service === 'calls' ? 'calls_enabled' : 'sms_enabled']: enabled,
+      const res = await fetch(`/api/proxy/companies/me`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          [service === 'calls' ? 'calls_enabled' : 'sms_enabled']: enabled,
+        }),
       });
 
-      // Refresh company data to sync with server
-      await checkAuth();
-      
-      // Update state directly - useEffect will sync with company data
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(
+          errorData?.message ||
+            errorData?.error?.message ||
+            'Failed to update service settings'
+        );
+      }
+
       if (service === 'calls') {
         setCallsEnabled(enabled);
       } else {
@@ -246,13 +235,12 @@ export default function DashboardPage() {
           ? `Your AI receptionist will now handle ${service === 'calls' ? 'incoming calls' : 'incoming SMS messages'}`
           : `${service === 'calls' ? 'Call' : 'SMS'} handling is paused`,
       });
-    } catch (err: any) {
+    } catch (error: any) {
       toast({
         title: 'Error',
-        description: err.message || 'Failed to update service settings',
+        description: error.message || 'Failed to update service settings',
         variant: 'destructive',
       });
-      // Revert on error
       if (service === 'calls') {
         setCallsEnabled(!enabled);
       } else {
