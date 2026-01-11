@@ -93,9 +93,9 @@ Write-Host "✅ DEPLOYMENT COMPLETE!" -ForegroundColor Green
 Write-Host ("=" * 70) -ForegroundColor Cyan
 Write-Host ""
 Write-Host "📋 Next Steps:" -ForegroundColor Yellow
-Write-Host "   1. Configure Lex FallbackIntent to use Lambda fulfillment"
-Write-Host "   2. Import the new Contact Flow: handycall-lex-first-flow.json"
-Write-Host "   3. Test the call flow"
+Write-Host "   1. Configure Lex FallbackIntent to use Lambda fulfillment" -ForegroundColor White
+Write-Host "   2. Import the new Contact Flow: handycall-lex-first-flow.json" -ForegroundColor White
+Write-Host "   3. Test the call flow" -ForegroundColor White
 Write-Host ""
 
 

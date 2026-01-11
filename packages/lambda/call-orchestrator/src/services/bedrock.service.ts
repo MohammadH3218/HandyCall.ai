@@ -1,8 +1,9 @@
-import { BedrockRuntimeClient, InvokeModelCommand } from '@aws-sdk/client-bedrock-runtime';
+import { BedrockRuntimeClient, ConverseCommand, Message } from '@aws-sdk/client-bedrock-runtime';
 import { AgentConfig } from '../types/connect.types';
 
 const bedrockClient = new BedrockRuntimeClient({ region: process.env.AWS_REGION || 'us-east-1' });
-const MODEL_ID = process.env.BEDROCK_MODEL_ID || 'anthropic.claude-3-5-sonnet-20241022-v2:0';
+// Default to Nova Micro (fast + no Marketplace subscription friction).
+const MODEL_ID = process.env.BEDROCK_MODEL_ID || 'amazon.nova-micro-v1:0';
 
 export interface BedrockResponse {
   response: string;
@@ -12,7 +13,7 @@ export interface BedrockResponse {
 
 export class BedrockService {
   /**
-   * Generate AI response using Claude with RAG context
+   * Generate AI response using Bedrock with optional RAG context
    */
   static async generateResponse(
     agentConfig: AgentConfig,
@@ -22,46 +23,43 @@ export class BedrockService {
     conversationHistory: Array<{ role: string; content: string }> = [],
   ): Promise<BedrockResponse> {
     try {
-      // Build system prompt with agent configuration and RAG context
-      // Pass conversationHistory to determine if we should instruct Bedrock NOT to greet
-      const systemPrompt = this.buildSystemPrompt(agentConfig, companyName, ragContext, conversationHistory);
+      const systemPrompt = this.buildSystemPrompt(agentConfig, companyName, ragContext);
 
-      // Build messages array
-      // Pass conversation history so Bedrock knows context (won't greet if history exists)
-      const messages = [
-        ...conversationHistory,
-        {
-          role: 'user',
-          content: userMessage, // Keep user message clean - instructions are in system prompt
-        },
+      const messages: Message[] = [
+        ...conversationHistory
+          .filter((m) => m?.content)
+          .map((m) => {
+            const role: 'assistant' | 'user' = m.role === 'assistant' ? 'assistant' : 'user';
+            return { role, content: [{ text: m.content }] };
+          }),
+        { role: 'user', content: [{ text: userMessage }] },
       ];
 
-      // Invoke Claude with optimized settings for faster response
-      const command = new InvokeModelCommand({
-        modelId: MODEL_ID,
-        body: JSON.stringify({
-          anthropic_version: 'bedrock-2023-05-31',
-          max_tokens: 200, // Reduced from 300 for faster response
-          system: systemPrompt,
-          messages: messages,
-          temperature: 0.7,
+      const response = await bedrockClient.send(
+        new ConverseCommand({
+          modelId: MODEL_ID,
+          system: [{ text: systemPrompt }],
+          messages,
+          inferenceConfig: {
+            maxTokens: 160,
+            temperature: 0.7,
+          },
         }),
-        contentType: 'application/json',
-        accept: 'application/json',
-      });
+      );
 
-      const response = await bedrockClient.send(command);
-      const result = JSON.parse(new TextDecoder().decode(response.body));
+      const aiResponse = (response.output?.message?.content || [])
+        .map((c) => c.text || '')
+        .join('')
+        .trim();
 
-      const aiResponse = result.content[0].text;
-
-      // Determine confidence based on RAG context similarity
-      const avgSimilarity = ragContext.length > 0
+      // Confidence is only meaningful when RAG is configured; otherwise we'd flag every turn.
+      const hasRag = ragContext.length > 0;
+      const avgSimilarity = hasRag
         ? ragContext.reduce((sum, chunk) => sum + chunk.similarity, 0) / ragContext.length
         : 0;
 
-      const confidence = avgSimilarity * 100;
-      const shouldFlag = confidence < agentConfig.escalation_threshold;
+      const confidence = hasRag ? avgSimilarity * 100 : 100;
+      const shouldFlag = hasRag ? confidence < agentConfig.escalation_threshold : false;
 
       return {
         response: aiResponse,
@@ -81,50 +79,33 @@ export class BedrockService {
     agentConfig: AgentConfig,
     companyName: string,
     ragContext: Array<{ text: string; similarity: number }>,
-    conversationHistory: Array<{ role: string; content: string }> = [],
   ): string {
     const knowledgeBase = ragContext.map((c) => c.text).join('\n\n');
     const assistantName = agentConfig.ai_assistant_name || 'the AI assistant';
-    
-    // CRITICAL: NEVER greet or introduce - greetings are handled separately
-    // Just respond directly to the caller's question
 
-    // Optimized shorter system prompt for faster Bedrock responses
-    // CRITICAL: Explicitly instruct Bedrock to NEVER greet or introduce - we handle greetings separately
-    return `You are ${assistantName}, an AI phone assistant for ${companyName}. Speak naturally with contractions. Keep responses brief (1-2 sentences). Be warm and conversational.
+    return `You are ${assistantName}, a friendly AI receptionist for ${companyName}.
 
-CRITICAL INSTRUCTIONS - FOLLOW EXACTLY:
-- NEVER say "hello", "hi", "hey", or any greeting
-- NEVER introduce yourself or say your name (${assistantName})
-- NEVER say "I'm [name]" or "this is [name]"
-- NEVER start with "Thanks for calling" - that's handled separately
-- ALWAYS respond DIRECTLY to the question - just answer it immediately
-- If conversation history exists (previous messages), you're mid-conversation - NO greetings
-- The caller already knows who you are - just answer their question
+Style:
+- Reply in 1-2 short sentences (under ~25 words).
+- No formal greeting; start with a brief acknowledgement ("Got it", "Okay", "Sure").
+- Ask exactly ONE question when you need more info.
+- Use natural contractions and simple words.
+- Sometimes add a tiny filler clause to sound conversational (e.g., "One sec - let me note that down.") but don't overdo it.
 
-Example WRONG responses:
-- "Hello, I'm Sarah. We offer plumbing services..."
-- "Hi! Thanks for calling. We offer..."
-- "Hello! I'm Sarah and..."
+Conversation flow (think like a receptionist):
+1) Understand the service + the issue (ask a clarifying question or two if needed).
+2) Answer questions using Knowledge when available (otherwise be honest you don't have that detail yet).
+3) Only after the issue is clear, help gather booking details (name, zip/address, day/time) one at a time.
+4) After confirming details, ask: "Anything else I can help with?"
 
-Example CORRECT responses:
-- "We offer plumbing, electrical, and HVAC services."
-- "Our hours are Monday-Friday 8am-5pm."
+Rules:
+- NEVER invent phone numbers, and NEVER tell them to call a different number.
+- NEVER mention transferring to an agent or asking them to hold for an agent.
+- Don't claim you checked systems, pricing, availability, or service areas unless it's explicitly in Knowledge.
+- If Knowledge is missing/insufficient, ask one clarifying question instead of guessing.
 
-KNOWLEDGE:
-${knowledgeBase || 'No specific knowledge - provide general assistance.'}
-
-CAPABILITIES:
-- Pricing: ${agentConfig.can_discuss_pricing ? 'YES' : 'NO - offer callback'}
-- Emergencies: ${agentConfig.can_handle_emergencies ? 'YES' : 'NO - escalate'}
-- Booking: ${agentConfig.booking_mode}
-
-RULES:
-- NEVER guess about warranties, safety, or unknown details
-- If unsure, offer callback: "Let me have the owner call you back about that"
-- Keep SHORT and CONVERSATIONAL (phone call, not essay)
-- If caller wants a person, offer transfer immediately
-- DO NOT say your name or introduce yourself - just answer the question
-- After answering a question, if it seems like the caller might be done, ask: "Will that be all?" or "Is there anything else I can help you with?" (but only once per conversation, not after every answer)`;
+Knowledge:
+${knowledgeBase || 'None'}`;
   }
 }
+

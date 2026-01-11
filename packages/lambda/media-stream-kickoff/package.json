@@ -1,0 +1,21 @@
+{
+  "name": "handycall-media-stream-kickoff",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Amazon Connect -> SQS kickoff for live media stream processing",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist",
+    "package": "npm run build && node scripts/package.mjs"
+  },
+  "dependencies": {
+    "@aws-sdk/client-sqs": "^3.490.0"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.130",
+    "@types/node": "^20.10.0",
+    "typescript": "^5.3.3"
+  }
+}
+

@@ -18,7 +18,7 @@ This is a monorepo containing:
 - [PROJECT_CONTEXT.md](./PROJECT_CONTEXT.md) - Single source of truth for the entire project
 - [DB_SCHEMA.md](./DB_SCHEMA.md) - DynamoDB table designs and access patterns
 - [API_REFERENCE.md](./API_REFERENCE.md) - Complete API endpoint documentation
-- [RUNBOOK.md](./RUNBOOK.md) - AWS setup, CLI commands, deployment guide
+- [docs/REALTIME_STREAMING_SETUP.md](./docs/REALTIME_STREAMING_SETUP.md) - Connect Media Streams + realtime cache setup
 
 ## 🚀 Quick Start
 

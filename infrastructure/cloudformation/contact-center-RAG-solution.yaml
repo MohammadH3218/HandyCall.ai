@@ -24,7 +24,8 @@ Parameters:
     Description: >
       Configuring provisioned concurrency can reduce AWS Lambda cold starts. See: https://docs.aws.amazon.com/lambda/latest/dg/provisioned-concurrency.html
     Type: String
-    Default: 0
+    # CHANGE: Set to 1 by default to keep Lambda warm and fast (eliminates cold starts)
+    Default: 1
 
   pUseCMK:
     Description: Create a customer-managed KMS key for encrypting CloudWatch Logs log groups.
@@ -417,7 +418,9 @@ Resources:
           Description: "US English language locale"
           NluConfidenceThreshold: 0.20
           VoiceSettings:
-            VoiceId: "Matthew"
+            # CHANGE: Use "Ruth" (Generative/Neural) instead of Matthew for more natural, human-like voice
+            # Ruth supports AWS Polly Generative engine (if available in region, otherwise falls back to high-quality Neural)
+            VoiceId: "Ruth"
 
           SlotTypes:
             - Name: "Toggle"

@@ -19,7 +19,8 @@ interface LexV2Event {
     aliasId: string;
     version: string;
   };
-  inputTranscript: string;
+  inputTranscript?: unknown;
+  rawInputTranscript?: unknown;
   interpretations: Array<{
     intent: {
       name: string;
@@ -64,20 +65,251 @@ interface LexV2Response {
   }>;
 }
 
+type CollectedInfo = {
+  service?: string;
+  issue?: string;
+  name?: string;
+  zip?: string;
+  address?: string;
+  preferredDayTime?: string;
+};
+
 /**
- * Helper: Wrap text in SSML for more natural voice output
+ * Helper: Wrap text in minimal SSML
+ * CHANGE: Removed auto-breaths and prosody to let Generative/Neural engine handle natural flow
+ * These tags add latency and fight against modern voice engines
  */
 function wrapInSSML(text: string): string {
-  // Add SSML tags for better prosody
-  // Use amazon:auto-breaths for more natural pauses
-  // Use prosody for natural rate and pitch
-  return `<speak>
-    <amazon:auto-breaths>
-      <prosody rate="medium" pitch="medium">
-        ${text}
-      </prosody>
-    </amazon:auto-breaths>
-  </speak>`;
+  return `<speak>${text}</speak>`;
+}
+
+function safeJsonParse<T>(value: string | undefined, fallback: T): T {
+  if (!value) return fallback;
+  try {
+    return JSON.parse(value) as T;
+  } catch {
+    return fallback;
+  }
+}
+
+function coerceTranscript(value: unknown): string {
+  if (typeof value === 'string') return value;
+  if (value == null) return '';
+  if (typeof value === 'object') {
+    const current = (value as any).Current;
+    if (typeof current === 'string') return current;
+    if (current == null) return '';
+  }
+  return String(value);
+}
+
+function normalizeText(text: string): string {
+  return (text || '')
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function looksLikeQuestion(text: string): boolean {
+  const t = (text || '').trim();
+  if (!t) return false;
+  if (t.includes('?')) return true;
+  return /^(what|how|when|where|why|who|do you|can you|are you|is it|does|will|would|should)\b/i.test(t);
+}
+
+function extractZip(text: string): string | undefined {
+  const direct = text.match(/\b(\d{5})(?:-\d{4})?\b/);
+  if (direct?.[1]) return direct[1];
+
+  const digits = (text.match(/\d/g) || []).join('');
+  if (digits.length >= 5) return digits.slice(-5);
+
+  const spokenDigits = extractDigitsFromSpeech(text);
+  if (spokenDigits.length >= 5) return spokenDigits.slice(-5);
+
+  return undefined;
+}
+
+function extractName(text: string): string | undefined {
+  const m = text.match(/\b(?:my name is|this is)\s+([a-z]+(?:\s+[a-z]+){0,2})\b/i);
+  const name = m?.[1]?.trim();
+  if (!name) return undefined;
+  if (name.length < 2) return undefined;
+  return name
+    .split(/\s+/)
+    .map((p) => p.charAt(0).toUpperCase() + p.slice(1).toLowerCase())
+    .join(' ');
+}
+
+function extractDigitsFromSpeech(text: string): string {
+  const normalized = normalizeText(text);
+  if (!normalized) return '';
+
+  const map: Record<string, string> = {
+    zero: '0',
+    oh: '0',
+    o: '0',
+    one: '1',
+    won: '1',
+    two: '2',
+    to: '2',
+    too: '2',
+    three: '3',
+    tree: '3',
+    four: '4',
+    for: '4',
+    five: '5',
+    six: '6',
+    seven: '7',
+    eight: '8',
+    ate: '8',
+    nine: '9',
+  };
+
+  const tokens = normalized.split(' ');
+  const digits: string[] = [];
+
+  for (const token of tokens) {
+    if (!token) continue;
+    if (/^\d+$/.test(token)) {
+      digits.push(token);
+      continue;
+    }
+    const mapped = map[token];
+    if (mapped) digits.push(mapped);
+  }
+
+  return digits.join('');
+}
+
+function extractPreferredDayTime(text: string): string | undefined {
+  const lower = text.toLowerCase();
+  const hasDay =
+    /\b(mon(day)?|tue(sday)?|wed(nesday)?|thu(rsday)?|fri(day)?|sat(urday)?|sun(day)?|today|tomorrow|next week)\b/i.test(
+      lower,
+    );
+  const hasTime = /\b(\d{1,2}(:\d{2})?\s*(am|pm))\b/i.test(lower) || /\b(morning|afternoon|evening)\b/i.test(lower);
+  if (!hasDay && !hasTime) return undefined;
+  return text.trim().replace(/\s+/g, ' ');
+}
+
+function detectService(text: string): string | undefined {
+  const t = normalizeText(text);
+  const services: Array<[RegExp, string]> = [
+    [/\bplumb(ing|er)?\b/, 'plumbing'],
+    [/\belectric(al)?\b/, 'electrical'],
+    [/\bpest\b|\bexterminat(e|ion)\b|\bbug(s)?\b/, 'pest control'],
+    [/\bhvac\b|\bair conditioning\b|\bac\b|\bheating\b|\bfurnace\b/, 'hvac'],
+    [/\broof(ing)?\b/, 'roofing'],
+    [/\blocksmith\b|\blocks?\b/, 'locksmith'],
+    [/\blawn\b|\blandscap(e|ing)\b/, 'lawn care'],
+    [/\bclean(ing)?\b|\bmaid\b/, 'cleaning'],
+  ];
+  for (const [re, svc] of services) {
+    if (re.test(t)) return svc;
+  }
+  return undefined;
+}
+
+function isRealtimeCacheCompatible(response: string, collected: CollectedInfo): boolean {
+  const r = normalizeText(response);
+  if (!r) return false;
+
+  const needsZipOrAddress = !collected.zip && !collected.address;
+  const needsName = !collected.name;
+  const needsPreferredTime = !collected.preferredDayTime;
+  const needsService = !collected.service;
+
+  if (/\b(zip|address)\b/.test(r)) return needsZipOrAddress;
+  if (/\b(name)\b/.test(r)) return needsName;
+  if (/\b(day|time|when)\b/.test(r)) return needsPreferredTime;
+  if (/\b(service|services)\b/.test(r)) return needsService;
+
+  // Cache is only meant to short-circuit common, deterministic "next-step" prompts.
+  return false;
+}
+
+function extractIssue(text: string, knownService?: string): string | undefined {
+  const t = text.trim();
+  if (!t) return undefined;
+  const n = normalizeText(t);
+  if (/^(yes|yeah|yep|yup|no|nope|nah|ok|okay|thanks?|thank you)$/i.test(n)) return undefined;
+  if (!knownService) return undefined;
+
+  // Don't treat scheduling/contact details as an "issue".
+  if (extractZip(t)) return undefined;
+  if (detectAddress(t)) return undefined;
+  if (extractPreferredDayTime(t)) return undefined;
+  if (extractName(t)) return undefined;
+  if (/\b(zip|zipcode|postal|address)\b/i.test(t)) return undefined;
+  if (extractDigitsFromSpeech(t).length >= 5) return undefined;
+
+  // If they mention a symptom/problem, treat the whole utterance as the issue description.
+  const issueKeywords = /\b(leak|burst|clog|drain|backed up|no hot water|water heater|toilet|sink|faucet|pipe|smell|gas|outlet|breaker|sparks|roach|ant|termite|mosquito|wasp|mice|rat)\b/i;
+  const looksLikeGenericServiceRequest =
+    /\b(need|want)\s+(help|service|services)\b/i.test(t) ||
+    /\bneed help with\b/i.test(t) ||
+    /\bservices?\b/i.test(t) ||
+    /\blooking for\b/i.test(t);
+
+  if (issueKeywords.test(t)) return t.replace(/\s+/g, ' ');
+  if (looksLikeGenericServiceRequest) return undefined;
+  if (t.split(/\s+/).length >= 6) return t.replace(/\s+/g, ' ');
+  return undefined;
+}
+
+function detectAddress(text: string): string | undefined {
+  const t = text.trim();
+  if (!t) return undefined;
+  // Simple heuristic: starts with number and contains a street-type word.
+  if (!/^\d{1,6}\s+\w+/i.test(t)) return undefined;
+  if (!/\b(street|st|road|rd|avenue|ave|drive|dr|lane|ln|boulevard|blvd|way|court|ct)\b/i.test(t)) return undefined;
+  return t.replace(/\s+/g, ' ');
+}
+
+function updateCollectedInfo(sessionAttributes: Record<string, string>, input: string): CollectedInfo {
+  const collected = safeJsonParse<CollectedInfo>(sessionAttributes['collected_info'], {});
+  const service = detectService(input) || collected.service;
+  const name = extractName(input) || collected.name;
+  const zip = extractZip(input) || collected.zip;
+  const address = detectAddress(input) || collected.address;
+  const preferredDayTime = extractPreferredDayTime(input) || collected.preferredDayTime;
+  const issue = extractIssue(input, service) || collected.issue;
+
+  // Heuristic: if issue already contains a concrete location/detail, consider it clarified.
+  if (issue) {
+    const looksSpecific =
+      /\b(under|behind|next to|in the|at the)\b/i.test(issue) ||
+      /\b(sink|toilet|shower|tub|faucet|water heater|heater|pipe|drain|outlet|breaker|panel|attic|kitchen|bath(room)?|garage)\b/i.test(
+        issue,
+      ) ||
+      /\b(ant|ants|roach|roaches|termite|termites|mosquito|mosquitoes|wasp|wasps|mice|rats?)\b/i.test(issue);
+    if (looksSpecific) sessionAttributes['issue_clarified'] = 'true';
+  }
+
+  const updated: CollectedInfo = {
+    service,
+    issue,
+    name,
+    zip,
+    address,
+    preferredDayTime,
+  };
+
+  sessionAttributes['collected_info'] = JSON.stringify(updated);
+  return updated;
+}
+
+function needsMoreDetails(collected: CollectedInfo): { next: string | null; stage: string } {
+  if (!collected.service) return { next: 'What service do you need help with?', stage: 'intake' };
+  if (!collected.issue) {
+    return { next: `Got it - what's going on with the ${collected.service}?`, stage: 'clarify' };
+  }
+  if (!collected.name) return { next: "Got it - what's your name?", stage: 'schedule' };
+  if (!collected.zip && !collected.address) return { next: "What's your zip code or address?", stage: 'schedule' };
+  if (!collected.preferredDayTime) return { next: 'What day and time works best?', stage: 'schedule' };
+  return { next: null, stage: 'confirm' };
 }
 
 /**
@@ -88,6 +320,11 @@ function wrapInSSML(text: string): string {
 export const handler = async (event: any, context: Context): Promise<any> => {
   console.log('Received event:', JSON.stringify(event, null, 2));
 
+  // Warmup invocation (EventBridge schedule) to reduce cold-start latency.
+  if (event?.warm === true) {
+    return { ok: 'true', warmedAt: new Date().toISOString() };
+  }
+
   // Detect event type
   const isLexV2Event = event.sessionState !== undefined && event.sessionState.intent !== undefined;
   const isConnectEvent = event.Details !== undefined;
@@ -95,11 +332,29 @@ export const handler = async (event: any, context: Context): Promise<any> => {
   const isFulfillmentCodeHook = event.invocationSource === 'FulfillmentCodeHook';
 
   if (isConnectEvent) {
-    console.log('⚠️  Received Connect event - handling for backwards compatibility');
+    console.log('Received Connect event - handling for backwards compatibility');
     console.log('   The Contact Flow should use ConnectParticipantWithLexBot for best results');
 
     // Handle Connect events gracefully for backwards compatibility
-    const userInput = event.Details?.Parameters?.UserInput || '';
+    const userInput = coerceTranscript(event.Details?.Parameters?.UserInput);
+    const contactData = event.Details?.ContactData || {};
+
+    // Merge useful ContactData fields into a sessionAttributes-like map so the rest of the pipeline works.
+    // This is required for Connect flows that invoke Lambda directly (without Lex session attributes).
+    const mergedSessionAttributes: Record<string, string> = {
+      ...(event.Details?.Parameters || {}),
+      ...(contactData.Attributes || {}),
+    };
+
+    if (!mergedSessionAttributes.contactId && contactData.ContactId) {
+      mergedSessionAttributes.contactId = contactData.ContactId;
+    }
+    if (!mergedSessionAttributes.systemPhoneNumber && contactData.SystemEndpoint?.Address) {
+      mergedSessionAttributes.systemPhoneNumber = contactData.SystemEndpoint.Address;
+    }
+    if (!mergedSessionAttributes.customerPhoneNumber && contactData.CustomerEndpoint?.Address) {
+      mergedSessionAttributes.customerPhoneNumber = contactData.CustomerEndpoint.Address;
+    }
 
     // If no user input, return a greeting
     if (!userInput || userInput.trim() === '') {
@@ -112,8 +367,7 @@ export const handler = async (event: any, context: Context): Promise<any> => {
 
     // If there is user input, process it through the GenAI pipeline
     try {
-      const sessionAttributes = event.Details?.Parameters || {};
-      const result = await handleGenAIResponse(userInput, sessionAttributes, event);
+      const result = await handleGenAIResponse(userInput, mergedSessionAttributes, event);
 
       // Extract the response text from Lex response format
       const responseText = result.messages && result.messages.length > 0
@@ -127,7 +381,7 @@ export const handler = async (event: any, context: Context): Promise<any> => {
     } catch (error) {
       console.error('Error handling Connect event:', error);
       return {
-        response: wrapInSSML("I'm sorry, I'm having trouble right now. Please hold for an agent."),
+        response: wrapInSSML("Sorry - I'm having trouble right now. Please try again in a moment."),
         timestamp: new Date().toISOString(),
       };
     }
@@ -145,7 +399,8 @@ export const handler = async (event: any, context: Context): Promise<any> => {
   const lexEvent = event as LexV2Event;
   const intentName = lexEvent.sessionState.intent.name;
   const sessionAttributes = lexEvent.sessionState.sessionAttributes || {};
-  const inputTranscript = lexEvent.inputTranscript || '';
+  const inputTranscript =
+    coerceTranscript(lexEvent.inputTranscript) || coerceTranscript(lexEvent.rawInputTranscript);
 
   console.log(`Intent: ${intentName}, Transcript: "${inputTranscript}"`);
   console.log(`Session attributes:`, JSON.stringify(sessionAttributes, null, 2));
@@ -168,98 +423,43 @@ export const handler = async (event: any, context: Context): Promise<any> => {
  * Handle GenAI Response (FallbackIntent)
  */
 async function handleGenAIResponse(
-  input: string,
+  inputRaw: unknown,
   sessionAttributes: Record<string, string>,
   event: LexV2Event | any
 ): Promise<LexV2Response> {
+  const input = coerceTranscript(inputRaw);
   // Check if this is the first turn (no conversation history AND first_turn_complete not set)
-  const history = sessionAttributes['history']
-    ? JSON.parse(sessionAttributes['history'])
-    : [];
+  const historyValue = sessionAttributes['history'];
+  const historyParsed = safeJsonParse<any>(historyValue, []);
+  const history = Array.isArray(historyParsed) ? historyParsed : [];
   const firstTurnComplete = sessionAttributes['first_turn_complete'] === 'true';
   const isFirstTurn = history.length === 0 && !firstTurnComplete;
 
-  // If input is empty and it's the first turn, provide initial greeting (NO BEDROCK - fast template)
+  // CRITICAL: Do NOT generate greeting from Lambda - the Connect flow Text field handles it
+  // If we receive empty input on first turn, just delegate back to Lex
+  // This prevents duplicate/overlapping greetings
   if ((!input || input.trim() === '') && isFirstTurn) {
-    console.log('First turn with empty input - providing fast template greeting');
-    
-    try {
-      // Quick company lookup (minimal data needed for greeting)
-      const companyId = sessionAttributes['company_id'] || '';
-      let companyName = '';
-      
-      if (companyId) {
-        try {
-          const companyData = await DynamoDBService.get('companies', { company_id: companyId });
-          companyName = (companyData as Company)?.company_name || '';
-        } catch (error) {
-          console.warn('Could not get company by ID for greeting');
-        }
-      }
-      
-      // Get assistant name for greeting (quick lookup if available)
-      let assistantName = 'your AI assistant';
-      try {
-        const agentConfig = await loadAgentConfig(companyId);
-        assistantName = agentConfig?.ai_assistant_name || assistantName;
-      } catch (error) {
-        // Use default if config load fails
-      }
-      
-      // Fast template greeting - no Bedrock call needed
-      const greetingText = companyName
-        ? `Hello! Thanks for calling ${companyName}. I'm ${assistantName}. How can I help you today?`
-        : `Hello! I'm ${assistantName}. How can I help you today?`;
+    console.log('First turn with empty input - delegating to Lex (greeting handled by Connect flow Text field)');
 
-      // Update session attributes to mark first turn as complete
-      const updatedSessionAttributes = {
-        ...sessionAttributes,
-        first_turn_complete: 'true',
-      };
+    // Mark first turn as complete to prevent re-greeting
+    const updatedSessionAttributes = {
+      ...sessionAttributes,
+      first_turn_complete: 'true',
+    };
 
-      return {
-        sessionState: {
-          sessionAttributes: updatedSessionAttributes,
-          dialogAction: {
-            type: 'ElicitIntent', // Ask Lex to listen for user input
-          },
-          intent: {
-            name: 'FallbackIntent',
-            state: 'InProgress',
-          },
+    return {
+      sessionState: {
+        sessionAttributes: updatedSessionAttributes,
+        dialogAction: {
+          type: 'ElicitIntent',
         },
-        messages: [
-          {
-            contentType: 'SSML',
-            content: wrapInSSML(greetingText),
-          },
-        ],
-      };
-    } catch (error) {
-      console.error('Error generating initial greeting:', error);
-      // Fallback to simple greeting
-      return {
-        sessionState: {
-          sessionAttributes: {
-            ...sessionAttributes,
-            first_turn_complete: 'true',
-          },
-          dialogAction: {
-            type: 'ElicitIntent',
-          },
-          intent: {
-            name: 'FallbackIntent',
-            state: 'InProgress',
-          },
+        intent: {
+          name: 'FallbackIntent',
+          state: 'InProgress',
         },
-        messages: [
-          {
-            contentType: 'SSML',
-            content: wrapInSSML('Hello! I am the AI assistant. How can I help you today?'),
-          },
-        ],
-      };
-    }
+      },
+      messages: [],
+    };
   }
 
   // If input is empty and not first turn, delegate back to Lex to handle reprompt
@@ -267,6 +467,9 @@ async function handleGenAIResponse(
     console.log('Empty input on subsequent turn, delegating to Lex');
     return delegate(event.sessionState);
   }
+
+  // Update collected info from this turn (service/issue/zip/time/name/etc)
+  const collected = updateCollectedInfo(sessionAttributes, input);
 
   // Get conversation history early to check for termination (before loading company/agent)
   const historyForTerminationCheck = sessionAttributes['history']
@@ -279,25 +482,36 @@ async function handleGenAIResponse(
       })()
     : [];
 
-  // Check for call termination intent (user saying "yes", "that's all", "no thanks", etc.)
-  // This happens when AI asks "will that be all?" or "anything else?" and user confirms they're done
-  const terminationPatterns = [
-    /^(yes|yeah|yep|yup|sure|ok|okay|that's all|that's it|nothing else|no thanks|no thank you|all set|we're good|we're done|I'm good|I'm done|nothing more|no more|done)$/i,
-    /^(yes|yeah|yep|yup|sure|ok|okay),?\s*(that's all|that's it|nothing else|no thanks|all set|we're good|we're done|I'm good|I'm done)$/i,
-    /^(no|nope),?\s*(thanks?|thank you|that's all|nothing else)$/i,
-  ];
-
+  // Call wrap-up handling:
+  // - If we asked "Anything else?" then "no" means wrap up, "yes" means continue.
+  // - If we asked "Will that be all?" then "yes" means wrap up, "no" means continue.
   const normalizedInput = input.trim().toLowerCase();
-  const isTermination = terminationPatterns.some(pattern => pattern.test(normalizedInput));
-  
-  // Check if last assistant message contained termination question
-  const lastAssistantMessage = historyForTerminationCheck.length > 0 
-    ? historyForTerminationCheck.filter((h: any) => h.role === 'assistant').pop()?.content || ''
-    : '';
-  const askedTerminationQuestion = lastAssistantMessage.toLowerCase().match(/(will that be all|anything else|is there anything else|need anything else|all set|all good|anything more|something else|anything more I can help)/);
+  const lastAssistantMessage =
+    historyForTerminationCheck.length > 0
+      ? historyForTerminationCheck.filter((h: any) => h.role === 'assistant').pop()?.content || ''
+      : '';
 
-  if (isTermination && askedTerminationQuestion) {
-    console.log('Call termination detected - user confirmed they are done');
+  const awaitingAnythingElse = sessionAttributes['awaiting_anything_else'] === 'true';
+  const askedAnythingElse =
+    awaitingAnythingElse ||
+    /(?:anything else|need help with anything else|is there anything else|anything more|something else)/i.test(
+      lastAssistantMessage,
+    );
+  const askedWillThatBeAll = /(?:will that be all|is that all|all set|all good)/i.test(lastAssistantMessage);
+
+  const isYes =
+    /^(yes|yeah|yep|yup|sure|ok|okay|correct|right|mm[\s-]?hmm|uh[\s-]?huh)$/i.test(normalizedInput) ||
+    /^(yes|yeah|yep|yup|sure|ok|okay)[,!\s]+/i.test(normalizedInput);
+  const isNo =
+    /^(no|nope|nah|not really|that's all|thats all|that's it|thats it|nothing else|no thanks|no thank you|all set|we're good|we are good|we're done|we are done|i'm good|im good|i'm done|im done|done|no more)$/i.test(
+      normalizedInput,
+    ) || /^(no|nope|nah)[,!\s]+/i.test(normalizedInput);
+
+  const shouldWrapUp = (askedAnythingElse && isNo) || (askedWillThatBeAll && isYes);
+  const shouldContinue = (askedAnythingElse && isYes) || (askedWillThatBeAll && isNo);
+
+  if (shouldWrapUp) {
+    console.log('Call wrap-up detected - ending call');
     
     try {
       // Quick company lookup for closing message
@@ -312,19 +526,19 @@ async function handleGenAIResponse(
         }
       }
       
-      // Final closing message
       const closingMessage = companyName
-        ? `Thank you for calling ${companyName}. Have a great day!`
-        : 'Thank you for calling. Have a great day!';
+        ? `All set. Thanks for calling ${companyName}. Goodbye.`
+        : 'All set. Thanks for calling. Goodbye.';
 
       // Update session to mark call as complete
       const updatedSessionAttributes = {
         ...sessionAttributes,
         first_turn_complete: 'true',
         call_complete: 'true',
+        awaiting_anything_else: 'false',
       };
 
-      // Return Close with final message - Connect flow should handle call termination after this
+      // Return Close with Goodbye intent so the Connect flow can disconnect immediately.
       return {
         sessionState: {
           sessionAttributes: updatedSessionAttributes,
@@ -332,7 +546,7 @@ async function handleGenAIResponse(
             type: 'Close',
           },
           intent: {
-            name: event.sessionState.intent.name,
+            name: 'Goodbye',
             state: 'Fulfilled',
           },
         },
@@ -345,12 +559,22 @@ async function handleGenAIResponse(
       };
     } catch (error) {
       console.error('Error generating termination message:', error);
-      // Fallback termination message
-      return close(
-        event.sessionState,
-        'Thank you for calling. Have a great day!'
-      );
+      return close(event.sessionState, 'Thanks for calling. Goodbye.', 'Goodbye');
     }
+  }
+
+  if (shouldContinue) {
+    console.log('Call wrap-up detected - user wants more help');
+    const updatedSessionAttributes = { ...sessionAttributes, awaiting_anything_else: 'false' };
+    return {
+      sessionState: {
+        ...event.sessionState,
+        sessionAttributes: updatedSessionAttributes,
+        dialogAction: { type: 'Close' },
+        intent: { name: event.sessionState.intent.name, state: 'Fulfilled' },
+      },
+      messages: [{ contentType: 'SSML', content: wrapInSSML("Sure - what else can I help with?") }],
+    };
   }
 
   try {
@@ -358,7 +582,12 @@ async function handleGenAIResponse(
     const companyId = sessionAttributes['company_id'] || '';
     const customerPhone = sessionAttributes['customerPhoneNumber'] || '';
     const systemPhone = sessionAttributes['systemPhoneNumber'] || '';
-    const contactId = sessionAttributes['contactId'] || event.sessionId;
+    const contactId =
+      sessionAttributes['contactId'] ||
+      sessionAttributes['contactId'.toLowerCase()] ||
+      event?.Details?.ContactData?.ContactId ||
+      event?.sessionId ||
+      '';
 
     console.log(`Processing GenAI request - Company: ${companyId}, Customer: ${customerPhone}`);
 
@@ -416,14 +645,23 @@ async function handleGenAIResponse(
       console.log(`Call record: ${contactId}`);
     }
 
-    // F. Retrieve Context (RAG) - Optimized to skip if no knowledge exists
-    console.log(`Retrieving knowledge for company: ${company.company_id}`);
-    const ragContext = await RAGService.retrieveRelevantKnowledge(
-      company.company_id,
-      input,
-      5
-    );
-    console.log(`Retrieved ${ragContext.length} knowledge chunks`);
+    // F. Real-time cache check (precomputed by streaming processor)
+    // If we have a fresh, matching cached response, we can skip RAG+Bedrock and respond immediately.
+    let realtimeCache = await tryGetRealtimeCache(contactId, input);
+    if (realtimeCache && !isRealtimeCacheCompatible(realtimeCache.response, collected)) {
+      console.log(`Realtime cache ignored (stage mismatch) for contactId=${contactId}`);
+      realtimeCache = null;
+    }
+
+    // G. Retrieve Context (RAG) - skip when cache hit
+    const ragContext = realtimeCache
+      ? []
+      : await (async () => {
+          console.log(`Retrieving knowledge for company: ${company.company_id}`);
+          const ctx = await RAGService.retrieveRelevantKnowledge(company.company_id, input, 5);
+          console.log(`Retrieved ${ctx.length} knowledge chunks`);
+          return ctx;
+        })();
 
     // G. Get conversation history from session attributes
     const history = sessionAttributes['history']
@@ -451,19 +689,93 @@ async function handleGenAIResponse(
       console.warn('WARNING: first_turn_complete is true but history is empty - treating as subsequent turn');
     }
 
-    // H. Generate Response via Bedrock
+    // H. Generate Response via Bedrock (or cache)
     let aiResult: { response: string; confidence: number; shouldFlag: boolean };
 
-    // Generate AI response - pass FULL history so Bedrock knows context
-    // Bedrock is instructed NOT to greet via system prompt
-    console.log(isFirstTurn ? 'First turn - generating response with greeting prefix' : 'Subsequent turn - responding without greeting');
-    aiResult = await BedrockService.generateResponse(
-      agentConfig,
-      company.company_name,
-      input,
-      ragContext,
-      history // Pass history so Bedrock knows it's ongoing conversation (won't greet if history exists)
-    );
+    if (realtimeCache) {
+      console.log(`Realtime cache HIT for contactId=${contactId}`);
+      aiResult = {
+        response: realtimeCache.response,
+        confidence: 100,
+        shouldFlag: false,
+      };
+    } else {
+      const questionLike = looksLikeQuestion(input);
+      const issueClarified = sessionAttributes['issue_clarified'] === 'true';
+      const awaitingIssueDetail = sessionAttributes['awaiting_issue_detail'] === 'true';
+
+      // If we asked a clarification question last turn, treat this input as the clarification and append.
+      if (awaitingIssueDetail && collected.issue && !questionLike) {
+        const appended = `${collected.issue}; ${input}`.replace(/\s+/g, ' ').trim();
+        collected.issue = appended;
+        sessionAttributes['collected_info'] = JSON.stringify(collected);
+        sessionAttributes['awaiting_issue_detail'] = 'false';
+        sessionAttributes['issue_clarified'] = 'true';
+      }
+
+      // Ask one extra detail so the "noted down" info is useful (before scheduling).
+      if (collected.service && collected.issue && !issueClarified && !awaitingIssueDetail && !questionLike) {
+        const clarifier =
+          collected.service === 'plumbing'
+            ? 'Got it - where is the leak (sink, toilet, water heater, etc.)?'
+            : collected.service === 'pest control'
+              ? 'Got it - what pest are you seeing and where in the home?'
+              : "Got it - what's the main issue you're noticing?";
+        aiResult = { response: clarifier, confidence: 100, shouldFlag: false };
+        sessionAttributes['awaiting_issue_detail'] = 'true';
+        sessionAttributes['awaiting_anything_else'] = 'false';
+      } else {
+        // Deterministic intake/scheduling questions (fast + consistent). Allow Bedrock for question-like turns.
+        const { next, stage } = needsMoreDetails(collected);
+
+        if (next && !questionLike) {
+          aiResult = { response: next, confidence: 100, shouldFlag: false };
+          sessionAttributes['awaiting_anything_else'] = 'false';
+        } else if (!next && stage === 'confirm' && !questionLike) {
+          const where = collected.address ? collected.address : collected.zip ? `zip ${collected.zip}` : '';
+          const when = collected.preferredDayTime || '';
+          const who = collected.name || '';
+          const what = collected.service || 'service';
+          const issue = collected.issue || '';
+
+          const summaryParts = [
+            who ? `${who}` : '',
+            what ? `${what}` : '',
+            issue ? `(${issue})` : '',
+            where ? `at ${where}` : '',
+            when ? `- ${when}` : '',
+          ].filter(Boolean);
+
+          const summary = summaryParts.join(' ');
+          aiResult = {
+            response: `Perfect - I've got you noted: ${summary}. Anything else I can help with?`,
+            confidence: 100,
+            shouldFlag: false,
+          };
+          sessionAttributes['awaiting_anything_else'] = 'true';
+        } else {
+          aiResult = { response: '', confidence: 0, shouldFlag: false };
+          sessionAttributes['awaiting_anything_else'] = 'false';
+        }
+      }
+    }
+
+    if (!realtimeCache) {
+      // Generate AI response - pass FULL history so Bedrock knows context
+      // Bedrock is instructed NOT to greet via system prompt
+      if (aiResult.response) {
+        console.log('Using deterministic intake response');
+      } else {
+        console.log(isFirstTurn ? 'First turn - generating response with greeting prefix' : 'Subsequent turn - responding without greeting');
+        aiResult = await BedrockService.generateResponse(
+          agentConfig,
+          company.company_name,
+          input,
+          ragContext,
+          history,
+        );
+      }
+    }
 
     // Post-process response to strip any greetings Bedrock might have generated (safety net)
     // This ensures Bedrock never greets even if it ignores system prompt instructions
@@ -483,14 +795,14 @@ async function handleGenAIResponse(
     
     // Ensure NO greeting is in response (double-check stripGreetings worked)
     // Check for common greeting patterns that might have slipped through
-    const greetingCheck = aiResult.response.toLowerCase().match(/^(hello|hi|hey|I'm|this is|thanks for calling|hello,|hi,|hey,)/);
+    const greetingCheck = aiResult.response.toLowerCase().match(/^(hello|hi|hey|thanks for calling|hello,|hi,|hey,)/);
     if (greetingCheck) {
       console.warn(`WARNING: Greeting pattern detected in response after stripGreetings: "${greetingCheck[0]}" - applying aggressive cleanup`);
       
       // Very aggressive stripping - remove everything up to and including first sentence if it contains greeting
       // Pattern: "Hello, I'm Sarah. [actual answer]" → extract "[actual answer]"
-      const cleaned = aiResult.response.replace(/^(?:hello|hi|hey)[^.!]*I'm[^.!]*[.!]\s*/i, '').trim()
-        .replace(/^I'm\s+[^.!]+[.!]\s*/i, '')
+      const cleaned = aiResult.response
+        .replace(/^(?:hello|hi|hey)[^.!]*[.!]\s*/i, '')
         .replace(/^hello[^.!]*[.!]\s*/i, '')
         .replace(/^hi[^.!]*[.!]\s*/i, '')
         .replace(/^hey[^.!]*[.!]\s*/i, '')
@@ -577,7 +889,7 @@ async function handleGenAIResponse(
     console.error('Error generating AI response:', error);
     return close(
       event.sessionState,
-      "I'm sorry, I'm having trouble connecting to my brain right now. Please hold for an agent."
+      "Sorry, I'm having a technical hiccup. Could you say that again?"
     );
   }
 }
@@ -594,14 +906,12 @@ function stripGreetings(response: string, assistantName: string, companyName?: s
   const nameParts = assistantName.toLowerCase().split(/\s+/);
   const firstName = nameParts[0] || '';
   
-  // Remove common greeting patterns at the start (more aggressive)
+  // Remove common greeting patterns at the start (avoid stripping useful content like "I'm not sure...")
   const greetingPatterns = [
     /^hello[,!]?\s*/i,
     /^hi[,!]?\s*/i,
     /^hey[,!]?\s*/i,
     /^thanks?\s+for\s+calling[^.]*[.!]?\s*/i,
-    /^I'm\s+[^.!]+[.!]?\s*/i, // Matches "I'm Sarah." or "I'm your assistant."
-    /^this\s+is\s+[^.!]+[.!]?\s*/i, // Matches "This is Sarah."
     /^I'm\s+your\s+AI\s+assistant[^.]*[.!]?\s*/i,
     /^I'm\s+the\s+AI\s+assistant[^.]*[.!]?\s*/i,
     /^hello[^.!]*I'm[^.!]+[.!]?\s*/i, // Matches "Hello, I'm Sarah."
@@ -623,16 +933,16 @@ function stripGreetings(response: string, assistantName: string, companyName?: s
   
   // If still starts with greeting-like content, try to extract the actual answer
   // Look for patterns like "Hello, I'm Sarah. We offer..." or "I'm Sarah. We offer..."
-  const greetingWithAnswer = cleaned.match(/^(?:hello|hi|hey|I'm|this is)[^.!]*[.!]\s*(.+)$/i);
+  const greetingWithAnswer = cleaned.match(/^(?:hello|hi|hey|thanks\s+for\s+calling)[^.!]*[.!]\s*(.+)$/i);
   if (greetingWithAnswer && greetingWithAnswer[1]) {
     cleaned = greetingWithAnswer[1].trim();
   }
   
   // Final check: if response still looks like it starts with greeting, try to find first real sentence
-  if (cleaned.toLowerCase().match(/^(hello|hi|hey|I'm|this is)/)) {
+  if (cleaned.toLowerCase().match(/^(hello|hi|hey|thanks\s+for\s+calling)/)) {
     // Split by periods and take everything after first sentence if it contains greeting words
     const sentences = cleaned.split(/[.!]+\s*/);
-    if (sentences.length > 1 && sentences[0].toLowerCase().match(/(hello|hi|hey|I'm|this is|thanks for calling)/)) {
+    if (sentences.length > 1 && sentences[0].toLowerCase().match(/(hello|hi|hey|thanks for calling)/)) {
       cleaned = sentences.slice(1).join('. ').trim();
     }
   }
@@ -641,10 +951,53 @@ function stripGreetings(response: string, assistantName: string, companyName?: s
   // But still remove obvious greetings
   if (!cleaned || cleaned.length < 5) {
     // Last resort: just remove obvious greeting prefixes
-    cleaned = original.replace(/^(?:hello|hi|hey|I'm|this is|thanks for calling)[^.!]*[.!]?\s*/i, '').trim() || original;
+    cleaned = original.replace(/^(?:hello|hi|hey|thanks for calling)[^.!]*[.!]?\s*/i, '').trim() || original;
   }
   
   return cleaned || response; // Return original if cleaning resulted in empty string
+}
+
+function normalizeForRealtimeCacheMatch(text: string): string {
+  return (text || '')
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+async function tryGetRealtimeCache(
+  contactId: string,
+  input: string,
+): Promise<{ transcript: string; response: string; updatedAt: number } | null> {
+  try {
+    if (!contactId || !input) return null;
+
+    const item = await DynamoDBService.get('realtime_cache', { contact_id: contactId });
+    if (!item?.response || !item?.transcript) return null;
+
+    const updatedAt = Number(item.updated_at || 0);
+    if (!updatedAt) return null;
+
+    // Keep this window tight; the cache is only meant to bridge "Lex turn end" latency.
+    const isFresh = Date.now() - updatedAt <= 20_000;
+    if (!isFresh) return null;
+
+    const cached = normalizeForRealtimeCacheMatch(item.transcript);
+    const current = normalizeForRealtimeCacheMatch(input);
+    if (!cached || !current) return null;
+
+    const isMatch = cached === current || cached.includes(current) || current.includes(cached);
+    if (!isMatch) return null;
+
+    return {
+      transcript: item.transcript,
+      response: item.response,
+      updatedAt,
+    };
+  } catch (error) {
+    console.warn('Realtime cache lookup failed (ignored):', error);
+    return null;
+  }
 }
 
 /**
@@ -665,7 +1018,7 @@ function delegate(sessionState: any): LexV2Response {
 /**
  * Helper: Close intent with message
  */
-function close(sessionState: any, message: string): LexV2Response {
+function close(sessionState: any, message: string, intentNameOverride?: string): LexV2Response {
   return {
     sessionState: {
       ...sessionState,
@@ -673,7 +1026,7 @@ function close(sessionState: any, message: string): LexV2Response {
         type: 'Close',
       },
       intent: {
-        name: sessionState.intent.name,
+        name: intentNameOverride || sessionState.intent.name,
         state: 'Fulfilled',
       },
     },

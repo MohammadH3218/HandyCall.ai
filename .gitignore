@@ -62,9 +62,36 @@ venv/
 .dynamodb/
 nul
 *.zip
+*.tsbuildinfo
+*.mkv
+*.tar.gz
 build-output.txt
 query-phone.json
 test-*.json
+
+# Local AWS/Connect exports (generated during debugging/deployment)
+/_*.json
+/_tmp_connect_flow*.json
+/_connect_flow*.json
+/_lex_*.json
+/_kms_policy*.json
+/_lambda_*.json
+/_stream_task_policy*.json
+/_td_register.json
+/_test_flow_*.json
+/content_from_describe.json
+/current-flow.json
+/flow-*.json
+/flow-final.json
+/flow-no-*.json
+/flow-optimized-final.json
+/out*.json
+/payload.json
+/send_sqs.json
+/sqs_create_queue.json
+/stream_task_policy.json
+/svc.json
+/taskdef.json
 
 # Claude settings (may contain secrets)
 .claude/settings.local.json
