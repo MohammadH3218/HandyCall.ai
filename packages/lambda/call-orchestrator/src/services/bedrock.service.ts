@@ -23,23 +23,25 @@ export class BedrockService {
   ): Promise<BedrockResponse> {
     try {
       // Build system prompt with agent configuration and RAG context
-      const systemPrompt = this.buildSystemPrompt(agentConfig, companyName, ragContext);
+      // Pass conversationHistory to determine if we should instruct Bedrock NOT to greet
+      const systemPrompt = this.buildSystemPrompt(agentConfig, companyName, ragContext, conversationHistory);
 
       // Build messages array
+      // Pass conversation history so Bedrock knows context (won't greet if history exists)
       const messages = [
         ...conversationHistory,
         {
           role: 'user',
-          content: userMessage,
+          content: userMessage, // Keep user message clean - instructions are in system prompt
         },
       ];
 
-      // Invoke Claude
+      // Invoke Claude with optimized settings for faster response
       const command = new InvokeModelCommand({
         modelId: MODEL_ID,
         body: JSON.stringify({
           anthropic_version: 'bedrock-2023-05-31',
-          max_tokens: 300,
+          max_tokens: 200, // Reduced from 300 for faster response
           system: systemPrompt,
           messages: messages,
           temperature: 0.7,
@@ -79,33 +81,50 @@ export class BedrockService {
     agentConfig: AgentConfig,
     companyName: string,
     ragContext: Array<{ text: string; similarity: number }>,
+    conversationHistory: Array<{ role: string; content: string }> = [],
   ): string {
     const knowledgeBase = ragContext.map((c) => c.text).join('\n\n');
+    const assistantName = agentConfig.ai_assistant_name || 'the AI assistant';
+    
+    // CRITICAL: NEVER greet or introduce - greetings are handled separately
+    // Just respond directly to the caller's question
 
-    return `You are an AI receptionist for ${companyName}, a ${agentConfig.greeting_tone} business assistant.
+    // Optimized shorter system prompt for faster Bedrock responses
+    // CRITICAL: Explicitly instruct Bedrock to NEVER greet or introduce - we handle greetings separately
+    return `You are ${assistantName}, an AI phone assistant for ${companyName}. Speak naturally with contractions. Keep responses brief (1-2 sentences). Be warm and conversational.
 
-PERSONALITY & TONE:
-- Greeting tone: ${agentConfig.greeting_tone}
-${agentConfig.custom_greeting ? `- Custom greeting: ${agentConfig.custom_greeting}` : ''}
-- Be professional, helpful, and concise
-- Keep responses under 3 sentences (this is a phone conversation)
+CRITICAL INSTRUCTIONS - FOLLOW EXACTLY:
+- NEVER say "hello", "hi", "hey", or any greeting
+- NEVER introduce yourself or say your name (${assistantName})
+- NEVER say "I'm [name]" or "this is [name]"
+- NEVER start with "Thanks for calling" - that's handled separately
+- ALWAYS respond DIRECTLY to the question - just answer it immediately
+- If conversation history exists (previous messages), you're mid-conversation - NO greetings
+- The caller already knows who you are - just answer their question
 
-KNOWLEDGE BASE:
-${knowledgeBase || 'No specific knowledge available - provide general assistance only.'}
+Example WRONG responses:
+- "Hello, I'm Sarah. We offer plumbing services..."
+- "Hi! Thanks for calling. We offer..."
+- "Hello! I'm Sarah and..."
+
+Example CORRECT responses:
+- "We offer plumbing, electrical, and HVAC services."
+- "Our hours are Monday-Friday 8am-5pm."
+
+KNOWLEDGE:
+${knowledgeBase || 'No specific knowledge - provide general assistance.'}
 
 CAPABILITIES:
-- Can discuss pricing: ${agentConfig.can_discuss_pricing ? 'YES' : 'NO - defer to owner'}
-- Can handle emergencies: ${agentConfig.can_handle_emergencies ? 'YES' : 'NO - escalate immediately'}
-- Booking mode: ${agentConfig.booking_mode}
-- Languages: ${agentConfig.languages.join(', ')}
+- Pricing: ${agentConfig.can_discuss_pricing ? 'YES' : 'NO - offer callback'}
+- Emergencies: ${agentConfig.can_handle_emergencies ? 'YES' : 'NO - escalate'}
+- Booking: ${agentConfig.booking_mode}
 
-CRITICAL RULES:
-1. NEVER guess chemicals, warranties, or safety information
-2. If you're not confident about an answer (< 70%), say "Let me have the owner call you back about that specific question"
-3. Always confirm appointment details twice before booking
-4. Keep responses SHORT and NATURAL for phone conversation
-5. If the caller seems frustrated or requests a person, offer to transfer immediately
-
-Remember: You are clearly an AI assistant. Be helpful but honest about your limitations.`;
+RULES:
+- NEVER guess about warranties, safety, or unknown details
+- If unsure, offer callback: "Let me have the owner call you back about that"
+- Keep SHORT and CONVERSATIONAL (phone call, not essay)
+- If caller wants a person, offer transfer immediately
+- DO NOT say your name or introduce yourself - just answer the question
+- After answering a question, if it seems like the caller might be done, ask: "Will that be all?" or "Is there anything else I can help you with?" (but only once per conversation, not after every answer)`;
   }
 }

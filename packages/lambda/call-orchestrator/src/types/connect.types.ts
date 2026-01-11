@@ -59,6 +59,7 @@ export interface Company {
 
 export interface AgentConfig {
   company_id: string;
+  ai_assistant_name?: string;
   greeting_tone: string;
   custom_greeting?: string;
   can_discuss_pricing: boolean;

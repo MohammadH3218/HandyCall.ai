@@ -30,13 +30,28 @@ export class RAGService {
     topK: number = 5,
   ): Promise<Array<{ text: string; similarity: number }>> {
     try {
-      // Generate query embedding
+      // Quick check if any chunks exist (use Limit 1 to avoid full scan if none exist)
+      const quickCheck = await DynamoDBService.scan(
+        'knowledge_chunks',
+        'company_id = :company_id',
+        { ':company_id': companyId },
+        1 // Just check if any exist - Limit parameter
+      );
+
+      if (quickCheck.length === 0) {
+        console.log('No knowledge chunks found - skipping RAG entirely (saves ~150ms)');
+        return [];
+      }
+
+      // Generate query embedding (only if chunks exist - saves ~150-200ms if no chunks)
       const queryEmbedding = await this.generateEmbedding(query);
 
       // Get all knowledge chunks for the company
-      const chunks = await DynamoDBService.scan('knowledge_chunks', 'company_id = :company_id', {
-        ':company_id': companyId,
-      });
+      const chunks = await DynamoDBService.scan(
+        'knowledge_chunks',
+        'company_id = :company_id',
+        { ':company_id': companyId }
+      );
 
       if (chunks.length === 0) {
         return [];
@@ -46,8 +61,9 @@ export class RAGService {
       const rankedChunks = chunks
         .map((chunk) => ({
           text: chunk.text,
-          similarity: this.cosineSimilarity(queryEmbedding, chunk.embedding),
+          similarity: this.cosineSimilarity(queryEmbedding, chunk.embedding || []),
         }))
+        .filter(chunk => chunk.similarity > 0.5) // Only include relevant chunks (similarity > 0.5)
         .sort((a, b) => b.similarity - a.similarity)
         .slice(0, topK);
 

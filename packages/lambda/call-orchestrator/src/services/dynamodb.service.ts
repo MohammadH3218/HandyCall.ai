@@ -66,11 +66,13 @@ export class DynamoDBService {
     tableName: string,
     filterExpression?: string,
     expressionValues?: Record<string, any>,
+    limit?: number,
   ): Promise<any[]> {
     const command = new ScanCommand({
       TableName: `${TABLE_PREFIX}${tableName}`,
       ...(filterExpression && { FilterExpression: filterExpression }),
       ...(expressionValues && { ExpressionAttributeValues: expressionValues }),
+      ...(limit && { Limit: limit }),
     });
 
     const result = await docClient.send(command);
