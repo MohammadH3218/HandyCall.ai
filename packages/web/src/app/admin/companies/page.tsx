@@ -21,7 +21,7 @@ interface Company {
   company_name: string;
   service_type: string;
   status: string;
-  phone_number: string;
+  phone_number?: string;
   email: string;
   timezone: string;
   created_at: number;
@@ -278,7 +278,7 @@ export default function CompaniesPage() {
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-muted-foreground">Phone:</span>
-                      <span>{company.phone_number}</span>
+                      <span>{company.phone_number || '—'}</span>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-muted-foreground">Created:</span>

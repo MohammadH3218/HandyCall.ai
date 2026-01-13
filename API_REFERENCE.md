@@ -252,6 +252,13 @@ The following endpoints are scaffolded and ready for implementation:
 - `GET /agent-config` - Get AI agent configuration
 - `PUT /agent-config` - Update AI agent settings
 
+### Realtime Tools (Server-to-Server)
+These endpoints are used by the OpenAI Realtime SIP controller (not the web dashboard). They are **public** but protected by `x-handycall-tools-key`.
+
+- `POST /tenant/resolve` - Resolve tenant config for a dialed number
+- `POST /tools/create_lead` - Create/update contact + call record for an inbound call
+- `POST /tools/save_call` - Persist transcript/summary + collected fields for a completed call
+
 ---
 
 ## 📐 STANDARD RESPONSE FORMAT

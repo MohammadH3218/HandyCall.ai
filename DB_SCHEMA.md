@@ -79,6 +79,38 @@
 
 ---
 
+## 1b. Company Numbers Table (Inbound DID Routing)
+
+**Table Name**: `handycall_{env}_company_numbers`
+
+Use this table to map an inbound phone number (DID) to a tenant (`company_id`) for telephony providers (Connect, Twilio SIP trunking, etc.).
+
+### Primary Key
+- **PK**: `did_e164` (String) - E.164 phone number
+
+### Attributes
+```typescript
+{
+  did_e164: string;     // E.164 (PK)
+  company_id: string;   // tenant
+  provider?: string;    // CONNECT | TWILIO | OTHER
+  label?: string;       // optional friendly label
+  created_at: number;
+  updated_at: number;
+}
+```
+
+### GSIs
+**GSI1: company-index**
+- PK: `company_id`
+- Purpose: list all inbound numbers for a company
+
+### Access Patterns
+1. Resolve tenant by DID → `GetItem(did_e164)`
+2. List numbers for company → `Query GSI1 (company_id = ?)`
+
+---
+
 ## 2. Users Table
 
 **Table Name**: `handycall_{env}_users`

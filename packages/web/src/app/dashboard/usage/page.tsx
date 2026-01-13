@@ -32,7 +32,18 @@ export default function UsagePage() {
 
   useEffect(() => {
     loadUsage();
+    const id = window.setInterval(loadUsage, 30000);
+    const onVisibility = () => {
+      if (!document.hidden) loadUsage();
+    };
+    window.addEventListener('focus', loadUsage);
+    document.addEventListener('visibilitychange', onVisibility);
     // eslint-disable-next-line react-hooks/exhaustive-deps
+    return () => {
+      window.clearInterval(id);
+      window.removeEventListener('focus', loadUsage);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
   }, []);
 
   const loadUsage = async () => {

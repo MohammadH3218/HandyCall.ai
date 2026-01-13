@@ -65,7 +65,7 @@ export class UsersService {
     } else if (companyId) {
       resolvedCompanyId = companyId;
     } else if (companyName) {
-      if (!companyServiceType || !companyEmail || !companyPhone || !companyTimezone) {
+      if (!companyServiceType || !companyEmail || !companyTimezone) {
         throw new BadRequestException('Company details are required when creating a new company');
       }
 
@@ -73,15 +73,12 @@ export class UsersService {
         throw new BadRequestException('Invalid company email');
       }
 
-      if (!isValidPhoneNumber(companyPhone)) {
-        throw new BadRequestException('Invalid company phone number (use E.164: +1234567890)');
-      }
-
       if (!isValidTimezone(companyTimezone)) {
         throw new BadRequestException('Invalid company timezone');
       }
 
-      const formattedPhone = formatPhoneNumber(companyPhone);
+      const formattedPhone =
+        companyPhone && isValidPhoneNumber(companyPhone) ? formatPhoneNumber(companyPhone) : undefined;
 
       const newCompany = await this.companiesService.createCompany(
         companyName,

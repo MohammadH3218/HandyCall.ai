@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useAuthStore } from '@/stores/auth-store';
+import { useEffect, useState } from 'react';
 import { apiClient } from '@/lib/api-client';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { useAuthStore } from '@/stores/auth-store';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
@@ -17,21 +17,32 @@ export default function SettingsPage() {
   });
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState('');
+  const [myNumber, setMyNumber] = useState<string | null>(null);
+
   const statusLabel = company?.cancel_at_period_end
     ? 'Cancelled'
     : company?.status
-    ? company.status.charAt(0) + company.status.slice(1).toLowerCase()
-    : 'Inactive';
+      ? company.status.charAt(0) + company.status.slice(1).toLowerCase()
+      : 'Inactive';
 
   useEffect(() => {
-    if (company) {
-      setFormData({
-        company_name: company.company_name,
-        phone_number: company.phone_number,
-        timezone: company.timezone,
-      });
-    }
+    if (!company) return;
+    setFormData({
+      company_name: company.company_name,
+      phone_number: company.phone_number ?? '',
+      timezone: company.timezone,
+    });
   }, [company]);
+
+  useEffect(() => {
+    apiClient
+      .getMyTelephonyNumber()
+      .then((res: any) => {
+        const phone = res?.phoneNumber ?? res?.phone_number ?? null;
+        setMyNumber(phone || null);
+      })
+      .catch(() => setMyNumber(null));
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -86,7 +97,7 @@ export default function SettingsPage() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="phone_number">Business Phone</Label>
+                <Label htmlFor="phone_number">Business Contact Phone (optional)</Label>
                 <Input
                   id="phone_number"
                   value={formData.phone_number}
@@ -132,6 +143,28 @@ export default function SettingsPage() {
                 </div>
               )}
             </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Company phone number</CardTitle>
+            <CardDescription>This is the phone number customers call to reach your AI receptionist.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <div className="text-sm font-medium text-gray-900">Inbound number</div>
+                <div className="text-sm text-gray-600">{myNumber ?? 'Not assigned yet'}</div>
+              </div>
+            </div>
+
+            {!myNumber && (
+              <div className="mt-3 text-sm text-gray-700 bg-gray-50 border border-gray-200 rounded-md p-3">
+                Phone numbers are assigned by the HandyCall team. If you need a number, contact support and we’ll set it
+                up for you.
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

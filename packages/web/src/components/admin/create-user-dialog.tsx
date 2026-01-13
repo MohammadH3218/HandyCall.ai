@@ -57,7 +57,6 @@ export function CreateUserDialog({ open, onOpenChange, onSuccess, preselectedCom
     company_name: '',
     company_service_type: '',
     company_email: '',
-    company_phone: '',
     company_timezone: 'America/New_York',
     email: '',
     password: '',
@@ -135,11 +134,6 @@ export function CreateUserDialog({ open, onOpenChange, onSuccess, preselectedCom
       } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.company_email)) {
         newErrors.company_email = 'Invalid company email format';
       }
-      if (!formData.company_phone.trim()) {
-        newErrors.company_phone = 'Company phone is required';
-      } else if (!/^\+[1-9]\d{1,14}$/.test(formData.company_phone)) {
-        newErrors.company_phone = 'Phone must be in E.164 format (e.g., +12345678900)';
-      }
       if (!formData.company_timezone) {
         newErrors.company_timezone = 'Timezone is required';
       }
@@ -184,7 +178,6 @@ export function CreateUserDialog({ open, onOpenChange, onSuccess, preselectedCom
           payload.company_name = formData.company_name;
           payload.company_service_type = formData.company_service_type;
           payload.company_email = formData.company_email;
-          payload.company_phone = formData.company_phone;
           payload.company_timezone = formData.company_timezone;
         }
       }
@@ -235,7 +228,6 @@ export function CreateUserDialog({ open, onOpenChange, onSuccess, preselectedCom
         company_name: '',
         company_service_type: '',
         company_email: '',
-        company_phone: '',
         company_timezone: 'America/New_York',
         email: '',
         password: '',
@@ -280,17 +272,16 @@ export function CreateUserDialog({ open, onOpenChange, onSuccess, preselectedCom
                 onValueChange={(value) => {
                   setPoolType(value as 'users' | 'admin');
                   if (value === 'admin') {
-                    setFormData((prev) => ({
-                      ...prev,
-                      company_id: '',
-                      company_name: '',
-                      company_service_type: '',
-                      company_email: '',
-                      company_phone: '',
-                      company_timezone: 'America/New_York',
-                    }));
-                  }
-                }}
+                  setFormData((prev) => ({
+                    ...prev,
+                    company_id: '',
+                    company_name: '',
+                    company_service_type: '',
+                    company_email: '',
+                    company_timezone: 'America/New_York',
+                  }));
+                }
+              }}
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -317,7 +308,6 @@ export function CreateUserDialog({ open, onOpenChange, onSuccess, preselectedCom
                         company_name: '',
                         company_service_type: '',
                         company_email: '',
-                        company_phone: '',
                         company_timezone: 'America/New_York',
                       });
                     }}
@@ -407,21 +397,6 @@ export function CreateUserDialog({ open, onOpenChange, onSuccess, preselectedCom
                     </div>
 
                     <div className="grid gap-4 sm:grid-cols-2 sm:col-span-2">
-                      <div className="space-y-2">
-                        <Label htmlFor="company_phone">Company Phone</Label>
-                        <Input
-                          id="company_phone"
-                          value={formData.company_phone}
-                          onChange={(e) => setFormData({ ...formData, company_phone: e.target.value })}
-                          placeholder="+12345678900"
-                          disabled={!!formData.company_id}
-                        />
-                        {errors.company_phone && (
-                          <p className="text-sm text-destructive">{errors.company_phone}</p>
-                        )}
-                        <p className="text-xs text-muted-foreground">Format: +12345678900</p>
-                      </div>
-
                       <div className="space-y-2">
                         <Label htmlFor="company_timezone">Timezone</Label>
                         <Select

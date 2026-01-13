@@ -5,7 +5,6 @@ import {
   SearchAvailablePhoneNumbersCommand,
   ClaimPhoneNumberCommand,
   ReleasePhoneNumberCommand,
-  UpdatePhoneNumberCommand,
   DescribePhoneNumberCommand,
   AssociatePhoneNumberContactFlowCommand,
   PhoneNumberType,
@@ -71,9 +70,9 @@ export class ConnectService {
         phoneNumberType: num.PhoneNumberType || phoneNumberType,
         phoneNumberCountryCode: num.PhoneNumberCountryCode || countryCode,
       }));
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error listing available phone numbers:', error);
-      throw new Error(`Failed to list available phone numbers: ${error.message}`);
+      throw new Error(`Failed to list available phone numbers: ${error?.message ?? String(error)}`);
     }
   }
 
@@ -99,7 +98,7 @@ export class ConnectService {
 
       const response = await this.connectClient.send(command);
 
-      if (!response.PhoneNumberId || !response.PhoneNumber || !response.PhoneNumberArn) {
+      if (!response.PhoneNumberId || !response.PhoneNumberArn) {
         throw new Error('Invalid response from ClaimPhoneNumber');
       }
 
@@ -108,12 +107,12 @@ export class ConnectService {
 
       return {
         phoneNumberId: response.PhoneNumberId,
-        phoneNumber: response.PhoneNumber,
+        phoneNumber,
         phoneNumberArn: response.PhoneNumberArn,
       };
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error claiming phone number:', error);
-      throw new Error(`Failed to claim phone number: ${error.message}`);
+      throw new Error(`Failed to claim phone number: ${error?.message ?? String(error)}`);
     }
   }
 
@@ -127,9 +126,9 @@ export class ConnectService {
       });
 
       await this.connectClient.send(command);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error releasing phone number:', error);
-      throw new Error(`Failed to release phone number: ${error.message}`);
+      throw new Error(`Failed to release phone number: ${error?.message ?? String(error)}`);
     }
   }
 
@@ -148,29 +147,11 @@ export class ConnectService {
       });
 
       await this.connectClient.send(command);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error associating phone with contact flow:', error);
-      throw new Error(`Failed to associate phone with contact flow: ${error.message}`);
-    }
-  }
-
-  /**
-   * Update phone number description
-   */
-  async updatePhoneNumberDescription(
-    phoneNumberId: string,
-    description: string,
-  ): Promise<void> {
-    try {
-      const command = new UpdatePhoneNumberCommand({
-        PhoneNumberId: phoneNumberId,
-        PhoneNumberDescription: description,
-      });
-
-      await this.connectClient.send(command);
-    } catch (error) {
-      console.error('Error updating phone number description:', error);
-      throw new Error(`Failed to update phone number description: ${error.message}`);
+      throw new Error(
+        `Failed to associate phone with contact flow: ${error?.message ?? String(error)}`
+      );
     }
   }
 
@@ -185,9 +166,9 @@ export class ConnectService {
 
       const response = await this.connectClient.send(command);
       return response.ClaimedPhoneNumberSummary;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error getting phone number details:', error);
-      throw new Error(`Failed to get phone number details: ${error.message}`);
+      throw new Error(`Failed to get phone number details: ${error?.message ?? String(error)}`);
     }
   }
 

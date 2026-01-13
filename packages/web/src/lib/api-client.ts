@@ -179,7 +179,8 @@ class ApiClient {
     const response = await this.request<{ calls: any[]; lastEvaluatedKey?: any }>(`/calls?${params.toString()}`, {
       method: 'GET',
     });
-    return response.data || { calls: [], lastEvaluatedKey: undefined };
+    const payload: any = response.data ?? response;
+    return payload || { calls: [], lastEvaluatedKey: undefined };
   }
 
   async getCallById(callId: string): Promise<any> {
@@ -203,7 +204,14 @@ class ApiClient {
     const response = await this.request<any[]>(`/calls/search?${params.toString()}`, {
       method: 'GET',
     });
-    return response.data || [];
+    const payload: any = response.data ?? response;
+    return payload || [];
+  }
+
+  // Telephony endpoints
+  async getMyTelephonyNumber(): Promise<any> {
+    const response = await this.request<any>('/telephony/my-number', { method: 'GET' });
+    return response.data ?? response;
   }
 
   // Knowledge endpoints

@@ -1,13 +1,14 @@
 import { Module } from '@nestjs/common';
 import { TelephonyService } from './telephony.service';
 import { TelephonyController } from './telephony.controller';
-import { ConnectService } from '../../infrastructure/aws/connect.service';
+import { TelephonyAdminController } from './telephony.admin.controller';
 import { CompaniesModule } from '../companies/companies.module';
+import { CompanyNumbersModule } from '../company-numbers/company-numbers.module';
 
 @Module({
-  imports: [CompaniesModule],
-  controllers: [TelephonyController],
-  providers: [TelephonyService, ConnectService],
+  imports: [CompaniesModule, CompanyNumbersModule],
+  controllers: [TelephonyController, TelephonyAdminController],
+  providers: [TelephonyService],
   exports: [TelephonyService],
 })
 export class TelephonyModule {}

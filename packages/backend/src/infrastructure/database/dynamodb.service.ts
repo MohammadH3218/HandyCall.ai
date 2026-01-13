@@ -112,12 +112,19 @@ export class DynamoDBService implements OnModuleInit {
       filterExpression?: string;
     }
   ) {
+    // Convert camelCase options to the AWS SDK v3 expected names.
     const command = new QueryCommand({
       TableName: this.getTableName(tableName),
       KeyConditionExpression: keyConditionExpression,
       ExpressionAttributeNames: expressionAttributeNames,
       ExpressionAttributeValues: expressionAttributeValues,
-      ...options,
+      ...(options?.indexName && { IndexName: options.indexName }),
+      ...(typeof options?.limit === 'number' && { Limit: options.limit }),
+      ...(typeof options?.scanIndexForward === 'boolean' && {
+        ScanIndexForward: options.scanIndexForward,
+      }),
+      ...(options?.exclusiveStartKey && { ExclusiveStartKey: options.exclusiveStartKey }),
+      ...(options?.filterExpression && { FilterExpression: options.filterExpression }),
     });
 
     const result = await this.docClient.send(command);

@@ -208,6 +208,7 @@ HandyCall/
 ### Future Providers
 - Twilio (documented in RUNBOOK.md)
 - Amazon Connect (documented in RUNBOOK.md)
+- OpenAI Realtime SIP (target path for “ChatGPT-style” speech-to-speech) via `packages/realtime-controller` + Tools API endpoints in `packages/backend`
 
 ---
 

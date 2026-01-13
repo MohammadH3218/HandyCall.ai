@@ -93,5 +93,10 @@ test-*.json
 /svc.json
 /taskdef.json
 
+# Local deployment artifacts / logs
+/BundleLogs/
+/TailLogs*.txt
+/Dockerrun.aws.json
+
 # Claude settings (may contain secrets)
 .claude/settings.local.json

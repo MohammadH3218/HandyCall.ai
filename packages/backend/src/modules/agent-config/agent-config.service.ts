@@ -23,6 +23,8 @@ export class AgentConfigService {
       escalation_threshold: 0.7,
       require_callback_confirmation: true,
       send_sms_summary: true,
+      realtime_model: 'gpt-realtime-mini',
+      realtime_voice: 'alloy',
       created_at: timestamp,
       updated_at: timestamp,
     };

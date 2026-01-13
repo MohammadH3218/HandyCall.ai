@@ -38,7 +38,11 @@ export interface Company {
   company_id: UUID;
   company_name: string;
   service_type: ServiceType;
-  phone_number: PhoneNumber;
+  /**
+   * Company’s primary contact number (not necessarily the inbound DID).
+   * This can be unset at account creation time; inbound routing uses company_numbers mapping.
+   */
+  phone_number?: PhoneNumber;
   email: string;
   status: CompanyStatus;
   timezone: string; // IANA timezone: America/New_York
@@ -414,6 +418,9 @@ export interface AgentConfig {
   escalation_threshold: number; // Confidence threshold 0-1
   require_callback_confirmation: boolean;
   send_sms_summary: boolean;
+  realtime_model?: string; // e.g. "gpt-realtime-mini"
+  realtime_voice?: string; // e.g. "alloy"
+  realtime_instructions?: string; // optional additional system instructions
   created_at: Timestamp;
   updated_at: Timestamp;
 }

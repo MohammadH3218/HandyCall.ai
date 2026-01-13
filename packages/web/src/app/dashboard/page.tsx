@@ -47,13 +47,14 @@ interface UpcomingAppointment {
 }
 
 export default function DashboardPage() {
-  const { company, checkAuth } = useAuthStore();
+  const { company } = useAuthStore();
   const { toast } = useToast();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [recentCalls, setRecentCalls] = useState<RecentCall[]>([]);
   const [upcomingAppointments, setUpcomingAppointments] = useState<UpcomingAppointment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [companyPhoneNumber, setCompanyPhoneNumber] = useState<string | null>(null);
   const [callsEnabled, setCallsEnabled] = useState(
     company?.status === 'INACTIVE' || company?.status === 'SUSPENDED'
       ? false
@@ -89,42 +90,17 @@ export default function DashboardPage() {
     }
   }, [company]);
 
-  useEffect(() => {
-    // Auto-refresh when page becomes visible
-    const handleVisibilityChange = async () => {
-      if (!document.hidden) {
-        // Refresh company data from server to get latest service toggle states
-        await checkAuth();
-        loadDashboardData();
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-
-    // Periodic refresh of company data to pick up changes made by admin
-    // Refresh every 15 seconds to sync service toggle states
-    const refreshInterval = setInterval(async () => {
-      if (!document.hidden) {
-        await checkAuth();
-      }
-    }, 15000);
-
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-      clearInterval(refreshInterval);
-    };
-  }, [checkAuth]);
-
   const loadDashboardData = async () => {
     try {
       setIsLoading(true);
       setError(null);
 
-      const [statsData, callsData, appointmentsData, usageData] = await Promise.all([
+      const [statsData, callsData, appointmentsData, usageData, myNumberData] = await Promise.all([
         apiClient.getDashboardStats(),
         apiClient.getRecentCalls(),
         apiClient.getUpcomingAppointments(),
         apiClient.getUsageMetrics().catch(() => null),
+        apiClient.getMyTelephonyNumber().catch(() => null),
       ]);
 
       setStats(statsData);
@@ -132,6 +108,8 @@ export default function DashboardPage() {
       setUpcomingAppointments(appointmentsData || []);
       const limits = (usageData as any)?.limits || null;
       setUsageLimits(limits);
+      const pn = (myNumberData as any)?.phoneNumber ?? (myNumberData as any)?.phone_number ?? null;
+      setCompanyPhoneNumber(pn || null);
       if (limits?.minutes?.exceeded) {
         setCallsEnabled(false);
       }
@@ -287,6 +265,11 @@ export default function DashboardPage() {
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
         <p className="mt-2 text-gray-600">Welcome back to {company?.company_name || 'HandyCall'}</p>
+        {companyPhoneNumber && (
+          <p className="mt-1 text-sm text-gray-600">
+            Company phone number: <span className="font-medium text-gray-900">{companyPhoneNumber}</span>
+          </p>
+        )}
       </div>
 
       {/* Service Control Panel */}

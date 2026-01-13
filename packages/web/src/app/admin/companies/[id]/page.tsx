@@ -1,87 +1,86 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useRouter, useParams } from 'next/navigation';
+import { useEffect, useMemo, useState } from 'react';
+import { useParams, useRouter } from 'next/navigation';
+import { UserRole } from '@handycall/shared';
 import { useAuthStore } from '@/stores/auth-store';
+import { Logo } from '@/components/ui/logo';
 import { ProfileDropdown } from '@/components/profile-dropdown';
+import { AdminNav } from '@/components/admin/admin-nav';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Users, Phone, BarChart3, MessageSquare } from 'lucide-react';
-import { UserRole, Company as CompanyType } from '@handycall/shared';
-import { AdminNav } from '@/components/admin/admin-nav';
-import { PLAN_CATALOG, getPlanPriceDisplay } from '@/constants/plans';
+import { ArrowLeft, Phone, Search } from 'lucide-react';
 
-interface CompanyStats {
-  total_calls: number;
-  total_users: number;
-  ai_handled_calls: number;
-  ai_handled_percentage: number;
-  total_contacts: number;
-  total_appointments: number;
-}
-
-interface User {
-  user_id: string;
+type Company = {
+  company_id: string;
+  company_name: string;
+  service_type: string;
+  status: string;
   email: string;
-  first_name: string;
-  last_name: string;
-  role: string;
-  is_active: boolean;
+  timezone: string;
   created_at: number;
-  last_login_at?: number;
-}
-
-interface BillingInfo {
   subscription_plan?: string;
   subscription_status?: string;
-  current_period_start?: number;
-  current_period_end?: number;
   cancel_at_period_end?: boolean;
-  payment_method?: {
-    last4?: string;
-    brand?: string;
-  } | null;
-  payment_method_last4?: string;
-  payment_method_brand?: string;
+};
+
+type AvailableNumber = {
+  phoneNumber: string;
+  locality?: string;
+  region?: string;
+};
+
+type CompanyNumber = {
+  phoneNumber: string;
+  provider?: string;
+  label?: string;
+} | null;
+
+async function fetchJsonWithFallback(url: string, init?: RequestInit) {
+  let res = await fetch(url, { ...(init || {}), credentials: 'include' });
+
+  if (res.status === 401) {
+    const token = localStorage.getItem('access_token');
+    if (token) {
+      res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}${url.replace('/api/proxy', '')}`, {
+        ...(init || {}),
+        headers: {
+          ...(init?.headers || {}),
+          Authorization: `Bearer ${token}`,
+        },
+      });
+    }
+  }
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(text || `Request failed (${res.status})`);
+  }
+
+  return res.json();
 }
 
-interface Invoice {
-  id: string;
-  number?: string;
-  amount_paid?: number;
-  amount_due?: number;
-  status: string;
-  currency: string;
-  created: number;
-  period_start?: number;
-  period_end?: number;
-  hosted_invoice_url?: string;
-  invoice_pdf?: string;
-}
-
-export default function CompanyDetailsPage() {
+export default function AdminCompanyDetailPage() {
   const router = useRouter();
   const params = useParams();
+  const companyId = useMemo(() => String((params as any)?.id || ''), [params]);
   const { userRole, isAuthenticated, isLoading } = useAuthStore();
   const { toast } = useToast();
 
-  const [company, setCompany] = useState<CompanyType | null>(null);
-  const [stats, setStats] = useState<CompanyStats | null>(null);
-  const [users, setUsers] = useState<User[]>([]);
-  const [billing, setBilling] = useState<BillingInfo | null>(null);
-  const [invoices, setInvoices] = useState<Invoice[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [actionLoading, setActionLoading] = useState(false);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const [company, setCompany] = useState<Company | null>(null);
+  const [isPageLoading, setIsPageLoading] = useState(true);
 
-  // Service toggles state
-  const [callsEnabled, setCallsEnabled] = useState(true);
-  const [smsEnabled, setSmsEnabled] = useState(true);
-  const [toggleLoading, setToggleLoading] = useState<'calls' | 'sms' | null>(null);
-
-  const companyId = params.id as string;
+  const [assignedNumber, setAssignedNumber] = useState<CompanyNumber>(null);
+  const [claimDialogOpen, setClaimDialogOpen] = useState(false);
+  const [numbersLoading, setNumbersLoading] = useState(false);
+  const [numbersError, setNumbersError] = useState<string | null>(null);
+  const [areaCode, setAreaCode] = useState('832');
+  const [availableNumbers, setAvailableNumbers] = useState<AvailableNumber[]>([]);
 
   useEffect(() => {
     if (!isLoading && (!isAuthenticated || userRole !== UserRole.ADMIN)) {
@@ -89,317 +88,74 @@ export default function CompanyDetailsPage() {
       return;
     }
 
-    if (isAuthenticated && userRole === UserRole.ADMIN) {
-      loadCompanyDetails();
+    if (isAuthenticated && userRole === UserRole.ADMIN && companyId) {
+      void loadCompany();
     }
-  }, [isAuthenticated, userRole, isLoading, router, companyId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated, userRole, isLoading, companyId]);
 
-  const loadCompanyDetails = async () => {
-    setLoading(true);
-    setLoadError(null);
+  const loadCompany = async () => {
+    setIsPageLoading(true);
     try {
-      const [companyRes, statsRes, usersRes] = await Promise.all([
-        fetch(`/api/proxy/companies/${companyId}`, { credentials: 'include' }),
-        fetch(`/api/proxy/companies/${companyId}/stats`, { credentials: 'include' }),
-        fetch(`/api/proxy/companies/${companyId}/users`, { credentials: 'include' }),
-      ]);
+      const data = await fetchJsonWithFallback(`/api/proxy/companies/${companyId}`);
+      setCompany(data);
 
-      const billingRes = await fetch(`/api/proxy/billing/admin/company/${companyId}`, { credentials: 'include' }).catch(() => null);
-      const invoicesRes = await fetch(`/api/proxy/billing/admin/company/${companyId}/invoices`, { credentials: 'include' }).catch(() => null);
-
-      let companyResponse = companyRes;
-      let statsResponse = statsRes;
-      let usersResponse = usersRes;
-
-      if ([companyRes, statsRes, usersRes].some((r) => r && r.status === 401)) {
-        const token = localStorage.getItem('access_token');
-        if (!token) {
-          throw new Error('Unauthorized. Please re-login as admin.');
-        }
-        [companyResponse, statsResponse, usersResponse] = await Promise.all([
-          fetch(`${process.env.NEXT_PUBLIC_API_URL}/companies/${companyId}`, {
-            headers: { Authorization: `Bearer ${token}` },
-          }),
-          fetch(`${process.env.NEXT_PUBLIC_API_URL}/companies/${companyId}/stats`, {
-            headers: { Authorization: `Bearer ${token}` },
-          }),
-          fetch(`${process.env.NEXT_PUBLIC_API_URL}/companies/${companyId}/users`, {
-            headers: { Authorization: `Bearer ${token}` },
-          }),
-        ]);
-      }
-
-      if (!companyResponse.ok || !statsResponse.ok || !usersResponse.ok) {
-        throw new Error('Failed to load company details');
-      }
-
-      const [companyData, statsData, usersData] = await Promise.all([
-        companyResponse.json(),
-        statsResponse.json(),
-        usersResponse.json(),
-      ]);
-
-      const billingData = billingRes && billingRes.ok ? await billingRes.json() : null;
-      const invoicesData = invoicesRes && invoicesRes.ok ? await invoicesRes.json() : [];
-
-      setCompany(companyData);
-      setStats(statsData);
-      setUsers(usersData);
-      setBilling(billingData);
-      setInvoices(Array.isArray(invoicesData) ? invoicesData : invoicesData?.data || []);
-
-      // Initialize service toggle states
-      const locked = companyData.status === 'INACTIVE' || companyData.status === 'SUSPENDED';
-      setCallsEnabled(locked ? false : (companyData.calls_enabled ?? true));
-      setSmsEnabled(locked ? false : (companyData.sms_enabled ?? true));
-    } catch (error) {
-      console.error('Failed to load company details:', error);
-      setLoadError((error as any)?.message || 'Failed to load company details');
+      const numberRes = await fetchJsonWithFallback(`/api/proxy/admin/telephony/companies/${companyId}/number`);
+      setAssignedNumber(numberRes?.data ?? null);
+    } catch (err: any) {
       toast({
         title: 'Error',
-        description: 'Failed to load company details',
+        description: err?.message || 'Failed to load company',
         variant: 'destructive',
       });
     } finally {
-      setLoading(false);
+      setIsPageLoading(false);
     }
   };
 
-  const formatDate = (timestamp: number) => {
-    return new Date(timestamp).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    });
-  };
-
-  const toggleService = async (service: 'calls' | 'sms', enabled: boolean) => {
-    if (!company) return;
-    if (company.status === 'INACTIVE' || company.status === 'SUSPENDED') {
-      toast({
-        title: 'Service unavailable',
-        description: 'Services are disabled while the account is inactive or suspended.',
-        variant: 'destructive',
-      });
-      return;
-    }
-    if (enabled) {
-      const status = company.subscription_status;
-      const canceling =
-        company.cancel_at_period_end &&
-        company.current_period_end &&
-        company.current_period_end > Date.now();
-      const hasPlan = Boolean(company.subscription_plan);
-      const statusAllowed =
-        !status || status === 'ACTIVE' || status === 'TRIALING' || canceling;
-      if (!hasPlan) {
-        toast({
-          title: 'Plan required',
-          description: 'Assign a subscription plan before enabling services.',
-          variant: 'destructive',
-        });
-        return;
-      }
-      if (!statusAllowed) {
-        toast({
-          title: 'Subscription inactive',
-          description: 'The subscription must be active to enable services.',
-          variant: 'destructive',
-        });
-        return;
-      }
-    }
-    setToggleLoading(service);
+  const loadAvailableNumbers = async () => {
     try {
-      const res = await fetch(`/api/proxy/companies/${company.company_id}`, {
-        method: 'PUT',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          [service === 'calls' ? 'calls_enabled' : 'sms_enabled']: enabled,
-        }),
-      });
+      setNumbersLoading(true);
+      setNumbersError(null);
+      const qs = new URLSearchParams();
+      qs.set('country', 'US');
+      qs.set('maxResults', '10');
+      if (areaCode.trim()) qs.set('areaCode', areaCode.trim());
 
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        throw new Error(
-          errorData?.message ||
-            errorData?.error?.message ||
-            'Failed to update service settings'
-        );
-      }
-
-      if (service === 'calls') {
-        setCallsEnabled(enabled);
-      } else {
-        setSmsEnabled(enabled);
-      }
-
-      toast({
-        title: enabled ? `${service === 'calls' ? 'Calls' : 'SMS'} enabled` : `${service === 'calls' ? 'Calls' : 'SMS'} disabled`,
-        description: enabled
-          ? `Company can now receive ${service === 'calls' ? 'incoming calls' : 'incoming SMS messages'}`
-          : `${service === 'calls' ? 'Call' : 'SMS'} handling is paused`,
-      });
-    } catch (error: any) {
-      toast({
-        title: 'Error',
-        description: error.message || 'Failed to update service settings',
-        variant: 'destructive',
-      });
-      if (service === 'calls') {
-        setCallsEnabled(!enabled);
-      } else {
-        setSmsEnabled(!enabled);
-      }
+      const res = await fetchJsonWithFallback(`/api/proxy/admin/telephony/available-numbers?${qs.toString()}`);
+      const list = Array.isArray(res?.data) ? res.data : [];
+      setAvailableNumbers(list);
+    } catch (err: any) {
+      setNumbersError(err?.message || 'Failed to load available numbers');
+      setAvailableNumbers([]);
     } finally {
-      setToggleLoading(null);
+      setNumbersLoading(false);
     }
   };
 
-  const cancelSubscription = async (immediate = false) => {
-    if (!company) return;
-    setActionLoading(true);
+  const claimNumber = async (phoneNumber: string) => {
     try {
-      const res = await fetch(`/api/proxy/billing/admin/company/${company.company_id}/subscription?immediate=${immediate}`, {
-        method: 'DELETE',
-        credentials: 'include',
-      });
-      if (!res.ok) {
-        const error = await res.json().catch(() => ({}));
-        throw new Error(error.message || 'Failed to cancel subscription');
-      }
-      toast({
-        title: 'Subscription canceled',
-        description: immediate ? 'Subscription canceled immediately' : 'Will cancel at period end',
-      });
-      await loadCompanyDetails();
-    } catch (error: any) {
-      toast({ title: 'Error', description: error.message || 'Failed to cancel subscription', variant: 'destructive' });
-    } finally {
-      setActionLoading(false);
-    }
-  };
+      setNumbersLoading(true);
+      setNumbersError(null);
 
-  const reactivateSubscription = async () => {
-    if (!company) return;
-    setActionLoading(true);
-    try {
-      const res = await fetch(`/api/proxy/billing/admin/company/${company.company_id}/subscription/reactivate`, {
+      const res = await fetchJsonWithFallback(`/api/proxy/admin/telephony/companies/${companyId}/claim-number`, {
         method: 'POST',
-        credentials: 'include',
-      });
-      if (!res.ok) throw new Error('Failed to reactivate subscription');
-      toast({ title: 'Subscription reactivated' });
-      await loadCompanyDetails();
-    } catch (error: any) {
-      toast({ title: 'Error', description: error.message || 'Failed to reactivate subscription', variant: 'destructive' });
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  const changePlan = async (plan: string) => {
-    if (!company) return;
-    setActionLoading(true);
-    try {
-      const res = await fetch(`/api/proxy/billing/admin/company/${company.company_id}/subscription`, {
-        method: 'PUT',
-        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ plan }),
+        body: JSON.stringify({ phoneNumber }),
       });
-      if (!res.ok) throw new Error('Failed to update plan');
-      toast({ title: 'Plan updated', description: 'Changes applied successfully' });
-      await loadCompanyDetails();
-    } catch (error: any) {
-      toast({ title: 'Error', description: error.message || 'Failed to update plan', variant: 'destructive' });
+
+      const claimed = res?.data?.phoneNumber ?? res?.data?.phone_number ?? phoneNumber;
+      setAssignedNumber({ phoneNumber: claimed, provider: 'TWILIO' });
+      setClaimDialogOpen(false);
+      toast({ title: 'Success', description: `Claimed ${claimed} and routed to voice bridge.` });
+    } catch (err: any) {
+      setNumbersError(err?.message || 'Failed to claim number');
     } finally {
-      setActionLoading(false);
+      setNumbersLoading(false);
     }
   };
 
-  const createSubscription = async (plan: string) => {
-    if (!company) return;
-    setActionLoading(true);
-    try {
-      const res = await fetch(`/api/proxy/billing/admin/company/${company.company_id}/subscription`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ plan }),
-      });
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.message || 'Failed to create subscription');
-      }
-      toast({ title: 'Subscription created', description: `${plan} plan activated` });
-      await loadCompanyDetails();
-    } catch (error: any) {
-      toast({ title: 'Error', description: error.message || 'Failed to create subscription', variant: 'destructive' });
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  function ServiceToggle({
-    label,
-    icon,
-    enabled,
-    loading,
-    disabled,
-    onToggle,
-  }: {
-    label: string;
-    icon: React.ReactNode;
-    enabled: boolean;
-    loading: boolean;
-    disabled?: boolean;
-    onToggle: (enabled: boolean) => void;
-  }) {
-    return (
-      <div className="flex items-center justify-between p-4 rounded-lg border bg-card">
-        <div className="flex items-center gap-3">
-          <div className={`transition-colors ${enabled ? 'text-green-600' : 'text-gray-400'}`}>
-            {icon}
-          </div>
-          <div>
-            <p className="text-sm font-medium text-foreground">{label}</p>
-            <p className={`text-xs font-semibold transition-colors ${enabled ? 'text-green-600' : 'text-gray-500'}`}>
-              {enabled ? 'Active' : 'Paused'}
-            </p>
-          </div>
-        </div>
-        <button
-          onClick={() => onToggle(!enabled)}
-          disabled={loading || disabled}
-          className={`
-            relative inline-flex h-7 w-12 items-center rounded-full transition-all duration-300 ease-in-out
-            ${enabled ? 'bg-green-500 shadow-lg shadow-green-200' : 'bg-gray-300 shadow-md'}
-            ${loading || disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:shadow-xl'}
-            focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
-          `}
-          aria-label={`Toggle ${label}`}
-        >
-          <span
-            className={`
-              inline-block h-5 w-5 transform rounded-full bg-white shadow-lg transition-all duration-300 ease-in-out
-              ${enabled ? 'translate-x-6' : 'translate-x-1'}
-              ${loading ? 'animate-pulse' : ''}
-            `}
-          >
-            {loading && (
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="h-3 w-3 animate-spin rounded-full border-2 border-gray-300 border-t-blue-600"></div>
-              </div>
-            )}
-          </span>
-        </button>
-      </div>
-    );
-  }
-
-  if (isLoading || loading) {
+  if (isLoading || isPageLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <div className="text-center">
@@ -410,34 +166,37 @@ export default function CompanyDetailsPage() {
     );
   }
 
-  if (loadError || !company || !stats) {
+  if (!company) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-background">
-        <div className="text-center space-y-4">
-          <p className="text-sm text-muted-foreground">{loadError || 'Unable to load company'}</p>
-          <Button onClick={loadCompanyDetails}>Retry</Button>
+      <div className="min-h-screen bg-background">
+        <header className="bg-card shadow-sm border-b border-border sticky top-0 z-10">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+            <div className="flex h-16 items-center justify-between gap-4">
+              <div className="flex items-center space-x-4">
+                <div className="hidden sm:block cursor-pointer" onClick={() => router.push('/admin')}>
+                  <Logo variant="words" width={160} height={40} />
+                </div>
+                <div className="sm:hidden cursor-pointer" onClick={() => router.push('/admin')}>
+                  <Logo variant="icon" width={40} height={40} />
+                </div>
+              </div>
+              <ProfileDropdown />
+            </div>
+            <div className="py-3 border-t border-border">
+              <AdminNav />
+            </div>
+          </div>
+        </header>
+        <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
           <Button variant="outline" onClick={() => router.push('/admin/companies')}>
-            Back to companies
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back to Companies
           </Button>
-        </div>
+          <div className="mt-6 text-sm text-muted-foreground">Company not found.</div>
+        </main>
       </div>
     );
   }
-
-  const planValue = billing?.subscription_plan || company.subscription_plan;
-  const planName = planValue
-    ? PLAN_CATALOG[planValue as keyof typeof PLAN_CATALOG]?.name || planValue
-    : null;
-  const servicesLocked = company.status === 'INACTIVE' || company.status === 'SUSPENDED';
-  const periodStart = billing?.current_period_start || company.current_period_start;
-  const periodEnd = billing?.current_period_end || company.current_period_end;
-  const canceling =
-    (billing?.cancel_at_period_end ?? company.cancel_at_period_end) &&
-    periodEnd &&
-    periodEnd > Date.now();
-  const subscriptionStatus = canceling
-    ? 'CANCELLED'
-    : billing?.subscription_status || company.subscription_status;
 
   return (
     <div className="min-h-screen bg-background">
@@ -445,14 +204,15 @@ export default function CompanyDetailsPage() {
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="flex h-16 items-center justify-between gap-4">
             <div className="flex items-center space-x-2 sm:space-x-4 flex-1 min-w-0">
-              <Button variant="ghost" size="sm" onClick={() => router.push('/admin/companies')}>
-                <ArrowLeft className="h-4 w-4" />
-              </Button>
+              <div className="hidden sm:block cursor-pointer" onClick={() => router.push('/admin')}>
+                <Logo variant="words" width={160} height={40} />
+              </div>
+              <div className="sm:hidden cursor-pointer" onClick={() => router.push('/admin')}>
+                <Logo variant="icon" width={40} height={40} />
+              </div>
               <div className="border-l border-border pl-2 sm:pl-4 min-w-0 flex-1">
-                <h1 className="text-base sm:text-xl font-semibold text-foreground truncate">
-                  {company.company_name}
-                </h1>
-                <p className="text-xs text-muted-foreground hidden sm:block">Company Details</p>
+                <h1 className="text-base sm:text-xl font-semibold text-foreground truncate">{company.company_name}</h1>
+                <p className="text-xs text-muted-foreground hidden sm:block">Company details</p>
               </div>
             </div>
             <ProfileDropdown />
@@ -463,334 +223,97 @@ export default function CompanyDetailsPage() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4 mb-6">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Calls</CardTitle>
-              <Phone className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.total_calls}</div>
-              <p className="text-xs text-muted-foreground">
-                {stats.ai_handled_percentage.toFixed(1)}% AI handled
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Team</CardTitle>
-              <Users className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.total_users}</div>
-              <p className="text-xs text-muted-foreground">Active members</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Contacts</CardTitle>
-              <BarChart3 className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.total_contacts}</div>
-              <p className="text-xs text-muted-foreground">Total contacts</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Appointments</CardTitle>
-              <BarChart3 className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.total_appointments}</div>
-              <p className="text-xs text-muted-foreground">Scheduled</p>
-            </CardContent>
-          </Card>
+      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 space-y-6">
+        <div className="flex items-center justify-between gap-4">
+          <Button variant="outline" onClick={() => router.push('/admin/companies')}>
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back
+          </Button>
+          <Badge variant="outline">{company.status}</Badge>
         </div>
 
-        <div className="grid gap-6 lg:grid-cols-3">
-          {/* Company Controls */}
-          <Card className="lg:col-span-3">
-            <CardHeader>
-              <CardTitle>Company Controls</CardTitle>
-              <CardDescription>Manage services and subscription</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {/* Service Toggles */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Telephony</CardTitle>
+            <CardDescription>Assign a Twilio phone number to route inbound calls to the AI receptionist.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between gap-4">
               <div>
-                <h4 className="text-sm font-medium text-muted-foreground mb-3">Service Controls</h4>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <ServiceToggle
-                    label="Call Handling"
-                    icon={<Phone className="h-5 w-5" />}
-                    enabled={callsEnabled}
-                    loading={toggleLoading === 'calls'}
-                    disabled={servicesLocked}
-                    onToggle={(enabled) => toggleService('calls', enabled)}
-                  />
-                  <ServiceToggle
-                    label="SMS Handling"
-                    icon={<MessageSquare className="h-5 w-5" />}
-                    enabled={smsEnabled}
-                    loading={toggleLoading === 'sms'}
-                    disabled={servicesLocked}
-                    onToggle={(enabled) => toggleService('sms', enabled)}
-                  />
-                </div>
+                <div className="text-sm font-medium text-gray-900">Assigned phone number</div>
+                <div className="text-sm text-gray-600">{assignedNumber?.phoneNumber ?? 'Not assigned'}</div>
               </div>
+              <Button
+                onClick={() => {
+                  setClaimDialogOpen(true);
+                  void loadAvailableNumbers();
+                }}
+              >
+                <Phone className="h-4 w-4 mr-2" />
+                Claim phone number
+              </Button>
+            </div>
+            <div className="text-xs text-muted-foreground">
+              Claiming a number purchases it in Twilio (monthly fee) and automatically routes Voice to the voice bridge.
+            </div>
+          </CardContent>
+        </Card>
+      </main>
 
-              {/* Subscription Management */}
-              <div>
-                <h4 className="text-sm font-medium text-muted-foreground mb-3">Subscription Management</h4>
-                {planValue ? (
-                  <div className="flex flex-wrap gap-2 items-center">
-                    <select
-                      className="border rounded-md px-3 py-2 text-sm bg-background"
-                      value={planValue}
-                      onChange={(e) => changePlan(e.target.value)}
-                      disabled={actionLoading}
-                    >
-                      {Object.entries(PLAN_CATALOG).map(([key, details]) => (
-                        <option key={key} value={key}>
-                          {details.name} - {getPlanPriceDisplay(key as any).current}/week
-                        </option>
-                      ))}
-                    </select>
-                    {canceling ? (
-                      <>
-                        <Button size="sm" onClick={reactivateSubscription} disabled={actionLoading}>
-                          Reactivate
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          onClick={() => {
-                            if (confirm('Terminate this subscription immediately?')) {
-                              cancelSubscription(true);
-                            }
-                          }}
-                          disabled={actionLoading}
-                        >
-                          Terminate
-                        </Button>
-                      </>
-                    ) : (
-                      <>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => cancelSubscription(false)}
-                          disabled={actionLoading}
-                        >
-                          Cancel
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          onClick={() => {
-                            if (confirm('Terminate this subscription immediately?')) {
-                              cancelSubscription(true);
-                            }
-                          }}
-                          disabled={actionLoading}
-                        >
-                          Terminate
-                        </Button>
-                      </>
-                    )}
-                  </div>
-                ) : (
-                  <div className="flex flex-wrap gap-2">
-                    <Button size="sm" onClick={() => createSubscription('STARTER')} disabled={actionLoading}>
-                      Give Starter Plan
-                    </Button>
-                    <Button size="sm" variant="outline" onClick={() => createSubscription('PRO')} disabled={actionLoading}>
-                      Give Pro Plan
-                    </Button>
-                    <Button size="sm" variant="outline" onClick={() => createSubscription('MAX')} disabled={actionLoading}>
-                      Give Max Plan
-                    </Button>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
+      <Dialog open={claimDialogOpen} onOpenChange={setClaimDialogOpen}>
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle>Claim a Twilio phone number</DialogTitle>
+          </DialogHeader>
 
-          {/* Subscription Details */}
-          <Card className="lg:col-span-2">
-            <CardHeader>
-              <CardTitle>Subscription</CardTitle>
-              <CardDescription>Current plan and billing details</CardDescription>
-            </CardHeader>
-            <CardContent className="grid gap-4 sm:grid-cols-2">
-              <div>
-                <p className="text-sm text-muted-foreground">Plan</p>
-                <p className="text-lg font-semibold">
-                  {planName || 'No subscription'}
-                </p>
-                {subscriptionStatus && (
-                  <Badge className="mt-1" variant={subscriptionStatus === 'ACTIVE' ? 'default' : 'secondary'}>
-                    {subscriptionStatus.charAt(0) + subscriptionStatus.slice(1).toLowerCase()}
-                  </Badge>
-                )}
-                {canceling && (
-                  <p className="text-xs text-amber-600 mt-1">Cancels at period end</p>
-                )}
+          <div className="space-y-4">
+            <div className="flex gap-2">
+              <div className="flex-1">
+                <Label htmlFor="areaCode">Area code (optional)</Label>
+                <Input
+                  id="areaCode"
+                  value={areaCode}
+                  onChange={(e) => setAreaCode(e.target.value)}
+                  placeholder="e.g., 832"
+                />
               </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Billing Period</p>
-                <p className="text-sm">
-                  {periodStart
-                    ? `${formatDate(periodStart)} - ${formatDate(
-                        periodEnd || periodStart
-                      )}`
-                    : 'N/A'}
-                </p>
+              <div className="flex items-end">
+                <Button onClick={loadAvailableNumbers} disabled={numbersLoading}>
+                  <Search className="h-4 w-4 mr-2" />
+                  {numbersLoading ? 'Loading...' : 'Search'}
+                </Button>
               </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Payment Method</p>
-                {billing?.payment_method_last4 || billing?.payment_method?.last4 ? (
-                  <p className="text-sm">
-                    {(billing.payment_method_brand || billing.payment_method?.brand || 'Card').toUpperCase()}{' '}
-                    •••• {billing.payment_method_last4 || billing.payment_method?.last4}
-                  </p>
-                ) : (
-                  <p className="text-sm">No card on file</p>
-                )}
-              </div>
-            </CardContent>
-          </Card>
+            </div>
 
-          {/* Company Info */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Company Info</CardTitle>
-              <CardDescription>Basic details</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Service Type</span>
-                <span className="font-medium">{company.service_type.replace('_', ' ')}</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Email</span>
-                <span className="font-medium truncate ml-2">{company.email}</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Phone</span>
-                <span className="font-medium">{company.phone_number}</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Timezone</span>
-                <span className="font-medium">{company.timezone}</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Created</span>
-                <span className="font-medium">{formatDate(company.created_at)}</span>
-              </div>
-            </CardContent>
-          </Card>
+            {numbersError && (
+              <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-md p-3">{numbersError}</div>
+            )}
 
-          {/* Users */}
-          <Card className="lg:col-span-3">
-            <CardHeader>
-              <CardTitle>Team Members</CardTitle>
-              <CardDescription>{users.length} {users.length === 1 ? 'user' : 'users'}</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {users.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-8">No users found</p>
-              ) : (
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                  {users.map((user) => (
-                    <div key={user.user_id} className="flex items-center justify-between p-3 rounded-lg border bg-card">
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">
-                          {user.first_name} {user.last_name}
-                        </p>
-                        <p className="text-xs text-muted-foreground truncate">{user.email}</p>
-                      </div>
-                      <div className="flex flex-col items-end gap-1 ml-2">
-                        <Badge variant="outline" className="text-xs">
-                          {user.role}
-                        </Badge>
-                        <Badge className={`text-xs ${user.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
-                          {user.is_active ? 'Active' : 'Inactive'}
-                        </Badge>
+            <div className="border rounded-md divide-y">
+              {numbersLoading ? (
+                <div className="p-4 text-sm text-gray-600">Loading available numbers...</div>
+              ) : availableNumbers.length ? (
+                availableNumbers.map((n) => (
+                  <div key={n.phoneNumber} className="p-3 flex items-center justify-between gap-3">
+                    <div>
+                      <div className="text-sm font-medium">{n.phoneNumber}</div>
+                      <div className="text-xs text-gray-500">
+                        {[n.locality, n.region].filter(Boolean).join(', ') || 'US local'}
                       </div>
                     </div>
-                  ))}
-                </div>
+                    <Button size="sm" onClick={() => claimNumber(n.phoneNumber)} disabled={numbersLoading}>
+                      Claim
+                    </Button>
+                  </div>
+                ))
+              ) : (
+                <div className="p-4 text-sm text-gray-600">No numbers found. Try a different area code.</div>
               )}
-            </CardContent>
-          </Card>
-
-          {/* Invoices */}
-          {invoices.length > 0 && (
-            <Card className="lg:col-span-3">
-              <CardHeader>
-                <CardTitle>Recent Invoices</CardTitle>
-                <CardDescription>Billing history</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="text-left text-muted-foreground border-b">
-                        <th className="py-2 pr-4 font-medium">Invoice</th>
-                        <th className="py-2 pr-4 font-medium">Amount</th>
-                        <th className="py-2 pr-4 font-medium">Status</th>
-                        <th className="py-2 pr-4 font-medium">Date</th>
-                        <th className="py-2 pr-4 font-medium">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {invoices.map((inv) => {
-                        const amount = inv.amount_paid ?? inv.amount_due ?? 0;
-                        const currency = inv.currency || 'usd';
-                        return (
-                          <tr key={inv.id} className="border-b last:border-0">
-                            <td className="py-3 pr-4 font-medium">
-                              {inv.number || `#${inv.id.slice(-8)}`}
-                            </td>
-                            <td className="py-3 pr-4">
-                              {new Intl.NumberFormat('en-US', {
-                                style: 'currency',
-                                currency: currency.toUpperCase(),
-                              }).format(amount / 100)}
-                            </td>
-                            <td className="py-3 pr-4">
-                              <Badge variant="outline" className="text-xs">{inv.status}</Badge>
-                            </td>
-                            <td className="py-3 pr-4">{formatDate(inv.created * 1000 || inv.created)}</td>
-                            <td className="py-3 pr-4">
-                              <div className="flex gap-2">
-                                {inv.hosted_invoice_url && (
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => window.open(inv.hosted_invoice_url!, '_blank')}
-                                  >
-                                    View
-                                  </Button>
-                                )}
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-        </div>
-      </main>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
+

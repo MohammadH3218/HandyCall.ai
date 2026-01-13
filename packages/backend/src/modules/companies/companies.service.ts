@@ -50,7 +50,7 @@ export class CompaniesService {
     companyName: string,
     serviceType: ServiceType,
     email: string,
-    phoneNumber: string,
+    phoneNumber: string | undefined,
     timezone: string,
     options?: { allowExisting?: boolean }
   ): Promise<Company> {
@@ -64,11 +64,13 @@ export class CompaniesService {
       conflicts.email = 'Company with this email already exists';
     }
 
-    // Check if company with phone already exists
-    const existingByPhone = await this.findByPhone(phoneNumber);
-    if (existingByPhone) {
-      if (options?.allowExisting) return existingByPhone;
-      conflicts.phone_number = 'Company with this phone number already exists';
+    // Check if company with phone already exists (optional at account creation)
+    if (phoneNumber) {
+      const existingByPhone = await this.findByPhone(phoneNumber);
+      if (existingByPhone) {
+        if (options?.allowExisting) return existingByPhone;
+        conflicts.phone_number = 'Company with this phone number already exists';
+      }
     }
 
     // Check company name uniqueness (case-insensitive)
@@ -101,7 +103,7 @@ export class CompaniesService {
       company_id: companyId,
       company_name: companyName,
       service_type: serviceType,
-      phone_number: phoneNumber,
+      ...(phoneNumber ? { phone_number: phoneNumber } : {}),
       email,
       status: CompanyStatus.INACTIVE,
       timezone,
@@ -225,16 +227,16 @@ export class CompaniesService {
    */
   async findByConnectPhoneNumber(phoneNumber: string): Promise<Company | null> {
     try {
-      // Query using phone-index GSI (assuming it exists or we'll create it)
+      // Query using connect-phone-index GSI (PK: connect_phone_number)
       const result = await this.dynamodb.query(
         this.tableName,
-        'connect_phone_number = :phone',
-        {},
+        '#connect_phone_number = :phone',
+        { '#connect_phone_number': 'connect_phone_number' },
         { ':phone': phoneNumber },
-        { indexName: 'connect-phone-index' }
+        { indexName: 'connect-phone-index', limit: 1 }
       );
 
-      if (!result || result.length === 0) {
+      if (!result || result.items.length === 0) {
         // Fallback to scan if GSI doesn't exist yet
         const scanResult = await this.dynamodb.scan(this.tableName, {
           filterExpression: 'connect_phone_number = :phone',
@@ -245,8 +247,8 @@ export class CompaniesService {
         return scanResult.items.length > 0 ? (scanResult.items[0] as Company) : null;
       }
 
-      return result[0] as Company;
-    } catch (error) {
+      return result.items[0] as Company;
+    } catch (error: any) {
       console.error('Error finding company by Connect phone number:', error);
       return null;
     }

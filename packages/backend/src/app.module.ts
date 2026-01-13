@@ -16,6 +16,8 @@ import { RagModule } from './modules/rag/rag.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { BillingModule } from './modules/billing/billing.module';
+import { CompanyNumbersModule } from './modules/company-numbers/company-numbers.module';
+import { RealtimeToolsModule } from './modules/realtime-tools/realtime-tools.module';
 import { DatabaseModule } from './infrastructure/database/database.module';
 import { StorageModule } from './infrastructure/storage/storage.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
@@ -50,6 +52,8 @@ import { AppService } from './app.service';
     DashboardModule,
     AdminModule,
     BillingModule,
+    CompanyNumbersModule,
+    RealtimeToolsModule,
   ],
   controllers: [AppController],
   providers: [
