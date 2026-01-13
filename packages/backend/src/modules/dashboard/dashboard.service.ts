@@ -78,15 +78,16 @@ export class DashboardService {
       companyId,
       additionalConditions: {
         keyCondition: '#scheduled_start >= :now',
-        filterExpression: '#status = :active',
+        filterExpression: '#status IN (:scheduled, :confirmed)',
         expressionAttributeNames: { '#scheduled_start': 'scheduled_start', '#status': 'status' },
-        expressionAttributeValues: { ':now': todayTimestamp, ':active': 'active' },
+        expressionAttributeValues: { ':now': todayTimestamp, ':scheduled': 'SCHEDULED', ':confirmed': 'CONFIRMED' },
       },
       options: {
         indexName: 'date-index',
       },
       fallback: {
-        filterExpression: '#company_id = :company_id AND (#scheduled_start >= :now OR #scheduled_time >= :now) AND #status = :active',
+        filterExpression:
+          '#company_id = :company_id AND (#scheduled_start >= :now OR #scheduled_time >= :now) AND (#status = :scheduled OR #status = :confirmed)',
         expressionAttributeNames: {
           '#company_id': 'company_id',
           '#scheduled_start': 'scheduled_start',
@@ -96,7 +97,8 @@ export class DashboardService {
         expressionAttributeValues: {
           ':company_id': companyId,
           ':now': todayTimestamp,
-          ':active': 'active',
+          ':scheduled': 'SCHEDULED',
+          ':confirmed': 'CONFIRMED',
         },
         sortBy: 'scheduled_start',
         sortDirection: 'asc',
@@ -171,9 +173,9 @@ export class DashboardService {
       companyId,
       additionalConditions: {
         keyCondition: '#scheduled_start >= :now',
-        filterExpression: '#status IN (:confirmed, :pending)',
+        filterExpression: '#status IN (:scheduled, :confirmed)',
         expressionAttributeNames: { '#scheduled_start': 'scheduled_start', '#status': 'status' },
-        expressionAttributeValues: { ':now': now, ':confirmed': 'confirmed', ':pending': 'pending' },
+        expressionAttributeValues: { ':now': now, ':scheduled': 'SCHEDULED', ':confirmed': 'CONFIRMED' },
       },
       options: {
         indexName: 'date-index',
@@ -182,7 +184,7 @@ export class DashboardService {
       },
       fallback: {
         filterExpression:
-          '#company_id = :company_id AND (#scheduled_start >= :now OR #scheduled_time >= :now) AND (#status = :confirmed OR #status = :pending)',
+          '#company_id = :company_id AND (#scheduled_start >= :now OR #scheduled_time >= :now) AND (#status = :scheduled OR #status = :confirmed)',
         expressionAttributeNames: {
           '#company_id': 'company_id',
           '#scheduled_start': 'scheduled_start',
@@ -192,8 +194,8 @@ export class DashboardService {
         expressionAttributeValues: {
           ':company_id': companyId,
           ':now': now,
-          ':confirmed': 'confirmed',
-          ':pending': 'pending',
+          ':scheduled': 'SCHEDULED',
+          ':confirmed': 'CONFIRMED',
         },
         sortBy: 'scheduled_start',
         sortDirection: 'asc',

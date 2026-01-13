@@ -5,6 +5,7 @@ import { AgentConfigService } from '../agent-config/agent-config.service';
 import { CompanyNumbersService } from '../company-numbers/company-numbers.service';
 import { DynamoDBService } from '../../infrastructure/database/dynamodb.service';
 import { S3Service } from '../../infrastructure/storage/s3.service';
+import { CalcomService } from '../../infrastructure/calcom/calcom.service';
 import { KnowledgeService } from '../knowledge/knowledge.service';
 import {
   Call,
@@ -13,8 +14,11 @@ import {
   Contact,
   ContactSource,
   LeadStatus,
+  AppointmentStatus,
 } from '@handycall/shared';
 import { CreateLeadDto } from './dto/create-lead.dto';
+import { CreateBookingDto } from './dto/create-booking.dto';
+import { GetAvailabilityDto } from './dto/get-availability.dto';
 import { KnowledgeSearchDto } from './dto/knowledge-search.dto';
 import { SaveCallDto } from './dto/save-call.dto';
 
@@ -33,7 +37,8 @@ export class RealtimeToolsService {
     private readonly companyNumbers: CompanyNumbersService,
     private readonly dynamodb: DynamoDBService,
     private readonly s3: S3Service,
-    private readonly knowledge: KnowledgeService
+    private readonly knowledge: KnowledgeService,
+    private readonly calcom: CalcomService
   ) {}
 
   async resolveTenant(toNumberRaw: string) {
@@ -203,5 +208,123 @@ export class RealtimeToolsService {
       text: r?.text,
       similarity: r?.similarity,
     }));
+  }
+
+  async getAvailability(dto: GetAvailabilityDto) {
+    const company_id = dto.company_id;
+    if (!company_id) throw new BadRequestException('company_id is required');
+
+    const company = await this.companies.findById(company_id);
+    if (!company) throw new NotFoundException('Company not found');
+
+    const eventTypeId = company.calcom_event_type_id;
+    if (typeof eventTypeId !== 'number') {
+      throw new BadRequestException('Company calcom_event_type_id is not configured');
+    }
+
+    const timeZone = dto.timezone || company.timezone || 'UTC';
+
+    const schedule = await this.calcom.getSchedule({
+      startTime: dto.start_time,
+      endTime: dto.end_time,
+      eventTypeId,
+      timeZone,
+      isTeamEvent: false,
+    });
+
+    const slots: string[] = [];
+    for (const day of Object.keys(schedule.slotsByDay || {})) {
+      const daySlots = schedule.slotsByDay[day] || [];
+      for (const s of daySlots) {
+        if (typeof s?.time === 'string') slots.push(s.time);
+      }
+    }
+
+    return {
+      ok: true,
+      company_id,
+      event_type_id: eventTypeId,
+      timezone: timeZone,
+      slots,
+    };
+  }
+
+  async createBooking(dto: CreateBookingDto) {
+    const company_id = dto.company_id;
+    if (!company_id) throw new BadRequestException('company_id is required');
+
+    const company = await this.companies.findById(company_id);
+    if (!company) throw new NotFoundException('Company not found');
+
+    const eventTypeId = company.calcom_event_type_id;
+    if (typeof eventTypeId !== 'number') {
+      throw new BadRequestException('Company calcom_event_type_id is not configured');
+    }
+
+    const timeZone = dto.timezone || company.timezone || 'UTC';
+    const customerEmail =
+      (dto.customer_email && dto.customer_email.trim()) ||
+      `caller-${(dto.contact_id || dto.call_id || 'unknown').replace(/[^a-zA-Z0-9]/g, '')}@handycall.invalid`;
+
+    const booking = await this.calcom.bookEvent({
+      eventTypeId,
+      start: dto.start_time,
+      end: dto.end_time,
+      timeZone,
+      language: 'en',
+      responses: {
+        name: dto.customer_name,
+        email: customerEmail,
+        ...(dto.notes ? { notes: dto.notes } : {}),
+      },
+      metadata: {
+        company_id,
+        ...(dto.call_id ? { call_id: dto.call_id } : {}),
+        ...(dto.contact_id ? { contact_id: dto.contact_id } : {}),
+        source: 'handycall',
+      },
+      ...(dto.notes ? { description: dto.notes } : {}),
+    });
+
+    const appointment_id = uuidv4();
+    const now = Date.now();
+
+    const appointment = {
+      appointment_id,
+      company_id,
+      contact_id: dto.contact_id ?? booking?.attendees?.[0]?.id?.toString?.() ?? undefined,
+      call_id: dto.call_id,
+      scheduled_start: new Date(booking.startTime || dto.start_time).getTime(),
+      scheduled_end: new Date(booking.endTime || dto.end_time).getTime(),
+      status: AppointmentStatus.SCHEDULED,
+      service_type: company.service_type ?? 'General',
+      contact_name: dto.customer_name,
+      contact_email: customerEmail,
+      notes: dto.notes,
+      created_by: 'AI',
+      confirmed: true,
+      external_booking_uid: booking?.uid,
+      external_booking_id: booking?.id,
+      created_at: now,
+      updated_at: now,
+    };
+
+    await this.dynamodb.put('appointments', appointment);
+
+    if (dto.call_id) {
+      await this.dynamodb.update(
+        'calls',
+        { company_id, call_id: dto.call_id },
+        { appointment_created: true, appointment_id, updated_at: Date.now() }
+      );
+    }
+
+    return {
+      ok: true,
+      appointment_id,
+      booking_uid: booking?.uid,
+      start_time: booking?.startTime ?? dto.start_time,
+      end_time: booking?.endTime ?? dto.end_time,
+    };
   }
 }

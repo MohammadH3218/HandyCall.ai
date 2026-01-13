@@ -2,6 +2,8 @@ import { BadRequestException, Body, Controller, Post, UseGuards } from '@nestjs/
 import { Public } from '../../common/decorators/public.decorator';
 import { ToolsAuthGuard } from '../../common/guards/tools-auth.guard';
 import { CreateLeadDto } from './dto/create-lead.dto';
+import { CreateBookingDto } from './dto/create-booking.dto';
+import { GetAvailabilityDto } from './dto/get-availability.dto';
 import { KnowledgeSearchDto } from './dto/knowledge-search.dto';
 import { ResolveTenantDto } from './dto/resolve-tenant.dto';
 import { SaveCallDto } from './dto/save-call.dto';
@@ -28,6 +30,16 @@ export class RealtimeToolsController {
   @Post('tools/save_call')
   saveCall(@Body() dto: SaveCallDto) {
     return this.tools.saveCall(dto);
+  }
+
+  @Post('tools/get_availability')
+  getAvailability(@Body() dto: GetAvailabilityDto) {
+    return this.tools.getAvailability(dto);
+  }
+
+  @Post('tools/create_booking')
+  createBooking(@Body() dto: CreateBookingDto) {
+    return this.tools.createBooking(dto);
   }
 
   @Post('tools/knowledge_search')

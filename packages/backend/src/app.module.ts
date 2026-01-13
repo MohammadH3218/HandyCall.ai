@@ -20,6 +20,7 @@ import { CompanyNumbersModule } from './modules/company-numbers/company-numbers.
 import { RealtimeToolsModule } from './modules/realtime-tools/realtime-tools.module';
 import { DatabaseModule } from './infrastructure/database/database.module';
 import { StorageModule } from './infrastructure/storage/storage.module';
+import { CalcomModule } from './infrastructure/calcom/calcom.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -35,6 +36,7 @@ import { AppService } from './app.service';
     // Infrastructure
     DatabaseModule,
     StorageModule,
+    CalcomModule,
 
     // Core modules
     AuthModule,

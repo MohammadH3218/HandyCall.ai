@@ -170,6 +170,24 @@ class ApiClient {
     return response.data ?? response;
   }
 
+  // Appointments endpoints
+  async getAppointments(limit?: number, lastEvaluatedKey?: string): Promise<{ appointments: any[]; lastEvaluatedKey?: any }> {
+    const params = new URLSearchParams();
+    if (limit) params.append('limit', limit.toString());
+    if (lastEvaluatedKey) params.append('lastEvaluatedKey', lastEvaluatedKey);
+
+    const response = await this.request<{ appointments: any[]; lastEvaluatedKey?: any }>(`/appointments?${params.toString()}`, {
+      method: 'GET',
+    });
+    const payload: any = response.data ?? response;
+    return payload || { appointments: [], lastEvaluatedKey: undefined };
+  }
+
+  async getAppointmentById(appointmentId: string): Promise<any> {
+    const response = await this.request<any>(`/appointments/${appointmentId}`, { method: 'GET' });
+    return response.data ?? response;
+  }
+
   // Calls endpoints
   async getCalls(limit?: number, lastEvaluatedKey?: string): Promise<{ calls: any[]; lastEvaluatedKey?: any }> {
     const params = new URLSearchParams();

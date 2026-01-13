@@ -97,6 +97,14 @@ test-*.json
 /BundleLogs/
 /TailLogs*.txt
 /Dockerrun.aws.json
+/Dockerrun.calcom.aws.json
+/ssm-*.json
+/ssm-tmp-*.json
+/r53-*.json
+/rds-postgres-*.log
+/calcom-logs/
+/calcom-*.json
+/calcom-*.txt
 
 # Claude settings (may contain secrets)
 .claude/settings.local.json
