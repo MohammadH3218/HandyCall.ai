@@ -5,8 +5,9 @@ import { apiClient } from '@/lib/api-client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
 import { AudioPlayer } from '@/components/audio-player';
-import { Phone, Search, ChevronRight } from 'lucide-react';
+import { Phone, Search, ChevronRight, Clock, PhoneCall } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 interface Call {
@@ -20,6 +21,11 @@ interface Call {
   transcript?: string;
   recording_url?: string;
   sentiment?: string;
+  lead_captured?: boolean;
+  appointment_created?: boolean;
+  appointment_id?: string;
+  outcome?: string;
+  collected_info?: any;
 }
 
 export default function CallsPage() {
@@ -74,6 +80,7 @@ export default function CallsPage() {
       setIsDialogOpen(true);
     } catch (err: any) {
       console.error('Error loading call details:', err);
+      setError(err?.message || 'Failed to load call');
     }
   };
 
@@ -93,6 +100,30 @@ export default function CallsPage() {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const getOutcome = (call: Call): { label: string; className: string } => {
+    const outcome = (call.outcome || '').toUpperCase();
+    if (outcome === 'APPOINTMENT_BOOKED' || call.appointment_created || call.appointment_id) {
+      return { label: 'Booked', className: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
+    }
+    if (outcome === 'LEAD' || call.lead_captured) {
+      return { label: 'Lead', className: 'bg-amber-50 text-amber-800 border-amber-200' };
+    }
+    if (call.summary || call.transcript || call.collected_info) {
+      return { label: 'Possible Lead', className: 'bg-blue-50 text-blue-700 border-blue-200' };
+    }
+    return { label: 'No Lead', className: 'bg-gray-50 text-gray-700 border-gray-200' };
+  };
+
+  const getStatusBadge = (status?: string): { label: string; className: string } => {
+    const s = (status || '').toUpperCase();
+    if (s === 'COMPLETED') return { label: 'Completed', className: 'bg-gray-50 text-gray-700 border-gray-200' };
+    if (s === 'IN_PROGRESS' || s === 'RINGING')
+      return { label: s.replace('_', ' '), className: 'bg-indigo-50 text-indigo-700 border-indigo-200' };
+    if (s === 'FAILED' || s === 'NO_ANSWER' || s === 'BUSY')
+      return { label: s.replace('_', ' '), className: 'bg-red-50 text-red-700 border-red-200' };
+    return { label: (status || 'Unknown').replace('_', ' '), className: 'bg-gray-50 text-gray-700 border-gray-200' };
   };
 
   const getSentimentColor = (sentiment?: string) => {
@@ -131,21 +162,26 @@ export default function CallsPage() {
         <p className="mt-2 text-gray-600">View and manage your call history</p>
       </div>
 
-      {/* Search Bar */}
-      <div className="mb-6 flex gap-2">
-        <Input
-          type="text"
-          placeholder="Search calls by name, phone, or summary..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-          className="flex-1"
-        />
-        <Button onClick={handleSearch}>
-          <Search className="h-4 w-4 mr-2" />
-          Search
-        </Button>
-      </div>
+      <Card className="mb-6">
+        <CardContent className="pt-6">
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="flex-1">
+              <Input
+                type="text"
+                placeholder="Search calls by name, phone, or summary..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                className="flex-1"
+              />
+            </div>
+            <Button onClick={handleSearch}>
+              <Search className="h-4 w-4 mr-2" />
+              Search
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Calls List */}
       <Card>
@@ -163,43 +199,57 @@ export default function CallsPage() {
               ))}
             </div>
           ) : calls.length > 0 ? (
-            <div className="space-y-4">
+            <div className="space-y-3">
               {calls.map((call) => (
                 <div
                   key={call.call_id}
-                  className="border border-gray-200 rounded-lg p-4 hover:border-blue-500 hover:bg-blue-50 transition-all cursor-pointer"
+                  className="border border-gray-200 rounded-xl p-4 hover:border-blue-500 hover:shadow-sm transition-all cursor-pointer"
                   onClick={() => handleViewCall(call.call_id)}
                 >
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
-                        <div className="bg-blue-100 p-2 rounded-full">
-                          <Phone className="h-4 w-4 text-blue-600" />
-                        </div>
-                        <div>
-                          <h3 className="font-semibold text-gray-900">
-                            {call.caller_name || call.caller_phone}
-                          </h3>
-                          <p className="text-sm text-gray-500">{call.caller_phone}</p>
-                        </div>
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex items-start gap-4 min-w-0 flex-1">
+                      <div className="bg-blue-50 p-2 rounded-full border border-blue-100 mt-0.5">
+                        <PhoneCall className="h-5 w-5 text-blue-600" />
                       </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <div className="font-semibold text-gray-900 truncate">
+                            {call.caller_name ? `${call.caller_name} • ${call.caller_phone}` : call.caller_phone}
+                          </div>
+                          {(() => {
+                            const o = getOutcome(call);
+                            return (
+                              <Badge variant="outline" className={o.className}>
+                                {o.label}
+                              </Badge>
+                            );
+                          })()}
+                          {(() => {
+                            const s = getStatusBadge(call.status);
+                            return (
+                              <Badge variant="outline" className={s.className}>
+                                {s.label}
+                              </Badge>
+                            );
+                          })()}
+                        </div>
 
-                      {call.summary && (
-                        <p className="text-sm text-gray-600 ml-12 mb-2">{call.summary}</p>
-                      )}
+                        <div className="text-sm text-gray-600 flex items-center gap-2 mt-1">
+                          <Clock className="h-4 w-4" />
+                          <span>{formatDate(call.created_at)}</span>
+                          <span className="text-gray-300">•</span>
+                          <span>{formatDuration(call.duration)}</span>
+                        </div>
 
-                      <div className="flex items-center gap-4 ml-12 text-xs text-gray-500">
-                        <span>{formatDate(call.created_at)}</span>
-                        <span>{formatDuration(call.duration)}</span>
-                        {call.sentiment && (
-                          <span className={`px-2 py-1 rounded-full ${getSentimentColor(call.sentiment)}`}>
-                            {call.sentiment}
-                          </span>
+                        {call.summary ? (
+                          <p className="text-sm text-gray-700 mt-2 line-clamp-2">{call.summary}</p>
+                        ) : (
+                          <p className="text-sm text-gray-500 mt-2">No summary yet.</p>
                         )}
                       </div>
                     </div>
 
-                    <ChevronRight className="h-5 w-5 text-gray-400" />
+                    <ChevronRight className="h-5 w-5 text-gray-300 mt-1" />
                   </div>
                 </div>
               ))}
@@ -218,7 +268,7 @@ export default function CallsPage() {
 
       {/* Call Details Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+        <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
           {selectedCall && (
             <>
               <DialogHeader>
@@ -226,56 +276,96 @@ export default function CallsPage() {
               </DialogHeader>
 
               <div className="space-y-4">
-                <div>
-                  <h3 className="font-semibold text-gray-900 mb-2">Caller Information</h3>
-                  <div className="bg-gray-50 p-3 rounded-lg">
-                    <p className="text-sm">
-                      <span className="font-medium">Name:</span>{' '}
-                      {selectedCall.caller_name || 'Unknown'}
-                    </p>
-                    <p className="text-sm">
-                      <span className="font-medium">Phone:</span> {selectedCall.caller_phone}
-                    </p>
-                    <p className="text-sm">
-                      <span className="font-medium">Date:</span>{' '}
-                      {formatDate(selectedCall.created_at)}
-                    </p>
-                    <p className="text-sm">
-                      <span className="font-medium">Duration:</span>{' '}
-                      {formatDuration(selectedCall.duration)}
-                    </p>
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <div className="font-semibold text-gray-900 text-lg">
+                        {selectedCall.caller_name ? `${selectedCall.caller_name} • ` : ''}
+                        {selectedCall.caller_phone}
+                      </div>
+                      {(() => {
+                        const o = getOutcome(selectedCall);
+                        return (
+                          <Badge variant="outline" className={o.className}>
+                            {o.label}
+                          </Badge>
+                        );
+                      })()}
+                      {(() => {
+                        const s = getStatusBadge(selectedCall.status);
+                        return (
+                          <Badge variant="outline" className={s.className}>
+                            {s.label}
+                          </Badge>
+                        );
+                      })()}
+                    </div>
+                    <div className="text-sm text-gray-600 flex items-center gap-2 mt-1">
+                      <Clock className="h-4 w-4" />
+                      <span>{formatDate(selectedCall.created_at)}</span>
+                      <span className="text-gray-300">•</span>
+                      <span>{formatDuration(selectedCall.duration)}</span>
+                    </div>
                   </div>
                 </div>
 
-                {selectedCall.summary && (
-                  <div>
-                    <h3 className="font-semibold text-gray-900 mb-2">Summary</h3>
-                    <p className="text-sm text-gray-700 bg-gray-50 p-3 rounded-lg">
-                      {selectedCall.summary}
-                    </p>
-                  </div>
-                )}
+                <div className="grid gap-4 md:grid-cols-2">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-base">Summary</CardTitle>
+                    </CardHeader>
+                    <CardContent className="text-sm text-gray-700">
+                      {selectedCall.summary ? selectedCall.summary : <span className="text-gray-500">No summary yet.</span>}
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-base">Captured info</CardTitle>
+                    </CardHeader>
+                    <CardContent className="text-sm text-gray-700">
+                      {selectedCall.collected_info ? (
+                        <pre className="whitespace-pre-wrap text-xs bg-gray-50 border border-gray-200 rounded-lg p-3 overflow-auto max-h-40">
+                          {JSON.stringify(selectedCall.collected_info, null, 2)}
+                        </pre>
+                      ) : (
+                        <span className="text-gray-500">No structured info captured.</span>
+                      )}
+                    </CardContent>
+                  </Card>
+                </div>
 
-                {selectedCall.recording_url && (
-                  <div>
-                    <h3 className="font-semibold text-gray-900 mb-2">Recording</h3>
-                    <AudioPlayer
-                      src={selectedCall.recording_url}
-                      title={`Call with ${selectedCall.caller_name || selectedCall.caller_phone}`}
-                    />
-                  </div>
-                )}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base">Recording</CardTitle>
+                    <div className="text-sm text-gray-600">
+                      {selectedCall.recording_url ? 'Replay the call audio.' : 'Recording not available yet.'}
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    {selectedCall.recording_url ? (
+                      <AudioPlayer
+                        src={selectedCall.recording_url}
+                        title={`Call with ${selectedCall.caller_name || selectedCall.caller_phone}`}
+                      />
+                    ) : null}
+                  </CardContent>
+                </Card>
 
-                {selectedCall.transcript && (
-                  <div>
-                    <h3 className="font-semibold text-gray-900 mb-2">Transcript</h3>
-                    <div className="bg-gray-50 p-3 rounded-lg max-h-64 overflow-y-auto">
-                      <pre className="text-sm text-gray-700 whitespace-pre-wrap font-sans">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base">Transcript</CardTitle>
+                    <div className="text-sm text-gray-600">Full conversation text.</div>
+                  </CardHeader>
+                  <CardContent>
+                    {selectedCall.transcript ? (
+                      <pre className="text-sm text-gray-800 whitespace-pre-wrap bg-gray-50 border border-gray-200 rounded-lg p-4 max-h-80 overflow-auto">
                         {selectedCall.transcript}
                       </pre>
-                    </div>
-                  </div>
-                )}
+                    ) : (
+                      <div className="text-sm text-gray-500">Transcript not available yet.</div>
+                    )}
+                  </CardContent>
+                </Card>
               </div>
             </>
           )}

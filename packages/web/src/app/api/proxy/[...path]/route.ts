@@ -95,8 +95,34 @@ async function handleRequest(
     });
 
     // 5. Parse and return NestJS response to the frontend
-    const data = await response.json();
-    return NextResponse.json(data, { status: response.status });
+    const contentType = response.headers.get('content-type') || '';
+    const raw = await response.text();
+
+    // Try JSON first when content-type suggests it, otherwise fall back to raw text.
+    if (contentType.includes('application/json')) {
+      try {
+        const data = raw ? JSON.parse(raw) : null;
+        return NextResponse.json(data, { status: response.status });
+      } catch (e: any) {
+        return NextResponse.json(
+          {
+            error: 'Upstream returned invalid JSON',
+            upstreamStatus: response.status,
+            message: e?.message || 'Failed to parse JSON',
+            raw: raw?.slice(0, 2000) || '',
+          },
+          { status: 502 },
+        );
+      }
+    }
+
+    // Non-JSON response; return as JSON wrapper so the frontend can show it.
+    return NextResponse.json(
+      {
+        raw: raw?.slice(0, 2000) || '',
+      },
+      { status: response.status },
+    );
   } catch (error: any) {
     console.error("Proxy error:", error);
     return NextResponse.json(
@@ -105,4 +131,3 @@ async function handleRequest(
     );
   }
 }
-

@@ -79,7 +79,12 @@ export class KnowledgeService {
 
       // Chunk and embed the content using RAG service
       const fullText = `${data.title}\n\n${data.content}`;
-      await this.ragService.chunkAndStoreKnowledge(companyId, knowledgeId, fullText);
+      try {
+        await this.ragService.chunkAndStoreKnowledge(companyId, knowledgeId, fullText);
+      } catch (embedError: any) {
+        // RAG/embeddings are optional; allow creating knowledge even if embedding infra isn't configured.
+        console.warn('[KnowledgeService] Failed to embed knowledge item; created without embeddings.', embedError);
+      }
 
       return knowledgeItem;
     } catch (error: any) {
@@ -312,8 +317,27 @@ export class KnowledgeService {
 
       return items.sort((a, b) => b.similarity - a.similarity);
     } catch (error: any) {
-      console.error('Error searching knowledge:', error);
-      throw new Error(`Failed to search knowledge: ${error.message}`);
+      // Fallback: simple keyword search over knowledge items (no embeddings required).
+      console.warn('[KnowledgeService] Semantic search failed; falling back to keyword search.', error);
+
+      const q = (query || '').trim().toLowerCase();
+      const all = await this.listKnowledgeItems(companyId, { limit: 500 });
+      const matches = all
+        .map((item) => {
+          const hay = `${item.title}\n${item.content}\n${(item.tags || []).join(' ')}`.toLowerCase();
+          const idx = hay.indexOf(q);
+          const score = idx === -1 ? 0 : 1 / (1 + idx);
+          return { item, score };
+        })
+        .filter((m) => m.score > 0)
+        .sort((a, b) => b.score - a.score)
+        .slice(0, Math.max(1, topK));
+
+      return matches.map((m) => ({
+        item: m.item,
+        text: m.item.content,
+        similarity: m.score,
+      }));
     }
   }
 }

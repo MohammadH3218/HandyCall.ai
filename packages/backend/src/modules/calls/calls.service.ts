@@ -7,6 +7,10 @@ import { SubscriptionPlan } from '@handycall/shared';
 export interface Call {
   call_id: string;
   company_id: string;
+  contact_id?: string;
+  from_number?: string;
+  to_number?: string;
+  direction?: string;
   caller_phone: string;
   caller_name?: string;
   created_at: string;
@@ -17,6 +21,12 @@ export interface Call {
   recording_url?: string;
   sentiment?: string;
   tags?: string[];
+  lead_captured?: boolean;
+  appointment_created?: boolean;
+  appointment_id?: string;
+  outcome?: string;
+  lead_quality?: string;
+  collected_info?: any;
 }
 
 @Injectable()
@@ -66,9 +76,13 @@ export class CallsService {
     const call: any = this.toUiCall(raw);
 
     // Generate presigned URL for recording if it exists
-    const recordingExists = await this.s3Service.recordingExists(companyId, callId);
-    if (recordingExists) {
-      call.recording_url = await this.s3Service.getRecordingUrl(companyId, callId);
+    try {
+      const recordingExists = await this.s3Service.recordingExists(companyId, callId);
+      if (recordingExists) {
+        call.recording_url = await this.s3Service.getRecordingUrl(companyId, callId);
+      }
+    } catch {
+      // Recording storage is optional in MVP; don't fail call detail if S3 permissions/policy are missing.
     }
 
     // Get transcript if available
@@ -156,6 +170,10 @@ export class CallsService {
     return {
       call_id: item.call_id,
       company_id: item.company_id,
+      contact_id: item.contact_id,
+      from_number: item.from_number,
+      to_number: item.to_number,
+      direction: item.direction,
       caller_phone: item.from_number || item.caller_phone || 'Unknown',
       caller_name: item.caller_name,
       created_at: item.created_at ? new Date(item.created_at).toISOString() : createdAtIso,
@@ -166,6 +184,12 @@ export class CallsService {
       tags: item.tags,
       transcript: item.transcript,
       recording_url: item.recording_url,
+      lead_captured: item.lead_captured,
+      appointment_created: item.appointment_created,
+      appointment_id: item.appointment_id,
+      outcome: item.outcome,
+      lead_quality: item.lead_quality,
+      collected_info: item.collected_info,
     };
   }
 
