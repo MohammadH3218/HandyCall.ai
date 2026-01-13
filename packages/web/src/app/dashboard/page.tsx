@@ -108,7 +108,12 @@ export default function DashboardPage() {
       setUpcomingAppointments(appointmentsData || []);
       const limits = (usageData as any)?.limits || null;
       setUsageLimits(limits);
-      const pn = (myNumberData as any)?.phoneNumber ?? (myNumberData as any)?.phone_number ?? null;
+      const pn =
+        (myNumberData as any)?.phoneNumber ??
+        (myNumberData as any)?.phone_number ??
+        (myNumberData as any)?.data?.phoneNumber ??
+        (myNumberData as any)?.data?.phone_number ??
+        null;
       setCompanyPhoneNumber(pn || null);
       if (limits?.minutes?.exceeded) {
         setCallsEnabled(false);

@@ -12,9 +12,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Phone, Search } from 'lucide-react';
+import { ArrowLeft, Phone, Save, Search } from 'lucide-react';
 
 type Company = {
   company_id: string;
@@ -22,11 +23,15 @@ type Company = {
   service_type: string;
   status: string;
   email: string;
+  phone_number?: string;
   timezone: string;
   created_at: number;
   subscription_plan?: string;
   subscription_status?: string;
   cancel_at_period_end?: boolean;
+  subscription_tier?: string;
+  calls_enabled?: boolean;
+  sms_enabled?: boolean;
 };
 
 type AvailableNumber = {
@@ -40,6 +45,23 @@ type CompanyNumber = {
   provider?: string;
   label?: string;
 } | null;
+
+const SERVICE_TYPES: Array<{ value: string; label: string }> = [
+  { value: 'HANDYMAN', label: 'Handyman' },
+  { value: 'PEST_CONTROL', label: 'Pest Control' },
+  { value: 'ELECTRICIAN', label: 'Electrician' },
+  { value: 'PLUMBING', label: 'Plumbing' },
+  { value: 'HVAC', label: 'HVAC' },
+  { value: 'LANDSCAPING', label: 'Landscaping' },
+  { value: 'CLEANING', label: 'Cleaning' },
+  { value: 'OTHER', label: 'Other' },
+];
+
+const COMPANY_STATUSES: Array<{ value: string; label: string }> = [
+  { value: 'ACTIVE', label: 'Active' },
+  { value: 'INACTIVE', label: 'Inactive' },
+  { value: 'SUSPENDED', label: 'Suspended' },
+];
 
 async function fetchJsonWithFallback(url: string, init?: RequestInit) {
   let res = await fetch(url, { ...(init || {}), credentials: 'include' });
@@ -74,6 +96,8 @@ export default function AdminCompanyDetailPage() {
 
   const [company, setCompany] = useState<Company | null>(null);
   const [isPageLoading, setIsPageLoading] = useState(true);
+  const [isSavingCompany, setIsSavingCompany] = useState(false);
+  const [editData, setEditData] = useState<Partial<Company>>({});
 
   const [assignedNumber, setAssignedNumber] = useState<CompanyNumber>(null);
   const [claimDialogOpen, setClaimDialogOpen] = useState(false);
@@ -99,6 +123,17 @@ export default function AdminCompanyDetailPage() {
     try {
       const data = await fetchJsonWithFallback(`/api/proxy/companies/${companyId}`);
       setCompany(data);
+      setEditData({
+        company_name: data.company_name,
+        service_type: data.service_type,
+        email: data.email,
+        phone_number: data.phone_number ?? '',
+        timezone: data.timezone,
+        status: data.status,
+        subscription_tier: (data as any).subscription_tier ?? '',
+        calls_enabled: Boolean((data as any).calls_enabled),
+        sms_enabled: Boolean((data as any).sms_enabled),
+      });
 
       const numberRes = await fetchJsonWithFallback(`/api/proxy/admin/telephony/companies/${companyId}/number`);
       setAssignedNumber(numberRes?.data ?? null);
@@ -110,6 +145,36 @@ export default function AdminCompanyDetailPage() {
       });
     } finally {
       setIsPageLoading(false);
+    }
+  };
+
+  const saveCompanyDetails = async () => {
+    try {
+      setIsSavingCompany(true);
+      const payload: any = {
+        company_name: editData.company_name,
+        service_type: editData.service_type,
+        email: editData.email,
+        phone_number: (editData.phone_number || '').trim() || undefined,
+        timezone: editData.timezone,
+        status: editData.status,
+        subscription_tier: (editData.subscription_tier || '').trim() || undefined,
+        calls_enabled: Boolean(editData.calls_enabled),
+        sms_enabled: Boolean(editData.sms_enabled),
+      };
+
+      const updated = await fetchJsonWithFallback(`/api/proxy/companies/${companyId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      setCompany(updated);
+      toast({ title: 'Saved', description: 'Company updated successfully.' });
+    } catch (err: any) {
+      toast({ title: 'Error', description: err?.message || 'Failed to update company', variant: 'destructive' });
+    } finally {
+      setIsSavingCompany(false);
     }
   };
 
@@ -234,6 +299,128 @@ export default function AdminCompanyDetailPage() {
 
         <Card>
           <CardHeader>
+            <CardTitle>Company details</CardTitle>
+            <CardDescription>Update core company fields and service settings.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="company_name">Company name</Label>
+                <Input
+                  id="company_name"
+                  value={editData.company_name ?? ''}
+                  onChange={(e) => setEditData((p) => ({ ...p, company_name: e.target.value }))}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Service type</Label>
+                <Select
+                  value={String(editData.service_type ?? '')}
+                  onValueChange={(value) => setEditData((p) => ({ ...p, service_type: value }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select service type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {SERVICE_TYPES.map((t) => (
+                      <SelectItem key={t.value} value={t.value}>
+                        {t.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="email">Company email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={editData.email ?? ''}
+                  onChange={(e) => setEditData((p) => ({ ...p, email: e.target.value }))}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="phone_number">Business contact phone (E.164)</Label>
+                <Input
+                  id="phone_number"
+                  value={String(editData.phone_number ?? '')}
+                  onChange={(e) => setEditData((p) => ({ ...p, phone_number: e.target.value }))}
+                  placeholder="+12345678900"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="timezone">Timezone</Label>
+                <Input
+                  id="timezone"
+                  value={String(editData.timezone ?? '')}
+                  onChange={(e) => setEditData((p) => ({ ...p, timezone: e.target.value }))}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Status</Label>
+                <Select
+                  value={String(editData.status ?? '')}
+                  onValueChange={(value) => setEditData((p) => ({ ...p, status: value }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {COMPANY_STATUSES.map((s) => (
+                      <SelectItem key={s.value} value={s.value}>
+                        {s.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="subscription_tier">Subscription tier (internal)</Label>
+                <Input
+                  id="subscription_tier"
+                  value={String(editData.subscription_tier ?? '')}
+                  onChange={(e) => setEditData((p) => ({ ...p, subscription_tier: e.target.value }))}
+                  placeholder="MAX"
+                />
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-3 pt-2">
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={Boolean(editData.calls_enabled)}
+                  onChange={(e) => setEditData((p) => ({ ...p, calls_enabled: e.target.checked }))}
+                />
+                Calls enabled
+              </label>
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={Boolean(editData.sms_enabled)}
+                  onChange={(e) => setEditData((p) => ({ ...p, sms_enabled: e.target.checked }))}
+                />
+                SMS enabled
+              </label>
+            </div>
+
+            <div className="flex justify-end">
+              <Button onClick={saveCompanyDetails} disabled={isSavingCompany}>
+                <Save className="h-4 w-4 mr-2" />
+                {isSavingCompany ? 'Saving...' : 'Save'}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
             <CardTitle>Telephony</CardTitle>
             <CardDescription>Assign a Twilio phone number to route inbound calls to the AI receptionist.</CardDescription>
           </CardHeader>
@@ -316,4 +503,3 @@ export default function AdminCompanyDetailPage() {
     </div>
   );
 }
-

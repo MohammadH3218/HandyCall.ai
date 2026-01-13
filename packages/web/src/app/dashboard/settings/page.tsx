@@ -38,7 +38,12 @@ export default function SettingsPage() {
     apiClient
       .getMyTelephonyNumber()
       .then((res: any) => {
-        const phone = res?.phoneNumber ?? res?.phone_number ?? null;
+        const phone =
+          res?.phoneNumber ??
+          res?.phone_number ??
+          res?.data?.phoneNumber ??
+          res?.data?.phone_number ??
+          null;
         setMyNumber(phone || null);
       })
       .catch(() => setMyNumber(null));
