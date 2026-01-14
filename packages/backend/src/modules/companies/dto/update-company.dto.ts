@@ -43,23 +43,6 @@ export class UpdateCompanyDto {
   @IsString()
   connect_instance_id?: string;
 
-  // Cal.com fields
-  @IsOptional()
-  @IsBoolean()
-  calcom_connected?: boolean;
-
-  @IsOptional()
-  @IsString()
-  calcom_api_key?: string;
-
-  @IsOptional()
-  @IsString()
-  calcom_username?: string;
-
-  @IsOptional()
-  @IsNumber()
-  calcom_event_type_id?: number;
-
   @IsOptional()
   @IsBoolean()
   use_simple_scheduling?: boolean;

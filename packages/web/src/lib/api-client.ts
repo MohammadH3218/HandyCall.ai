@@ -183,8 +183,26 @@ class ApiClient {
     return payload || { appointments: [], lastEvaluatedKey: undefined };
   }
 
+  async getAppointmentsRange(startIso: string, endIso: string): Promise<{ appointments: any[] }> {
+    const params = new URLSearchParams({ start: startIso, end: endIso });
+    const response = await this.request<{ appointments: any[] }>(`/appointments/range?${params.toString()}`, {
+      method: 'GET',
+    });
+    return (response.data ?? response) as { appointments: any[] };
+  }
+
   async getAppointmentById(appointmentId: string): Promise<any> {
     const response = await this.request<any>(`/appointments/${appointmentId}`, { method: 'GET' });
+    return response.data ?? response;
+  }
+
+  async createAppointment(data: any): Promise<any> {
+    const response = await this.request<any>(`/appointments`, { method: 'POST', body: JSON.stringify(data) });
+    return response.data ?? response;
+  }
+
+  async cancelAppointment(appointmentId: string): Promise<any> {
+    const response = await this.request<any>(`/appointments/${appointmentId}`, { method: 'DELETE' });
     return response.data ?? response;
   }
 

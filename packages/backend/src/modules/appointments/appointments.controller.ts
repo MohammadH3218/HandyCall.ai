@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Query } from '@nestjs/common';
 import { CompanyId } from '../../common/decorators/auth.decorator';
 import { AppointmentsService } from './appointments.service';
 
@@ -18,11 +18,34 @@ export class AppointmentsController {
     });
   }
 
+  @Get('range')
+  listAppointmentsInRange(
+    @CompanyId() companyId: string,
+    @Query('start') start?: string,
+    @Query('end') end?: string,
+  ) {
+    const startMs = start ? Date.parse(start) : NaN;
+    const endMs = end ? Date.parse(end) : NaN;
+    return this.appointments.listAppointmentsInRange(companyId, startMs, endMs).then((appointments) => ({
+      appointments,
+    }));
+  }
+
+  @Post()
+  createAppointment(@CompanyId() companyId: string, @Body() body: any) {
+    return this.appointments.createAppointment(companyId, body);
+  }
+
   @Get(':appointmentId')
   getAppointment(
     @CompanyId() companyId: string,
     @Param('appointmentId') appointmentId: string,
   ) {
     return this.appointments.getAppointment(companyId, appointmentId);
+  }
+
+  @Delete(':appointmentId')
+  cancelAppointment(@CompanyId() companyId: string, @Param('appointmentId') appointmentId: string) {
+    return this.appointments.cancelAppointment(companyId, appointmentId);
   }
 }

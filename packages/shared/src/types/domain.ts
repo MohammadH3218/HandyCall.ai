@@ -62,11 +62,6 @@ export interface Company {
   connect_phone_number?: PhoneNumber; // E.164 format (e.g., +16057052030)
   connect_instance_id?: string; // Connect instance ID
 
-  // Cal.com integration
-  calcom_connected?: boolean;
-  calcom_api_key?: string; // Encrypted
-  calcom_username?: string;
-  calcom_event_type_id?: number;
   use_simple_scheduling?: boolean; // Fallback to simple time slots
 
   // Billing fields

@@ -18,9 +18,9 @@ import { AdminModule } from './modules/admin/admin.module';
 import { BillingModule } from './modules/billing/billing.module';
 import { CompanyNumbersModule } from './modules/company-numbers/company-numbers.module';
 import { RealtimeToolsModule } from './modules/realtime-tools/realtime-tools.module';
+import { SchedulingModule } from './modules/scheduling/scheduling.module';
 import { DatabaseModule } from './infrastructure/database/database.module';
 import { StorageModule } from './infrastructure/storage/storage.module';
-import { CalcomModule } from './infrastructure/calcom/calcom.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -36,7 +36,7 @@ import { AppService } from './app.service';
     // Infrastructure
     DatabaseModule,
     StorageModule,
-    CalcomModule,
+    SchedulingModule,
 
     // Core modules
     AuthModule,
