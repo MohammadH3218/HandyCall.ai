@@ -471,6 +471,14 @@ class ApiClient {
     return (response.data ?? response) as { url: string };
   }
 
+  async connectAppleCalendar(email: string, appSpecificPassword: string): Promise<any> {
+    const response = await this.request<any>('/calendar-integration/auth/apple/connect', {
+      method: 'POST',
+      body: JSON.stringify({ email, appSpecificPassword }),
+    });
+    return response.data ?? response;
+  }
+
   async syncCalendar(): Promise<any> {
     const response = await this.request<any>('/calendar-integration/sync', {
       method: 'POST',

@@ -7,19 +7,7 @@ import axios from 'axios';
 const ICALENDAR_BASE = 'https://caldav.icloud.com';
 
 @Injectable()
-export class AppleCalendarService implements OnModuleInit {
-  private appSpecificPassword: string | null = null;
-
-  constructor(
-    private parameterStore: ParameterStoreService,
-    private configService: ConfigService,
-  ) {}
-
-  async onModuleInit() {
-    // Load app-specific password from Parameter Store
-    this.appSpecificPassword = await this.parameterStore.getAppleAppSpecificPassword();
-  }
-
+export class AppleCalendarService {
   /**
    * Get CalDAV URL for a user's calendar
    * Apple iCloud uses CalDAV with app-specific passwords
@@ -31,28 +19,28 @@ export class AppleCalendarService implements OnModuleInit {
   }
 
   /**
-   * Authenticate with CalDAV using app-specific password
+   * Authenticate with CalDAV using user's app-specific password
    */
-  private getAuthHeader(email: string): string {
-    if (!this.appSpecificPassword) {
-      throw new Error('Apple app-specific password not configured');
+  private getAuthHeader(email: string, appSpecificPassword: string): string {
+    if (!appSpecificPassword) {
+      throw new Error('Apple app-specific password is required');
     }
     // Basic auth: email:app-specific-password
-    const credentials = Buffer.from(`${email}:${this.appSpecificPassword}`).toString('base64');
+    const credentials = Buffer.from(`${email}:${appSpecificPassword}`).toString('base64');
     return `Basic ${credentials}`;
   }
 
   /**
    * Get calendar list for a user
    */
-  async getCalendars(email: string): Promise<any[]> {
+  async getCalendars(email: string, appSpecificPassword: string): Promise<any[]> {
     try {
       const url = this.getCalDAVUrl(email);
       const response = await axios.request({
         method: 'PROPFIND',
         url,
         headers: {
-          'Authorization': this.getAuthHeader(email),
+          'Authorization': this.getAuthHeader(email, appSpecificPassword),
           'Depth': '1',
           'Content-Type': 'application/xml',
         },
@@ -78,7 +66,7 @@ export class AppleCalendarService implements OnModuleInit {
   /**
    * Get events from a calendar
    */
-  async getEvents(email: string, calendarPath: string, timeMin: string, timeMax: string): Promise<any[]> {
+  async getEvents(email: string, appSpecificPassword: string, calendarPath: string, timeMin: string, timeMax: string): Promise<any[]> {
     try {
       const url = `${ICALENDAR_BASE}${calendarPath}`;
       
@@ -87,7 +75,7 @@ export class AppleCalendarService implements OnModuleInit {
         method: 'REPORT',
         url,
         headers: {
-          'Authorization': this.getAuthHeader(email),
+          'Authorization': this.getAuthHeader(email, appSpecificPassword),
           'Depth': '1',
           'Content-Type': 'application/xml',
         },
@@ -117,7 +105,7 @@ export class AppleCalendarService implements OnModuleInit {
   /**
    * Create an event in a calendar
    */
-  async createEvent(email: string, calendarPath: string, event: any): Promise<any> {
+  async createEvent(email: string, appSpecificPassword: string, calendarPath: string, event: any): Promise<any> {
     try {
       const eventId = `event-${Date.now()}.ics`;
       const url = `${ICALENDAR_BASE}${calendarPath}${eventId}`;
@@ -126,7 +114,7 @@ export class AppleCalendarService implements OnModuleInit {
       
       const response = await axios.put(url, ical, {
         headers: {
-          'Authorization': this.getAuthHeader(email),
+          'Authorization': this.getAuthHeader(email, appSpecificPassword),
           'Content-Type': 'text/calendar; charset=utf-8',
         },
       });
@@ -141,14 +129,14 @@ export class AppleCalendarService implements OnModuleInit {
   /**
    * Update an event
    */
-  async updateEvent(email: string, calendarPath: string, eventId: string, event: any): Promise<any> {
+  async updateEvent(email: string, appSpecificPassword: string, calendarPath: string, eventId: string, event: any): Promise<any> {
     try {
       const url = `${ICALENDAR_BASE}${calendarPath}${eventId}`;
       const ical = this.generateICalendar(event);
       
       await axios.put(url, ical, {
         headers: {
-          'Authorization': this.getAuthHeader(email),
+          'Authorization': this.getAuthHeader(email, appSpecificPassword),
           'Content-Type': 'text/calendar; charset=utf-8',
         },
       });
@@ -163,12 +151,12 @@ export class AppleCalendarService implements OnModuleInit {
   /**
    * Delete an event
    */
-  async deleteEvent(email: string, calendarPath: string, eventId: string): Promise<void> {
+  async deleteEvent(email: string, appSpecificPassword: string, calendarPath: string, eventId: string): Promise<void> {
     try {
       const url = `${ICALENDAR_BASE}${calendarPath}${eventId}`;
       await axios.delete(url, {
         headers: {
-          'Authorization': this.getAuthHeader(email),
+          'Authorization': this.getAuthHeader(email, appSpecificPassword),
         },
       });
     } catch (err: any) {
@@ -309,9 +297,9 @@ END:VCALENDAR`;
   /**
    * Ensure valid connection (test authentication)
    */
-  async testConnection(email: string): Promise<boolean> {
+  async testConnection(email: string, appSpecificPassword: string): Promise<boolean> {
     try {
-      await this.getCalendars(email);
+      await this.getCalendars(email, appSpecificPassword);
       return true;
     } catch (err) {
       return false;

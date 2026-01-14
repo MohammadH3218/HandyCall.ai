@@ -75,9 +75,9 @@ export class CalendarIntegrationController {
   @Post('auth/apple/connect')
   async connectAppleCalendar(
     @CompanyId() companyId: string,
-    @Body() body: { email: string; calendarPath?: string }
+    @Body() body: { email: string; appSpecificPassword: string; calendarPath?: string }
   ) {
-    await this.calendarService.connectAppleCalendar(companyId, body.email, body.calendarPath);
+    await this.calendarService.connectAppleCalendar(companyId, body.email, body.appSpecificPassword, body.calendarPath);
     return {
       success: true,
       message: 'Apple Calendar connected successfully',

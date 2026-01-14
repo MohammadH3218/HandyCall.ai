@@ -51,7 +51,7 @@ export default function AppointmentsPage() {
   const [setupTimezone, setSetupTimezone] = useState('');
 
   const [isCalendarProviderDialogOpen, setIsCalendarProviderDialogOpen] = useState(false);
-  const [selectedProvider, setSelectedProvider] = useState<'GOOGLE' | 'MICROSOFT' | null>(null);
+  const [selectedProvider, setSelectedProvider] = useState<'GOOGLE' | 'MICROSOFT' | 'APPLE' | null>(null);
 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [createDraft, setCreateDraft] = useState<any>({
@@ -275,6 +275,10 @@ export default function AppointmentsPage() {
     }
   };
 
+  const [appleEmail, setAppleEmail] = useState('');
+  const [applePassword, setApplePassword] = useState('');
+  const [showAppleForm, setShowAppleForm] = useState(false);
+
   const handleConnectExternalCalendar = async () => {
     if (!selectedProvider) {
       setError('Please select a calendar provider');
@@ -287,16 +291,39 @@ export default function AppointmentsPage() {
 
       if (selectedProvider === 'GOOGLE') {
         response = await apiClient.getGoogleCalendarAuthUrl();
+        if (response?.url) {
+          window.location.href = response.url;
+        }
       } else if (selectedProvider === 'MICROSOFT') {
         response = await apiClient.getMicrosoftCalendarAuthUrl();
-      }
-
-      if (response?.url) {
-        // Redirect to OAuth URL
-        window.location.href = response.url;
+        if (response?.url) {
+          window.location.href = response.url;
+        }
+      } else if (selectedProvider === 'APPLE') {
+        // Show Apple form instead of redirecting
+        setShowAppleForm(true);
       }
     } catch (err: any) {
       setError(err?.message || 'Failed to connect calendar');
+    }
+  };
+
+  const handleConnectApple = async () => {
+    if (!appleEmail || !applePassword) {
+      setError('Please enter your Apple ID email and app-specific password');
+      return;
+    }
+
+    try {
+      setError(null);
+      await apiClient.connectAppleCalendar(appleEmail, applePassword);
+      setIsCalendarProviderDialogOpen(false);
+      setShowAppleForm(false);
+      setAppleEmail('');
+      setApplePassword('');
+      await loadData();
+    } catch (err: any) {
+      setError(err?.message || 'Failed to connect Apple Calendar');
     }
   };
 
@@ -693,19 +720,77 @@ export default function AppointmentsPage() {
               <div className="font-semibold text-gray-900">Outlook / Microsoft 365</div>
               <div className="text-sm text-gray-600 mt-1">Connect your Outlook or Microsoft calendar</div>
             </button>
-            <div className="border rounded-lg p-4 bg-gray-50 opacity-60">
-              <div className="font-semibold text-gray-600">Apple iCloud Calendar</div>
-              <div className="text-sm text-gray-500 mt-1">Coming soon</div>
+            <button
+              className={`w-full border rounded-lg p-4 text-left hover:border-blue-500 transition ${
+                selectedProvider === 'APPLE' ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+              }`}
+              onClick={() => setSelectedProvider('APPLE')}
+            >
+              <div className="font-semibold text-gray-900">Apple iCloud Calendar</div>
+              <div className="text-sm text-gray-600 mt-1">Connect your iCloud calendar using app-specific password</div>
+            </button>
+          </div>
+          {showAppleForm ? (
+            <div className="space-y-4 mt-4 border-t pt-4">
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <div className="text-sm font-semibold text-blue-900 mb-2">How to create an app-specific password:</div>
+                <ol className="text-sm text-blue-800 space-y-1 list-decimal list-inside">
+                  <li>Go to <a href="https://appleid.apple.com" target="_blank" rel="noopener noreferrer" className="underline">appleid.apple.com</a></li>
+                  <li>Sign in with your Apple ID</li>
+                  <li>Go to "Sign-In and Security" → "App-Specific Passwords"</li>
+                  <li>Click "Generate an app-specific password"</li>
+                  <li>Enter a label (e.g., "HandyCall Calendar")</li>
+                  <li>Copy the generated password (format: xxxx-xxxx-xxxx-xxxx)</li>
+                </ol>
+              </div>
+              <div className="space-y-3">
+                <div>
+                  <Label htmlFor="apple-email">Apple ID Email</Label>
+                  <Input
+                    id="apple-email"
+                    type="email"
+                    value={appleEmail}
+                    onChange={(e) => setAppleEmail(e.target.value)}
+                    placeholder="your.email@icloud.com"
+                    className="mt-1"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="apple-password">App-Specific Password</Label>
+                  <Input
+                    id="apple-password"
+                    type="password"
+                    value={applePassword}
+                    onChange={(e) => setApplePassword(e.target.value)}
+                    placeholder="xxxx-xxxx-xxxx-xxxx"
+                    className="mt-1"
+                  />
+                  <div className="text-xs text-gray-500 mt-1">This password is stored securely and only used for calendar access</div>
+                </div>
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => {
+                  setShowAppleForm(false);
+                  setAppleEmail('');
+                  setApplePassword('');
+                }}>
+                  Back
+                </Button>
+                <Button onClick={handleConnectApple} disabled={!appleEmail || !applePassword}>
+                  Connect
+                </Button>
+              </div>
             </div>
-          </div>
-          <div className="flex justify-end gap-2 mt-4">
-            <Button variant="outline" onClick={() => setIsCalendarProviderDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleConnectExternalCalendar} disabled={!selectedProvider}>
-              Connect
-            </Button>
-          </div>
+          ) : (
+            <div className="flex justify-end gap-2 mt-4">
+              <Button variant="outline" onClick={() => setIsCalendarProviderDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleConnectExternalCalendar} disabled={!selectedProvider}>
+                Connect
+              </Button>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 

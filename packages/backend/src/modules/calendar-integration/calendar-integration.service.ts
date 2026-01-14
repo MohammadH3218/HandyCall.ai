@@ -218,9 +218,10 @@ export class CalendarIntegrationService {
         });
       } else if (provider === 'APPLE') {
         const email = tokens.email || company.calendar_connection?.email;
+        const appSpecificPassword = tokens.app_specific_password || company.calendar_connection?.app_specific_password;
         const calendarPath = tokens.calendar_path || '/calendars/';
-        if (email) {
-          await this.appleCalendar.createEvent(email, calendarPath, {
+        if (email && appSpecificPassword) {
+          await this.appleCalendar.createEvent(email, appSpecificPassword, calendarPath, {
             summary: `${appointment.contact_name || 'Appointment'} - ${appointment.service_type}`,
             description: appointment.notes,
             start: new Date(appointment.scheduled_start).toISOString(),
@@ -234,16 +235,16 @@ export class CalendarIntegrationService {
     }
   }
 
-  async connectAppleCalendar(companyId: string, email: string, calendarPath?: string): Promise<void> {
-    // Test connection first
-    const isValid = await this.appleCalendar.testConnection(email);
+  async connectAppleCalendar(companyId: string, email: string, appSpecificPassword: string, calendarPath?: string): Promise<void> {
+    // Test connection first with user's credentials
+    const isValid = await this.appleCalendar.testConnection(email, appSpecificPassword);
     if (!isValid) {
       throw new BadRequestException('Invalid Apple Calendar credentials. Please check your email and app-specific password.');
     }
 
     // Get default calendar if not provided
     if (!calendarPath) {
-      const calendars = await this.appleCalendar.getCalendars(email);
+      const calendars = await this.appleCalendar.getCalendars(email, appSpecificPassword);
       calendarPath = calendars[0]?.path || '/calendars/';
     }
 
@@ -253,6 +254,7 @@ export class CalendarIntegrationService {
       calendar_connection: {
         provider: 'APPLE',
         email: email,
+        app_specific_password: appSpecificPassword, // Store user's password securely
         calendar_path: calendarPath,
         connected_at: Date.now(),
       },
@@ -266,10 +268,11 @@ export class CalendarIntegrationService {
   private async syncAppleCalendar(companyId: string, company: any): Promise<void> {
     const connection = company.calendar_connection;
     const email = connection.email;
+    const appSpecificPassword = connection.app_specific_password;
     const calendarPath = connection.calendar_path || '/calendars/';
 
-    if (!email) {
-      throw new BadRequestException('Apple Calendar email not configured');
+    if (!email || !appSpecificPassword) {
+      throw new BadRequestException('Apple Calendar email and app-specific password not configured');
     }
 
     // Pull events from Apple Calendar
@@ -279,6 +282,7 @@ export class CalendarIntegrationService {
 
     const events = await this.appleCalendar.getEvents(
       email,
+      appSpecificPassword,
       calendarPath,
       now.toISOString(),
       futureDate.toISOString()
