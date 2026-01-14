@@ -111,22 +111,46 @@ export class MicrosoftCalendarService implements OnModuleInit {
     // Check if token is expired
     if (tokens.expiry_date && tokens.expiry_date < Date.now()) {
       // Refresh the token
-      const params = new URLSearchParams({
-        client_id: this.clientId,
-        client_secret: this.clientSecret,
-        refresh_token: tokens.refresh_token,
-        grant_type: 'refresh_token',
-      });
+      try {
+        const params = new URLSearchParams({
+          client_id: this.clientId,
+          client_secret: this.clientSecret,
+          refresh_token: tokens.refresh_token,
+          grant_type: 'refresh_token',
+        });
 
-      const response = await axios.post(this.tokenEndpoint, params.toString(), {
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      });
+        const response = await axios.post(this.tokenEndpoint, params.toString(), {
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        });
 
-      return {
-        access_token: response.data.access_token,
-        refresh_token: response.data.refresh_token || tokens.refresh_token,
-        expiry_date: Date.now() + response.data.expires_in * 1000,
-      };
+        return {
+          access_token: response.data.access_token,
+          refresh_token: response.data.refresh_token || tokens.refresh_token,
+          expiry_date: Date.now() + response.data.expires_in * 1000,
+        };
+      } catch (error: any) {
+        // If refresh fails, it likely means permissions were revoked
+        const errorMessage = error.response?.data?.error || error.message || '';
+        const errorDescription = error.response?.data?.error_description || '';
+        
+        console.error(`[MicrosoftCalendarService] Token refresh failed:`, {
+          error: errorMessage,
+          description: errorDescription,
+          status: error.response?.status,
+        });
+        
+        // Re-throw with clear message for revoked permissions
+        if (
+          errorMessage === 'invalid_grant' ||
+          errorMessage === 'invalid_token' ||
+          error.response?.status === 401 ||
+          error.response?.status === 403
+        ) {
+          throw new Error('Calendar permissions revoked - token refresh failed');
+        }
+        
+        throw error;
+      }
     }
 
     return tokens;
@@ -151,7 +175,15 @@ export class MicrosoftCalendarService implements OnModuleInit {
         start: event.start?.dateTime,
         end: event.end?.dateTime,
       }));
-    } catch (err) {
+    } catch (err: any) {
+      // Re-throw authentication/authorization errors so they can be handled upstream
+      if (err.response?.status === 401 || err.response?.status === 403) {
+        console.error(`[MicrosoftCalendarService] Unauthorized/Forbidden when fetching events:`, {
+          status: err.response?.status,
+          error: err.response?.data,
+        });
+        throw new Error('Calendar permissions revoked or token invalid');
+      }
       console.error('Error fetching Microsoft Calendar events:', err);
       return [];
     }

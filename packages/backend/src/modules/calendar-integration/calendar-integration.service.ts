@@ -220,19 +220,119 @@ export class CalendarIntegrationService {
       throw new NotFoundException('Company not found');
     }
 
-    return {
-      connected: company.calendar_mode === 'EXTERNAL' && !!company.calendar_connection,
-      provider: company.calendar_provider || null,
-      connectedAt: company.calendar_connection?.connected_at || null,
-    };
+    // If no external calendar is connected, return disconnected status
+    if (company.calendar_mode !== 'EXTERNAL' || !company.calendar_connection) {
+      return {
+        connected: false,
+        provider: null,
+        connectedAt: null,
+      };
+    }
+
+    // Verify the connection is still valid by testing the access token
+    try {
+      await this.verifyConnection(companyId, company);
+      
+      return {
+        connected: true,
+        provider: company.calendar_provider || null,
+        connectedAt: company.calendar_connection?.connected_at || null,
+      };
+    } catch (error: any) {
+      // Connection is invalid (permissions revoked, token expired, etc.)
+      console.warn(`[CalendarIntegrationService] Connection verification failed for company ${companyId}:`, error.message);
+      
+      // Auto-disconnect the invalid connection
+      await this.disconnectCalendar(companyId);
+      
+      return {
+        connected: false,
+        provider: null,
+        connectedAt: null,
+      };
+    }
+  }
+
+  private async verifyConnection(companyId: string, company: any): Promise<void> {
+    const provider = company.calendar_provider;
+    const tokens = company.calendar_connection;
+
+    if (!tokens || !provider) {
+      throw new Error('No calendar connection to verify');
+    }
+
+    try {
+      if (provider === 'GOOGLE') {
+        // Try to refresh/validate the token - this will fail if permissions are revoked
+        const validTokens = await this.googleCalendar.ensureValidTokens(tokens);
+        // If we get here, token is valid - test by making a minimal API call
+        await this.googleCalendar.getEvents(
+          validTokens.access_token,
+          new Date().toISOString(),
+          new Date(Date.now() + 86400000).toISOString() // Next 24 hours
+        );
+      } else if (provider === 'MICROSOFT') {
+        // Try to refresh/validate the token - this will fail if permissions are revoked
+        const validTokens = await this.microsoftCalendar.ensureValidTokens(tokens);
+        // If we get here, token is valid - test by making a minimal API call
+        await this.microsoftCalendar.getEvents(
+          validTokens.access_token,
+          new Date().toISOString(),
+          new Date(Date.now() + 86400000).toISOString() // Next 24 hours
+        );
+      } else if (provider === 'APPLE') {
+        // For Apple, test the connection directly
+        const email = tokens.email;
+        const appSpecificPassword = tokens.app_specific_password;
+        if (!email || !appSpecificPassword) {
+          throw new Error('Apple Calendar credentials missing');
+        }
+        const isValid = await this.appleCalendar.testConnection(email, appSpecificPassword);
+        if (!isValid) {
+          throw new Error('Apple Calendar connection test failed');
+        }
+      }
+    } catch (error: any) {
+      // Check if it's an authentication/authorization error (permissions revoked)
+      const errorMessage = error.message?.toLowerCase() || '';
+      const errorResponse = error.response?.data || {};
+      const statusCode = error.response?.status;
+      
+      // Common indicators of revoked permissions:
+      // - 401 Unauthorized
+      // - 403 Forbidden
+      // - "invalid_grant" (OAuth token revoked)
+      // - "invalid_token" (token invalid)
+      // - "insufficient_privileges" (permissions revoked)
+      if (
+        statusCode === 401 ||
+        statusCode === 403 ||
+        errorMessage.includes('invalid_grant') ||
+        errorMessage.includes('invalid_token') ||
+        errorMessage.includes('insufficient_privileges') ||
+        errorMessage.includes('unauthorized') ||
+        errorMessage.includes('forbidden') ||
+        errorResponse.error === 'invalid_grant' ||
+        errorResponse.error === 'invalid_token'
+      ) {
+        console.warn(`[CalendarIntegrationService] Permissions appear to be revoked for ${provider} calendar`);
+        throw new Error('Calendar permissions revoked');
+      }
+      
+      // Re-throw other errors
+      throw error;
+    }
   }
 
   async disconnectCalendar(companyId: string): Promise<void> {
+    console.log(`[CalendarIntegrationService] Disconnecting calendar for company: ${companyId}`);
     await this.companiesService.updateCompany(companyId, {
       calendar_provider: 'NONE',
       calendar_mode: 'INTERNAL',
       calendar_connection: null,
+      calendar_setup_completed: false, // Reset setup so user sees setup screen again
     });
+    console.log(`[CalendarIntegrationService] Calendar disconnected and setup reset for company: ${companyId}`);
   }
 
   async pushEventToExternalCalendar(companyId: string, appointment: any): Promise<void> {

@@ -183,6 +183,15 @@ export default function AppointmentsPage() {
     try {
       setIsLoading(true);
       setError(null);
+      
+      // Check calendar connection status first - this will auto-disconnect if permissions are revoked
+      try {
+        await apiClient.getCalendarConnectionStatus();
+      } catch (err: any) {
+        // Connection check failed - might have auto-disconnected, continue loading
+        console.warn('Calendar connection check failed:', err);
+      }
+      
       const [c, a] = await Promise.all([
         apiClient.getMyCompany(),
         apiClient.getAppointmentsRange(visibleRange.start.toISOString(), visibleRange.end.toISOString()),

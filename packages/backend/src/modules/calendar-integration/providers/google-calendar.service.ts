@@ -148,8 +148,27 @@ export class GoogleCalendarService implements OnModuleInit {
     // Check if token is expired
     if (tokens.expiry_date && tokens.expiry_date < Date.now()) {
       // Refresh the token
-      const { credentials } = await this.oauth2Client.refreshAccessToken();
-      return credentials;
+      try {
+        const { credentials } = await this.oauth2Client.refreshAccessToken();
+        return credentials;
+      } catch (error: any) {
+        // If refresh fails, it likely means permissions were revoked
+        console.error(`[GoogleCalendarService] Token refresh failed:`, {
+          error: error.message,
+          code: error.code,
+        });
+        
+        // Re-throw with clear message for revoked permissions
+        if (
+          error.message?.includes('invalid_grant') ||
+          error.message?.includes('invalid_token') ||
+          error.code === 'invalid_grant'
+        ) {
+          throw new Error('Calendar permissions revoked - token refresh failed');
+        }
+        
+        throw error;
+      }
     }
 
     return tokens;
@@ -181,7 +200,15 @@ export class GoogleCalendarService implements OnModuleInit {
         start: event.start?.dateTime || event.start?.date,
         end: event.end?.dateTime || event.end?.date,
       }));
-    } catch (err) {
+    } catch (err: any) {
+      // Re-throw authentication/authorization errors so they can be handled upstream
+      if (err.code === 401 || err.code === 403) {
+        console.error(`[GoogleCalendarService] Unauthorized/Forbidden when fetching events:`, {
+          code: err.code,
+          message: err.message,
+        });
+        throw new Error('Calendar permissions revoked or token invalid');
+      }
       console.error('Error fetching Google Calendar events:', err);
       return [];
     }
