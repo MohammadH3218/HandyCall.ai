@@ -125,4 +125,9 @@ export class ParameterStoreService implements OnModuleInit {
            this.configService.get<string>('MICROSOFT_REDIRECT_URI') ||
            `${this.configService.get<string>('BACKEND_URL')}/calendar-integration/auth/microsoft/callback` || null;
   }
+
+  async getAppleAppSpecificPassword(): Promise<string | null> {
+    return this.getParameter('/handycall/oauth/apple/app-specific-password', true) ||
+           this.configService.get<string>('APPLE_APP_SPECIFIC_PASSWORD') || null;
+  }
 }

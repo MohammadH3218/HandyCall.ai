@@ -3,6 +3,7 @@ import { CompaniesService } from '../companies/companies.service';
 import { AppointmentsService } from '../appointments/appointments.service';
 import { GoogleCalendarService } from './providers/google-calendar.service';
 import { MicrosoftCalendarService } from './providers/microsoft-calendar.service';
+import { AppleCalendarService } from './providers/apple-calendar.service';
 
 @Injectable()
 export class CalendarIntegrationService {
@@ -11,6 +12,7 @@ export class CalendarIntegrationService {
     private appointmentsService: AppointmentsService,
     private googleCalendar: GoogleCalendarService,
     private microsoftCalendar: MicrosoftCalendarService,
+    private appleCalendar: AppleCalendarService,
   ) {}
 
   async getGoogleAuthUrl(companyId: string): Promise<string> {
@@ -80,6 +82,8 @@ export class CalendarIntegrationService {
       await this.syncGoogleCalendar(companyId, company);
     } else if (provider === 'MICROSOFT') {
       await this.syncMicrosoftCalendar(companyId, company);
+    } else if (provider === 'APPLE') {
+      await this.syncAppleCalendar(companyId, company);
     } else {
       throw new BadRequestException(`Unsupported provider: ${provider}`);
     }
@@ -212,10 +216,88 @@ export class CalendarIntegrationService {
           start: new Date(appointment.scheduled_start).toISOString(),
           end: new Date(appointment.scheduled_end).toISOString(),
         });
+      } else if (provider === 'APPLE') {
+        const email = tokens.email || company.calendar_connection?.email;
+        const calendarPath = tokens.calendar_path || '/calendars/';
+        if (email) {
+          await this.appleCalendar.createEvent(email, calendarPath, {
+            summary: `${appointment.contact_name || 'Appointment'} - ${appointment.service_type}`,
+            description: appointment.notes,
+            start: new Date(appointment.scheduled_start).toISOString(),
+            end: new Date(appointment.scheduled_end).toISOString(),
+          });
+        }
       }
     } catch (err) {
       console.error('Error pushing event to external calendar:', err);
       // Don't fail the appointment creation if external push fails
+    }
+  }
+
+  async connectAppleCalendar(companyId: string, email: string, calendarPath?: string): Promise<void> {
+    // Test connection first
+    const isValid = await this.appleCalendar.testConnection(email);
+    if (!isValid) {
+      throw new BadRequestException('Invalid Apple Calendar credentials. Please check your email and app-specific password.');
+    }
+
+    // Get default calendar if not provided
+    if (!calendarPath) {
+      const calendars = await this.appleCalendar.getCalendars(email);
+      calendarPath = calendars[0]?.path || '/calendars/';
+    }
+
+    await this.companiesService.updateCompany(companyId, {
+      calendar_provider: 'APPLE',
+      calendar_mode: 'EXTERNAL',
+      calendar_connection: {
+        provider: 'APPLE',
+        email: email,
+        calendar_path: calendarPath,
+        connected_at: Date.now(),
+      },
+      calendar_setup_completed: true,
+    });
+
+    // Initial sync
+    await this.syncCalendar(companyId);
+  }
+
+  private async syncAppleCalendar(companyId: string, company: any): Promise<void> {
+    const connection = company.calendar_connection;
+    const email = connection.email;
+    const calendarPath = connection.calendar_path || '/calendars/';
+
+    if (!email) {
+      throw new BadRequestException('Apple Calendar email not configured');
+    }
+
+    // Pull events from Apple Calendar
+    const now = new Date();
+    const futureDate = new Date();
+    futureDate.setDate(futureDate.getDate() + 180); // 6 months
+
+    const events = await this.appleCalendar.getEvents(
+      email,
+      calendarPath,
+      now.toISOString(),
+      futureDate.toISOString()
+    );
+
+    // Import events into our system
+    for (const event of events) {
+      try {
+        await this.appointmentsService.createAppointment(companyId, {
+          scheduled_start: new Date(event.start).getTime(),
+          scheduled_end: new Date(event.end).getTime(),
+          contact_name: event.summary || 'External Event',
+          service_type: 'Synced from Apple Calendar',
+          notes: event.description,
+          created_by: 'USER',
+        } as any);
+      } catch (err) {
+        console.error('Error importing event:', err);
+      }
     }
   }
 }

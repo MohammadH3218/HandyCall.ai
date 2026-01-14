@@ -12,7 +12,7 @@ export class CalendarIntegrationController {
       providers: [
         { id: 'GOOGLE', name: 'Google Calendar', available: true },
         { id: 'MICROSOFT', name: 'Outlook/Microsoft 365', available: true },
-        { id: 'APPLE', name: 'Apple iCloud', available: false, comingSoon: true },
+        { id: 'APPLE', name: 'Apple iCloud', available: true },
       ],
     };
   }
@@ -70,5 +70,17 @@ export class CalendarIntegrationController {
   async disconnectCalendar(@CompanyId() companyId: string) {
     await this.calendarService.disconnectCalendar(companyId);
     return { success: true, message: 'Calendar disconnected' };
+  }
+
+  @Post('auth/apple/connect')
+  async connectAppleCalendar(
+    @CompanyId() companyId: string,
+    @Body() body: { email: string; calendarPath?: string }
+  ) {
+    await this.calendarService.connectAppleCalendar(companyId, body.email, body.calendarPath);
+    return {
+      success: true,
+      message: 'Apple Calendar connected successfully',
+    };
   }
 }
