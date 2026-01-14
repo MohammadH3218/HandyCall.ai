@@ -36,6 +36,15 @@ export class CalendarIntegrationController {
     };
   }
 
+  // Alias route for cal.handycall.org callback (legacy cal.com structure)
+  @Get('integrations/googlecalendar/callback')
+  async handleGoogleCallbackLegacy(
+    @Query('code') code: string,
+    @Query('state') state: string
+  ) {
+    return this.handleGoogleCallback(code, state);
+  }
+
   @Get('auth/microsoft/url')
   async getMicrosoftAuthUrl(@CompanyId() companyId: string) {
     const url = await this.calendarService.getMicrosoftAuthUrl(companyId);
