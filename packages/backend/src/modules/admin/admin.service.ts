@@ -152,4 +152,50 @@ export class AdminService {
     activities.sort((a, b) => b.timestamp - a.timestamp);
     return activities.slice(0, limit);
   }
+
+  /**
+   * Cancel a company's subscription at period end
+   */
+  async cancelSubscription(companyId: string): Promise<{ success: boolean; message: string }> {
+    const company = await this.companiesService.findById(companyId);
+    if (!company) {
+      throw new Error('Company not found');
+    }
+
+    // Update company status to indicate pending cancellation
+    await this.dynamodb.update('companies', { company_id: companyId }, {
+      subscription_status: 'CANCELING',
+      subscription_cancel_at_period_end: true,
+      updated_at: Date.now(),
+    });
+
+    return {
+      success: true,
+      message: 'Subscription will be canceled at the end of the current billing period',
+    };
+  }
+
+  /**
+   * Suspend a company's account immediately
+   */
+  async suspendCompany(companyId: string): Promise<{ success: boolean; message: string }> {
+    const company = await this.companiesService.findById(companyId);
+    if (!company) {
+      throw new Error('Company not found');
+    }
+
+    // Suspend the company - disable all services
+    await this.dynamodb.update('companies', { company_id: companyId }, {
+      status: 'SUSPENDED',
+      calls_enabled: false,
+      sms_enabled: false,
+      suspended_at: Date.now(),
+      updated_at: Date.now(),
+    });
+
+    return {
+      success: true,
+      message: 'Account has been suspended and all services disabled',
+    };
+  }
 }

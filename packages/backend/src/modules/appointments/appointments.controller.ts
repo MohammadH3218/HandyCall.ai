@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Put, Query } from '@nestjs/common';
 import { CompanyId } from '../../common/decorators/auth.decorator';
 import { AppointmentsService } from './appointments.service';
 
@@ -44,8 +44,17 @@ export class AppointmentsController {
     return this.appointments.getAppointment(companyId, appointmentId);
   }
 
+  @Put(':appointmentId')
+  updateAppointment(
+    @CompanyId() companyId: string,
+    @Param('appointmentId') appointmentId: string,
+    @Body() body: any,
+  ) {
+    return this.appointments.updateAppointment(companyId, appointmentId, body);
+  }
+
   @Delete(':appointmentId')
-  cancelAppointment(@CompanyId() companyId: string, @Param('appointmentId') appointmentId: string) {
-    return this.appointments.cancelAppointment(companyId, appointmentId);
+  deleteAppointment(@CompanyId() companyId: string, @Param('appointmentId') appointmentId: string) {
+    return this.appointments.deleteAppointment(companyId, appointmentId);
   }
 }

@@ -24,6 +24,19 @@ export class CalendarIntegrationService {
     }
   }
 
+  async getOAuthDebugInfo(): Promise<{
+    google: { clientId: string; clientSecret: string; redirectUri: string };
+    microsoft: { clientId: string; clientSecret: string; redirectUri: string };
+  }> {
+    const googleConfig = await this.googleCalendar.getOAuthConfig();
+    const microsoftConfig = await this.microsoftCalendar.getOAuthConfig();
+
+    return {
+      google: googleConfig,
+      microsoft: microsoftConfig,
+    };
+  }
+
   async handleGoogleCallback(code: string, state: string): Promise<void> {
     const companyId = state; // State contains companyId
     const tokens = await this.googleCalendar.exchangeCodeForTokens(code);
@@ -335,20 +348,81 @@ export class CalendarIntegrationService {
     console.log(`[CalendarIntegrationService] Calendar disconnected and setup reset for company: ${companyId}`);
   }
 
-  async pushEventToExternalCalendar(companyId: string, appointment: any): Promise<void> {
+  async pushEventToExternalCalendar(companyId: string, appointment: any): Promise<any> {
     const company = await this.companiesService.findById(companyId);
 
     if (!company || !company.calendar_connection || company.calendar_mode !== 'EXTERNAL') {
-      return; // No external calendar connected, skip push
+      return null; // No external calendar connected, skip push
     }
 
     const provider = company.calendar_provider;
     const tokens = company.calendar_connection;
 
     try {
+      let externalEventId: string | null = null;
+
       if (provider === 'GOOGLE') {
         const validTokens = await this.googleCalendar.ensureValidTokens(tokens);
-        await this.googleCalendar.createEvent(validTokens.access_token, {
+        const result = await this.googleCalendar.createEvent(validTokens.access_token, {
+          summary: `${appointment.contact_name || 'Appointment'} - ${appointment.service_type}`,
+          description: appointment.notes,
+          start: new Date(appointment.scheduled_start).toISOString(),
+          end: new Date(appointment.scheduled_end).toISOString(),
+        });
+        externalEventId = result?.id || null;
+      } else if (provider === 'MICROSOFT') {
+        const validTokens = await this.microsoftCalendar.ensureValidTokens(tokens);
+        const result = await this.microsoftCalendar.createEvent(validTokens.access_token, {
+          summary: `${appointment.contact_name || 'Appointment'} - ${appointment.service_type}`,
+          description: appointment.notes,
+          start: new Date(appointment.scheduled_start).toISOString(),
+          end: new Date(appointment.scheduled_end).toISOString(),
+        });
+        externalEventId = result?.id || null;
+      } else if (provider === 'APPLE') {
+        const email = tokens.email || company.calendar_connection?.email;
+        const appSpecificPassword = tokens.app_specific_password || company.calendar_connection?.app_specific_password;
+        const calendarPath = tokens.calendar_path || '/calendars/';
+        if (email && appSpecificPassword) {
+          const result = await this.appleCalendar.createEvent(email, appSpecificPassword, calendarPath, {
+            summary: `${appointment.contact_name || 'Appointment'} - ${appointment.service_type}`,
+            description: appointment.notes,
+            start: new Date(appointment.scheduled_start).toISOString(),
+            end: new Date(appointment.scheduled_end).toISOString(),
+          });
+          externalEventId = result?.id || null;
+        }
+      }
+
+      return { externalEventId };
+    } catch (err) {
+      console.error('Error pushing event to external calendar:', err);
+      // Don't fail the appointment creation if external push fails
+      return null;
+    }
+  }
+
+  async updateEventInExternalCalendar(companyId: string, appointment: any): Promise<void> {
+    const company = await this.companiesService.findById(companyId);
+
+    if (!company || !company.calendar_connection || company.calendar_mode !== 'EXTERNAL') {
+      return; // No external calendar connected, skip update
+    }
+
+    const provider = company.calendar_provider;
+    const tokens = company.calendar_connection;
+    const externalEventId = appointment.external_event_id;
+
+    // If no external event ID, try to create instead
+    if (!externalEventId) {
+      await this.pushEventToExternalCalendar(companyId, appointment);
+      return;
+    }
+
+    try {
+      if (provider === 'GOOGLE') {
+        const validTokens = await this.googleCalendar.ensureValidTokens(tokens);
+        await this.googleCalendar.updateEvent(validTokens.access_token, externalEventId, {
           summary: `${appointment.contact_name || 'Appointment'} - ${appointment.service_type}`,
           description: appointment.notes,
           start: new Date(appointment.scheduled_start).toISOString(),
@@ -356,7 +430,7 @@ export class CalendarIntegrationService {
         });
       } else if (provider === 'MICROSOFT') {
         const validTokens = await this.microsoftCalendar.ensureValidTokens(tokens);
-        await this.microsoftCalendar.createEvent(validTokens.access_token, {
+        await this.microsoftCalendar.updateEvent(validTokens.access_token, externalEventId, {
           summary: `${appointment.contact_name || 'Appointment'} - ${appointment.service_type}`,
           description: appointment.notes,
           start: new Date(appointment.scheduled_start).toISOString(),
@@ -367,7 +441,7 @@ export class CalendarIntegrationService {
         const appSpecificPassword = tokens.app_specific_password || company.calendar_connection?.app_specific_password;
         const calendarPath = tokens.calendar_path || '/calendars/';
         if (email && appSpecificPassword) {
-          await this.appleCalendar.createEvent(email, appSpecificPassword, calendarPath, {
+          await this.appleCalendar.updateEvent(email, appSpecificPassword, calendarPath, externalEventId, {
             summary: `${appointment.contact_name || 'Appointment'} - ${appointment.service_type}`,
             description: appointment.notes,
             start: new Date(appointment.scheduled_start).toISOString(),
@@ -376,8 +450,45 @@ export class CalendarIntegrationService {
         }
       }
     } catch (err) {
-      console.error('Error pushing event to external calendar:', err);
-      // Don't fail the appointment creation if external push fails
+      console.error('Error updating event in external calendar:', err);
+      // Don't fail the appointment update if external sync fails
+    }
+  }
+
+  async deleteEventFromExternalCalendar(companyId: string, appointment: any): Promise<void> {
+    const company = await this.companiesService.findById(companyId);
+
+    if (!company || !company.calendar_connection || company.calendar_mode !== 'EXTERNAL') {
+      return; // No external calendar connected, skip delete
+    }
+
+    const provider = company.calendar_provider;
+    const tokens = company.calendar_connection;
+    const externalEventId = appointment.external_event_id;
+
+    // If no external event ID, nothing to delete
+    if (!externalEventId) {
+      return;
+    }
+
+    try {
+      if (provider === 'GOOGLE') {
+        const validTokens = await this.googleCalendar.ensureValidTokens(tokens);
+        await this.googleCalendar.deleteEvent(validTokens.access_token, externalEventId);
+      } else if (provider === 'MICROSOFT') {
+        const validTokens = await this.microsoftCalendar.ensureValidTokens(tokens);
+        await this.microsoftCalendar.deleteEvent(validTokens.access_token, externalEventId);
+      } else if (provider === 'APPLE') {
+        const email = tokens.email || company.calendar_connection?.email;
+        const appSpecificPassword = tokens.app_specific_password || company.calendar_connection?.app_specific_password;
+        const calendarPath = tokens.calendar_path || '/calendars/';
+        if (email && appSpecificPassword) {
+          await this.appleCalendar.deleteEvent(email, appSpecificPassword, calendarPath, externalEventId);
+        }
+      }
+    } catch (err) {
+      console.error('Error deleting event from external calendar:', err);
+      // Don't fail the appointment delete if external sync fails
     }
   }
 

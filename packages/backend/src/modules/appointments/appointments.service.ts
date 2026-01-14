@@ -1,12 +1,17 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, Inject, forwardRef } from '@nestjs/common';
 import { DynamoDBService } from '../../infrastructure/database/dynamodb.service';
 import { v4 as uuidv4 } from 'uuid';
 import { BadRequestException } from '@nestjs/common';
 import { AppointmentStatus } from '@handycall/shared';
+import { CalendarIntegrationService } from '../calendar-integration/calendar-integration.service';
 
 @Injectable()
 export class AppointmentsService {
-  constructor(private dynamodb: DynamoDBService) {}
+  constructor(
+    private dynamodb: DynamoDBService,
+    @Inject(forwardRef(() => CalendarIntegrationService))
+    private calendarIntegration: CalendarIntegrationService,
+  ) {}
 
   private async findOrCreateContactId(
     companyId: string,
@@ -262,7 +267,71 @@ export class AppointmentsService {
     };
 
     await this.dynamodb.put('appointments', appointment);
+
+    // Sync to external calendar if connected
+    try {
+      await this.calendarIntegration.pushEventToExternalCalendar(companyId, appointment);
+    } catch (err) {
+      console.error('Error syncing appointment to external calendar:', err);
+      // Don't fail appointment creation if sync fails
+    }
+
     return appointment;
+  }
+
+  async updateAppointment(
+    companyId: string,
+    appointmentId: string,
+    input: {
+      scheduled_start?: number;
+      scheduled_end?: number;
+      contact_name?: string;
+      contact_email?: string;
+      contact_phone?: string;
+      service_type?: string;
+      notes?: string;
+      address?: { street?: string; city?: string; state?: string; zip?: string };
+      price_cents?: number;
+      currency?: string;
+      status?: string;
+    }
+  ) {
+    const appt = await this.getAppointment(companyId, appointmentId);
+    const now = Date.now();
+
+    const updateFields: any = {
+      updated_at: now,
+    };
+
+    if (input.scheduled_start !== undefined) updateFields.scheduled_start = input.scheduled_start;
+    if (input.scheduled_end !== undefined) updateFields.scheduled_end = input.scheduled_end;
+    if (input.contact_name !== undefined) updateFields.contact_name = input.contact_name;
+    if (input.contact_email !== undefined) updateFields.contact_email = input.contact_email;
+    if (input.contact_phone !== undefined) updateFields.contact_phone = input.contact_phone;
+    if (input.service_type !== undefined) updateFields.service_type = input.service_type;
+    if (input.notes !== undefined) updateFields.notes = input.notes;
+    if (input.address !== undefined) updateFields.address = input.address;
+    if (input.price_cents !== undefined) updateFields.price_cents = input.price_cents;
+    if (input.currency !== undefined) updateFields.currency = input.currency;
+    if (input.status !== undefined) updateFields.status = input.status;
+
+    const updated = await this.dynamodb.update(
+      'appointments',
+      { company_id: companyId, appointment_id: appointmentId },
+      updateFields
+    );
+
+    const updatedAppointment = { ...appt, ...updateFields };
+
+    // Sync to external calendar if connected
+    try {
+      await this.calendarIntegration.updateEventInExternalCalendar(companyId, updatedAppointment);
+    } catch (err) {
+      console.error('Error syncing updated appointment to external calendar:', err);
+      // Don't fail appointment update if sync fails
+    }
+
+    return updated ?? updatedAppointment;
   }
 
   async cancelAppointment(companyId: string, appointmentId: string) {
@@ -274,5 +343,25 @@ export class AppointmentsService {
       { status: AppointmentStatus.CANCELLED, updated_at: now }
     );
     return updated ?? { ...appt, status: AppointmentStatus.CANCELLED, updated_at: now };
+  }
+
+  async deleteAppointment(companyId: string, appointmentId: string) {
+    const appt = await this.getAppointment(companyId, appointmentId);
+
+    // Delete from external calendar if connected
+    try {
+      await this.calendarIntegration.deleteEventFromExternalCalendar(companyId, appt);
+    } catch (err) {
+      console.error('Error deleting appointment from external calendar:', err);
+      // Don't fail appointment deletion if sync fails
+    }
+
+    // Delete from database
+    await this.dynamodb.delete('appointments', {
+      company_id: companyId,
+      appointment_id: appointmentId,
+    });
+
+    return { deleted: true, appointment_id: appointmentId };
   }
 }

@@ -4,18 +4,21 @@ import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
 
 // CalDAV endpoints for iCloud
-const ICALENDAR_BASE = 'https://caldav.icloud.com';
+// Apple uses a discovery endpoint to find the actual CalDAV server
+const ICALENDAR_DISCOVERY = 'https://caldav.icloud.com';
+const ICALENDAR_BASE = 'https://p01-caldav.icloud.com';
 
 @Injectable()
 export class AppleCalendarService {
   /**
    * Get CalDAV URL for a user's calendar
    * Apple iCloud uses CalDAV with app-specific passwords
+   * The format is: https://p{XX}-caldav.icloud.com/{USER_ID}/calendars/
+   * Since we don't have the user ID initially, we use the discovery endpoint
    */
   getCalDAVUrl(email: string): string {
-    // Extract username from email (before @)
-    const username = email.split('@')[0];
-    return `${ICALENDAR_BASE}/${username}/calendars/`;
+    // Start with the discovery/principal endpoint
+    return `${ICALENDAR_DISCOVERY}/`;
   }
 
   /**
@@ -26,8 +29,49 @@ export class AppleCalendarService {
       throw new Error('Apple app-specific password is required');
     }
     // Basic auth: email:app-specific-password
-    const credentials = Buffer.from(`${email}:${appSpecificPassword}`).toString('base64');
+    // Remove any hyphens from the app-specific password
+    const cleanPassword = appSpecificPassword.replace(/-/g, '');
+    const credentials = Buffer.from(`${email}:${cleanPassword}`).toString('base64');
     return `Basic ${credentials}`;
+  }
+
+  /**
+   * Discover the user's principal URL
+   */
+  async discoverPrincipal(email: string, appSpecificPassword: string): Promise<string> {
+    try {
+      // First, try the .well-known endpoint for discovery
+      const response = await axios.request({
+        method: 'PROPFIND',
+        url: `${ICALENDAR_DISCOVERY}/.well-known/caldav`,
+        headers: {
+          'Authorization': this.getAuthHeader(email, appSpecificPassword),
+          'Depth': '0',
+          'Content-Type': 'application/xml; charset=utf-8',
+        },
+        data: `<?xml version="1.0" encoding="UTF-8"?>
+          <d:propfind xmlns:d="DAV:">
+            <d:prop>
+              <d:current-user-principal/>
+            </d:prop>
+          </d:propfind>`,
+        maxRedirects: 5,
+        validateStatus: (status) => status < 500,
+      });
+
+      // Extract principal URL from response
+      const principalMatch = response.data.match(/<d:href[^>]*>([^<]+)<\/d:href>/i);
+      if (principalMatch) {
+        return principalMatch[1];
+      }
+
+      // Fallback: try using the email directly
+      return `${ICALENDAR_BASE}/${email.split('@')[0]}/calendars/`;
+    } catch (err: any) {
+      console.error('[AppleCalendarService] Discovery failed:', err.message);
+      // Fallback URL
+      return `${ICALENDAR_BASE}/`;
+    }
   }
 
   /**
@@ -35,31 +79,46 @@ export class AppleCalendarService {
    */
   async getCalendars(email: string, appSpecificPassword: string): Promise<any[]> {
     try {
-      const url = this.getCalDAVUrl(email);
+      // Try direct calendar access first
+      const calendarsUrl = `${ICALENDAR_BASE}/${email}/calendars/`;
+
       const response = await axios.request({
         method: 'PROPFIND',
-        url,
+        url: calendarsUrl,
         headers: {
           'Authorization': this.getAuthHeader(email, appSpecificPassword),
           'Depth': '1',
-          'Content-Type': 'application/xml',
+          'Content-Type': 'application/xml; charset=utf-8',
         },
         data: `<?xml version="1.0" encoding="UTF-8"?>
-          <d:propfind xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav">
-            <d:prop>
-              <d:displayname/>
-              <c:calendar-description/>
-              <d:resourcetype/>
-            </d:prop>
-          </d:propfind>`,
+<d:propfind xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav">
+  <d:prop>
+    <d:displayname/>
+    <c:calendar-description/>
+    <d:resourcetype/>
+  </d:prop>
+</d:propfind>`,
+        validateStatus: (status) => status < 500,
       });
 
+      if (response.status === 401 || response.status === 403) {
+        throw new Error('Invalid credentials. Please ensure you are using an app-specific password generated at appleid.apple.com');
+      }
+
       // Parse CalDAV response to extract calendar list
-      // This is a simplified version - you may need more robust XML parsing
       return this.parseCalendarList(response.data);
     } catch (err: any) {
-      console.error('Error fetching Apple Calendar list:', err.response?.data || err.message);
-      throw new Error(`Failed to fetch calendars: ${err.message}`);
+      console.error('[AppleCalendarService] Error fetching calendars:', {
+        status: err.response?.status,
+        message: err.message,
+        data: err.response?.data?.substring?.(0, 500),
+      });
+
+      if (err.response?.status === 401 || err.response?.status === 403) {
+        throw new Error('Invalid Apple Calendar credentials. Please check your email and app-specific password.');
+      }
+
+      throw new Error(`Failed to connect to Apple Calendar: ${err.message}`);
     }
   }
 
@@ -299,9 +358,47 @@ END:VCALENDAR`;
    */
   async testConnection(email: string, appSpecificPassword: string): Promise<boolean> {
     try {
-      await this.getCalendars(email, appSpecificPassword);
-      return true;
-    } catch (err) {
+      // Clean the password (remove hyphens)
+      const cleanPassword = appSpecificPassword.replace(/-/g, '');
+
+      // Try to access the principal URL to verify credentials
+      const response = await axios.request({
+        method: 'OPTIONS',
+        url: `${ICALENDAR_DISCOVERY}`,
+        headers: {
+          'Authorization': this.getAuthHeader(email, cleanPassword),
+        },
+        validateStatus: (status) => status < 500,
+        timeout: 10000,
+      });
+
+      // If we get a 200/207, credentials are valid
+      if (response.status === 200 || response.status === 207) {
+        return true;
+      }
+
+      // Try PROPFIND as a fallback test
+      const propfindResponse = await axios.request({
+        method: 'PROPFIND',
+        url: `${ICALENDAR_DISCOVERY}/`,
+        headers: {
+          'Authorization': this.getAuthHeader(email, cleanPassword),
+          'Depth': '0',
+          'Content-Type': 'application/xml; charset=utf-8',
+        },
+        data: `<?xml version="1.0" encoding="UTF-8"?>
+<d:propfind xmlns:d="DAV:">
+  <d:prop>
+    <d:current-user-principal/>
+  </d:prop>
+</d:propfind>`,
+        validateStatus: (status) => status < 500,
+        timeout: 10000,
+      });
+
+      return propfindResponse.status === 207 || propfindResponse.status === 200;
+    } catch (err: any) {
+      console.error('[AppleCalendarService] Test connection failed:', err.message);
       return false;
     }
   }

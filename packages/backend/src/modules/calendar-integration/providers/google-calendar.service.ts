@@ -276,7 +276,7 @@ export class GoogleCalendarService implements OnModuleInit {
     if (!this.oauth2Client || !this.oauth2Client._clientId) {
       await this.ensureOAuthClient();
     }
-    
+
     this.oauth2Client.setCredentials({ access_token: accessToken });
     const calendar = google.calendar({ version: 'v3', auth: this.oauth2Client });
 
@@ -284,5 +284,14 @@ export class GoogleCalendarService implements OnModuleInit {
       calendarId: 'primary',
       eventId,
     });
+  }
+
+  async getOAuthConfig(): Promise<{ clientId: string; clientSecret: string; redirectUri: string }> {
+    await this.ensureOAuthClient();
+    return {
+      clientId: this.clientId || '',
+      clientSecret: this.clientSecret || '',
+      redirectUri: this.redirectUri || '',
+    };
   }
 }

@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Calendar, ChevronLeft, ChevronRight, ExternalLink, Plus } from 'lucide-react';
+import { Calendar, ChevronLeft, ChevronRight, ExternalLink, Plus, Pencil, Trash2, Settings, X } from 'lucide-react';
 
 function ymd(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -46,6 +46,28 @@ export default function AppointmentsPage() {
 
   const [selectedAppointment, setSelectedAppointment] = useState<any | null>(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+
+  // Day view state
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [isDayViewOpen, setIsDayViewOpen] = useState(false);
+
+  // Edit appointment state
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [editDraft, setEditDraft] = useState<any>({});
+
+  // Delete confirmation state
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+  const [appointmentToDelete, setAppointmentToDelete] = useState<any | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  // Calendar settings state
+  const [isCalendarSettingsOpen, setIsCalendarSettingsOpen] = useState(false);
+  const [isDisconnecting, setIsDisconnecting] = useState(false);
+  const [isDeleteCalendarConfirmOpen, setIsDeleteCalendarConfirmOpen] = useState(false);
+  const [calendarTimezone, setCalendarTimezone] = useState('');
+
+  // Show more appointments state
+  const [showAllAppointments, setShowAllAppointments] = useState(false);
 
   const [isSetupOpen, setIsSetupOpen] = useState(false);
   const [setupChoice, setSetupChoice] = useState<'INTERNAL' | 'EXTERNAL' | null>(null);
@@ -366,6 +388,156 @@ export default function AppointmentsPage() {
     }
   };
 
+  // Check if external calendar is connected
+  const isExternalCalendarConnected = company?.calendar_mode === 'EXTERNAL' && company?.calendar_provider && company?.calendar_provider !== 'NONE';
+
+  // Get appointments for selected day
+  const selectedDayAppointments = useMemo(() => {
+    if (!selectedDate) return [];
+    return apptsByDay.get(selectedDate) ?? [];
+  }, [selectedDate, apptsByDay]);
+
+  // Format selected date for display
+  const selectedDateFormatted = useMemo(() => {
+    if (!selectedDate) return '';
+    const [year, month, day] = selectedDate.split('-').map(Number);
+    const date = new Date(year, month - 1, day);
+    return date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+  }, [selectedDate]);
+
+  // Handle opening edit dialog
+  const handleEditAppointment = (appointment: any) => {
+    const startDate = new Date(appointment.scheduled_start);
+    const endDate = new Date(appointment.scheduled_end);
+    const durationMinutes = Math.round((endDate.getTime() - startDate.getTime()) / 60000);
+
+    setEditDraft({
+      appointment_id: appointment.appointment_id,
+      contact_name: appointment.contact_name || '',
+      contact_email: appointment.contact_email || '',
+      contact_phone: appointment.contact_phone || '',
+      service_type: appointment.service_type || '',
+      date: ymd(startDate),
+      start_time: `${String(startDate.getHours()).padStart(2, '0')}:${String(startDate.getMinutes()).padStart(2, '0')}`,
+      duration_minutes: durationMinutes,
+      notes: appointment.notes || '',
+      address_street: appointment.address?.street || '',
+      address_city: appointment.address?.city || '',
+      address_state: appointment.address?.state || '',
+      address_zip: appointment.address?.zip || '',
+      price: appointment.price_cents ? (appointment.price_cents / 100).toString() : '',
+      status: appointment.status || 'SCHEDULED',
+    });
+    setIsEditOpen(true);
+    setIsDetailsOpen(false);
+  };
+
+  // Handle updating appointment
+  const handleUpdateAppointment = async () => {
+    try {
+      setError(null);
+      const date = String(editDraft.date || '').trim();
+      const start = String(editDraft.start_time || '').trim();
+      if (!date || !start) {
+        setError('Please choose a date and start time');
+        return;
+      }
+
+      const duration = Math.max(10, Number(editDraft.duration_minutes) || 60);
+      const startLocal = new Date(`${date}T${start}:00`);
+      const startMs = startLocal.getTime();
+      const endMs = startMs + duration * 60_000;
+
+      const payload: any = {
+        scheduled_start: startMs,
+        scheduled_end: endMs,
+        contact_name: editDraft.contact_name || undefined,
+        contact_email: editDraft.contact_email || undefined,
+        contact_phone: editDraft.contact_phone || undefined,
+        service_type: editDraft.service_type || company?.service_type || 'Service',
+        notes: editDraft.notes || undefined,
+        address:
+          editDraft.address_street || editDraft.address_city || editDraft.address_state || editDraft.address_zip
+            ? {
+                street: editDraft.address_street || undefined,
+                city: editDraft.address_city || undefined,
+                state: editDraft.address_state || undefined,
+                zip: editDraft.address_zip || undefined,
+              }
+            : undefined,
+        price_cents: editDraft.price ? Math.round(Number(editDraft.price) * 100) : undefined,
+        status: editDraft.status,
+      };
+
+      await apiClient.updateAppointment(editDraft.appointment_id, payload);
+      setIsEditOpen(false);
+      await loadData();
+    } catch (err: any) {
+      setError(err?.message || 'Failed to update appointment');
+    }
+  };
+
+  // Handle delete confirmation
+  const handleDeleteClick = (appointment: any) => {
+    setAppointmentToDelete(appointment);
+    setIsDeleteConfirmOpen(true);
+    setIsDetailsOpen(false);
+  };
+
+  // Handle actual deletion
+  const handleConfirmDelete = async () => {
+    if (!appointmentToDelete) return;
+
+    try {
+      setIsDeleting(true);
+      setError(null);
+      await apiClient.deleteAppointment(appointmentToDelete.appointment_id);
+      setIsDeleteConfirmOpen(false);
+      setAppointmentToDelete(null);
+      await loadData();
+    } catch (err: any) {
+      setError(err?.message || 'Failed to delete appointment');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  // Handle opening calendar settings
+  const handleOpenCalendarSettings = () => {
+    setCalendarTimezone(company?.timezone || '');
+    setIsCalendarSettingsOpen(true);
+  };
+
+  // Handle saving calendar settings
+  const handleSaveCalendarSettings = async () => {
+    try {
+      setError(null);
+      await apiClient.updateMyCompany({
+        timezone: calendarTimezone,
+      });
+      setIsCalendarSettingsOpen(false);
+      await loadData();
+    } catch (err: any) {
+      setError(err?.message || 'Failed to update settings');
+    }
+  };
+
+  // Handle disconnecting calendar
+  const handleDisconnectCalendar = async () => {
+    try {
+      setIsDisconnecting(true);
+      setError(null);
+      await apiClient.disconnectCalendar();
+      setIsDeleteCalendarConfirmOpen(false);
+      setIsCalendarSettingsOpen(false);
+      await loadData();
+    } catch (err: any) {
+      setError(err?.message || 'Failed to disconnect calendar');
+    } finally {
+      setIsDisconnecting(false);
+    }
+  };
+
   if (error) {
     return (
       <div className="p-8">
@@ -436,10 +608,17 @@ export default function AppointmentsPage() {
                   {isLoading ? 'Loading...' : `${filteredAppointments.length} appointments`}
                 </div>
               </div>
-              <Button variant="outline" onClick={() => setIsCalendarProviderDialogOpen(true)}>
-                <ExternalLink className="h-4 w-4 mr-2" />
-                Connect Calendar
-              </Button>
+              {isExternalCalendarConnected ? (
+                <Button variant="outline" onClick={handleOpenCalendarSettings}>
+                  <Settings className="h-4 w-4 mr-2" />
+                  Calendar Settings
+                </Button>
+              ) : (
+                <Button variant="outline" onClick={() => setIsCalendarProviderDialogOpen(true)}>
+                  <ExternalLink className="h-4 w-4 mr-2" />
+                  Connect Calendar
+                </Button>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -489,8 +668,9 @@ export default function AppointmentsPage() {
                     } ${isToday ? 'ring-2 ring-inset ring-emerald-500' : ''}`}
                     onClick={() => {
                       if (!isCalendarSetupComplete) return;
-                      setCreateDraft((p: any) => ({ ...p, date: key }));
-                      setIsCreateOpen(true);
+                      // Show day view with all appointments for this day
+                      setSelectedDate(key);
+                      setIsDayViewOpen(true);
                     }}
                     disabled={!isCalendarSetupComplete}
                   >
@@ -537,7 +717,7 @@ export default function AppointmentsPage() {
             </div>
           ) : filteredAppointments.length > 0 ? (
             <div className="space-y-3">
-              {filteredAppointments.slice(0, 50).map((apt) => {
+              {filteredAppointments.slice(0, showAllAppointments ? 50 : 3).map((apt) => {
                 const s = statusBadge(apt.status);
                 return (
                   <div
@@ -564,6 +744,17 @@ export default function AppointmentsPage() {
                   </div>
                 );
               })}
+              {filteredAppointments.length > 3 && (
+                <div className="flex justify-center pt-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowAllAppointments(!showAllAppointments)}
+                  >
+                    {showAllAppointments ? `Show less` : `Show ${filteredAppointments.length - 3} more`}
+                  </Button>
+                </div>
+              )}
             </div>
           ) : (
             <div className="text-center py-12">
@@ -631,6 +822,17 @@ export default function AppointmentsPage() {
                   <div className="text-sm text-gray-700 whitespace-pre-wrap">{selectedAppointment.notes}</div>
                 </div>
               ) : null}
+
+              <div className="flex justify-end gap-2 pt-4 border-t">
+                <Button variant="outline" onClick={() => handleEditAppointment(selectedAppointment)}>
+                  <Pencil className="h-4 w-4 mr-2" />
+                  Edit
+                </Button>
+                <Button variant="destructive" onClick={() => handleDeleteClick(selectedAppointment)}>
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete
+                </Button>
+              </div>
             </div>
           ) : null}
         </DialogContent>
@@ -872,6 +1074,274 @@ export default function AppointmentsPage() {
               </Button>
               <Button onClick={handleCompleteSetup} disabled={!setupChoice}>
                 Save
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Day View Dialog */}
+      <Dialog open={isDayViewOpen} onOpenChange={setIsDayViewOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <div className="flex items-center justify-between">
+              <DialogTitle>{selectedDateFormatted}</DialogTitle>
+            </div>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="flex justify-end">
+              <Button
+                onClick={() => {
+                  setCreateDraft((p: any) => ({ ...p, date: selectedDate }));
+                  setIsDayViewOpen(false);
+                  setIsCreateOpen(true);
+                }}
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                New Appointment
+              </Button>
+            </div>
+            {selectedDayAppointments.length > 0 ? (
+              <div className="space-y-3">
+                {selectedDayAppointments.map((apt: any) => {
+                  const s = statusBadge(apt.status);
+                  const startTime = new Date(apt.scheduled_start).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+                  const endTime = new Date(apt.scheduled_end).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+                  return (
+                    <div
+                      key={apt.appointment_id}
+                      className="border border-gray-200 rounded-xl p-4 hover:border-blue-500 hover:shadow-sm transition-all"
+                    >
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <div className="font-semibold text-gray-900 truncate">
+                              {apt.contact_name || apt.contact_email || apt.contact_phone || 'Appointment'}
+                            </div>
+                            <Badge variant="outline" className={s.className}>
+                              {s.label}
+                            </Badge>
+                          </div>
+                          <div className="text-sm text-gray-600">
+                            {startTime} - {endTime} • {apt.service_type || 'Service'}
+                          </div>
+                          {apt.notes && (
+                            <div className="text-sm text-gray-500 mt-1 truncate">{apt.notes}</div>
+                          )}
+                        </div>
+                        <div className="flex gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              setIsDayViewOpen(false);
+                              handleEditAppointment(apt);
+                            }}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              setIsDayViewOpen(false);
+                              handleDeleteClick(apt);
+                            }}
+                          >
+                            <Trash2 className="h-4 w-4 text-red-500" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <Calendar className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">No appointments</h3>
+                <p className="text-sm text-gray-500">Click the button above to add an appointment for this day.</p>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Appointment Dialog */}
+      <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
+        <DialogContent className="max-w-xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Edit Appointment</DialogTitle>
+          </DialogHeader>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="sm:col-span-2">
+              <div className="text-xs text-gray-500 mb-1">Customer name</div>
+              <Input value={editDraft.contact_name || ''} onChange={(e) => setEditDraft((p: any) => ({ ...p, contact_name: e.target.value }))} placeholder="e.g., John Doe" />
+            </div>
+            <div className="sm:col-span-2">
+              <div className="text-xs text-gray-500 mb-1">Customer email</div>
+              <Input value={editDraft.contact_email || ''} onChange={(e) => setEditDraft((p: any) => ({ ...p, contact_email: e.target.value }))} placeholder="e.g., john@email.com" />
+            </div>
+            <div className="sm:col-span-2">
+              <div className="text-xs text-gray-500 mb-1">Customer phone</div>
+              <Input value={editDraft.contact_phone || ''} onChange={(e) => setEditDraft((p: any) => ({ ...p, contact_phone: e.target.value }))} placeholder="e.g., +18324041336" />
+            </div>
+            <div>
+              <div className="text-xs text-gray-500 mb-1">Date</div>
+              <Input type="date" value={editDraft.date || ''} onChange={(e) => setEditDraft((p: any) => ({ ...p, date: e.target.value }))} />
+            </div>
+            <div>
+              <div className="text-xs text-gray-500 mb-1">Start time</div>
+              <Input type="time" value={editDraft.start_time || ''} onChange={(e) => setEditDraft((p: any) => ({ ...p, start_time: e.target.value }))} />
+            </div>
+            <div>
+              <div className="text-xs text-gray-500 mb-1">Duration (minutes)</div>
+              <Input type="number" value={editDraft.duration_minutes || ''} onChange={(e) => setEditDraft((p: any) => ({ ...p, duration_minutes: e.target.value }))} min={10} />
+            </div>
+            <div>
+              <div className="text-xs text-gray-500 mb-1">Service</div>
+              <Input value={editDraft.service_type || ''} onChange={(e) => setEditDraft((p: any) => ({ ...p, service_type: e.target.value }))} placeholder={company?.service_type || 'Service'} />
+            </div>
+            <div>
+              <div className="text-xs text-gray-500 mb-1">Status</div>
+              <select
+                className="w-full h-10 rounded-md border border-gray-200 bg-white px-3 text-sm"
+                value={editDraft.status || 'SCHEDULED'}
+                onChange={(e) => setEditDraft((p: any) => ({ ...p, status: e.target.value }))}
+              >
+                <option value="SCHEDULED">Scheduled</option>
+                <option value="CONFIRMED">Confirmed</option>
+                <option value="COMPLETED">Completed</option>
+                <option value="CANCELLED">Cancelled</option>
+              </select>
+            </div>
+            <div className="sm:col-span-2">
+              <div className="text-xs text-gray-500 mb-1">Notes</div>
+              <Input value={editDraft.notes || ''} onChange={(e) => setEditDraft((p: any) => ({ ...p, notes: e.target.value }))} placeholder="Add details..." />
+            </div>
+            <div className="sm:col-span-2">
+              <div className="text-xs text-gray-500 mb-1">Address</div>
+              <Input value={editDraft.address_street || ''} onChange={(e) => setEditDraft((p: any) => ({ ...p, address_street: e.target.value }))} placeholder="Street" />
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-2">
+                <Input value={editDraft.address_city || ''} onChange={(e) => setEditDraft((p: any) => ({ ...p, address_city: e.target.value }))} placeholder="City" />
+                <Input value={editDraft.address_state || ''} onChange={(e) => setEditDraft((p: any) => ({ ...p, address_state: e.target.value }))} placeholder="State" />
+                <Input value={editDraft.address_zip || ''} onChange={(e) => setEditDraft((p: any) => ({ ...p, address_zip: e.target.value }))} placeholder="Zip" />
+              </div>
+            </div>
+            <div className="sm:col-span-2">
+              <div className="text-xs text-gray-500 mb-1">Price</div>
+              <Input value={editDraft.price || ''} onChange={(e) => setEditDraft((p: any) => ({ ...p, price: e.target.value }))} placeholder="e.g., 149.00" />
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 mt-6">
+            <Button variant="outline" onClick={() => setIsEditOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleUpdateAppointment}>Save Changes</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={isDeleteConfirmOpen} onOpenChange={setIsDeleteConfirmOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete Appointment</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-gray-600">
+              Are you sure you want to delete this appointment? This action cannot be undone.
+            </p>
+            {appointmentToDelete && (
+              <div className="bg-gray-50 rounded-lg p-4">
+                <div className="font-medium text-gray-900">
+                  {appointmentToDelete.contact_name || appointmentToDelete.service_type || 'Appointment'}
+                </div>
+                <div className="text-sm text-gray-600 mt-1">
+                  {formatDateTime(appointmentToDelete.scheduled_start)}
+                </div>
+              </div>
+            )}
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setIsDeleteConfirmOpen(false)} disabled={isDeleting}>
+                Cancel
+              </Button>
+              <Button variant="destructive" onClick={handleConfirmDelete} disabled={isDeleting}>
+                {isDeleting ? 'Deleting...' : 'Delete'}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Calendar Settings Dialog */}
+      <Dialog open={isCalendarSettingsOpen} onOpenChange={setIsCalendarSettingsOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Calendar Settings</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            {isExternalCalendarConnected && (
+              <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4">
+                <div className="flex items-center gap-2">
+                  <div className="h-2 w-2 rounded-full bg-emerald-500"></div>
+                  <span className="text-sm font-medium text-emerald-800">
+                    Connected to {company?.calendar_provider === 'GOOGLE' ? 'Google Calendar' : company?.calendar_provider === 'MICROSOFT' ? 'Microsoft Outlook' : company?.calendar_provider === 'APPLE' ? 'Apple Calendar' : 'External Calendar'}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            <div>
+              <Label htmlFor="calendar-timezone">Timezone</Label>
+              <Input
+                id="calendar-timezone"
+                value={calendarTimezone}
+                onChange={(e) => setCalendarTimezone(e.target.value)}
+                placeholder="e.g., America/New_York"
+                className="mt-1"
+              />
+              <div className="text-xs text-gray-500 mt-1">IANA timezone format (e.g., America/New_York, Europe/London)</div>
+            </div>
+
+            <div className="flex justify-between items-center pt-4 border-t">
+              <Button
+                variant="outline"
+                className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                onClick={() => setIsDeleteCalendarConfirmOpen(true)}
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Disconnect Calendar
+              </Button>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => setIsCalendarSettingsOpen(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={handleSaveCalendarSettings}>
+                  Save
+                </Button>
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Calendar Confirmation Dialog */}
+      <Dialog open={isDeleteCalendarConfirmOpen} onOpenChange={setIsDeleteCalendarConfirmOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Disconnect Calendar</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-gray-600">
+              Are you sure you want to disconnect your calendar? Your appointments will remain, but new events won't sync with your external calendar.
+            </p>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setIsDeleteCalendarConfirmOpen(false)} disabled={isDisconnecting}>
+                Cancel
+              </Button>
+              <Button variant="destructive" onClick={handleDisconnectCalendar} disabled={isDisconnecting}>
+                {isDisconnecting ? 'Disconnecting...' : 'Disconnect'}
               </Button>
             </div>
           </div>

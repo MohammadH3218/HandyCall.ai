@@ -52,6 +52,7 @@ export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [recentCalls, setRecentCalls] = useState<RecentCall[]>([]);
   const [upcomingAppointments, setUpcomingAppointments] = useState<UpcomingAppointment[]>([]);
+  const [showAllAppointments, setShowAllAppointments] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [companyPhoneNumber, setCompanyPhoneNumber] = useState<string | null>(null);
@@ -401,7 +402,7 @@ export default function DashboardPage() {
               </div>
             ) : upcomingAppointments.length > 0 ? (
               <div className="space-y-4">
-                {upcomingAppointments.map((apt) => (
+                {upcomingAppointments.slice(0, showAllAppointments ? 50 : 3).map((apt) => (
                   <div key={apt.appointment_id} className="border-b border-gray-200 pb-3 last:border-0">
                     <div className="flex justify-between items-start">
                       <div>
@@ -415,6 +416,14 @@ export default function DashboardPage() {
                     <p className="text-xs text-gray-400 mt-2">{formatDate(apt.scheduled_time)}</p>
                   </div>
                 ))}
+                {upcomingAppointments.length > 3 && (
+                  <button
+                    onClick={() => setShowAllAppointments(!showAllAppointments)}
+                    className="w-full text-center text-sm text-blue-600 hover:text-blue-800 py-2"
+                  >
+                    {showAllAppointments ? 'Show less' : `Show ${upcomingAppointments.length - 3} more`}
+                  </button>
+                )}
               </div>
             ) : (
               <p className="text-sm text-gray-500 text-center py-8">

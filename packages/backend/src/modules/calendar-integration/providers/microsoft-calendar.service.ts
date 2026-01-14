@@ -252,4 +252,13 @@ export class MicrosoftCalendarService implements OnModuleInit {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
   }
+
+  async getOAuthConfig(): Promise<{ clientId: string; clientSecret: string; redirectUri: string }> {
+    await this.ensureCredentials();
+    return {
+      clientId: this.clientId || '',
+      clientSecret: this.clientSecret || '',
+      redirectUri: this.redirectUri || '',
+    };
+  }
 }

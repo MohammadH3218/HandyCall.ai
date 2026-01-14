@@ -15,7 +15,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Phone, Save, Search } from 'lucide-react';
+import { ArrowLeft, Phone, Save, Search, AlertTriangle, XCircle, CheckCircle } from 'lucide-react';
 
 type Company = {
   company_id: string;
@@ -105,6 +105,12 @@ export default function AdminCompanyDetailPage() {
   const [numbersError, setNumbersError] = useState<string | null>(null);
   const [areaCode, setAreaCode] = useState('832');
   const [availableNumbers, setAvailableNumbers] = useState<AvailableNumber[]>([]);
+
+  // Subscription management state
+  const [isCanceling, setIsCanceling] = useState(false);
+  const [isSuspending, setIsSuspending] = useState(false);
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+  const [showSuspendConfirm, setShowSuspendConfirm] = useState(false);
 
   useEffect(() => {
     if (!isLoading && (!isAuthenticated || userRole !== UserRole.ADMIN)) {
@@ -217,6 +223,57 @@ export default function AdminCompanyDetailPage() {
       setNumbersError(err?.message || 'Failed to claim number');
     } finally {
       setNumbersLoading(false);
+    }
+  };
+
+  // Cancel subscription (at period end)
+  const handleCancelSubscription = async () => {
+    try {
+      setIsCanceling(true);
+      await fetchJsonWithFallback(`/api/proxy/admin/companies/${companyId}/cancel-subscription`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      setShowCancelConfirm(false);
+      toast({ title: 'Subscription Canceled', description: 'The subscription will end at the current billing period.' });
+      await loadCompany();
+    } catch (err: any) {
+      toast({ title: 'Error', description: err?.message || 'Failed to cancel subscription', variant: 'destructive' });
+    } finally {
+      setIsCanceling(false);
+    }
+  };
+
+  // Suspend subscription (immediately)
+  const handleSuspendSubscription = async () => {
+    try {
+      setIsSuspending(true);
+      await fetchJsonWithFallback(`/api/proxy/admin/companies/${companyId}/suspend`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      setShowSuspendConfirm(false);
+      toast({ title: 'Account Suspended', description: 'The account has been suspended and services disabled.' });
+      await loadCompany();
+    } catch (err: any) {
+      toast({ title: 'Error', description: err?.message || 'Failed to suspend account', variant: 'destructive' });
+    } finally {
+      setIsSuspending(false);
+    }
+  };
+
+  // Reactivate account
+  const handleReactivateAccount = async () => {
+    try {
+      await fetchJsonWithFallback(`/api/proxy/companies/${companyId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'ACTIVE' }),
+      });
+      toast({ title: 'Account Reactivated', description: 'The account is now active.' });
+      await loadCompany();
+    } catch (err: any) {
+      toast({ title: 'Error', description: err?.message || 'Failed to reactivate account', variant: 'destructive' });
     }
   };
 
@@ -419,6 +476,106 @@ export default function AdminCompanyDetailPage() {
           </CardContent>
         </Card>
 
+        {/* Subscription & Service Controls */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Subscription & Service Controls</CardTitle>
+            <CardDescription>Manage subscription status and service availability.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {/* Current Status */}
+            <div className="flex items-center justify-between p-4 rounded-lg bg-gray-50 border">
+              <div>
+                <div className="text-sm font-medium text-gray-700">Account Status</div>
+                <div className="flex items-center gap-2 mt-1">
+                  {company?.status === 'ACTIVE' ? (
+                    <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
+                      <CheckCircle className="h-3 w-3 mr-1" />
+                      Active
+                    </Badge>
+                  ) : company?.status === 'SUSPENDED' ? (
+                    <Badge className="bg-red-100 text-red-800 hover:bg-red-100">
+                      <XCircle className="h-3 w-3 mr-1" />
+                      Suspended
+                    </Badge>
+                  ) : company?.status === 'INACTIVE' ? (
+                    <Badge className="bg-gray-100 text-gray-800 hover:bg-gray-100">
+                      <AlertTriangle className="h-3 w-3 mr-1" />
+                      Inactive
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline">{company?.status || 'Unknown'}</Badge>
+                  )}
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="text-sm text-gray-500">Subscription Tier</div>
+                <div className="font-medium">{company?.subscription_tier || 'None'}</div>
+              </div>
+            </div>
+
+            {/* Service Controls */}
+            <div className="space-y-4">
+              <h4 className="text-sm font-medium text-gray-700">Service Controls</h4>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="flex items-center justify-between p-3 rounded-lg border">
+                  <div className="flex items-center gap-2">
+                    <Phone className="h-4 w-4 text-gray-500" />
+                    <span className="text-sm">Calls</span>
+                  </div>
+                  <Badge variant={editData.calls_enabled ? 'default' : 'secondary'}>
+                    {editData.calls_enabled ? 'Enabled' : 'Disabled'}
+                  </Badge>
+                </div>
+                <div className="flex items-center justify-between p-3 rounded-lg border">
+                  <div className="flex items-center gap-2">
+                    <span className="text-gray-500">SMS</span>
+                  </div>
+                  <Badge variant={editData.sms_enabled ? 'default' : 'secondary'}>
+                    {editData.sms_enabled ? 'Enabled' : 'Disabled'}
+                  </Badge>
+                </div>
+              </div>
+            </div>
+
+            {/* Subscription Actions */}
+            <div className="space-y-4">
+              <h4 className="text-sm font-medium text-gray-700">Subscription Actions</h4>
+              <div className="flex flex-wrap gap-3">
+                {company?.status === 'SUSPENDED' || company?.status === 'INACTIVE' ? (
+                  <Button variant="default" onClick={handleReactivateAccount}>
+                    <CheckCircle className="h-4 w-4 mr-2" />
+                    Reactivate Account
+                  </Button>
+                ) : (
+                  <>
+                    <Button
+                      variant="outline"
+                      className="border-orange-300 text-orange-700 hover:bg-orange-50"
+                      onClick={() => setShowCancelConfirm(true)}
+                    >
+                      <AlertTriangle className="h-4 w-4 mr-2" />
+                      Cancel at Period End
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="border-red-300 text-red-700 hover:bg-red-50"
+                      onClick={() => setShowSuspendConfirm(true)}
+                    >
+                      <XCircle className="h-4 w-4 mr-2" />
+                      Suspend Immediately
+                    </Button>
+                  </>
+                )}
+              </div>
+              <p className="text-xs text-gray-500">
+                "Cancel at Period End" allows the subscription to run until the current billing cycle ends.
+                "Suspend Immediately" terminates services right away.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader>
             <CardTitle>Telephony</CardTitle>
@@ -496,6 +653,65 @@ export default function AdminCompanyDetailPage() {
               ) : (
                 <div className="p-4 text-sm text-gray-600">No numbers found. Try a different area code.</div>
               )}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Cancel Confirmation Dialog */}
+      <Dialog open={showCancelConfirm} onOpenChange={setShowCancelConfirm}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Cancel Subscription</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-gray-600">
+              Are you sure you want to cancel this company's subscription? The account will remain active until the end of the current billing period.
+            </p>
+            <div className="bg-orange-50 border border-orange-200 rounded-lg p-3">
+              <p className="text-sm text-orange-800">
+                <strong>Company:</strong> {company?.company_name}
+              </p>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setShowCancelConfirm(false)} disabled={isCanceling}>
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                className="bg-orange-600 hover:bg-orange-700"
+                onClick={handleCancelSubscription}
+                disabled={isCanceling}
+              >
+                {isCanceling ? 'Canceling...' : 'Confirm Cancellation'}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Suspend Confirmation Dialog */}
+      <Dialog open={showSuspendConfirm} onOpenChange={setShowSuspendConfirm}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Suspend Account</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-gray-600">
+              Are you sure you want to suspend this company's account? This will immediately disable all services including calls and SMS.
+            </p>
+            <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+              <p className="text-sm text-red-800">
+                <strong>Warning:</strong> This action takes effect immediately. The company will lose access to all services.
+              </p>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setShowSuspendConfirm(false)} disabled={isSuspending}>
+                Cancel
+              </Button>
+              <Button variant="destructive" onClick={handleSuspendSubscription} disabled={isSuspending}>
+                {isSuspending ? 'Suspending...' : 'Suspend Account'}
+              </Button>
             </div>
           </div>
         </DialogContent>

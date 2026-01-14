@@ -34,8 +34,36 @@ export class CalendarIntegrationController {
 
   @Get('auth/google/url')
   async getGoogleAuthUrl(@CompanyId() companyId: string) {
-    const url = await this.calendarService.getGoogleAuthUrl(companyId);
-    return { url };
+    try {
+      const url = await this.calendarService.getGoogleAuthUrl(companyId);
+      console.log(`[CalendarIntegrationController] Generated Google auth URL for company ${companyId}`);
+      return { url };
+    } catch (error: any) {
+      console.error('[CalendarIntegrationController] Error generating Google auth URL:', error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * Debug endpoint to check OAuth configuration (public for diagnostics)
+   */
+  @Public()
+  @Get('debug/oauth-config')
+  async debugOAuthConfig() {
+    const config = await this.calendarService.getOAuthDebugInfo();
+    return {
+      google: {
+        clientId: config.google.clientId ? `${config.google.clientId.substring(0, 20)}...` : 'NOT SET',
+        clientSecret: config.google.clientSecret ? 'SET' : 'NOT SET',
+        redirectUri: config.google.redirectUri || 'NOT SET',
+      },
+      microsoft: {
+        clientId: config.microsoft.clientId ? `${config.microsoft.clientId.substring(0, 20)}...` : 'NOT SET',
+        clientSecret: config.microsoft.clientSecret ? 'SET' : 'NOT SET',
+        redirectUri: config.microsoft.redirectUri || 'NOT SET',
+      },
+      note: 'Ensure redirectUri matches exactly what is configured in the OAuth provider console',
+    };
   }
 
   @Public()

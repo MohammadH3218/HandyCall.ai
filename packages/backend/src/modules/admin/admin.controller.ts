@@ -1,4 +1,4 @@
-import { Controller, Get, Query, UseGuards, NotFoundException } from '@nestjs/common';
+import { Controller, Get, Post, Param, Query, UseGuards, NotFoundException } from '@nestjs/common';
 import { AdminService } from './admin.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { UserRole as UserRoleDecorator } from '../../common/decorators/auth.decorator';
@@ -51,5 +51,35 @@ export class AdminController {
 
     const limitNum = limit ? parseInt(limit, 10) : 10;
     return this.adminService.getTopCompanies(limitNum);
+  }
+
+  /**
+   * Cancel a company's subscription at period end (admin only)
+   */
+  @Post('companies/:id/cancel-subscription')
+  async cancelSubscription(
+    @UserRoleDecorator() role: UserRole,
+    @Param('id') companyId: string
+  ) {
+    if (role !== UserRole.ADMIN) {
+      throw new NotFoundException('Not found');
+    }
+
+    return this.adminService.cancelSubscription(companyId);
+  }
+
+  /**
+   * Suspend a company's account immediately (admin only)
+   */
+  @Post('companies/:id/suspend')
+  async suspendCompany(
+    @UserRoleDecorator() role: UserRole,
+    @Param('id') companyId: string
+  ) {
+    if (role !== UserRole.ADMIN) {
+      throw new NotFoundException('Not found');
+    }
+
+    return this.adminService.suspendCompany(companyId);
   }
 }

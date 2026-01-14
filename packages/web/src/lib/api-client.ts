@@ -206,6 +206,19 @@ class ApiClient {
     return response.data ?? response;
   }
 
+  async updateAppointment(appointmentId: string, data: any): Promise<any> {
+    const response = await this.request<any>(`/appointments/${appointmentId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+    return response.data ?? response;
+  }
+
+  async deleteAppointment(appointmentId: string): Promise<any> {
+    const response = await this.request<any>(`/appointments/${appointmentId}`, { method: 'DELETE' });
+    return response.data ?? response;
+  }
+
   // Calls endpoints
   async getCalls(limit?: number, lastEvaluatedKey?: string): Promise<{ calls: any[]; lastEvaluatedKey?: any }> {
     const params = new URLSearchParams();
