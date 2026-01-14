@@ -22,6 +22,7 @@ import { SchedulingModule } from './modules/scheduling/scheduling.module';
 import { CalendarIntegrationModule } from './modules/calendar-integration/calendar-integration.module';
 import { DatabaseModule } from './infrastructure/database/database.module';
 import { StorageModule } from './infrastructure/storage/storage.module';
+import { ParameterStoreModule } from './infrastructure/config/config.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -37,6 +38,7 @@ import { AppService } from './app.service';
     // Infrastructure
     DatabaseModule,
     StorageModule,
+    ParameterStoreModule,
     SchedulingModule,
 
     // Core modules

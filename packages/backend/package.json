@@ -24,6 +24,7 @@
     "@aws-sdk/client-connect": "^3.965.0",
     "@aws-sdk/client-dynamodb": "^3.490.0",
     "@aws-sdk/client-s3": "^3.490.0",
+    "@aws-sdk/client-ssm": "^3.490.0",
     "@aws-sdk/lib-dynamodb": "^3.490.0",
     "@aws-sdk/s3-request-presigner": "^3.958.0",
     "@handycall/shared": "*",

@@ -1,15 +1,34 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, OnModuleInit } from '@nestjs/common';
 import { google } from 'googleapis';
+import { ParameterStoreService } from '../../../infrastructure/config/parameter-store.service';
+import { ConfigService } from '@nestjs/config';
 
 @Injectable()
-export class GoogleCalendarService {
+export class GoogleCalendarService implements OnModuleInit {
   private oauth2Client: any;
+  private clientId: string | null = null;
+  private clientSecret: string | null = null;
+  private redirectUri: string | null = null;
 
-  constructor() {
+  constructor(
+    private parameterStore: ParameterStoreService,
+    private configService: ConfigService,
+  ) {}
+
+  async onModuleInit() {
+    // Initialize OAuth client with credentials from Parameter Store or env vars
+    this.clientId = await this.parameterStore.getGoogleClientId();
+    this.clientSecret = await this.parameterStore.getGoogleClientSecret();
+    this.redirectUri = await this.parameterStore.getGoogleRedirectUri();
+
+    if (!this.clientId || !this.clientSecret || !this.redirectUri) {
+      console.warn('[GoogleCalendarService] OAuth credentials not fully configured. Calendar integration may not work.');
+    }
+
     this.oauth2Client = new google.auth.OAuth2(
-      process.env.GOOGLE_CLIENT_ID,
-      process.env.GOOGLE_CLIENT_SECRET,
-      process.env.GOOGLE_REDIRECT_URI || `${process.env.BACKEND_URL}/calendar-integration/auth/google/callback`
+      this.clientId || '',
+      this.clientSecret || '',
+      this.redirectUri || ''
     );
   }
 

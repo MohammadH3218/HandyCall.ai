@@ -1,20 +1,32 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, OnModuleInit } from '@nestjs/common';
 import axios from 'axios';
+import { ParameterStoreService } from '../../../infrastructure/config/parameter-store.service';
+import { ConfigService } from '@nestjs/config';
 
 @Injectable()
-export class MicrosoftCalendarService {
-  private clientId: string;
-  private clientSecret: string;
-  private redirectUri: string;
+export class MicrosoftCalendarService implements OnModuleInit {
+  private clientId: string = '';
+  private clientSecret: string = '';
+  private redirectUri: string = '';
   private authority = 'https://login.microsoftonline.com/common';
   private tokenEndpoint = `${this.authority}/oauth2/v2.0/token`;
   private authEndpoint = `${this.authority}/oauth2/v2.0/authorize`;
   private graphEndpoint = 'https://graph.microsoft.com/v1.0';
 
-  constructor() {
-    this.clientId = process.env.MICROSOFT_CLIENT_ID || '';
-    this.clientSecret = process.env.MICROSOFT_CLIENT_SECRET || '';
-    this.redirectUri = process.env.MICROSOFT_REDIRECT_URI || `${process.env.BACKEND_URL}/calendar-integration/auth/microsoft/callback`;
+  constructor(
+    private parameterStore: ParameterStoreService,
+    private configService: ConfigService,
+  ) {}
+
+  async onModuleInit() {
+    // Initialize credentials from Parameter Store or env vars
+    this.clientId = (await this.parameterStore.getMicrosoftClientId()) || '';
+    this.clientSecret = (await this.parameterStore.getMicrosoftClientSecret()) || '';
+    this.redirectUri = (await this.parameterStore.getMicrosoftRedirectUri()) || '';
+
+    if (!this.clientId || !this.clientSecret || !this.redirectUri) {
+      console.warn('[MicrosoftCalendarService] OAuth credentials not fully configured. Calendar integration may not work.');
+    }
   }
 
   getAuthUrl(companyId: string): string {
