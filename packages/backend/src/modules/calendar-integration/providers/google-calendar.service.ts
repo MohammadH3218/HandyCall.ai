@@ -31,9 +31,11 @@ export class GoogleCalendarService implements OnModuleInit {
     this.clientSecret = clientSecret;
     this.redirectUri = redirectUri;
 
+    console.log(`[GoogleCalendarService] Loaded credentials - clientId: ${this.clientId ? 'SET (' + this.clientId.substring(0, 20) + '...)' : 'MISSING'}, clientSecret: ${this.clientSecret ? 'SET' : 'MISSING'}, redirectUri: ${this.redirectUri || 'MISSING'}`);
+
     if (!this.clientId || !this.clientSecret || !this.redirectUri) {
       const msg = `[GoogleCalendarService] OAuth credentials not fully configured. clientId: ${this.clientId ? 'SET' : 'MISSING'}, clientSecret: ${this.clientSecret ? 'SET' : 'MISSING'}, redirectUri: ${this.redirectUri || 'MISSING'}`;
-      console.warn(msg);
+      console.error(msg);
       // Don't create client with empty strings - it will fail silently
       return;
     }
@@ -48,6 +50,13 @@ export class GoogleCalendarService implements OnModuleInit {
     // Verify client was created correctly
     if (!this.oauth2Client._clientId) {
       console.error('[GoogleCalendarService] Failed to create OAuth client - clientId not set');
+    }
+
+    // Verify redirect URI is set in the client
+    if (!this.oauth2Client._redirectUri) {
+      console.error(`[GoogleCalendarService] OAuth client missing redirectUri. Provided: ${this.redirectUri}`);
+    } else {
+      console.log(`[GoogleCalendarService] OAuth client initialized with redirectUri: ${this.oauth2Client._redirectUri}`);
     }
   }
 
@@ -83,11 +92,17 @@ export class GoogleCalendarService implements OnModuleInit {
 
     console.log(`[GoogleCalendarService] Generating auth URL with clientId: ${this.clientId.substring(0, 20)}..., redirectUri: ${this.redirectUri}`);
 
+    // Verify redirectUri is set
+    if (!this.redirectUri || this.redirectUri.trim() === '') {
+      throw new Error('redirect_uri is required but was not provided. Please check Parameter Store or environment variables.');
+    }
+
     const authUrl = oauth2Client.generateAuthUrl({
       access_type: 'offline',
       scope: ['https://www.googleapis.com/auth/calendar'],
       state: companyId, // Pass companyId as state
       prompt: 'consent', // Force consent screen to get refresh token
+      redirect_uri: this.redirectUri, // Explicitly set redirect_uri
     });
 
     // Store the client for token exchange
