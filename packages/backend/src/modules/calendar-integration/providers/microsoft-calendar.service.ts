@@ -19,17 +19,30 @@ export class MicrosoftCalendarService implements OnModuleInit {
   ) {}
 
   async onModuleInit() {
-    // Initialize credentials from Parameter Store or env vars
+    // Pre-load credentials if available
+    await this.ensureCredentials();
+  }
+
+  private async ensureCredentials(): Promise<void> {
+    // Load credentials from Parameter Store or env vars
     this.clientId = (await this.parameterStore.getMicrosoftClientId()) || '';
     this.clientSecret = (await this.parameterStore.getMicrosoftClientSecret()) || '';
     this.redirectUri = (await this.parameterStore.getMicrosoftRedirectUri()) || '';
 
     if (!this.clientId || !this.clientSecret || !this.redirectUri) {
       console.warn('[MicrosoftCalendarService] OAuth credentials not fully configured. Calendar integration may not work.');
+      console.warn(`[MicrosoftCalendarService] clientId: ${this.clientId ? 'SET' : 'MISSING'}, clientSecret: ${this.clientSecret ? 'SET' : 'MISSING'}, redirectUri: ${this.redirectUri || 'MISSING'}`);
     }
   }
 
-  getAuthUrl(companyId: string): string {
+  async getAuthUrl(companyId: string): Promise<string> {
+    // Ensure credentials are loaded before generating URL
+    await this.ensureCredentials();
+    
+    if (!this.clientId || !this.clientSecret || !this.redirectUri) {
+      throw new Error('Microsoft OAuth credentials not configured. Please check Parameter Store or environment variables.');
+    }
+
     const params = new URLSearchParams({
       client_id: this.clientId,
       response_type: 'code',
@@ -43,6 +56,13 @@ export class MicrosoftCalendarService implements OnModuleInit {
   }
 
   async exchangeCodeForTokens(code: string): Promise<any> {
+    // Ensure credentials are loaded
+    await this.ensureCredentials();
+    
+    if (!this.clientId || !this.clientSecret || !this.redirectUri) {
+      throw new Error('Microsoft OAuth credentials not configured');
+    }
+
     const params = new URLSearchParams({
       client_id: this.clientId,
       client_secret: this.clientSecret,
@@ -63,6 +83,9 @@ export class MicrosoftCalendarService implements OnModuleInit {
   }
 
   async ensureValidTokens(tokens: any): Promise<any> {
+    // Ensure credentials are loaded
+    await this.ensureCredentials();
+    
     // Check if token is expired
     if (tokens.expiry_date && tokens.expiry_date < Date.now()) {
       // Refresh the token

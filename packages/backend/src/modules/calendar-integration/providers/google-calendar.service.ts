@@ -16,15 +16,22 @@ export class GoogleCalendarService implements OnModuleInit {
   ) {}
 
   async onModuleInit() {
-    // Initialize OAuth client with credentials from Parameter Store or env vars
+    // Pre-load credentials if available, but we'll reload them on each request to ensure they're fresh
+    await this.ensureOAuthClient();
+  }
+
+  private async ensureOAuthClient(): Promise<void> {
+    // Load credentials from Parameter Store or env vars
     this.clientId = await this.parameterStore.getGoogleClientId();
     this.clientSecret = await this.parameterStore.getGoogleClientSecret();
     this.redirectUri = await this.parameterStore.getGoogleRedirectUri();
 
     if (!this.clientId || !this.clientSecret || !this.redirectUri) {
       console.warn('[GoogleCalendarService] OAuth credentials not fully configured. Calendar integration may not work.');
+      console.warn(`[GoogleCalendarService] clientId: ${this.clientId ? 'SET' : 'MISSING'}, clientSecret: ${this.clientSecret ? 'SET' : 'MISSING'}, redirectUri: ${this.redirectUri || 'MISSING'}`);
     }
 
+    // Recreate OAuth client with current credentials
     this.oauth2Client = new google.auth.OAuth2(
       this.clientId || '',
       this.clientSecret || '',
@@ -32,7 +39,14 @@ export class GoogleCalendarService implements OnModuleInit {
     );
   }
 
-  getAuthUrl(companyId: string): string {
+  async getAuthUrl(companyId: string): Promise<string> {
+    // Ensure credentials are loaded before generating URL
+    await this.ensureOAuthClient();
+    
+    if (!this.clientId || !this.clientSecret) {
+      throw new Error('Google OAuth credentials not configured. Please check Parameter Store or environment variables.');
+    }
+
     return this.oauth2Client.generateAuthUrl({
       access_type: 'offline',
       scope: ['https://www.googleapis.com/auth/calendar'],
@@ -42,6 +56,13 @@ export class GoogleCalendarService implements OnModuleInit {
   }
 
   async exchangeCodeForTokens(code: string): Promise<any> {
+    // Ensure credentials are loaded
+    await this.ensureOAuthClient();
+    
+    if (!this.oauth2Client) {
+      throw new Error('OAuth client not initialized');
+    }
+    
     const { tokens } = await this.oauth2Client.getToken(code);
     return tokens;
   }

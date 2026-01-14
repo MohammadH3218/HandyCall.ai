@@ -16,7 +16,12 @@ export class CalendarIntegrationService {
   ) {}
 
   async getGoogleAuthUrl(companyId: string): Promise<string> {
-    return this.googleCalendar.getAuthUrl(companyId);
+    try {
+      return await this.googleCalendar.getAuthUrl(companyId);
+    } catch (error: any) {
+      console.error('[CalendarIntegrationService] Error getting Google auth URL:', error);
+      throw new BadRequestException(`Failed to generate Google OAuth URL: ${error.message}`);
+    }
   }
 
   async handleGoogleCallback(code: string, state: string): Promise<void> {
@@ -41,7 +46,12 @@ export class CalendarIntegrationService {
   }
 
   async getMicrosoftAuthUrl(companyId: string): Promise<string> {
-    return this.microsoftCalendar.getAuthUrl(companyId);
+    try {
+      return await this.microsoftCalendar.getAuthUrl(companyId);
+    } catch (error: any) {
+      console.error('[CalendarIntegrationService] Error getting Microsoft auth URL:', error);
+      throw new BadRequestException(`Failed to generate Microsoft OAuth URL: ${error.message}`);
+    }
   }
 
   async handleMicrosoftCallback(code: string, state: string): Promise<void> {

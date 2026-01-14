@@ -1,4 +1,5 @@
 import { Controller, Get, Post, Query, Body, Param } from '@nestjs/common';
+import { Public } from '../../common/decorators/public.decorator';
 import { CompanyId } from '../../common/decorators/auth.decorator';
 import { CalendarIntegrationService } from './calendar-integration.service';
 
@@ -23,6 +24,7 @@ export class CalendarIntegrationController {
     return { url };
   }
 
+  @Public()
   @Get('auth/google/callback')
   async handleGoogleCallback(
     @Query('code') code: string,
@@ -42,6 +44,7 @@ export class CalendarIntegrationController {
     return { url };
   }
 
+  @Public()
   @Get('auth/microsoft/callback')
   async handleMicrosoftCallback(
     @Query('code') code: string,
@@ -77,6 +80,9 @@ export class CalendarIntegrationController {
     @CompanyId() companyId: string,
     @Body() body: { email: string; appSpecificPassword: string; calendarPath?: string }
   ) {
+    if (!companyId) {
+      throw new Error('Company ID is required. Please ensure you are authenticated.');
+    }
     await this.calendarService.connectAppleCalendar(companyId, body.email, body.appSpecificPassword, body.calendarPath);
     return {
       success: true,
