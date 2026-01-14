@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { v4 as uuidv4 } from 'uuid';
 import { CompaniesService } from '../companies/companies.service';
 import { AgentConfigService } from '../agent-config/agent-config.service';
@@ -7,6 +7,7 @@ import { DynamoDBService } from '../../infrastructure/database/dynamodb.service'
 import { S3Service } from '../../infrastructure/storage/s3.service';
 import { KnowledgeService } from '../knowledge/knowledge.service';
 import { SchedulingService } from '../scheduling/scheduling.service';
+import { UsageService } from '../billing/usage.service';
 import {
   Call,
   CallDirection,
@@ -15,6 +16,7 @@ import {
   ContactSource,
   LeadStatus,
   AppointmentStatus,
+  CompanyStatus,
 } from '@handycall/shared';
 import { CreateLeadDto } from './dto/create-lead.dto';
 import { CreateBookingDto } from './dto/create-booking.dto';
@@ -38,7 +40,8 @@ export class RealtimeToolsService {
     private readonly dynamodb: DynamoDBService,
     private readonly s3: S3Service,
     private readonly knowledge: KnowledgeService,
-    private readonly scheduling: SchedulingService
+    private readonly scheduling: SchedulingService,
+    private readonly usageService: UsageService,
   ) {}
 
   async resolveTenant(toNumberRaw: string) {
@@ -55,6 +58,16 @@ export class RealtimeToolsService {
       throw new NotFoundException('No tenant found for this number');
     }
 
+    // Check if calls are enabled for this company
+    if (company.calls_enabled === false) {
+      throw new ForbiddenException('Calls are disabled for this account. Please check your subscription or usage limits.');
+    }
+
+    // Check if company is in a valid status
+    if (company.status === CompanyStatus.INACTIVE || company.status === CompanyStatus.SUSPENDED) {
+      throw new ForbiddenException('Account is inactive or suspended. Please update your subscription.');
+    }
+
     const config = (await this.agentConfig.getConfig(company.company_id)) ?? undefined;
 
     return {
@@ -63,6 +76,8 @@ export class RealtimeToolsService {
       timezone: company.timezone,
       service_type: company.service_type,
       agent_config: config,
+      calls_enabled: company.calls_enabled,
+      sms_enabled: company.sms_enabled,
     };
   }
 
@@ -189,6 +204,17 @@ export class RealtimeToolsService {
     }
 
     await this.dynamodb.update('calls', { company_id, call_id }, updates);
+
+    // Track call usage for billing
+    if (typeof dto.duration_seconds === 'number' && dto.duration_seconds > 0) {
+      const minutes = Math.max(1, Math.ceil(dto.duration_seconds / 60));
+      try {
+        await this.usageService.incrementCallMinutes(company_id, minutes);
+      } catch (err) {
+        console.error('[RealtimeToolsService] Failed to track call usage:', err);
+        // Don't fail the call save if usage tracking fails
+      }
+    }
 
     return { ok: true, call_id, transcript_url };
   }

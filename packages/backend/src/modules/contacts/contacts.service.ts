@@ -45,20 +45,28 @@ export class ContactsService {
       lastEvaluatedKey?: any;
     }
   ): Promise<{ contacts: Contact[]; lastEvaluatedKey?: any }> {
-    const result = await this.dynamodb.queryByCompany(
-      'contacts',
-      companyId,
-      {},
-      {
-        indexName: 'company_id-created_at-index',
-        limit: options?.limit || 50,
-        scanIndexForward: false, // Most recent first
-        exclusiveStartKey: options?.lastEvaluatedKey,
-      }
-    );
+    // Use scan with company filter instead of GSI to avoid index dependency
+    const result = await this.dynamodb.scan('contacts', {
+      filterExpression: '#company_id = :company_id',
+      expressionAttributeNames: {
+        '#company_id': 'company_id',
+      },
+      expressionAttributeValues: {
+        ':company_id': companyId,
+      },
+      limit: options?.limit || 50,
+      exclusiveStartKey: options?.lastEvaluatedKey,
+    });
+
+    // Sort by created_at descending (most recent first)
+    const sortedContacts = (result.items as Contact[]).sort((a, b) => {
+      const dateA = new Date(a.created_at || 0).getTime();
+      const dateB = new Date(b.created_at || 0).getTime();
+      return dateB - dateA;
+    });
 
     return {
-      contacts: result.items as Contact[],
+      contacts: sortedContacts,
       lastEvaluatedKey: result.lastEvaluatedKey,
     };
   }
@@ -76,13 +84,18 @@ export class ContactsService {
   }
 
   async getContactByPhone(companyId: string, phone: string): Promise<Contact | null> {
-    const result = await this.dynamodb.queryByCompany(
-      'contacts',
-      companyId,
-      {
-        filterExpression: '#phone = :phone',
-      }
-    );
+    const result = await this.dynamodb.scan('contacts', {
+      filterExpression: '#company_id = :company_id AND #phone = :phone',
+      expressionAttributeNames: {
+        '#company_id': 'company_id',
+        '#phone': 'phone',
+      },
+      expressionAttributeValues: {
+        ':company_id': companyId,
+        ':phone': phone,
+      },
+      limit: 1,
+    });
 
     const contacts = result.items as Contact[];
     return contacts.length > 0 ? contacts[0] : null;
@@ -150,15 +163,16 @@ export class ContactsService {
       limit?: number;
     }
   ): Promise<Contact[]> {
-    const result = await this.dynamodb.queryByCompany(
-      'contacts',
-      companyId,
-      {},
-      {
-        indexName: 'company_id-created_at-index',
-        limit: options?.limit || 50,
-      }
-    );
+    const result = await this.dynamodb.scan('contacts', {
+      filterExpression: '#company_id = :company_id',
+      expressionAttributeNames: {
+        '#company_id': 'company_id',
+      },
+      expressionAttributeValues: {
+        ':company_id': companyId,
+      },
+      limit: 500, // Get more to filter from
+    });
 
     // Filter results based on query
     const filtered = result.items.filter((contact: any) => {
@@ -170,7 +184,8 @@ export class ContactsService {
       return searchableText.includes(query.toLowerCase());
     });
 
-    return filtered as Contact[];
+    // Return limited results
+    return (filtered as Contact[]).slice(0, options?.limit || 50);
   }
 
   async incrementCallCount(companyId: string, contactId: string): Promise<void> {

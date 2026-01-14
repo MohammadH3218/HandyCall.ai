@@ -1,19 +1,25 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { apiClient } from '@/lib/api-client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { AudioPlayer } from '@/components/audio-player';
-import { Phone, Search, ChevronRight, Clock, PhoneCall } from 'lucide-react';
+import { Phone, Search, ChevronRight, Clock, PhoneCall, User, Calendar, FileText, ExternalLink } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 interface Call {
   call_id: string;
+  company_id: string;
+  contact_id?: string;
   caller_phone: string;
   caller_name?: string;
+  from_number?: string;
+  to_number?: string;
+  direction?: string;
   created_at: string;
   duration?: number;
   status: string;
@@ -25,10 +31,12 @@ interface Call {
   appointment_created?: boolean;
   appointment_id?: string;
   outcome?: string;
+  lead_quality?: string;
   collected_info?: any;
 }
 
 export default function CallsPage() {
+  const router = useRouter();
   const [calls, setCalls] = useState<Call[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -309,24 +317,78 @@ export default function CallsPage() {
                   </div>
                 </div>
 
+                {/* Associations - Contact & Appointment */}
+                {(selectedCall.contact_id || selectedCall.appointment_id) && (
+                  <div className="grid gap-4 md:grid-cols-2">
+                    {selectedCall.contact_id && (
+                      <Card
+                        className="cursor-pointer hover:border-blue-500 transition-colors"
+                        onClick={() => {
+                          setIsDialogOpen(false);
+                          router.push(`/dashboard/customers?contact=${selectedCall.contact_id}`);
+                        }}
+                      >
+                        <CardContent className="flex items-center gap-3 py-4">
+                          <div className="bg-purple-50 p-2 rounded-full">
+                            <User className="h-5 w-5 text-purple-600" />
+                          </div>
+                          <div className="flex-1">
+                            <p className="text-sm font-medium">Associated Contact</p>
+                            <p className="text-xs text-gray-500">View customer profile</p>
+                          </div>
+                          <ExternalLink className="h-4 w-4 text-gray-400" />
+                        </CardContent>
+                      </Card>
+                    )}
+                    {selectedCall.appointment_id && (
+                      <Card
+                        className="cursor-pointer hover:border-blue-500 transition-colors"
+                        onClick={() => {
+                          setIsDialogOpen(false);
+                          router.push(`/dashboard/appointments?appointment=${selectedCall.appointment_id}`);
+                        }}
+                      >
+                        <CardContent className="flex items-center gap-3 py-4">
+                          <div className="bg-green-50 p-2 rounded-full">
+                            <Calendar className="h-5 w-5 text-green-600" />
+                          </div>
+                          <div className="flex-1">
+                            <p className="text-sm font-medium">Booked Appointment</p>
+                            <p className="text-xs text-gray-500">View appointment details</p>
+                          </div>
+                          <ExternalLink className="h-4 w-4 text-gray-400" />
+                        </CardContent>
+                      </Card>
+                    )}
+                  </div>
+                )}
+
                 <div className="grid gap-4 md:grid-cols-2">
                   <Card>
                     <CardHeader>
-                      <CardTitle className="text-base">Summary</CardTitle>
+                      <CardTitle className="text-base flex items-center gap-2">
+                        <FileText className="h-4 w-4" />
+                        Summary
+                      </CardTitle>
                     </CardHeader>
                     <CardContent className="text-sm text-gray-700">
-                      {selectedCall.summary ? selectedCall.summary : <span className="text-gray-500">No summary yet.</span>}
+                      {selectedCall.summary ? selectedCall.summary : <span className="text-gray-500">No summary available. Summary is generated after the call ends.</span>}
                     </CardContent>
                   </Card>
                   <Card>
                     <CardHeader>
-                      <CardTitle className="text-base">Captured info</CardTitle>
+                      <CardTitle className="text-base">Captured Info</CardTitle>
                     </CardHeader>
                     <CardContent className="text-sm text-gray-700">
-                      {selectedCall.collected_info ? (
-                        <pre className="whitespace-pre-wrap text-xs bg-gray-50 border border-gray-200 rounded-lg p-3 overflow-auto max-h-40">
-                          {JSON.stringify(selectedCall.collected_info, null, 2)}
-                        </pre>
+                      {selectedCall.collected_info && Object.keys(selectedCall.collected_info).length > 0 ? (
+                        <div className="space-y-2">
+                          {Object.entries(selectedCall.collected_info).map(([key, value]) => (
+                            <div key={key} className="flex justify-between text-sm">
+                              <span className="text-gray-500 capitalize">{key.replace(/_/g, ' ')}</span>
+                              <span className="font-medium">{String(value)}</span>
+                            </div>
+                          ))}
+                        </div>
                       ) : (
                         <span className="text-gray-500">No structured info captured.</span>
                       )}

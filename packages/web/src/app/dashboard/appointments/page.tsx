@@ -344,28 +344,11 @@ export default function AppointmentsPage() {
 
       {isCalendarSetupComplete ? (
         <>
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-        <Card className="lg:col-span-2 overflow-hidden">
-          <CardHeader>
-            <CardTitle className="flex items-center justify-between gap-3">
-              <span className="flex items-center gap-2">
-                <Calendar className="h-5 w-5 text-blue-600" />
-                Calendar
-              </span>
-              <div className="flex items-center gap-2">
-                <Button variant="outline" onClick={() => setMonthCursor(new Date(monthCursor.getFullYear(), monthCursor.getMonth() - 1, 1))}>
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
-                <div className="font-medium text-gray-900 min-w-[160px] text-center">{monthLabel}</div>
-                <Button variant="outline" onClick={() => setMonthCursor(new Date(monthCursor.getFullYear(), monthCursor.getMonth() + 1, 1))}>
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-              </div>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
-              <div className="flex flex-col sm:flex-row gap-2 sm:items-center w-full">
+        {/* Search, Filters, and Connect Calendar */}
+        <Card className="mb-6">
+          <CardContent className="pt-6">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+              <div className="flex flex-col sm:flex-row gap-3 sm:items-center flex-1">
                 <Input
                   placeholder="Search appointments..."
                   value={searchQuery}
@@ -383,19 +366,49 @@ export default function AppointmentsPage() {
                   <option value="COMPLETED">Completed</option>
                   <option value="CANCELLED">Cancelled</option>
                 </select>
+                <div className="text-sm text-gray-500">
+                  {isLoading ? 'Loading...' : `${filteredAppointments.length} appointments`}
+                </div>
               </div>
-              <div className="text-xs text-gray-500">{isLoading ? 'Loading…' : `${filteredAppointments.length} shown`}</div>
+              <Button variant="outline" onClick={() => setIsCalendarProviderDialogOpen(true)}>
+                <ExternalLink className="h-4 w-4 mr-2" />
+                Connect Calendar
+              </Button>
             </div>
+          </CardContent>
+        </Card>
 
-            <div className="grid grid-cols-7 text-xs font-medium text-gray-600 border-b border-gray-100 pb-2">
+        {/* Calendar - Full Width */}
+        <Card className="mb-6 overflow-hidden">
+          <CardHeader className="pb-4">
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2">
+                <Calendar className="h-5 w-5 text-emerald-600" />
+                {monthLabel}
+              </CardTitle>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" onClick={() => setMonthCursor(new Date(monthCursor.getFullYear(), monthCursor.getMonth() - 1, 1))}>
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => setMonthCursor(new Date())}>
+                  Today
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => setMonthCursor(new Date(monthCursor.getFullYear(), monthCursor.getMonth() + 1, 1))}>
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="grid grid-cols-7 text-xs font-semibold text-gray-600 border-b border-gray-200 bg-gray-50">
               {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((d) => (
-                <div key={d} className="px-2">
+                <div key={d} className="px-3 py-3 text-center">
                   {d}
                 </div>
               ))}
             </div>
 
-            <div className="grid grid-cols-7 gap-px bg-gray-100 mt-2 rounded-lg overflow-hidden">
+            <div className="grid grid-cols-7 divide-x divide-y divide-gray-100">
               {monthDays.map((d) => {
                 const key = ymd(d);
                 const items = apptsByDay.get(key) ?? [];
@@ -405,9 +418,9 @@ export default function AppointmentsPage() {
                 return (
                   <button
                     key={key}
-                    className={`bg-white p-2 min-h-[86px] text-left hover:bg-gray-50 transition ${
-                      inMonth ? '' : 'opacity-60'
-                    }`}
+                    className={`min-h-[100px] p-2 text-left hover:bg-gray-50 transition relative ${
+                      inMonth ? 'bg-white' : 'bg-gray-50/50'
+                    } ${isToday ? 'ring-2 ring-inset ring-emerald-500' : ''}`}
                     onClick={() => {
                       if (!isCalendarSetupComplete) return;
                       setCreateDraft((p: any) => ({ ...p, date: key }));
@@ -415,19 +428,25 @@ export default function AppointmentsPage() {
                     }}
                     disabled={!isCalendarSetupComplete}
                   >
-                    <div className="flex items-center justify-between">
-                      <div className={`text-xs font-medium ${isToday ? 'text-blue-700' : 'text-gray-900'}`}>{d.getDate()}</div>
-                      {items.length > 0 ? (
-                        <div className="text-[10px] text-gray-500">{items.length} appt</div>
-                      ) : null}
+                    <div className={`text-sm font-medium mb-1 ${isToday ? 'text-emerald-600' : inMonth ? 'text-gray-900' : 'text-gray-400'}`}>
+                      {d.getDate()}
                     </div>
-                    <div className="mt-2 space-y-1">
-                      {items.slice(0, 2).map((a) => (
-                        <div key={a.appointment_id} className="text-[11px] truncate text-gray-700">
-                          {a.contact_name || a.contact_email || a.contact_phone || 'Appointment'}
+                    <div className="space-y-1">
+                      {items.slice(0, 3).map((a) => (
+                        <div
+                          key={a.appointment_id}
+                          className="text-xs truncate text-white bg-emerald-500 rounded px-1.5 py-0.5 cursor-pointer hover:bg-emerald-600"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleViewAppointment(a.appointment_id);
+                          }}
+                        >
+                          {a.contact_name || a.service_type || 'Appointment'}
                         </div>
                       ))}
-                      {items.length > 2 ? <div className="text-[11px] text-gray-500">+{items.length - 2} more</div> : null}
+                      {items.length > 3 && (
+                        <div className="text-xs text-gray-500 font-medium">+{items.length - 3} more</div>
+                      )}
                     </div>
                   </button>
                 );
@@ -435,24 +454,6 @@ export default function AppointmentsPage() {
             </div>
           </CardContent>
         </Card>
-
-        <Card className="overflow-hidden">
-          <CardContent className="p-4 space-y-2 text-xs">
-            <div className="flex justify-between gap-2">
-              <span className="text-gray-500">Company</span>
-              <span className="font-medium text-gray-900 truncate">{company?.company_name || '—'}</span>
-            </div>
-            <div className="flex justify-between gap-2">
-              <span className="text-gray-500">Timezone</span>
-              <span className="font-medium text-gray-900 truncate">{company?.timezone || 'UTC'}</span>
-            </div>
-            <div className="flex justify-between gap-2">
-              <span className="text-gray-500">Loaded</span>
-              <span className="font-medium text-gray-900 truncate">{isLoading ? '…' : filteredAppointments.length}</span>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
 
       <Card>
         <CardHeader>

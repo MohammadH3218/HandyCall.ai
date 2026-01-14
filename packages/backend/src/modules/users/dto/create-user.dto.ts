@@ -22,7 +22,7 @@ export class CreateUserDto {
   @IsNotEmpty()
   company_email?: string;
 
-  @ValidateIf((o) => !o.company_id && o.pool_type !== 'admin')
+  @IsOptional()
   @IsString()
   @Matches(/^\+[1-9]\d{1,14}$/, {
     message: 'Company phone must be in E.164 format (e.g., +12345678900)',

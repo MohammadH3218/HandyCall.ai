@@ -17,13 +17,13 @@ export class UsageService {
       date: today,
     });
 
-    if (existing?.item) {
+    if (existing) {
       await this.dynamodb.update(
         'usage_metrics',
         { company_id: companyId, date: today },
         {
-          minutes_used: existing.item.minutes_used + minutes,
-          calls_count: existing.item.calls_count + 1,
+          minutes_used: (existing.minutes_used || 0) + minutes,
+          calls_count: (existing.calls_count || 0) + 1,
           updated_at: Date.now(),
         }
       );
@@ -52,12 +52,12 @@ export class UsageService {
       date: today,
     });
 
-    if (existing?.item) {
+    if (existing) {
       await this.dynamodb.update(
         'usage_metrics',
         { company_id: companyId, date: today },
         {
-          sms_sent_count: existing.item.sms_sent_count + 1,
+          sms_sent_count: (existing.sms_sent_count || 0) + 1,
           updated_at: Date.now(),
         }
       );
@@ -86,7 +86,7 @@ export class UsageService {
       date: today,
     });
 
-    if (existing?.item) {
+    if (existing) {
       await this.dynamodb.update(
         'usage_metrics',
         { company_id: companyId, date: today },
@@ -116,13 +116,20 @@ export class UsageService {
     const startDate = new Date(periodStart).toISOString().split('T')[0];
     const endDate = new Date().toISOString().split('T')[0];
 
-    // Query all usage records in current billing period
-    const result = await this.dynamodb.query(
-      'usage_metrics',
-      'company_id = :company_id AND #date BETWEEN :start_date AND :end_date',
-      { '#date': 'date' },
-      { ':company_id': companyId, ':start_date': startDate, ':end_date': endDate }
-    );
+    // Use scan with filters to get usage records (more reliable across table structures)
+    const result = await this.dynamodb.scan('usage_metrics', {
+      filterExpression: '#company_id = :company_id AND #date BETWEEN :start_date AND :end_date',
+      expressionAttributeNames: {
+        '#company_id': 'company_id',
+        '#date': 'date',
+      },
+      expressionAttributeValues: {
+        ':company_id': companyId,
+        ':start_date': startDate,
+        ':end_date': endDate,
+      },
+      limit: 100,
+    });
 
     // Aggregate totals
     const totals = (result.items as any[]).reduce(
@@ -155,12 +162,19 @@ export class UsageService {
     const end = endDate || new Date().toISOString().split('T')[0];
     const start = startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]; // Default 30 days
 
-    const result = await this.dynamodb.query(
-      'usage_metrics',
-      'company_id = :company_id AND #date BETWEEN :start_date AND :end_date',
-      { '#date': 'date' },
-      { ':company_id': companyId, ':start_date': start, ':end_date': end }
-    );
+    const result = await this.dynamodb.scan('usage_metrics', {
+      filterExpression: '#company_id = :company_id AND #date BETWEEN :start_date AND :end_date',
+      expressionAttributeNames: {
+        '#company_id': 'company_id',
+        '#date': 'date',
+      },
+      expressionAttributeValues: {
+        ':company_id': companyId,
+        ':start_date': start,
+        ':end_date': end,
+      },
+      limit: 100,
+    });
 
     return result.items as UsageMetrics[];
   }
@@ -241,11 +255,11 @@ export class UsageService {
       minutes_used: metrics.minutes ?? 0,
       sms_sent_count: metrics.sms ?? 0,
       contacts_count: metrics.contacts ?? 0,
-      calls_count: existing?.item?.calls_count || 0,
+      calls_count: existing?.calls_count || 0,
       updated_at: Date.now(),
     };
 
-    if (existing?.item) {
+    if (existing) {
       await this.dynamodb.update('usage_metrics', { company_id: companyId, date: today }, next);
     } else {
       await this.dynamodb.put('usage_metrics', {
@@ -267,7 +281,7 @@ export class UsageService {
       date: today,
     });
 
-    const base = existing?.item || {
+    const base = existing || {
       minutes_used: 0,
       sms_sent_count: 0,
       contacts_count: 0,
@@ -275,14 +289,14 @@ export class UsageService {
     };
 
     const next = {
-      minutes_used: base.minutes_used + (deltas.minutes ?? 0),
-      sms_sent_count: base.sms_sent_count + (deltas.sms ?? 0),
-      contacts_count: base.contacts_count + (deltas.contacts ?? 0),
-      calls_count: base.calls_count,
+      minutes_used: (base.minutes_used || 0) + (deltas.minutes ?? 0),
+      sms_sent_count: (base.sms_sent_count || 0) + (deltas.sms ?? 0),
+      contacts_count: (base.contacts_count || 0) + (deltas.contacts ?? 0),
+      calls_count: base.calls_count || 0,
       updated_at: Date.now(),
     };
 
-    if (existing?.item) {
+    if (existing) {
       await this.dynamodb.update('usage_metrics', { company_id: companyId, date: today }, next);
     } else {
       await this.dynamodb.put('usage_metrics', {
