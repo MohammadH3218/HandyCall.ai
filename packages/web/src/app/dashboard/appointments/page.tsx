@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { apiClient } from '@/lib/api-client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -143,6 +144,35 @@ export default function AppointmentsPage() {
     }
     return map;
   }, [filteredAppointments]);
+
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  // Handle calendar connection redirect
+  useEffect(() => {
+    const calendarStatus = searchParams?.get('calendar');
+    const provider = searchParams?.get('provider');
+    const errorMessage = searchParams?.get('message');
+
+    if (calendarStatus === 'connected') {
+      // Reload data to show synced calendar events
+      void loadData();
+      
+      // Show success message
+      const providerName = provider === 'google' ? 'Google Calendar' : 
+                          provider === 'microsoft' ? 'Microsoft Calendar' : 
+                          'Calendar';
+      setError(null);
+      
+      // Clear URL parameters
+      router.replace('/dashboard/appointments');
+    } else if (calendarStatus === 'error') {
+      setError(errorMessage || 'Failed to connect calendar');
+      // Clear URL parameters
+      router.replace('/dashboard/appointments');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, router]);
 
   useEffect(() => {
     void loadData();

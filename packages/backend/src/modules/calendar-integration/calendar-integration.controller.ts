@@ -1,11 +1,16 @@
-import { Controller, Get, Post, Query, Body, Param } from '@nestjs/common';
+import { Controller, Get, Post, Query, Body, Param, Res, HttpStatus } from '@nestjs/common';
 import { Public } from '../../common/decorators/public.decorator';
 import { CompanyId } from '../../common/decorators/auth.decorator';
 import { CalendarIntegrationService } from './calendar-integration.service';
+import { ConfigService } from '@nestjs/config';
+import { Response } from 'express';
 
 @Controller('calendar-integration')
 export class CalendarIntegrationController {
-  constructor(private calendarService: CalendarIntegrationService) {}
+  constructor(
+    private calendarService: CalendarIntegrationService,
+    private configService: ConfigService,
+  ) {}
 
   @Get('providers')
   async getAvailableProviders() {
@@ -37,14 +42,62 @@ export class CalendarIntegrationController {
   @Get('auth/google/callback')
   async handleGoogleCallback(
     @Query('code') code: string,
-    @Query('state') state: string
+    @Query('state') state: string,
+    @Res() res: Response
   ) {
-    await this.calendarService.handleGoogleCallback(code, state);
-    return {
-      success: true,
-      message: 'Google Calendar connected successfully',
-      redirectUrl: '/dashboard/appointments?setup=complete'
-    };
+    try {
+      await this.calendarService.handleGoogleCallback(code, state);
+      
+      // Get frontend URL from config or default
+      const frontendUrl = this.configService.get<string>('FRONTEND_URL') || 
+                         this.configService.get<string>('NEXT_PUBLIC_APP_URL') || 
+                         'https://handycall.org';
+      
+      // Redirect to frontend with success parameter
+      const redirectUrl = `${frontendUrl}/dashboard/appointments?calendar=connected&provider=google`;
+      
+      console.log(`[CalendarIntegrationController] Google Calendar connected, redirecting to: ${redirectUrl}`);
+      
+      // Return HTML page that redirects immediately
+      res.status(HttpStatus.OK).send(`
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>Calendar Connected</title>
+            <meta http-equiv="refresh" content="0;url=${redirectUrl}">
+            <script>
+              window.location.href = "${redirectUrl}";
+            </script>
+          </head>
+          <body>
+            <p>Calendar connected successfully! Redirecting...</p>
+            <p>If you are not redirected, <a href="${redirectUrl}">click here</a>.</p>
+          </body>
+        </html>
+      `);
+    } catch (error: any) {
+      console.error('[CalendarIntegrationController] Error handling Google callback:', error);
+      const frontendUrl = this.configService.get<string>('FRONTEND_URL') || 
+                         this.configService.get<string>('NEXT_PUBLIC_APP_URL') || 
+                         'https://handycall.org';
+      const errorUrl = `${frontendUrl}/dashboard/appointments?calendar=error&message=${encodeURIComponent(error.message)}`;
+      res.status(HttpStatus.INTERNAL_SERVER_ERROR).send(`
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>Connection Error</title>
+            <meta http-equiv="refresh" content="3;url=${errorUrl}">
+            <script>
+              setTimeout(() => window.location.href = "${errorUrl}", 3000);
+            </script>
+          </head>
+          <body>
+            <p>Error connecting calendar: ${error.message}</p>
+            <p>Redirecting back...</p>
+          </body>
+        </html>
+      `);
+    }
   }
 
   @Get('auth/microsoft/url')
@@ -57,28 +110,90 @@ export class CalendarIntegrationController {
   @Get('auth/microsoft/callback')
   async handleMicrosoftCallback(
     @Query('code') code: string,
-    @Query('state') state: string
+    @Query('state') state: string,
+    @Res() res: Response
   ) {
     console.log(`[CalendarIntegrationController] Microsoft callback received - code: ${code ? 'PRESENT' : 'MISSING'}, state: ${state || 'MISSING'}`);
     
     if (!code) {
       console.error('[CalendarIntegrationController] Missing authorization code in callback');
-      throw new Error('Authorization code is required');
+      const frontendUrl = this.configService.get<string>('FRONTEND_URL') || 
+                         this.configService.get<string>('NEXT_PUBLIC_APP_URL') || 
+                         'https://handycall.org';
+      const errorUrl = `${frontendUrl}/dashboard/appointments?calendar=error&message=${encodeURIComponent('Authorization code is required')}`;
+      return res.status(HttpStatus.BAD_REQUEST).send(`
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>Connection Error</title>
+            <meta http-equiv="refresh" content="3;url=${errorUrl}">
+            <script>
+              setTimeout(() => window.location.href = "${errorUrl}", 3000);
+            </script>
+          </head>
+          <body>
+            <p>Error: Authorization code is required</p>
+            <p>Redirecting back...</p>
+          </body>
+        </html>
+      `);
     }
 
     if (!state) {
       console.error('[CalendarIntegrationController] Missing state (companyId) in callback');
-      throw new Error('State parameter (companyId) is required');
+      const frontendUrl = this.configService.get<string>('FRONTEND_URL') || 
+                         this.configService.get<string>('NEXT_PUBLIC_APP_URL') || 
+                         'https://handycall.org';
+      const errorUrl = `${frontendUrl}/dashboard/appointments?calendar=error&message=${encodeURIComponent('State parameter (companyId) is required')}`;
+      return res.status(HttpStatus.BAD_REQUEST).send(`
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>Connection Error</title>
+            <meta http-equiv="refresh" content="3;url=${errorUrl}">
+            <script>
+              setTimeout(() => window.location.href = "${errorUrl}", 3000);
+            </script>
+          </head>
+          <body>
+            <p>Error: State parameter (companyId) is required</p>
+            <p>Redirecting back...</p>
+          </body>
+        </html>
+      `);
     }
 
     try {
       await this.calendarService.handleMicrosoftCallback(code, state);
       console.log(`[CalendarIntegrationController] Microsoft Calendar connected successfully for company: ${state}`);
-      return {
-        success: true,
-        message: 'Microsoft Calendar connected successfully',
-        redirectUrl: '/dashboard/appointments?setup=complete'
-      };
+      
+      // Get frontend URL from config or default
+      const frontendUrl = this.configService.get<string>('FRONTEND_URL') || 
+                         this.configService.get<string>('NEXT_PUBLIC_APP_URL') || 
+                         'https://handycall.org';
+      
+      // Redirect to frontend with success parameter
+      const redirectUrl = `${frontendUrl}/dashboard/appointments?calendar=connected&provider=microsoft`;
+      
+      console.log(`[CalendarIntegrationController] Microsoft Calendar connected, redirecting to: ${redirectUrl}`);
+      
+      // Return HTML page that redirects immediately
+      res.status(HttpStatus.OK).send(`
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>Calendar Connected</title>
+            <meta http-equiv="refresh" content="0;url=${redirectUrl}">
+            <script>
+              window.location.href = "${redirectUrl}";
+            </script>
+          </head>
+          <body>
+            <p>Calendar connected successfully! Redirecting...</p>
+            <p>If you are not redirected, <a href="${redirectUrl}">click here</a>.</p>
+          </body>
+        </html>
+      `);
     } catch (error: any) {
       console.error('[CalendarIntegrationController] Error handling Microsoft callback:', error);
       console.error('[CalendarIntegrationController] Error details:', {
@@ -87,7 +202,27 @@ export class CalendarIntegrationController {
         code: code ? 'PRESENT' : 'MISSING',
         state: state || 'MISSING'
       });
-      throw error;
+      
+      const frontendUrl = this.configService.get<string>('FRONTEND_URL') || 
+                         this.configService.get<string>('NEXT_PUBLIC_APP_URL') || 
+                         'https://handycall.org';
+      const errorUrl = `${frontendUrl}/dashboard/appointments?calendar=error&message=${encodeURIComponent(error.message)}`;
+      res.status(HttpStatus.INTERNAL_SERVER_ERROR).send(`
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>Connection Error</title>
+            <meta http-equiv="refresh" content="3;url=${errorUrl}">
+            <script>
+              setTimeout(() => window.location.href = "${errorUrl}", 3000);
+            </script>
+          </head>
+          <body>
+            <p>Error connecting calendar: ${error.message}</p>
+            <p>Redirecting back...</p>
+          </body>
+        </html>
+      `);
     }
   }
 
