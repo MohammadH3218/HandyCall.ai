@@ -44,14 +44,23 @@ export class ParameterStoreService implements OnModuleInit {
       const response = await this.ssmClient.send(command);
 
       if (response.Parameters) {
+        const loaded: string[] = [];
         for (const param of response.Parameters) {
           if (param.Name && param.Value) {
             this.cache.set(param.Name, param.Value);
+            loaded.push(param.Name);
           }
         }
+        console.log(`[ParameterStoreService] Loaded ${loaded.length} OAuth credentials from Parameter Store:`, loaded);
+      } else {
+        console.warn('[ParameterStoreService] No OAuth credentials found in Parameter Store');
       }
 
-      console.log('[ParameterStoreService] Loaded OAuth credentials from Parameter Store');
+      // Log which credentials are missing
+      const missing = parameterNames.filter(name => !this.cache.has(name));
+      if (missing.length > 0) {
+        console.warn(`[ParameterStoreService] Missing credentials: ${missing.join(', ')}`);
+      }
     } catch (error) {
       console.error('[ParameterStoreService] Error loading credentials from Parameter Store:', error);
       // Fall back to environment variables

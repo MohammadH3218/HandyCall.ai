@@ -18,6 +18,15 @@ export class CalendarIntegrationController {
     };
   }
 
+  @Public()
+  @Get('test')
+  async testEndpoint() {
+    return {
+      message: 'Calendar integration endpoints are accessible',
+      timestamp: Date.now(),
+    };
+  }
+
   @Get('auth/google/url')
   async getGoogleAuthUrl(@CompanyId() companyId: string) {
     const url = await this.calendarService.getGoogleAuthUrl(companyId);
@@ -80,9 +89,17 @@ export class CalendarIntegrationController {
     @CompanyId() companyId: string,
     @Body() body: { email: string; appSpecificPassword: string; calendarPath?: string }
   ) {
+    console.log(`[CalendarIntegrationController] Apple connect request - companyId: ${companyId ? 'PRESENT' : 'MISSING'}, email: ${body?.email ? 'PRESENT' : 'MISSING'}`);
+    
     if (!companyId) {
+      console.error('[CalendarIntegrationController] Company ID missing from request');
       throw new Error('Company ID is required. Please ensure you are authenticated.');
     }
+
+    if (!body?.email || !body?.appSpecificPassword) {
+      throw new Error('Email and app-specific password are required');
+    }
+
     await this.calendarService.connectAppleCalendar(companyId, body.email, body.appSpecificPassword, body.calendarPath);
     return {
       success: true,
