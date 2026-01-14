@@ -8,7 +8,7 @@ import { useAuthStore } from '@/stores/auth-store';
 import { Logo } from '@/components/ui/logo';
 import { ProfileDropdown } from '@/components/profile-dropdown';
 import { Button } from '@/components/ui/button';
-import { BarChart3, Calendar, CreditCard, Home, Menu, MessageSquare, Phone, Settings, X } from 'lucide-react';
+import { BarChart3, Calendar, CreditCard, Home, Menu, MessageSquare, Phone, Settings, Users, X } from 'lucide-react';
 import { UserRole } from '@handycall/shared';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -148,6 +148,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </NavLink>
             <NavLink href="/dashboard/calls" icon={<Phone className="h-5 w-5" />} onClick={() => setSidebarOpen(false)}>
               Calls
+            </NavLink>
+            <NavLink href="/dashboard/customers" icon={<Users className="h-5 w-5" />} onClick={() => setSidebarOpen(false)}>
+              Customers
             </NavLink>
             <NavLink href="/dashboard/appointments" icon={<Calendar className="h-5 w-5" />} onClick={() => setSidebarOpen(false)}>
               Appointments

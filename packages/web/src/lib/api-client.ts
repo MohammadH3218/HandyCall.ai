@@ -357,6 +357,11 @@ class ApiClient {
     return response.data ?? response;
   }
 
+  async getContactAppointments(contactId: string): Promise<{ appointments: any[] }> {
+    const response = await this.request<any>(`/contacts/${contactId}/appointments`, { method: 'GET' });
+    return (response.data ?? response) as { appointments: any[] };
+  }
+
   async createContact(data: any): Promise<any> {
     const response = await this.request<any>('/contacts', {
       method: 'POST',
@@ -447,6 +452,42 @@ class ApiClient {
     const response = await this.request<any>('/billing/payment-method', {
       method: 'PUT',
       body: JSON.stringify({ payment_method_id: paymentMethodId }),
+    });
+    return response.data ?? response;
+  }
+
+  // Calendar Integration endpoints
+  async getGoogleCalendarAuthUrl(): Promise<{ url: string }> {
+    const response = await this.request<{ url: string }>('/calendar-integration/auth/google/url', {
+      method: 'GET',
+    });
+    return (response.data ?? response) as { url: string };
+  }
+
+  async getMicrosoftCalendarAuthUrl(): Promise<{ url: string }> {
+    const response = await this.request<{ url: string }>('/calendar-integration/auth/microsoft/url', {
+      method: 'GET',
+    });
+    return (response.data ?? response) as { url: string };
+  }
+
+  async syncCalendar(): Promise<any> {
+    const response = await this.request<any>('/calendar-integration/sync', {
+      method: 'POST',
+    });
+    return response.data ?? response;
+  }
+
+  async getCalendarConnectionStatus(): Promise<any> {
+    const response = await this.request<any>('/calendar-integration/status', {
+      method: 'GET',
+    });
+    return response.data ?? response;
+  }
+
+  async disconnectCalendar(): Promise<any> {
+    const response = await this.request<any>('/calendar-integration/disconnect', {
+      method: 'POST',
     });
     return response.data ?? response;
   }

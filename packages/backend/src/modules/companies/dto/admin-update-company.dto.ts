@@ -1,4 +1,4 @@
-import { IsBoolean, IsEmail, IsEnum, IsOptional, IsString, Matches } from 'class-validator';
+import { IsBoolean, IsEmail, IsEnum, IsIn, IsOptional, IsString, Matches } from 'class-validator';
 import { CompanyStatus, ServiceType, BusinessHours } from '@handycall/shared';
 
 export class AdminUpdateCompanyDto {
@@ -40,4 +40,17 @@ export class AdminUpdateCompanyDto {
   @IsOptional()
   @IsBoolean()
   sms_enabled?: boolean;
+
+  // Calendar setup
+  @IsOptional()
+  @IsBoolean()
+  calendar_setup_completed?: boolean;
+
+  @IsOptional()
+  @IsIn(['INTERNAL', 'EXTERNAL'])
+  calendar_mode?: 'INTERNAL' | 'EXTERNAL';
+
+  @IsOptional()
+  @IsIn(['NONE', 'GOOGLE', 'MICROSOFT', 'APPLE'])
+  calendar_provider?: 'NONE' | 'GOOGLE' | 'MICROSOFT' | 'APPLE';
 }

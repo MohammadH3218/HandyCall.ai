@@ -185,4 +185,25 @@ export class ContactsService {
       }
     );
   }
+
+  async getContactAppointments(companyId: string, contactId: string): Promise<any[]> {
+    const contact = await this.getContactById(companyId, contactId);
+
+    const scan = await this.dynamodb.scan('appointments', {
+      filterExpression: '#company_id = :company_id AND ( #contact_id = :contact_id OR #contact_phone = :contact_phone )',
+      expressionAttributeNames: {
+        '#company_id': 'company_id',
+        '#contact_id': 'contact_id',
+        '#contact_phone': 'contact_phone',
+      },
+      expressionAttributeValues: {
+        ':company_id': companyId,
+        ':contact_id': contactId,
+        ':contact_phone': contact.phone,
+      },
+      limit: 500,
+    });
+
+    return (scan.items || []).sort((a: any, b: any) => (a?.scheduled_start ?? 0) - (b?.scheduled_start ?? 0));
+  }
 }

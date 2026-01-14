@@ -8,6 +8,81 @@ import { AppointmentStatus } from '@handycall/shared';
 export class AppointmentsService {
   constructor(private dynamodb: DynamoDBService) {}
 
+  private async findOrCreateContactId(
+    companyId: string,
+    input: { contact_name?: string; contact_email?: string; contact_phone?: string; notes?: string }
+  ): Promise<string | undefined> {
+    const phone = input.contact_phone?.trim();
+    if (!phone) return undefined;
+
+    const existing = await this.dynamodb.scan('contacts', {
+      filterExpression: '#company_id = :company_id AND #phone = :phone',
+      expressionAttributeNames: { '#company_id': 'company_id', '#phone': 'phone' },
+      expressionAttributeValues: { ':company_id': companyId, ':phone': phone },
+      limit: 1,
+    });
+
+    const contact = existing.items?.[0];
+    if (contact?.contact_id) return contact.contact_id as string;
+
+    const nowIso = new Date().toISOString();
+    const contact_id = uuidv4();
+    await this.dynamodb.put('contacts', {
+      contact_id,
+      company_id: companyId,
+      name: input.contact_name?.trim() || phone,
+      phone,
+      email: input.contact_email?.trim() || undefined,
+      source: 'MANUAL',
+      tags: [],
+      notes: input.notes,
+      created_at: nowIso,
+      updated_at: nowIso,
+      total_calls: 0,
+    });
+
+    return contact_id;
+  }
+
+  private addMonthsUtc(date: Date, months: number): Date {
+    const d = new Date(date.getTime());
+    const year = d.getUTCFullYear();
+    const month = d.getUTCMonth();
+    const day = d.getUTCDate();
+
+    const next = new Date(Date.UTC(year, month + months, 1, d.getUTCHours(), d.getUTCMinutes(), 0, 0));
+    const daysInTargetMonth = new Date(Date.UTC(next.getUTCFullYear(), next.getUTCMonth() + 1, 0)).getUTCDate();
+    next.setUTCDate(Math.min(day, daysInTargetMonth));
+    return next;
+  }
+
+  private generateRecurrenceStarts(
+    firstStart: number,
+    recurrence: { frequency: 'DAILY' | 'WEEKLY' | 'MONTHLY'; interval?: number; count?: number; until?: number }
+  ): number[] {
+    const interval = Math.max(1, Math.floor(recurrence.interval ?? 1));
+    const maxCount = Math.min(200, Math.max(1, Math.floor(recurrence.count ?? 1)));
+    const until = typeof recurrence.until === 'number' ? recurrence.until : undefined;
+
+    const starts: number[] = [];
+    let current = new Date(firstStart);
+    for (let i = 0; i < maxCount; i++) {
+      const ms = current.getTime();
+      if (until && ms > until) break;
+      starts.push(ms);
+
+      if (recurrence.frequency === 'DAILY') {
+        current = new Date(ms + interval * 24 * 60 * 60 * 1000);
+      } else if (recurrence.frequency === 'WEEKLY') {
+        current = new Date(ms + interval * 7 * 24 * 60 * 60 * 1000);
+      } else {
+        current = this.addMonthsUtc(current, interval);
+      }
+    }
+
+    return starts;
+  }
+
   async listAppointments(
     companyId: string,
     options?: { limit?: number; lastEvaluatedKey?: any }
@@ -91,8 +166,18 @@ export class AppointmentsService {
       scheduled_end: number;
       contact_name?: string;
       contact_email?: string;
+      contact_phone?: string;
       service_type?: string;
       notes?: string;
+      address?: { street?: string; city?: string; state?: string; zip?: string };
+      price_cents?: number;
+      currency?: string;
+      recurrence?: {
+        frequency: 'DAILY' | 'WEEKLY' | 'MONTHLY';
+        interval?: number;
+        count?: number;
+        until?: number;
+      };
       created_by?: string;
     }
   ) {
@@ -104,21 +189,76 @@ export class AppointmentsService {
     }
 
     const now = Date.now();
-    const appointment_id = uuidv4();
-    const appointment = {
-      company_id: companyId,
-      appointment_id,
-      scheduled_start: input.scheduled_start,
-      scheduled_end: input.scheduled_end,
-      status: AppointmentStatus.SCHEDULED,
-      service_type: input.service_type ?? 'Service',
+
+    const contact_id = await this.findOrCreateContactId(companyId, {
       contact_name: input.contact_name,
       contact_email: input.contact_email,
+      contact_phone: input.contact_phone,
       notes: input.notes,
+    });
+
+    const base = {
+      company_id: companyId,
+      status: AppointmentStatus.SCHEDULED,
+      service_type: input.service_type ?? 'Service',
+      contact_id,
+      contact_name: input.contact_name,
+      contact_email: input.contact_email,
+      contact_phone: input.contact_phone,
+      address: input.address,
+      notes: input.notes,
+      price_cents: typeof input.price_cents === 'number' ? input.price_cents : undefined,
+      currency: input.currency ?? undefined,
       created_by: input.created_by ?? 'USER',
       confirmed: true,
       created_at: now,
       updated_at: now,
+    };
+
+    if (input.recurrence) {
+      const series_id = uuidv4();
+      const masterId = uuidv4();
+
+      const master = {
+        ...base,
+        appointment_id: masterId,
+        scheduled_start: input.scheduled_start,
+        scheduled_end: input.scheduled_end,
+        series_id,
+        is_series_master: true,
+        recurrence: input.recurrence,
+      };
+      await this.dynamodb.put('appointments', master);
+
+      const durationMs = input.scheduled_end - input.scheduled_start;
+      const starts = this.generateRecurrenceStarts(input.scheduled_start, input.recurrence);
+      const occurrences = starts.map((start, idx) => {
+        const appointment_id = uuidv4();
+        return {
+          ...base,
+          appointment_id,
+          scheduled_start: start,
+          scheduled_end: start + durationMs,
+          series_id,
+          is_series_master: false,
+          occurrence_index: idx,
+        };
+      });
+
+      // First occurrence duplicates the master's time window but is the entry shown on the calendar.
+      for (const occ of occurrences) {
+        await this.dynamodb.put('appointments', occ);
+      }
+
+      return { ...master, created_occurrences: occurrences.length };
+    }
+
+    const appointment_id = uuidv4();
+    const appointment = {
+      ...base,
+      appointment_id,
+      scheduled_start: input.scheduled_start,
+      scheduled_end: input.scheduled_end,
     };
 
     await this.dynamodb.put('appointments', appointment);

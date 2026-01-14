@@ -1,0 +1,166 @@
+import { Injectable } from '@nestjs/common';
+import axios from 'axios';
+
+@Injectable()
+export class MicrosoftCalendarService {
+  private clientId: string;
+  private clientSecret: string;
+  private redirectUri: string;
+  private authority = 'https://login.microsoftonline.com/common';
+  private tokenEndpoint = `${this.authority}/oauth2/v2.0/token`;
+  private authEndpoint = `${this.authority}/oauth2/v2.0/authorize`;
+  private graphEndpoint = 'https://graph.microsoft.com/v1.0';
+
+  constructor() {
+    this.clientId = process.env.MICROSOFT_CLIENT_ID || '';
+    this.clientSecret = process.env.MICROSOFT_CLIENT_SECRET || '';
+    this.redirectUri = process.env.MICROSOFT_REDIRECT_URI || `${process.env.BACKEND_URL}/calendar-integration/auth/microsoft/callback`;
+  }
+
+  getAuthUrl(companyId: string): string {
+    const params = new URLSearchParams({
+      client_id: this.clientId,
+      response_type: 'code',
+      redirect_uri: this.redirectUri,
+      response_mode: 'query',
+      scope: 'Calendars.ReadWrite offline_access',
+      state: companyId,
+    });
+
+    return `${this.authEndpoint}?${params.toString()}`;
+  }
+
+  async exchangeCodeForTokens(code: string): Promise<any> {
+    const params = new URLSearchParams({
+      client_id: this.clientId,
+      client_secret: this.clientSecret,
+      code,
+      redirect_uri: this.redirectUri,
+      grant_type: 'authorization_code',
+    });
+
+    const response = await axios.post(this.tokenEndpoint, params.toString(), {
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    });
+
+    return {
+      access_token: response.data.access_token,
+      refresh_token: response.data.refresh_token,
+      expiry_date: Date.now() + response.data.expires_in * 1000,
+    };
+  }
+
+  async ensureValidTokens(tokens: any): Promise<any> {
+    // Check if token is expired
+    if (tokens.expiry_date && tokens.expiry_date < Date.now()) {
+      // Refresh the token
+      const params = new URLSearchParams({
+        client_id: this.clientId,
+        client_secret: this.clientSecret,
+        refresh_token: tokens.refresh_token,
+        grant_type: 'refresh_token',
+      });
+
+      const response = await axios.post(this.tokenEndpoint, params.toString(), {
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      });
+
+      return {
+        access_token: response.data.access_token,
+        refresh_token: response.data.refresh_token || tokens.refresh_token,
+        expiry_date: Date.now() + response.data.expires_in * 1000,
+      };
+    }
+
+    return tokens;
+  }
+
+  async getEvents(accessToken: string, startDateTime: string, endDateTime: string): Promise<any[]> {
+    try {
+      const response = await axios.get(`${this.graphEndpoint}/me/calendar/calendarView`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+        params: {
+          startDateTime,
+          endDateTime,
+          $top: 250,
+          $orderby: 'start/dateTime',
+        },
+      });
+
+      return (response.data.value || []).map((event: any) => ({
+        id: event.id,
+        summary: event.subject,
+        description: event.bodyPreview,
+        start: event.start?.dateTime,
+        end: event.end?.dateTime,
+      }));
+    } catch (err) {
+      console.error('Error fetching Microsoft Calendar events:', err);
+      return [];
+    }
+  }
+
+  async createEvent(accessToken: string, event: any): Promise<any> {
+    const response = await axios.post(
+      `${this.graphEndpoint}/me/calendar/events`,
+      {
+        subject: event.summary,
+        body: {
+          contentType: 'Text',
+          content: event.description || '',
+        },
+        start: {
+          dateTime: event.start,
+          timeZone: 'UTC',
+        },
+        end: {
+          dateTime: event.end,
+          timeZone: 'UTC',
+        },
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+      }
+    );
+
+    return response.data;
+  }
+
+  async updateEvent(accessToken: string, eventId: string, event: any): Promise<any> {
+    const response = await axios.patch(
+      `${this.graphEndpoint}/me/calendar/events/${eventId}`,
+      {
+        subject: event.summary,
+        body: {
+          contentType: 'Text',
+          content: event.description || '',
+        },
+        start: {
+          dateTime: event.start,
+          timeZone: 'UTC',
+        },
+        end: {
+          dateTime: event.end,
+          timeZone: 'UTC',
+        },
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+      }
+    );
+
+    return response.data;
+  }
+
+  async deleteEvent(accessToken: string, eventId: string): Promise<void> {
+    await axios.delete(`${this.graphEndpoint}/me/calendar/events/${eventId}`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+  }
+}

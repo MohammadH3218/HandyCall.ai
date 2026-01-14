@@ -19,6 +19,7 @@ import { BillingModule } from './modules/billing/billing.module';
 import { CompanyNumbersModule } from './modules/company-numbers/company-numbers.module';
 import { RealtimeToolsModule } from './modules/realtime-tools/realtime-tools.module';
 import { SchedulingModule } from './modules/scheduling/scheduling.module';
+import { CalendarIntegrationModule } from './modules/calendar-integration/calendar-integration.module';
 import { DatabaseModule } from './infrastructure/database/database.module';
 import { StorageModule } from './infrastructure/storage/storage.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
@@ -56,6 +57,7 @@ import { AppService } from './app.service';
     BillingModule,
     CompanyNumbersModule,
     RealtimeToolsModule,
+    CalendarIntegrationModule,
   ],
   controllers: [AppController],
   providers: [

@@ -1,0 +1,126 @@
+import { Injectable } from '@nestjs/common';
+import { google } from 'googleapis';
+
+@Injectable()
+export class GoogleCalendarService {
+  private oauth2Client: any;
+
+  constructor() {
+    this.oauth2Client = new google.auth.OAuth2(
+      process.env.GOOGLE_CLIENT_ID,
+      process.env.GOOGLE_CLIENT_SECRET,
+      process.env.GOOGLE_REDIRECT_URI || `${process.env.BACKEND_URL}/calendar-integration/auth/google/callback`
+    );
+  }
+
+  getAuthUrl(companyId: string): string {
+    return this.oauth2Client.generateAuthUrl({
+      access_type: 'offline',
+      scope: ['https://www.googleapis.com/auth/calendar'],
+      state: companyId, // Pass companyId as state
+      prompt: 'consent', // Force consent screen to get refresh token
+    });
+  }
+
+  async exchangeCodeForTokens(code: string): Promise<any> {
+    const { tokens } = await this.oauth2Client.getToken(code);
+    return tokens;
+  }
+
+  async ensureValidTokens(tokens: any): Promise<any> {
+    this.oauth2Client.setCredentials(tokens);
+
+    // Check if token is expired
+    if (tokens.expiry_date && tokens.expiry_date < Date.now()) {
+      // Refresh the token
+      const { credentials } = await this.oauth2Client.refreshAccessToken();
+      return credentials;
+    }
+
+    return tokens;
+  }
+
+  async getEvents(accessToken: string, timeMin: string, timeMax: string): Promise<any[]> {
+    this.oauth2Client.setCredentials({ access_token: accessToken });
+    const calendar = google.calendar({ version: 'v3', auth: this.oauth2Client });
+
+    try {
+      const response = await calendar.events.list({
+        calendarId: 'primary',
+        timeMin,
+        timeMax,
+        maxResults: 250,
+        singleEvents: true,
+        orderBy: 'startTime',
+      });
+
+      return (response.data.items || []).map((event: any) => ({
+        id: event.id,
+        summary: event.summary,
+        description: event.description,
+        start: event.start?.dateTime || event.start?.date,
+        end: event.end?.dateTime || event.end?.date,
+      }));
+    } catch (err) {
+      console.error('Error fetching Google Calendar events:', err);
+      return [];
+    }
+  }
+
+  async createEvent(accessToken: string, event: any): Promise<any> {
+    this.oauth2Client.setCredentials({ access_token: accessToken });
+    const calendar = google.calendar({ version: 'v3', auth: this.oauth2Client });
+
+    const response = await calendar.events.insert({
+      calendarId: 'primary',
+      requestBody: {
+        summary: event.summary,
+        description: event.description,
+        start: {
+          dateTime: event.start,
+          timeZone: 'UTC',
+        },
+        end: {
+          dateTime: event.end,
+          timeZone: 'UTC',
+        },
+      },
+    });
+
+    return response.data;
+  }
+
+  async updateEvent(accessToken: string, eventId: string, event: any): Promise<any> {
+    this.oauth2Client.setCredentials({ access_token: accessToken });
+    const calendar = google.calendar({ version: 'v3', auth: this.oauth2Client });
+
+    const response = await calendar.events.update({
+      calendarId: 'primary',
+      eventId,
+      requestBody: {
+        summary: event.summary,
+        description: event.description,
+        start: {
+          dateTime: event.start,
+          timeZone: 'UTC',
+        },
+        end: {
+          dateTime: event.end,
+          timeZone: 'UTC',
+        },
+      },
+    });
+
+    return response.data;
+  }
+
+  async deleteEvent(accessToken: string, eventId: string): Promise<void> {
+    this.oauth2Client.setCredentials({ access_token: accessToken });
+    const calendar = google.calendar({ version: 'v3', auth: this.oauth2Client });
+
+    await calendar.events.delete({
+      calendarId: 'primary',
+      eventId,
+    });
+  }
+}

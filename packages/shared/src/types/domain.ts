@@ -64,6 +64,21 @@ export interface Company {
 
   use_simple_scheduling?: boolean; // Fallback to simple time slots
 
+  // Calendar / scheduling setup
+  calendar_setup_completed?: boolean;
+  /**
+   * How the company wants to manage appointments:
+   * - INTERNAL: manage appointments inside HandyCall only (default)
+   * - EXTERNAL: connect an existing calendar provider (future)
+   */
+  calendar_mode?: 'INTERNAL' | 'EXTERNAL';
+  calendar_provider?: 'NONE' | 'GOOGLE' | 'MICROSOFT' | 'APPLE';
+  /**
+   * Stores provider connection metadata (tokens/credentials should be encrypted at rest).
+   * Shape is intentionally loose to allow iterative provider support.
+   */
+  calendar_connection?: any;
+
   // Billing fields
   stripe_customer_id?: string;
   stripe_subscription_id?: string;
@@ -300,7 +315,7 @@ export enum BookingMode {
 export interface Appointment {
   appointment_id: UUID;
   company_id: UUID;
-  contact_id: UUID;
+  contact_id?: UUID;
   call_id?: UUID; // If created via call
   scheduled_start: Timestamp;
   scheduled_end: Timestamp;
@@ -308,9 +323,24 @@ export interface Appointment {
   service_type: string;
   description?: string;
   address?: Address;
+  contact_name?: string;
+  contact_email?: string;
+  contact_phone?: PhoneNumber;
   notes?: string;
   created_by: 'AI' | 'USER';
   confirmed: boolean;
+  // Recurrence (optional)
+  series_id?: UUID;
+  is_series_master?: boolean;
+  recurrence?: {
+    frequency: 'DAILY' | 'WEEKLY' | 'MONTHLY';
+    interval?: number; // default 1
+    count?: number; // max occurrences
+    until?: Timestamp; // end date (inclusive)
+  };
+  // Optional billing context (not Stripe subscription)
+  price_cents?: number;
+  currency?: string;
   created_at: Timestamp;
   updated_at: Timestamp;
 }

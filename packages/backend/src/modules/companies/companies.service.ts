@@ -112,6 +112,9 @@ export class CompaniesService {
       updated_at: timestamp,
       calls_enabled: false, // Start disabled until a plan is active
       sms_enabled: false, // Start disabled until a plan is active
+      calendar_setup_completed: false,
+      calendar_mode: 'INTERNAL',
+      calendar_provider: 'NONE',
     };
 
     await this.dynamodb.put(this.tableName, company);
@@ -174,6 +177,11 @@ export class CompaniesService {
       payment_method_last4?: string;
       payment_method_brand?: string;
       cancel_at_period_end?: boolean;
+      // Calendar fields
+      calendar_setup_completed?: boolean;
+      calendar_mode?: 'INTERNAL' | 'EXTERNAL';
+      calendar_provider?: 'NONE' | 'GOOGLE' | 'MICROSOFT' | 'APPLE';
+      calendar_connection?: any;
     }
   ): Promise<Company> {
     const company = await this.findById(companyId);

@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsObject, IsBoolean, IsNumber } from 'class-validator';
+import { IsString, IsOptional, IsObject, IsBoolean, IsNumber, IsIn } from 'class-validator';
 import { BusinessHours } from '@handycall/shared';
 
 export class UpdateCompanyDto {
@@ -46,4 +46,21 @@ export class UpdateCompanyDto {
   @IsOptional()
   @IsBoolean()
   use_simple_scheduling?: boolean;
+
+  // Calendar setup
+  @IsOptional()
+  @IsBoolean()
+  calendar_setup_completed?: boolean;
+
+  @IsOptional()
+  @IsIn(['INTERNAL', 'EXTERNAL'])
+  calendar_mode?: 'INTERNAL' | 'EXTERNAL';
+
+  @IsOptional()
+  @IsIn(['NONE', 'GOOGLE', 'MICROSOFT', 'APPLE'])
+  calendar_provider?: 'NONE' | 'GOOGLE' | 'MICROSOFT' | 'APPLE';
+
+  @IsOptional()
+  @IsObject()
+  calendar_connection?: any;
 }

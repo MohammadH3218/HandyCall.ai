@@ -37,6 +37,15 @@ export class ContactsController {
     return this.contactsService.getContactById(companyId, contactId);
   }
 
+  @Get(':contactId/appointments')
+  async getContactAppointments(
+    @CompanyId() companyId: string,
+    @Param('contactId') contactId: string,
+  ) {
+    const appointments = await this.contactsService.getContactAppointments(companyId, contactId);
+    return { appointments };
+  }
+
   @Post()
   async createContact(
     @CompanyId() companyId: string,
