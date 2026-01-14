@@ -1,5 +1,6 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { CalendarIntegrationController } from './calendar-integration.controller';
+import { LegacyCalendarController } from './legacy-calendar.controller';
 import { CalendarIntegrationService } from './calendar-integration.service';
 import { GoogleCalendarService } from './providers/google-calendar.service';
 import { MicrosoftCalendarService } from './providers/microsoft-calendar.service';
@@ -9,7 +10,7 @@ import { AppointmentsModule } from '../appointments/appointments.module';
 
 @Module({
   imports: [CompaniesModule, forwardRef(() => AppointmentsModule)],
-  controllers: [CalendarIntegrationController],
+  controllers: [CalendarIntegrationController, LegacyCalendarController],
   providers: [
     CalendarIntegrationService,
     GoogleCalendarService,
