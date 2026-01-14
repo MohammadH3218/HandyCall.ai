@@ -56,23 +56,59 @@ export class CalendarIntegrationService {
 
   async handleMicrosoftCallback(code: string, state: string): Promise<void> {
     const companyId = state; // State contains companyId
-    const tokens = await this.microsoftCalendar.exchangeCodeForTokens(code);
+    
+    console.log(`[CalendarIntegrationService] Handling Microsoft callback for company: ${companyId}`);
+    
+    if (!companyId) {
+      throw new Error('Company ID (state) is required');
+    }
 
-    await this.companiesService.updateCompany(companyId, {
-      calendar_provider: 'MICROSOFT',
-      calendar_mode: 'EXTERNAL',
-      calendar_connection: {
-        provider: 'MICROSOFT',
-        access_token: tokens.access_token,
-        refresh_token: tokens.refresh_token,
-        expiry_date: tokens.expiry_date,
-        connected_at: Date.now(),
-      },
-      calendar_setup_completed: true,
-    });
+    // Verify company exists
+    const company = await this.companiesService.findById(companyId);
+    if (!company) {
+      console.error(`[CalendarIntegrationService] Company not found: ${companyId}`);
+      throw new NotFoundException(`Company not found: ${companyId}`);
+    }
 
-    // Initial sync
-    await this.syncCalendar(companyId);
+    console.log(`[CalendarIntegrationService] Exchanging authorization code for tokens...`);
+    let tokens;
+    try {
+      tokens = await this.microsoftCalendar.exchangeCodeForTokens(code);
+      console.log(`[CalendarIntegrationService] Token exchange successful - access_token: ${tokens.access_token ? 'PRESENT' : 'MISSING'}, refresh_token: ${tokens.refresh_token ? 'PRESENT' : 'MISSING'}`);
+    } catch (error: any) {
+      console.error(`[CalendarIntegrationService] Failed to exchange code for tokens:`, error);
+      throw new Error(`Failed to exchange authorization code: ${error.message}`);
+    }
+
+    console.log(`[CalendarIntegrationService] Updating company calendar connection...`);
+    try {
+      await this.companiesService.updateCompany(companyId, {
+        calendar_provider: 'MICROSOFT',
+        calendar_mode: 'EXTERNAL',
+        calendar_connection: {
+          provider: 'MICROSOFT',
+          access_token: tokens.access_token,
+          refresh_token: tokens.refresh_token,
+          expiry_date: tokens.expiry_date,
+          connected_at: Date.now(),
+        },
+        calendar_setup_completed: true,
+      });
+      console.log(`[CalendarIntegrationService] Company calendar connection updated successfully`);
+    } catch (error: any) {
+      console.error(`[CalendarIntegrationService] Failed to update company:`, error);
+      throw new Error(`Failed to save calendar connection: ${error.message}`);
+    }
+
+    // Initial sync (don't fail if sync fails - connection is still successful)
+    console.log(`[CalendarIntegrationService] Starting initial calendar sync...`);
+    try {
+      await this.syncCalendar(companyId);
+      console.log(`[CalendarIntegrationService] Initial sync completed successfully`);
+    } catch (error: any) {
+      console.warn(`[CalendarIntegrationService] Initial sync failed (non-critical):`, error);
+      // Don't throw - connection is still successful even if sync fails
+    }
   }
 
   async syncCalendar(companyId: string): Promise<void> {

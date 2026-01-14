@@ -59,12 +59,36 @@ export class CalendarIntegrationController {
     @Query('code') code: string,
     @Query('state') state: string
   ) {
-    await this.calendarService.handleMicrosoftCallback(code, state);
-    return {
-      success: true,
-      message: 'Microsoft Calendar connected successfully',
-      redirectUrl: '/dashboard/appointments?setup=complete'
-    };
+    console.log(`[CalendarIntegrationController] Microsoft callback received - code: ${code ? 'PRESENT' : 'MISSING'}, state: ${state || 'MISSING'}`);
+    
+    if (!code) {
+      console.error('[CalendarIntegrationController] Missing authorization code in callback');
+      throw new Error('Authorization code is required');
+    }
+
+    if (!state) {
+      console.error('[CalendarIntegrationController] Missing state (companyId) in callback');
+      throw new Error('State parameter (companyId) is required');
+    }
+
+    try {
+      await this.calendarService.handleMicrosoftCallback(code, state);
+      console.log(`[CalendarIntegrationController] Microsoft Calendar connected successfully for company: ${state}`);
+      return {
+        success: true,
+        message: 'Microsoft Calendar connected successfully',
+        redirectUrl: '/dashboard/appointments?setup=complete'
+      };
+    } catch (error: any) {
+      console.error('[CalendarIntegrationController] Error handling Microsoft callback:', error);
+      console.error('[CalendarIntegrationController] Error details:', {
+        message: error.message,
+        stack: error.stack,
+        code: code ? 'PRESENT' : 'MISSING',
+        state: state || 'MISSING'
+      });
+      throw error;
+    }
   }
 
   @Post('sync')
