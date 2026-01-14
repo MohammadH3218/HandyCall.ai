@@ -59,8 +59,12 @@ export class MicrosoftCalendarService implements OnModuleInit {
     // Ensure credentials are loaded
     await this.ensureCredentials();
     
+    console.log(`[MicrosoftCalendarService] Exchanging code for tokens - clientId: ${this.clientId ? 'SET' : 'MISSING'}, redirectUri: ${this.redirectUri || 'MISSING'}`);
+    
     if (!this.clientId || !this.clientSecret || !this.redirectUri) {
-      throw new Error('Microsoft OAuth credentials not configured');
+      const error = 'Microsoft OAuth credentials not configured';
+      console.error(`[MicrosoftCalendarService] ${error} - clientId: ${this.clientId ? 'SET' : 'MISSING'}, clientSecret: ${this.clientSecret ? 'SET' : 'MISSING'}, redirectUri: ${this.redirectUri || 'MISSING'}`);
+      throw new Error(error);
     }
 
     const params = new URLSearchParams({
@@ -71,15 +75,33 @@ export class MicrosoftCalendarService implements OnModuleInit {
       grant_type: 'authorization_code',
     });
 
-    const response = await axios.post(this.tokenEndpoint, params.toString(), {
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    });
+    try {
+      console.log(`[MicrosoftCalendarService] Requesting token from: ${this.tokenEndpoint}`);
+      const response = await axios.post(this.tokenEndpoint, params.toString(), {
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      });
 
-    return {
-      access_token: response.data.access_token,
-      refresh_token: response.data.refresh_token,
-      expiry_date: Date.now() + response.data.expires_in * 1000,
-    };
+      if (!response.data.access_token) {
+        console.error(`[MicrosoftCalendarService] Token exchange response missing access_token:`, response.data);
+        throw new Error('Token exchange failed: no access_token in response');
+      }
+
+      console.log(`[MicrosoftCalendarService] Token exchange successful - expires_in: ${response.data.expires_in}s`);
+      
+      return {
+        access_token: response.data.access_token,
+        refresh_token: response.data.refresh_token,
+        expiry_date: Date.now() + (response.data.expires_in * 1000),
+      };
+    } catch (error: any) {
+      console.error(`[MicrosoftCalendarService] Token exchange failed:`, {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+      });
+      throw new Error(`Failed to exchange authorization code: ${error.response?.data?.error_description || error.message}`);
+    }
   }
 
   async ensureValidTokens(tokens: any): Promise<any> {
