@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException, Inject, forwardRef } from '@nestjs/common';
 import { CompaniesService } from '../companies/companies.service';
 import { AppointmentsService } from '../appointments/appointments.service';
 import { GoogleCalendarService } from './providers/google-calendar.service';
@@ -9,6 +9,7 @@ import { AppleCalendarService } from './providers/apple-calendar.service';
 export class CalendarIntegrationService {
   constructor(
     private companiesService: CompaniesService,
+    @Inject(forwardRef(() => AppointmentsService))
     private appointmentsService: AppointmentsService,
     private googleCalendar: GoogleCalendarService,
     private microsoftCalendar: MicrosoftCalendarService,
