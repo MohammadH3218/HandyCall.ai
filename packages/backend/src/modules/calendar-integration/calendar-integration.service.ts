@@ -340,6 +340,41 @@ export class CalendarIntegrationService {
 
   async disconnectCalendar(companyId: string): Promise<void> {
     console.log(`[CalendarIntegrationService] Disconnecting calendar for company: ${companyId}`);
+
+    // Delete all synced appointments from external calendar
+    try {
+      console.log(`[CalendarIntegrationService] Deleting synced appointments...`);
+      const appointments = await this.appointmentsService.listAppointments(companyId, { limit: 1000 });
+
+      // Filter appointments that were synced from external calendars
+      const syncedAppointments = (appointments.appointments || []).filter((appt: any) => {
+        const serviceType = appt.service_type || '';
+        return (
+          serviceType.includes('Synced from Google Calendar') ||
+          serviceType.includes('Synced from Microsoft Calendar') ||
+          serviceType.includes('Synced from Apple Calendar')
+        );
+      });
+
+      console.log(`[CalendarIntegrationService] Found ${syncedAppointments.length} synced appointments to delete`);
+
+      // Delete each synced appointment
+      for (const appt of syncedAppointments) {
+        try {
+          await this.appointmentsService.deleteAppointment(companyId, appt.appointment_id);
+        } catch (err) {
+          console.error(`[CalendarIntegrationService] Error deleting synced appointment ${appt.appointment_id}:`, err);
+          // Continue deleting other appointments even if one fails
+        }
+      }
+
+      console.log(`[CalendarIntegrationService] Deleted ${syncedAppointments.length} synced appointments`);
+    } catch (err) {
+      console.error(`[CalendarIntegrationService] Error deleting synced appointments:`, err);
+      // Continue with disconnection even if deletion fails
+    }
+
+    // Update company settings to disconnect calendar
     await this.companiesService.updateCompany(companyId, {
       calendar_provider: 'NONE',
       calendar_mode: 'INTERNAL',
@@ -494,33 +529,53 @@ export class CalendarIntegrationService {
   }
 
   async connectAppleCalendar(companyId: string, email: string, appSpecificPassword: string, calendarPath?: string): Promise<void> {
-    // Test connection first with user's credentials
-    const isValid = await this.appleCalendar.testConnection(email, appSpecificPassword);
-    if (!isValid) {
-      throw new BadRequestException('Invalid Apple Calendar credentials. Please check your email and app-specific password.');
+    console.log(`[CalendarIntegrationService] Connecting Apple Calendar for company ${companyId}, email: ${email}`);
+
+    try {
+      // Test connection first with user's credentials
+      // This will throw an error with a detailed message if credentials are invalid
+      await this.appleCalendar.testConnection(email, appSpecificPassword);
+      console.log(`[CalendarIntegrationService] Apple Calendar connection test passed`);
+
+      // Get default calendar if not provided
+      if (!calendarPath) {
+        console.log(`[CalendarIntegrationService] Fetching available calendars...`);
+        const calendars = await this.appleCalendar.getCalendars(email, appSpecificPassword);
+        calendarPath = calendars[0]?.path || '/calendars/';
+        console.log(`[CalendarIntegrationService] Using calendar path: ${calendarPath}`);
+      }
+
+      // Save the connection
+      console.log(`[CalendarIntegrationService] Saving Apple Calendar connection to database...`);
+      await this.companiesService.updateCompany(companyId, {
+        calendar_provider: 'APPLE',
+        calendar_mode: 'EXTERNAL',
+        calendar_connection: {
+          provider: 'APPLE',
+          email: email,
+          app_specific_password: appSpecificPassword, // Store user's password securely
+          calendar_path: calendarPath,
+          connected_at: Date.now(),
+        },
+        calendar_setup_completed: true,
+      });
+
+      console.log(`[CalendarIntegrationService] Apple Calendar connection saved successfully`);
+
+      // Initial sync (don't fail if sync fails - connection is still successful)
+      try {
+        console.log(`[CalendarIntegrationService] Starting initial calendar sync...`);
+        await this.syncCalendar(companyId);
+        console.log(`[CalendarIntegrationService] Initial sync completed`);
+      } catch (syncError: any) {
+        console.warn(`[CalendarIntegrationService] Initial sync failed (non-critical):`, syncError.message);
+        // Don't throw - connection is still successful even if sync fails
+      }
+    } catch (error: any) {
+      console.error(`[CalendarIntegrationService] Failed to connect Apple Calendar:`, error.message);
+      // Re-throw with the original error message (which is already detailed)
+      throw new BadRequestException(error.message);
     }
-
-    // Get default calendar if not provided
-    if (!calendarPath) {
-      const calendars = await this.appleCalendar.getCalendars(email, appSpecificPassword);
-      calendarPath = calendars[0]?.path || '/calendars/';
-    }
-
-    await this.companiesService.updateCompany(companyId, {
-      calendar_provider: 'APPLE',
-      calendar_mode: 'EXTERNAL',
-      calendar_connection: {
-        provider: 'APPLE',
-        email: email,
-        app_specific_password: appSpecificPassword, // Store user's password securely
-        calendar_path: calendarPath,
-        connected_at: Date.now(),
-      },
-      calendar_setup_completed: true,
-    });
-
-    // Initial sync
-    await this.syncCalendar(companyId);
   }
 
   private async syncAppleCalendar(companyId: string, company: any): Promise<void> {

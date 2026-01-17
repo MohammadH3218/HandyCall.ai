@@ -1,5 +1,6 @@
-import { Injectable, ConflictException, NotFoundException } from '@nestjs/common';
+import { Injectable, ConflictException, NotFoundException, Inject, forwardRef } from '@nestjs/common';
 import { DynamoDBService } from '../../infrastructure/database/dynamodb.service';
+import { CognitoService } from '../auth/cognito.service';
 import {
   Company,
   CompanyStatus,
@@ -28,7 +29,10 @@ export interface CompanyListItem extends Company {
 export class CompaniesService {
   private readonly tableName = 'companies';
 
-  constructor(private dynamodb: DynamoDBService) {}
+  constructor(
+    private dynamodb: DynamoDBService,
+    private cognitoService: CognitoService
+  ) {}
 
   async findByName(companyName: string): Promise<Company | null> {
     // Case-insensitive match via scan (tables are small enough for admin operations)
@@ -286,6 +290,9 @@ export class CompaniesService {
       throw new NotFoundException('Company not found');
     }
 
+    // Delete all users from Cognito before deleting from DynamoDB
+    await this.deleteCompanyUsersFromCognito(companyId);
+
     // Delete from companies table
     await this.dynamodb.delete(this.tableName, { company_id: companyId });
 
@@ -301,6 +308,45 @@ export class CompaniesService {
       this.deleteRelatedData('agent_config', companyId),
       this.deleteRelatedData('pricing_rules', companyId),
     ]);
+  }
+
+  /**
+   * Delete all users of a company from Cognito
+   */
+  private async deleteCompanyUsersFromCognito(companyId: string): Promise<void> {
+    try {
+      // Get all users for this company
+      const result = await this.dynamodb.query(
+        'users',
+        '#company_id = :company_id',
+        { '#company_id': 'company_id' },
+        { ':company_id': companyId }
+      );
+
+      // Delete each user from Cognito
+      for (const user of result.items) {
+        try {
+          const email = user.email;
+          const poolType: 'users' | 'admin' =
+            user.pool_type === 'admin' || (user.role === 'ADMIN' && user.company_id === 'platform-admin')
+              ? 'admin'
+              : 'users';
+
+          console.log(`[CompaniesService] Deleting user ${email} from Cognito (${poolType} pool)`);
+
+          // Delete user from Cognito
+          await this.cognitoService.deleteUser(email, poolType);
+
+          console.log(`[CompaniesService] Successfully deleted user ${email} from Cognito`);
+        } catch (err) {
+          console.error(`[CompaniesService] Error deleting user ${user.email} from Cognito:`, err);
+          // Continue with other users even if one fails
+        }
+      }
+    } catch (error) {
+      console.error(`[CompaniesService] Failed to delete company users from Cognito:`, error);
+      // Continue with company deletion even if Cognito deletion fails
+    }
   }
 
   /**

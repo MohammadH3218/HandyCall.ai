@@ -44,56 +44,29 @@ function LoginPageInner() {
     }
   }, [requiresPasswordChange]);
 
-  // Clear invalid sessions on login page load
-  // Only clear if we're already on the login page (not redirected here)
+  // Clear any invalid/stale sessions when landing on login page
   useEffect(() => {
-    const clearInvalidSession = async () => {
-      // Only check if we have an authenticated status
+    const clearStaleSession = async () => {
+      // If user is already authenticated and on login page, they might be trying to re-login
+      // Don't auto-redirect them - let them explicitly log in again if they want
       if (status === 'authenticated') {
         try {
-          // Wait a moment for session to stabilize
-          await new Promise(resolve => setTimeout(resolve, 500));
-          
-          // Re-fetch session to ensure we have latest data
           const latestSession = await getSession();
-          
-          // Check if we can actually get company data (for customers) or have valid admin tokens
           const accessToken = (latestSession as any)?.accessToken as string | undefined;
           const idToken = (latestSession as any)?.idToken as string | undefined;
-          
-          // If no tokens in session, check localStorage as fallback
+
+          // Only clear if we truly have no valid tokens
           if (!accessToken && !idToken) {
-            const localToken = localStorage.getItem('access_token') || localStorage.getItem('id_token');
-            if (!localToken) {
-              // No valid tokens anywhere, sign out
-              console.log('[Login] No valid tokens found, clearing session');
-              await signOut({ redirect: false });
-              return;
-            }
-          }
-          
-          // If we have valid tokens, redirect to appropriate dashboard
-          if (accessToken || idToken) {
-            const role = (latestSession as any)?.user?.role as UserRole | undefined ||
-                        (latestSession as any)?.userRole as UserRole | undefined;
-            const poolType = (latestSession as any)?.poolType as string | undefined;
-            const derivedRole = role || (poolType === 'admin' ? UserRole.ADMIN : undefined);
-            
-            if (derivedRole === UserRole.ADMIN) {
-              router.push('/admin');
-            } else {
-              router.push('/dashboard');
-            }
+            console.log('[Login] No valid tokens found, clearing session');
+            await signOut({ redirect: false });
           }
         } catch (err) {
-          // If session check fails, don't immediately clear - might be transient
           console.error('[Login] Error checking session:', err);
         }
       }
     };
-    
-    // Only run this check once on mount, not on every status change
-    clearInvalidSession();
+
+    clearStaleSession();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

@@ -237,69 +237,28 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       if (idToken) localStorage.setItem('id_token', idToken);
       if (refreshToken) localStorage.setItem('refresh_token', refreshToken);
 
-      // If no session at all, check localStorage for tokens first (might be in transition)
+      // If no session, user is not authenticated
       if (!session) {
-        // Check localStorage as fallback - might be in session establishment phase
-        const localAccessToken = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
-        const localIdToken = typeof window !== 'undefined' ? localStorage.getItem('id_token') : null;
-        
-        if (!localAccessToken && !localIdToken) {
-          // No tokens anywhere, definitely unauthenticated
-          console.log('[Auth Store] No authenticated user in session or localStorage');
-          // Clear any stale tokens
-          if (typeof window !== 'undefined') {
-            localStorage.removeItem('access_token');
-            localStorage.removeItem('id_token');
-            localStorage.removeItem('refresh_token');
-          }
-          set({ 
-            isLoading: false, 
-            isAuthenticated: false, 
-            userRole: null, 
-            company: null,
-            user: null,
-            accessToken: null,
-            idToken: null,
-            refreshToken: null,
-            email: null,
-            _checkAuthInProgress: false 
-          });
-          return;
-        } else {
-          // Have tokens in localStorage but no session - might be establishing session
-          // Wait a moment and retry
-          console.log('[Auth Store] No session but tokens in localStorage, session may be establishing');
-          await new Promise(resolve => setTimeout(resolve, 500));
-          
-          // Retry session fetch once
-          const retrySessionResponse = await fetch('/api/auth/session', { cache: 'no-store' });
-          const retrySession = retrySessionResponse.ok ? await retrySessionResponse.json() : null;
-          
-          if (!retrySession) {
-            // Still no session after retry, clear and mark unauthenticated
-            if (typeof window !== 'undefined') {
-              localStorage.removeItem('access_token');
-              localStorage.removeItem('id_token');
-              localStorage.removeItem('refresh_token');
-            }
-            set({ 
-              isLoading: false, 
-              isAuthenticated: false, 
-              userRole: null, 
-              company: null,
-              user: null,
-              accessToken: null,
-              idToken: null,
-              refreshToken: null,
-              email: null,
-              _checkAuthInProgress: false 
-            });
-            return;
-          }
-          
-          // Use retry session
-          session = retrySession;
+        console.log('[Auth Store] No authenticated user in session');
+        // Clear any stale tokens
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('access_token');
+          localStorage.removeItem('id_token');
+          localStorage.removeItem('refresh_token');
         }
+        set({
+          isLoading: false,
+          isAuthenticated: false,
+          userRole: null,
+          company: null,
+          user: null,
+          accessToken: null,
+          idToken: null,
+          refreshToken: null,
+          email: null,
+          _checkAuthInProgress: false
+        });
+        return;
       }
 
       if (derivedRole === UserRole.ADMIN) {
