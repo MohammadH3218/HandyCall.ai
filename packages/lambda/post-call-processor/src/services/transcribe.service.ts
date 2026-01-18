@@ -18,11 +18,13 @@ export class TranscribeService {
     recordingBucket: string,
     recordingKey: string,
     outputBucket: string,
+    mediaFormat: string,
   ): Promise<string> {
     const command = new StartTranscriptionJobCommand({
       TranscriptionJobName: jobName,
       LanguageCode: 'en-US',
-      MediaFormat: 'wav', // Amazon Connect recordings are typically WAV
+      // Amazon Connect recordings are typically WAV, but Twilio exports MP3 by default.
+      MediaFormat: mediaFormat,
       Media: {
         MediaFileUri: `s3://${recordingBucket}/${recordingKey}`,
       },
@@ -129,8 +131,11 @@ export class TranscribeService {
   ): Promise<{ fullText: string; segments: TranscriptSegment[] }> {
     const jobName = `handycall-${callId}-${Date.now()}`;
 
+    const ext = (recordingKey.split('.').pop() || '').toLowerCase();
+    const mediaFormat = ext === 'mp3' ? 'mp3' : ext === 'mp4' ? 'mp4' : 'wav';
+
     console.log(`Starting transcription job: ${jobName}`);
-    await this.startTranscription(jobName, recordingBucket, recordingKey, outputBucket);
+    await this.startTranscription(jobName, recordingBucket, recordingKey, outputBucket, mediaFormat);
 
     console.log(`Waiting for transcription to complete...`);
     const job = await this.waitForTranscription(jobName);

@@ -460,19 +460,6 @@ export class BillingService {
     const plan = company.subscription_plan;
     const limits = plan ? await this.usageService.checkLimitsExceeded(companyId, plan, periodStart) : null;
 
-    if (plan && limits) {
-      const updates: { calls_enabled?: boolean; sms_enabled?: boolean } = {};
-      if (limits.minutes.exceeded && company.calls_enabled) {
-        updates.calls_enabled = false;
-      }
-      if (limits.sms.exceeded && company.sms_enabled) {
-        updates.sms_enabled = false;
-      }
-      if (Object.keys(updates).length > 0) {
-        await this.companiesService.updateCompany(companyId, updates);
-      }
-    }
-
     return {
       usage,
       limits,

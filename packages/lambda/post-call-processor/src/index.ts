@@ -57,6 +57,12 @@ export const handler = async (event: S3Event): Promise<void> => {
 
       console.log(`Transcription complete. Length: ${fullText.length} chars`);
 
+      const durationSeconds = Math.max(
+        0,
+        ...((segments || []).map((s: any) => (typeof s?.endTime === 'number' ? s.endTime : 0))),
+      );
+      const roundedDurationSeconds = durationSeconds > 0 ? Math.max(1, Math.ceil(durationSeconds)) : undefined;
+
       // Step 3: Generate summary with Claude Haiku
       console.log('Generating call summary...');
       const company = await getCompany(call.company_id);
@@ -114,18 +120,28 @@ export const handler = async (event: S3Event): Promise<void> => {
       console.log(`Transcript stored: s3://${TRANSCRIPTS_BUCKET}/${transcriptKey}`);
 
       // Step 7: Update call record in DynamoDB
-      await DynamoDBService.update(
-        'calls',
-        { company_id: call.company_id, call_id: callId },
-        {
-          transcript_url: `s3://${TRANSCRIPTS_BUCKET}/${transcriptKey}`,
-          summary: summary,
-          outcome: outcome,
-          status: 'COMPLETED',
-          ended_at: Date.now(),
-          updated_at: Date.now(),
-        },
-      );
+      const now = Date.now();
+
+      const usageMinutes = roundedDurationSeconds ? Math.max(1, Math.ceil(roundedDurationSeconds / 60)) : undefined;
+      const recordedMinutes = typeof call?.usage_minutes_recorded === 'number' ? call.usage_minutes_recorded : 0;
+      const deltaMinutes = usageMinutes ? Math.max(0, usageMinutes - recordedMinutes) : 0;
+      const callsCounted = Boolean(call?.usage_call_counted);
+
+      if (deltaMinutes > 0 || !callsCounted) {
+        await recordUsage(call.company_id, deltaMinutes, callsCounted ? 0 : 1);
+      }
+
+      await DynamoDBService.update('calls', { company_id: call.company_id, call_id: callId }, {
+        transcript_url: `s3://${TRANSCRIPTS_BUCKET}/${transcriptKey}`,
+        summary: summary,
+        outcome: outcome,
+        status: 'COMPLETED',
+        ended_at: now,
+        updated_at: now,
+        ...(roundedDurationSeconds ? { duration_seconds: roundedDurationSeconds } : {}),
+        ...(usageMinutes ? { usage_minutes_recorded: usageMinutes } : {}),
+        usage_call_counted: true,
+      });
 
       console.log(`Call record updated successfully for ${callId}`);
     } catch (error) {
@@ -134,6 +150,30 @@ export const handler = async (event: S3Event): Promise<void> => {
     }
   }
 };
+
+async function recordUsage(companyId: string, minutesDelta: number, callsDelta: number) {
+  const today = new Date().toISOString().split('T')[0];
+  const existing = await DynamoDBService.get('usage_metrics', { company_id: companyId, date: today });
+
+  if (existing) {
+    await DynamoDBService.update('usage_metrics', { company_id: companyId, date: today }, {
+      minutes_used: (existing.minutes_used || 0) + (minutesDelta || 0),
+      calls_count: (existing.calls_count || 0) + (callsDelta || 0),
+      updated_at: Date.now(),
+    });
+  } else {
+    await DynamoDBService.put('usage_metrics', {
+      company_id: companyId,
+      date: today,
+      minutes_used: minutesDelta || 0,
+      calls_count: callsDelta || 0,
+      sms_sent_count: 0,
+      contacts_count: 0,
+      created_at: Date.now(),
+      updated_at: Date.now(),
+    });
+  }
+}
 
 /**
  * Extract call ID from S3 key

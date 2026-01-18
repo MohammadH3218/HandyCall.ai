@@ -282,6 +282,7 @@ function UsageMeter({
   // Show "0 / 0" when no limit is set (no plan), "Unlimited" when limit is -1 (unlimited plan)
   const limitLabel = limit === undefined ? 'Set a plan' : limit === -1 ? 'Unlimited' : limit;
   const usageDisplay = `${used}`;
+  const overage = typeof limit === 'number' && limit > 0 && used > limit ? used - limit : 0;
 
   return (
     <div className="rounded-lg border bg-card p-4">
@@ -295,9 +296,11 @@ function UsageMeter({
         </div>
         <div className="text-right">
           <p className="text-lg font-semibold text-foreground">{usageDisplay}</p>
-          {percent > 0 && limit !== -1 && limit !== undefined && (
+          {overage > 0 ? (
+            <p className="text-xs text-red-600">{overage} over limit</p>
+          ) : percent > 0 && limit !== -1 && limit !== undefined ? (
             <p className="text-xs text-muted-foreground">{percent}% used</p>
-          )}
+          ) : null}
         </div>
       </div>
       <div className="w-full bg-muted rounded-full h-2">

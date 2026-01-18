@@ -266,13 +266,8 @@ export class CompaniesController {
     if (plan) {
       const periodStart = company.current_period_start || Date.now();
       const limits = await this.usageService.checkLimitsExceeded(company.company_id, plan, periodStart);
-
-      if (enablingCalls && limits.minutes.exceeded) {
-        throw new BadRequestException('Call minutes limit reached for the current billing period.');
-      }
-      if (enablingSms && limits.sms.exceeded) {
-        throw new BadRequestException('SMS limit reached for the current billing period.');
-      }
+      // Product behavior: allow enabling services even when limits are exceeded.
+      // Overages are tracked and can be billed later; callers should not be hard-blocked.
     }
   }
 }

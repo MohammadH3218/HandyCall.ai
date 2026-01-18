@@ -120,7 +120,17 @@ type CallContext = {
   from: string;
   to: string;
   company_id: string;
+  startedAt: number;
 };
+
+type ActiveCallMeta = {
+  company_id: string;
+  from: string;
+  to: string;
+  startedAt: number;
+};
+
+const activeCalls = new Map<string, ActiveCallMeta>();
 
 function toolsSchema() {
   const tools: any[] = [
@@ -288,6 +298,19 @@ async function invokeTool(ctx: CallContext, name: string, args: any) {
     );
   }
 
+  if (name === 'save_recording') {
+    return postJson(
+      `${toolsBase}/tools/save_recording`,
+      { 'x-handycall-tools-key': toolsKey },
+      {
+        company_id: ctx.company_id,
+        call_id: ctx.callSid,
+        recording_sid: args?.recording_sid,
+        duration_seconds: args?.duration_seconds,
+      }
+    );
+  }
+
   if (name === 'knowledge_search') {
     return postJson(
       `${toolsBase}/tools/knowledge_search`,
@@ -331,6 +354,68 @@ const server = http.createServer(async (req, res) => {
   try {
     // EB/ALB health checks often default to `/` unless configured otherwise.
     if (req.method === 'GET' && (req.url === '/health' || req.url === '/')) {
+      return json(res, 200, { ok: true });
+    }
+
+    if (req.method === 'POST' && req.url?.startsWith('/twilio/recording-status')) {
+      const raw = await readBody(req);
+      const params = parseFormUrlEncoded(raw);
+
+      const callSid = (params.CallSid || params.callSid || '').trim();
+      const recordingSid = (params.RecordingSid || params.recordingSid || '').trim();
+      const recordingStatus = (params.RecordingStatus || params.recordingStatus || '').trim().toLowerCase();
+      const to = (params.To || params.to || '').trim();
+      const from = (params.From || params.from || '').trim();
+      const durationSeconds = Number.parseInt(params.RecordingDuration || params.recordingDuration || '', 10);
+
+      // Best-effort validate Twilio signature if we can (don't block recording save on mismatch).
+      try {
+        const signature = req.headers['x-twilio-signature'];
+        const authToken = await getSecret('TWILIO_AUTH_TOKEN');
+        const publicBaseUrl = requireEnvFirst(['PUBLIC_BASE_URL', 'VOICE_BRIDGE_PUBLIC_BASE_URL']).replace(/\/$/, '');
+        const url = `${publicBaseUrl}${req.url?.split('?')[0] || ''}`;
+        if (typeof signature === 'string') {
+          const ok = twilio.validateRequest(authToken, signature, url, params);
+          if (!ok) {
+            console.warn('[twilio] recording-status signature validation failed', { callSid, recordingSid });
+          }
+        }
+      } catch (e: any) {
+        console.warn('[twilio] recording-status signature check skipped/failed', e?.message ?? String(e));
+      }
+
+      if (callSid && recordingSid && recordingStatus === 'completed') {
+        // Resolve company_id using in-memory map first, then fall back to tenant resolve via To number.
+        let meta = activeCalls.get(callSid);
+        if (!meta && to) {
+          try {
+            const tenant: any = await resolveTenant(to);
+            meta = { company_id: tenant.company_id, from: from || '', to, startedAt: Date.now() };
+          } catch (e: any) {
+            console.warn('[twilio] resolveTenant failed for recording callback', e?.message ?? String(e));
+          }
+        }
+
+        if (meta?.company_id) {
+          const ctx: CallContext = {
+            callSid,
+            streamSid: 'recording_callback',
+            from: meta.from || from,
+            to: meta.to || to,
+            company_id: meta.company_id,
+            startedAt: meta.startedAt || Date.now(),
+          };
+
+          // Fire-and-forget: persist recording to S3 via backend tools API.
+          invokeTool(ctx, 'save_recording', {
+            recording_sid: recordingSid,
+            duration_seconds: Number.isFinite(durationSeconds) ? durationSeconds : undefined,
+          }).catch((e: any) => console.error('[twilio] save_recording failed', e?.message ?? String(e)));
+        }
+
+        activeCalls.delete(callSid);
+      }
+
       return json(res, 200, { ok: true });
     }
 
@@ -435,9 +520,11 @@ wss.on('connection', (twilioWs: WebSocket) => {
     try {
       // Ensure we persist at least something if the model didn't.
       if (!callSaved) {
+        const duration_seconds = ctx.startedAt ? Math.max(1, Math.ceil((Date.now() - ctx.startedAt) / 1000)) : undefined;
         await invokeTool(ctx, 'save_call', {
           summary: 'Caller confirmed details and ended the call.',
           transcript: mergedTranscriptText() || undefined,
+          duration_seconds,
           collected_info: intake,
         });
         callSaved = true;
@@ -486,8 +573,11 @@ wss.on('connection', (twilioWs: WebSocket) => {
         twilioWs.close();
         return;
       }
-      ctx = { callSid, streamSid, from, to, company_id: tenant.company_id };
+      const startedAt = Date.now();
+      ctx = { callSid, streamSid, from, to, company_id: tenant.company_id, startedAt };
       log('Media stream started', { to, from, company_id: tenant.company_id });
+
+      activeCalls.set(callSid, { company_id: tenant.company_id, from, to, startedAt });
 
       const model =
         tenant?.agent_config?.realtime_model ||
@@ -545,6 +635,24 @@ wss.on('connection', (twilioWs: WebSocket) => {
         invokeTool(ctx, 'create_lead', { collected_info: {} }).catch((e: any) =>
           log('create_lead failed (non-fatal)', e?.message ?? String(e))
         );
+
+        // Start call recording in the background (best-effort).
+        (async () => {
+          try {
+            const accountSid = envFirst(['TWILIO_ACCOUNT_SID', 'TWILIO_SID']);
+            if (!accountSid) return;
+            const authToken = await getSecret('TWILIO_AUTH_TOKEN');
+            const client = twilio(accountSid, authToken);
+            const publicBaseUrl = requireEnvFirst(['PUBLIC_BASE_URL', 'VOICE_BRIDGE_PUBLIC_BASE_URL']).replace(/\/$/, '');
+
+            await client.calls(ctx.callSid).recordings.create({
+              recordingStatusCallback: `${publicBaseUrl}/twilio/recording-status`,
+              recordingStatusCallbackMethod: 'POST',
+            });
+          } catch (e: any) {
+            log('start recording failed (non-fatal)', e?.message ?? String(e));
+          }
+        })();
       });
 
         openaiWs.on('message', async (raw) => {
@@ -714,6 +822,12 @@ wss.on('connection', (twilioWs: WebSocket) => {
                       typeof args?.transcript === 'string' && args.transcript.trim()
                         ? args.transcript
                         : mergedTranscriptText() || undefined,
+                    duration_seconds:
+                      typeof args?.duration_seconds === 'number'
+                        ? args.duration_seconds
+                        : ctx.startedAt
+                          ? Math.max(1, Math.ceil((Date.now() - ctx.startedAt) / 1000))
+                          : undefined,
                     collected_info:
                       args?.collected_info && typeof args.collected_info === 'object'
                         ? args.collected_info
@@ -732,6 +846,21 @@ wss.on('connection', (twilioWs: WebSocket) => {
             });
             sendToOpenAI(openaiWs, { type: 'response.create' });
           } catch (err: any) {
+            // Keep the caller experience smooth: save_call failures should never be spoken back to the caller.
+            // We'll retry on stop/hangup as best-effort.
+            if (toolName === 'save_call') {
+              log('save_call failed (non-fatal)', err?.message ?? String(err));
+              sendToOpenAI(openaiWs, {
+                type: 'conversation.item.create',
+                item: {
+                  type: 'function_call_output',
+                  call_id: toolCallId,
+                  output: JSON.stringify({ ok: true }),
+                },
+              });
+              sendToOpenAI(openaiWs, { type: 'response.create' });
+              return;
+            }
             sendToOpenAI(openaiWs, {
               type: 'conversation.item.create',
               item: {
@@ -792,9 +921,11 @@ wss.on('connection', (twilioWs: WebSocket) => {
         if (!callSaved) {
           try {
             const merged = mergedTranscriptText();
+            const duration_seconds = ctx?.startedAt ? Math.max(1, Math.ceil((Date.now() - ctx.startedAt) / 1000)) : undefined;
             await invokeTool(ctx!, 'save_call', {
               summary: 'Call ended.',
               transcript: merged || undefined,
+              duration_seconds,
               collected_info: intake,
             });
             callSaved = true;

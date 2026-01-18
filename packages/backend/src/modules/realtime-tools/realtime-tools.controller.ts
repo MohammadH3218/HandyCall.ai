@@ -7,6 +7,7 @@ import { GetAvailabilityDto } from './dto/get-availability.dto';
 import { KnowledgeSearchDto } from './dto/knowledge-search.dto';
 import { ResolveTenantDto } from './dto/resolve-tenant.dto';
 import { SaveCallDto } from './dto/save-call.dto';
+import { SaveRecordingDto } from './dto/save-recording.dto';
 import { RealtimeToolsService } from './realtime-tools.service';
 
 @Controller()
@@ -30,6 +31,11 @@ export class RealtimeToolsController {
   @Post('tools/save_call')
   saveCall(@Body() dto: SaveCallDto) {
     return this.tools.saveCall(dto);
+  }
+
+  @Post('tools/save_recording')
+  saveRecording(@Body() dto: SaveRecordingDto) {
+    return this.tools.saveRecording(dto);
   }
 
   @Post('tools/get_availability')

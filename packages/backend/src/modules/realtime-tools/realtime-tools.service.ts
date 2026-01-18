@@ -23,6 +23,8 @@ import { CreateBookingDto } from './dto/create-booking.dto';
 import { GetAvailabilityDto } from './dto/get-availability.dto';
 import { KnowledgeSearchDto } from './dto/knowledge-search.dto';
 import { SaveCallDto } from './dto/save-call.dto';
+import { ConfigService } from '@nestjs/config';
+import { SaveRecordingDto } from './dto/save-recording.dto';
 
 function asE164(input: string): string {
   const trimmed = (input || '').trim();
@@ -34,6 +36,7 @@ function asE164(input: string): string {
 @Injectable()
 export class RealtimeToolsService {
   constructor(
+    private readonly config: ConfigService,
     private readonly companies: CompaniesService,
     private readonly agentConfig: AgentConfigService,
     private readonly companyNumbers: CompanyNumbersService,
@@ -43,6 +46,42 @@ export class RealtimeToolsService {
     private readonly scheduling: SchedulingService,
     private readonly usageService: UsageService,
   ) {}
+
+  private twilioAuthHeader(): string {
+    const sid = this.config.get<string>('TWILIO_ACCOUNT_SID');
+    const token = this.config.get<string>('TWILIO_AUTH_TOKEN');
+    if (!sid || !token) {
+      throw new Error('Missing TWILIO_ACCOUNT_SID/TWILIO_AUTH_TOKEN');
+    }
+    const basic = Buffer.from(`${sid}:${token}`, 'utf8').toString('base64');
+    return `Basic ${basic}`;
+  }
+
+  private buildSummaryFallback(collected: Record<string, any> | undefined): string | undefined {
+    if (!collected || typeof collected !== 'object') return undefined;
+
+    const pieces: string[] = [];
+    const service = typeof collected.service === 'string' ? collected.service.trim() : '';
+    const issue = typeof collected.issue === 'string' ? collected.issue.trim() : '';
+    const name = typeof collected.name === 'string' ? collected.name.trim() : '';
+    const first = typeof collected.first_name === 'string' ? collected.first_name.trim() : '';
+    const last = typeof collected.last_name === 'string' ? collected.last_name.trim() : '';
+    const address = typeof collected.address === 'string' ? collected.address.trim() : '';
+    const zip = typeof collected.zip === 'string' ? collected.zip.trim() : '';
+    const preferred = typeof collected.preferred_time === 'string' ? collected.preferred_time.trim() : '';
+
+    const displayName = name || [first, last].filter(Boolean).join(' ').trim();
+
+    if (service) pieces.push(`Service: ${service}.`);
+    if (issue) pieces.push(`Issue: ${issue}.`);
+    if (displayName) pieces.push(`Name: ${displayName}.`);
+    if (address) pieces.push(`Address: ${address}.`);
+    if (zip) pieces.push(`Zip: ${zip}.`);
+    if (preferred) pieces.push(`Preferred time: ${preferred}.`);
+
+    const text = pieces.join(' ').trim();
+    return text || undefined;
+  }
 
   async resolveTenant(toNumberRaw: string) {
     const to_number = asE164(toNumberRaw);
@@ -94,16 +133,28 @@ export class RealtimeToolsService {
     const call_id = dto.call_id ?? uuidv4();
     const now = Date.now();
 
-    const existing = await this.dynamodb.queryByCompany(
-      'contacts',
-      company_id,
-      {
-        keyCondition: '#phone_number = :phone_number',
-        expressionAttributeNames: { '#phone_number': 'phone_number' },
-        expressionAttributeValues: { ':phone_number': from_number },
-      },
-      { indexName: 'phone-lookup', limit: 1 }
-    );
+    // Prefer phone-lookup index when available, but fall back to a filtered scan to avoid runtime index dependency.
+    let existing: { items: any[] } = { items: [] };
+    try {
+      existing = await this.dynamodb.queryByCompany(
+        'contacts',
+        company_id,
+        {
+          keyCondition: '#phone_number = :phone_number',
+          expressionAttributeNames: { '#phone_number': 'phone_number' },
+          expressionAttributeValues: { ':phone_number': from_number },
+        },
+        { indexName: 'phone-lookup', limit: 1 }
+      );
+    } catch {
+      const scan = await this.dynamodb.scan('contacts', {
+        filterExpression: '#company_id = :company_id AND #phone_number = :phone_number',
+        expressionAttributeNames: { '#company_id': 'company_id', '#phone_number': 'phone_number' },
+        expressionAttributeValues: { ':company_id': company_id, ':phone_number': from_number },
+        limit: 1,
+      });
+      existing = { items: scan.items || [] };
+    }
 
     const collected = dto.collected_info ?? {};
     const first_name = typeof collected.first_name === 'string' ? collected.first_name : undefined;
@@ -177,46 +228,145 @@ export class RealtimeToolsService {
       throw new BadRequestException('company_id and call_id are required');
     }
 
-    const existing = await this.dynamodb.get('calls', { company_id, call_id });
+    let existing: any = await this.dynamodb.get('calls', { company_id, call_id });
     if (!existing) {
-      throw new NotFoundException('Call not found');
+      // Be resilient: if the call record didn't get created for some reason, create a minimal record instead of failing.
+      const now = Date.now();
+      const call: Call = {
+        company_id,
+        call_id,
+        direction: CallDirection.INBOUND,
+        // Unknown fallback; create_lead is responsible for persisting real from/to numbers.
+        from_number: '',
+        to_number: '',
+        status: CallStatus.IN_PROGRESS,
+        ai_handled: true,
+        escalated: false,
+        started_at: now,
+        created_at: now,
+      };
+      await this.dynamodb.put('calls', call);
+      existing = call;
     }
 
     let transcript_url: string | undefined;
     if (dto.transcript && dto.transcript.trim()) {
-      transcript_url = await this.s3.uploadTranscript(company_id, call_id, {
-        text: dto.transcript,
-        collected_info: dto.collected_info,
-        saved_at: Date.now(),
-      });
+      try {
+        transcript_url = await this.s3.uploadTranscript(company_id, call_id, {
+          text: dto.transcript,
+          collected_info: dto.collected_info,
+          saved_at: Date.now(),
+        });
+      } catch (err) {
+        console.error('[RealtimeToolsService] Failed to upload transcript (non-fatal):', err);
+      }
     }
 
+    const now = Date.now();
+    const startedAt = typeof existing?.started_at === 'number' ? existing.started_at : undefined;
+    const derivedDuration =
+      typeof dto.duration_seconds === 'number'
+        ? dto.duration_seconds
+        : startedAt
+          ? Math.max(1, Math.ceil((now - startedAt) / 1000))
+          : undefined;
+
+    const summary = (dto.summary && dto.summary.trim()) || this.buildSummaryFallback(dto.collected_info);
+
     const updates: Partial<Call> & Record<string, any> = {
-      ...(dto.summary && { summary: dto.summary }),
+      ...(summary && { summary }),
       ...(transcript_url && { transcript_url }),
-      ...(typeof dto.duration_seconds === 'number' && { duration_seconds: dto.duration_seconds }),
+      ...(typeof derivedDuration === 'number' && { duration_seconds: derivedDuration }),
       status: CallStatus.COMPLETED,
-      ended_at: Date.now(),
+      ended_at: now,
+      updated_at: now,
     };
 
     if (dto.collected_info) {
       updates.collected_info = dto.collected_info;
     }
 
-    await this.dynamodb.update('calls', { company_id, call_id }, updates);
+    // Track call usage for billing (idempotent, supports multiple saves with increasing accuracy)
+    if (typeof derivedDuration === 'number' && derivedDuration > 0) {
+      const minutes = Math.max(1, Math.ceil(derivedDuration / 60));
+      const recordedMinutes = typeof existing?.usage_minutes_recorded === 'number' ? existing.usage_minutes_recorded : 0;
+      const deltaMinutes = Math.max(0, minutes - recordedMinutes);
+      const callsCounted = Boolean(existing?.usage_call_counted);
 
-    // Track call usage for billing
-    if (typeof dto.duration_seconds === 'number' && dto.duration_seconds > 0) {
-      const minutes = Math.max(1, Math.ceil(dto.duration_seconds / 60));
-      try {
-        await this.usageService.incrementCallMinutes(company_id, minutes);
-      } catch (err) {
-        console.error('[RealtimeToolsService] Failed to track call usage:', err);
-        // Don't fail the call save if usage tracking fails
+      if (deltaMinutes > 0) {
+        try {
+          await this.usageService.incrementCallMinutes(company_id, deltaMinutes, callsCounted ? 0 : 1);
+          updates.usage_minutes_recorded = minutes;
+          updates.usage_call_counted = true;
+        } catch (err) {
+          console.error('[RealtimeToolsService] Failed to track call usage (non-fatal):', err);
+        }
+      } else if (!callsCounted) {
+        // Ensure we count the call even if minutes were already recorded somehow.
+        try {
+          await this.usageService.incrementCallMinutes(company_id, 0, 1);
+          updates.usage_call_counted = true;
+        } catch (err) {
+          console.error('[RealtimeToolsService] Failed to track call count (non-fatal):', err);
+        }
       }
     }
 
+    await this.dynamodb.update('calls', { company_id, call_id }, updates);
+
     return { ok: true, call_id, transcript_url };
+  }
+
+  async saveRecording(dto: SaveRecordingDto) {
+    const company_id = dto.company_id;
+    const call_id = dto.call_id;
+    const recording_sid = dto.recording_sid;
+    if (!company_id || !call_id || !recording_sid) {
+      throw new BadRequestException('company_id, call_id, and recording_sid are required');
+    }
+
+    const accountSid = this.config.get<string>('TWILIO_ACCOUNT_SID');
+    if (!accountSid) throw new Error('Missing TWILIO_ACCOUNT_SID');
+
+    const url = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Recordings/${recording_sid}.mp3`;
+    const res = await fetch(url, { method: 'GET', headers: { Authorization: this.twilioAuthHeader() } });
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      throw new Error(`Failed to download Twilio recording (${res.status}): ${text}`);
+    }
+
+    const buf = Buffer.from(await res.arrayBuffer());
+    await this.s3.uploadRecording(company_id, call_id, buf, 'audio/mpeg');
+
+    const updates: Record<string, any> = { updated_at: Date.now() };
+    if (typeof dto.duration_seconds === 'number' && dto.duration_seconds > 0) {
+      updates.duration_seconds = dto.duration_seconds;
+    }
+
+    // Don't fail if call record is missing; create minimal if needed.
+    const existing = await this.dynamodb.get('calls', { company_id, call_id });
+    if (!existing) {
+      const now = Date.now();
+      const call: Call = {
+        company_id,
+        call_id,
+        direction: CallDirection.INBOUND,
+        from_number: '',
+        to_number: '',
+        status: CallStatus.COMPLETED,
+        ai_handled: true,
+        escalated: false,
+        started_at: now,
+        created_at: now,
+        ended_at: now,
+        ...(typeof dto.duration_seconds === 'number' ? { duration_seconds: dto.duration_seconds } : {}),
+      } as any;
+      await this.dynamodb.put('calls', call as any);
+      return { ok: true, call_id, recording_saved: true };
+    }
+
+    await this.dynamodb.update('calls', { company_id, call_id }, updates);
+    return { ok: true, call_id, recording_saved: true };
   }
 
   async knowledgeSearch(dto: KnowledgeSearchDto) {

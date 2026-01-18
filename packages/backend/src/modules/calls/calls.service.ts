@@ -94,6 +94,8 @@ export class CallsService {
             ? transcript
             : typeof transcript?.text === 'string'
               ? transcript.text
+              : typeof transcript?.full_text === 'string'
+                ? transcript.full_text
               : JSON.stringify(transcript, null, 2);
       }
     } catch (error) {

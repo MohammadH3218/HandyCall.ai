@@ -1,36 +1,40 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { DynamoDBService } from '../../infrastructure/database/dynamodb.service';
 import { v4 as uuidv4 } from 'uuid';
+import { Contact, ContactSource, LeadStatus } from '@handycall/shared';
 
-export interface Contact {
-  contact_id: string;
-  company_id: string;
-  name: string;
-  phone: string;
-  email?: string;
-  source: 'CALL' | 'MANUAL' | 'IMPORT';
-  tags?: string[];
-  notes?: string;
-  created_at: string;
-  updated_at: string;
-  last_contact_at?: string;
-  total_calls?: number;
-}
+type ContactUi = Contact & { name: string; phone: string };
 
 export interface CreateContactDto {
-  name: string;
-  phone: string;
+  // Back-compat fields (older UI)
+  name?: string;
+  phone?: string;
+
+  // Preferred fields (domain model)
+  phone_number?: string;
   email?: string;
-  source?: 'CALL' | 'MANUAL' | 'IMPORT';
-  tags?: string[];
+  first_name?: string;
+  last_name?: string;
+  address?: string;
+  zipcode?: string;
+  source?: ContactSource;
+  lead_status?: LeadStatus;
   notes?: string;
 }
 
 export interface UpdateContactDto {
+  // Back-compat fields (older UI)
   name?: string;
   phone?: string;
+
+  // Preferred fields (domain model)
+  phone_number?: string;
   email?: string;
-  tags?: string[];
+  first_name?: string;
+  last_name?: string;
+  address?: string;
+  zipcode?: string;
+  lead_status?: LeadStatus;
   notes?: string;
 }
 
@@ -38,56 +42,73 @@ export interface UpdateContactDto {
 export class ContactsService {
   constructor(private dynamodb: DynamoDBService) {}
 
+  private toUiContact(raw: any): ContactUi {
+    const first = (raw?.first_name ?? '').toString().trim();
+    const last = (raw?.last_name ?? '').toString().trim();
+    const legacyName = (raw?.name ?? '').toString().trim();
+    const phone = (raw?.phone_number ?? raw?.phone ?? '').toString().trim();
+    const name = legacyName || [first, last].filter(Boolean).join(' ') || phone || 'Unknown';
+
+    return {
+      ...(raw as Contact),
+      phone_number: (raw?.phone_number ?? raw?.phone ?? '') as any,
+      name,
+      phone,
+    };
+  }
+
   async getContacts(
     companyId: string,
     options?: {
       limit?: number;
       lastEvaluatedKey?: any;
     }
-  ): Promise<{ contacts: Contact[]; lastEvaluatedKey?: any }> {
-    // Use scan with company filter instead of GSI to avoid index dependency
-    const result = await this.dynamodb.scan('contacts', {
-      filterExpression: '#company_id = :company_id',
-      expressionAttributeNames: {
-        '#company_id': 'company_id',
-      },
-      expressionAttributeValues: {
-        ':company_id': companyId,
-      },
-      limit: options?.limit || 50,
-      exclusiveStartKey: options?.lastEvaluatedKey,
+  ): Promise<{ contacts: ContactUi[]; lastEvaluatedKey?: any }> {
+    // Prefer a company-keyed query (fast path), fall back to scan if needed.
+    let result: { items: any[]; lastEvaluatedKey?: any };
+    try {
+      result = await this.dynamodb.queryByCompany('contacts', companyId, undefined, {
+        limit: options?.limit || 50,
+        exclusiveStartKey: options?.lastEvaluatedKey,
+      });
+    } catch {
+      result = await this.dynamodb.scan('contacts', {
+        filterExpression: '#company_id = :company_id',
+        expressionAttributeNames: { '#company_id': 'company_id' },
+        expressionAttributeValues: { ':company_id': companyId },
+        limit: options?.limit || 50,
+        exclusiveStartKey: options?.lastEvaluatedKey,
+      });
+    }
+
+    const items = (result.items || []).map((c) => this.toUiContact(c));
+
+    // Sort by last_contact_at/updated_at/created_at descending (most recent first)
+    items.sort((a, b) => {
+      const aTs = Number(a.last_contact_at ?? a.updated_at ?? a.created_at ?? 0);
+      const bTs = Number(b.last_contact_at ?? b.updated_at ?? b.created_at ?? 0);
+      return bTs - aTs;
     });
 
-    // Sort by created_at descending (most recent first)
-    const sortedContacts = (result.items as Contact[]).sort((a, b) => {
-      const dateA = new Date(a.created_at || 0).getTime();
-      const dateB = new Date(b.created_at || 0).getTime();
-      return dateB - dateA;
-    });
-
-    return {
-      contacts: sortedContacts,
-      lastEvaluatedKey: result.lastEvaluatedKey,
-    };
+    return { contacts: items, lastEvaluatedKey: result.lastEvaluatedKey };
   }
 
-  async getContactById(companyId: string, contactId: string): Promise<Contact> {
-    const contact = await this.dynamodb.get('contacts', {
-      contact_id: contactId,
-    });
+  async getContactById(companyId: string, contactId: string): Promise<ContactUi> {
+    const contact = await this.dynamodb.get('contacts', { company_id: companyId, contact_id: contactId });
 
-    if (!contact || contact.company_id !== companyId) {
+    if (!contact) {
       throw new NotFoundException('Contact not found');
     }
 
-    return contact as Contact;
+    return this.toUiContact(contact);
   }
 
-  async getContactByPhone(companyId: string, phone: string): Promise<Contact | null> {
+  async getContactByPhone(companyId: string, phone: string): Promise<ContactUi | null> {
     const result = await this.dynamodb.scan('contacts', {
-      filterExpression: '#company_id = :company_id AND #phone = :phone',
+      filterExpression: '#company_id = :company_id AND (#phone_number = :phone OR #phone = :phone)',
       expressionAttributeNames: {
         '#company_id': 'company_id',
+        '#phone_number': 'phone_number',
         '#phone': 'phone',
       },
       expressionAttributeValues: {
@@ -97,61 +118,91 @@ export class ContactsService {
       limit: 1,
     });
 
-    const contacts = result.items as Contact[];
-    return contacts.length > 0 ? contacts[0] : null;
+    return result.items.length > 0 ? this.toUiContact(result.items[0]) : null;
   }
 
-  async createContact(companyId: string, data: CreateContactDto): Promise<Contact> {
+  async createContact(companyId: string, data: CreateContactDto): Promise<ContactUi> {
     const contactId = uuidv4();
-    const now = new Date().toISOString();
+    const now = Date.now();
+
+    const phone_number = (data.phone_number || data.phone || '').trim();
+    if (!phone_number) {
+      throw new BadRequestException('phone_number is required');
+    }
+
+    const existingName = (data.name || '').trim();
+    const first = (data.first_name || '').trim() || (existingName.split(/\s+/)[0] || '').trim();
+    const last =
+      (data.last_name || '').trim() ||
+      (existingName.split(/\s+/).slice(1).join(' ') || '').trim() ||
+      undefined;
 
     const contact: Contact = {
-      contact_id: contactId,
       company_id: companyId,
-      name: data.name,
-      phone: data.phone,
-      email: data.email,
-      source: data.source || 'MANUAL',
-      tags: data.tags || [],
+      contact_id: contactId,
+      phone_number,
+      email: data.email?.trim() || undefined,
+      first_name: first || undefined,
+      last_name: last || undefined,
+      address: data.address?.trim() || undefined,
+      zipcode: data.zipcode?.trim() || undefined,
+      source: data.source ?? ContactSource.MANUAL,
+      lead_status: data.lead_status ?? LeadStatus.NEW,
       notes: data.notes,
       created_at: now,
       updated_at: now,
-      total_calls: 0,
+      last_contact_at: now,
     };
 
     await this.dynamodb.put('contacts', contact);
 
-    return contact;
+    return this.toUiContact(contact);
   }
 
   async updateContact(
     companyId: string,
     contactId: string,
     data: UpdateContactDto
-  ): Promise<Contact> {
+  ): Promise<ContactUi> {
     const existing = await this.getContactById(companyId, contactId);
 
+    const phone_number = (data.phone_number || data.phone || '').trim() || undefined;
+    const legacyName = (data.name || '').trim();
+    const first_name =
+      (data.first_name || '').trim() ||
+      (legacyName ? legacyName.split(/\s+/)[0]?.trim() : '') ||
+      undefined;
+    const last_name =
+      (data.last_name || '').trim() ||
+      (legacyName ? legacyName.split(/\s+/).slice(1).join(' ')?.trim() : '') ||
+      undefined;
+
     const updates = {
-      ...data,
-      updated_at: new Date().toISOString(),
+      ...(phone_number && { phone_number }),
+      ...(data.email !== undefined && { email: data.email }),
+      ...(first_name && { first_name }),
+      ...(last_name && { last_name }),
+      ...(data.address !== undefined && { address: data.address }),
+      ...(data.zipcode !== undefined && { zipcode: data.zipcode }),
+      ...(data.lead_status !== undefined && { lead_status: data.lead_status }),
+      ...(data.notes !== undefined && { notes: data.notes }),
+      updated_at: Date.now(),
     };
 
     await this.dynamodb.update(
       'contacts',
-      { contact_id: contactId },
+      { company_id: companyId, contact_id: contactId },
       updates
     );
 
-    return {
-      ...existing,
-      ...updates,
-    };
+    return this.toUiContact({ ...existing, ...updates });
   }
 
   async deleteContact(companyId: string, contactId: string): Promise<void> {
     const contact = await this.getContactById(companyId, contactId);
 
     await this.dynamodb.delete('contacts', {
+      company_id: companyId,
       contact_id: contactId,
     });
   }
@@ -162,7 +213,7 @@ export class ContactsService {
     options?: {
       limit?: number;
     }
-  ): Promise<Contact[]> {
+  ): Promise<ContactUi[]> {
     const result = await this.dynamodb.scan('contacts', {
       filterExpression: '#company_id = :company_id',
       expressionAttributeNames: {
@@ -178,6 +229,9 @@ export class ContactsService {
     const filtered = result.items.filter((contact: any) => {
       const searchableText = [
         contact.name,
+        contact.first_name,
+        contact.last_name,
+        contact.phone_number,
         contact.phone,
         contact.email,
       ].join(' ').toLowerCase();
@@ -185,7 +239,7 @@ export class ContactsService {
     });
 
     // Return limited results
-    return (filtered as Contact[]).slice(0, options?.limit || 50);
+    return filtered.map((c: any) => this.toUiContact(c)).slice(0, options?.limit || 50);
   }
 
   async incrementCallCount(companyId: string, contactId: string): Promise<void> {
@@ -193,10 +247,9 @@ export class ContactsService {
 
     await this.dynamodb.update(
       'contacts',
-      { contact_id: contactId },
+      { company_id: companyId, contact_id: contactId },
       {
-        total_calls: (contact.total_calls || 0) + 1,
-        last_contact_at: new Date().toISOString(),
+        last_contact_at: Date.now(),
       }
     );
   }
@@ -205,7 +258,8 @@ export class ContactsService {
     const contact = await this.getContactById(companyId, contactId);
 
     const scan = await this.dynamodb.scan('appointments', {
-      filterExpression: '#company_id = :company_id AND ( #contact_id = :contact_id OR #contact_phone = :contact_phone )',
+      filterExpression:
+        '#company_id = :company_id AND ( #contact_id = :contact_id OR #contact_phone = :contact_phone )',
       expressionAttributeNames: {
         '#company_id': 'company_id',
         '#contact_id': 'contact_id',
@@ -214,7 +268,7 @@ export class ContactsService {
       expressionAttributeValues: {
         ':company_id': companyId,
         ':contact_id': contactId,
-        ':contact_phone': contact.phone,
+        ':contact_phone': contact.phone_number,
       },
       limit: 500,
     });

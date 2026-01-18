@@ -9,7 +9,7 @@ export class UsageService {
   /**
    * Increment call minutes for today
    */
-  async incrementCallMinutes(companyId: string, minutes: number): Promise<void> {
+  async incrementCallMinutes(companyId: string, minutes: number, callsCountDelta: number = 1): Promise<void> {
     const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
 
     const existing = await this.dynamodb.get('usage_metrics', {
@@ -23,7 +23,7 @@ export class UsageService {
         { company_id: companyId, date: today },
         {
           minutes_used: (existing.minutes_used || 0) + minutes,
-          calls_count: (existing.calls_count || 0) + 1,
+          calls_count: (existing.calls_count || 0) + callsCountDelta,
           updated_at: Date.now(),
         }
       );
@@ -32,7 +32,7 @@ export class UsageService {
         company_id: companyId,
         date: today,
         minutes_used: minutes,
-        calls_count: 1,
+        calls_count: callsCountDelta,
         sms_sent_count: 0,
         contacts_count: 0,
         created_at: Date.now(),

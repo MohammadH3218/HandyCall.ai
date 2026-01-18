@@ -12,12 +12,16 @@ import { ExternalLink, Search, Users } from 'lucide-react';
 type Contact = {
   contact_id: string;
   company_id: string;
-  name: string;
-  phone: string;
+  phone_number?: string;
+  first_name?: string;
+  last_name?: string;
+  // Back-compat (older backend responses)
+  name?: string;
+  phone?: string;
   email?: string;
   source?: string;
-  created_at?: string;
-  last_contact_at?: string;
+  created_at?: number | string;
+  last_contact_at?: number | string;
 };
 
 function formatDate(ts?: number | string) {
@@ -89,16 +93,22 @@ export default function CustomersPage() {
     return (contacts || [])
       .filter((c) => {
         if (!q) return true;
-        const text = [c.name, c.phone, c.email].filter(Boolean).join(' ').toLowerCase();
+        const phone = String(c.phone_number || c.phone || '').trim();
+        const name = String(c.name || `${c.first_name || ''} ${c.last_name || ''}`.trim()).trim();
+        const text = [name, phone, c.email].filter(Boolean).join(' ').toLowerCase();
         return text.includes(q);
       })
       .map((c) => {
-        const upcoming = byPhone.get(c.phone) ?? [];
+        const phone = String(c.phone_number || c.phone || '').trim();
+        const upcoming = byPhone.get(phone) ?? [];
         const next = upcoming[0];
         const totalSpend = upcoming.reduce((sum, a) => sum + (typeof a?.price_cents === 'number' ? a.price_cents : 0), 0);
         const recurring = upcoming.some((a) => !!a?.series_id);
+        const displayName = String(c.name || `${c.first_name || ''} ${c.last_name || ''}`.trim()).trim() || phone || 'Unknown';
         return {
           contact: c,
+          displayName,
+          displayPhone: phone,
           upcomingCount: upcoming.length,
           nextStart: next?.scheduled_start,
           recurring,
@@ -187,7 +197,7 @@ export default function CustomersPage() {
                   <div className="flex items-start justify-between gap-4">
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
-                        <div className="font-semibold text-gray-900 truncate">{row.contact.name}</div>
+                        <div className="font-semibold text-gray-900 truncate">{row.displayName}</div>
                         {row.recurring ? (
                           <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">
                             Recurring
@@ -203,7 +213,7 @@ export default function CustomersPage() {
                           </Badge>
                         )}
                       </div>
-                      <div className="text-sm text-gray-600 mt-1 truncate">{row.contact.phone}</div>
+                      <div className="text-sm text-gray-600 mt-1 truncate">{row.displayPhone}</div>
                       {row.contact.email ? <div className="text-sm text-gray-600 truncate">{row.contact.email}</div> : null}
                       <div className="text-xs text-gray-500 mt-2 flex gap-4 flex-wrap">
                         <span>Next: {row.nextStart ? formatDate(row.nextStart) : '—'}</span>
@@ -233,8 +243,13 @@ export default function CustomersPage() {
           {selectedContact ? (
             <div className="space-y-4">
               <div className="border border-gray-200 rounded-lg p-4">
-                <div className="font-semibold text-gray-900">{selectedContact.name}</div>
-                <div className="text-sm text-gray-600">{selectedContact.phone}</div>
+                <div className="font-semibold text-gray-900">
+                  {String(
+                    selectedContact.name ||
+                      `${selectedContact.first_name || ''} ${selectedContact.last_name || ''}`.trim()
+                  ).trim() || String(selectedContact.phone_number || selectedContact.phone || '').trim() || 'Unknown'}
+                </div>
+                <div className="text-sm text-gray-600">{String(selectedContact.phone_number || selectedContact.phone || '').trim()}</div>
                 {selectedContact.email ? <div className="text-sm text-gray-600">{selectedContact.email}</div> : null}
                 <div className="text-xs text-gray-500 mt-2">
                   Added: {formatDate(selectedContact.created_at)} • Last contact: {formatDate(selectedContact.last_contact_at)}
@@ -270,4 +285,3 @@ export default function CustomersPage() {
     </div>
   );
 }
-
