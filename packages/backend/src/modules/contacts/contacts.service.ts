@@ -265,19 +265,21 @@ export class ContactsService {
 
   async getContactAppointments(companyId: string, contactId: string): Promise<any[]> {
     const contact = await this.getContactById(companyId, contactId);
+    const phone = normalizePhone(contact.phone_number || (contact as any).phone || '');
 
     const scan = await this.dynamodb.scan('appointments', {
-      filterExpression:
-        '#company_id = :company_id AND ( #contact_id = :contact_id OR #contact_phone = :contact_phone )',
+      filterExpression: phone
+        ? '#company_id = :company_id AND ( #contact_id = :contact_id OR #contact_phone = :contact_phone )'
+        : '#company_id = :company_id AND #contact_id = :contact_id',
       expressionAttributeNames: {
         '#company_id': 'company_id',
         '#contact_id': 'contact_id',
-        '#contact_phone': 'contact_phone',
+        ...(phone ? { '#contact_phone': 'contact_phone' } : {}),
       },
       expressionAttributeValues: {
         ':company_id': companyId,
         ':contact_id': contactId,
-        ':contact_phone': contact.phone_number,
+        ...(phone ? { ':contact_phone': phone } : {}),
       },
       limit: 500,
     });
@@ -295,16 +297,18 @@ export class ContactsService {
 
     const limit = Math.min(Math.max(options?.limit ?? 50, 1), 200);
     const scan = await this.dynamodb.scan('calls', {
-      filterExpression: '#company_id = :company_id AND (#contact_id = :contact_id OR #from_number = :phone)',
+      filterExpression: phone
+        ? '#company_id = :company_id AND (#contact_id = :contact_id OR #from_number = :phone)'
+        : '#company_id = :company_id AND #contact_id = :contact_id',
       expressionAttributeNames: {
         '#company_id': 'company_id',
         '#contact_id': 'contact_id',
-        '#from_number': 'from_number',
+        ...(phone ? { '#from_number': 'from_number' } : {}),
       },
       expressionAttributeValues: {
         ':company_id': companyId,
         ':contact_id': contactId,
-        ':phone': phone,
+        ...(phone ? { ':phone': phone } : {}),
       },
       limit,
     });

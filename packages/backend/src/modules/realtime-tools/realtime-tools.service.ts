@@ -84,6 +84,39 @@ export class RealtimeToolsService {
     return text || undefined;
   }
 
+  private extractCollectedInfoFromTranscript(transcript: string): Record<string, any> {
+    const out: Record<string, any> = {};
+    const t = String(transcript || '');
+
+    const phoneMatches = t.match(/(\+?1[\s-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}/g);
+    if (phoneMatches && phoneMatches.length) {
+      const last = phoneMatches[phoneMatches.length - 1];
+      const e164 = asE164(last);
+      if (e164) out.phone = e164;
+    }
+
+    const zipMatches = t.match(/\b\d{5}\b/g);
+    if (zipMatches && zipMatches.length) {
+      out.zip = zipMatches[zipMatches.length - 1];
+    }
+
+    const nameMatch = t.match(/(?:my name is|this is)\s+([A-Za-z]+(?:\s+[A-Za-z]+){0,3})/i);
+    if (nameMatch?.[1]) {
+      const name = nameMatch[1].trim();
+      if (name && name.length <= 60) out.name = name;
+    }
+
+    const addressMatch = t.match(
+      /(?:address is|my address is|located at)\s+([0-9]{1,6}\s+[A-Za-z0-9.'-]+(?:\s+[A-Za-z0-9.'-]+){0,6})/i
+    );
+    if (addressMatch?.[1]) {
+      const address = addressMatch[1].trim();
+      if (address && address.length <= 120) out.address = address;
+    }
+
+    return out;
+  }
+
   private isGenericSummary(text: string | undefined): boolean {
     const t = (text || '').trim().toLowerCase();
     if (!t) return true;
@@ -264,12 +297,31 @@ export class RealtimeToolsService {
 
     const transcriptText = dto.transcript && dto.transcript.trim() ? dto.transcript.trim() : undefined;
 
+    const incomingCollected =
+      dto.collected_info && typeof dto.collected_info === 'object'
+        ? (dto.collected_info as Record<string, any>)
+        : undefined;
+    const incomingHasAny =
+      !!incomingCollected &&
+      Object.keys(incomingCollected).some(
+        (k) =>
+          incomingCollected[k] !== undefined &&
+          incomingCollected[k] !== null &&
+          `${incomingCollected[k]}`.trim() !== ''
+      );
+
+    const extractedCollected =
+      transcriptText && !incomingHasAny ? this.extractCollectedInfoFromTranscript(transcriptText) : {};
+    const extractedHasAny = Object.keys(extractedCollected).some(
+      (k) => extractedCollected[k] !== undefined && extractedCollected[k] !== null && `${extractedCollected[k]}`.trim() !== ''
+    );
+
     let transcript_url: string | undefined;
     if (transcriptText) {
       try {
         transcript_url = await this.s3.uploadTranscript(company_id, call_id, {
           text: transcriptText,
-          collected_info: dto.collected_info,
+          collected_info: incomingHasAny ? incomingCollected : extractedHasAny ? extractedCollected : dto.collected_info,
           saved_at: Date.now(),
         });
       } catch (err) {
@@ -288,7 +340,12 @@ export class RealtimeToolsService {
 
     const existingSummary = typeof existing?.summary === 'string' ? existing.summary.trim() : '';
     const dtoSummary = typeof dto.summary === 'string' ? dto.summary.trim() : '';
-    const fallbackSummary = this.buildSummaryFallback(dto.collected_info);
+    const collectedForSummary: Record<string, any> = {
+      ...(typeof existing?.collected_info === 'object' && existing.collected_info ? existing.collected_info : {}),
+      ...(extractedHasAny ? extractedCollected : {}),
+      ...(incomingHasAny ? incomingCollected : {}),
+    };
+    const fallbackSummary = this.buildSummaryFallback(collectedForSummary);
 
     let summary: string | undefined;
     if (dtoSummary && !this.isGenericSummary(dtoSummary)) {
@@ -312,17 +369,17 @@ export class RealtimeToolsService {
       updated_at: now,
     };
 
-    if (dto.collected_info && typeof dto.collected_info === 'object') {
-      const incoming = dto.collected_info as Record<string, any>;
-      const hasAny = Object.keys(incoming).some((k) => incoming[k] !== undefined && incoming[k] !== null && `${incoming[k]}`.trim() !== '');
-      if (hasAny) {
-        updates.collected_info = { ...(existing?.collected_info ?? {}), ...incoming };
-      }
+    if (incomingHasAny || extractedHasAny) {
+      updates.collected_info = {
+        ...(typeof existing?.collected_info === 'object' && existing.collected_info ? existing.collected_info : {}),
+        ...(extractedHasAny ? extractedCollected : {}),
+        ...(incomingHasAny ? incomingCollected : {}),
+      };
     }
 
     // Ensure contact is de-duplicated by phone number and enriched by collected fields.
     try {
-      const collected = dto.collected_info ?? {};
+      const collected = (updates.collected_info as any) ?? dto.collected_info ?? {};
       const name = typeof collected.name === 'string' ? collected.name.trim() : '';
       const first =
         (typeof collected.first_name === 'string' ? collected.first_name.trim() : '') ||

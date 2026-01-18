@@ -499,6 +499,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
   let pendingBargeInTimer: NodeJS.Timeout | null = null;
   let noResponseTimer: NodeJS.Timeout | null = null;
   let noResponseStage: 0 | 1 = 0;
+  let recordingStartAttempted = false;
 
   function log(msg: string, extra?: any) {
     const prefix = ctx ? `[callSid=${ctx.callSid} streamSid=${ctx.streamSid}]` : '[twilio]';
@@ -514,6 +515,31 @@ wss.on('connection', (twilioWs: WebSocket) => {
       })
       .filter(Boolean);
     return lines.join('\n').trim();
+  }
+
+  async function startTwilioRecording(callSid: string) {
+    if (recordingStartAttempted) return;
+    recordingStartAttempted = true;
+
+    const enabled = (process.env.TWILIO_RECORD_CALLS ?? 'true') !== 'false';
+    if (!enabled) return;
+
+    try {
+      const publicBaseUrl = requireEnvFirst(['PUBLIC_BASE_URL', 'VOICE_BRIDGE_PUBLIC_BASE_URL']).replace(/\/$/, '');
+      const accountSid =
+        envFirst(['TWILIO_ACCOUNT_SID', 'TWILIO_SID']) || (await getSecret('TWILIO_ACCOUNT_SID'));
+      const authToken = await getSecret('TWILIO_AUTH_TOKEN');
+      const client = twilio(accountSid, authToken);
+
+      await client.calls(callSid).recordings.create({
+        recordingStatusCallback: `${publicBaseUrl}/twilio/recording-status`,
+        recordingStatusCallbackMethod: 'POST',
+        recordingStatusCallbackEvent: ['completed'],
+        recordingChannels: 'dual',
+      });
+    } catch (e: any) {
+      log('startTwilioRecording failed (non-fatal)', e?.message ?? String(e));
+    }
   }
 
   function clearNoResponseTimer() {
@@ -688,6 +714,8 @@ wss.on('connection', (twilioWs: WebSocket) => {
       log('Media stream started', { to, from, company_id: tenant.company_id });
 
       activeCalls.set(callSid, { company_id: tenant.company_id, from, to, startedAt });
+
+      void startTwilioRecording(callSid);
 
       const model =
         tenant?.agent_config?.realtime_model ||
