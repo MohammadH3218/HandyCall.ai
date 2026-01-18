@@ -225,10 +225,11 @@ function buildInstructions(input: {
     `Style: 1–2 short sentences max per turn, then a question. No monologues. No "thinking out loud".`,
     `Confirm critical fields (name, phone, address/zip, preferred time) before ending, but do NOT repeat the caller word-for-word.`,
     `When confirming, paraphrase naturally and group info: e.g., "Got it—plumbing help in 77441, aiming for Monday around 11. Is that right?"`,
-    `Confirmation policy (very important): confirm EACH field immediately when it is first provided, then mark it confirmed in update_intake. Example flow: ask name → confirm name → ask zip/address → confirm zip/address → ask preferred time → confirm time. Once confirmed, do NOT confirm that same field again unless the caller corrects it. Do NOT do a full end-of-call recap of every detail.`,
+    `Confirmation policy (very important): confirm EACH field immediately when it is first provided, then mark it confirmed in update_intake. Example flow: ask name → confirm name → ask zip/address → confirm zip/address → ask preferred time → confirm time. Once confirmed, do NOT confirm that same field again unless the caller corrects it. If the caller says a field is wrong, ask for the correct value and THEN confirm the corrected value again before moving on. Do NOT do a full end-of-call recap of every detail.`,
     `If the caller already told you the issue/service details, do NOT ask again. Summarize briefly and move forward.`,
     `Use update_intake any time you learn a detail (name, zip, address, service, issue, preferred time) so you don’t ask twice.`,
     `Zip codes: confirm digits explicitly (e.g., "Just to confirm, that's 7-7-4-4-1?").`,
+    `Knowledge policy: use knowledge_search for business-specific facts (pricing, plans, what's included, policies). If you can't find it in knowledge_search or you're not sure, do NOT guess; say you're not sure and you'll note it down and have the team follow up.`,
     `If the caller asks about the business, use knowledge_search to answer accurately.`,
     `If the caller talks over you, stop immediately and listen (barge-in).`,
     `If you are unsure, ask one clarifying question.`,
@@ -489,6 +490,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
   let pendingAutoHangup = false;
   let pendingHangupMarkName: string | null = null;
   let pendingHangupTimer: NodeJS.Timeout | null = null;
+  let forcedHangupTimer: NodeJS.Timeout | null = null;
   let assistantAudioActiveUntil = 0;
   let pendingBargeInTimer: NodeJS.Timeout | null = null;
 
@@ -510,20 +512,26 @@ wss.on('connection', (twilioWs: WebSocket) => {
       clearTimeout(pendingHangupTimer);
       pendingHangupTimer = null;
     }
+    if (forcedHangupTimer) {
+      clearTimeout(forcedHangupTimer);
+      forcedHangupTimer = null;
+    }
     pendingAutoHangup = false;
     pendingHangupMarkName = null;
 
     try {
-      // Ensure we persist at least something if the model didn't.
-      if (!callSaved) {
+      // Persist final call state (even if already saved) so duration/ended_at reflect the actual hangup time.
+      try {
         const duration_seconds = ctx.startedAt ? Math.max(1, Math.ceil((Date.now() - ctx.startedAt) / 1000)) : undefined;
         await invokeTool(ctx, 'save_call', {
-          summary: 'Caller confirmed details and ended the call.',
+          summary: 'Call ended.',
           transcript: mergedTranscriptText() || undefined,
           duration_seconds,
           collected_info: intake,
         });
         callSaved = true;
+      } catch (e: any) {
+        log('final save_call failed (non-fatal)', e?.message ?? String(e));
       }
 
       // Best-effort: if the recording callback didn't arrive, try to fetch a completed recording for this call.
@@ -552,6 +560,15 @@ wss.on('connection', (twilioWs: WebSocket) => {
     } catch (e: any) {
       log('performHangup failed (non-fatal)', e?.message ?? String(e));
     }
+  }
+
+  function scheduleForcedHangup(reason: string) {
+    if (!ctx) return;
+    if (forcedHangupTimer) return;
+    forcedHangupTimer = setTimeout(() => {
+      forcedHangupTimer = null;
+      void performHangup(`Forced hangup timeout: ${reason}`);
+    }, 8000);
   }
 
   const handleTwilioMessage = async (data: RawData) => {
@@ -757,6 +774,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
                 pendingAutoHangup = true;
                 pendingHangupMarkName = `goodbye_${Date.now()}`;
                 log('Auto-hangup triggered; generating goodbye', { mark: pendingHangupMarkName });
+                scheduleForcedHangup('caller said no (anything else)');
                 // Cancel any in-flight response and force a short goodbye before ending.
                 sendToOpenAI(openaiWs, { type: 'response.cancel' });
                 sendToOpenAI(openaiWs, {
@@ -819,6 +837,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
                 pendingAutoHangup = true;
                 pendingHangupMarkName = `model_end_${Date.now()}`;
               }
+              scheduleForcedHangup('model requested end_call');
               log('Model requested end_call; deferring until response finishes', { mark: pendingHangupMarkName });
               sendToOpenAI(openaiWs, {
                 type: 'conversation.item.create',
@@ -862,6 +881,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
                 pendingAutoHangup = true;
                 pendingHangupMarkName = `save_call_${Date.now()}`;
               }
+              scheduleForcedHangup('save_call completed');
 
               sendToOpenAI(openaiWs, {
                 type: 'conversation.item.create',
@@ -891,6 +911,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
                 pendingAutoHangup = true;
                 pendingHangupMarkName = `save_call_${Date.now()}`;
               }
+              scheduleForcedHangup('save_call failed');
               sendToOpenAI(openaiWs, {
                 type: 'conversation.item.create',
                 item: {
