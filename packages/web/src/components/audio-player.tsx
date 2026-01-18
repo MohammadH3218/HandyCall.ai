@@ -16,13 +16,25 @@ export function AudioPlayer({ src, title }: AudioPlayerProps) {
   const [duration, setDuration] = useState(0);
   const [isMuted, setIsMuted] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
 
+    setIsPlaying(false);
+    setCurrentTime(0);
+    setDuration(0);
+    setIsMuted(false);
+    setIsLoading(true);
+    setLoadError(null);
+    audio.muted = false;
+
     const handleLoadedMetadata = () => {
-      setDuration(audio.duration);
+      setDuration(Number.isFinite(audio.duration) ? audio.duration : 0);
+    };
+
+    const handleCanPlay = () => {
       setIsLoading(false);
     };
 
@@ -35,27 +47,54 @@ export function AudioPlayer({ src, title }: AudioPlayerProps) {
       setCurrentTime(0);
     };
 
+    const handlePause = () => {
+      setIsPlaying(false);
+    };
+
+    const handlePlay = () => {
+      setIsPlaying(true);
+    };
+
+    const handleError = () => {
+      setIsLoading(false);
+      setIsPlaying(false);
+      setLoadError('Audio failed to load.');
+    };
+
     audio.addEventListener('loadedmetadata', handleLoadedMetadata);
+    audio.addEventListener('canplay', handleCanPlay);
     audio.addEventListener('timeupdate', handleTimeUpdate);
     audio.addEventListener('ended', handleEnded);
+    audio.addEventListener('pause', handlePause);
+    audio.addEventListener('play', handlePlay);
+    audio.addEventListener('error', handleError);
 
     return () => {
       audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
+      audio.removeEventListener('canplay', handleCanPlay);
       audio.removeEventListener('timeupdate', handleTimeUpdate);
       audio.removeEventListener('ended', handleEnded);
+      audio.removeEventListener('pause', handlePause);
+      audio.removeEventListener('play', handlePlay);
+      audio.removeEventListener('error', handleError);
     };
   }, [src]);
 
-  const togglePlay = () => {
+  const togglePlay = async () => {
     const audio = audioRef.current;
     if (!audio) return;
 
     if (isPlaying) {
       audio.pause();
-    } else {
-      audio.play();
+      return;
     }
-    setIsPlaying(!isPlaying);
+
+    try {
+      await audio.play();
+    } catch {
+      setIsPlaying(false);
+      setLoadError('Playback was blocked or unavailable.');
+    }
   };
 
   const toggleMute = () => {
@@ -82,6 +121,8 @@ export function AudioPlayer({ src, title }: AudioPlayerProps) {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
+  const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
+
   return (
     <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
       <audio ref={audioRef} src={src} preload="metadata" />
@@ -95,7 +136,7 @@ export function AudioPlayer({ src, title }: AudioPlayerProps) {
           variant="outline"
           size="sm"
           onClick={togglePlay}
-          disabled={isLoading}
+          disabled={isLoading || Boolean(loadError)}
           className="flex-shrink-0"
         >
           {isPlaying ? (
@@ -112,10 +153,10 @@ export function AudioPlayer({ src, title }: AudioPlayerProps) {
             max={duration || 0}
             value={currentTime}
             onChange={handleSeek}
-            disabled={isLoading}
+            disabled={isLoading || Boolean(loadError) || duration <= 0}
             className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
             style={{
-              background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${(currentTime / duration) * 100}%, #e5e7eb ${(currentTime / duration) * 100}%, #e5e7eb 100%)`,
+              background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${progress}%, #e5e7eb ${progress}%, #e5e7eb 100%)`,
             }}
           />
           <div className="flex justify-between text-xs text-gray-500 mt-1">
@@ -128,6 +169,7 @@ export function AudioPlayer({ src, title }: AudioPlayerProps) {
           variant="ghost"
           size="sm"
           onClick={toggleMute}
+          disabled={Boolean(loadError)}
           className="flex-shrink-0"
         >
           {isMuted ? (
@@ -140,6 +182,10 @@ export function AudioPlayer({ src, title }: AudioPlayerProps) {
 
       {isLoading && (
         <div className="text-xs text-gray-500 mt-2">Loading audio...</div>
+      )}
+
+      {loadError && (
+        <div className="text-xs text-red-600 mt-2">{loadError}</div>
       )}
     </div>
   );

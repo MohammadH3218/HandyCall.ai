@@ -1,0 +1,307 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import { useRouter, useParams } from 'next/navigation';
+import { apiClient } from '@/lib/api-client';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { AudioPlayer } from '@/components/audio-player';
+import { ArrowLeft, Clock, PhoneCall, User, Calendar, FileText, ExternalLink, AlertCircle } from 'lucide-react';
+
+interface Call {
+  call_id: string;
+  company_id: string;
+  contact_id?: string;
+  caller_phone: string;
+  caller_name?: string;
+  from_number?: string;
+  to_number?: string;
+  direction?: string;
+  created_at: string;
+  duration?: number;
+  status: string;
+  summary?: string;
+  transcript?: string;
+  recording_url?: string;
+  sentiment?: string;
+  lead_captured?: boolean;
+  appointment_created?: boolean;
+  appointment_id?: string;
+  outcome?: string;
+  lead_quality?: string;
+  collected_info?: any;
+}
+
+export default function CallDetailsPage() {
+  const router = useRouter();
+  const params = useParams();
+  const callId = params?.id as string;
+
+  const [call, setCall] = useState<Call | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (callId) {
+      loadCallDetails();
+    }
+  }, [callId]);
+
+  const loadCallDetails = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      const callData = await apiClient.getCallById(callId);
+      setCall(callData);
+    } catch (err: any) {
+      console.error('Error loading call details:', err);
+      setError(err?.message || 'Failed to load call details');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
+
+  const formatDuration = (seconds?: number) => {
+    if (!seconds) return 'N/A';
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const getOutcome = (call: Call): { label: string; className: string } => {
+    const outcome = (call.outcome || '').toUpperCase();
+    if (outcome === 'APPOINTMENT_BOOKED' || call.appointment_created || call.appointment_id) {
+      return { label: 'Booked', className: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
+    }
+    if (outcome === 'LEAD' || call.lead_captured) {
+      return { label: 'Lead', className: 'bg-amber-50 text-amber-800 border-amber-200' };
+    }
+    if (call.summary || call.transcript || call.collected_info) {
+      return { label: 'Possible Lead', className: 'bg-blue-50 text-blue-700 border-blue-200' };
+    }
+    return { label: 'No Lead', className: 'bg-gray-50 text-gray-700 border-gray-200' };
+  };
+
+  const getStatusBadge = (status?: string): { label: string; className: string } => {
+    const s = (status || '').toUpperCase();
+    if (s === 'COMPLETED') return { label: 'Completed', className: 'bg-gray-50 text-gray-700 border-gray-200' };
+    if (s === 'IN_PROGRESS' || s === 'RINGING')
+      return { label: s.replace('_', ' '), className: 'bg-indigo-50 text-indigo-700 border-indigo-200' };
+    if (s === 'FAILED' || s === 'NO_ANSWER' || s === 'BUSY')
+      return { label: s.replace('_', ' '), className: 'bg-red-50 text-red-700 border-red-200' };
+    return { label: (status || 'Unknown').replace('_', ' '), className: 'bg-gray-50 text-gray-700 border-gray-200' };
+  };
+
+  if (isLoading) {
+    return (
+      <div className="p-8 animate-fade-in">
+        <div className="flex items-center gap-4 mb-8">
+          <Button variant="outline" onClick={() => router.push('/dashboard/calls')}>
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back to Calls
+          </Button>
+        </div>
+        <div className="text-center py-12">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent mx-auto"></div>
+          <p className="mt-4 text-sm text-muted-foreground">Loading call details...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !call) {
+    return (
+      <div className="p-8 animate-fade-in">
+        <div className="flex items-center gap-4 mb-8">
+          <Button variant="outline" onClick={() => router.push('/dashboard/calls')}>
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back to Calls
+          </Button>
+        </div>
+        <div className="bg-red-50 border border-red-200 rounded-lg p-8 text-center">
+          <AlertCircle className="h-12 w-12 text-red-600 mx-auto mb-4" />
+          <h3 className="text-lg font-semibold text-red-800 mb-2">Failed to Load Call</h3>
+          <p className="text-red-600 mb-4">{error || 'Call not found'}</p>
+          <Button onClick={loadCallDetails} variant="outline">
+            Try Again
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  const outcome = getOutcome(call);
+  const statusBadge = getStatusBadge(call.status);
+
+  return (
+    <div className="p-8 animate-fade-in">
+      {/* Header */}
+      <div className="mb-8">
+        <Button variant="outline" onClick={() => router.push('/dashboard/calls')} className="mb-4">
+          <ArrowLeft className="h-4 w-4 mr-2" />
+          Back to Calls
+        </Button>
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="min-w-0">
+            <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3 flex-wrap">
+              <PhoneCall className="h-8 w-8 text-blue-600" />
+              {call.caller_name ? `${call.caller_name} • ${call.caller_phone}` : call.caller_phone}
+            </h1>
+            <div className="text-sm text-gray-600 flex items-center gap-2 mt-2">
+              <Clock className="h-4 w-4" />
+              <span>{formatDate(call.created_at)}</span>
+              <span className="text-gray-300">•</span>
+              <span>{formatDuration(call.duration)}</span>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <Badge variant="outline" className={outcome.className}>
+              {outcome.label}
+            </Badge>
+            <Badge variant="outline" className={statusBadge.className}>
+              {statusBadge.label}
+            </Badge>
+          </div>
+        </div>
+      </div>
+
+      {/* Associations - Contact & Appointment */}
+      {(call.contact_id || call.appointment_id) && (
+        <div className="grid gap-4 md:grid-cols-2 mb-6">
+          {call.contact_id && (
+            <Card
+              className="cursor-pointer hover:border-blue-500 hover:shadow-md transition-all"
+              onClick={() => router.push(`/dashboard/customers?contact=${call.contact_id}`)}
+            >
+              <CardContent className="flex items-center gap-3 py-4">
+                <div className="bg-purple-50 p-3 rounded-full">
+                  <User className="h-6 w-6 text-purple-600" />
+                </div>
+                <div className="flex-1">
+                  <p className="font-medium">Associated Contact</p>
+                  <p className="text-sm text-gray-500">View customer profile</p>
+                </div>
+                <ExternalLink className="h-5 w-5 text-gray-400" />
+              </CardContent>
+            </Card>
+          )}
+          {call.appointment_id && (
+            <Card
+              className="cursor-pointer hover:border-blue-500 hover:shadow-md transition-all"
+              onClick={() => router.push(`/dashboard/appointments?appointment=${call.appointment_id}`)}
+            >
+              <CardContent className="flex items-center gap-3 py-4">
+                <div className="bg-green-50 p-3 rounded-full">
+                  <Calendar className="h-6 w-6 text-green-600" />
+                </div>
+                <div className="flex-1">
+                  <p className="font-medium">Booked Appointment</p>
+                  <p className="text-sm text-gray-500">View appointment details</p>
+                </div>
+                <ExternalLink className="h-5 w-5 text-gray-400" />
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
+
+      {/* Summary and Captured Info */}
+      <div className="grid gap-6 md:grid-cols-2 mb-6">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              Call Summary
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="text-gray-700">
+            {call.summary ? (
+              <p className="leading-relaxed">{call.summary}</p>
+            ) : (
+              <p className="text-gray-500 italic">No summary available. Summary is generated after the call ends.</p>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Captured Information</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {call.collected_info && Object.keys(call.collected_info).length > 0 ? (
+              <div className="space-y-3">
+                {Object.entries(call.collected_info).map(([key, value]) => (
+                  <div key={key} className="flex justify-between items-start gap-4 pb-3 border-b last:border-b-0">
+                    <span className="text-sm text-gray-500 capitalize font-medium">{key.replace(/_/g, ' ')}</span>
+                    <span className="text-sm font-semibold text-gray-900 text-right">{String(value)}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-gray-500 italic">No structured information captured during this call.</p>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Call Recording */}
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle>Call Recording</CardTitle>
+          <p className="text-sm text-gray-600">
+            {call.recording_url ? 'Listen to the complete call recording.' : 'Recording is not available yet.'}
+          </p>
+        </CardHeader>
+        <CardContent>
+          {call.recording_url ? (
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-6">
+              <AudioPlayer
+                src={call.recording_url}
+                title={`Call with ${call.caller_name || call.caller_phone}`}
+              />
+            </div>
+          ) : (
+            <div className="text-center py-8 bg-gray-50 border border-gray-200 rounded-lg">
+              <AlertCircle className="h-10 w-10 text-gray-400 mx-auto mb-3" />
+              <p className="text-gray-600">Recording will be available shortly after the call completes.</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Transcript */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Full Transcript</CardTitle>
+          <p className="text-sm text-gray-600">Complete conversation text from the call.</p>
+        </CardHeader>
+        <CardContent>
+          {call.transcript ? (
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 max-h-[600px] overflow-auto">
+              <pre className="text-sm text-gray-800 whitespace-pre-wrap font-sans leading-relaxed">
+                {call.transcript}
+              </pre>
+            </div>
+          ) : (
+            <div className="text-center py-8 bg-gray-50 border border-gray-200 rounded-lg">
+              <AlertCircle className="h-10 w-10 text-gray-400 mx-auto mb-3" />
+              <p className="text-gray-600">Transcript is not available yet. It will be generated after the call ends.</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}

@@ -109,8 +109,11 @@ export default function AdminCompanyDetailPage() {
   // Subscription management state
   const [isCanceling, setIsCanceling] = useState(false);
   const [isSuspending, setIsSuspending] = useState(false);
+  const [isReactivating, setIsReactivating] = useState(false);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [showSuspendConfirm, setShowSuspendConfirm] = useState(false);
+  const [showReactivateConfirm, setShowReactivateConfirm] = useState(false);
+  const [showSaveConfirm, setShowSaveConfirm] = useState(false);
 
   useEffect(() => {
     if (!isLoading && (!isAuthenticated || userRole !== UserRole.ADMIN)) {
@@ -176,7 +179,8 @@ export default function AdminCompanyDetailPage() {
       });
 
       setCompany(updated);
-      toast({ title: 'Saved', description: 'Company updated successfully.' });
+      setShowSaveConfirm(false);
+      toast({ title: 'Saved', description: 'Company details updated successfully.' });
     } catch (err: any) {
       toast({ title: 'Error', description: err?.message || 'Failed to update company', variant: 'destructive' });
     } finally {
@@ -265,15 +269,19 @@ export default function AdminCompanyDetailPage() {
   // Reactivate account
   const handleReactivateAccount = async () => {
     try {
+      setIsReactivating(true);
       await fetchJsonWithFallback(`/api/proxy/companies/${companyId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 'ACTIVE' }),
       });
+      setShowReactivateConfirm(false);
       toast({ title: 'Account Reactivated', description: 'The account is now active.' });
       await loadCompany();
     } catch (err: any) {
       toast({ title: 'Error', description: err?.message || 'Failed to reactivate account', variant: 'destructive' });
+    } finally {
+      setIsReactivating(false);
     }
   };
 
@@ -319,6 +327,12 @@ export default function AdminCompanyDetailPage() {
       </div>
     );
   }
+
+  const subscriptionStatus = String((company as any)?.subscription_status ?? '').toUpperCase();
+  const cancelAtPeriodEnd = Boolean(
+    (company as any)?.cancel_at_period_end ?? (company as any)?.subscription_cancel_at_period_end
+  );
+  const isCancelScheduled = cancelAtPeriodEnd || subscriptionStatus === 'CANCELING';
 
   return (
     <div className="min-h-screen bg-background">
@@ -367,6 +381,7 @@ export default function AdminCompanyDetailPage() {
                   id="company_name"
                   value={editData.company_name ?? ''}
                   onChange={(e) => setEditData((p) => ({ ...p, company_name: e.target.value }))}
+                  placeholder="Enter company name"
                 />
               </div>
 
@@ -396,6 +411,7 @@ export default function AdminCompanyDetailPage() {
                   type="email"
                   value={editData.email ?? ''}
                   onChange={(e) => setEditData((p) => ({ ...p, email: e.target.value }))}
+                  placeholder="company@example.com"
                 />
               </div>
 
@@ -415,6 +431,7 @@ export default function AdminCompanyDetailPage() {
                   id="timezone"
                   value={String(editData.timezone ?? '')}
                   onChange={(e) => setEditData((p) => ({ ...p, timezone: e.target.value }))}
+                  placeholder="America/Chicago"
                 />
               </div>
 
@@ -468,9 +485,9 @@ export default function AdminCompanyDetailPage() {
             </div>
 
             <div className="flex justify-end">
-              <Button onClick={saveCompanyDetails} disabled={isSavingCompany}>
+              <Button onClick={() => setShowSaveConfirm(true)} disabled={isSavingCompany}>
                 <Save className="h-4 w-4 mr-2" />
-                {isSavingCompany ? 'Saving...' : 'Save'}
+                Save Changes
               </Button>
             </div>
           </CardContent>
@@ -543,7 +560,7 @@ export default function AdminCompanyDetailPage() {
               <h4 className="text-sm font-medium text-gray-700">Subscription Actions</h4>
               <div className="flex flex-wrap gap-3">
                 {company?.status === 'SUSPENDED' || company?.status === 'INACTIVE' ? (
-                  <Button variant="default" onClick={handleReactivateAccount}>
+                  <Button variant="default" onClick={() => setShowReactivateConfirm(true)} disabled={isReactivating}>
                     <CheckCircle className="h-4 w-4 mr-2" />
                     Reactivate Account
                   </Button>
@@ -553,14 +570,16 @@ export default function AdminCompanyDetailPage() {
                       variant="outline"
                       className="border-orange-300 text-orange-700 hover:bg-orange-50"
                       onClick={() => setShowCancelConfirm(true)}
+                      disabled={isCanceling || isCancelScheduled}
                     >
                       <AlertTriangle className="h-4 w-4 mr-2" />
-                      Cancel at Period End
+                      {isCancelScheduled ? 'Cancellation Scheduled' : 'Cancel at Period End'}
                     </Button>
                     <Button
                       variant="outline"
                       className="border-red-300 text-red-700 hover:bg-red-50"
                       onClick={() => setShowSuspendConfirm(true)}
+                      disabled={isSuspending}
                     >
                       <XCircle className="h-4 w-4 mr-2" />
                       Suspend Immediately
@@ -711,6 +730,60 @@ export default function AdminCompanyDetailPage() {
               </Button>
               <Button variant="destructive" onClick={handleSuspendSubscription} disabled={isSuspending}>
                 {isSuspending ? 'Suspending...' : 'Suspend Account'}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Reactivate Confirmation Dialog */}
+      <Dialog open={showReactivateConfirm} onOpenChange={setShowReactivateConfirm}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Reactivate Account</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-gray-600">Reactivate this company and re-enable services?</p>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setShowReactivateConfirm(false)} disabled={isReactivating}>
+                Cancel
+              </Button>
+              <Button onClick={handleReactivateAccount} disabled={isReactivating}>
+                {isReactivating ? 'Reactivating...' : 'Confirm Reactivation'}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Save Confirmation Dialog */}
+      <Dialog open={showSaveConfirm} onOpenChange={setShowSaveConfirm}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Confirm Changes</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-gray-600">
+              Are you sure you want to save changes to this company's information?
+            </p>
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 space-y-2">
+              <p className="text-sm text-blue-800">
+                <strong>Company:</strong> {editData.company_name}
+              </p>
+              <p className="text-sm text-blue-800">
+                <strong>Status:</strong> {editData.status}
+              </p>
+              <p className="text-sm text-blue-800">
+                <strong>Services:</strong> Calls {editData.calls_enabled ? 'Enabled' : 'Disabled'}, SMS {editData.sms_enabled ? 'Enabled' : 'Disabled'}
+              </p>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setShowSaveConfirm(false)} disabled={isSavingCompany}>
+                Cancel
+              </Button>
+              <Button onClick={saveCompanyDetails} disabled={isSavingCompany}>
+                <Save className="h-4 w-4 mr-2" />
+                {isSavingCompany ? 'Saving...' : 'Confirm Save'}
               </Button>
             </div>
           </div>

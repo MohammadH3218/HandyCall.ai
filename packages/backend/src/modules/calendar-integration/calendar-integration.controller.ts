@@ -204,9 +204,9 @@ export class CalendarIntegrationController {
       const redirectUrl = `${frontendUrl}/dashboard/appointments?calendar=connected&provider=microsoft`;
       
       console.log(`[CalendarIntegrationController] Microsoft Calendar connected, redirecting to: ${redirectUrl}`);
-      
+
       // Return HTML page that redirects immediately
-      res.status(HttpStatus.OK).send(`
+      return res.status(HttpStatus.OK).send(`
         <!DOCTYPE html>
         <html>
           <head>
@@ -230,12 +230,12 @@ export class CalendarIntegrationController {
         code: code ? 'PRESENT' : 'MISSING',
         state: state || 'MISSING'
       });
-      
-      const frontendUrl = this.configService.get<string>('FRONTEND_URL') || 
-                         this.configService.get<string>('NEXT_PUBLIC_APP_URL') || 
+
+      const frontendUrl = this.configService.get<string>('FRONTEND_URL') ||
+                         this.configService.get<string>('NEXT_PUBLIC_APP_URL') ||
                          'https://handycall.org';
       const errorUrl = `${frontendUrl}/dashboard/appointments?calendar=error&message=${encodeURIComponent(error.message)}`;
-      res.status(HttpStatus.INTERNAL_SERVER_ERROR).send(`
+      return res.status(HttpStatus.INTERNAL_SERVER_ERROR).send(`
         <!DOCTYPE html>
         <html>
           <head>
@@ -277,20 +277,35 @@ export class CalendarIntegrationController {
     @Body() body: { email: string; appSpecificPassword: string; calendarPath?: string }
   ) {
     console.log(`[CalendarIntegrationController] Apple connect request - companyId: ${companyId ? 'PRESENT' : 'MISSING'}, email: ${body?.email ? 'PRESENT' : 'MISSING'}`);
-    
-    if (!companyId) {
-      console.error('[CalendarIntegrationController] Company ID missing from request');
-      throw new Error('Company ID is required. Please ensure you are authenticated.');
-    }
 
-    if (!body?.email || !body?.appSpecificPassword) {
-      throw new Error('Email and app-specific password are required');
-    }
+    try {
+      if (!companyId) {
+        console.error('[CalendarIntegrationController] Company ID missing from request');
+        throw new Error('Company ID is required. Please ensure you are authenticated.');
+      }
 
-    await this.calendarService.connectAppleCalendar(companyId, body.email, body.appSpecificPassword, body.calendarPath);
-    return {
-      success: true,
-      message: 'Apple Calendar connected successfully',
-    };
+      if (!body?.email || !body?.appSpecificPassword) {
+        throw new Error('Email and app-specific password are required');
+      }
+
+      await this.calendarService.connectAppleCalendar(companyId, body.email, body.appSpecificPassword, body.calendarPath);
+
+      console.log(`[CalendarIntegrationController] Apple Calendar connected successfully for company ${companyId}`);
+
+      return {
+        success: true,
+        message: 'Apple Calendar connected successfully',
+      };
+    } catch (error: any) {
+      console.error('[CalendarIntegrationController] Error connecting Apple Calendar:', {
+        message: error.message,
+        status: error.response?.status,
+        companyId: companyId ? 'PRESENT' : 'MISSING',
+        email: body?.email ? 'PRESENT' : 'MISSING'
+      });
+
+      // Throw the error so it returns proper HTTP error code
+      throw error;
+    }
   }
 }

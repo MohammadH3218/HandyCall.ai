@@ -165,6 +165,8 @@ export class AdminService {
     // Update company status to indicate pending cancellation
     await this.dynamodb.update('companies', { company_id: companyId }, {
       subscription_status: 'CANCELING',
+      cancel_at_period_end: true,
+      // Legacy attribute name kept for backwards compatibility with older reads.
       subscription_cancel_at_period_end: true,
       updated_at: Date.now(),
     });

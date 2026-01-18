@@ -60,9 +60,19 @@ export class AppleCalendarService {
       });
 
       // Extract principal URL from response
-      const principalMatch = response.data.match(/<d:href[^>]*>([^<]+)<\/d:href>/i);
+      // Look specifically for href inside current-user-principal element
+      // Handle both namespaced (d:) and non-namespaced elements
+      const principalMatch = response.data.match(/<(?:d:)?current-user-principal[^>]*>[\s\S]*?<(?:d:)?href[^>]*>([^<]+)<\/(?:d:)?href>[\s\S]*?<\/(?:d:)?current-user-principal>/i);
       if (principalMatch) {
+        console.log('[AppleCalendarService] Found principal from discovery:', principalMatch[1]);
         return principalMatch[1];
+      }
+
+      // Fallback: try generic href match (with or without namespace)
+      const hrefMatch = response.data.match(/<(?:d:)?href[^>]*>([^<]+)<\/(?:d:)?href>/i);
+      if (hrefMatch) {
+        console.log('[AppleCalendarService] Using fallback href from discovery:', hrefMatch[1]);
+        return hrefMatch[1];
       }
 
       // Fallback: try using the email directly
@@ -79,8 +89,33 @@ export class AppleCalendarService {
    */
   async getCalendars(email: string, appSpecificPassword: string): Promise<any[]> {
     try {
-      // Try direct calendar access first
-      const calendarsUrl = `${ICALENDAR_BASE}/${email}/calendars/`;
+      // First discover the principal URL to get the correct server/path
+      console.log('[AppleCalendarService] Discovering principal URL for:', email);
+      const principalPath = await this.discoverPrincipal(email, appSpecificPassword);
+      console.log('[AppleCalendarService] Principal path:', principalPath);
+
+      // Construct calendars URL from principal
+      let calendarsUrl = principalPath;
+
+      // Replace /principal/ with /calendars/ if present
+      if (calendarsUrl.includes('/principal/')) {
+        calendarsUrl = calendarsUrl.replace('/principal/', '/calendars/');
+      }
+
+      if (!principalPath.startsWith('http')) {
+        // If relative path, prepend the base URL
+        calendarsUrl = `${ICALENDAR_DISCOVERY}${calendarsUrl}`;
+      }
+
+      // Ensure it ends with /calendars/ if needed
+      if (!calendarsUrl.endsWith('/calendars/') && !calendarsUrl.includes('/calendars/')) {
+        if (!calendarsUrl.endsWith('/')) {
+          calendarsUrl += '/';
+        }
+        calendarsUrl += 'calendars/';
+      }
+
+      console.log('[AppleCalendarService] Fetching calendars from:', calendarsUrl);
 
       const response = await axios.request({
         method: 'PROPFIND',
@@ -99,10 +134,13 @@ export class AppleCalendarService {
   </d:prop>
 </d:propfind>`,
         validateStatus: (status) => status < 500,
+        timeout: 15000,
       });
 
+      console.log('[AppleCalendarService] Calendar fetch response status:', response.status);
+
       if (response.status === 401 || response.status === 403) {
-        throw new Error('Invalid credentials. Please ensure you are using an app-specific password generated at appleid.apple.com');
+        throw new Error('Invalid credentials: Your Apple ID email or App-Specific Password is incorrect. Make sure you are using an App-Specific Password from appleid.apple.com, not your regular Apple ID password.');
       }
 
       // Parse CalDAV response to extract calendar list
@@ -114,8 +152,17 @@ export class AppleCalendarService {
         data: err.response?.data?.substring?.(0, 500),
       });
 
+      // Handle specific error cases
       if (err.response?.status === 401 || err.response?.status === 403) {
-        throw new Error('Invalid Apple Calendar credentials. Please check your email and app-specific password.');
+        throw new Error('Invalid Apple Calendar credentials. Please verify: (1) Your Apple ID email is correct, (2) You are using an App-Specific Password (not your Apple ID password), (3) The App-Specific Password is active and not revoked.');
+      }
+
+      if (err.code === 'ECONNREFUSED' || err.code === 'ENOTFOUND') {
+        throw new Error('Unable to reach Apple Calendar servers. Please check your internet connection.');
+      }
+
+      if (err.code === 'ETIMEDOUT' || err.code === 'ECONNABORTED') {
+        throw new Error('Connection to Apple Calendar timed out. Please try again.');
       }
 
       throw new Error(`Failed to connect to Apple Calendar: ${err.message}`);
@@ -355,32 +402,19 @@ END:VCALENDAR`;
 
   /**
    * Ensure valid connection (test authentication)
+   * Throws an error with detailed message if connection fails
    */
   async testConnection(email: string, appSpecificPassword: string): Promise<boolean> {
     try {
+      console.log('[AppleCalendarService] Testing connection for:', email);
+
       // Clean the password (remove hyphens)
       const cleanPassword = appSpecificPassword.replace(/-/g, '');
 
-      // Try to access the principal URL to verify credentials
-      const response = await axios.request({
-        method: 'OPTIONS',
-        url: `${ICALENDAR_DISCOVERY}`,
-        headers: {
-          'Authorization': this.getAuthHeader(email, cleanPassword),
-        },
-        validateStatus: (status) => status < 500,
-        timeout: 10000,
-      });
-
-      // If we get a 200/207, credentials are valid
-      if (response.status === 200 || response.status === 207) {
-        return true;
-      }
-
-      // Try PROPFIND as a fallback test
+      // Try PROPFIND to verify credentials (most reliable method)
       const propfindResponse = await axios.request({
         method: 'PROPFIND',
-        url: `${ICALENDAR_DISCOVERY}/`,
+        url: `${ICALENDAR_DISCOVERY}/.well-known/caldav`,
         headers: {
           'Authorization': this.getAuthHeader(email, cleanPassword),
           'Depth': '0',
@@ -393,13 +427,52 @@ END:VCALENDAR`;
   </d:prop>
 </d:propfind>`,
         validateStatus: (status) => status < 500,
-        timeout: 10000,
+        timeout: 15000,
       });
 
-      return propfindResponse.status === 207 || propfindResponse.status === 200;
+      console.log('[AppleCalendarService] Test connection response status:', propfindResponse.status);
+
+      // Check for authentication failures
+      if (propfindResponse.status === 401) {
+        throw new Error('Invalid Apple Calendar credentials. Your Apple ID email or App-Specific Password is incorrect. Please double-check both values.');
+      }
+
+      if (propfindResponse.status === 403) {
+        throw new Error('Access forbidden. Please ensure your App-Specific Password is active and has not been revoked.');
+      }
+
+      // 207 Multi-Status is the expected success response for PROPFIND
+      // 200 OK is also acceptable
+      if (propfindResponse.status === 207 || propfindResponse.status === 200) {
+        console.log('[AppleCalendarService] Connection test successful');
+        return true;
+      }
+
+      // Unexpected status code
+      throw new Error(`Unexpected response from Apple Calendar (status ${propfindResponse.status}). Please try again.`);
     } catch (err: any) {
-      console.error('[AppleCalendarService] Test connection failed:', err.message);
-      return false;
+      console.error('[AppleCalendarService] Test connection failed:', {
+        message: err.message,
+        status: err.response?.status,
+        code: err.code,
+      });
+
+      // Re-throw errors we already formatted
+      if (err.message.includes('Invalid Apple Calendar') || err.message.includes('Access forbidden') || err.message.includes('Unexpected response')) {
+        throw err;
+      }
+
+      // Handle network errors
+      if (err.code === 'ECONNREFUSED' || err.code === 'ENOTFOUND') {
+        throw new Error('Cannot reach Apple Calendar servers. Please check your internet connection.');
+      }
+
+      if (err.code === 'ETIMEDOUT' || err.code === 'ECONNABORTED') {
+        throw new Error('Connection to Apple Calendar timed out. Please try again.');
+      }
+
+      // Generic error
+      throw new Error(`Failed to test Apple Calendar connection: ${err.message}`);
     }
   }
 }

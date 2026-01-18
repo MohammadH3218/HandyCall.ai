@@ -7,9 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { AudioPlayer } from '@/components/audio-player';
-import { Phone, Search, ChevronRight, Clock, PhoneCall, User, Calendar, FileText, ExternalLink } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Phone, Search, ChevronRight, Clock, PhoneCall } from 'lucide-react';
 
 interface Call {
   call_id: string;
@@ -41,8 +39,6 @@ export default function CallsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCall, setSelectedCall] = useState<Call | null>(null);
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
 
   useEffect(() => {
     loadCalls();
@@ -81,15 +77,8 @@ export default function CallsPage() {
     }
   };
 
-  const handleViewCall = async (callId: string) => {
-    try {
-      const call = await apiClient.getCallById(callId);
-      setSelectedCall(call);
-      setIsDialogOpen(true);
-    } catch (err: any) {
-      console.error('Error loading call details:', err);
-      setError(err?.message || 'Failed to load call');
-    }
+  const handleViewCall = (callId: string) => {
+    router.push(`/dashboard/calls/${callId}`);
   };
 
   const formatDate = (dateString: string) => {
@@ -273,166 +262,6 @@ export default function CallsPage() {
           )}
         </CardContent>
       </Card>
-
-      {/* Call Details Dialog */}
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
-          {selectedCall && (
-            <>
-              <DialogHeader>
-                <DialogTitle>Call Details</DialogTitle>
-              </DialogHeader>
-
-              <div className="space-y-4">
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <div className="font-semibold text-gray-900 text-lg">
-                        {selectedCall.caller_name ? `${selectedCall.caller_name} • ` : ''}
-                        {selectedCall.caller_phone}
-                      </div>
-                      {(() => {
-                        const o = getOutcome(selectedCall);
-                        return (
-                          <Badge variant="outline" className={o.className}>
-                            {o.label}
-                          </Badge>
-                        );
-                      })()}
-                      {(() => {
-                        const s = getStatusBadge(selectedCall.status);
-                        return (
-                          <Badge variant="outline" className={s.className}>
-                            {s.label}
-                          </Badge>
-                        );
-                      })()}
-                    </div>
-                    <div className="text-sm text-gray-600 flex items-center gap-2 mt-1">
-                      <Clock className="h-4 w-4" />
-                      <span>{formatDate(selectedCall.created_at)}</span>
-                      <span className="text-gray-300">•</span>
-                      <span>{formatDuration(selectedCall.duration)}</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Associations - Contact & Appointment */}
-                {(selectedCall.contact_id || selectedCall.appointment_id) && (
-                  <div className="grid gap-4 md:grid-cols-2">
-                    {selectedCall.contact_id && (
-                      <Card
-                        className="cursor-pointer hover:border-blue-500 transition-colors"
-                        onClick={() => {
-                          setIsDialogOpen(false);
-                          router.push(`/dashboard/customers?contact=${selectedCall.contact_id}`);
-                        }}
-                      >
-                        <CardContent className="flex items-center gap-3 py-4">
-                          <div className="bg-purple-50 p-2 rounded-full">
-                            <User className="h-5 w-5 text-purple-600" />
-                          </div>
-                          <div className="flex-1">
-                            <p className="text-sm font-medium">Associated Contact</p>
-                            <p className="text-xs text-gray-500">View customer profile</p>
-                          </div>
-                          <ExternalLink className="h-4 w-4 text-gray-400" />
-                        </CardContent>
-                      </Card>
-                    )}
-                    {selectedCall.appointment_id && (
-                      <Card
-                        className="cursor-pointer hover:border-blue-500 transition-colors"
-                        onClick={() => {
-                          setIsDialogOpen(false);
-                          router.push(`/dashboard/appointments?appointment=${selectedCall.appointment_id}`);
-                        }}
-                      >
-                        <CardContent className="flex items-center gap-3 py-4">
-                          <div className="bg-green-50 p-2 rounded-full">
-                            <Calendar className="h-5 w-5 text-green-600" />
-                          </div>
-                          <div className="flex-1">
-                            <p className="text-sm font-medium">Booked Appointment</p>
-                            <p className="text-xs text-gray-500">View appointment details</p>
-                          </div>
-                          <ExternalLink className="h-4 w-4 text-gray-400" />
-                        </CardContent>
-                      </Card>
-                    )}
-                  </div>
-                )}
-
-                <div className="grid gap-4 md:grid-cols-2">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-base flex items-center gap-2">
-                        <FileText className="h-4 w-4" />
-                        Summary
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="text-sm text-gray-700">
-                      {selectedCall.summary ? selectedCall.summary : <span className="text-gray-500">No summary available. Summary is generated after the call ends.</span>}
-                    </CardContent>
-                  </Card>
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-base">Captured Info</CardTitle>
-                    </CardHeader>
-                    <CardContent className="text-sm text-gray-700">
-                      {selectedCall.collected_info && Object.keys(selectedCall.collected_info).length > 0 ? (
-                        <div className="space-y-2">
-                          {Object.entries(selectedCall.collected_info).map(([key, value]) => (
-                            <div key={key} className="flex justify-between text-sm">
-                              <span className="text-gray-500 capitalize">{key.replace(/_/g, ' ')}</span>
-                              <span className="font-medium">{String(value)}</span>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <span className="text-gray-500">No structured info captured.</span>
-                      )}
-                    </CardContent>
-                  </Card>
-                </div>
-
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-base">Recording</CardTitle>
-                    <div className="text-sm text-gray-600">
-                      {selectedCall.recording_url ? 'Replay the call audio.' : 'Recording not available yet.'}
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    {selectedCall.recording_url ? (
-                      <AudioPlayer
-                        src={selectedCall.recording_url}
-                        title={`Call with ${selectedCall.caller_name || selectedCall.caller_phone}`}
-                      />
-                    ) : null}
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-base">Transcript</CardTitle>
-                    <div className="text-sm text-gray-600">Full conversation text.</div>
-                  </CardHeader>
-                  <CardContent>
-                    {selectedCall.transcript ? (
-                      <pre className="text-sm text-gray-800 whitespace-pre-wrap bg-gray-50 border border-gray-200 rounded-lg p-4 max-h-80 overflow-auto">
-                        {selectedCall.transcript}
-                      </pre>
-                    ) : (
-                      <div className="text-sm text-gray-500">Transcript not available yet.</div>
-                    )}
-                  </CardContent>
-                </Card>
-              </div>
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
