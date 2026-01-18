@@ -46,6 +46,18 @@ export class ContactsController {
     return { appointments };
   }
 
+  @Get(':contactId/calls')
+  async getContactCalls(
+    @CompanyId() companyId: string,
+    @Param('contactId') contactId: string,
+    @Query('limit') limit?: string,
+  ) {
+    const calls = await this.contactsService.getContactCalls(companyId, contactId, {
+      limit: limit ? parseInt(limit, 10) : undefined,
+    });
+    return { calls };
+  }
+
   @Post()
   async createContact(
     @CompanyId() companyId: string,

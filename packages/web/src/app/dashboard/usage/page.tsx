@@ -193,6 +193,8 @@ export default function UsagePage() {
               limit={planLimits?.minutes}
               icon={<Clock3 className="h-5 w-5 text-blue-600" />}
               calculateUsagePercentage={calculateUsagePercentage}
+              formatUsed={(value) => value.toFixed(2)}
+              overageSuffix=" min over limit"
             />
             <UsageMeter
               label="SMS messages"
@@ -268,12 +270,16 @@ function UsageMeter({
   limit,
   icon,
   calculateUsagePercentage,
+  formatUsed,
+  overageSuffix = ' over limit',
 }: {
   label: string;
   used: number;
   limit?: number;
   icon: React.ReactNode;
   calculateUsagePercentage: (used: number, limit?: number) => number;
+  formatUsed?: (value: number) => string;
+  overageSuffix?: string;
 }) {
   const percent = calculateUsagePercentage(used, limit);
   const color =
@@ -281,8 +287,9 @@ function UsageMeter({
 
   // Show "0 / 0" when no limit is set (no plan), "Unlimited" when limit is -1 (unlimited plan)
   const limitLabel = limit === undefined ? 'Set a plan' : limit === -1 ? 'Unlimited' : limit;
-  const usageDisplay = `${used}`;
+  const usageDisplay = formatUsed ? formatUsed(used) : `${used}`;
   const overage = typeof limit === 'number' && limit > 0 && used > limit ? used - limit : 0;
+  const overageDisplay = formatUsed ? formatUsed(overage) : `${overage}`;
 
   return (
     <div className="rounded-lg border bg-card p-4">
@@ -297,7 +304,10 @@ function UsageMeter({
         <div className="text-right">
           <p className="text-lg font-semibold text-foreground">{usageDisplay}</p>
           {overage > 0 ? (
-            <p className="text-xs text-red-600">{overage} over limit</p>
+            <p className="text-xs text-red-600">
+              {overageDisplay}
+              {overageSuffix}
+            </p>
           ) : percent > 0 && limit !== -1 && limit !== undefined ? (
             <p className="text-xs text-muted-foreground">{percent}% used</p>
           ) : null}

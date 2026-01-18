@@ -24,11 +24,12 @@ function requireEnvFirst(names: string[]): string {
 const awsRegion = process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION || 'us-east-1';
 const ssm = new SSMClient({ region: awsRegion });
 
-type SecretName = 'OPENAI_API_KEY' | 'TWILIO_AUTH_TOKEN';
+type SecretName = 'OPENAI_API_KEY' | 'TWILIO_AUTH_TOKEN' | 'TWILIO_ACCOUNT_SID';
 
 const ssmParamDefaults: Record<SecretName, string> = {
   OPENAI_API_KEY: '/handycall/prod/openai_api_key',
   TWILIO_AUTH_TOKEN: '/handycall/prod/twilio_auth_token',
+  TWILIO_ACCOUNT_SID: '/handycall/prod/twilio_account_sid',
 };
 
 const secretCache = new Map<SecretName, string>();
@@ -195,20 +196,17 @@ function toolsSchema() {
     },
   ];
 
-  const canHangup = !!envFirst(['TWILIO_ACCOUNT_SID', 'TWILIO_SID']);
-  if (canHangup) {
-    tools.push({
-      type: 'function',
-      name: 'end_call',
-      description: 'Politely end and hang up the phone call after confirmation.',
-      parameters: {
-        type: 'object',
-        properties: {
-          reason: { type: 'string', description: 'Short reason for ending the call.' },
-        },
+  tools.push({
+    type: 'function',
+    name: 'end_call',
+    description: 'Politely end and hang up the phone call after confirmation.',
+    parameters: {
+      type: 'object',
+      properties: {
+        reason: { type: 'string', description: 'Short reason for ending the call.' },
       },
-    });
-  }
+    },
+  });
 
   return tools;
 }
@@ -325,10 +323,8 @@ async function invokeTool(ctx: CallContext, name: string, args: any) {
   }
 
   if (name === 'end_call') {
-    const accountSid = envFirst(['TWILIO_ACCOUNT_SID', 'TWILIO_SID']);
-    if (!accountSid) {
-      throw new Error('Missing TWILIO_ACCOUNT_SID (required to hang up via Twilio REST API)');
-    }
+    const accountSid =
+      envFirst(['TWILIO_ACCOUNT_SID', 'TWILIO_SID']) || (await getSecret('TWILIO_ACCOUNT_SID'));
     const authToken = await getSecret('TWILIO_AUTH_TOKEN');
     const client = twilio(accountSid, authToken);
     await client.calls(ctx.callSid).update({ status: 'completed' });
@@ -529,6 +525,28 @@ wss.on('connection', (twilioWs: WebSocket) => {
         });
         callSaved = true;
       }
+
+      // Best-effort: if the recording callback didn't arrive, try to fetch a completed recording for this call.
+      try {
+        const accountSid =
+          envFirst(['TWILIO_ACCOUNT_SID', 'TWILIO_SID']) || (await getSecret('TWILIO_ACCOUNT_SID'));
+        const authToken = await getSecret('TWILIO_AUTH_TOKEN');
+        const client = twilio(accountSid, authToken);
+        const recordings = await client.recordings.list({ callSid: ctx.callSid, limit: 20 });
+        const completed = recordings.find((r: any) => String(r?.status || '').toLowerCase() === 'completed');
+        if (completed?.sid) {
+          await invokeTool(ctx, 'save_recording', {
+            recording_sid: completed.sid,
+            duration_seconds:
+              typeof completed.duration === 'string'
+                ? Number.parseInt(completed.duration, 10)
+                : undefined,
+          });
+        }
+      } catch (e: any) {
+        log('recording fallback failed (non-fatal)', e?.message ?? String(e));
+      }
+
       log('Hanging up call', { reason });
       await invokeTool(ctx, 'end_call', { reason });
     } catch (e: any) {
@@ -618,7 +636,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
             input_audio_transcription: { model: 'gpt-4o-mini-transcribe' },
             // Lower silence threshold reduces perceived latency between user stop → assistant start.
             // Too low can cause interruptions; tune if you notice cutoffs.
-            turn_detection: { type: 'server_vad', silence_duration_ms: 300 },
+            turn_detection: { type: 'server_vad', silence_duration_ms: 650 },
           },
         });
 
@@ -639,8 +657,8 @@ wss.on('connection', (twilioWs: WebSocket) => {
         // Start call recording in the background (best-effort).
         (async () => {
           try {
-            const accountSid = envFirst(['TWILIO_ACCOUNT_SID', 'TWILIO_SID']);
-            if (!accountSid) return;
+            const accountSid =
+              envFirst(['TWILIO_ACCOUNT_SID', 'TWILIO_SID']) || (await getSecret('TWILIO_ACCOUNT_SID'));
             const authToken = await getSecret('TWILIO_AUTH_TOKEN');
             const client = twilio(accountSid, authToken);
             const publicBaseUrl = requireEnvFirst(['PUBLIC_BASE_URL', 'VOICE_BRIDGE_PUBLIC_BASE_URL']).replace(/\/$/, '');
@@ -839,6 +857,25 @@ wss.on('connection', (twilioWs: WebSocket) => {
             if (toolName === 'save_call') {
               callSaved = true;
               log('save_call succeeded', { transcript_len: (toolArgs?.transcript || '').length });
+
+              if (!pendingAutoHangup) {
+                pendingAutoHangup = true;
+                pendingHangupMarkName = `save_call_${Date.now()}`;
+              }
+
+              sendToOpenAI(openaiWs, {
+                type: 'conversation.item.create',
+                item: { type: 'function_call_output', call_id: toolCallId, output: JSON.stringify(result) },
+              });
+              sendToOpenAI(openaiWs, {
+                type: 'response.create',
+                response: {
+                  modalities: ['audio', 'text'],
+                  instructions:
+                    'Say ONE short friendly goodbye sentence (thank them and invite them to call back if needed). Do not mention saving. Do not ask another question.',
+                },
+              });
+              return;
             }
             sendToOpenAI(openaiWs, {
               type: 'conversation.item.create',
@@ -850,6 +887,10 @@ wss.on('connection', (twilioWs: WebSocket) => {
             // We'll retry on stop/hangup as best-effort.
             if (toolName === 'save_call') {
               log('save_call failed (non-fatal)', err?.message ?? String(err));
+              if (!pendingAutoHangup) {
+                pendingAutoHangup = true;
+                pendingHangupMarkName = `save_call_${Date.now()}`;
+              }
               sendToOpenAI(openaiWs, {
                 type: 'conversation.item.create',
                 item: {
@@ -858,7 +899,14 @@ wss.on('connection', (twilioWs: WebSocket) => {
                   output: JSON.stringify({ ok: true }),
                 },
               });
-              sendToOpenAI(openaiWs, { type: 'response.create' });
+              sendToOpenAI(openaiWs, {
+                type: 'response.create',
+                response: {
+                  modalities: ['audio', 'text'],
+                  instructions:
+                    'Say ONE short friendly goodbye sentence (thank them and invite them to call back if needed). Do not mention saving. Do not ask another question.',
+                },
+              });
               return;
             }
             sendToOpenAI(openaiWs, {

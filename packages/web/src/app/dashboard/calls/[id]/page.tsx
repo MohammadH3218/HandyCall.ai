@@ -48,9 +48,27 @@ export default function CallDetailsPage() {
     }
   }, [callId]);
 
-  const loadCallDetails = async () => {
+  useEffect(() => {
+    if (!callId || !call) return;
+    const status = (call.status || '').toUpperCase();
+    if (status !== 'COMPLETED') return;
+    if (call.recording_url && call.transcript) return;
+
+    const interval = window.setInterval(() => {
+      void loadCallDetails(true);
+    }, 10_000);
+    const timeout = window.setTimeout(() => window.clearInterval(interval), 120_000);
+    return () => {
+      window.clearInterval(interval);
+      window.clearTimeout(timeout);
+    };
+  }, [callId, call?.status, call?.recording_url, call?.transcript]);
+
+  async function loadCallDetails(silent?: boolean) {
     try {
-      setIsLoading(true);
+      if (!silent) {
+        setIsLoading(true);
+      }
       setError(null);
       const callData = await apiClient.getCallById(callId);
       setCall(callData);
@@ -58,9 +76,11 @@ export default function CallDetailsPage() {
       console.error('Error loading call details:', err);
       setError(err?.message || 'Failed to load call details');
     } finally {
-      setIsLoading(false);
+      if (!silent) {
+        setIsLoading(false);
+      }
     }
-  };
+  }
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -134,7 +154,7 @@ export default function CallDetailsPage() {
           <AlertCircle className="h-12 w-12 text-red-600 mx-auto mb-4" />
           <h3 className="text-lg font-semibold text-red-800 mb-2">Failed to Load Call</h3>
           <p className="text-red-600 mb-4">{error || 'Call not found'}</p>
-          <Button onClick={loadCallDetails} variant="outline">
+          <Button onClick={() => void loadCallDetails()} variant="outline">
             Try Again
           </Button>
         </div>

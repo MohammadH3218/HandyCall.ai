@@ -375,6 +375,14 @@ class ApiClient {
     return (response.data ?? response) as { appointments: any[] };
   }
 
+  async getContactCalls(contactId: string, limit?: number): Promise<{ calls: any[] }> {
+    const params = new URLSearchParams();
+    if (typeof limit === 'number') params.append('limit', limit.toString());
+    const suffix = params.toString() ? `?${params.toString()}` : '';
+    const response = await this.request<any>(`/contacts/${contactId}/calls${suffix}`, { method: 'GET' });
+    return (response.data ?? response) as { calls: any[] };
+  }
+
   async createContact(data: any): Promise<any> {
     const response = await this.request<any>('/contacts', {
       method: 'POST',

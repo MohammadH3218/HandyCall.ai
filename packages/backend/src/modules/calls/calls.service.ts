@@ -203,7 +203,7 @@ export class CallsService {
     if (!durationSeconds || durationSeconds <= 0) {
       return;
     }
-    const minutes = Math.max(1, Math.ceil(durationSeconds / 60));
+    const minutes = Number((durationSeconds / 60).toFixed(2));
     await this.usageService.incrementCallMinutes(companyId, minutes);
 
     // Optional: callers can provide plan to check limits; if omitted we only persist usage

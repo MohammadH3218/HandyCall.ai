@@ -265,7 +265,7 @@ const server = http.createServer(async (req, res) => {
           instructions,
           tools: toolsSchema(),
           tool_choice: 'auto',
-          turn_detection: { type: 'server_vad', silence_duration_ms: 550 },
+          turn_detection: { type: 'server_vad', silence_duration_ms: 650 },
         },
       };
 
@@ -309,7 +309,7 @@ const server = http.createServer(async (req, res) => {
           instructions,
           tools: toolsSchema(),
           tool_choice: 'auto',
-          turn_detection: { type: 'server_vad', silence_duration_ms: 550 },
+          turn_detection: { type: 'server_vad', silence_duration_ms: 650 },
         },
       };
 

@@ -5,6 +5,14 @@ import { Contact, ContactSource, LeadStatus } from '@handycall/shared';
 
 type ContactUi = Contact & { name: string; phone: string };
 
+function normalizePhone(input: string): string {
+  const trimmed = (input || '').trim();
+  if (!trimmed) return '';
+  const digits = trimmed.replace(/\D/g, '');
+  if (!digits) return trimmed;
+  return trimmed.startsWith('+') ? `+${digits}` : digits;
+}
+
 export interface CreateContactDto {
   // Back-compat fields (older UI)
   name?: string;
@@ -104,6 +112,7 @@ export class ContactsService {
   }
 
   async getContactByPhone(companyId: string, phone: string): Promise<ContactUi | null> {
+    const normalized = normalizePhone(phone);
     const result = await this.dynamodb.scan('contacts', {
       filterExpression: '#company_id = :company_id AND (#phone_number = :phone OR #phone = :phone)',
       expressionAttributeNames: {
@@ -113,7 +122,7 @@ export class ContactsService {
       },
       expressionAttributeValues: {
         ':company_id': companyId,
-        ':phone': phone,
+        ':phone': normalized,
       },
       limit: 1,
     });
@@ -125,7 +134,7 @@ export class ContactsService {
     const contactId = uuidv4();
     const now = Date.now();
 
-    const phone_number = (data.phone_number || data.phone || '').trim();
+    const phone_number = normalizePhone(data.phone_number || data.phone || '');
     if (!phone_number) {
       throw new BadRequestException('phone_number is required');
     }
@@ -166,7 +175,7 @@ export class ContactsService {
   ): Promise<ContactUi> {
     const existing = await this.getContactById(companyId, contactId);
 
-    const phone_number = (data.phone_number || data.phone || '').trim() || undefined;
+    const phone_number = normalizePhone(data.phone_number || data.phone || '') || undefined;
     const legacyName = (data.name || '').trim();
     const first_name =
       (data.first_name || '').trim() ||
@@ -274,5 +283,41 @@ export class ContactsService {
     });
 
     return (scan.items || []).sort((a: any, b: any) => (a?.scheduled_start ?? 0) - (b?.scheduled_start ?? 0));
+  }
+
+  async getContactCalls(
+    companyId: string,
+    contactId: string,
+    options?: { limit?: number }
+  ): Promise<any[]> {
+    const contact = await this.getContactById(companyId, contactId);
+    const phone = normalizePhone(contact.phone_number || (contact as any).phone || '');
+
+    const limit = Math.min(Math.max(options?.limit ?? 50, 1), 200);
+    const scan = await this.dynamodb.scan('calls', {
+      filterExpression: '#company_id = :company_id AND (#contact_id = :contact_id OR #from_number = :phone)',
+      expressionAttributeNames: {
+        '#company_id': 'company_id',
+        '#contact_id': 'contact_id',
+        '#from_number': 'from_number',
+      },
+      expressionAttributeValues: {
+        ':company_id': companyId,
+        ':contact_id': contactId,
+        ':phone': phone,
+      },
+      limit,
+    });
+
+    return (scan.items || [])
+      .sort((a: any, b: any) => (b?.started_at ?? b?.created_at ?? 0) - (a?.started_at ?? a?.created_at ?? 0))
+      .slice(0, limit)
+      .map((c: any) => ({
+        call_id: c.call_id,
+        started_at: c.started_at ?? c.created_at,
+        duration_seconds: c.duration_seconds ?? c.duration,
+        status: c.status,
+        summary: c.summary,
+      }));
   }
 }

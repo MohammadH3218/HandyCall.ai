@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { apiClient } from '@/lib/api-client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -25,17 +26,25 @@ type Contact = {
 };
 
 function formatDate(ts?: number | string) {
-  if (!ts) return '—';
+  if (!ts) return '-';
   const date = typeof ts === 'number' ? new Date(ts) : new Date(ts);
   return date.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
+function formatDuration(seconds?: number) {
+  if (!seconds || seconds <= 0) return 'N/A';
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.floor(seconds % 60);
+  return `${mins}:${secs.toString().padStart(2, '0')}`;
+}
+
 function formatMoney(cents?: number) {
-  if (typeof cents !== 'number') return '—';
+  if (typeof cents !== 'number') return '-';
   return `$${(cents / 100).toFixed(2)}`;
 }
 
 export default function CustomersPage() {
+  const router = useRouter();
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -45,6 +54,7 @@ export default function CustomersPage() {
 
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
   const [selectedContactAppointments, setSelectedContactAppointments] = useState<any[]>([]);
+  const [selectedContactCalls, setSelectedContactCalls] = useState<any[]>([]);
   const [detailsOpen, setDetailsOpen] = useState(false);
 
   useEffect(() => {
@@ -122,8 +132,12 @@ export default function CustomersPage() {
     try {
       setSelectedContact(contact);
       setDetailsOpen(true);
-      const resp = await apiClient.getContactAppointments(contact.contact_id);
-      setSelectedContactAppointments(resp.appointments || []);
+      const [apptsResp, callsResp] = await Promise.all([
+        apiClient.getContactAppointments(contact.contact_id),
+        apiClient.getContactCalls(contact.contact_id, 25),
+      ]);
+      setSelectedContactAppointments(apptsResp.appointments || []);
+      setSelectedContactCalls(callsResp.calls || []);
     } catch (err: any) {
       console.error('Error loading customer details:', err);
       setError(err?.message || 'Failed to load customer details');
@@ -254,6 +268,33 @@ export default function CustomersPage() {
                 <div className="text-xs text-gray-500 mt-2">
                   Added: {formatDate(selectedContact.created_at)} • Last contact: {formatDate(selectedContact.last_contact_at)}
                 </div>
+              </div>
+
+              <div>
+                <div className="font-semibold text-gray-900 mb-2">Previous calls</div>
+                {selectedContactCalls.length ? (
+                  <div className="space-y-2">
+                    {selectedContactCalls.map((c) => (
+                      <button
+                        key={c.call_id}
+                        type="button"
+                        className="w-full text-left border border-gray-200 rounded-lg p-3 hover:border-blue-500 hover:shadow-sm transition-all"
+                        onClick={() => router.push(`/dashboard/calls/${c.call_id}`)}
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="text-sm text-gray-900 truncate">{c.status || 'Call'}</div>
+                          <div className="text-xs text-gray-500">{formatDate(c.started_at)}</div>
+                        </div>
+                        <div className="text-xs text-gray-500 mt-1">
+                          Duration: {formatDuration(c.duration_seconds)}
+                          {c.summary ? ` • ${c.summary}` : ''}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-sm text-gray-600">No calls found.</div>
+                )}
               </div>
 
               <div>

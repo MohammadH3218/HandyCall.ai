@@ -29,8 +29,9 @@ import { SaveRecordingDto } from './dto/save-recording.dto';
 function asE164(input: string): string {
   const trimmed = (input || '').trim();
   if (!trimmed) return trimmed;
-  if (trimmed.startsWith('+')) return trimmed;
-  return trimmed;
+  const digits = trimmed.replace(/\D/g, '');
+  if (!digits) return trimmed;
+  return trimmed.startsWith('+') ? `+${digits}` : digits;
 }
 
 @Injectable()
@@ -249,11 +250,13 @@ export class RealtimeToolsService {
       existing = call;
     }
 
+    const transcriptText = dto.transcript && dto.transcript.trim() ? dto.transcript.trim() : undefined;
+
     let transcript_url: string | undefined;
-    if (dto.transcript && dto.transcript.trim()) {
+    if (transcriptText) {
       try {
         transcript_url = await this.s3.uploadTranscript(company_id, call_id, {
-          text: dto.transcript,
+          text: transcriptText,
           collected_info: dto.collected_info,
           saved_at: Date.now(),
         });
@@ -276,6 +279,12 @@ export class RealtimeToolsService {
     const updates: Partial<Call> & Record<string, any> = {
       ...(summary && { summary }),
       ...(transcript_url && { transcript_url }),
+      ...(transcriptText && {
+        transcript:
+          Buffer.byteLength(transcriptText, 'utf8') <= 200 * 1024
+            ? transcriptText
+            : `${transcriptText.slice(0, 120000)}\n\n[Transcript truncated — see transcript_url for the full JSON.]`,
+      }),
       ...(typeof derivedDuration === 'number' && { duration_seconds: derivedDuration }),
       status: CallStatus.COMPLETED,
       ended_at: now,
@@ -286,17 +295,99 @@ export class RealtimeToolsService {
       updates.collected_info = dto.collected_info;
     }
 
+    // Ensure contact is de-duplicated by phone number and enriched by collected fields.
+    try {
+      const collected = dto.collected_info ?? {};
+      const name = typeof collected.name === 'string' ? collected.name.trim() : '';
+      const first =
+        (typeof collected.first_name === 'string' ? collected.first_name.trim() : '') ||
+        (name ? name.split(/\s+/)[0]?.trim() : '');
+      const last =
+        (typeof collected.last_name === 'string' ? collected.last_name.trim() : '') ||
+        (name ? name.split(/\s+/).slice(1).join(' ')?.trim() : '');
+      const email = typeof collected.email === 'string' ? collected.email.trim() : '';
+      const address = typeof collected.address === 'string' ? collected.address.trim() : '';
+      const zip = typeof collected.zip === 'string' ? collected.zip.trim() : '';
+
+      const fromNumber = asE164(
+        (typeof existing?.from_number === 'string' && existing.from_number) ||
+          (typeof collected.phone === 'string' && collected.phone) ||
+          ''
+      );
+
+      let contact_id: string | undefined = existing?.contact_id;
+      if (!contact_id && fromNumber) {
+        // Best-effort find by phone; avoid requiring the phone-lookup index.
+        const scan = await this.dynamodb.scan('contacts', {
+          filterExpression: '#company_id = :company_id AND #phone_number = :phone_number',
+          expressionAttributeNames: { '#company_id': 'company_id', '#phone_number': 'phone_number' },
+          expressionAttributeValues: { ':company_id': company_id, ':phone_number': fromNumber },
+          limit: 1,
+        });
+        contact_id = scan.items?.[0]?.contact_id;
+      }
+
+      if (!contact_id && fromNumber) {
+        contact_id = uuidv4();
+        const contact: Contact = {
+          company_id,
+          contact_id,
+          phone_number: fromNumber,
+          email: email || undefined,
+          first_name: first || undefined,
+          last_name: last || undefined,
+          address: address || undefined,
+          zipcode: zip || undefined,
+          source: ContactSource.INBOUND_CALL,
+          source_call_id: call_id,
+          lead_status: LeadStatus.NEW,
+          created_at: now,
+          updated_at: now,
+          last_contact_at: now,
+        };
+        await this.dynamodb.put('contacts', contact);
+      }
+
+      if (contact_id) {
+        updates.contact_id = contact_id as any;
+        const contactUpdates: Record<string, any> = {
+          ...(first ? { first_name: first } : {}),
+          ...(last ? { last_name: last } : {}),
+          ...(email ? { email } : {}),
+          ...(address ? { address } : {}),
+          ...(zip ? { zipcode: zip } : {}),
+          last_contact_at: now,
+          updated_at: now,
+        };
+        if (Object.keys(contactUpdates).length > 2) {
+          await this.dynamodb.update('contacts', { company_id, contact_id }, contactUpdates);
+        } else {
+          await this.dynamodb.update('contacts', { company_id, contact_id }, { last_contact_at: now, updated_at: now });
+        }
+
+        const displayName = [first, last].filter(Boolean).join(' ').trim();
+        if (displayName) updates.caller_name = displayName;
+      }
+    } catch (err) {
+      console.error('[RealtimeToolsService] Failed to update contact from collected_info (non-fatal):', err);
+    }
+
     // Track call usage for billing (idempotent, supports multiple saves with increasing accuracy)
     if (typeof derivedDuration === 'number' && derivedDuration > 0) {
-      const minutes = Math.max(1, Math.ceil(derivedDuration / 60));
-      const recordedMinutes = typeof existing?.usage_minutes_recorded === 'number' ? existing.usage_minutes_recorded : 0;
-      const deltaMinutes = Math.max(0, minutes - recordedMinutes);
+      const seconds = Math.max(1, Math.floor(derivedDuration));
+      const recordedSeconds =
+        typeof existing?.usage_seconds_recorded === 'number'
+          ? existing.usage_seconds_recorded
+          : typeof existing?.usage_minutes_recorded === 'number'
+            ? Math.round(existing.usage_minutes_recorded * 60)
+            : 0;
+      const deltaSeconds = Math.max(0, seconds - recordedSeconds);
       const callsCounted = Boolean(existing?.usage_call_counted);
 
-      if (deltaMinutes > 0) {
+      if (deltaSeconds > 0) {
         try {
-          await this.usageService.incrementCallMinutes(company_id, deltaMinutes, callsCounted ? 0 : 1);
-          updates.usage_minutes_recorded = minutes;
+          await this.usageService.incrementCallMinutes(company_id, Number((deltaSeconds / 60).toFixed(2)), callsCounted ? 0 : 1);
+          updates.usage_seconds_recorded = seconds;
           updates.usage_call_counted = true;
         } catch (err) {
           console.error('[RealtimeToolsService] Failed to track call usage (non-fatal):', err);
