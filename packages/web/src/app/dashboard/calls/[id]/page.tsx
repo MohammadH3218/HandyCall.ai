@@ -310,9 +310,30 @@ export default function CallDetailsPage() {
         <CardContent>
           {call.transcript ? (
             <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 max-h-[600px] overflow-auto">
-              <pre className="text-sm text-gray-800 whitespace-pre-wrap font-sans leading-relaxed">
-                {call.transcript}
-              </pre>
+              <div className="space-y-2">
+                {call.transcript.split('\n').filter(Boolean).map((line, idx) => {
+                  const isCaller = line.startsWith('Caller:');
+                  const isAssistant = line.startsWith('Assistant:');
+                  const label = isCaller ? 'Caller' : isAssistant ? 'Assistant' : null;
+                  const text = label ? line.replace(/^Caller:\s*|^Assistant:\s*/, '') : line;
+                  return (
+                    <div key={idx} className="flex gap-3">
+                      {label ? (
+                        <span
+                          className={`shrink-0 text-xs font-semibold uppercase tracking-wide ${
+                            isCaller ? 'text-slate-600' : 'text-emerald-700'
+                          }`}
+                        >
+                          {label}
+                        </span>
+                      ) : (
+                        <span className="shrink-0 w-16" />
+                      )}
+                      <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap">{text}</p>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           ) : (
             <div className="text-center py-8 bg-gray-50 border border-gray-200 rounded-lg">

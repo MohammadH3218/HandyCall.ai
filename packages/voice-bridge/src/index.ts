@@ -227,10 +227,14 @@ function buildInstructions(input: {
     `When confirming, paraphrase naturally and group info: e.g., "Got it—plumbing help in 77441, aiming for Monday around 11. Is that right?"`,
     `Confirmation policy (very important): confirm EACH field immediately when it is first provided, then mark it confirmed in update_intake. Example flow: ask name → confirm name → ask zip/address → confirm zip/address → ask preferred time → confirm time. Once confirmed, do NOT confirm that same field again unless the caller corrects it. If the caller says a field is wrong, ask for the correct value and THEN confirm the corrected value again before moving on. Do NOT do a full end-of-call recap of every detail.`,
     `If the caller already told you the issue/service details, do NOT ask again. Summarize briefly and move forward.`,
-    `Use update_intake any time you learn a detail (name, zip, address, service, issue, preferred time) so you don’t ask twice.`,
+    `Use update_intake any time you learn a detail (name, zip, address, phone, service, issue, preferred time) so you don’t ask twice. After the caller confirms a field (e.g., says "yes"), immediately call update_intake to lock it in.`,
     `Zip codes: confirm digits explicitly (e.g., "Just to confirm, that's 7-7-4-4-1?").`,
     `Knowledge policy: use knowledge_search for business-specific facts (pricing, plans, what's included, policies). If you can't find it in knowledge_search or you're not sure, do NOT guess; say you're not sure and you'll note it down and have the team follow up.`,
     `If the caller asks about the business, use knowledge_search to answer accurately.`,
+    `Scheduling policy: the caller can request a specific date/time or ask what times are available on a day.`,
+    `- If they request a time: say "Let me check availability", then call get_availability for a narrow window around that time. If available, call create_booking to book it and confirm the booked time. If not, call get_availability for that day and offer the 2-3 closest available times.`,
+    `- If they ask "what times are available on Monday": call get_availability for that day and offer a small set of options (e.g., 3-5).`,
+    `Always keep scheduling within the business hours. Never invent availability.`,
     `If the caller talks over you, stop immediately and listen (barge-in).`,
     `If you are unsure, ask one clarifying question.`,
     `Always be truthful; never invent availability.`,
@@ -482,8 +486,8 @@ server.on('upgrade', (req, socket, head) => {
 wss.on('connection', (twilioWs: WebSocket) => {
   let openaiWs: WebSocket | null = null;
   let ctx: CallContext | null = null;
-  let transcript: string[] = [];
-  let assistantText: string[] = [];
+  let conversation: Array<{ role: 'caller' | 'assistant'; text: string }> = [];
+  let pendingAssistantText = '';
   let callSaved = false;
   let intake: Record<string, any> = {};
   let lastAssistantAskedAnythingElseAt: number | null = null;
@@ -493,6 +497,8 @@ wss.on('connection', (twilioWs: WebSocket) => {
   let forcedHangupTimer: NodeJS.Timeout | null = null;
   let assistantAudioActiveUntil = 0;
   let pendingBargeInTimer: NodeJS.Timeout | null = null;
+  let noResponseTimer: NodeJS.Timeout | null = null;
+  let noResponseStage: 0 | 1 = 0;
 
   function log(msg: string, extra?: any) {
     const prefix = ctx ? `[callSid=${ctx.callSid} streamSid=${ctx.streamSid}]` : '[twilio]';
@@ -501,9 +507,79 @@ wss.on('connection', (twilioWs: WebSocket) => {
   }
 
   function mergedTranscriptText(): string {
-    const finalTranscript = transcript.join('\n').trim();
-    const finalAssistant = assistantText.join('').trim();
-    return [finalTranscript, finalAssistant].filter(Boolean).join('\n').trim();
+    const lines = conversation
+      .map((item) => {
+        const label = item.role === 'caller' ? 'Caller' : 'Assistant';
+        return `${label}: ${item.text}`.trim();
+      })
+      .filter(Boolean);
+    return lines.join('\n').trim();
+  }
+
+  function clearNoResponseTimer() {
+    if (noResponseTimer) {
+      clearTimeout(noResponseTimer);
+      noResponseTimer = null;
+    }
+  }
+
+  function armNoResponseTimer() {
+    clearNoResponseTimer();
+    const delayMs = noResponseStage === 0 ? 8000 : 7000;
+    noResponseTimer = setTimeout(() => {
+      noResponseTimer = null;
+      if (!ctx || !openaiWs) return;
+      // Don't interrupt if the assistant is actively speaking.
+      if (Date.now() < assistantAudioActiveUntil) {
+        armNoResponseTimer();
+        return;
+      }
+
+      if (noResponseStage === 0) {
+        noResponseStage = 1;
+        sendToOpenAI(openaiWs, {
+          type: 'response.create',
+          response: {
+            modalities: ['audio', 'text'],
+            instructions:
+              "Sorry, I didn't catch that. How can I help you today? Keep it to one short question.",
+          },
+        });
+        armNoResponseTimer();
+        return;
+      }
+
+      // Second failure: say goodbye and end the call.
+      if (!pendingAutoHangup) {
+        pendingAutoHangup = true;
+        pendingHangupMarkName = `no_response_${Date.now()}`;
+      }
+      scheduleForcedHangup('no response after two prompts');
+      sendToOpenAI(openaiWs, { type: 'response.cancel' });
+      sendToOpenAI(openaiWs, {
+        type: 'response.create',
+        response: {
+          modalities: ['audio', 'text'],
+          instructions:
+            'No response from the caller. Say ONE short friendly goodbye sentence and end the call. Do not ask another question.',
+        },
+      });
+    }, delayMs);
+  }
+
+  function extractAssistantTextFromDone(msg: any): string {
+    const textPieces: string[] = [];
+    const output = msg?.response?.output;
+    if (Array.isArray(output)) {
+      for (const item of output) {
+        const content = item?.content;
+        if (!Array.isArray(content)) continue;
+        for (const c of content) {
+          if (typeof c?.text === 'string' && c.text.trim()) textPieces.push(c.text.trim());
+        }
+      }
+    }
+    return textPieces.join(' ').trim();
   }
 
   async function performHangup(reason: string) {
@@ -524,7 +600,6 @@ wss.on('connection', (twilioWs: WebSocket) => {
       try {
         const duration_seconds = ctx.startedAt ? Math.max(1, Math.ceil((Date.now() - ctx.startedAt) / 1000)) : undefined;
         await invokeTool(ctx, 'save_call', {
-          summary: 'Call ended.',
           transcript: mergedTranscriptText() || undefined,
           duration_seconds,
           collected_info: intake,
@@ -665,6 +740,8 @@ wss.on('connection', (twilioWs: WebSocket) => {
             instructions: 'Start with a very short greeting and ask how you can help.',
           },
         });
+        noResponseStage = 0;
+        armNoResponseTimer();
 
         // Create lead/call record in the background (so greeting isn't delayed).
         invokeTool(ctx, 'create_lead', { collected_info: {} }).catch((e: any) =>
@@ -706,6 +783,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
         // Barge-in: cancel assistant output when user starts talking.
         // Debounced to avoid background noise triggering constant interruptions.
         if (msg?.type === 'input_audio_buffer.speech_started') {
+          clearNoResponseTimer();
           const assistantSpeaking = Date.now() < assistantAudioActiveUntil;
           if (!assistantSpeaking) return;
 
@@ -722,7 +800,6 @@ wss.on('connection', (twilioWs: WebSocket) => {
             clearTimeout(pendingBargeInTimer);
             pendingBargeInTimer = null;
           }
-          sendToOpenAI(openaiWs, { type: 'response.create' });
         }
 
         if (msg?.type === 'response.audio.delta' && typeof msg?.delta === 'string') {
@@ -734,9 +811,12 @@ wss.on('connection', (twilioWs: WebSocket) => {
           });
         }
 
-        if (msg?.type === 'response.output_text.delta' && typeof msg?.delta === 'string') {
-          assistantText.push(msg.delta);
-          const recent = assistantText.slice(-20).join('').toLowerCase();
+        if (
+          (msg?.type === 'response.output_text.delta' || msg?.type === 'response.text.delta') &&
+          typeof msg?.delta === 'string'
+        ) {
+          pendingAssistantText += msg.delta;
+          const recent = pendingAssistantText.slice(-250).toLowerCase();
           if (
             recent.includes('anything else i can help') ||
             recent.includes('anything else i can do') ||
@@ -750,7 +830,12 @@ wss.on('connection', (twilioWs: WebSocket) => {
 
         if (msg?.type === 'conversation.item.input_audio_transcription.completed') {
           const t = msg?.transcript;
-          if (typeof t === 'string' && t.trim()) transcript.push(t.trim());
+          if (typeof t === 'string' && t.trim()) {
+            const text = t.trim();
+            conversation.push({ role: 'caller', text });
+            // Any user response resets the no-response sequence.
+            noResponseStage = 0;
+          }
 
           // Fallback end-of-call: if we recently asked "anything else", and the user says "no", hang up.
           if (lastAssistantAskedAnythingElseAt && Date.now() - lastAssistantAskedAnythingElseAt < 20000) {
@@ -787,6 +872,14 @@ wss.on('connection', (twilioWs: WebSocket) => {
                 });
               }
             }
+          }
+
+          // Only generate a response after we have an actual transcription.
+          if (typeof t === 'string' && t.trim() && openaiWs) {
+            sendToOpenAI(openaiWs, { type: 'response.create' });
+          } else if (!pendingAutoHangup) {
+            // Silence/incomprehensible: (re)arm the no-response timer.
+            armNoResponseTimer();
           }
         }
 
@@ -956,6 +1049,15 @@ wss.on('connection', (twilioWs: WebSocket) => {
           pendingHangupTimer = setTimeout(() => {
             void performHangup('Goodbye finished (fallback timer)');
           }, 2000);
+        }
+
+        if (msg?.type === 'response.done') {
+          const extracted = extractAssistantTextFromDone(msg);
+          const finalAssistant = extracted || pendingAssistantText.trim();
+          if (finalAssistant) {
+            conversation.push({ role: 'assistant', text: finalAssistant });
+          }
+          pendingAssistantText = '';
         }
       });
 

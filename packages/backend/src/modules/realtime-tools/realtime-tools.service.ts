@@ -84,6 +84,18 @@ export class RealtimeToolsService {
     return text || undefined;
   }
 
+  private isGenericSummary(text: string | undefined): boolean {
+    const t = (text || '').trim().toLowerCase();
+    if (!t) return true;
+    const generic = new Set([
+      'call ended.',
+      'call ended',
+      'caller confirmed details and ended the call.',
+      'caller confirmed details and ended the call',
+    ]);
+    return generic.has(t);
+  }
+
   async resolveTenant(toNumberRaw: string) {
     const to_number = asE164(toNumberRaw);
     if (!to_number) throw new BadRequestException('to_number is required');
@@ -274,7 +286,16 @@ export class RealtimeToolsService {
           ? Math.max(1, Math.ceil((now - startedAt) / 1000))
           : undefined;
 
-    const summary = (dto.summary && dto.summary.trim()) || this.buildSummaryFallback(dto.collected_info);
+    const existingSummary = typeof existing?.summary === 'string' ? existing.summary.trim() : '';
+    const dtoSummary = typeof dto.summary === 'string' ? dto.summary.trim() : '';
+    const fallbackSummary = this.buildSummaryFallback(dto.collected_info);
+
+    let summary: string | undefined;
+    if (dtoSummary && !this.isGenericSummary(dtoSummary)) {
+      summary = dtoSummary;
+    } else if (!existingSummary || this.isGenericSummary(existingSummary)) {
+      summary = fallbackSummary || (dtoSummary || undefined);
+    }
 
     const updates: Partial<Call> & Record<string, any> = {
       ...(summary && { summary }),
@@ -291,8 +312,12 @@ export class RealtimeToolsService {
       updated_at: now,
     };
 
-    if (dto.collected_info) {
-      updates.collected_info = dto.collected_info;
+    if (dto.collected_info && typeof dto.collected_info === 'object') {
+      const incoming = dto.collected_info as Record<string, any>;
+      const hasAny = Object.keys(incoming).some((k) => incoming[k] !== undefined && incoming[k] !== null && `${incoming[k]}`.trim() !== '');
+      if (hasAny) {
+        updates.collected_info = { ...(existing?.collected_info ?? {}), ...incoming };
+      }
     }
 
     // Ensure contact is de-duplicated by phone number and enriched by collected fields.

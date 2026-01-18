@@ -130,7 +130,9 @@ export class SchedulingService {
         continue;
       }
 
-      const firstSlotStart = windowStart - (windowStart % intervalMs) + intervalMs; // next aligned tick
+      // Align to the configured interval without skipping an already-aligned start.
+      const firstSlotStart =
+        windowStart % intervalMs === 0 ? windowStart : windowStart - (windowStart % intervalMs) + intervalMs;
       for (let t = firstSlotStart; t + durationMs <= windowEnd; t += intervalMs) {
         const tEnd = t + durationMs;
         const isBusy = busy.some((b) => overlaps(t, tEnd, b.start, b.end));
@@ -145,4 +147,3 @@ export class SchedulingService {
     return slots;
   }
 }
-
