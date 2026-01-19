@@ -25,6 +25,38 @@ function getScheduleForDay(company: Company, weekdayKey: string): DaySchedule | 
   return hours?.[weekdayKey];
 }
 
+function pad2(n: number): string {
+  return String(n).padStart(2, '0');
+}
+
+type Segment = { open: string; close: string };
+type ScheduleLike = DaySchedule & { segments?: Segment[] };
+
+function normalizeSegments(schedule?: ScheduleLike): Segment[] {
+  if (!schedule || (schedule as any).closed) return [];
+  const segs = Array.isArray((schedule as any).segments) ? ((schedule as any).segments as Segment[]) : [];
+  if (segs.length) return segs.filter((s) => s?.open && s?.close);
+  const open = (schedule as any).open;
+  const close = (schedule as any).close;
+  if (open && close) return [{ open, close }];
+  return [];
+}
+
+function findOverrideForDate(company: any, ymd: string): any | undefined {
+  const overrides = company?.schedule_overrides;
+  if (!overrides) return undefined;
+
+  if (Array.isArray(overrides)) {
+    return overrides.find((o) => o?.date === ymd);
+  }
+
+  if (typeof overrides === 'object') {
+    return overrides[ymd];
+  }
+
+  return undefined;
+}
+
 function overlaps(aStart: number, aEnd: number, bStart: number, bEnd: number): boolean {
   return aStart < bEnd && bStart < aEnd;
 }
@@ -103,41 +135,52 @@ export class SchedulingService {
     for (let day = firstDay, guard = 0; guard < 370; day = addUtcDays(day, 1), guard++) {
       if (guard > 0 && sameDay(day, addUtcDays(lastDay, 1))) break;
 
+      const ymdKey = `${day.year}-${pad2(day.month)}-${pad2(day.day)}`;
       const pivotUtc = new Date(Date.UTC(day.year, day.month - 1, day.day, 12, 0, 0));
       const weekdayKey = getWeekdayKey(pivotUtc, timeZone);
-      const schedule = getScheduleForDay(company, weekdayKey);
-      if (!schedule || schedule.closed) {
+
+      const override = findOverrideForDate(company as any, ymdKey);
+      if (override?.closed) {
         if (sameDay(day, lastDay)) break;
         continue;
       }
 
-      const open = parseHHmm(schedule.open);
-      const close = parseHHmm(schedule.close);
-
-      const openUtc = zonedTimeToUtcMs(
-        { year: day.year, month: day.month, day: day.day, hour: open.hour, minute: open.minute },
-        timeZone
-      );
-      const closeUtc = zonedTimeToUtcMs(
-        { year: day.year, month: day.month, day: day.day, hour: close.hour, minute: close.minute },
-        timeZone
-      );
-
-      const windowStart = Math.max(openUtc, startMs);
-      const windowEnd = Math.min(closeUtc, endMs);
-      if (windowEnd - windowStart < durationMs) {
+      const weekdaySchedule = getScheduleForDay(company, weekdayKey) as any;
+      const schedule = (override ?? weekdaySchedule) as any;
+      const segments = normalizeSegments(schedule as any);
+      if (!segments.length) {
         if (sameDay(day, lastDay)) break;
         continue;
       }
 
-      // Align to the configured interval without skipping an already-aligned start.
-      const firstSlotStart =
-        windowStart % intervalMs === 0 ? windowStart : windowStart - (windowStart % intervalMs) + intervalMs;
-      for (let t = firstSlotStart; t + durationMs <= windowEnd; t += intervalMs) {
-        const tEnd = t + durationMs;
-        const isBusy = busy.some((b) => overlaps(t, tEnd, b.start, b.end));
-        if (!isBusy) {
-          slots.push({ start_time: new Date(t).toISOString(), end_time: new Date(tEnd).toISOString() });
+      for (const seg of segments) {
+        const open = parseHHmm(seg.open);
+        const close = parseHHmm(seg.close);
+
+        const openUtc = zonedTimeToUtcMs(
+          { year: day.year, month: day.month, day: day.day, hour: open.hour, minute: open.minute },
+          timeZone
+        );
+        const closeUtc = zonedTimeToUtcMs(
+          { year: day.year, month: day.month, day: day.day, hour: close.hour, minute: close.minute },
+          timeZone
+        );
+
+        const windowStart = Math.max(openUtc, startMs);
+        const windowEnd = Math.min(closeUtc, endMs);
+        if (windowEnd - windowStart < durationMs) {
+          continue;
+        }
+
+        // Align to the configured interval without skipping an already-aligned start.
+        const firstSlotStart =
+          windowStart % intervalMs === 0 ? windowStart : windowStart - (windowStart % intervalMs) + intervalMs;
+        for (let t = firstSlotStart; t + durationMs <= windowEnd; t += intervalMs) {
+          const tEnd = t + durationMs;
+          const isBusy = busy.some((b) => overlaps(t, tEnd, b.start, b.end));
+          if (!isBusy) {
+            slots.push({ start_time: new Date(t).toISOString(), end_time: new Date(tEnd).toISOString() });
+          }
         }
       }
 

@@ -599,6 +599,8 @@ wss.on('connection', (twilioWs: WebSocket) => {
   let noResponseTimer: NodeJS.Timeout | null = null;
   let noResponseStage: 0 | 1 = 0;
   let recordingStartAttempted = false;
+  let pendingResponseTimer: NodeJS.Timeout | null = null;
+  let lastUserSpeechStartedAt = 0;
 
   function log(msg: string, extra?: any) {
     const prefix = ctx ? `[callSid=${ctx.callSid} streamSid=${ctx.streamSid}]` : '[twilio]';
@@ -645,6 +647,13 @@ wss.on('connection', (twilioWs: WebSocket) => {
     if (noResponseTimer) {
       clearTimeout(noResponseTimer);
       noResponseTimer = null;
+    }
+  }
+
+  function clearPendingResponseTimer() {
+    if (pendingResponseTimer) {
+      clearTimeout(pendingResponseTimer);
+      pendingResponseTimer = null;
     }
   }
 
@@ -853,9 +862,10 @@ wss.on('connection', (twilioWs: WebSocket) => {
             input_audio_format: 'g711_ulaw',
             output_audio_format: 'g711_ulaw',
             input_audio_transcription: { model: 'gpt-4o-mini-transcribe' },
+            output_audio_transcription: { model: 'gpt-4o-mini-transcribe' },
             // Lower silence threshold reduces perceived latency between user stop → assistant start.
             // Too low can cause interruptions; tune if you notice cutoffs.
-            turn_detection: { type: 'server_vad', silence_duration_ms: 650 },
+            turn_detection: { type: 'server_vad', silence_duration_ms: 900 },
           },
         });
 
@@ -894,7 +904,9 @@ wss.on('connection', (twilioWs: WebSocket) => {
         // Barge-in: cancel assistant output when user starts talking.
         // Debounced to avoid background noise triggering constant interruptions.
         if (msg?.type === 'input_audio_buffer.speech_started') {
+          lastUserSpeechStartedAt = Date.now();
           clearNoResponseTimer();
+          clearPendingResponseTimer();
           const assistantSpeaking = Date.now() < assistantAudioActiveUntil;
           if (!assistantSpeaking) return;
 
@@ -924,9 +936,9 @@ wss.on('connection', (twilioWs: WebSocket) => {
 
         if (
           (msg?.type === 'response.output_text.delta' || msg?.type === 'response.text.delta') &&
-          typeof msg?.delta === 'string'
+          (typeof msg?.delta === 'string' || typeof msg?.text === 'string')
         ) {
-          pendingAssistantText += msg.delta;
+          pendingAssistantText += (msg.delta ?? msg.text) as string;
           const recent = pendingAssistantText.slice(-250).toLowerCase();
           if (
             recent.includes('anything else i can help') ||
@@ -937,6 +949,22 @@ wss.on('connection', (twilioWs: WebSocket) => {
           ) {
             lastAssistantAskedAnythingElseAt = Date.now();
           }
+        }
+
+        // Prefer capturing what the assistant actually said (audio transcript) so the call log includes both sides.
+        if (
+          (msg?.type === 'response.audio_transcript.delta' || msg?.type === 'response.output_audio_transcript.delta') &&
+          (typeof msg?.delta === 'string' || typeof msg?.text === 'string')
+        ) {
+          pendingAssistantText += (msg.delta ?? msg.text) as string;
+        }
+
+        if (
+          (msg?.type === 'response.audio_transcript.done' || msg?.type === 'response.output_audio_transcript.done') &&
+          typeof (msg?.transcript ?? msg?.text) === 'string'
+        ) {
+          const t = (msg.transcript ?? msg.text).trim();
+          if (t) pendingAssistantText = `${pendingAssistantText}${pendingAssistantText ? ' ' : ''}${t}`;
         }
 
         if (msg?.type === 'conversation.item.input_audio_transcription.completed') {
@@ -985,9 +1013,18 @@ wss.on('connection', (twilioWs: WebSocket) => {
             }
           }
 
-          // Only generate a response after we have an actual transcription.
-          if (typeof t === 'string' && t.trim() && openaiWs) {
-            sendToOpenAI(openaiWs, responseCreate());
+          // Only generate a response after we have an actual transcription, but debounce slightly
+          // so we don't cut off follow-ups like "Yes, but I also had a question...".
+          if (typeof t === 'string' && t.trim() && openaiWs && !pendingAutoHangup) {
+            clearPendingResponseTimer();
+            const wordCount = t.trim().split(/\s+/).filter(Boolean).length;
+            const delayMs = wordCount <= 2 ? 900 : 550;
+            pendingResponseTimer = setTimeout(() => {
+              pendingResponseTimer = null;
+              // If the user started talking again very recently, keep waiting.
+              if (Date.now() - lastUserSpeechStartedAt < 600) return;
+              sendToOpenAI(openaiWs!, responseCreate());
+            }, delayMs);
           } else if (!pendingAutoHangup) {
             // Silence/incomprehensible: (re)arm the no-response timer.
             armNoResponseTimer();

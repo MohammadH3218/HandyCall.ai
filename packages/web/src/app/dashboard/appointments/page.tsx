@@ -11,6 +11,69 @@ import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Calendar, ChevronLeft, ChevronRight, ExternalLink, Plus, Pencil, Trash2, Settings, X } from 'lucide-react';
 
+type TimeSegment = { open: string; close: string };
+type DayScheduleDraft = { closed?: boolean; open?: string; close?: string; segments?: TimeSegment[] };
+type BusinessHoursDraft = Record<string, DayScheduleDraft>;
+type DateOverrideDraft = { date: string; closed?: boolean; segments?: TimeSegment[] };
+
+const WEEKDAYS: Array<{ key: string; label: string }> = [
+  { key: 'mon', label: 'Mon' },
+  { key: 'tue', label: 'Tue' },
+  { key: 'wed', label: 'Wed' },
+  { key: 'thu', label: 'Thu' },
+  { key: 'fri', label: 'Fri' },
+  { key: 'sat', label: 'Sat' },
+  { key: 'sun', label: 'Sun' },
+];
+
+function normalizeDaySchedule(raw: any): DayScheduleDraft {
+  if (!raw) return { closed: true, segments: [] };
+  if (raw.closed) return { closed: true, segments: [] };
+  const segs = Array.isArray(raw.segments)
+    ? raw.segments
+        .filter((s: any) => s?.open && s?.close)
+        .map((s: any) => ({ open: String(s.open), close: String(s.close) }))
+    : [];
+  if (segs.length) return { closed: false, segments: segs };
+  if (raw.open && raw.close) return { closed: false, segments: [{ open: String(raw.open), close: String(raw.close) }] };
+  return { closed: true, segments: [] };
+}
+
+function normalizeBusinessHours(raw: any): BusinessHoursDraft {
+  const out: BusinessHoursDraft = {};
+  for (const { key } of WEEKDAYS) out[key] = normalizeDaySchedule(raw?.[key]);
+  return out;
+}
+
+function normalizeOverrides(raw: any): DateOverrideDraft[] {
+  if (!raw) return [];
+  if (Array.isArray(raw)) {
+    return raw
+      .map((o) => ({
+        date: String(o?.date || ''),
+        closed: !!o?.closed,
+        segments: Array.isArray(o?.segments)
+          ? o.segments
+              .filter((s: any) => s?.open && s?.close)
+              .map((s: any) => ({ open: String(s.open), close: String(s.close) }))
+          : [],
+      }))
+      .filter((o) => !!o.date);
+  }
+  if (typeof raw === 'object') {
+    return Object.entries(raw).map(([date, o]: any) => ({
+      date,
+      closed: !!o?.closed,
+      segments: Array.isArray(o?.segments)
+        ? o.segments
+            .filter((s: any) => s?.open && s?.close)
+            .map((s: any) => ({ open: String(s.open), close: String(s.close) }))
+        : [],
+    }));
+  }
+  return [];
+}
+
 function ymd(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
@@ -65,6 +128,8 @@ export default function AppointmentsPage() {
   const [isDisconnecting, setIsDisconnecting] = useState(false);
   const [isDeleteCalendarConfirmOpen, setIsDeleteCalendarConfirmOpen] = useState(false);
   const [calendarTimezone, setCalendarTimezone] = useState('');
+  const [businessHoursDraft, setBusinessHoursDraft] = useState<BusinessHoursDraft>(() => normalizeBusinessHours(null));
+  const [dateOverridesDraft, setDateOverridesDraft] = useState<DateOverrideDraft[]>([]);
 
   // Show more appointments state
   const [showAllAppointments, setShowAllAppointments] = useState(false);
@@ -219,6 +284,9 @@ export default function AppointmentsPage() {
         apiClient.getAppointmentsRange(visibleRange.start.toISOString(), visibleRange.end.toISOString()),
       ]);
       setCompany(c);
+      setCalendarTimezone(c?.timezone || '');
+      setBusinessHoursDraft(normalizeBusinessHours(c?.business_hours));
+      setDateOverridesDraft(normalizeOverrides(c?.schedule_overrides));
       setSetupTimezone(c?.timezone || '');
       setAppointments(a.appointments || []);
     } catch (err: any) {
@@ -237,7 +305,7 @@ export default function AppointmentsPage() {
 
   const handleCompleteSetup = async () => {
     if (!setupChoice) return;
-    if (!setupTimezone) {
+    if (setupChoice === 'INTERNAL' && !setupTimezone) {
       setError('Please set your timezone first');
       return;
     }
@@ -505,6 +573,8 @@ export default function AppointmentsPage() {
   // Handle opening calendar settings
   const handleOpenCalendarSettings = () => {
     setCalendarTimezone(company?.timezone || '');
+    setBusinessHoursDraft(normalizeBusinessHours(company?.business_hours));
+    setDateOverridesDraft(normalizeOverrides(company?.schedule_overrides));
     setIsCalendarSettingsOpen(true);
   };
 
@@ -512,9 +582,36 @@ export default function AppointmentsPage() {
   const handleSaveCalendarSettings = async () => {
     try {
       setError(null);
-      await apiClient.updateMyCompany({
-        timezone: calendarTimezone,
-      });
+
+      const cleanedHours: any = {};
+      for (const { key } of WEEKDAYS) {
+        const day = businessHoursDraft[key] || {};
+        const segs = Array.isArray(day.segments)
+          ? day.segments.filter((s) => s?.open && s?.close)
+          : [];
+        cleanedHours[key] = segs.length ? { closed: false, segments: segs } : { closed: true };
+      }
+
+      const cleanedOverrides = (dateOverridesDraft || [])
+        .map((o) => ({
+          date: o.date,
+          closed: !!o.closed,
+          segments: Array.isArray(o.segments) ? o.segments.filter((s) => s?.open && s?.close) : [],
+        }))
+        .filter((o) => !!o.date)
+        .sort((a, b) => String(a.date).localeCompare(String(b.date)));
+
+      const updates: any = {
+        business_hours: cleanedHours,
+        schedule_overrides: cleanedOverrides,
+      };
+
+      // Timezone is read-only if an external calendar is connected; use imported timezone.
+      if (!isExternalCalendarConnected && calendarTimezone) {
+        updates.timezone = calendarTimezone;
+      }
+
+      await apiClient.updateMyCompany(updates);
       setIsCalendarSettingsOpen(false);
       await loadData();
     } catch (err: any) {
@@ -1276,7 +1373,7 @@ export default function AppointmentsPage() {
 
       {/* Calendar Settings Dialog */}
       <Dialog open={isCalendarSettingsOpen} onOpenChange={setIsCalendarSettingsOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-3xl">
           <DialogHeader>
             <DialogTitle>Calendar Settings</DialogTitle>
           </DialogHeader>
@@ -1292,16 +1389,265 @@ export default function AppointmentsPage() {
               </div>
             )}
 
-            <div>
-              <Label htmlFor="calendar-timezone">Timezone</Label>
-              <Input
-                id="calendar-timezone"
-                value={calendarTimezone}
-                onChange={(e) => setCalendarTimezone(e.target.value)}
-                placeholder="e.g., America/New_York"
-                className="mt-1"
-              />
-              <div className="text-xs text-gray-500 mt-1">IANA timezone format (e.g., America/New_York, Europe/London)</div>
+            <div className="rounded-lg border border-gray-200 bg-white p-4">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <div className="text-sm font-medium text-gray-900">Timezone</div>
+                  <div className="text-xs text-gray-600 mt-1">
+                    {calendarTimezone || 'Not set yet'}
+                    {isExternalCalendarConnected ? ' (from connected calendar)' : ''}
+                  </div>
+                </div>
+                {!isExternalCalendarConnected && (
+                  <div className="w-full max-w-xs">
+                    <Input
+                      value={calendarTimezone}
+                      onChange={(e) => setCalendarTimezone(e.target.value)}
+                      placeholder="e.g., America/Chicago"
+                    />
+                    <div className="text-[11px] text-gray-500 mt-1">IANA timezone format</div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-gray-200 bg-white p-4">
+              <div className="text-sm font-medium text-gray-900">Weekly working hours</div>
+              <div className="text-xs text-gray-600 mt-1">Set one or more available time windows per day.</div>
+
+              <div className="mt-4 space-y-3">
+                {WEEKDAYS.map(({ key, label }) => {
+                  const day = businessHoursDraft[key] || {};
+                  const segments = Array.isArray(day.segments) ? day.segments : [];
+                  const closed = !!day.closed || segments.length === 0;
+                  return (
+                    <div key={key} className="rounded-md border border-gray-200 p-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="text-sm font-medium text-gray-900">{label}</div>
+                        <label className="flex items-center gap-2 text-sm text-gray-700">
+                          <input
+                            type="checkbox"
+                            checked={closed}
+                            onChange={(e) => {
+                              const nextClosed = e.target.checked;
+                              setBusinessHoursDraft((prev) => ({
+                                ...prev,
+                                [key]: nextClosed ? { closed: true, segments: [] } : { closed: false, segments: [{ open: '09:00', close: '17:00' }] },
+                              }));
+                            }}
+                          />
+                          Closed
+                        </label>
+                      </div>
+
+                      {!closed && (
+                        <div className="mt-3 space-y-2">
+                          {segments.map((seg, idx) => (
+                            <div key={idx} className="flex items-center gap-2">
+                              <Input
+                                type="time"
+                                value={seg.open}
+                                onChange={(e) => {
+                                  const v = e.target.value;
+                                  setBusinessHoursDraft((prev) => {
+                                    const cur = prev[key] || {};
+                                    const nextSegs = (Array.isArray(cur.segments) ? [...cur.segments] : []).map((s, i) =>
+                                      i === idx ? { ...s, open: v } : s
+                                    );
+                                    return { ...prev, [key]: { ...cur, closed: false, segments: nextSegs } };
+                                  });
+                                }}
+                              />
+                              <span className="text-sm text-gray-500">to</span>
+                              <Input
+                                type="time"
+                                value={seg.close}
+                                onChange={(e) => {
+                                  const v = e.target.value;
+                                  setBusinessHoursDraft((prev) => {
+                                    const cur = prev[key] || {};
+                                    const nextSegs = (Array.isArray(cur.segments) ? [...cur.segments] : []).map((s, i) =>
+                                      i === idx ? { ...s, close: v } : s
+                                    );
+                                    return { ...prev, [key]: { ...cur, closed: false, segments: nextSegs } };
+                                  });
+                                }}
+                              />
+                              <Button
+                                variant="outline"
+                                size="icon"
+                                onClick={() => {
+                                  setBusinessHoursDraft((prev) => {
+                                    const cur = prev[key] || {};
+                                    const nextSegs = (Array.isArray(cur.segments) ? [...cur.segments] : []).filter((_, i) => i !== idx);
+                                    return { ...prev, [key]: nextSegs.length ? { ...cur, closed: false, segments: nextSegs } : { closed: true, segments: [] } };
+                                  });
+                                }}
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          ))}
+                          <Button
+                            variant="outline"
+                            onClick={() => {
+                              setBusinessHoursDraft((prev) => {
+                                const cur = prev[key] || {};
+                                const nextSegs = Array.isArray(cur.segments) ? [...cur.segments] : [];
+                                nextSegs.push({ open: '09:00', close: '17:00' });
+                                return { ...prev, [key]: { ...cur, closed: false, segments: nextSegs } };
+                              });
+                            }}
+                          >
+                            <Plus className="h-4 w-4 mr-2" />
+                            Add timeframe
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-gray-200 bg-white p-4">
+              <div className="text-sm font-medium text-gray-900">Date exceptions</div>
+              <div className="text-xs text-gray-600 mt-1">Override availability for a specific date (vacation, holidays, partial day).</div>
+
+              <div className="mt-4 space-y-3">
+                {(dateOverridesDraft || []).map((o, idx) => {
+                  const segments = Array.isArray(o.segments) ? o.segments : [];
+                  const closed = !!o.closed || segments.length === 0;
+                  return (
+                    <div key={`${o.date}-${idx}`} className="rounded-md border border-gray-200 p-3">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div className="flex items-center gap-2">
+                          <Input
+                            type="date"
+                            value={o.date}
+                            onChange={(e) => {
+                              const v = e.target.value;
+                              setDateOverridesDraft((prev) => prev.map((x, i) => (i === idx ? { ...x, date: v } : x)));
+                            }}
+                          />
+                          <label className="flex items-center gap-2 text-sm text-gray-700">
+                            <input
+                              type="checkbox"
+                              checked={closed}
+                              onChange={(e) => {
+                                const nextClosed = e.target.checked;
+                                setDateOverridesDraft((prev) =>
+                                  prev.map((x, i) =>
+                                    i === idx
+                                      ? nextClosed
+                                        ? { ...x, closed: true, segments: [] }
+                                        : { ...x, closed: false, segments: [{ open: '09:00', close: '17:00' }] }
+                                      : x
+                                  )
+                                );
+                              }}
+                            />
+                            Closed
+                          </label>
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          onClick={() => setDateOverridesDraft((prev) => prev.filter((_, i) => i !== idx))}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+
+                      {!closed && (
+                        <div className="mt-3 space-y-2">
+                          {segments.map((seg, sIdx) => (
+                            <div key={sIdx} className="flex items-center gap-2">
+                              <Input
+                                type="time"
+                                value={seg.open}
+                                onChange={(e) => {
+                                  const v = e.target.value;
+                                  setDateOverridesDraft((prev) =>
+                                    prev.map((x, i) => {
+                                      if (i !== idx) return x;
+                                      const nextSegs = (Array.isArray(x.segments) ? [...x.segments] : []).map((s, j) =>
+                                        j === sIdx ? { ...s, open: v } : s
+                                      );
+                                      return { ...x, segments: nextSegs, closed: false };
+                                    })
+                                  );
+                                }}
+                              />
+                              <span className="text-sm text-gray-500">to</span>
+                              <Input
+                                type="time"
+                                value={seg.close}
+                                onChange={(e) => {
+                                  const v = e.target.value;
+                                  setDateOverridesDraft((prev) =>
+                                    prev.map((x, i) => {
+                                      if (i !== idx) return x;
+                                      const nextSegs = (Array.isArray(x.segments) ? [...x.segments] : []).map((s, j) =>
+                                        j === sIdx ? { ...s, close: v } : s
+                                      );
+                                      return { ...x, segments: nextSegs, closed: false };
+                                    })
+                                  );
+                                }}
+                              />
+                              <Button
+                                variant="outline"
+                                size="icon"
+                                onClick={() => {
+                                  setDateOverridesDraft((prev) =>
+                                    prev.map((x, i) => {
+                                      if (i !== idx) return x;
+                                      const nextSegs = (Array.isArray(x.segments) ? [...x.segments] : []).filter((_, j) => j !== sIdx);
+                                      return nextSegs.length ? { ...x, segments: nextSegs, closed: false } : { ...x, segments: [], closed: true };
+                                    })
+                                  );
+                                }}
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          ))}
+                          <Button
+                            variant="outline"
+                            onClick={() => {
+                              setDateOverridesDraft((prev) =>
+                                prev.map((x, i) => {
+                                  if (i !== idx) return x;
+                                  const nextSegs = Array.isArray(x.segments) ? [...x.segments] : [];
+                                  nextSegs.push({ open: '09:00', close: '17:00' });
+                                  return { ...x, segments: nextSegs, closed: false };
+                                })
+                              );
+                            }}
+                          >
+                            <Plus className="h-4 w-4 mr-2" />
+                            Add timeframe
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+
+                <Button
+                  variant="outline"
+                  onClick={() =>
+                    setDateOverridesDraft((prev) => [
+                      ...prev,
+                      { date: ymd(new Date()), closed: true, segments: [] },
+                    ])
+                  }
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add date exception
+                </Button>
+              </div>
             </div>
 
             <div className="flex justify-between items-center pt-4 border-t">
