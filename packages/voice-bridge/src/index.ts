@@ -675,6 +675,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
 
   function shouldTreatDeltaAsPcm16(deltaBase64: string): boolean {
     if (openaiOutputAudioFormat === 'pcm16') return true;
+    void deltaBase64;
     return false;
   }
 
