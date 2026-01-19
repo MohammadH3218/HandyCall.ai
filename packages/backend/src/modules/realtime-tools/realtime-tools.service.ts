@@ -8,6 +8,8 @@ import { S3Service } from '../../infrastructure/storage/s3.service';
 import { KnowledgeService } from '../knowledge/knowledge.service';
 import { SchedulingService } from '../scheduling/scheduling.service';
 import { UsageService } from '../billing/usage.service';
+import { zonedTimeToUtcMs } from '../scheduling/timezone';
+import * as chrono from 'chrono-node';
 import {
   Call,
   CallDirection,
@@ -107,7 +109,7 @@ export class RealtimeToolsService {
     }
 
     const addressMatch = t.match(
-      /(?:address is|my address is|located at)\s+([0-9]{1,6}\s+[A-Za-z0-9.'-]+(?:\s+[A-Za-z0-9.'-]+){0,6})/i
+      /(?:address is|my address is|located at)\s+([0-9]{1,6}\s+.+?)(?:[.,]\s+|\s+(?:zip|zipcode)\b|$)/i
     );
     if (addressMatch?.[1]) {
       const address = addressMatch[1].trim();
@@ -115,6 +117,34 @@ export class RealtimeToolsService {
     }
 
     return out;
+  }
+
+  private coerceToUtcIso(input: string, timeZone: string): string {
+    const raw = String(input || '').trim();
+    if (!raw) throw new BadRequestException('start_time/end_time is required');
+
+    const msIso = Date.parse(raw);
+    if (Number.isFinite(msIso)) {
+      return new Date(msIso).toISOString();
+    }
+
+    const parsed = chrono.parseDate(raw, new Date());
+    if (!parsed) {
+      throw new BadRequestException(`Unrecognized date/time: ${raw}`);
+    }
+
+    // chrono assumes server timezone; reinterpret the parsed Y/M/D/H/M as the tenant timezone and convert to UTC.
+    const utcMs = zonedTimeToUtcMs(
+      {
+        year: parsed.getUTCFullYear(),
+        month: parsed.getUTCMonth() + 1,
+        day: parsed.getUTCDate(),
+        hour: parsed.getUTCHours(),
+        minute: parsed.getUTCMinutes(),
+      },
+      timeZone
+    );
+    return new Date(utcMs).toISOString();
   }
 
   private isGenericSummary(text: string | undefined): boolean {
@@ -375,6 +405,13 @@ export class RealtimeToolsService {
         ...(extractedHasAny ? extractedCollected : {}),
         ...(incomingHasAny ? incomingCollected : {}),
       };
+
+      // Normalize phone if present (always store E.164 if we can).
+      const phoneValue = (updates.collected_info as any)?.phone;
+      if (typeof phoneValue === 'string' && phoneValue.trim()) {
+        const normalized = asE164(phoneValue);
+        if (normalized) (updates.collected_info as any).phone = normalized;
+      }
     }
 
     // Ensure contact is de-duplicated by phone number and enriched by collected fields.
@@ -567,7 +604,9 @@ export class RealtimeToolsService {
     if (!company) throw new NotFoundException('Company not found');
 
     const timeZone = dto.timezone || company.timezone || 'UTC';
-    const slots = await this.scheduling.getAvailability(company, dto.start_time, dto.end_time);
+    const startIso = this.coerceToUtcIso(dto.start_time, timeZone);
+    const endIso = this.coerceToUtcIso(dto.end_time, timeZone);
+    const slots = await this.scheduling.getAvailability(company, startIso, endIso);
 
     return {
       ok: true,
@@ -589,7 +628,12 @@ export class RealtimeToolsService {
       (dto.customer_email && dto.customer_email.trim()) ||
       `caller-${(dto.contact_id || dto.call_id || 'unknown').replace(/[^a-zA-Z0-9]/g, '')}@handycall.invalid`;
 
-    const [slot] = await this.scheduling.getAvailability(company, dto.start_time, dto.end_time);
+    const startIso = this.coerceToUtcIso(dto.start_time, timeZone);
+    const endIso = dto.end_time
+      ? this.coerceToUtcIso(dto.end_time, timeZone)
+      : new Date(Date.parse(startIso) + this.scheduling.getDurationMinutes(company) * 60_000).toISOString();
+
+    const [slot] = await this.scheduling.getAvailability(company, startIso, endIso);
     if (!slot) {
       throw new BadRequestException('Requested time is no longer available');
     }

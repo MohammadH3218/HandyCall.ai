@@ -1,4 +1,4 @@
-import { IsISO8601, IsOptional, IsString } from 'class-validator';
+import { IsOptional, IsString } from 'class-validator';
 
 export class CreateBookingDto {
   @IsString()
@@ -12,13 +12,15 @@ export class CreateBookingDto {
   @IsString()
   contact_id?: string;
 
-  // ISO 8601 date-time in UTC.
-  @IsISO8601()
+  // ISO 8601 UTC date-time OR a natural-language date/time in the provided timezone.
+  @IsString()
   start_time!: string;
 
-  // ISO 8601 date-time in UTC.
-  @IsISO8601()
-  end_time!: string;
+  // ISO 8601 UTC date-time OR a natural-language date/time in the provided timezone.
+  // Optional: if omitted, the backend will add the company's default appointment duration.
+  @IsOptional()
+  @IsString()
+  end_time?: string;
 
   @IsOptional()
   @IsString()
@@ -35,4 +37,3 @@ export class CreateBookingDto {
   @IsString()
   notes?: string;
 }
-

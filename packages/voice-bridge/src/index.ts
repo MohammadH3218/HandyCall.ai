@@ -184,7 +184,7 @@ function toolsSchema() {
       type: 'function',
       name: 'knowledge_search',
       description:
-        "Search the company's knowledge base (RAG). Use this to answer questions about the business, services, hours, pricing policy, etc.",
+        "Search the company's knowledge base (RAG). Use this to answer questions about services, products/solutions used, hours, pricing policy, and other business facts.",
       parameters: {
         type: 'object',
         properties: {
@@ -195,6 +195,64 @@ function toolsSchema() {
       },
     },
   ];
+
+  tools.push({
+    type: 'function',
+    name: 'get_availability',
+    description:
+      'Check available appointment start times in a time range. Use this before booking to confirm availability.',
+    parameters: {
+      type: 'object',
+      properties: {
+        start_time: {
+          type: 'string',
+          description:
+            'Start of the window. Prefer ISO 8601 UTC, but natural language is allowed (interpreted in the company timezone).',
+        },
+        end_time: {
+          type: 'string',
+          description:
+            'End of the window. Prefer ISO 8601 UTC, but natural language is allowed (interpreted in the company timezone).',
+        },
+        timezone: {
+          type: 'string',
+          description: 'IANA timezone (e.g., America/Chicago). Optional; defaults to company timezone.',
+        },
+      },
+      required: ['start_time', 'end_time'],
+    },
+  });
+
+  tools.push({
+    type: 'function',
+    name: 'create_booking',
+    description:
+      'Create an appointment booking for the caller. Only book if get_availability shows the requested slot is open.',
+    parameters: {
+      type: 'object',
+      properties: {
+        start_time: {
+          type: 'string',
+          description:
+            'Requested start time. Prefer ISO 8601 UTC, but natural language is allowed (interpreted in the company timezone).',
+        },
+        end_time: {
+          type: 'string',
+          description:
+            'Requested end time. Optional; if omitted we use the company default appointment duration. Prefer ISO 8601 UTC.',
+        },
+        timezone: {
+          type: 'string',
+          description: 'IANA timezone (e.g., America/Chicago). Optional; defaults to company timezone.',
+        },
+        contact_id: { type: 'string', description: 'Known contact_id from create_lead output (optional).' },
+        customer_name: { type: 'string', description: 'Customer full name.' },
+        customer_email: { type: 'string', description: 'Customer email (optional).' },
+        notes: { type: 'string', description: 'Notes for the appointment (optional).' },
+      },
+      required: ['start_time', 'customer_name'],
+    },
+  });
 
   tools.push({
     type: 'function',
@@ -229,7 +287,7 @@ function buildInstructions(input: {
     `If the caller already told you the issue/service details, do NOT ask again. Summarize briefly and move forward.`,
     `Use update_intake any time you learn a detail (name, zip, address, phone, service, issue, preferred time) so you don’t ask twice. After the caller confirms a field (e.g., says "yes"), immediately call update_intake to lock it in.`,
     `Zip codes: confirm digits explicitly (e.g., "Just to confirm, that's 7-7-4-4-1?").`,
-    `Knowledge policy: use knowledge_search for business-specific facts (pricing, plans, what's included, policies). If you can't find it in knowledge_search or you're not sure, do NOT guess; say you're not sure and you'll note it down and have the team follow up.`,
+    `Knowledge policy: use knowledge_search for business-specific facts (services, products/solutions used, pricing, plans, what's included, policies). If you can't find it in knowledge_search or you're not sure, do NOT guess; say you're not sure and you'll note it down and have the team follow up.`,
     `If the caller asks about the business, use knowledge_search to answer accurately.`,
     `Scheduling policy: the caller can request a specific date/time or ask what times are available on a day.`,
     `- If they request a time: say "Let me check availability", then call get_availability for a narrow window around that time. If available, call create_booking to book it and confirm the booked time. If not, call get_availability for that day and offer the 2-3 closest available times.`,
@@ -247,6 +305,7 @@ function buildInstructions(input: {
     `Tools policy:`,
     `- Call create_lead early, once you know the caller's phone number and intent.`,
     `- Call save_call near the end with a concise summary + collected fields (not a verbatim transcript).`,
+    `- Use get_availability + create_booking for scheduling; never guess availability.`,
     extra ? `Extra instructions: ${extra}` : null,
   ].filter(Boolean) as string[];
   return lines.join('\n');
@@ -322,6 +381,37 @@ async function invokeTool(ctx: CallContext, name: string, args: any) {
     );
   }
 
+  if (name === 'get_availability') {
+    return postJson(
+      `${toolsBase}/tools/get_availability`,
+      { 'x-handycall-tools-key': toolsKey },
+      {
+        company_id: ctx.company_id,
+        start_time: args?.start_time ?? '',
+        end_time: args?.end_time ?? '',
+        timezone: args?.timezone,
+      }
+    );
+  }
+
+  if (name === 'create_booking') {
+    return postJson(
+      `${toolsBase}/tools/create_booking`,
+      { 'x-handycall-tools-key': toolsKey },
+      {
+        company_id: ctx.company_id,
+        call_id: ctx.callSid,
+        contact_id: args?.contact_id,
+        start_time: args?.start_time ?? '',
+        end_time: args?.end_time,
+        timezone: args?.timezone,
+        customer_name: args?.customer_name ?? '',
+        customer_email: args?.customer_email,
+        notes: args?.notes,
+      }
+    );
+  }
+
   if (name === 'update_intake') {
     // Handled locally in the WS loop because it is per-call state.
     return { ok: true };
@@ -347,6 +437,15 @@ function sendToTwilio(ws: WebSocket, msg: any) {
 function sendToOpenAI(ws: WebSocket, msg: any) {
   if (ws.readyState !== ws.OPEN) return;
   ws.send(JSON.stringify(msg));
+}
+
+function responseCreate(modalities: Array<'audio' | 'text'> = ['audio', 'text'], instructions?: string) {
+  return {
+    type: 'response.create',
+    ...(instructions
+      ? { response: { modalities, instructions } }
+      : { response: { modalities } }),
+  };
 }
 
 const port = Number(process.env.PORT || 8082);
@@ -776,23 +875,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
           log('create_lead failed (non-fatal)', e?.message ?? String(e))
         );
 
-        // Start call recording in the background (best-effort).
-        (async () => {
-          try {
-            const accountSid =
-              envFirst(['TWILIO_ACCOUNT_SID', 'TWILIO_SID']) || (await getSecret('TWILIO_ACCOUNT_SID'));
-            const authToken = await getSecret('TWILIO_AUTH_TOKEN');
-            const client = twilio(accountSid, authToken);
-            const publicBaseUrl = requireEnvFirst(['PUBLIC_BASE_URL', 'VOICE_BRIDGE_PUBLIC_BASE_URL']).replace(/\/$/, '');
-
-            await client.calls(ctx.callSid).recordings.create({
-              recordingStatusCallback: `${publicBaseUrl}/twilio/recording-status`,
-              recordingStatusCallbackMethod: 'POST',
-            });
-          } catch (e: any) {
-            log('start recording failed (non-fatal)', e?.message ?? String(e));
-          }
-        })();
+        // Recording is started earlier on stream start (best-effort).
       });
 
         openaiWs.on('message', async (raw) => {
@@ -904,7 +987,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
 
           // Only generate a response after we have an actual transcription.
           if (typeof t === 'string' && t.trim() && openaiWs) {
-            sendToOpenAI(openaiWs, { type: 'response.create' });
+            sendToOpenAI(openaiWs, responseCreate());
           } else if (!pendingAutoHangup) {
             // Silence/incomprehensible: (re)arm the no-response timer.
             armNoResponseTimer();
@@ -947,7 +1030,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
                 type: 'conversation.item.create',
                 item: { type: 'function_call_output', call_id: toolCallId, output: JSON.stringify({ ok: true, intake }) },
               });
-              sendToOpenAI(openaiWs, { type: 'response.create' });
+              sendToOpenAI(openaiWs, responseCreate());
               return;
             }
 
@@ -968,7 +1051,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
                   output: JSON.stringify({ ok: true }),
                 },
               });
-              sendToOpenAI(openaiWs, { type: 'response.create' });
+              sendToOpenAI(openaiWs, responseCreate());
               return;
             }
 
@@ -1022,7 +1105,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
               type: 'conversation.item.create',
               item: { type: 'function_call_output', call_id: toolCallId, output: JSON.stringify(result) },
             });
-            sendToOpenAI(openaiWs, { type: 'response.create' });
+            sendToOpenAI(openaiWs, responseCreate());
           } catch (err: any) {
             // Keep the caller experience smooth: save_call failures should never be spoken back to the caller.
             // We'll retry on stop/hangup as best-effort.
@@ -1059,7 +1142,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
                 output: JSON.stringify({ ok: false, error: err?.message ?? String(err) }),
               },
             });
-            sendToOpenAI(openaiWs, { type: 'response.create' });
+            sendToOpenAI(openaiWs, responseCreate());
           }
         }
 

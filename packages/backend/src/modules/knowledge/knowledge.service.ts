@@ -321,12 +321,59 @@ export class KnowledgeService {
       console.warn('[KnowledgeService] Semantic search failed; falling back to keyword search.', error);
 
       const q = (query || '').trim().toLowerCase();
+      const tokens = Array.from(
+        new Set(
+          q
+            .replace(/[^a-z0-9\s]/g, ' ')
+            .split(/\s+/)
+            .map((t) => t.trim())
+            .filter(Boolean)
+            .filter((t) => t.length >= 3)
+            .filter(
+              (t) =>
+                !new Set([
+                  'what',
+                  'which',
+                  'kind',
+                  'type',
+                  'tell',
+                  'about',
+                  'use',
+                  'uses',
+                  'using',
+                  'your',
+                  'you',
+                  'do',
+                  'does',
+                  'the',
+                  'and',
+                  'for',
+                  'with',
+                  'can',
+                  'could',
+                  'would',
+                  'how',
+                  'when',
+                  'where',
+                  'are',
+                  'is',
+                ]).has(t)
+            )
+        )
+      );
       const all = await this.listKnowledgeItems(companyId, { limit: 500 });
       const matches = all
         .map((item) => {
           const hay = `${item.title}\n${item.content}\n${(item.tags || []).join(' ')}`.toLowerCase();
-          const idx = hay.indexOf(q);
-          const score = idx === -1 ? 0 : 1 / (1 + idx);
+          let score = 0;
+          if (q && hay.includes(q)) score += 2;
+          if (tokens.length) {
+            const titleHay = (item.title || '').toLowerCase();
+            for (const tok of tokens) {
+              if (hay.includes(tok)) score += 1;
+              if (titleHay.includes(tok)) score += 1;
+            }
+          }
           return { item, score };
         })
         .filter((m) => m.score > 0)
