@@ -149,6 +149,18 @@ export class RealtimeToolsService {
     return new Date(utcMs).toISOString();
   }
 
+  private normalizeTimeZone(input: string | undefined, fallback: string): string {
+    const candidate = String(input || '').trim();
+    const safeFallback = String(fallback || 'UTC').trim() || 'UTC';
+    if (!candidate) return safeFallback;
+    try {
+      new Intl.DateTimeFormat('en-US', { timeZone: candidate }).format(new Date());
+      return candidate;
+    } catch {
+      return safeFallback;
+    }
+  }
+
   private isGenericSummary(text: string | undefined): boolean {
     const t = (text || '').trim().toLowerCase();
     if (!t) return true;
@@ -605,7 +617,7 @@ export class RealtimeToolsService {
     const company = await this.companies.findById(company_id);
     if (!company) throw new NotFoundException('Company not found');
 
-    const timeZone = dto.timezone || company.timezone || 'UTC';
+    const timeZone = this.normalizeTimeZone(dto.timezone, company.timezone || 'UTC');
     const startRaw = String(dto.start_time || '').trim();
     const endRaw = String(dto.end_time || '').trim();
     const startIso = this.coerceToUtcIso(startRaw, timeZone);
@@ -647,7 +659,7 @@ export class RealtimeToolsService {
     const company = await this.companies.findById(company_id);
     if (!company) throw new NotFoundException('Company not found');
 
-    const timeZone = dto.timezone || company.timezone || 'UTC';
+    const timeZone = this.normalizeTimeZone(dto.timezone, company.timezone || 'UTC');
     const customerEmail =
       (dto.customer_email && dto.customer_email.trim()) ||
       `caller-${(dto.contact_id || dto.call_id || 'unknown').replace(/[^a-zA-Z0-9]/g, '')}@handycall.invalid`;

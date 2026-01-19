@@ -611,6 +611,8 @@ wss.on('connection', (twilioWs: WebSocket) => {
   let lastAssistantText = '';
   let lastAssistantAt = 0;
   let lastResponseId: string | null = null;
+  let pendingUserTranscript = '';
+  let userSpeechActive = false;
 
   function log(msg: string, extra?: any) {
     const prefix = ctx ? `[callSid=${ctx.callSid} streamSid=${ctx.streamSid}]` : '[twilio]';
@@ -769,6 +771,26 @@ wss.on('connection', (twilioWs: WebSocket) => {
             'No response from the caller. Say ONE short friendly goodbye sentence and end the call. Do not ask another question.',
         },
       });
+    }, delayMs);
+  }
+
+  function queueAssistantResponse() {
+    if (!openaiWs || pendingAutoHangup) return;
+    clearPendingResponseTimer();
+    const text = pendingUserTranscript.trim();
+    if (!text) {
+      if (!pendingAutoHangup) armNoResponseTimer();
+      return;
+    }
+    const wordCount = text.split(/\s+/).filter(Boolean).length;
+    const delayMs = wordCount <= 2 ? 900 : 550;
+    pendingResponseTimer = setTimeout(() => {
+      pendingResponseTimer = null;
+      if (!openaiWs || pendingAutoHangup) return;
+      if (Date.now() - lastUserSpeechStartedAt < 600) return;
+      if (!pendingUserTranscript.trim()) return;
+      pendingUserTranscript = '';
+      sendToOpenAI(openaiWs!, responseCreate());
     }, delayMs);
   }
 
@@ -1002,6 +1024,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
         // Debounced to avoid background noise triggering constant interruptions.
         if (msg?.type === 'input_audio_buffer.speech_started') {
           lastUserSpeechStartedAt = Date.now();
+          userSpeechActive = true;
           clearNoResponseTimer();
           clearPendingResponseTimer();
           const assistantSpeaking = Date.now() < assistantAudioActiveUntil;
@@ -1016,10 +1039,12 @@ wss.on('connection', (twilioWs: WebSocket) => {
         }
 
         if (msg?.type === 'input_audio_buffer.speech_stopped') {
+          userSpeechActive = false;
           if (pendingBargeInTimer) {
             clearTimeout(pendingBargeInTimer);
             pendingBargeInTimer = null;
           }
+          if (!pendingAutoHangup) queueAssistantResponse();
         }
 
         if (msg?.type === 'response.audio.delta' && typeof msg?.delta === 'string') {
@@ -1094,6 +1119,9 @@ wss.on('connection', (twilioWs: WebSocket) => {
           if (typeof t === 'string' && t.trim()) {
             const text = t.trim();
             conversation.push({ role: 'caller', text });
+            pendingUserTranscript = pendingUserTranscript
+              ? `${pendingUserTranscript} ${text}`
+              : text;
             // Any user response resets the no-response sequence.
             noResponseStage = 0;
           }
@@ -1118,6 +1146,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
             if (isNo) {
               if (!pendingAutoHangup) {
                 pendingAutoHangup = true;
+                pendingUserTranscript = '';
                 pendingHangupMarkName = `goodbye_${Date.now()}`;
                 log('Auto-hangup triggered; generating goodbye', { mark: pendingHangupMarkName });
                 scheduleForcedHangup('caller said no (anything else)');
@@ -1135,18 +1164,9 @@ wss.on('connection', (twilioWs: WebSocket) => {
             }
           }
 
-          // Only generate a response after we have an actual transcription, but debounce slightly
-          // so we don't cut off follow-ups like "Yes, but I also had a question...".
+          // Only generate a response after we have an actual transcription and speech has ended.
           if (typeof t === 'string' && t.trim() && openaiWs && !pendingAutoHangup) {
-            clearPendingResponseTimer();
-            const wordCount = t.trim().split(/\s+/).filter(Boolean).length;
-            const delayMs = wordCount <= 2 ? 900 : 550;
-            pendingResponseTimer = setTimeout(() => {
-              pendingResponseTimer = null;
-              // If the user started talking again very recently, keep waiting.
-              if (Date.now() - lastUserSpeechStartedAt < 600) return;
-              sendToOpenAI(openaiWs!, responseCreate());
-            }, delayMs);
+            if (!userSpeechActive) queueAssistantResponse();
           } else if (!pendingAutoHangup) {
             // Silence/incomprehensible: (re)arm the no-response timer.
             armNoResponseTimer();
@@ -1244,6 +1264,24 @@ wss.on('connection', (twilioWs: WebSocket) => {
                 : args;
 
             const result = await invokeTool(ctx, toolName, toolArgs);
+            if (toolName === 'get_availability') {
+              const count = Array.isArray((result as any)?.slots) ? result.slots.length : 0;
+              log('get_availability result', {
+                start_time: args?.start_time,
+                end_time: args?.end_time,
+                timezone: args?.timezone,
+                slots: count,
+              });
+            }
+            if (toolName === 'create_booking') {
+              log('create_booking result', {
+                start_time: args?.start_time,
+                end_time: args?.end_time,
+                timezone: args?.timezone,
+                ok: (result as any)?.ok,
+                appointment_id: (result as any)?.appointment_id,
+              });
+            }
             if (toolName === 'save_call') {
               callSaved = true;
               log('save_call succeeded', { transcript_len: (toolArgs?.transcript || '').length });
@@ -1300,6 +1338,9 @@ wss.on('connection', (twilioWs: WebSocket) => {
                 },
               });
               return;
+            }
+            if (toolName === 'get_availability' || toolName === 'create_booking') {
+              log(`${toolName} failed`, { error: err?.message ?? String(err), args });
             }
             sendToOpenAI(openaiWs, {
               type: 'conversation.item.create',
