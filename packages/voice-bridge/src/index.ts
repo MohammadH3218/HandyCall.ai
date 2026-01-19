@@ -603,7 +603,6 @@ wss.on('connection', (twilioWs: WebSocket) => {
   let pendingResponseTimer: NodeJS.Timeout | null = null;
   let lastUserSpeechStartedAt = 0;
   let openaiOutputAudioFormat: string = 'g711_ulaw';
-  let audioDeltaDebugCount = 0;
 
   function log(msg: string, extra?: any) {
     const prefix = ctx ? `[callSid=${ctx.callSid} streamSid=${ctx.streamSid}]` : '[twilio]';
@@ -640,18 +639,13 @@ wss.on('connection', (twilioWs: WebSocket) => {
     return ulawByte;
   }
 
-  function pcm16BytesToG711UlawBase64Adaptive(pcmBytes: Buffer): string {
-    const sampleCount = Math.floor(pcmBytes.length / 2);
+  function pcm16ToG711UlawBase64(pcmBase64: string): string {
+    const pcm = Buffer.from(pcmBase64, 'base64');
+    const sampleCount = Math.floor(pcm.length / 2);
     if (sampleCount <= 0) return '';
 
-    // Determine downsample factor based on typical 20ms chunk sizes:
-    // - 24kHz PCM16: ~960 bytes (480 samples) => factor 3 to 8kHz
-    // - 16kHz PCM16: ~640 bytes (320 samples) => factor 2 to 8kHz
-    // - 8kHz PCM16:  ~320 bytes (160 samples) => factor 1
-    let factor = 3;
-    if (pcmBytes.length <= 420) factor = 1;
-    else if (pcmBytes.length <= 740) factor = 2;
-
+    // OpenAI realtime PCM16 is typically 24kHz. Downsample to 8kHz by averaging groups of 3 samples.
+    const factor = 3;
     const outSamples = Math.floor(sampleCount / factor);
     if (outSamples <= 0) return '';
 
@@ -661,7 +655,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
       let sum = 0;
       for (let k = 0; k < factor; k++) {
         const idx = (base + k) * 2;
-        sum += pcmBytes.readInt16LE(idx);
+        sum += pcm.readInt16LE(idx);
       }
       const avg = Math.max(-32768, Math.min(32767, Math.round(sum / factor)));
       out[i] = linearPcm16ToMuLawSample(avg);
@@ -670,26 +664,18 @@ wss.on('connection', (twilioWs: WebSocket) => {
     return out.toString('base64');
   }
 
-  function decodeBase64Safe(data: string): Buffer | null {
-    try {
-      return Buffer.from(data, 'base64');
-    } catch {
-      return null;
-    }
-  }
-
   function shouldTreatDeltaAsPcm16(deltaBase64: string): boolean {
     if (openaiOutputAudioFormat === 'pcm16') return true;
+    if (openaiOutputAudioFormat === 'g711_ulaw') return false;
 
-    const bytes = decodeBase64Safe(deltaBase64);
-    if (!bytes) return false;
-
-    // If it's odd-length it can't be PCM16.
-    if (bytes.length % 2 !== 0) return false;
-
-    // Heuristic: PCM16 frames are much larger than μ-law frames.
-    // μ-law 8kHz ~160 bytes per 20ms; PCM16 is usually >=320 bytes per 20ms.
-    return bytes.length >= 280;
+    // Heuristic fallback: PCM16 frames are much larger than μ-law frames.
+    // Typical: PCM16 24kHz ~1920 bytes per 20ms, μ-law 8kHz ~160 bytes per 20ms.
+    try {
+      const bytes = Buffer.from(deltaBase64, 'base64');
+      return bytes.length >= 800 && bytes.length % 2 === 0;
+    } catch {
+      return false;
+    }
   }
 
   function mergedTranscriptText(): string {
@@ -1022,20 +1008,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
 
         if (msg?.type === 'response.audio.delta' && typeof msg?.delta === 'string') {
           assistantAudioActiveUntil = Date.now() + 350;
-          const asPcm16 = shouldTreatDeltaAsPcm16(msg.delta);
-          const bytes = asPcm16 ? decodeBase64Safe(msg.delta) : null;
-          const payload = asPcm16 && bytes ? pcm16BytesToG711UlawBase64Adaptive(bytes) : msg.delta;
-
-          if (audioDeltaDebugCount < 3) {
-            audioDeltaDebugCount++;
-            log('audio.delta', {
-              output_audio_format: openaiOutputAudioFormat,
-              raw_bytes: decodeBase64Safe(msg.delta)?.length,
-              converted: asPcm16,
-              payload_bytes: decodeBase64Safe(payload)?.length,
-            });
-          }
-
+          const payload = shouldTreatDeltaAsPcm16(msg.delta) ? pcm16ToG711UlawBase64(msg.delta) : msg.delta;
           sendToTwilio(twilioWs, {
             event: 'media',
             streamSid: ctx.streamSid,
