@@ -174,35 +174,13 @@ export class CalendarIntegrationService {
     // Import events into our system (mark them as synced from external)
     for (const event of events) {
       try {
-        const externalEventId = event?.id as string | undefined;
-        if (externalEventId) {
-          const existing = await this.appointmentsService.findAppointmentByExternalEventId(companyId, externalEventId);
-          if (existing) {
-            // Only update locally-tracked synced items to avoid fighting with owner-created appointments.
-            const isSynced =
-              existing?.created_by === 'SYNC' ||
-              (typeof existing?.service_type === 'string' && existing.service_type.startsWith('Synced from '));
-            if (isSynced) {
-              await this.appointmentsService.updateAppointmentFromExternalSync(companyId, existing.appointment_id, {
-                scheduled_start: new Date(event.start).getTime(),
-                scheduled_end: new Date(event.end).getTime(),
-                contact_name: event.summary || existing.contact_name,
-                notes: event.description,
-              });
-            }
-            continue;
-          }
-        }
-
         await this.appointmentsService.createAppointment(companyId, {
           scheduled_start: new Date(event.start).getTime(),
           scheduled_end: new Date(event.end).getTime(),
           contact_name: event.summary || 'External Event',
           service_type: 'Synced from Google Calendar',
           notes: event.description,
-          created_by: 'SYNC',
-          external_event_id: externalEventId,
-          external_provider: 'GOOGLE',
+          created_by: 'USER',
         } as any);
       } catch (err) {
         console.error('Error importing event:', err);
@@ -235,34 +213,13 @@ export class CalendarIntegrationService {
     // Import events into our system
     for (const event of events) {
       try {
-        const externalEventId = event?.id as string | undefined;
-        if (externalEventId) {
-          const existing = await this.appointmentsService.findAppointmentByExternalEventId(companyId, externalEventId);
-          if (existing) {
-            const isSynced =
-              existing?.created_by === 'SYNC' ||
-              (typeof existing?.service_type === 'string' && existing.service_type.startsWith('Synced from '));
-            if (isSynced) {
-              await this.appointmentsService.updateAppointmentFromExternalSync(companyId, existing.appointment_id, {
-                scheduled_start: new Date(event.start).getTime(),
-                scheduled_end: new Date(event.end).getTime(),
-                contact_name: event.summary || existing.contact_name,
-                notes: event.description,
-              });
-            }
-            continue;
-          }
-        }
-
         await this.appointmentsService.createAppointment(companyId, {
           scheduled_start: new Date(event.start).getTime(),
           scheduled_end: new Date(event.end).getTime(),
           contact_name: event.summary || 'External Event',
           service_type: 'Synced from Microsoft Calendar',
           notes: event.description,
-          created_by: 'SYNC',
-          external_event_id: externalEventId,
-          external_provider: 'MICROSOFT',
+          created_by: 'USER',
         } as any);
       } catch (err) {
         console.error('Error importing event:', err);
@@ -481,11 +438,11 @@ export class CalendarIntegrationService {
     }
   }
 
-  async updateEventInExternalCalendar(companyId: string, appointment: any): Promise<string | null> {
+  async updateEventInExternalCalendar(companyId: string, appointment: any): Promise<void> {
     const company = await this.companiesService.findById(companyId);
 
     if (!company || !company.calendar_connection || company.calendar_mode !== 'EXTERNAL') {
-      return null; // No external calendar connected, skip update
+      return; // No external calendar connected, skip update
     }
 
     const provider = company.calendar_provider;
@@ -494,8 +451,8 @@ export class CalendarIntegrationService {
 
     // If no external event ID, try to create instead
     if (!externalEventId) {
-      const result = await this.pushEventToExternalCalendar(companyId, appointment);
-      return (result?.externalEventId as string | undefined) ?? null;
+      await this.pushEventToExternalCalendar(companyId, appointment);
+      return;
     }
 
     try {
@@ -532,8 +489,6 @@ export class CalendarIntegrationService {
       console.error('Error updating event in external calendar:', err);
       // Don't fail the appointment update if external sync fails
     }
-
-    return null;
   }
 
   async deleteEventFromExternalCalendar(companyId: string, appointment: any): Promise<void> {
@@ -649,34 +604,13 @@ export class CalendarIntegrationService {
     // Import events into our system
     for (const event of events) {
       try {
-        const externalEventId = event?.id as string | undefined;
-        if (externalEventId) {
-          const existing = await this.appointmentsService.findAppointmentByExternalEventId(companyId, externalEventId);
-          if (existing) {
-            const isSynced =
-              existing?.created_by === 'SYNC' ||
-              (typeof existing?.service_type === 'string' && existing.service_type.startsWith('Synced from '));
-            if (isSynced) {
-              await this.appointmentsService.updateAppointmentFromExternalSync(companyId, existing.appointment_id, {
-                scheduled_start: new Date(event.start).getTime(),
-                scheduled_end: new Date(event.end).getTime(),
-                contact_name: event.summary || existing.contact_name,
-                notes: event.description,
-              });
-            }
-            continue;
-          }
-        }
-
         await this.appointmentsService.createAppointment(companyId, {
           scheduled_start: new Date(event.start).getTime(),
           scheduled_end: new Date(event.end).getTime(),
           contact_name: event.summary || 'External Event',
           service_type: 'Synced from Apple Calendar',
           notes: event.description,
-          created_by: 'SYNC',
-          external_event_id: externalEventId,
-          external_provider: 'APPLE',
+          created_by: 'USER',
         } as any);
       } catch (err) {
         console.error('Error importing event:', err);

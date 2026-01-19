@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsObject, IsBoolean, IsNumber, IsIn, IsArray } from 'class-validator';
+import { IsString, IsOptional, IsObject, IsBoolean, IsNumber, IsIn } from 'class-validator';
 import { BusinessHours } from '@handycall/shared';
 
 export class UpdateCompanyDto {
@@ -21,23 +21,6 @@ export class UpdateCompanyDto {
   @IsOptional()
   @IsObject()
   business_hours?: BusinessHours;
-
-  @IsOptional()
-  @IsArray()
-  @IsObject({ each: true })
-  schedule_overrides?: Array<{
-    date: string; // YYYY-MM-DD
-    closed?: boolean;
-    segments?: Array<{ open: string; close: string }>;
-  }>;
-
-  @IsOptional()
-  @IsNumber()
-  appointment_duration_minutes?: number;
-
-  @IsOptional()
-  @IsNumber()
-  slot_interval_minutes?: number;
 
   @IsOptional()
   @IsBoolean()

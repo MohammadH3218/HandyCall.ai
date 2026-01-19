@@ -161,16 +161,12 @@ export class CompaniesService {
       email?: string;
       timezone?: string;
       business_hours?: BusinessHours;
-      schedule_overrides?: any;
-      appointment_duration_minutes?: number;
-      slot_interval_minutes?: number;
       status?: CompanyStatus;
       subscription_tier?: string;
       trial_ends_at?: number | null;
       trial_used_at?: number | null;
       calls_enabled?: boolean;
       sms_enabled?: boolean;
-      use_simple_scheduling?: boolean;
       // Billing fields
       stripe_customer_id?: string;
       stripe_subscription_id?: string | null;

@@ -1373,7 +1373,7 @@ export default function AppointmentsPage() {
 
       {/* Calendar Settings Dialog */}
       <Dialog open={isCalendarSettingsOpen} onOpenChange={setIsCalendarSettingsOpen}>
-        <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
+        <DialogContent className="max-w-3xl">
           <DialogHeader>
             <DialogTitle>Calendar Settings</DialogTitle>
           </DialogHeader>

@@ -323,14 +323,11 @@ export class AppleCalendarService {
       let start = '';
       let end = '';
       let description = '';
-      let uid = '';
       
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i].trim();
         if (line.startsWith('SUMMARY:')) {
           summary = line.substring(8);
-        } else if (line.startsWith('UID:')) {
-          uid = line.substring(4);
         } else if (line.startsWith('DTSTART')) {
           const dateMatch = line.match(/DTSTART[^:]*:(.+)/);
           if (dateMatch) start = dateMatch[1];
@@ -345,7 +342,7 @@ export class AppleCalendarService {
       if (!start) return null;
       
       return {
-        id: uid || `apple-${Date.now()}`,
+        id: `apple-${Date.now()}`,
         summary,
         description,
         start: this.parseICalendarDate(start),
