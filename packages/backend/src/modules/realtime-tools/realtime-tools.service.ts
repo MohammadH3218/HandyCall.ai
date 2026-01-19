@@ -10,6 +10,7 @@ import { SchedulingService } from '../scheduling/scheduling.service';
 import { UsageService } from '../billing/usage.service';
 import { zonedTimeToUtcMs } from '../scheduling/timezone';
 import * as chrono from 'chrono-node';
+import { AppointmentsService } from '../appointments/appointments.service';
 import {
   Call,
   CallDirection,
@@ -48,6 +49,7 @@ export class RealtimeToolsService {
     private readonly knowledge: KnowledgeService,
     private readonly scheduling: SchedulingService,
     private readonly usageService: UsageService,
+    private readonly appointmentsService: AppointmentsService,
   ) {}
 
   private twilioAuthHeader(): string {
@@ -638,28 +640,31 @@ export class RealtimeToolsService {
       throw new BadRequestException('Requested time is no longer available');
     }
 
-    const appointment_id = uuidv4();
-    const now = Date.now();
+    // Use the canonical appointments service so the record is consistent and external calendars are synced.
+    let contact_phone: string | undefined;
+    if (dto.call_id) {
+      try {
+        const call: any = await this.dynamodb.get('calls', { company_id, call_id: dto.call_id });
+        if (typeof call?.from_number === 'string' && call.from_number.trim()) {
+          contact_phone = call.from_number.trim();
+        }
+      } catch {
+        // non-fatal
+      }
+    }
 
-    const appointment = {
-      appointment_id,
-      company_id,
-      contact_id: dto.contact_id,
-      call_id: dto.call_id,
+    const appointment: any = await this.appointmentsService.createAppointment(company_id, {
       scheduled_start: new Date(slot.start_time).getTime(),
       scheduled_end: new Date(slot.end_time).getTime(),
-      status: AppointmentStatus.SCHEDULED,
-      service_type: company.service_type ?? 'General',
       contact_name: dto.customer_name,
       contact_email: customerEmail,
+      contact_phone,
+      service_type: company.service_type ?? 'General',
       notes: dto.notes,
       created_by: 'AI',
-      confirmed: true,
-      created_at: now,
-      updated_at: now,
-    };
+    });
 
-    await this.dynamodb.put('appointments', appointment);
+    const appointment_id = appointment?.appointment_id;
 
     if (dto.call_id) {
       await this.dynamodb.update(

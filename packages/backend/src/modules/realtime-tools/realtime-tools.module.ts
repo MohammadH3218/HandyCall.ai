@@ -8,9 +8,18 @@ import { RealtimeToolsController } from './realtime-tools.controller';
 import { RealtimeToolsService } from './realtime-tools.service';
 import { ToolsAuthGuard } from '../../common/guards/tools-auth.guard';
 import { SchedulingModule } from '../scheduling/scheduling.module';
+import { AppointmentsModule } from '../appointments/appointments.module';
 
 @Module({
-  imports: [CompaniesModule, AgentConfigModule, CompanyNumbersModule, KnowledgeModule, SchedulingModule, BillingModule],
+  imports: [
+    CompaniesModule,
+    AgentConfigModule,
+    CompanyNumbersModule,
+    KnowledgeModule,
+    SchedulingModule,
+    BillingModule,
+    AppointmentsModule,
+  ],
   controllers: [RealtimeToolsController],
   providers: [RealtimeToolsService, ToolsAuthGuard],
 })
