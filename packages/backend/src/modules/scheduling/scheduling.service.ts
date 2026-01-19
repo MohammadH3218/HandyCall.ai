@@ -22,7 +22,19 @@ function asMs(input: string): number {
 
 function getScheduleForDay(company: Company, weekdayKey: string): DaySchedule | undefined {
   const hours: any = company.business_hours || {};
-  return hours?.[weekdayKey];
+  const direct = hours?.[weekdayKey];
+  if (direct) return direct;
+  const shortMap: Record<string, string> = {
+    monday: 'mon',
+    tuesday: 'tue',
+    wednesday: 'wed',
+    thursday: 'thu',
+    friday: 'fri',
+    saturday: 'sat',
+    sunday: 'sun',
+  };
+  const shortKey = shortMap[weekdayKey];
+  return shortKey ? hours?.[shortKey] : undefined;
 }
 
 function pad2(n: number): string {

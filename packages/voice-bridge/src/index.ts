@@ -1171,6 +1171,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
               if (patch && typeof patch === 'object') {
                 intake = { ...intake, ...patch };
               }
+              const recentAssistantPrompt = (pendingAssistantText.trim() || pendingAssistantHeuristicText.trim()).slice(0, 240);
               // Tell the model what we have so it stops asking twice.
               sendToOpenAI(openaiWs, {
                 type: 'conversation.item.create',
@@ -1189,7 +1190,14 @@ wss.on('connection', (twilioWs: WebSocket) => {
                 type: 'conversation.item.create',
                 item: { type: 'function_call_output', call_id: toolCallId, output: JSON.stringify({ ok: true, intake }) },
               });
-              sendToOpenAI(openaiWs, responseCreate());
+              const continueInstructions = [
+                'Continue the conversation without repeating the last question.',
+                recentAssistantPrompt ? `You already asked: "${recentAssistantPrompt}". Do not repeat it.` : '',
+                'If you already asked a question, wait for the caller to answer. Otherwise ask the next missing detail.',
+              ]
+                .filter(Boolean)
+                .join(' ');
+              sendToOpenAI(openaiWs, responseCreate(['audio', 'text'], continueInstructions));
               return;
             }
 
