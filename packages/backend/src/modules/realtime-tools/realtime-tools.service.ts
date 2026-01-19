@@ -618,14 +618,17 @@ export class RealtimeToolsService {
       }
     }
 
+    const durationMinutes = this.scheduling.getDurationMinutes(company);
     const startMs = Date.parse(startIso);
-    const endMs = endIso ? Date.parse(endIso) : NaN;
-    if (!Number.isFinite(endMs) || endMs <= startMs) {
+    let endMs = endIso ? Date.parse(endIso) : NaN;
+    const minWindowMs = durationMinutes * 60_000;
+    const endTooShort = Number.isFinite(endMs) && endMs - startMs < minWindowMs;
+    if (!Number.isFinite(endMs) || endMs <= startMs || endTooShort) {
       const parsed = chrono.parse(startRaw, new Date())[0];
       const hasTime = !!(parsed?.start?.isCertain('hour') || parsed?.start?.isCertain('minute'));
-      const durationMinutes = this.scheduling.getDurationMinutes(company);
       const extendMinutes = hasTime ? Math.max(120, durationMinutes) : 24 * 60;
       endIso = new Date(startMs + extendMinutes * 60_000).toISOString();
+      endMs = Date.parse(endIso);
     }
     const slots = await this.scheduling.getAvailability(company, startIso, endIso);
 
@@ -650,9 +653,16 @@ export class RealtimeToolsService {
       `caller-${(dto.contact_id || dto.call_id || 'unknown').replace(/[^a-zA-Z0-9]/g, '')}@handycall.invalid`;
 
     const startIso = this.coerceToUtcIso(dto.start_time, timeZone);
-    const endIso = dto.end_time
+    const durationMinutes = this.scheduling.getDurationMinutes(company);
+    let endIso = dto.end_time
       ? this.coerceToUtcIso(dto.end_time, timeZone)
-      : new Date(Date.parse(startIso) + this.scheduling.getDurationMinutes(company) * 60_000).toISOString();
+      : new Date(Date.parse(startIso) + durationMinutes * 60_000).toISOString();
+    const startMs = Date.parse(startIso);
+    let endMs = Date.parse(endIso);
+    if (!Number.isFinite(endMs) || endMs <= startMs || endMs - startMs < durationMinutes * 60_000) {
+      endIso = new Date(startMs + durationMinutes * 60_000).toISOString();
+      endMs = Date.parse(endIso);
+    }
 
     const [slot] = await this.scheduling.getAvailability(company, startIso, endIso);
     if (!slot) {

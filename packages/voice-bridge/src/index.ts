@@ -219,7 +219,7 @@ function toolsSchema() {
           description: 'IANA timezone (e.g., America/Chicago). Optional; defaults to company timezone.',
         },
       },
-      required: ['start_time', 'end_time'],
+      required: ['start_time'],
     },
   });
 
@@ -277,27 +277,30 @@ function buildInstructions(input: {
 }) {
   const { company_name, service_type, timezone, extra } = input;
   const lines = [
-    `You are a warm, natural-sounding human receptionist for ${company_name}.`,
+    `You are a friendly, natural-sounding receptionist for ${company_name}.`,
     `Your job: quickly understand the caller's need, capture details, and either schedule or create a lead.`,
-    `Do NOT follow a rigid script. Be conversational, adaptive, and helpful while still collecting what’s needed.`,
-    `Style: 1–2 short sentences max per turn, then a question. No monologues. No "thinking out loud".`,
+    `Be conversational and adaptive while still collecting what is needed.`,
+    `Sound like a real person on the phone: use contractions, vary phrasing, and avoid repeating a sentence in the same turn.`,
+    `Style: 1-2 short sentences max per turn, then a question. No monologues. No "thinking out loud".`,
     `Confirm critical fields (name, phone, address/zip, preferred time) before ending, but do NOT repeat the caller word-for-word.`,
-    `When confirming, paraphrase naturally and group info: e.g., "Got it—plumbing help in 77441, aiming for Monday around 11. Is that right?"`,
-    `Confirmation policy (very important): confirm EACH field immediately when it is first provided, then mark it confirmed in update_intake. Example flow: ask name → confirm name → ask zip/address → confirm zip/address → ask preferred time → confirm time. Once confirmed, do NOT confirm that same field again unless the caller corrects it. If the caller says a field is wrong, ask for the correct value and THEN confirm the corrected value again before moving on. Do NOT do a full end-of-call recap of every detail.`,
+    `When confirming, paraphrase naturally and group info: e.g., "Got it - plumbing help in 77441, aiming for Monday around 11. Is that right?"`,
+    `Confirmation policy (very important): confirm EACH field immediately when it is first provided, then mark it confirmed in update_intake. Example flow: ask name -> confirm name -> ask zip/address -> confirm zip/address -> ask preferred time -> confirm time. Once confirmed, do NOT confirm that same field again unless the caller corrects it. If the caller says a field is wrong, ask for the correct value and THEN confirm the corrected value again before moving on. Do NOT do a full end-of-call recap of every detail.`,
     `If the caller already told you the issue/service details, do NOT ask again. Summarize briefly and move forward.`,
-    `Use update_intake any time you learn a detail (name, zip, address, phone, service, issue, preferred time) so you don’t ask twice. After the caller confirms a field (e.g., says "yes"), immediately call update_intake to lock it in.`,
+    `Use update_intake any time you learn a detail (name, zip, address, phone, service, issue, preferred time) so you do not ask twice. After the caller confirms a field (e.g., says "yes"), immediately call update_intake to lock it in.`,
     `Zip codes: confirm digits explicitly (e.g., "Just to confirm, that's 7-7-4-4-1?").`,
-    `Knowledge policy: use knowledge_search for business-specific facts (services, products/solutions used, pricing, plans, what's included, policies). If you can't find it in knowledge_search or you're not sure, do NOT guess; say you're not sure and you'll note it down and have the team follow up.`,
+    `Knowledge policy: use knowledge_search for business-specific facts (services, products/solutions used, pricing, plans, what's included, policies). Answer naturally in 1-2 sentences and ask a short follow-up if helpful.`,
+    `If you can't find it in knowledge_search or you're not sure, do NOT guess; say you'll note it and have the team follow up.`,
     `If the caller asks about the business, use knowledge_search to answer accurately.`,
     `Scheduling policy: the caller can request a specific date/time or ask what times are available on a day.`,
-    `- If they request a time: say "Let me check availability", then call get_availability for a narrow window around that time. If available, call create_booking to book it and confirm the booked time. If not, call get_availability for that day and offer the 2-3 closest available times.`,
+    `- If they request a time: say "Let me check availability", then call get_availability for a 2-3 hour window around that time. If available, call create_booking to book it and confirm the booked time. If not, call get_availability for that day and offer the 2-3 closest available times.`,
     `- If they ask "what times are available on Monday": call get_availability for that day and offer a small set of options (e.g., 3-5).`,
+    `If get_availability returns no slots, expand the window once before telling the caller there are no openings.`,
     `Always keep scheduling within the business hours. Never invent availability.`,
     `If the caller talks over you, stop immediately and listen (barge-in).`,
     `If you are unsure, ask one clarifying question.`,
     `Always be truthful; never invent availability.`,
     `End-of-call policy: once the caller confirms the details are correct, ask: "Is there anything else I can help with today?"`,
-    `If they say no, say one short friendly goodbye (e.g., "Thanks for calling — if you need anything else, just give us a call back."), then call save_call with a concise summary + collected fields, then call end_call.`,
+    `If they say no, say one short friendly goodbye (e.g., "Thanks for calling - if you need anything else, just give us a call back."), then call save_call with a concise summary + collected fields, then call end_call.`,
     `If they say yes, continue helping and do NOT end the call.`,
     timezone ? `Timezone: ${timezone}.` : null,
     service_type ? `Business type: ${service_type}.` : null,
@@ -605,6 +608,9 @@ wss.on('connection', (twilioWs: WebSocket) => {
   let lastUserSpeechStartedAt = 0;
   let openaiOutputAudioFormat: string = 'g711_ulaw';
   let audioDeltaDebugCount = 0;
+  let lastAssistantText = '';
+  let lastAssistantAt = 0;
+  let lastResponseId: string | null = null;
 
   function log(msg: string, extra?: any) {
     const prefix = ctx ? `[callSid=${ctx.callSid} streamSid=${ctx.streamSid}]` : '[twilio]';
@@ -672,7 +678,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
     const bytes = decodeBase64Safe(deltaBase64);
     if (!bytes) return false;
     if (bytes.length % 2 !== 0) return false;
-    return bytes.length >= 800;
+    return bytes.length >= 280;
   }
 
   function mergedTranscriptText(): string {
@@ -781,6 +787,26 @@ wss.on('connection', (twilioWs: WebSocket) => {
       }
     }
     return textPieces.join(' ').trim();
+  }
+
+  function dedupeAssistantText(text: string): string {
+    const trimmed = (text || '').trim();
+    if (!trimmed) return '';
+    const collapsed = trimmed.replace(/\s+/g, ' ');
+    const words = collapsed.split(' ');
+    if (words.length >= 2 && words.length % 2 === 0) {
+      const half = words.length / 2;
+      const first = words.slice(0, half).join(' ');
+      const second = words.slice(half).join(' ');
+      if (first === second) return first;
+    }
+    const mid = Math.floor(collapsed.length / 2);
+    if (collapsed.length >= 4 && collapsed.length % 2 === 0) {
+      const first = collapsed.slice(0, mid).trim();
+      const second = collapsed.slice(mid).trim();
+      if (first && second && first === second) return first;
+    }
+    return collapsed;
   }
 
   async function performHangup(reason: string) {
@@ -929,7 +955,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
             input_audio_format: 'g711_ulaw',
             output_audio_format: 'g711_ulaw',
             input_audio_transcription: { model: 'gpt-4o-mini-transcribe' },
-            // Lower silence threshold reduces perceived latency between user stop → assistant start.
+            // Lower silence threshold reduces perceived latency between user stop -> assistant start.
             // Too low can cause interruptions; tune if you notice cutoffs.
             turn_detection: { type: 'server_vad', silence_duration_ms: 900 },
           },
@@ -941,7 +967,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
           type: 'response.create',
           response: {
             modalities: ['audio', 'text'],
-            instructions: 'Start with a very short greeting and ask how you can help.',
+            instructions: 'Give one short greeting (do not repeat it) and ask how you can help.',
           },
         });
         noResponseStage = 0;
@@ -1171,7 +1197,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
 
             if (toolName === 'end_call') {
               // Don't hang up immediately inside the tool call (it can cut off the final audio).
-              // Acknowledge the tool, then hang up after the response audio finishes (response.done → mark/timer).
+              // Acknowledge the tool, then hang up after the response audio finishes (response.done -> mark/timer).
               if (!pendingAutoHangup) {
                 pendingAutoHangup = true;
                 pendingHangupMarkName = `model_end_${Date.now()}`;
@@ -1299,10 +1325,22 @@ wss.on('connection', (twilioWs: WebSocket) => {
 
         if (msg?.type === 'response.done') {
           const extracted = extractAssistantTextFromDone(msg);
-          const finalAssistant = extracted || pendingAssistantText.trim() || pendingAssistantHeuristicText.trim();
-          if (finalAssistant) {
+          const candidate =
+            pendingAssistantText.trim() || pendingAssistantHeuristicText.trim() || extracted;
+          const finalAssistant = dedupeAssistantText(candidate);
+          const responseId = msg?.response?.id as string | undefined;
+          const now = Date.now();
+          const isDuplicateResponse = responseId && responseId === lastResponseId;
+          const isDuplicateText =
+            finalAssistant &&
+            finalAssistant === lastAssistantText &&
+            now - lastAssistantAt < 4000;
+          if (!isDuplicateResponse && finalAssistant && !isDuplicateText) {
             conversation.push({ role: 'assistant', text: finalAssistant });
+            lastAssistantText = finalAssistant;
+            lastAssistantAt = now;
           }
+          if (responseId) lastResponseId = responseId;
           pendingAssistantText = '';
           pendingAssistantHeuristicText = '';
           assistantTranscriptSource = null;
