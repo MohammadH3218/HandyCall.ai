@@ -21,6 +21,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const { isAuthenticated, isLoading, checkAuth, userRole, company } = useAuthStore();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [knowledgeCount, setKnowledgeCount] = useState<number | null>(null);
+  const [companyNumber, setCompanyNumber] = useState<string | null>(null);
+  const [companyNumberLoaded, setCompanyNumberLoaded] = useState(false);
 
   const hasWorkingHours = useMemo(() => {
     if (!company?.business_hours || typeof company.business_hours !== 'object') return false;
@@ -40,6 +42,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         calendar: false,
         schedule: false,
         knowledge: false,
+        phone: false,
       };
     }
     const billing = Boolean(
@@ -53,12 +56,19 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     const schedule = Boolean((company as any).schedule_setup_completed) || scheduleReady;
     const calendar = company.calendar_setup_completed === true;
     const knowledge = knowledgeComplete;
-    return { billing, calendar, schedule, knowledge };
-  }, [company, hasWorkingHours, knowledgeComplete]);
+    const phone = Boolean(companyNumber);
+    return { billing, calendar, schedule, knowledge, phone };
+  }, [company, hasWorkingHours, knowledgeComplete, companyNumber]);
 
   const needsSetup = useMemo(() => {
     if (!company) return false;
-    return !setupStatus.billing || !setupStatus.calendar || !setupStatus.schedule || !setupStatus.knowledge;
+    return (
+      !setupStatus.billing ||
+      !setupStatus.calendar ||
+      !setupStatus.schedule ||
+      !setupStatus.knowledge ||
+      !setupStatus.phone
+    );
   }, [company, setupStatus]);
 
   useEffect(() => {
@@ -75,7 +85,30 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     void loadKnowledge();
   }, [company, userRole, pathname]);
 
-  const showSetupModal = needsSetup && pathname !== '/dashboard/setup' && userRole !== UserRole.ADMIN;
+  useEffect(() => {
+    if (!company || userRole === UserRole.ADMIN) return;
+    const loadNumber = async () => {
+      try {
+        const res: any = await apiClient.getMyTelephonyNumber();
+        const phone =
+          res?.phoneNumber ??
+          res?.phone_number ??
+          res?.data?.phoneNumber ??
+          res?.data?.phone_number ??
+          null;
+        setCompanyNumber(phone || null);
+      } catch {
+        setCompanyNumber(null);
+      } finally {
+        setCompanyNumberLoaded(true);
+      }
+    };
+    void loadNumber();
+  }, [company, userRole]);
+
+  const setupDataReady = knowledgeCount !== null && companyNumberLoaded;
+  const showSetupModal =
+    setupDataReady && needsSetup && pathname !== '/dashboard/setup' && userRole !== UserRole.ADMIN;
 
   useEffect(() => {
     const populate = async () => {
@@ -258,7 +291,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
         {/* Main Content Area */}
         <main className="flex-1 overflow-auto p-4 sm:p-6 lg:p-8">
-          {needsSetup && (
+          {setupDataReady && needsSetup && (
             <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div>
                 <div className="text-sm font-semibold text-amber-900">Finish your setup</div>
@@ -310,6 +343,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 <span>Knowledge base</span>
                 <Badge className={setupStatus.knowledge ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-700 border border-amber-200'}>
                   {setupStatus.knowledge ? 'Done' : 'Required'}
+                </Badge>
+              </div>
+              <div className="flex items-center justify-between">
+                <span>Company phone number</span>
+                <Badge className={setupStatus.phone ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-700 border border-amber-200'}>
+                  {setupStatus.phone ? 'Linked' : 'Missing'}
                 </Badge>
               </div>
             </div>

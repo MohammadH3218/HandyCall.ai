@@ -207,6 +207,8 @@ export class RealtimeToolsService {
       agent_config: config,
       calls_enabled: company.calls_enabled,
       sms_enabled: company.sms_enabled,
+      calendar_setup_completed: company.calendar_setup_completed ?? false,
+      schedule_setup_completed: (company as any).schedule_setup_completed ?? false,
     };
   }
 

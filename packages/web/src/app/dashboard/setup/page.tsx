@@ -20,6 +20,7 @@ import {
   CreditCard,
   ExternalLink,
   MessageSquare,
+  Phone,
 } from 'lucide-react';
 
 type CalendarProvider = 'GOOGLE' | 'MICROSOFT' | 'APPLE';
@@ -40,6 +41,8 @@ export default function SetupPage() {
   const { company } = useAuthStore();
   const [knowledgeCount, setKnowledgeCount] = useState<number | null>(null);
   const [isLoadingKnowledge, setIsLoadingKnowledge] = useState(false);
+  const [companyNumber, setCompanyNumber] = useState<string | null>(null);
+  const [isLoadingNumber, setIsLoadingNumber] = useState(false);
   const [isSavingCalendarMode, setIsSavingCalendarMode] = useState(false);
   const [isMarkingSchedule, setIsMarkingSchedule] = useState(false);
   const [isCalendarProviderDialogOpen, setIsCalendarProviderDialogOpen] = useState(false);
@@ -60,11 +63,12 @@ export default function SetupPage() {
   const scheduleReady = Boolean(company?.timezone) && hasWorkingHours(company?.business_hours);
   const scheduleComplete = Boolean(company?.schedule_setup_completed) || scheduleReady;
   const knowledgeComplete = (knowledgeCount ?? 0) > 0;
+  const phoneComplete = Boolean(companyNumber);
 
   const completedCount = useMemo(() => {
-    const steps = [hasActiveSubscription, calendarComplete, scheduleComplete, knowledgeComplete];
+    const steps = [hasActiveSubscription, calendarComplete, scheduleComplete, knowledgeComplete, phoneComplete];
     return steps.filter(Boolean).length;
-  }, [hasActiveSubscription, calendarComplete, scheduleComplete, knowledgeComplete]);
+  }, [hasActiveSubscription, calendarComplete, scheduleComplete, knowledgeComplete, phoneComplete]);
 
   useEffect(() => {
     const loadKnowledge = async () => {
@@ -81,6 +85,28 @@ export default function SetupPage() {
       }
     };
     void loadKnowledge();
+  }, []);
+
+  useEffect(() => {
+    const loadNumber = async () => {
+      setIsLoadingNumber(true);
+      try {
+        const res: any = await apiClient.getMyTelephonyNumber();
+        const phone =
+          res?.phoneNumber ??
+          res?.phone_number ??
+          res?.data?.phoneNumber ??
+          res?.data?.phone_number ??
+          null;
+        setCompanyNumber(phone || null);
+      } catch (err: any) {
+        console.error('Failed to load phone number:', err);
+        setCompanyNumber(null);
+      } finally {
+        setIsLoadingNumber(false);
+      }
+    };
+    void loadNumber();
   }, []);
 
   const handleUseInternalCalendar = async () => {
@@ -204,7 +230,7 @@ export default function SetupPage() {
         </p>
         <div className="mt-4 flex flex-wrap items-center gap-3">
           <Badge className="bg-emerald-50 text-emerald-700 border border-emerald-200">
-            {completedCount} / 4 steps complete
+            {completedCount} / 5 steps complete
           </Badge>
           {completedCount === 4 ? (
             <div className="flex items-center gap-2 text-sm text-emerald-700">
@@ -339,6 +365,34 @@ export default function SetupPage() {
             </div>
             <Button asChild>
               <Link href="/dashboard/knowledge">Add knowledge</Link>
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Phone className="h-5 w-5 text-primary" />
+              Company phone number
+            </CardTitle>
+            <CardDescription>Customers call this number to reach your AI receptionist.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex flex-wrap items-center gap-3">
+              <Badge className={phoneComplete ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-700 border border-amber-200'}>
+                {phoneComplete ? 'Linked' : 'Missing'}
+              </Badge>
+              <span className="text-sm text-gray-700">
+                {isLoadingNumber ? 'Checking number...' : companyNumber || 'No number assigned yet'}
+              </span>
+            </div>
+            {!phoneComplete && (
+              <div className="text-sm text-gray-600">
+                Phone numbers are assigned by HandyCall. Contact support if you need one linked.
+              </div>
+            )}
+            <Button variant="outline" asChild>
+              <Link href="/dashboard/settings">View in Settings</Link>
             </Button>
           </CardContent>
         </Card>

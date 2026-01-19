@@ -121,8 +121,62 @@ function normalizeNameCandidate(input: string): string | null {
   if (!cleaned) return null;
   const lower = cleaned.toLowerCase();
   if (['yes', 'yeah', 'yep', 'no', 'nope', 'nah', 'ok', 'okay'].includes(lower)) return null;
+  const bannedPhrases = [
+    'my focus',
+    'my issue',
+    'my problem',
+    'my question',
+    'my address',
+    'my zip',
+    'my number',
+    'my time',
+    'my date',
+    'booking',
+    'appointment',
+    'schedule',
+    'pest',
+    'bug',
+    'service',
+  ];
+  if (bannedPhrases.some((p) => lower.includes(p))) return null;
   if (cleaned.length > 60) return null;
+  const wordCount = cleaned.split(/\\s+/).filter(Boolean).length;
+  if (wordCount > 4) return null;
   return cleaned;
+}
+
+function looksLikeAddress(input: string): boolean {
+  const text = input.trim().toLowerCase();
+  if (!text) return false;
+  const hasNumber = /\\d/.test(text);
+  const hasLetter = /[a-z]/i.test(text);
+  if (!hasNumber || !hasLetter) return false;
+  const keywords = [
+    ' street',
+    ' st',
+    ' road',
+    ' rd',
+    ' drive',
+    ' dr',
+    ' avenue',
+    ' ave',
+    ' lane',
+    ' ln',
+    ' boulevard',
+    ' blvd',
+    ' court',
+    ' ct',
+    ' circle',
+    ' cir',
+    ' way',
+    ' parkway',
+    ' pkwy',
+    ' place',
+    ' pl',
+    ' trail',
+    ' trl',
+  ];
+  return keywords.some((k) => text.includes(k));
 }
 
 function extractInlineIntake(lastPrompt: string, userText: string): Record<string, any> {
@@ -133,12 +187,13 @@ function extractInlineIntake(lastPrompt: string, userText: string): Record<strin
   if (!text) return out;
 
   if (prompt.includes('name')) {
-    const match = text.match(/(?:my name is|this is)\\s+([A-Za-z][A-Za-z\\s'-]{1,60})/i);
+    const match = text.match(/(?:my name is|my full name is|this is)\\s+([A-Za-z][A-Za-z\\s'-]{1,60})/i);
     const name = normalizeNameCandidate(match?.[1] || text);
     if (name) out.name = name;
   } else if (prompt.includes('zip')) {
     const zipMatch = text.match(/\\b\\d{5}\\b/);
     if (zipMatch) out.zip = zipMatch[0];
+    else if (looksLikeAddress(text)) out.address = text;
   } else if (prompt.includes('phone') || prompt.includes('number')) {
     const phone = extractPhone(text);
     if (phone) out.phone = phone;
@@ -194,9 +249,14 @@ function isLikelyNonAnswer(lastPrompt: string, userText: string): boolean {
 
   // If the user gave a plausible answer, don't treat it as a non-answer.
   if (prompt.includes('zip') && /\b\d{5}\b/.test(text)) return false;
-  if (prompt.includes('name') && /[a-z]/i.test(text)) return false;
+  if (prompt.includes('name')) {
+    if (normalizeNameCandidate(text)) return false;
+    return true;
+  }
   if ((prompt.includes('time') || prompt.includes('date')) && /\d/.test(text)) return false;
   if ((prompt.includes('issue') || prompt.includes('problem') || prompt.includes('pest')) && wordCount >= 2) return false;
+  if (prompt.includes('zip') && looksLikeAddress(text)) return false;
+  if (prompt.includes('zip') && !/\b\d{5}\b/.test(text)) return true;
 
   return false;
 }
@@ -706,7 +766,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
   let noResponseStage: 0 | 1 = 0;
   let recordingStartAttempted = false;
   let pendingResponseTimer: NodeJS.Timeout | null = null;
-  let lastUserSpeechStartedAt = 0;
+  let lastUserTranscriptAt = 0;
   let userSpeechActive = false;
   let pendingUserTranscript = '';
   let pendingResponseAfterSpeech = false;
@@ -842,7 +902,8 @@ wss.on('connection', (twilioWs: WebSocket) => {
       return;
     }
     const wordCount = pendingUserTranscript.trim().split(/\s+/).filter(Boolean).length;
-    const delayMs = wordCount <= 2 ? 900 : 550;
+    const delayMs = wordCount <= 2 ? 900 : 650;
+    const minSilenceMs = 750;
     pendingResponseTimer = setTimeout(() => {
       pendingResponseTimer = null;
       if (!openaiWs || pendingAutoHangup) return;
@@ -850,8 +911,9 @@ wss.on('connection', (twilioWs: WebSocket) => {
         pendingResponseAfterSpeech = true;
         return;
       }
-      if (Date.now() - lastUserSpeechStartedAt < 600) {
+      if (Date.now() - lastUserTranscriptAt < minSilenceMs) {
         pendingResponseAfterSpeech = true;
+        scheduleAssistantResponse();
         return;
       }
       if (!pendingUserTranscript.trim()) return;
@@ -1133,7 +1195,6 @@ wss.on('connection', (twilioWs: WebSocket) => {
         // Barge-in: cancel assistant output when user starts talking.
         // Debounced to avoid background noise triggering constant interruptions.
         if (msg?.type === 'input_audio_buffer.speech_started') {
-          lastUserSpeechStartedAt = Date.now();
           userSpeechActive = true;
           clearNoResponseTimer();
           clearPendingResponseTimer();
@@ -1230,6 +1291,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
         if (msg?.type === 'conversation.item.input_audio_transcription.completed') {
           const t = msg?.transcript;
           if (typeof t === 'string' && t.trim()) {
+            lastUserTranscriptAt = Date.now();
             const text = t.trim();
             conversation.push({ role: 'caller', text });
             pendingUserTranscript = pendingUserTranscript
@@ -1335,6 +1397,35 @@ wss.on('connection', (twilioWs: WebSocket) => {
           }
 
           try {
+            if (toolName === 'get_availability' || toolName === 'create_booking') {
+              const calendarBlocked = tenant?.calendar_setup_completed === false;
+              const scheduleBlocked = tenant?.schedule_setup_completed === false;
+              if (calendarBlocked || scheduleBlocked) {
+                sendToOpenAI(openaiWs, {
+                  type: 'conversation.item.create',
+                  item: {
+                    type: 'function_call_output',
+                    call_id: toolCallId,
+                    output: JSON.stringify({
+                      ok: false,
+                      error: 'Scheduling is not fully configured for this account.',
+                    }),
+                  },
+                });
+                sendToOpenAI(
+                  openaiWs,
+                  responseCreate(
+                    ['audio', 'text'],
+                    'Our scheduling calendar is not fully set up yet. Apologize briefly and offer to take details so the team can follow up.'
+                  )
+                );
+                return;
+              }
+              if (tenant?.timezone && (!args?.timezone || typeof args.timezone !== 'string')) {
+                args = { ...args, timezone: tenant.timezone };
+              }
+            }
+
             if (toolName === 'update_intake') {
               const patch = args?.intake ?? args ?? {};
               if (patch && typeof patch === 'object') {
@@ -1361,15 +1452,10 @@ wss.on('connection', (twilioWs: WebSocket) => {
                 item: { type: 'function_call_output', call_id: toolCallId, output: JSON.stringify({ ok: true, intake }) },
               });
               const patchKeys = patch && typeof patch === 'object' ? Object.keys(patch) : [];
-              if (patchKeys.length === 0 && assistantAskedQuestion) {
-                sendToOpenAI(
-                  openaiWs,
-                  responseCreate(
-                    ['audio', 'text'],
-                    'Do not ask a new question yet. Wait for the caller to answer the last question.'
-                  )
-                );
-              } else if (!assistantAskedQuestion) {
+              if (patchKeys.length === 0) {
+                return;
+              }
+              if (!assistantAskedQuestion) {
                 sendToOpenAI(openaiWs, responseCreate());
               }
               return;
