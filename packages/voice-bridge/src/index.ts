@@ -664,6 +664,20 @@ wss.on('connection', (twilioWs: WebSocket) => {
     return out.toString('base64');
   }
 
+  function shouldTreatDeltaAsPcm16(deltaBase64: string): boolean {
+    if (openaiOutputAudioFormat === 'pcm16') return true;
+    if (openaiOutputAudioFormat === 'g711_ulaw') return false;
+
+    // Heuristic fallback: PCM16 frames are much larger than μ-law frames.
+    // Typical: PCM16 24kHz ~1920 bytes per 20ms, μ-law 8kHz ~160 bytes per 20ms.
+    try {
+      const bytes = Buffer.from(deltaBase64, 'base64');
+      return bytes.length >= 800 && bytes.length % 2 === 0;
+    } catch {
+      return false;
+    }
+  }
+
   function mergedTranscriptText(): string {
     const lines = conversation
       .map((item) => {
@@ -916,7 +930,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
             tools: toolsSchema(),
             tool_choice: 'auto',
             input_audio_format: 'g711_ulaw',
-            output_audio_format: 'pcm16',
+            output_audio_format: 'g711_ulaw',
             input_audio_transcription: { model: 'gpt-4o-mini-transcribe' },
             output_audio_transcription: { model: 'gpt-4o-mini-transcribe' },
             // Lower silence threshold reduces perceived latency between user stop → assistant start.
@@ -924,7 +938,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
             turn_detection: { type: 'server_vad', silence_duration_ms: 900 },
           },
         });
-        openaiOutputAudioFormat = 'pcm16';
+        openaiOutputAudioFormat = 'g711_ulaw';
 
         // Kick off an initial greeting ASAP (don't block on backend/tool latency).
         sendToOpenAI(openaiWs, {
@@ -994,8 +1008,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
 
         if (msg?.type === 'response.audio.delta' && typeof msg?.delta === 'string') {
           assistantAudioActiveUntil = Date.now() + 350;
-          const payload =
-            openaiOutputAudioFormat === 'pcm16' ? pcm16ToG711UlawBase64(msg.delta) : msg.delta;
+          const payload = shouldTreatDeltaAsPcm16(msg.delta) ? pcm16ToG711UlawBase64(msg.delta) : msg.delta;
           sendToTwilio(twilioWs, {
             event: 'media',
             streamSid: ctx.streamSid,
