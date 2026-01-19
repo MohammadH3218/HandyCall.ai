@@ -587,6 +587,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
   let ctx: CallContext | null = null;
   let conversation: Array<{ role: 'caller' | 'assistant'; text: string }> = [];
   let pendingAssistantText = '';
+  let pendingAssistantHeuristicText = '';
   let callSaved = false;
   let intake: Record<string, any> = {};
   let lastAssistantAskedAnythingElseAt: number | null = null;
@@ -601,11 +602,66 @@ wss.on('connection', (twilioWs: WebSocket) => {
   let recordingStartAttempted = false;
   let pendingResponseTimer: NodeJS.Timeout | null = null;
   let lastUserSpeechStartedAt = 0;
+  let openaiOutputAudioFormat: string = 'g711_ulaw';
 
   function log(msg: string, extra?: any) {
     const prefix = ctx ? `[callSid=${ctx.callSid} streamSid=${ctx.streamSid}]` : '[twilio]';
     if (extra !== undefined) console.log(prefix, msg, extra);
     else console.log(prefix, msg);
+  }
+
+  function linearPcm16ToMuLawSample(sample: number): number {
+    // G.711 μ-law encode (8-bit) from 16-bit linear PCM.
+    const BIAS = 0x84; // 132
+
+    let sign = 0;
+    let pcm = sample;
+    if (pcm < 0) {
+      sign = 0x80;
+      pcm = -pcm;
+    }
+
+    // Typical clip point for μ-law.
+    if (pcm > 32635) pcm = 32635;
+
+    pcm = pcm + BIAS;
+    let exponent = 7;
+    for (let expMask = 0x4000; (pcm & expMask) === 0 && exponent > 0; expMask >>= 1) {
+      exponent--;
+    }
+
+    const mantissa = (pcm >> (exponent + 3)) & 0x0f;
+    const ulawByte = ~(sign | (exponent << 4) | mantissa) & 0xff;
+
+    // Normalize edge cases.
+    if (ulawByte === 0) return 0x02;
+    if (ulawByte === 0xff) return 0x7f;
+    return ulawByte;
+  }
+
+  function pcm16ToG711UlawBase64(pcmBase64: string): string {
+    const pcm = Buffer.from(pcmBase64, 'base64');
+    const sampleCount = Math.floor(pcm.length / 2);
+    if (sampleCount <= 0) return '';
+
+    // OpenAI realtime PCM16 is typically 24kHz. Downsample to 8kHz by averaging groups of 3 samples.
+    const factor = 3;
+    const outSamples = Math.floor(sampleCount / factor);
+    if (outSamples <= 0) return '';
+
+    const out = Buffer.allocUnsafe(outSamples);
+    for (let i = 0; i < outSamples; i++) {
+      const base = i * factor;
+      let sum = 0;
+      for (let k = 0; k < factor; k++) {
+        const idx = (base + k) * 2;
+        sum += pcm.readInt16LE(idx);
+      }
+      const avg = Math.max(-32768, Math.min(32767, Math.round(sum / factor)));
+      out[i] = linearPcm16ToMuLawSample(avg);
+    }
+
+    return out.toString('base64');
   }
 
   function mergedTranscriptText(): string {
@@ -860,7 +916,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
             tools: toolsSchema(),
             tool_choice: 'auto',
             input_audio_format: 'g711_ulaw',
-            output_audio_format: 'g711_ulaw',
+            output_audio_format: 'pcm16',
             input_audio_transcription: { model: 'gpt-4o-mini-transcribe' },
             output_audio_transcription: { model: 'gpt-4o-mini-transcribe' },
             // Lower silence threshold reduces perceived latency between user stop → assistant start.
@@ -868,6 +924,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
             turn_detection: { type: 'server_vad', silence_duration_ms: 900 },
           },
         });
+        openaiOutputAudioFormat = 'pcm16';
 
         // Kick off an initial greeting ASAP (don't block on backend/tool latency).
         sendToOpenAI(openaiWs, {
@@ -901,6 +958,16 @@ wss.on('connection', (twilioWs: WebSocket) => {
           log('OpenAI session created', { id: msg?.session?.id });
         }
 
+        if (msg?.type === 'session.updated') {
+          const fmt = msg?.session?.output_audio_format;
+          if (typeof fmt === 'string' && fmt) openaiOutputAudioFormat = fmt;
+          log('OpenAI session updated', { output_audio_format: openaiOutputAudioFormat });
+        }
+
+        if (msg?.type === 'error') {
+          log('OpenAI error', msg);
+        }
+
         // Barge-in: cancel assistant output when user starts talking.
         // Debounced to avoid background noise triggering constant interruptions.
         if (msg?.type === 'input_audio_buffer.speech_started') {
@@ -927,10 +994,12 @@ wss.on('connection', (twilioWs: WebSocket) => {
 
         if (msg?.type === 'response.audio.delta' && typeof msg?.delta === 'string') {
           assistantAudioActiveUntil = Date.now() + 350;
+          const payload =
+            openaiOutputAudioFormat === 'pcm16' ? pcm16ToG711UlawBase64(msg.delta) : msg.delta;
           sendToTwilio(twilioWs, {
             event: 'media',
             streamSid: ctx.streamSid,
-            media: { payload: msg.delta },
+            media: { payload },
           });
         }
 
@@ -938,8 +1007,8 @@ wss.on('connection', (twilioWs: WebSocket) => {
           (msg?.type === 'response.output_text.delta' || msg?.type === 'response.text.delta') &&
           (typeof msg?.delta === 'string' || typeof msg?.text === 'string')
         ) {
-          pendingAssistantText += (msg.delta ?? msg.text) as string;
-          const recent = pendingAssistantText.slice(-250).toLowerCase();
+          pendingAssistantHeuristicText += (msg.delta ?? msg.text) as string;
+          const recent = pendingAssistantHeuristicText.slice(-250).toLowerCase();
           if (
             recent.includes('anything else i can help') ||
             recent.includes('anything else i can do') ||
@@ -1201,11 +1270,12 @@ wss.on('connection', (twilioWs: WebSocket) => {
 
         if (msg?.type === 'response.done') {
           const extracted = extractAssistantTextFromDone(msg);
-          const finalAssistant = extracted || pendingAssistantText.trim();
+          const finalAssistant = pendingAssistantText.trim() || extracted || pendingAssistantHeuristicText.trim();
           if (finalAssistant) {
             conversation.push({ role: 'assistant', text: finalAssistant });
           }
           pendingAssistantText = '';
+          pendingAssistantHeuristicText = '';
         }
       });
 
