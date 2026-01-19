@@ -587,6 +587,8 @@ wss.on('connection', (twilioWs: WebSocket) => {
   let ctx: CallContext | null = null;
   let conversation: Array<{ role: 'caller' | 'assistant'; text: string }> = [];
   let pendingAssistantText = '';
+  let pendingAssistantHeuristicText = '';
+  let assistantTranscriptSource: 'audio' | 'output_audio' | null = null;
   let callSaved = false;
   let intake: Record<string, any> = {};
   let lastAssistantAskedAnythingElseAt: number | null = null;
@@ -601,11 +603,76 @@ wss.on('connection', (twilioWs: WebSocket) => {
   let recordingStartAttempted = false;
   let pendingResponseTimer: NodeJS.Timeout | null = null;
   let lastUserSpeechStartedAt = 0;
+  let openaiOutputAudioFormat: string = 'g711_ulaw';
+  let audioDeltaDebugCount = 0;
 
   function log(msg: string, extra?: any) {
     const prefix = ctx ? `[callSid=${ctx.callSid} streamSid=${ctx.streamSid}]` : '[twilio]';
     if (extra !== undefined) console.log(prefix, msg, extra);
     else console.log(prefix, msg);
+  }
+
+  function linearPcm16ToMuLawSample(sample: number): number {
+    // G.711 mu-law encode (8-bit) from 16-bit linear PCM.
+    const BIAS = 0x84; // 132
+    let sign = 0;
+    let pcm = sample;
+    if (pcm < 0) {
+      sign = 0x80;
+      pcm = -pcm;
+    }
+    if (pcm > 32635) pcm = 32635;
+    pcm = pcm + BIAS;
+    let exponent = 7;
+    for (let expMask = 0x4000; (pcm & expMask) === 0 && exponent > 0; expMask >>= 1) {
+      exponent--;
+    }
+    const mantissa = (pcm >> (exponent + 3)) & 0x0f;
+    const ulawByte = ~(sign | (exponent << 4) | mantissa) & 0xff;
+    if (ulawByte === 0) return 0x02;
+    if (ulawByte === 0xff) return 0x7f;
+    return ulawByte;
+  }
+
+  function pcm16BytesToG711UlawBase64Adaptive(pcmBytes: Buffer): string {
+    const sampleCount = Math.floor(pcmBytes.length / 2);
+    if (sampleCount <= 0) return '';
+
+    let factor = 3;
+    if (pcmBytes.length <= 420) factor = 1;
+    else if (pcmBytes.length <= 740) factor = 2;
+
+    const outSamples = Math.floor(sampleCount / factor);
+    if (outSamples <= 0) return '';
+
+    const out = Buffer.allocUnsafe(outSamples);
+    for (let i = 0; i < outSamples; i++) {
+      const base = i * factor;
+      let sum = 0;
+      for (let k = 0; k < factor; k++) {
+        const idx = (base + k) * 2;
+        sum += pcmBytes.readInt16LE(idx);
+      }
+      const avg = Math.max(-32768, Math.min(32767, Math.round(sum / factor)));
+      out[i] = linearPcm16ToMuLawSample(avg);
+    }
+    return out.toString('base64');
+  }
+
+  function decodeBase64Safe(data: string): Buffer | null {
+    try {
+      return Buffer.from(data, 'base64');
+    } catch {
+      return null;
+    }
+  }
+
+  function shouldTreatDeltaAsPcm16(deltaBase64: string): boolean {
+    if (openaiOutputAudioFormat === 'pcm16') return true;
+    const bytes = decodeBase64Safe(deltaBase64);
+    if (!bytes) return false;
+    if (bytes.length % 2 !== 0) return false;
+    return bytes.length >= 800;
   }
 
   function mergedTranscriptText(): string {
@@ -862,12 +929,12 @@ wss.on('connection', (twilioWs: WebSocket) => {
             input_audio_format: 'g711_ulaw',
             output_audio_format: 'g711_ulaw',
             input_audio_transcription: { model: 'gpt-4o-mini-transcribe' },
-            output_audio_transcription: { model: 'gpt-4o-mini-transcribe' },
             // Lower silence threshold reduces perceived latency between user stop → assistant start.
             // Too low can cause interruptions; tune if you notice cutoffs.
             turn_detection: { type: 'server_vad', silence_duration_ms: 900 },
           },
         });
+        openaiOutputAudioFormat = 'g711_ulaw';
 
         // Kick off an initial greeting ASAP (don't block on backend/tool latency).
         sendToOpenAI(openaiWs, {
@@ -901,6 +968,12 @@ wss.on('connection', (twilioWs: WebSocket) => {
           log('OpenAI session created', { id: msg?.session?.id });
         }
 
+        if (msg?.type === 'session.updated') {
+          const fmt = msg?.session?.output_audio_format;
+          if (typeof fmt === 'string' && fmt) openaiOutputAudioFormat = fmt;
+          log('OpenAI session updated', { output_audio_format: openaiOutputAudioFormat });
+        }
+
         // Barge-in: cancel assistant output when user starts talking.
         // Debounced to avoid background noise triggering constant interruptions.
         if (msg?.type === 'input_audio_buffer.speech_started') {
@@ -927,10 +1000,23 @@ wss.on('connection', (twilioWs: WebSocket) => {
 
         if (msg?.type === 'response.audio.delta' && typeof msg?.delta === 'string') {
           assistantAudioActiveUntil = Date.now() + 350;
+          const asPcm16 = shouldTreatDeltaAsPcm16(msg.delta);
+          const bytes = asPcm16 ? decodeBase64Safe(msg.delta) : null;
+          const payload = asPcm16 && bytes ? pcm16BytesToG711UlawBase64Adaptive(bytes) : msg.delta;
+
+          if (audioDeltaDebugCount < 3) {
+            audioDeltaDebugCount++;
+            log('audio.delta', {
+              output_audio_format: openaiOutputAudioFormat,
+              raw_bytes: decodeBase64Safe(msg.delta)?.length,
+              converted: asPcm16,
+              payload_bytes: decodeBase64Safe(payload)?.length,
+            });
+          }
           sendToTwilio(twilioWs, {
             event: 'media',
             streamSid: ctx.streamSid,
-            media: { payload: msg.delta },
+            media: { payload },
           });
         }
 
@@ -938,8 +1024,8 @@ wss.on('connection', (twilioWs: WebSocket) => {
           (msg?.type === 'response.output_text.delta' || msg?.type === 'response.text.delta') &&
           (typeof msg?.delta === 'string' || typeof msg?.text === 'string')
         ) {
-          pendingAssistantText += (msg.delta ?? msg.text) as string;
-          const recent = pendingAssistantText.slice(-250).toLowerCase();
+          pendingAssistantHeuristicText += (msg.delta ?? msg.text) as string;
+          const recent = pendingAssistantHeuristicText.slice(-250).toLowerCase();
           if (
             recent.includes('anything else i can help') ||
             recent.includes('anything else i can do') ||
@@ -952,19 +1038,31 @@ wss.on('connection', (twilioWs: WebSocket) => {
         }
 
         // Prefer capturing what the assistant actually said (audio transcript) so the call log includes both sides.
+        const isAudioTranscriptDelta = msg?.type === 'response.audio_transcript.delta';
+        const isOutputAudioTranscriptDelta = msg?.type === 'response.output_audio_transcript.delta';
         if (
-          (msg?.type === 'response.audio_transcript.delta' || msg?.type === 'response.output_audio_transcript.delta') &&
+          (isAudioTranscriptDelta || isOutputAudioTranscriptDelta) &&
           (typeof msg?.delta === 'string' || typeof msg?.text === 'string')
         ) {
-          pendingAssistantText += (msg.delta ?? msg.text) as string;
+          const source = isOutputAudioTranscriptDelta ? 'output_audio' : 'audio';
+          if (!assistantTranscriptSource) assistantTranscriptSource = source;
+          if (assistantTranscriptSource === source) {
+            pendingAssistantText += (msg.delta ?? msg.text) as string;
+          }
         }
 
+        const isAudioTranscriptDone = msg?.type === 'response.audio_transcript.done';
+        const isOutputAudioTranscriptDone = msg?.type === 'response.output_audio_transcript.done';
         if (
-          (msg?.type === 'response.audio_transcript.done' || msg?.type === 'response.output_audio_transcript.done') &&
+          (isAudioTranscriptDone || isOutputAudioTranscriptDone) &&
           typeof (msg?.transcript ?? msg?.text) === 'string'
         ) {
-          const t = (msg.transcript ?? msg.text).trim();
-          if (t) pendingAssistantText = `${pendingAssistantText}${pendingAssistantText ? ' ' : ''}${t}`;
+          const source = isOutputAudioTranscriptDone ? 'output_audio' : 'audio';
+          if (!assistantTranscriptSource) assistantTranscriptSource = source;
+          if (assistantTranscriptSource === source) {
+            const t = (msg.transcript ?? msg.text).trim();
+            if (t) pendingAssistantText = `${pendingAssistantText}${pendingAssistantText ? ' ' : ''}${t}`;
+          }
         }
 
         if (msg?.type === 'conversation.item.input_audio_transcription.completed') {
@@ -1201,11 +1299,13 @@ wss.on('connection', (twilioWs: WebSocket) => {
 
         if (msg?.type === 'response.done') {
           const extracted = extractAssistantTextFromDone(msg);
-          const finalAssistant = extracted || pendingAssistantText.trim();
+          const finalAssistant = extracted || pendingAssistantText.trim() || pendingAssistantHeuristicText.trim();
           if (finalAssistant) {
             conversation.push({ role: 'assistant', text: finalAssistant });
           }
           pendingAssistantText = '';
+          pendingAssistantHeuristicText = '';
+          assistantTranscriptSource = null;
         }
       });
 
