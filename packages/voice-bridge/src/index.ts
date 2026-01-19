@@ -604,6 +604,12 @@ wss.on('connection', (twilioWs: WebSocket) => {
   let lastUserSpeechStartedAt = 0;
   let openaiOutputAudioFormat: string = 'g711_ulaw';
   let audioDeltaDebugCount = 0;
+  const pcm16SuspectBytes = 600;
+  let pcm16SampleRateHz = 24000;
+  let pcm16LastDeltaAt = 0;
+  let pcm16StreamTimeSec = 0;
+  let pcm16NextOutputTimeSec = 0;
+  let outboundUlawBuffer = Buffer.alloc(0);
 
   function log(msg: string, extra?: any) {
     const prefix = ctx ? `[callSid=${ctx.callSid} streamSid=${ctx.streamSid}]` : '[twilio]';
@@ -640,20 +646,88 @@ wss.on('connection', (twilioWs: WebSocket) => {
     return ulawByte;
   }
 
-  function pcm16BytesToG711UlawBase64Adaptive(pcmBytes: Buffer): string {
+  function updatePcm16SampleRateEstimate(sampleCount: number): number {
+    const now = Date.now();
+    if (pcm16LastDeltaAt) {
+      const deltaMs = now - pcm16LastDeltaAt;
+      if (deltaMs >= 10 && deltaMs <= 500) {
+        const rate = Math.round((sampleCount * 1000) / deltaMs);
+        if (rate >= 6000 && rate <= 96000) {
+          const alpha = 0.2;
+          pcm16SampleRateHz = Math.round(pcm16SampleRateHz * (1 - alpha) + rate * alpha);
+        }
+      }
+    }
+    pcm16LastDeltaAt = now;
+    return pcm16SampleRateHz;
+  }
+
+  function normalizePcm16SampleRate(rate: number): number {
+    const candidates = [8000, 16000, 24000, 48000];
+    let nearest = candidates[0];
+    let best = Math.abs(rate - nearest);
+    for (const candidate of candidates.slice(1)) {
+      const diff = Math.abs(rate - candidate);
+      if (diff < best) {
+        best = diff;
+        nearest = candidate;
+      }
+    }
+    return nearest;
+  }
+
+  function pcm16BytesToG711UlawResampled(pcmBytes: Buffer, sampleRateHz: number): Buffer {
     const sampleCount = Math.floor(pcmBytes.length / 2);
-    if (sampleCount <= 0) return '';
+    if (sampleCount <= 1) return Buffer.alloc(0);
+
+    const chunkStart = pcm16StreamTimeSec;
+    const chunkDuration = sampleCount / sampleRateHz;
+    const chunkEnd = chunkStart + chunkDuration;
+    if (pcm16NextOutputTimeSec < chunkStart) pcm16NextOutputTimeSec = chunkStart;
+
+    const out: number[] = [];
+    while (pcm16NextOutputTimeSec + 1 / sampleRateHz <= chunkEnd) {
+      const pos = (pcm16NextOutputTimeSec - chunkStart) * sampleRateHz;
+      const idx = Math.floor(pos);
+      const frac = pos - idx;
+      if (idx + 1 >= sampleCount) break;
+      const s0 = pcmBytes.readInt16LE(idx * 2);
+      const s1 = pcmBytes.readInt16LE((idx + 1) * 2);
+      const sample = Math.round(s0 * (1 - frac) + s1 * frac);
+      out.push(linearPcm16ToMuLawSample(sample));
+      pcm16NextOutputTimeSec += 1 / 8000;
+    }
+
+    pcm16StreamTimeSec = chunkEnd;
+    return Buffer.from(out);
+  }
+
+  function choosePcm16DownsampleFactor(pcmBytes: Buffer, sampleRateHz?: number): number {
+    if (sampleRateHz && Number.isFinite(sampleRateHz)) {
+      let factor = Math.round(sampleRateHz / 8000);
+      if (factor < 1) factor = 1;
+      if (factor > 6) factor = 6;
+      return factor;
+    }
+
+    let factor = 3;
+    if (pcmBytes.length <= 420) factor = 1;
+    else if (pcmBytes.length <= 740) factor = 2;
+    return factor;
+  }
+
+  function pcm16BytesToG711UlawAdaptive(pcmBytes: Buffer, factorOverride?: number): Buffer {
+    const sampleCount = Math.floor(pcmBytes.length / 2);
+    if (sampleCount <= 0) return Buffer.alloc(0);
 
     // Determine downsample factor based on typical 20ms chunk sizes:
     // - 24kHz PCM16: ~960 bytes (480 samples) => factor 3 to 8kHz
     // - 16kHz PCM16: ~640 bytes (320 samples) => factor 2 to 8kHz
     // - 8kHz PCM16:  ~320 bytes (160 samples) => factor 1
-    let factor = 3;
-    if (pcmBytes.length <= 420) factor = 1;
-    else if (pcmBytes.length <= 740) factor = 2;
+    const factor = factorOverride ?? choosePcm16DownsampleFactor(pcmBytes);
 
     const outSamples = Math.floor(sampleCount / factor);
-    if (outSamples <= 0) return '';
+    if (outSamples <= 0) return Buffer.alloc(0);
 
     const out = Buffer.allocUnsafe(outSamples);
     for (let i = 0; i < outSamples; i++) {
@@ -667,7 +741,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
       out[i] = linearPcm16ToMuLawSample(avg);
     }
 
-    return out.toString('base64');
+    return out;
   }
 
   function decodeBase64Safe(data: string): Buffer | null {
@@ -678,8 +752,22 @@ wss.on('connection', (twilioWs: WebSocket) => {
     }
   }
 
-  function shouldTreatDeltaAsPcm16(): boolean {
-    return openaiOutputAudioFormat === 'pcm16';
+  function shouldTreatDeltaAsPcm16(deltaBase64: string): boolean {
+    if (openaiOutputAudioFormat === 'pcm16') return true;
+
+    const bytes = decodeBase64Safe(deltaBase64);
+    if (!bytes) return false;
+
+    // If it's odd-length it can't be PCM16.
+    if (bytes.length % 2 !== 0) return false;
+
+    // Heuristic: PCM16 frames are much larger than μ-law frames.
+    // μ-law 8kHz ~160 bytes per 20ms; PCM16 is usually >=320 bytes per 20ms.
+    if (openaiOutputAudioFormat === 'g711_ulaw') {
+      return bytes.length >= pcm16SuspectBytes;
+    }
+
+    return bytes.length >= 320;
   }
 
   function mergedTranscriptText(): string {
@@ -931,8 +1019,6 @@ wss.on('connection', (twilioWs: WebSocket) => {
           session: {
             voice,
             instructions,
-            tools: toolsSchema(),
-            tool_choice: 'auto',
             input_audio_format: 'g711_ulaw',
             output_audio_format: 'g711_ulaw',
             input_audio_transcription: { model: 'gpt-4o-mini-transcribe' },
@@ -942,6 +1028,13 @@ wss.on('connection', (twilioWs: WebSocket) => {
           },
         });
         openaiOutputAudioFormat = 'g711_ulaw';
+        sendToOpenAI(openaiWs, {
+          type: 'session.update',
+          session: {
+            tools: toolsSchema(),
+            tool_choice: 'auto',
+          },
+        });
 
         // Kick off an initial greeting ASAP (don't block on backend/tool latency).
         sendToOpenAI(openaiWs, {
@@ -1011,9 +1104,22 @@ wss.on('connection', (twilioWs: WebSocket) => {
 
         if (msg?.type === 'response.audio.delta' && typeof msg?.delta === 'string') {
           assistantAudioActiveUntil = Date.now() + 350;
-          const asPcm16 = shouldTreatDeltaAsPcm16();
+          const asPcm16 = shouldTreatDeltaAsPcm16(msg.delta);
           const bytes = asPcm16 ? decodeBase64Safe(msg.delta) : null;
-          const payload = asPcm16 && bytes ? pcm16BytesToG711UlawBase64Adaptive(bytes) : msg.delta;
+          let ulawBytes: Buffer | null = null;
+          let downsampleFactor: number | null = null;
+          let sampleRateHz: number | null = null;
+          if (asPcm16 && bytes) {
+            const sampleCount = Math.floor(bytes.length / 2);
+            sampleRateHz = normalizePcm16SampleRate(updatePcm16SampleRateEstimate(sampleCount));
+            downsampleFactor = choosePcm16DownsampleFactor(bytes, sampleRateHz);
+            ulawBytes = pcm16BytesToG711UlawResampled(bytes, sampleRateHz);
+            if (!ulawBytes.length) {
+              ulawBytes = pcm16BytesToG711UlawAdaptive(bytes, downsampleFactor);
+            }
+          } else if (bytes) {
+            ulawBytes = bytes;
+          }
 
           if (audioDeltaDebugCount < 3) {
             audioDeltaDebugCount++;
@@ -1021,15 +1127,23 @@ wss.on('connection', (twilioWs: WebSocket) => {
               output_audio_format: openaiOutputAudioFormat,
               raw_bytes: decodeBase64Safe(msg.delta)?.length,
               converted: asPcm16,
-              payload_bytes: decodeBase64Safe(payload)?.length,
+              sample_rate_hz: sampleRateHz,
+              downsample_factor: downsampleFactor,
+              payload_bytes: ulawBytes?.length,
             });
           }
 
-          sendToTwilio(twilioWs, {
-            event: 'media',
-            streamSid: ctx.streamSid,
-            media: { payload },
-          });
+          if (!ulawBytes || ulawBytes.length === 0) return;
+          outboundUlawBuffer = Buffer.concat([outboundUlawBuffer, ulawBytes]);
+          while (outboundUlawBuffer.length >= 160) {
+            const chunk = outboundUlawBuffer.subarray(0, 160);
+            outboundUlawBuffer = outboundUlawBuffer.subarray(160);
+            sendToTwilio(twilioWs, {
+              event: 'media',
+              streamSid: ctx.streamSid,
+              media: { payload: chunk.toString('base64') },
+            });
+          }
         }
 
         if (
