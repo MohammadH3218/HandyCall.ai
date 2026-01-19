@@ -606,27 +606,8 @@ export class RealtimeToolsService {
     if (!company) throw new NotFoundException('Company not found');
 
     const timeZone = dto.timezone || company.timezone || 'UTC';
-    const startRaw = String(dto.start_time || '').trim();
-    const endRaw = String(dto.end_time || '').trim();
-    const startIso = this.coerceToUtcIso(startRaw, timeZone);
-    let endIso = '';
-    if (endRaw) {
-      try {
-        endIso = this.coerceToUtcIso(endRaw, timeZone);
-      } catch {
-        endIso = '';
-      }
-    }
-
-    const startMs = Date.parse(startIso);
-    const endMs = endIso ? Date.parse(endIso) : NaN;
-    if (!Number.isFinite(endMs) || endMs <= startMs) {
-      const parsed = chrono.parse(startRaw, new Date())[0];
-      const hasTime = !!(parsed?.start?.isCertain('hour') || parsed?.start?.isCertain('minute'));
-      const durationMinutes = this.scheduling.getDurationMinutes(company);
-      const extendMinutes = hasTime ? Math.max(120, durationMinutes) : 24 * 60;
-      endIso = new Date(startMs + extendMinutes * 60_000).toISOString();
-    }
+    const startIso = this.coerceToUtcIso(dto.start_time, timeZone);
+    const endIso = this.coerceToUtcIso(dto.end_time, timeZone);
     const slots = await this.scheduling.getAvailability(company, startIso, endIso);
 
     return {

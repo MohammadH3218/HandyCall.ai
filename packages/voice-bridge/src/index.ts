@@ -292,9 +292,6 @@ function buildInstructions(input: {
     `Scheduling policy: the caller can request a specific date/time or ask what times are available on a day.`,
     `- If they request a time: say "Let me check availability", then call get_availability for a narrow window around that time. If available, call create_booking to book it and confirm the booked time. If not, call get_availability for that day and offer the 2-3 closest available times.`,
     `- If they ask "what times are available on Monday": call get_availability for that day and offer a small set of options (e.g., 3-5).`,
-    `- If they ask for the earliest available time on a day: call get_availability for the full day (00:00-23:59 local) and offer the first 2-3 slots.`,
-    `- If they ask for the earliest available date/time without a day: check the next 5 business days and offer the first 2-3 slots.`,
-    `- When checking a specific time, make end_time at least 2 hours after start_time to see nearby options.`,
     `Always keep scheduling within the business hours. Never invent availability.`,
     `If the caller talks over you, stop immediately and listen (barge-in).`,
     `If you are unsure, ask one clarifying question.`,
@@ -592,7 +589,6 @@ wss.on('connection', (twilioWs: WebSocket) => {
   let pendingAssistantText = '';
   let pendingAssistantHeuristicText = '';
   let callSaved = false;
-  let assistantTranscriptSource: 'audio' | 'output_audio' | null = null;
   let intake: Record<string, any> = {};
   let lastAssistantAskedAnythingElseAt: number | null = null;
   let pendingAutoHangup = false;
@@ -1054,31 +1050,19 @@ wss.on('connection', (twilioWs: WebSocket) => {
         }
 
         // Prefer capturing what the assistant actually said (audio transcript) so the call log includes both sides.
-        const isAudioTranscriptDelta = msg?.type === 'response.audio_transcript.delta';
-        const isOutputAudioTranscriptDelta = msg?.type === 'response.output_audio_transcript.delta';
         if (
-          (isAudioTranscriptDelta || isOutputAudioTranscriptDelta) &&
+          (msg?.type === 'response.audio_transcript.delta' || msg?.type === 'response.output_audio_transcript.delta') &&
           (typeof msg?.delta === 'string' || typeof msg?.text === 'string')
         ) {
-          const source = isOutputAudioTranscriptDelta ? 'output_audio' : 'audio';
-          if (!assistantTranscriptSource) assistantTranscriptSource = source;
-          if (assistantTranscriptSource === source) {
-            pendingAssistantText += (msg.delta ?? msg.text) as string;
-          }
+          pendingAssistantText += (msg.delta ?? msg.text) as string;
         }
 
-        const isAudioTranscriptDone = msg?.type === 'response.audio_transcript.done';
-        const isOutputAudioTranscriptDone = msg?.type === 'response.output_audio_transcript.done';
         if (
-          (isAudioTranscriptDone || isOutputAudioTranscriptDone) &&
+          (msg?.type === 'response.audio_transcript.done' || msg?.type === 'response.output_audio_transcript.done') &&
           typeof (msg?.transcript ?? msg?.text) === 'string'
         ) {
-          const source = isOutputAudioTranscriptDone ? 'output_audio' : 'audio';
-          if (!assistantTranscriptSource) assistantTranscriptSource = source;
-          if (assistantTranscriptSource === source) {
-            const t = (msg.transcript ?? msg.text).trim();
-            if (t) pendingAssistantText = `${pendingAssistantText}${pendingAssistantText ? ' ' : ''}${t}`;
-          }
+          const t = (msg.transcript ?? msg.text).trim();
+          if (t) pendingAssistantText = `${pendingAssistantText}${pendingAssistantText ? ' ' : ''}${t}`;
         }
 
         if (msg?.type === 'conversation.item.input_audio_transcription.completed') {
@@ -1321,7 +1305,6 @@ wss.on('connection', (twilioWs: WebSocket) => {
           }
           pendingAssistantText = '';
           pendingAssistantHeuristicText = '';
-          assistantTranscriptSource = null;
         }
       });
 
