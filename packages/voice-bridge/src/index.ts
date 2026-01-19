@@ -605,8 +605,6 @@ wss.on('connection', (twilioWs: WebSocket) => {
   let openaiOutputAudioFormat: string = 'g711_ulaw';
   let audioDeltaDebugCount = 0;
   const pcm16SuspectBytes = 600;
-  let pcm16SampleRateHz = 24000;
-  let pcm16LastDeltaAt = 0;
 
   function log(msg: string, extra?: any) {
     const prefix = ctx ? `[callSid=${ctx.callSid} streamSid=${ctx.streamSid}]` : '[twilio]';
@@ -643,37 +641,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
     return ulawByte;
   }
 
-  function updatePcm16SampleRateEstimate(sampleCount: number): number {
-    const now = Date.now();
-    if (pcm16LastDeltaAt) {
-      const deltaMs = now - pcm16LastDeltaAt;
-      if (deltaMs >= 10 && deltaMs <= 500) {
-        const rate = Math.round((sampleCount * 1000) / deltaMs);
-        if (rate >= 6000 && rate <= 96000) {
-          const alpha = 0.2;
-          pcm16SampleRateHz = Math.round(pcm16SampleRateHz * (1 - alpha) + rate * alpha);
-        }
-      }
-    }
-    pcm16LastDeltaAt = now;
-    return pcm16SampleRateHz;
-  }
-
-  function choosePcm16DownsampleFactor(pcmBytes: Buffer, sampleRateHz?: number): number {
-    if (sampleRateHz && Number.isFinite(sampleRateHz)) {
-      let factor = Math.round(sampleRateHz / 8000);
-      if (factor < 1) factor = 1;
-      if (factor > 6) factor = 6;
-      return factor;
-    }
-
-    let factor = 3;
-    if (pcmBytes.length <= 420) factor = 1;
-    else if (pcmBytes.length <= 740) factor = 2;
-    return factor;
-  }
-
-  function pcm16BytesToG711UlawBase64Adaptive(pcmBytes: Buffer, factorOverride?: number): string {
+  function pcm16BytesToG711UlawBase64Adaptive(pcmBytes: Buffer): string {
     const sampleCount = Math.floor(pcmBytes.length / 2);
     if (sampleCount <= 0) return '';
 
@@ -681,7 +649,9 @@ wss.on('connection', (twilioWs: WebSocket) => {
     // - 24kHz PCM16: ~960 bytes (480 samples) => factor 3 to 8kHz
     // - 16kHz PCM16: ~640 bytes (320 samples) => factor 2 to 8kHz
     // - 8kHz PCM16:  ~320 bytes (160 samples) => factor 1
-    const factor = factorOverride ?? choosePcm16DownsampleFactor(pcmBytes);
+    let factor = 3;
+    if (pcmBytes.length <= 420) factor = 1;
+    else if (pcmBytes.length <= 740) factor = 2;
 
     const outSamples = Math.floor(sampleCount / factor);
     if (outSamples <= 0) return '';
@@ -1063,15 +1033,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
           assistantAudioActiveUntil = Date.now() + 350;
           const asPcm16 = shouldTreatDeltaAsPcm16(msg.delta);
           const bytes = asPcm16 ? decodeBase64Safe(msg.delta) : null;
-          let payload = msg.delta;
-          let downsampleFactor: number | null = null;
-          let sampleRateHz: number | null = null;
-          if (asPcm16 && bytes) {
-            const sampleCount = Math.floor(bytes.length / 2);
-            sampleRateHz = updatePcm16SampleRateEstimate(sampleCount);
-            downsampleFactor = choosePcm16DownsampleFactor(bytes, sampleRateHz);
-            payload = pcm16BytesToG711UlawBase64Adaptive(bytes, downsampleFactor);
-          }
+          const payload = asPcm16 && bytes ? pcm16BytesToG711UlawBase64Adaptive(bytes) : msg.delta;
 
           if (audioDeltaDebugCount < 3) {
             audioDeltaDebugCount++;
@@ -1079,8 +1041,6 @@ wss.on('connection', (twilioWs: WebSocket) => {
               output_audio_format: openaiOutputAudioFormat,
               raw_bytes: decodeBase64Safe(msg.delta)?.length,
               converted: asPcm16,
-              sample_rate_hz: sampleRateHz,
-              downsample_factor: downsampleFactor,
               payload_bytes: decodeBase64Safe(payload)?.length,
             });
           }
