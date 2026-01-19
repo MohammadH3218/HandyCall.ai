@@ -606,7 +606,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
   let recordingStartAttempted = false;
   let pendingResponseTimer: NodeJS.Timeout | null = null;
   let lastUserSpeechStartedAt = 0;
-  let openaiOutputAudioFormat: string = 'g711_ulaw';
+  let openaiOutputAudioFormat: string = 'pcm16';
   let audioDeltaDebugCount = 0;
   let lastAssistantText = '';
   let lastAssistantAt = 0;
@@ -675,10 +675,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
 
   function shouldTreatDeltaAsPcm16(deltaBase64: string): boolean {
     if (openaiOutputAudioFormat === 'pcm16') return true;
-    const bytes = decodeBase64Safe(deltaBase64);
-    if (!bytes) return false;
-    if (bytes.length % 2 !== 0) return false;
-    return bytes.length >= 280;
+    return false;
   }
 
   function mergedTranscriptText(): string {
@@ -953,14 +950,14 @@ wss.on('connection', (twilioWs: WebSocket) => {
             tools: toolsSchema(),
             tool_choice: 'auto',
             input_audio_format: 'g711_ulaw',
-            output_audio_format: 'g711_ulaw',
+            output_audio_format: 'pcm16',
             input_audio_transcription: { model: 'gpt-4o-mini-transcribe' },
             // Lower silence threshold reduces perceived latency between user stop -> assistant start.
             // Too low can cause interruptions; tune if you notice cutoffs.
             turn_detection: { type: 'server_vad', silence_duration_ms: 900 },
           },
         });
-        openaiOutputAudioFormat = 'g711_ulaw';
+        openaiOutputAudioFormat = 'pcm16';
 
         // Kick off an initial greeting ASAP (don't block on backend/tool latency).
         sendToOpenAI(openaiWs, {
