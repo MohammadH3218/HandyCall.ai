@@ -604,7 +604,6 @@ wss.on('connection', (twilioWs: WebSocket) => {
   let lastUserSpeechStartedAt = 0;
   let openaiOutputAudioFormat: string = 'g711_ulaw';
   let audioDeltaDebugCount = 0;
-  const pcm16SuspectBytes = 600;
 
   function log(msg: string, extra?: any) {
     const prefix = ctx ? `[callSid=${ctx.callSid} streamSid=${ctx.streamSid}]` : '[twilio]';
@@ -690,11 +689,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
 
     // Heuristic: PCM16 frames are much larger than μ-law frames.
     // μ-law 8kHz ~160 bytes per 20ms; PCM16 is usually >=320 bytes per 20ms.
-    if (openaiOutputAudioFormat === 'g711_ulaw') {
-      return bytes.length >= pcm16SuspectBytes;
-    }
-
-    return bytes.length >= 320;
+    return bytes.length >= 280;
   }
 
   function mergedTranscriptText(): string {
@@ -946,6 +941,8 @@ wss.on('connection', (twilioWs: WebSocket) => {
           session: {
             voice,
             instructions,
+            tools: toolsSchema(),
+            tool_choice: 'auto',
             input_audio_format: 'g711_ulaw',
             output_audio_format: 'g711_ulaw',
             input_audio_transcription: { model: 'gpt-4o-mini-transcribe' },
@@ -955,13 +952,6 @@ wss.on('connection', (twilioWs: WebSocket) => {
           },
         });
         openaiOutputAudioFormat = 'g711_ulaw';
-        sendToOpenAI(openaiWs, {
-          type: 'session.update',
-          session: {
-            tools: toolsSchema(),
-            tool_choice: 'auto',
-          },
-        });
 
         // Kick off an initial greeting ASAP (don't block on backend/tool latency).
         sendToOpenAI(openaiWs, {
