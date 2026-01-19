@@ -184,6 +184,8 @@ export class AppointmentsService {
         until?: number;
       };
       created_by?: string;
+      external_event_id?: string;
+      external_provider?: string;
     }
   ) {
     if (!Number.isFinite(input.scheduled_start) || !Number.isFinite(input.scheduled_end)) {
@@ -215,6 +217,8 @@ export class AppointmentsService {
       price_cents: typeof input.price_cents === 'number' ? input.price_cents : undefined,
       currency: input.currency ?? undefined,
       created_by: input.created_by ?? 'USER',
+      external_event_id: input.external_event_id,
+      external_provider: input.external_provider,
       confirmed: true,
       created_at: now,
       updated_at: now,
@@ -268,15 +272,52 @@ export class AppointmentsService {
 
     await this.dynamodb.put('appointments', appointment);
 
-    // Sync to external calendar if connected
-    try {
-      await this.calendarIntegration.pushEventToExternalCalendar(companyId, appointment);
-    } catch (err) {
-      console.error('Error syncing appointment to external calendar:', err);
-      // Don't fail appointment creation if sync fails
+    const isExternalSynced =
+      appointment.created_by === 'SYNC' ||
+      (typeof appointment.service_type === 'string' && appointment.service_type.startsWith('Synced from ')) ||
+      !!appointment.external_event_id;
+
+    // Sync to external calendar if connected (skip imported/synced events)
+    if (!isExternalSynced) {
+      try {
+        const result = await this.calendarIntegration.pushEventToExternalCalendar(companyId, appointment);
+        const externalEventId = result?.externalEventId as string | undefined;
+        if (externalEventId) {
+          appointment.external_event_id = externalEventId;
+          await this.dynamodb.update(
+            'appointments',
+            { company_id: companyId, appointment_id },
+            { external_event_id: externalEventId, updated_at: Date.now() }
+          );
+        }
+      } catch (err) {
+        console.error('Error syncing appointment to external calendar:', err);
+        // Don't fail appointment creation if sync fails
+      }
     }
 
     return appointment;
+  }
+
+  async findAppointmentByExternalEventId(companyId: string, externalEventId: string): Promise<any | null> {
+    if (!externalEventId) return null;
+    const scan = await this.dynamodb.scan('appointments', {
+      filterExpression: '#company_id = :company_id AND #external_event_id = :external_event_id',
+      expressionAttributeNames: { '#company_id': 'company_id', '#external_event_id': 'external_event_id' },
+      expressionAttributeValues: { ':company_id': companyId, ':external_event_id': externalEventId },
+      limit: 1,
+    });
+    return scan.items?.[0] ?? null;
+  }
+
+  async updateAppointmentFromExternalSync(
+    companyId: string,
+    appointmentId: string,
+    updateFields: Record<string, any>
+  ): Promise<any> {
+    const now = Date.now();
+    const fields = { ...updateFields, updated_at: now };
+    return await this.dynamodb.update('appointments', { company_id: companyId, appointment_id: appointmentId }, fields);
   }
 
   async updateAppointment(
@@ -325,7 +366,15 @@ export class AppointmentsService {
 
     // Sync to external calendar if connected
     try {
-      await this.calendarIntegration.updateEventInExternalCalendar(companyId, updatedAppointment);
+      const externalEventId = await this.calendarIntegration.updateEventInExternalCalendar(companyId, updatedAppointment);
+      if (externalEventId && !updatedAppointment.external_event_id) {
+        updatedAppointment.external_event_id = externalEventId;
+        await this.dynamodb.update(
+          'appointments',
+          { company_id: companyId, appointment_id: appointmentId },
+          { external_event_id: externalEventId, updated_at: Date.now() }
+        );
+      }
     } catch (err) {
       console.error('Error syncing updated appointment to external calendar:', err);
       // Don't fail appointment update if sync fails
