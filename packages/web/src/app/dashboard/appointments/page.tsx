@@ -617,9 +617,17 @@ export default function AppointmentsPage() {
         .filter((o) => !!o.date)
         .sort((a, b) => String(a.date).localeCompare(String(b.date)));
 
+      const hasHours = Object.values(cleanedHours).some((day: any) => {
+        const segs = Array.isArray(day?.segments) ? day.segments : [];
+        return segs.length > 0;
+      });
+      const hasTimezone = isExternalCalendarConnected ? Boolean(company?.timezone) : Boolean(calendarTimezone);
+      const scheduleComplete = hasHours && hasTimezone;
+
       const updates: any = {
         business_hours: cleanedHours,
         schedule_overrides: cleanedOverrides,
+        schedule_setup_completed: scheduleComplete,
       };
 
       // Timezone is read-only if an external calendar is connected; use imported timezone.

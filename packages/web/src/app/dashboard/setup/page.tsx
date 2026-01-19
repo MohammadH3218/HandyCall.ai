@@ -41,6 +41,7 @@ export default function SetupPage() {
   const [knowledgeCount, setKnowledgeCount] = useState<number | null>(null);
   const [isLoadingKnowledge, setIsLoadingKnowledge] = useState(false);
   const [isSavingCalendarMode, setIsSavingCalendarMode] = useState(false);
+  const [isMarkingSchedule, setIsMarkingSchedule] = useState(false);
   const [isCalendarProviderDialogOpen, setIsCalendarProviderDialogOpen] = useState(false);
   const [selectedProvider, setSelectedProvider] = useState<CalendarProvider | null>(null);
   const [showAppleForm, setShowAppleForm] = useState(false);
@@ -56,7 +57,8 @@ export default function SetupPage() {
   );
 
   const calendarComplete = company?.calendar_setup_completed === true;
-  const scheduleComplete = Boolean(company?.timezone) && hasWorkingHours(company?.business_hours);
+  const scheduleReady = Boolean(company?.timezone) && hasWorkingHours(company?.business_hours);
+  const scheduleComplete = Boolean(company?.schedule_setup_completed) || scheduleReady;
   const knowledgeComplete = (knowledgeCount ?? 0) > 0;
 
   const completedCount = useMemo(() => {
@@ -69,7 +71,7 @@ export default function SetupPage() {
       setIsLoadingKnowledge(true);
       try {
         const data = await apiClient.getKnowledgeItems(undefined, undefined, 50);
-        const items = data?.items || [];
+        const items = Array.isArray(data) ? data : data?.items || [];
         setKnowledgeCount(items.length);
       } catch (err: any) {
         console.error('Failed to load knowledge items:', err);
@@ -103,6 +105,34 @@ export default function SetupPage() {
       });
     } finally {
       setIsSavingCalendarMode(false);
+    }
+  };
+
+  const handleMarkScheduleComplete = async () => {
+    if (!scheduleReady) {
+      toast({
+        title: 'Working hours incomplete',
+        description: 'Set a timezone and at least one time window before marking this step complete.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    setIsMarkingSchedule(true);
+    try {
+      await apiClient.updateMyCompany({ schedule_setup_completed: true });
+      toast({
+        title: 'Working hours confirmed',
+        description: 'Scheduling step marked complete.',
+      });
+      router.refresh();
+    } catch (err: any) {
+      toast({
+        title: 'Update failed',
+        description: err?.message || 'Unable to mark schedule as complete.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsMarkingSchedule(false);
     }
   };
 
@@ -272,9 +302,18 @@ export default function SetupPage() {
                 {hasWorkingHours(company?.business_hours) ? 'Working hours saved' : 'Working hours missing'}
               </span>
             </div>
-            <Button asChild>
-              <Link href="/dashboard/appointments?calendarSettings=1">Set working hours</Link>
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button asChild>
+                <Link href="/dashboard/appointments?calendarSettings=1">Set working hours</Link>
+              </Button>
+              <Button
+                variant="outline"
+                onClick={handleMarkScheduleComplete}
+                disabled={isMarkingSchedule || scheduleComplete}
+              >
+                {scheduleComplete ? 'Marked complete' : isMarkingSchedule ? 'Marking...' : 'Mark step complete'}
+              </Button>
+            </div>
           </CardContent>
         </Card>
 

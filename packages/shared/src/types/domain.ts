@@ -66,6 +66,7 @@ export interface Company {
 
   // Calendar / scheduling setup
   calendar_setup_completed?: boolean;
+  schedule_setup_completed?: boolean;
   /**
    * How the company wants to manage appointments:
    * - INTERNAL: manage appointments inside HandyCall only (default)

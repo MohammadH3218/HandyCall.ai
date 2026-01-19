@@ -338,6 +338,7 @@ async function main() {
     if (RESET_SCHEDULING) {
       setExpr.push(
         '#calendar_setup_completed = :false',
+        '#schedule_setup_completed = :false',
         '#calendar_mode = :internal',
         '#calendar_provider = :none',
         '#business_hours = :empty_hours',
@@ -346,6 +347,7 @@ async function main() {
       );
       removeExpr.push('#calendar_connection', '#appointment_duration_minutes', '#slot_interval_minutes');
       names['#calendar_setup_completed'] = 'calendar_setup_completed';
+      names['#schedule_setup_completed'] = 'schedule_setup_completed';
       names['#calendar_mode'] = 'calendar_mode';
       names['#calendar_provider'] = 'calendar_provider';
       names['#calendar_connection'] = 'calendar_connection';

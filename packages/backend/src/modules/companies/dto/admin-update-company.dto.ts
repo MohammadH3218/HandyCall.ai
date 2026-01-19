@@ -64,6 +64,10 @@ export class AdminUpdateCompanyDto {
   calendar_setup_completed?: boolean;
 
   @IsOptional()
+  @IsBoolean()
+  schedule_setup_completed?: boolean;
+
+  @IsOptional()
   @IsIn(['INTERNAL', 'EXTERNAL'])
   calendar_mode?: 'INTERNAL' | 'EXTERNAL';
 

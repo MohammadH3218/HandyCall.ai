@@ -92,7 +92,7 @@ async function upsertCompanyProfile() {
         '#updated_at': 'updated_at',
       },
       ExpressionAttributeValues: {
-        ':service': 'Pest Control',
+        ':service': 'PEST_CONTROL',
         ':tz': 'America/Chicago',
         ':now': Date.now(),
       },
@@ -350,4 +350,3 @@ main().catch((err) => {
   console.error('Seed failed:', err);
   process.exit(1);
 });
-

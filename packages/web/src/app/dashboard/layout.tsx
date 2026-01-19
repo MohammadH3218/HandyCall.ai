@@ -1,42 +1,81 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { signOut, useSession } from 'next-auth/react';
 import Link from 'next/link';
 import { useAuthStore } from '@/stores/auth-store';
+import { apiClient } from '@/lib/api-client';
 import { Logo } from '@/components/ui/logo';
 import { ProfileDropdown } from '@/components/profile-dropdown';
 import { Button } from '@/components/ui/button';
-import { BarChart3, Calendar, CheckSquare, CreditCard, Home, Menu, MessageSquare, Phone, Settings, Users, X } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { AlertCircle, BarChart3, Calendar, CheckSquare, CreditCard, Home, Menu, MessageSquare, Phone, Settings, Users, X } from 'lucide-react';
 import { UserRole } from '@handycall/shared';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
+  const pathname = usePathname();
   const { status } = useSession();
   const { isAuthenticated, isLoading, checkAuth, userRole, company } = useAuthStore();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const needsSetup = useMemo(() => {
-    if (!company) return false;
-    const hasActiveSubscription = Boolean(
+  const [knowledgeCount, setKnowledgeCount] = useState<number | null>(null);
+
+  const hasWorkingHours = useMemo(() => {
+    if (!company?.business_hours || typeof company.business_hours !== 'object') return false;
+    return Object.values(company.business_hours).some((day: any) => {
+      if (!day || day.closed) return false;
+      const segments = Array.isArray((day as any).segments) ? (day as any).segments : [];
+      if (segments.length) return segments.some((s: any) => s?.open && s?.close);
+      return Boolean((day as any).open && (day as any).close);
+    });
+  }, [company]);
+
+  const knowledgeComplete = knowledgeCount !== null ? knowledgeCount > 0 : false;
+  const setupStatus = useMemo(() => {
+    if (!company) {
+      return {
+        billing: false,
+        calendar: false,
+        schedule: false,
+        knowledge: false,
+      };
+    }
+    const billing = Boolean(
       company.subscription_plan ||
         company.stripe_subscription_id ||
         (company.subscription_status &&
           (company.subscription_status === 'ACTIVE' || company.subscription_status === 'TRIALING')) ||
         (company.trial_ends_at && company.trial_ends_at > Date.now())
     );
-    const hasHours =
-      company.business_hours &&
-      Object.values(company.business_hours).some((day: any) => {
-        if (!day || day.closed) return false;
-        const segments = Array.isArray((day as any).segments) ? (day as any).segments : [];
-        if (segments.length) return segments.some((s: any) => s?.open && s?.close);
-        return Boolean((day as any).open && (day as any).close);
-      });
-    const hasTimezone = Boolean(company.timezone);
-    const calendarReady = company.calendar_setup_completed === true;
-    return !hasActiveSubscription || !calendarReady || !hasTimezone || !hasHours;
-  }, [company]);
+    const scheduleReady = Boolean(company.timezone) && hasWorkingHours;
+    const schedule = Boolean((company as any).schedule_setup_completed) || scheduleReady;
+    const calendar = company.calendar_setup_completed === true;
+    const knowledge = knowledgeComplete;
+    return { billing, calendar, schedule, knowledge };
+  }, [company, hasWorkingHours, knowledgeComplete]);
+
+  const needsSetup = useMemo(() => {
+    if (!company) return false;
+    return !setupStatus.billing || !setupStatus.calendar || !setupStatus.schedule || !setupStatus.knowledge;
+  }, [company, setupStatus]);
+
+  useEffect(() => {
+    if (!company || userRole === UserRole.ADMIN) return;
+    const loadKnowledge = async () => {
+      try {
+        const data = await apiClient.getKnowledgeItems(undefined, undefined, 1);
+        const items = Array.isArray(data) ? data : data?.items || [];
+        setKnowledgeCount(items.length);
+      } catch (err) {
+        setKnowledgeCount(0);
+      }
+    };
+    void loadKnowledge();
+  }, [company, userRole, pathname]);
+
+  const showSetupModal = needsSetup && pathname !== '/dashboard/setup' && userRole !== UserRole.ADMIN;
 
   useEffect(() => {
     const populate = async () => {
@@ -235,6 +274,53 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           {children}
         </main>
       </div>
+
+      <Dialog open={showSetupModal}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Complete setup to continue</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="flex items-start gap-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+              <AlertCircle className="h-5 w-5 mt-0.5" />
+              <div>
+                Finish the setup steps so the AI can schedule correctly. This prompt will stay until setup is complete.
+              </div>
+            </div>
+            <div className="space-y-2 text-sm text-gray-700">
+              <div className="flex items-center justify-between">
+                <span>Billing & plan</span>
+                <Badge className={setupStatus.billing ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-700 border border-amber-200'}>
+                  {setupStatus.billing ? 'Done' : 'Required'}
+                </Badge>
+              </div>
+              <div className="flex items-center justify-between">
+                <span>Calendar connection</span>
+                <Badge className={setupStatus.calendar ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-700 border border-amber-200'}>
+                  {setupStatus.calendar ? 'Done' : 'Required'}
+                </Badge>
+              </div>
+              <div className="flex items-center justify-between">
+                <span>Working hours & timezone</span>
+                <Badge className={setupStatus.schedule ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-700 border border-amber-200'}>
+                  {setupStatus.schedule ? 'Done' : 'Required'}
+                </Badge>
+              </div>
+              <div className="flex items-center justify-between">
+                <span>Knowledge base</span>
+                <Badge className={setupStatus.knowledge ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-700 border border-amber-200'}>
+                  {setupStatus.knowledge ? 'Done' : 'Required'}
+                </Badge>
+              </div>
+            </div>
+            <div className="flex justify-end">
+              <Button asChild>
+                <Link href="/dashboard/setup">Continue setup</Link>
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
