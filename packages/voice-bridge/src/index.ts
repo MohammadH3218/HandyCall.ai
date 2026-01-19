@@ -946,6 +946,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
             input_audio_format: 'g711_ulaw',
             output_audio_format: 'g711_ulaw',
             input_audio_transcription: { model: 'gpt-4o-mini-transcribe' },
+            output_audio_transcription: { model: 'gpt-4o-mini-transcribe' },
             // Lower silence threshold reduces perceived latency between user stop → assistant start.
             // Too low can cause interruptions; tune if you notice cutoffs.
             turn_detection: { type: 'server_vad', silence_duration_ms: 900 },
