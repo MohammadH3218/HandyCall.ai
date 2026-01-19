@@ -125,6 +125,7 @@ export default function AppointmentsPage() {
 
   // Calendar settings state
   const [isCalendarSettingsOpen, setIsCalendarSettingsOpen] = useState(false);
+  const [pendingCalendarSettingsOpen, setPendingCalendarSettingsOpen] = useState(false);
   const [isDisconnecting, setIsDisconnecting] = useState(false);
   const [isDeleteCalendarConfirmOpen, setIsDeleteCalendarConfirmOpen] = useState(false);
   const [calendarTimezone, setCalendarTimezone] = useState('');
@@ -240,6 +241,7 @@ export default function AppointmentsPage() {
     const calendarStatus = searchParams?.get('calendar');
     const provider = searchParams?.get('provider');
     const errorMessage = searchParams?.get('message');
+    const openSettings = searchParams?.get('calendarSettings');
 
     if (calendarStatus === 'connected') {
       // Reload data to show synced calendar events
@@ -258,8 +260,22 @@ export default function AppointmentsPage() {
       // Clear URL parameters
       router.replace('/dashboard/appointments');
     }
+
+    if (openSettings === '1') {
+      setPendingCalendarSettingsOpen(true);
+      router.replace('/dashboard/appointments');
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams, router]);
+
+  useEffect(() => {
+    if (!pendingCalendarSettingsOpen || !company) return;
+    setCalendarTimezone(company?.timezone || '');
+    setBusinessHoursDraft(normalizeBusinessHours(company?.business_hours));
+    setDateOverridesDraft(normalizeOverrides(company?.schedule_overrides));
+    setIsCalendarSettingsOpen(true);
+    setPendingCalendarSettingsOpen(false);
+  }, [pendingCalendarSettingsOpen, company]);
 
   useEffect(() => {
     void loadData();
@@ -1373,7 +1389,7 @@ export default function AppointmentsPage() {
 
       {/* Calendar Settings Dialog */}
       <Dialog open={isCalendarSettingsOpen} onOpenChange={setIsCalendarSettingsOpen}>
-        <DialogContent className="max-w-3xl">
+        <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Calendar Settings</DialogTitle>
           </DialogHeader>

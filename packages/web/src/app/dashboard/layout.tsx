@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { signOut, useSession } from 'next-auth/react';
 import Link from 'next/link';
@@ -8,7 +8,7 @@ import { useAuthStore } from '@/stores/auth-store';
 import { Logo } from '@/components/ui/logo';
 import { ProfileDropdown } from '@/components/profile-dropdown';
 import { Button } from '@/components/ui/button';
-import { BarChart3, Calendar, CreditCard, Home, Menu, MessageSquare, Phone, Settings, Users, X } from 'lucide-react';
+import { BarChart3, Calendar, CheckSquare, CreditCard, Home, Menu, MessageSquare, Phone, Settings, Users, X } from 'lucide-react';
 import { UserRole } from '@handycall/shared';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -16,6 +16,27 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const { status } = useSession();
   const { isAuthenticated, isLoading, checkAuth, userRole, company } = useAuthStore();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const needsSetup = useMemo(() => {
+    if (!company) return false;
+    const hasActiveSubscription = Boolean(
+      company.subscription_plan ||
+        company.stripe_subscription_id ||
+        (company.subscription_status &&
+          (company.subscription_status === 'ACTIVE' || company.subscription_status === 'TRIALING')) ||
+        (company.trial_ends_at && company.trial_ends_at > Date.now())
+    );
+    const hasHours =
+      company.business_hours &&
+      Object.values(company.business_hours).some((day: any) => {
+        if (!day || day.closed) return false;
+        const segments = Array.isArray((day as any).segments) ? (day as any).segments : [];
+        if (segments.length) return segments.some((s: any) => s?.open && s?.close);
+        return Boolean((day as any).open && (day as any).close);
+      });
+    const hasTimezone = Boolean(company.timezone);
+    const calendarReady = company.calendar_setup_completed === true;
+    return !hasActiveSubscription || !calendarReady || !hasTimezone || !hasHours;
+  }, [company]);
 
   useEffect(() => {
     const populate = async () => {
@@ -146,6 +167,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <NavLink href="/dashboard" icon={<Home className="h-5 w-5" />} onClick={() => setSidebarOpen(false)}>
               Dashboard
             </NavLink>
+            <NavLink href="/dashboard/setup" icon={<CheckSquare className="h-5 w-5" />} onClick={() => setSidebarOpen(false)}>
+              Setup
+            </NavLink>
             <NavLink href="/dashboard/calls" icon={<Phone className="h-5 w-5" />} onClick={() => setSidebarOpen(false)}>
               Calls
             </NavLink>
@@ -195,6 +219,19 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
         {/* Main Content Area */}
         <main className="flex-1 overflow-auto p-4 sm:p-6 lg:p-8">
+          {needsSetup && (
+            <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div>
+                <div className="text-sm font-semibold text-amber-900">Finish your setup</div>
+                <div className="text-sm text-amber-800 mt-1">
+                  Complete billing, calendar, and working hours so the AI can schedule accurately.
+                </div>
+              </div>
+              <Button asChild>
+                <Link href="/dashboard/setup">Continue setup</Link>
+              </Button>
+            </div>
+          )}
           {children}
         </main>
       </div>

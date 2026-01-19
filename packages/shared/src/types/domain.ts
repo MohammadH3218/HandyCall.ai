@@ -78,6 +78,9 @@ export interface Company {
    * Shape is intentionally loose to allow iterative provider support.
    */
   calendar_connection?: any;
+  schedule_overrides?: ScheduleOverride[];
+  appointment_duration_minutes?: number;
+  slot_interval_minutes?: number;
 
   // Billing fields
   stripe_customer_id?: string;
@@ -91,6 +94,12 @@ export interface Company {
   cancel_at_period_end?: boolean;
 }
 
+export interface ScheduleOverride {
+  date: string; // YYYY-MM-DD
+  closed?: boolean;
+  segments?: Segment[];
+}
+
 export interface BusinessHours {
   monday?: DaySchedule;
   tuesday?: DaySchedule;
@@ -101,10 +110,16 @@ export interface BusinessHours {
   sunday?: DaySchedule;
 }
 
+export interface Segment {
+  open: string; // HH:mm
+  close: string; // HH:mm
+}
+
 export interface DaySchedule {
-  open: string; // HH:mm format: "09:00"
-  close: string; // HH:mm format: "17:00"
+  open?: string; // HH:mm format: "09:00"
+  close?: string; // HH:mm format: "17:00"
   closed?: boolean;
+  segments?: Segment[];
 }
 
 // ============================================================================

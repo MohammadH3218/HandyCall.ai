@@ -620,7 +620,26 @@ export class RealtimeToolsService {
     const timeZone = this.normalizeTimeZone(dto.timezone, company.timezone || 'UTC');
     const startRaw = String(dto.start_time || '').trim();
     const endRaw = String(dto.end_time || '').trim();
-    const startIso = this.coerceToUtcIso(startRaw, timeZone);
+    const parsedRange = chrono.parse(startRaw, new Date());
+    const parsed = parsedRange?.[0];
+    const hasTime = !!(parsed?.start?.isCertain('hour') || parsed?.start?.isCertain('minute'));
+    let startIso = this.coerceToUtcIso(startRaw, timeZone);
+    if (parsed && !hasTime) {
+      const dt = parsed.start?.date?.() ?? chrono.parseDate(startRaw, new Date());
+      if (dt) {
+        const utcMs = zonedTimeToUtcMs(
+          {
+            year: dt.getUTCFullYear(),
+            month: dt.getUTCMonth() + 1,
+            day: dt.getUTCDate(),
+            hour: 0,
+            minute: 0,
+          },
+          timeZone
+        );
+        startIso = new Date(utcMs).toISOString();
+      }
+    }
     let endIso = '';
     if (endRaw) {
       try {
@@ -636,8 +655,6 @@ export class RealtimeToolsService {
     const minWindowMs = durationMinutes * 60_000;
     const endTooShort = Number.isFinite(endMs) && endMs - startMs < minWindowMs;
     if (!Number.isFinite(endMs) || endMs <= startMs || endTooShort) {
-      const parsed = chrono.parse(startRaw, new Date())[0];
-      const hasTime = !!(parsed?.start?.isCertain('hour') || parsed?.start?.isCertain('minute'));
       const extendMinutes = hasTime ? Math.max(120, durationMinutes) : 24 * 60;
       endIso = new Date(startMs + extendMinutes * 60_000).toISOString();
       endMs = Date.parse(endIso);

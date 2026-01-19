@@ -104,6 +104,103 @@ function toWsBaseUrl(publicBaseUrl: string) {
   return publicBaseUrl;
 }
 
+function extractEmail(input: string): string | null {
+  const match = input.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
+  return match ? match[0] : null;
+}
+
+function extractPhone(input: string): string | null {
+  const digits = (input || '').replace(/\D/g, '');
+  if (digits.length === 10) return `+1${digits}`;
+  if (digits.length === 11 && digits.startsWith('1')) return `+${digits}`;
+  return null;
+}
+
+function normalizeNameCandidate(input: string): string | null {
+  const cleaned = input.replace(/[^A-Za-z\\s'-]/g, ' ').replace(/\\s+/g, ' ').trim();
+  if (!cleaned) return null;
+  const lower = cleaned.toLowerCase();
+  if (['yes', 'yeah', 'yep', 'no', 'nope', 'nah', 'ok', 'okay'].includes(lower)) return null;
+  if (cleaned.length > 60) return null;
+  return cleaned;
+}
+
+function extractInlineIntake(lastPrompt: string, userText: string): Record<string, any> {
+  const prompt = (lastPrompt || '').toLowerCase();
+  const text = userText.trim();
+  const out: Record<string, any> = {};
+
+  if (!text) return out;
+
+  if (prompt.includes('name')) {
+    const match = text.match(/(?:my name is|this is)\\s+([A-Za-z][A-Za-z\\s'-]{1,60})/i);
+    const name = normalizeNameCandidate(match?.[1] || text);
+    if (name) out.name = name;
+  } else if (prompt.includes('zip')) {
+    const zipMatch = text.match(/\\b\\d{5}\\b/);
+    if (zipMatch) out.zip = zipMatch[0];
+  } else if (prompt.includes('phone') || prompt.includes('number')) {
+    const phone = extractPhone(text);
+    if (phone) out.phone = phone;
+  } else if (prompt.includes('email')) {
+    const email = extractEmail(text);
+    if (email) out.email = email;
+  } else if (prompt.includes('address')) {
+    out.address = text;
+  } else if (prompt.includes('time') || prompt.includes('date') || prompt.includes('appointment')) {
+    out.preferred_time = text;
+  } else if (prompt.includes('issue') || prompt.includes('problem') || prompt.includes('pest')) {
+    out.issue = text;
+  }
+
+  return out;
+}
+
+function isConfirmationPrompt(prompt: string): boolean {
+  const p = (prompt || '').toLowerCase();
+  return (
+    p.includes('confirm') ||
+    p.includes('is that correct') ||
+    p.includes('is that right') ||
+    p.includes('right?') ||
+    p.includes('correct?')
+  );
+}
+
+function isLikelyNonAnswer(lastPrompt: string, userText: string): boolean {
+  const prompt = (lastPrompt || '').toLowerCase();
+  const text = userText.trim().toLowerCase();
+  if (!prompt.includes('?')) return false;
+  if (isConfirmationPrompt(prompt)) return false;
+
+  const fillers = new Set([
+    'hi',
+    'hello',
+    'hey',
+    'yeah',
+    'yep',
+    'yes',
+    'no',
+    'nope',
+    'ok',
+    'okay',
+    'sure',
+    'right',
+  ]);
+  if (fillers.has(text)) return true;
+
+  const wordCount = text.split(/\s+/).filter(Boolean).length;
+  if (wordCount <= 1) return true;
+
+  // If the user gave a plausible answer, don't treat it as a non-answer.
+  if (prompt.includes('zip') && /\b\d{5}\b/.test(text)) return false;
+  if (prompt.includes('name') && /[a-z]/i.test(text)) return false;
+  if ((prompt.includes('time') || prompt.includes('date')) && /\d/.test(text)) return false;
+  if ((prompt.includes('issue') || prompt.includes('problem') || prompt.includes('pest')) && wordCount >= 2) return false;
+
+  return false;
+}
+
 async function postJson(url: string, headers: Record<string, string>, body: any) {
   const res = await fetch(url, {
     method: 'POST',
@@ -280,15 +377,17 @@ function buildInstructions(input: {
     `You are a friendly, natural-sounding receptionist for ${company_name}.`,
     `Your job: quickly understand the caller's need, capture details, and either schedule or create a lead.`,
     `Be conversational and adaptive while still collecting what is needed.`,
+    `Ask only ONE question per turn. Never ask a second question until the caller answers.`,
     `Sound like a real person on the phone: use contractions, vary phrasing, and avoid repeating a sentence in the same turn.`,
     `Style: 1-2 short sentences max per turn, then a question. No monologues. No "thinking out loud".`,
+    `Ask only ONE question per turn. Never ask a second question until the caller answers.`,
     `Confirm critical fields (name, phone, address/zip, preferred time) before ending, but do NOT repeat the caller word-for-word.`,
     `When confirming, paraphrase naturally and group info: e.g., "Got it - plumbing help in 77441, aiming for Monday around 11. Is that right?"`,
     `Confirmation policy (very important): confirm EACH field immediately when it is first provided, then mark it confirmed in update_intake. Example flow: ask name -> confirm name -> ask zip/address -> confirm zip/address -> ask preferred time -> confirm time. Once confirmed, do NOT confirm that same field again unless the caller corrects it. If the caller says a field is wrong, ask for the correct value and THEN confirm the corrected value again before moving on. Do NOT do a full end-of-call recap of every detail.`,
     `If the caller already told you the issue/service details, do NOT ask again. Summarize briefly and move forward.`,
     `Use update_intake any time you learn a detail (name, zip, address, phone, service, issue, preferred time) so you do not ask twice. After the caller confirms a field (e.g., says "yes"), immediately call update_intake to lock it in.`,
     `Zip codes: confirm digits explicitly (e.g., "Just to confirm, that's 7-7-4-4-1?").`,
-    `Knowledge policy: use knowledge_search for business-specific facts (services, products/solutions used, pricing, plans, what's included, policies). Answer naturally in 1-2 sentences and ask a short follow-up if helpful.`,
+    `Knowledge policy: use knowledge_search for business-specific facts (services, products/solutions used, pricing, plans, what's included, policies). Answer naturally in 1-2 sentences. Do NOT ask "Does that help?" or "Is that what you were looking for?" after every answer. Only ask a follow-up if it helps move the task forward.`,
     `If you can't find it in knowledge_search or you're not sure, do NOT guess; say you'll note it and have the team follow up.`,
     `If the caller asks about the business, use knowledge_search to answer accurately.`,
     `Scheduling policy: the caller can request a specific date/time or ask what times are available on a day.`,
@@ -309,6 +408,8 @@ function buildInstructions(input: {
     `- Call create_lead early, once you know the caller's phone number and intent.`,
     `- Call save_call near the end with a concise summary + collected fields (not a verbatim transcript).`,
     `- Use get_availability + create_booking for scheduling; never guess availability.`,
+    `- Before calling get_availability, collect name and zip (or address) and confirm them.`,
+    `- Never present specific available times unless they came from get_availability in the current turn.`,
     extra ? `Extra instructions: ${extra}` : null,
   ].filter(Boolean) as string[];
   return lines.join('\n');
@@ -606,13 +707,16 @@ wss.on('connection', (twilioWs: WebSocket) => {
   let recordingStartAttempted = false;
   let pendingResponseTimer: NodeJS.Timeout | null = null;
   let lastUserSpeechStartedAt = 0;
+  let userSpeechActive = false;
+  let pendingUserTranscript = '';
+  let pendingResponseAfterSpeech = false;
   let openaiOutputAudioFormat: string = 'pcm16';
   let audioDeltaDebugCount = 0;
   let lastAssistantText = '';
   let lastAssistantAt = 0;
   let lastResponseId: string | null = null;
-  let pendingUserTranscript = '';
-  let userSpeechActive = false;
+  let lastAvailabilitySlots: string[] = [];
+  let lastAvailabilityTimezone: string | null = null;
 
   function log(msg: string, extra?: any) {
     const prefix = ctx ? `[callSid=${ctx.callSid} streamSid=${ctx.streamSid}]` : '[twilio]';
@@ -730,6 +834,32 @@ wss.on('connection', (twilioWs: WebSocket) => {
     }
   }
 
+  function scheduleAssistantResponse() {
+    if (!openaiWs || pendingAutoHangup) return;
+    clearPendingResponseTimer();
+    if (!pendingUserTranscript.trim()) {
+      if (!pendingAutoHangup) armNoResponseTimer();
+      return;
+    }
+    const wordCount = pendingUserTranscript.trim().split(/\s+/).filter(Boolean).length;
+    const delayMs = wordCount <= 2 ? 900 : 550;
+    pendingResponseTimer = setTimeout(() => {
+      pendingResponseTimer = null;
+      if (!openaiWs || pendingAutoHangup) return;
+      if (userSpeechActive) {
+        pendingResponseAfterSpeech = true;
+        return;
+      }
+      if (Date.now() - lastUserSpeechStartedAt < 600) {
+        pendingResponseAfterSpeech = true;
+        return;
+      }
+      if (!pendingUserTranscript.trim()) return;
+      pendingUserTranscript = '';
+      sendToOpenAI(openaiWs!, responseCreate());
+    }, delayMs);
+  }
+
   function armNoResponseTimer() {
     clearNoResponseTimer();
     const delayMs = noResponseStage === 0 ? 8000 : 7000;
@@ -771,26 +901,6 @@ wss.on('connection', (twilioWs: WebSocket) => {
             'No response from the caller. Say ONE short friendly goodbye sentence and end the call. Do not ask another question.',
         },
       });
-    }, delayMs);
-  }
-
-  function queueAssistantResponse() {
-    if (!openaiWs || pendingAutoHangup) return;
-    clearPendingResponseTimer();
-    const text = pendingUserTranscript.trim();
-    if (!text) {
-      if (!pendingAutoHangup) armNoResponseTimer();
-      return;
-    }
-    const wordCount = text.split(/\s+/).filter(Boolean).length;
-    const delayMs = wordCount <= 2 ? 900 : 550;
-    pendingResponseTimer = setTimeout(() => {
-      pendingResponseTimer = null;
-      if (!openaiWs || pendingAutoHangup) return;
-      if (Date.now() - lastUserSpeechStartedAt < 600) return;
-      if (!pendingUserTranscript.trim()) return;
-      pendingUserTranscript = '';
-      sendToOpenAI(openaiWs!, responseCreate());
     }, delayMs);
   }
 
@@ -1044,7 +1154,10 @@ wss.on('connection', (twilioWs: WebSocket) => {
             clearTimeout(pendingBargeInTimer);
             pendingBargeInTimer = null;
           }
-          if (!pendingAutoHangup) queueAssistantResponse();
+          if (pendingResponseAfterSpeech && !pendingAutoHangup) {
+            pendingResponseAfterSpeech = false;
+            scheduleAssistantResponse();
+          }
         }
 
         if (msg?.type === 'response.audio.delta' && typeof msg?.delta === 'string') {
@@ -1122,6 +1235,38 @@ wss.on('connection', (twilioWs: WebSocket) => {
             pendingUserTranscript = pendingUserTranscript
               ? `${pendingUserTranscript} ${text}`
               : text;
+            const inlinePatch = extractInlineIntake(lastAssistantText, text);
+            if (Object.keys(inlinePatch).length) {
+              intake = { ...intake, ...inlinePatch };
+              if (openaiWs) {
+                sendToOpenAI(openaiWs, {
+                  type: 'conversation.item.create',
+                  item: {
+                    type: 'message',
+                    role: 'system',
+                    content: [
+                      {
+                        type: 'input_text',
+                        text: `Current intake (authoritative, do not re-ask unless missing): ${JSON.stringify(intake)}`,
+                      },
+                    ],
+                  },
+                });
+              }
+            }
+            if (isLikelyNonAnswer(lastAssistantText, text) && !Object.keys(inlinePatch).length) {
+              if (openaiWs && !pendingAutoHangup) {
+                clearPendingResponseTimer();
+                sendToOpenAI(
+                  openaiWs,
+                  responseCreate(
+                    ['audio', 'text'],
+                    'The caller did not answer the last question. Repeat or rephrase the same question only, then stop.'
+                  )
+                );
+              }
+              return;
+            }
             // Any user response resets the no-response sequence.
             noResponseStage = 0;
           }
@@ -1146,7 +1291,6 @@ wss.on('connection', (twilioWs: WebSocket) => {
             if (isNo) {
               if (!pendingAutoHangup) {
                 pendingAutoHangup = true;
-                pendingUserTranscript = '';
                 pendingHangupMarkName = `goodbye_${Date.now()}`;
                 log('Auto-hangup triggered; generating goodbye', { mark: pendingHangupMarkName });
                 scheduleForcedHangup('caller said no (anything else)');
@@ -1164,9 +1308,14 @@ wss.on('connection', (twilioWs: WebSocket) => {
             }
           }
 
-          // Only generate a response after we have an actual transcription and speech has ended.
+          // Only generate a response after we have an actual transcription, but debounce slightly
+          // so we don't cut off follow-ups like "Yes, but I also had a question...".
           if (typeof t === 'string' && t.trim() && openaiWs && !pendingAutoHangup) {
-            if (!userSpeechActive) queueAssistantResponse();
+            if (userSpeechActive) {
+              pendingResponseAfterSpeech = true;
+            } else {
+              scheduleAssistantResponse();
+            }
           } else if (!pendingAutoHangup) {
             // Silence/incomprehensible: (re)arm the no-response timer.
             armNoResponseTimer();
@@ -1192,6 +1341,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
                 intake = { ...intake, ...patch };
               }
               const recentAssistantPrompt = (pendingAssistantText.trim() || pendingAssistantHeuristicText.trim()).slice(0, 240);
+              const assistantAskedQuestion = recentAssistantPrompt.includes('?');
               // Tell the model what we have so it stops asking twice.
               sendToOpenAI(openaiWs, {
                 type: 'conversation.item.create',
@@ -1210,14 +1360,18 @@ wss.on('connection', (twilioWs: WebSocket) => {
                 type: 'conversation.item.create',
                 item: { type: 'function_call_output', call_id: toolCallId, output: JSON.stringify({ ok: true, intake }) },
               });
-              const continueInstructions = [
-                'Continue the conversation without repeating the last question.',
-                recentAssistantPrompt ? `You already asked: "${recentAssistantPrompt}". Do not repeat it.` : '',
-                'If you already asked a question, wait for the caller to answer. Otherwise ask the next missing detail.',
-              ]
-                .filter(Boolean)
-                .join(' ');
-              sendToOpenAI(openaiWs, responseCreate(['audio', 'text'], continueInstructions));
+              const patchKeys = patch && typeof patch === 'object' ? Object.keys(patch) : [];
+              if (patchKeys.length === 0 && assistantAskedQuestion) {
+                sendToOpenAI(
+                  openaiWs,
+                  responseCreate(
+                    ['audio', 'text'],
+                    'Do not ask a new question yet. Wait for the caller to answer the last question.'
+                  )
+                );
+              } else if (!assistantAskedQuestion) {
+                sendToOpenAI(openaiWs, responseCreate());
+              }
               return;
             }
 
@@ -1240,6 +1394,15 @@ wss.on('connection', (twilioWs: WebSocket) => {
               });
               sendToOpenAI(openaiWs, responseCreate());
               return;
+            }
+
+            if (toolName === 'create_booking') {
+              const currentName =
+                (typeof intake?.name === 'string' && intake.name.trim()) ||
+                [intake?.first_name, intake?.last_name].filter(Boolean).join(' ').trim();
+              if (currentName && (!args?.customer_name || !String(args.customer_name).trim())) {
+                args = { ...args, customer_name: currentName };
+              }
             }
 
             const toolArgs =
@@ -1266,6 +1429,8 @@ wss.on('connection', (twilioWs: WebSocket) => {
             const result = await invokeTool(ctx, toolName, toolArgs);
             if (toolName === 'get_availability') {
               const count = Array.isArray((result as any)?.slots) ? result.slots.length : 0;
+              lastAvailabilitySlots = Array.isArray((result as any)?.slots) ? result.slots : [];
+              lastAvailabilityTimezone = typeof args?.timezone === 'string' ? args.timezone : null;
               log('get_availability result', {
                 start_time: args?.start_time,
                 end_time: args?.end_time,
@@ -1310,6 +1475,29 @@ wss.on('connection', (twilioWs: WebSocket) => {
               type: 'conversation.item.create',
               item: { type: 'function_call_output', call_id: toolCallId, output: JSON.stringify(result) },
             });
+            if (toolName === 'get_availability') {
+              const slots = Array.isArray((result as any)?.slots) ? result.slots : [];
+              if (slots.length) {
+                sendToOpenAI(
+                  openaiWs,
+                  responseCreate(
+                    ['audio', 'text'],
+                    `Offer only these available slots (no other times): ${slots.join(
+                      ', '
+                    )}. Ask which one they want.`
+                  )
+                );
+              } else {
+                sendToOpenAI(
+                  openaiWs,
+                  responseCreate(
+                    ['audio', 'text'],
+                    'There are no openings in that window. Ask for another day or a different time range.'
+                  )
+                );
+              }
+              return;
+            }
             sendToOpenAI(openaiWs, responseCreate());
           } catch (err: any) {
             // Keep the caller experience smooth: save_call failures should never be spoken back to the caller.
@@ -1342,15 +1530,34 @@ wss.on('connection', (twilioWs: WebSocket) => {
             if (toolName === 'get_availability' || toolName === 'create_booking') {
               log(`${toolName} failed`, { error: err?.message ?? String(err), args });
             }
+            const requestedStart = typeof args?.start_time === 'string' ? args.start_time : '';
+            const filteredSlots = lastAvailabilitySlots.filter((s) => s !== requestedStart);
             sendToOpenAI(openaiWs, {
               type: 'conversation.item.create',
               item: {
                 type: 'function_call_output',
                 call_id: toolCallId,
-                output: JSON.stringify({ ok: false, error: err?.message ?? String(err) }),
+                output: JSON.stringify({
+                  ok: false,
+                  error: err?.message ?? String(err),
+                  slots: toolName === 'create_booking' ? filteredSlots : undefined,
+                  timezone: toolName === 'create_booking' ? lastAvailabilityTimezone : undefined,
+                }),
               },
             });
-            sendToOpenAI(openaiWs, responseCreate());
+            if (toolName === 'create_booking' && filteredSlots.length) {
+              sendToOpenAI(
+                openaiWs,
+                responseCreate(
+                  ['audio', 'text'],
+                  `The requested time is unavailable. Offer only these available slots: ${filteredSlots.join(
+                    ', '
+                  )}.`
+                )
+              );
+            } else {
+              sendToOpenAI(openaiWs, responseCreate());
+            }
           }
         }
 

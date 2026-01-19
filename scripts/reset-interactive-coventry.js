@@ -21,12 +21,16 @@ const {
   ScanCommand,
   BatchWriteCommand,
   DeleteCommand,
+  UpdateCommand,
 } = require('@aws-sdk/lib-dynamodb');
 const { S3Client, ListObjectsV2Command, DeleteObjectsCommand } = require('@aws-sdk/client-s3');
 
 const REGION = process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION || 'us-east-1';
 const TABLE_PREFIX = process.env.DYNAMODB_TABLE_PREFIX || 'handycall_prod_';
 const COMPANY_ID = process.env.COMPANY_ID || 'b2d6d09a-794f-4b0f-bb62-9e9fedd596dd';
+const KEEP_KNOWLEDGE = process.env.KEEP_KNOWLEDGE === '1';
+const RESET_SUBSCRIPTION = process.env.RESET_SUBSCRIPTION === '1';
+const RESET_SCHEDULING = process.env.RESET_SCHEDULING === '1';
 
 const RECORDINGS_BUCKET = process.env.RECORDINGS_BUCKET || 'handycall-recordings-prod';
 const TRANSCRIPTS_BUCKET = process.env.TRANSCRIPTS_BUCKET || 'handycall-transcripts-prod';
@@ -141,6 +145,7 @@ async function main() {
   const usageTable = `${TABLE_PREFIX}usage_metrics`;
   const billingEventsTable = `${TABLE_PREFIX}billing_events`;
   const realtimeCacheTable = `${TABLE_PREFIX}realtime_cache`;
+  const companiesTable = `${TABLE_PREFIX}companies`;
 
   // Fetch contact ids before deleting contacts so we can clear realtime cache.
   const contacts = await queryAll({
@@ -211,30 +216,34 @@ async function main() {
     appts.map((a) => ({ company_id: COMPANY_ID, appointment_id: a.appointment_id }))
   );
 
-  // Knowledge items
-  const kis = await queryAll({
-    TableName: knowledgeItemsTable,
-    KeyConditionExpression: 'company_id = :c',
-    ExpressionAttributeValues: { ':c': COMPANY_ID },
-  });
-  console.log(`Deleting knowledge items (${kis.length})...`);
-  await batchDelete(
-    knowledgeItemsTable,
-    kis.map((k) => ({ company_id: COMPANY_ID, knowledge_id: k.knowledge_id }))
-  );
+  if (!KEEP_KNOWLEDGE) {
+    // Knowledge items
+    const kis = await queryAll({
+      TableName: knowledgeItemsTable,
+      KeyConditionExpression: 'company_id = :c',
+      ExpressionAttributeValues: { ':c': COMPANY_ID },
+    });
+    console.log(`Deleting knowledge items (${kis.length})...`);
+    await batchDelete(
+      knowledgeItemsTable,
+      kis.map((k) => ({ company_id: COMPANY_ID, knowledge_id: k.knowledge_id }))
+    );
 
-  // Knowledge chunks (partition key is company_knowledge = company#knowledgeId)
-  const chunks = await scanAll({
-    TableName: knowledgeChunksTable,
-    FilterExpression: 'begins_with(company_knowledge, :p)',
-    ExpressionAttributeValues: { ':p': `${COMPANY_ID}#` },
-    ProjectionExpression: 'company_knowledge, chunk_index',
-  });
-  console.log(`Deleting knowledge chunks (${chunks.length})...`);
-  await batchDelete(
-    knowledgeChunksTable,
-    chunks.map((c) => ({ company_knowledge: c.company_knowledge, chunk_index: c.chunk_index }))
-  );
+    // Knowledge chunks (partition key is company_knowledge = company#knowledgeId)
+    const chunks = await scanAll({
+      TableName: knowledgeChunksTable,
+      FilterExpression: 'begins_with(company_knowledge, :p)',
+      ExpressionAttributeValues: { ':p': `${COMPANY_ID}#` },
+      ProjectionExpression: 'company_knowledge, chunk_index',
+    });
+    console.log(`Deleting knowledge chunks (${chunks.length})...`);
+    await batchDelete(
+      knowledgeChunksTable,
+      chunks.map((c) => ({ company_knowledge: c.company_knowledge, chunk_index: c.chunk_index }))
+    );
+  } else {
+    console.log('Skipping knowledge deletion (KEEP_KNOWLEDGE=1).');
+  }
 
   // Flagged questions
   const flagged = await queryAll({
@@ -291,6 +300,89 @@ async function main() {
   console.log(`Deleted S3 recordings: ${deletedRecordings}`);
   console.log(`Deleted S3 transcripts: ${deletedTranscripts}`);
 
+  if (RESET_SUBSCRIPTION || RESET_SCHEDULING) {
+    const setExpr = [];
+    const removeExpr = [];
+    const names = {};
+    const values = {};
+
+    if (RESET_SUBSCRIPTION) {
+      removeExpr.push(
+        '#subscription_plan',
+        '#subscription_status',
+        '#stripe_subscription_id',
+        '#stripe_customer_id',
+        '#current_period_start',
+        '#current_period_end',
+        '#payment_method_last4',
+        '#payment_method_brand',
+        '#subscription_tier',
+        '#trial_ends_at',
+        '#trial_used_at',
+        '#cancel_at_period_end'
+      );
+      names['#subscription_plan'] = 'subscription_plan';
+      names['#subscription_status'] = 'subscription_status';
+      names['#stripe_subscription_id'] = 'stripe_subscription_id';
+      names['#stripe_customer_id'] = 'stripe_customer_id';
+      names['#current_period_start'] = 'current_period_start';
+      names['#current_period_end'] = 'current_period_end';
+      names['#payment_method_last4'] = 'payment_method_last4';
+      names['#payment_method_brand'] = 'payment_method_brand';
+      names['#subscription_tier'] = 'subscription_tier';
+      names['#trial_ends_at'] = 'trial_ends_at';
+      names['#trial_used_at'] = 'trial_used_at';
+      names['#cancel_at_period_end'] = 'cancel_at_period_end';
+    }
+
+    if (RESET_SCHEDULING) {
+      setExpr.push(
+        '#calendar_setup_completed = :false',
+        '#calendar_mode = :internal',
+        '#calendar_provider = :none',
+        '#business_hours = :empty_hours',
+        '#schedule_overrides = :empty_overrides',
+        '#timezone = :empty_tz'
+      );
+      removeExpr.push('#calendar_connection', '#appointment_duration_minutes', '#slot_interval_minutes');
+      names['#calendar_setup_completed'] = 'calendar_setup_completed';
+      names['#calendar_mode'] = 'calendar_mode';
+      names['#calendar_provider'] = 'calendar_provider';
+      names['#calendar_connection'] = 'calendar_connection';
+      names['#business_hours'] = 'business_hours';
+      names['#schedule_overrides'] = 'schedule_overrides';
+      names['#appointment_duration_minutes'] = 'appointment_duration_minutes';
+      names['#slot_interval_minutes'] = 'slot_interval_minutes';
+      names['#timezone'] = 'timezone';
+      values[':false'] = false;
+      values[':internal'] = 'INTERNAL';
+      values[':none'] = 'NONE';
+      values[':empty_hours'] = {};
+      values[':empty_overrides'] = [];
+      values[':empty_tz'] = '';
+    }
+
+    const updateExpression = [
+      setExpr.length ? `SET ${setExpr.join(', ')}` : '',
+      removeExpr.length ? `REMOVE ${removeExpr.join(', ')}` : '',
+    ]
+      .filter(Boolean)
+      .join(' ');
+
+    if (updateExpression) {
+      console.log('Resetting company subscription/scheduling flags...');
+      await ddb.send(
+        new UpdateCommand({
+          TableName: companiesTable,
+          Key: { company_id: COMPANY_ID },
+          UpdateExpression: updateExpression,
+          ExpressionAttributeNames: names,
+          ExpressionAttributeValues: Object.keys(values).length ? values : undefined,
+        })
+      );
+    }
+  }
+
   console.log('Reset complete.');
 }
 
@@ -298,4 +390,3 @@ main().catch((err) => {
   console.error('Reset failed:', err);
   process.exit(1);
 });
-
