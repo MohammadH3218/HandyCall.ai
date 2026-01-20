@@ -230,6 +230,27 @@ function normalizeForEcho(text: string): string {
     .trim();
 }
 
+const fillerTokens = new Set([
+  'uh',
+  'um',
+  'uhh',
+  'umm',
+  'okay',
+  'ok',
+  'yeah',
+  'yep',
+  'right',
+  'hmm',
+  'mm',
+]);
+
+function isFillerUtterance(text: string): boolean {
+  const normalized = normalizeForEcho(text);
+  if (!normalized) return true;
+  const wordCount = normalized.split(/\s+/).filter(Boolean).length;
+  return wordCount <= 2 && fillerTokens.has(normalized);
+}
+
 function isExplicitBargeIn(text: string): boolean {
   const t = normalizeForEcho(text);
   if (!t) return false;
@@ -294,6 +315,27 @@ type BookingSlotOption = {
   timeLabel: string;
 };
 
+type ConversationState =
+  | 'GREETING'
+  | 'ASK_NAME'
+  | 'CONFIRM_NAME'
+  | 'ASK_ZIP'
+  | 'CONFIRM_ZIP'
+  | 'ASK_TIME'
+  | 'OFFER_SLOTS'
+  | 'CONFIRM_BOOKING'
+  | 'ANSWERING'
+  | 'FOLLOW_UP'
+  | 'CLOSING';
+
+type SessionContext = {
+  state: ConversationState;
+  intent?: 'booking' | 'question' | 'unknown';
+  customerName?: string;
+  zipCode?: string;
+  proposedTime?: string;
+};
+
 function hasBookingIntent(text: string): boolean {
   const t = String(text || '').toLowerCase();
   if (
@@ -304,6 +346,13 @@ function hasBookingIntent(text: string): boolean {
     return true;
   }
   return /\b(set\s+up|set-up|come\s+out|come\s+by|send\s+someone|send\s+somebody)\b/.test(t);
+}
+
+function looksLikeQuestion(text: string): boolean {
+  const t = String(text || '').trim().toLowerCase();
+  if (!t) return false;
+  if (t.endsWith('?')) return true;
+  return /^(what|why|how|when|where|who|can you|do you|is it|are you|does it|could you|would you)\b/.test(t);
 }
 
 function extractNameValue(text: string): string | null {
@@ -859,7 +908,7 @@ function sendToOpenAI(ws: WebSocket, msg: any) {
 function responseCreate(
   modalities: Array<'audio' | 'text'> = ['audio', 'text'],
   instructions?: string,
-  options?: { temperature?: number; max_output_tokens?: number }
+  options?: { temperature?: number; max_output_tokens?: number; tool_choice?: 'none' | 'auto' }
 ) {
   return {
     type: 'response.create',
@@ -1038,10 +1087,11 @@ wss.on('connection', (twilioWs: WebSocket) => {
   let lastUserSpeechStartedAt = 0;
   let lastUserSpeechStoppedAt = 0;
   let lastUserSpeechDurationMs = 0;
-  let pendingBargeInTimer: NodeJS.Timeout | null = null;
-  let pendingBargeInSegmentId: number | null = null;
-  let assistantAudioSegmentId = 0;
   let isProcessingTool = false;
+  const fsmEnabled = true;
+  let sessionContext: SessionContext = { state: 'GREETING', intent: 'unknown' };
+  let lastFsmPrompt: string | null = null;
+  let pendingAnswerFollowUp = false;
   let bookingStep: BookingStep = 'idle';
   let bookingSlots: BookingSlotOption[] = [];
   let pendingName: string | null = null;
@@ -1171,7 +1221,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
 
   function scheduleAssistantResponse() {
     if (!openaiWs || pendingAutoHangup) return;
-    if (bookingStep !== 'idle') return;
+    if (!fsmEnabled && bookingStep !== 'idle') return;
     clearPendingResponseTimer();
     if (!pendingUserTranscript.trim()) {
       if (!pendingAutoHangup) armNoResponseTimer();
@@ -1198,7 +1248,23 @@ wss.on('connection', (twilioWs: WebSocket) => {
       }
       if (!pendingUserTranscript.trim()) return;
       const bufferedText = pendingUserTranscript;
-      if (bookingStep === 'idle') {
+      if (fsmEnabled) {
+        try {
+          const handled = await handleFsmTurn(bufferedText);
+          pendingUserTranscript = '';
+          if (handled) {
+            noResponseStage = 0;
+            return;
+          }
+          sendPrompt("Sorry, I didn't catch that. Could you repeat?");
+          return;
+        } catch (err: any) {
+          log('handleFsmTurn failed (deferred)', err?.message ?? String(err));
+          pendingUserTranscript = '';
+          sendPrompt("Sorry, I ran into a hiccup. Could you say that again?");
+          return;
+        }
+      } else if (bookingStep === 'idle') {
         try {
           const handledBooking = await handleBookingTurn(bufferedText);
           if (handledBooking) {
@@ -1220,7 +1286,9 @@ wss.on('connection', (twilioWs: WebSocket) => {
     clearPendingResponseTimer();
     sendToOpenAI(openaiWs, { type: 'response.cancel' });
     const safe = text.replace(/"/g, '\\"');
-    if (bookingStep !== 'idle') {
+    if (fsmEnabled) {
+      lastFsmPrompt = text;
+    } else if (bookingStep !== 'idle') {
       lastBookingPrompt = text;
       lastBookingPromptAt = Date.now();
       bookingPromptActive = true;
@@ -1234,6 +1302,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
         {
           temperature: 0,
           max_output_tokens: maxTokens,
+          ...(fsmEnabled ? { tool_choice: 'none' } : {}),
         }
       )
     );
@@ -1606,6 +1675,342 @@ wss.on('connection', (twilioWs: WebSocket) => {
     return false;
   }
 
+  function resetFsmBookingContext() {
+    bookingSlots = [];
+    pendingName = null;
+    pendingZip = null;
+    pendingSlot = null;
+    sessionContext.customerName = undefined;
+    sessionContext.zipCode = undefined;
+    sessionContext.proposedTime = undefined;
+  }
+
+  async function answerWithKnowledge(question: string): Promise<boolean> {
+    if (!ctx || !openaiWs) return false;
+    sessionContext.state = 'ANSWERING';
+    pendingAnswerFollowUp = true;
+    let results: any[] = [];
+    try {
+      isProcessingTool = true;
+      results = await invokeTool(ctx, 'knowledge_search', { query: question, top_k: 3 });
+    } catch (err: any) {
+      log('knowledge_search failed', err?.message ?? String(err));
+      results = [];
+    } finally {
+      isProcessingTool = false;
+    }
+    if (!results.length) {
+      sendPrompt("I don't have that information on hand, but I'll have the team follow up.");
+      return true;
+    }
+    const snippets = results
+      .map((item, idx) => {
+        const title = item?.title || item?.type || `Info ${idx + 1}`;
+        const text = String(item?.text || '').trim();
+        return text ? `(${idx + 1}) ${title}: ${text}` : '';
+      })
+      .filter(Boolean)
+      .join('\n');
+    const instructions = `Use only the information below to answer in 1-2 sentences. Do not ask a question.\n\n${snippets}`;
+    sendToOpenAI(openaiWs, responseCreate(['audio', 'text'], instructions, { temperature: 0.2, max_output_tokens: 200, tool_choice: 'none' }));
+    return true;
+  }
+
+  async function handleFsmTurn(text: string): Promise<boolean> {
+    if (!ctx || !openaiWs) return false;
+    const trimmed = text.trim();
+    if (!trimmed) return false;
+
+    const isGreeting = /^(hi|hello|hey)\b/i.test(trimmed) && trimmed.split(/\s+/).length <= 3;
+    const bookingIntent = hasBookingIntent(trimmed);
+    const questionIntent = looksLikeQuestion(trimmed);
+
+    if (sessionContext.state === 'GREETING') {
+      if (isGreeting && !bookingIntent && !questionIntent) {
+        sendPrompt('How can I help you today?');
+        return true;
+      }
+      if (questionIntent && !bookingIntent) {
+        return await answerWithKnowledge(trimmed);
+      }
+      sessionContext.intent = 'booking';
+      resetFsmBookingContext();
+      const name = extractNameValue(trimmed);
+      if (name) {
+        pendingName = name;
+        sessionContext.customerName = name;
+        sessionContext.state = 'CONFIRM_NAME';
+        sendPrompt(`Just to confirm, is the name ${name}?`);
+        return true;
+      }
+      sessionContext.state = 'ASK_NAME';
+      sendPrompt("Sure, what's your full name?");
+      return true;
+    }
+
+    if (sessionContext.state === 'ASK_NAME') {
+      const name = extractNameValue(trimmed);
+      if (!name) {
+        sendPrompt("Sorry, I didn't catch the name. What name should I use?");
+        return true;
+      }
+      pendingName = name;
+      sessionContext.customerName = name;
+      sessionContext.state = 'CONFIRM_NAME';
+      sendPrompt(`Just to confirm, is the name ${name}?`);
+      return true;
+    }
+
+    if (sessionContext.state === 'CONFIRM_NAME') {
+      if (isAffirmative(trimmed)) {
+        if (pendingName) {
+          intake.name = pendingName;
+          syncIntakeToModel();
+        }
+        sessionContext.state = 'ASK_ZIP';
+        sendPrompt("Thanks. What's your 5-digit zip code?");
+        return true;
+      }
+      if (isNegative(trimmed)) {
+        pendingName = null;
+        sessionContext.customerName = undefined;
+        sessionContext.state = 'ASK_NAME';
+        sendPrompt('No problem. What name should I use?');
+        return true;
+      }
+      sendPrompt(`Sorry, I just need a yes or no. Is the name ${pendingName || 'that name'}?`);
+      return true;
+    }
+
+    if (sessionContext.state === 'ASK_ZIP') {
+      const zip = extractZipValue(trimmed);
+      if (!zip) {
+        if (looksLikeAddress(trimmed)) {
+          intake.address = trimmed;
+          syncIntakeToModel();
+        }
+        sendPrompt("What's your 5-digit zip code?");
+        return true;
+      }
+      pendingZip = zip;
+      sessionContext.zipCode = zip;
+      sessionContext.state = 'CONFIRM_ZIP';
+      sendPrompt(`Got it, that's ${zipToSpoken(zip)}, right?`);
+      return true;
+    }
+
+    if (sessionContext.state === 'CONFIRM_ZIP') {
+      if (isAffirmative(trimmed)) {
+        if (pendingZip) {
+          intake.zip = pendingZip;
+          syncIntakeToModel();
+        }
+        sessionContext.state = 'ASK_TIME';
+        sendPrompt('What day and time would you prefer?');
+        return true;
+      }
+      if (isNegative(trimmed)) {
+        pendingZip = null;
+        sessionContext.zipCode = undefined;
+        sessionContext.state = 'ASK_ZIP';
+        sendPrompt('Okay, what is the correct zip code?');
+        return true;
+      }
+      sendPrompt(`Sorry, just a yes or no - is that ${pendingZip ? zipToSpoken(pendingZip) : 'that zip'}?`);
+      return true;
+    }
+
+    if (sessionContext.state === 'ASK_TIME') {
+      if (!looksLikeTimeRequest(trimmed)) {
+        sendPrompt('What day and time would you prefer?');
+        return true;
+      }
+      const tz = tenant?.timezone || 'UTC';
+      const explicitTime = extractTimeNeedle(trimmed);
+      const ambiguousHour =
+        !explicitTime && /\b(at|around|about|for)\s+\d{1,2}(?::\d{2})?\b/i.test(trimmed);
+      const hasExplicitTime = !!explicitTime || ambiguousHour;
+      const hasDay = hasDayReference(trimmed);
+      if (hasExplicitTime && !hasDay) {
+        sendPrompt('What day would you like to book that time for?');
+        return true;
+      }
+      const dayQuery = hasExplicitTime ? stripTimeFromText(trimmed) : trimmed;
+      const query = dayQuery || trimmed;
+      let result: any;
+      try {
+        isProcessingTool = true;
+        sendPrompt('Let me check the schedule for you. One moment.');
+        result = await invokeTool(ctx, 'get_availability', {
+          start_time: query,
+          timezone: tz,
+        });
+      } catch (err: any) {
+        log('get_availability failed (fsm)', err?.message ?? String(err));
+        sendPrompt("I couldn't check availability right now. What day or time works instead?");
+        sessionContext.state = 'ASK_TIME';
+        isProcessingTool = false;
+        return true;
+      } finally {
+        isProcessingTool = false;
+      }
+      const slots = Array.isArray(result?.slots) ? result.slots : [];
+      const readable = Array.isArray(result?.readable_slots) ? result.readable_slots : [];
+      const spokenAvailability =
+        typeof result?.spoken_availability === 'string' ? result.spoken_availability.trim() : '';
+      if (!slots.length) {
+        sendPrompt("I don't see openings around that time. What day or time works instead?");
+        sessionContext.state = 'ASK_TIME';
+        return true;
+      }
+      bookingSlots = buildBookingSlotOptions(slots, readable, tz);
+      if (hasExplicitTime) {
+        const match = pickSlotFromResponse(trimmed, bookingSlots);
+        if (match) {
+          pendingSlot = match;
+          sessionContext.proposedTime = match.label;
+          sessionContext.state = 'CONFIRM_BOOKING';
+          sendPrompt(`I can do ${match.label}. Want me to book that?`);
+          return true;
+        }
+      }
+      if (bookingSlots.length > 12) {
+        sendPrompt(spokenAvailability || 'That day has wide availability. What time works best?');
+        sessionContext.state = 'OFFER_SLOTS';
+        return true;
+      }
+      const labels = bookingSlots.map((slot) => slot.label).join(', ');
+      const maxTokens = labels.length > 180 ? 240 : 160;
+      sendPrompt(`I have these times: ${labels}. Which works best?`, { max_output_tokens: maxTokens });
+      sessionContext.state = 'OFFER_SLOTS';
+      return true;
+    }
+
+    if (sessionContext.state === 'OFFER_SLOTS') {
+      const chosen = pickSlotFromResponse(trimmed, bookingSlots);
+      if (chosen) {
+        pendingSlot = chosen;
+        sessionContext.proposedTime = chosen.label;
+        sessionContext.state = 'CONFIRM_BOOKING';
+        sendPrompt(`Great. Want me to book ${chosen.label}?`);
+        return true;
+      }
+      if (looksLikeTimeRequest(trimmed)) {
+        sessionContext.state = 'ASK_TIME';
+        return await handleFsmTurn(trimmed);
+      }
+      sendPrompt('Which of those times would you like?');
+      return true;
+    }
+
+    if (sessionContext.state === 'CONFIRM_BOOKING') {
+      if (!pendingSlot) {
+        sessionContext.state = 'ASK_TIME';
+        sendPrompt('What day and time would you prefer?');
+        return true;
+      }
+      if (isAffirmative(trimmed)) {
+        const tz = tenant?.timezone || 'UTC';
+        const customerName = pendingName || (typeof intake.name === 'string' ? intake.name : '') || 'Caller';
+        try {
+          isProcessingTool = true;
+          sendPrompt('Great. Booking that now.');
+          const notes =
+            typeof intake.issue === 'string' && intake.issue.trim()
+              ? `Issue: ${intake.issue.trim()}`
+              : undefined;
+          await invokeTool(ctx, 'create_booking', {
+            start_time: pendingSlot.iso,
+            timezone: tz,
+            customer_name: customerName,
+            notes,
+          });
+          intake.preferred_time = pendingSlot.label;
+          syncIntakeToModel();
+          sendPrompt(`You're booked for ${pendingSlot.label}. Is there anything else I can help with today?`);
+          sessionContext.state = 'FOLLOW_UP';
+          pendingSlot = null;
+          return true;
+        } catch (err: any) {
+          log('create_booking failed (fsm)', err?.message ?? String(err));
+          pendingSlot = null;
+          sessionContext.state = 'OFFER_SLOTS';
+          if (bookingSlots.length > 12) {
+            sendPrompt('That time just got taken. What time works best instead?');
+          } else {
+            const remaining = bookingSlots.map((slot) => slot.label).join(', ');
+            const maxTokens = remaining.length > 180 ? 240 : 160;
+            sendPrompt(`That time just got taken. I still have ${remaining}. Which works best?`, {
+              max_output_tokens: maxTokens,
+            });
+          }
+          return true;
+        } finally {
+          isProcessingTool = false;
+        }
+      }
+      if (isNegative(trimmed)) {
+        pendingSlot = null;
+        sessionContext.state = 'ASK_TIME';
+        sendPrompt('Okay. What day and time would you prefer instead?');
+        return true;
+      }
+      sendPrompt('Just to confirm, should I book that time?');
+      return true;
+    }
+
+    if (sessionContext.state === 'ANSWERING') {
+      if (bookingIntent) {
+        sessionContext.state = 'ASK_NAME';
+        sendPrompt("Sure, what's your full name?");
+        return true;
+      }
+      return await answerWithKnowledge(trimmed);
+    }
+
+    if (sessionContext.state === 'FOLLOW_UP') {
+      if (isNegative(trimmed)) {
+        const summary = intake.preferred_time
+          ? `Booked appointment for ${intake.preferred_time}.`
+          : 'Caller inquiry handled.';
+        try {
+          await invokeTool(ctx, 'save_call', { summary, collected_info: intake });
+        } catch (err: any) {
+          log('save_call failed (fsm)', err?.message ?? String(err));
+        }
+        sendPrompt('Thanks for calling - if you need anything else, just give us a call back.');
+        if (!pendingAutoHangup) {
+          pendingAutoHangup = true;
+          pendingHangupMarkName = `fsm_done_${Date.now()}`;
+        }
+        scheduleForcedHangup('fsm complete');
+        sessionContext.state = 'CLOSING';
+        return true;
+      }
+      if (isAffirmative(trimmed)) {
+        sessionContext.state = 'GREETING';
+        sendPrompt('Sure. How else can I help?');
+        return true;
+      }
+      if (bookingIntent) {
+        sessionContext.state = 'ASK_NAME';
+        sendPrompt("Sure, what's your full name?");
+        return true;
+      }
+      if (questionIntent) {
+        return await answerWithKnowledge(trimmed);
+      }
+      sendPrompt('Is there anything else I can help with today?');
+      return true;
+    }
+
+    if (sessionContext.state === 'CLOSING') {
+      return true;
+    }
+
+    return false;
+  }
+
   function armNoResponseTimer() {
     clearNoResponseTimer();
     const delayMs = noResponseStage === 0 ? 8000 : 7000;
@@ -1618,7 +2023,22 @@ wss.on('connection', (twilioWs: WebSocket) => {
         return;
       }
 
-      if (bookingStep !== 'idle' && lastBookingPrompt) {
+      if (fsmEnabled && lastFsmPrompt) {
+        if (noResponseStage === 0) {
+          noResponseStage = 1;
+          sendPrompt(lastFsmPrompt);
+          armNoResponseTimer();
+          return;
+        }
+        sendPrompt('No problem. Feel free to call back if you still need help.');
+        if (!pendingAutoHangup) {
+          pendingAutoHangup = true;
+          pendingHangupMarkName = `no_response_${Date.now()}`;
+        }
+        scheduleForcedHangup('no response after two prompts');
+        return;
+      }
+      if (!fsmEnabled && bookingStep !== 'idle' && lastBookingPrompt) {
         if (noResponseStage === 0) {
           noResponseStage = 1;
           sendPrompt(lastBookingPrompt);
@@ -1637,14 +2057,18 @@ wss.on('connection', (twilioWs: WebSocket) => {
 
       if (noResponseStage === 0) {
         noResponseStage = 1;
-        sendToOpenAI(openaiWs, {
-          type: 'response.create',
-          response: {
-            modalities: ['audio', 'text'],
-            instructions:
-              "Sorry, I didn't catch that. How can I help you today? Keep it to one short question.",
-          },
-        });
+        if (fsmEnabled) {
+          sendPrompt("Sorry, I didn't catch that. How can I help you today?");
+        } else {
+          sendToOpenAI(openaiWs, {
+            type: 'response.create',
+            response: {
+              modalities: ['audio', 'text'],
+              instructions:
+                "Sorry, I didn't catch that. How can I help you today? Keep it to one short question.",
+            },
+          });
+        }
         armNoResponseTimer();
         return;
       }
@@ -1842,8 +2266,8 @@ wss.on('connection', (twilioWs: WebSocket) => {
           session: {
             voice,
             instructions,
-            tools: toolsSchema(),
-            tool_choice: 'auto',
+            tools: fsmEnabled ? [] : toolsSchema(),
+            tool_choice: fsmEnabled ? 'none' : 'auto',
             input_audio_format: 'g711_ulaw',
             output_audio_format: 'pcm16',
             input_audio_transcription: { model: 'gpt-4o-mini-transcribe' },
@@ -1859,14 +2283,19 @@ wss.on('connection', (twilioWs: WebSocket) => {
         });
         openaiOutputAudioFormat = 'pcm16';
 
-        // Kick off an initial greeting ASAP (don't block on backend/tool latency).
-        sendToOpenAI(openaiWs, {
-          type: 'response.create',
-          response: {
-            modalities: ['audio', 'text'],
-            instructions: 'Give one short greeting (do not repeat it) and ask how you can help.',
-          },
-        });
+        if (fsmEnabled) {
+          sessionContext.state = 'GREETING';
+          sendPrompt('Hi, thanks for calling. How can I help you today?');
+        } else {
+          // Kick off an initial greeting ASAP (don't block on backend/tool latency).
+          sendToOpenAI(openaiWs, {
+            type: 'response.create',
+            response: {
+              modalities: ['audio', 'text'],
+              instructions: 'Give one short greeting (do not repeat it) and ask how you can help.',
+            },
+          });
+        }
         noResponseStage = 0;
         armNoResponseTimer();
 
@@ -1905,20 +2334,6 @@ wss.on('connection', (twilioWs: WebSocket) => {
           lastUserSpeechDurationMs = 0;
           clearNoResponseTimer();
           clearPendingResponseTimer();
-          if (Date.now() < assistantAudioActiveUntil) {
-            pendingBargeInSegmentId = assistantAudioSegmentId;
-            if (pendingBargeInTimer) clearTimeout(pendingBargeInTimer);
-            pendingBargeInTimer = setTimeout(() => {
-              pendingBargeInTimer = null;
-              if (!openaiWs || !ctx) return;
-              if (!userSpeechActive) return;
-              if (pendingBargeInSegmentId !== assistantAudioSegmentId) return;
-              if (Date.now() >= assistantAudioActiveUntil) return;
-              sendToOpenAI(openaiWs, { type: 'response.cancel' });
-              sendToTwilio(twilioWs, { event: 'clear', streamSid: ctx.streamSid });
-              pendingBargeInSegmentId = null;
-            }, 350);
-          }
         }
 
         if (msg?.type === 'input_audio_buffer.speech_stopped') {
@@ -1927,11 +2342,6 @@ wss.on('connection', (twilioWs: WebSocket) => {
           if (lastUserSpeechStartedAt > 0) {
             lastUserSpeechDurationMs = Math.max(0, lastUserSpeechStoppedAt - lastUserSpeechStartedAt);
           }
-          if (pendingBargeInTimer) {
-            clearTimeout(pendingBargeInTimer);
-            pendingBargeInTimer = null;
-          }
-          pendingBargeInSegmentId = null;
           if (pendingResponseAfterSpeech && !pendingAutoHangup) {
             pendingResponseAfterSpeech = false;
             scheduleAssistantResponse();
@@ -1940,10 +2350,6 @@ wss.on('connection', (twilioWs: WebSocket) => {
 
         if (msg?.type === 'response.audio.delta' && typeof msg?.delta === 'string') {
           const now = Date.now();
-          const wasSpeaking = now < assistantAudioActiveUntil;
-          if (!wasSpeaking) {
-            assistantAudioSegmentId += 1;
-          }
           assistantAudioActiveUntil = now + 350;
           const asPcm16 = shouldTreatDeltaAsPcm16(msg.delta);
           const bytes = asPcm16 ? decodeBase64Safe(msg.delta) : null;
@@ -2017,23 +2423,8 @@ wss.on('connection', (twilioWs: WebSocket) => {
             lastUserTranscriptAt = Date.now();
             const text = t.trim();
             const normalizedText = text.toLowerCase();
-            const wordCount = text.trim().split(/\s+/).filter(Boolean).length;
             if (isProcessingTool && !isExplicitBargeIn(text)) {
-              const fillerTokens = new Set([
-                'uh',
-                'um',
-                'uhh',
-                'umm',
-                'okay',
-                'ok',
-                'yeah',
-                'yep',
-                'right',
-                'hmm',
-                'mm',
-              ]);
-              const normalized = normalizeForEcho(text);
-              if (wordCount <= 2 || fillerTokens.has(normalized)) {
+              if (isFillerUtterance(text)) {
                 log('Ignoring filler while tool in flight', { text });
                 armNoResponseTimer();
                 return;
@@ -2062,7 +2453,12 @@ wss.on('connection', (twilioWs: WebSocket) => {
               armNoResponseTimer();
               return;
             }
-            if (bookingStep !== 'idle' && shouldIgnoreBookingTranscript(text)) {
+            if (Date.now() < assistantAudioActiveUntil && !isFillerUtterance(text)) {
+              sendToOpenAI(openaiWs, { type: 'response.cancel' });
+              sendToTwilio(twilioWs, { event: 'clear', streamSid: ctx.streamSid });
+              assistantAudioActiveUntil = 0;
+            }
+            if (!fsmEnabled && bookingStep !== 'idle' && shouldIgnoreBookingTranscript(text)) {
               log('Ignoring short booking response', { text, bookingStep });
               armNoResponseTimer();
               return;
@@ -2073,14 +2469,16 @@ wss.on('connection', (twilioWs: WebSocket) => {
             pendingUserTranscript = pendingUserTranscript
               ? `${pendingUserTranscript} ${text}`
               : text;
-            let handledBooking = false;
-            if (bookingStep !== 'idle') {
-              handledBooking = await handleBookingTurn(text);
-            }
-            if (handledBooking) {
-              noResponseStage = 0;
-              pendingUserTranscript = '';
-              return;
+            if (!fsmEnabled) {
+              let handledBooking = false;
+              if (bookingStep !== 'idle') {
+                handledBooking = await handleBookingTurn(text);
+              }
+              if (handledBooking) {
+                noResponseStage = 0;
+                pendingUserTranscript = '';
+                return;
+              }
             }
             const inlinePatch = extractInlineIntake(lastAssistantText, text);
             if (Object.keys(inlinePatch).length) {
@@ -2112,7 +2510,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
           }
 
           // Fallback end-of-call: if we recently asked "anything else", and the user says "no", hang up.
-          if (lastAssistantAskedAnythingElseAt && Date.now() - lastAssistantAskedAnythingElseAt < 20000) {
+          if (!fsmEnabled && lastAssistantAskedAnythingElseAt && Date.now() - lastAssistantAskedAnythingElseAt < 20000) {
             const normalized = t.trim().toLowerCase();
             const isNo =
               normalized === 'no' ||
@@ -2502,6 +2900,13 @@ wss.on('connection', (twilioWs: WebSocket) => {
           pendingAssistantText = '';
           pendingAssistantHeuristicText = '';
           assistantTranscriptSource = null;
+          if (fsmEnabled && pendingAnswerFollowUp) {
+            pendingAnswerFollowUp = false;
+            sessionContext.state = 'FOLLOW_UP';
+            if (!pendingAutoHangup) {
+              sendPrompt('Is there anything else I can help with today?');
+            }
+          }
         }
       });
 
