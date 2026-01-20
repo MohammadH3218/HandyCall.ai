@@ -1103,6 +1103,8 @@ wss.on('connection', (twilioWs: WebSocket) => {
   let lastAvailabilitySlots: string[] = [];
   let lastAvailabilityTimezone: string | null = null;
   let initialGreetingSent = false;
+  let openaiSessionReady = false;
+  let twilioStreamReady = false;
 
   function log(msg: string, extra?: any) {
     const prefix = ctx ? `[callSid=${ctx.callSid} streamSid=${ctx.streamSid}]` : '[twilio]';
@@ -1136,12 +1138,24 @@ wss.on('connection', (twilioWs: WebSocket) => {
     const sampleCount = Math.floor(pcmBytes.length / 2);
     if (sampleCount <= 0) return Buffer.alloc(0);
 
-    // No downsampling - convert all samples 1:1 to preserve audio quality
-    const out = Buffer.allocUnsafe(sampleCount);
-    for (let i = 0; i < sampleCount; i++) {
-      const idx = i * 2;
-      const sample = pcmBytes.readInt16LE(idx);
-      out[i] = linearPcm16ToMuLawSample(sample);
+    // Downsample from 24kHz (OpenAI) to 8kHz (Twilio) using 3:1 ratio
+    // Use averaging to preserve quality during sample rate conversion
+    const downsampleFactor = 3;
+    const outSamples = Math.floor(sampleCount / downsampleFactor);
+    if (outSamples <= 0) return Buffer.alloc(0);
+
+    const out = Buffer.allocUnsafe(outSamples);
+    for (let i = 0; i < outSamples; i++) {
+      const base = i * downsampleFactor;
+      let sum = 0;
+      for (let k = 0; k < downsampleFactor; k++) {
+        const idx = (base + k) * 2;
+        if (idx + 1 < pcmBytes.length) {
+          sum += pcmBytes.readInt16LE(idx);
+        }
+      }
+      const avg = Math.max(-32768, Math.min(32767, Math.round(sum / downsampleFactor)));
+      out[i] = linearPcm16ToMuLawSample(avg);
     }
     return out;
   }
@@ -1274,6 +1288,34 @@ wss.on('connection', (twilioWs: WebSocket) => {
       pendingUserTranscript = '';
       sendToOpenAI(openaiWs!, responseCreate());
     }, delayMs);
+  }
+
+  function tryInitialGreeting() {
+    if (initialGreetingSent) return;
+    if (!openaiSessionReady || !twilioStreamReady) return;
+    if (!ctx || !openaiWs || pendingAutoHangup) return;
+
+    initialGreetingSent = true;
+    log('Sending initial greeting', { openaiReady: openaiSessionReady, twilioReady: twilioStreamReady });
+
+    // Small delay to ensure both pipelines are stable
+    setTimeout(() => {
+      if (!ctx || !openaiWs) return;
+      if (fsmEnabled) {
+        sessionContext.state = 'GREETING';
+        sendPrompt('Hi, thanks for calling. How can I help you today?');
+      } else {
+        sendToOpenAI(openaiWs, {
+          type: 'response.create',
+          response: {
+            modalities: ['audio', 'text'],
+            instructions: 'Give one short greeting (do not repeat it) and ask how you can help.',
+          },
+        });
+      }
+      noResponseStage = 0;
+      armNoResponseTimer();
+    }, 100);
   }
 
   function sendPrompt(text: string, options?: { max_output_tokens?: number }) {
@@ -2306,29 +2348,8 @@ wss.on('connection', (twilioWs: WebSocket) => {
           if (typeof fmt === 'string' && fmt) openaiOutputAudioFormat = fmt;
           log('OpenAI session updated', { output_audio_format: openaiOutputAudioFormat });
 
-          // Send initial greeting after session is fully configured
-          if (!initialGreetingSent) {
-            initialGreetingSent = true;
-            // Small delay to ensure audio pipeline is ready
-            setTimeout(() => {
-              if (!ctx || !openaiWs) return;
-              if (fsmEnabled) {
-                sessionContext.state = 'GREETING';
-                sendPrompt('Hi, thanks for calling. How can I help you today?');
-              } else {
-                // Kick off an initial greeting ASAP (don't block on backend/tool latency).
-                sendToOpenAI(openaiWs, {
-                  type: 'response.create',
-                  response: {
-                    modalities: ['audio', 'text'],
-                    instructions: 'Give one short greeting (do not repeat it) and ask how you can help.',
-                  },
-                });
-              }
-              noResponseStage = 0;
-              armNoResponseTimer();
-            }, 200);
-          }
+          openaiSessionReady = true;
+          tryInitialGreeting();
         }
 
         // Barge-in: cancel assistant output when user starts talking.
@@ -2980,6 +3001,9 @@ wss.on('connection', (twilioWs: WebSocket) => {
     }
 
     if (event?.event === 'connected') {
+      log('Twilio stream connected');
+      twilioStreamReady = true;
+      tryInitialGreeting();
       return;
     }
 
