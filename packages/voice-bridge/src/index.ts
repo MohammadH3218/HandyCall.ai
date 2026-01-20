@@ -1991,38 +1991,38 @@ wss.on('connection', (twilioWs: WebSocket) => {
         }
 
         if (msg?.type === 'conversation.item.input_audio_transcription.completed') {
-            const t = msg?.transcript;
-            if (typeof t === 'string' && t.trim()) {
-              clearNoResponseTimer();
-              lastUserTranscriptAt = Date.now();
-              const text = t.trim();
-              const normalizedText = text.toLowerCase();
-              const wordCount = text.trim().split(/\s+/).filter(Boolean).length;
-              if (isProcessingTool && !isExplicitBargeIn(text)) {
-                const fillerTokens = new Set([
-                  'uh',
-                  'um',
-                  'uhh',
-                  'umm',
-                  'okay',
-                  'ok',
-                  'yeah',
-                  'yep',
-                  'right',
-                  'hmm',
-                  'mm',
-                ]);
-                const normalized = normalizeForEcho(text);
-                if (wordCount <= 2 || fillerTokens.has(normalized)) {
-                  log('Ignoring filler while tool in flight', { text });
-                  armNoResponseTimer();
-                  return;
-                }
-              }
-              if (normalizedText === lastCallerText && Date.now() - lastCallerAt < 1500) {
-                log('Skipping duplicate transcript', { text });
+          const t = msg?.transcript;
+          if (typeof t === 'string' && t.trim()) {
+            clearNoResponseTimer();
+            lastUserTranscriptAt = Date.now();
+            const text = t.trim();
+            const normalizedText = text.toLowerCase();
+            const wordCount = text.trim().split(/\s+/).filter(Boolean).length;
+            if (isProcessingTool && !isExplicitBargeIn(text)) {
+              const fillerTokens = new Set([
+                'uh',
+                'um',
+                'uhh',
+                'umm',
+                'okay',
+                'ok',
+                'yeah',
+                'yep',
+                'right',
+                'hmm',
+                'mm',
+              ]);
+              const normalized = normalizeForEcho(text);
+              if (wordCount <= 2 || fillerTokens.has(normalized)) {
+                log('Ignoring filler while tool in flight', { text });
+                armNoResponseTimer();
                 return;
               }
+            }
+            if (normalizedText === lastCallerText && Date.now() - lastCallerAt < 1500) {
+              log('Skipping duplicate transcript', { text });
+              return;
+            }
             const assistantSnapshot =
               pendingAssistantText.trim() || pendingAssistantHeuristicText.trim() || lastAssistantText;
             const msSinceAssistant = Date.now() - lastAssistantAt;
@@ -2044,14 +2044,14 @@ wss.on('connection', (twilioWs: WebSocket) => {
               armNoResponseTimer();
               return;
             }
-            const wordCount = text.trim().split(/\s+/).filter(Boolean).length;
+            const bargeWordCount = text.trim().split(/\s+/).filter(Boolean).length;
             const explicitBargeIn = isExplicitBargeIn(text);
             const canBargeIn =
               pendingBargeIn &&
               !isEcho &&
               Date.now() < assistantAudioActiveUntil &&
               (explicitBargeIn ||
-                (lastUserSpeechDurationMs >= 700 && (wordCount >= 3 || /\d/.test(text))));
+                (lastUserSpeechDurationMs >= 700 && (bargeWordCount >= 3 || /\d/.test(text))));
             if (canBargeIn) {
               sendToOpenAI(openaiWs, { type: 'response.cancel' });
               sendToTwilio(twilioWs, { event: 'clear', streamSid: ctx.streamSid });
