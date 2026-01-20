@@ -222,6 +222,27 @@ function isConfirmationPrompt(prompt: string): boolean {
   );
 }
 
+function normalizeForEcho(text: string): string {
+  return String(text || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function isLikelyEcho(userText: string, assistantText: string): boolean {
+  const user = normalizeForEcho(userText);
+  const assistant = normalizeForEcho(assistantText);
+  if (!user || !assistant) return false;
+  if (user.length < 6) return false;
+  if (assistant.includes(user) || user.includes(assistant)) return true;
+  const userTokens = user.split(' ').filter(Boolean);
+  if (userTokens.length < 4) return false;
+  const assistantTokens = new Set(assistant.split(' ').filter(Boolean));
+  const overlap = userTokens.filter((t) => assistantTokens.has(t)).length;
+  return overlap / userTokens.length >= 0.75;
+}
+
 function formatSlotForPrompt(slotIso: string, timeZone: string): string {
   const d = new Date(slotIso);
   if (!Number.isFinite(d.getTime())) return slotIso;
@@ -799,6 +820,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
   let lastResponseId: string | null = null;
   let lastCallerText = '';
   let lastCallerAt = 0;
+  let lastAssistantQuestionAt = 0;
   let lastAvailabilitySlots: string[] = [];
   let lastAvailabilityTimezone: string | null = null;
 
@@ -1323,6 +1345,19 @@ wss.on('connection', (twilioWs: WebSocket) => {
               log('Skipping duplicate transcript', { text });
               return;
             }
+            const assistantSnapshot =
+              pendingAssistantText.trim() || pendingAssistantHeuristicText.trim() || lastAssistantText;
+            const msSinceAssistant = Date.now() - lastAssistantAt;
+            const assistantRecentlySpoke = Date.now() < assistantAudioActiveUntil + 500;
+            if (
+              assistantSnapshot &&
+              (assistantRecentlySpoke || msSinceAssistant < 5000) &&
+              isLikelyEcho(text, assistantSnapshot)
+            ) {
+              log('Ignoring echo transcript', { text });
+              armNoResponseTimer();
+              return;
+            }
             lastCallerText = normalizedText;
             lastCallerAt = Date.now();
             conversation.push({ role: 'caller', text });
@@ -1349,16 +1384,9 @@ wss.on('connection', (twilioWs: WebSocket) => {
               }
             }
             if (isLikelyNonAnswer(lastAssistantText, text) && !Object.keys(inlinePatch).length) {
-              if (openaiWs && !pendingAutoHangup) {
-                clearPendingResponseTimer();
-                sendToOpenAI(
-                  openaiWs,
-                  responseCreate(
-                    ['audio', 'text'],
-                    'The caller did not answer the last question. Repeat or rephrase the same question only, then stop.'
-                  )
-                );
-              }
+              const sinceQuestionMs = lastAssistantQuestionAt ? Date.now() - lastAssistantQuestionAt : null;
+              log('Ignoring non-answer transcript', { text, sinceQuestionMs });
+              if (!pendingAutoHangup) armNoResponseTimer();
               return;
             }
             // Any user response resets the no-response sequence.
@@ -1719,6 +1747,11 @@ wss.on('connection', (twilioWs: WebSocket) => {
             conversation.push({ role: 'assistant', text: finalAssistant });
             lastAssistantText = finalAssistant;
             lastAssistantAt = now;
+            if (finalAssistant.includes('?')) {
+              lastAssistantQuestionAt = now;
+              noResponseStage = 0;
+              if (!pendingAutoHangup) armNoResponseTimer();
+            }
           }
           if (responseId) lastResponseId = responseId;
           pendingAssistantText = '';
