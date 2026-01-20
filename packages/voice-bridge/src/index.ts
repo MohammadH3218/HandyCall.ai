@@ -2222,9 +2222,14 @@ wss.on('connection', (twilioWs: WebSocket) => {
 
   function scheduleForcedHangup(reason: string) {
     if (!ctx) return;
-    if (forcedHangupTimer) return;
+    if (forcedHangupTimer) {
+      log('Hangup already scheduled, ignoring new schedule request', { reason });
+      return;
+    }
+    log('Scheduling forced hangup in 8 seconds', { reason, noResponseStage });
     forcedHangupTimer = setTimeout(() => {
       forcedHangupTimer = null;
+      log('Executing forced hangup', { reason });
       void performHangup(`Forced hangup timeout: ${reason}`);
     }, 8000);
   }
@@ -2955,6 +2960,12 @@ wss.on('connection', (twilioWs: WebSocket) => {
       if (!openaiWs) return;
       const payload = event?.media?.payload;
       if (typeof payload !== 'string') return;
+
+      // Mark Twilio stream as ready when we receive first media chunk
+      if (!twilioStreamReady) {
+        twilioStreamReady = true;
+        tryInitialGreeting();
+      }
 
       sendToOpenAI(openaiWs, { type: 'input_audio_buffer.append', audio: payload });
       return;
