@@ -269,6 +269,7 @@ type BookingStep =
   | 'ask_zip'
   | 'confirm_zip'
   | 'ask_time'
+  | 'confirm_time'
   | 'offer_slots'
   | 'done';
 
@@ -324,6 +325,20 @@ function normalizeTimeLabel(text: string): string {
     .toLowerCase()
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+function stripTimeFromText(text: string): string {
+  return String(text || '')
+    .replace(/\b(at|around|about)\b/gi, ' ')
+    .replace(/\b\d{1,2}(?::\d{2})?\s*(am|pm)\b/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function hasDayReference(text: string): boolean {
+  return /\b(mon|tue|wed|thu|fri|sat|sun|monday|tuesday|wednesday|thursday|friday|saturday|sunday|today|tomorrow|next|this)\b/i.test(
+    text
+  );
 }
 
 function pickSlotFromResponse(text: string, slots: BookingSlotOption[]): BookingSlotOption | null {
@@ -771,11 +786,15 @@ function sendToOpenAI(ws: WebSocket, msg: any) {
   ws.send(JSON.stringify(msg));
 }
 
-function responseCreate(modalities: Array<'audio' | 'text'> = ['audio', 'text'], instructions?: string) {
+function responseCreate(
+  modalities: Array<'audio' | 'text'> = ['audio', 'text'],
+  instructions?: string,
+  options?: { temperature?: number; max_output_tokens?: number }
+) {
   return {
     type: 'response.create',
     ...(instructions
-      ? { response: { modalities, instructions } }
+      ? { response: { modalities, instructions, ...(options ?? {}) } }
       : { response: { modalities } }),
   };
 }
@@ -952,6 +971,8 @@ wss.on('connection', (twilioWs: WebSocket) => {
   let bookingSlots: BookingSlotOption[] = [];
   let pendingName: string | null = null;
   let pendingZip: string | null = null;
+  let pendingSlot: BookingSlotOption | null = null;
+  let lastBookingPrompt: string | null = null;
   let lastAvailabilitySlots: string[] = [];
   let lastAvailabilityTimezone: string | null = null;
 
@@ -1073,6 +1094,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
 
   function scheduleAssistantResponse() {
     if (!openaiWs || pendingAutoHangup) return;
+    if (bookingStep !== 'idle') return;
     clearPendingResponseTimer();
     if (!pendingUserTranscript.trim()) {
       if (!pendingAutoHangup) armNoResponseTimer();
@@ -1101,10 +1123,16 @@ wss.on('connection', (twilioWs: WebSocket) => {
 
   function sendPrompt(text: string) {
     if (!openaiWs || pendingAutoHangup) return;
+    clearPendingResponseTimer();
+    sendToOpenAI(openaiWs, { type: 'response.cancel' });
     const safe = text.replace(/"/g, '\\"');
+    if (bookingStep !== 'idle') lastBookingPrompt = text;
     sendToOpenAI(
       openaiWs,
-      responseCreate(['audio', 'text'], `Say exactly: "${safe}" Do not add anything else.`)
+      responseCreate(['audio', 'text'], `Say exactly: "${safe}" Do not add anything else.`, {
+        temperature: 0,
+        max_output_tokens: 80,
+      })
     );
   }
 
@@ -1218,10 +1246,18 @@ wss.on('connection', (twilioWs: WebSocket) => {
         return true;
       }
       const tz = tenant?.timezone || 'UTC';
+      const hasExplicitTime = /\b\d{1,2}(?::\d{2})?\s*(am|pm)\b/i.test(text);
+      const hasDay = hasDayReference(text);
+      if (hasExplicitTime && !hasDay) {
+        sendPrompt('What day would you like to book that time for?');
+        return true;
+      }
+      const dayQuery = hasExplicitTime ? stripTimeFromText(text) : text;
+      const query = dayQuery || text;
       let result: any;
       try {
         result = await invokeTool(ctx, 'get_availability', {
-          start_time: text,
+          start_time: query,
           timezone: tz,
         });
       } catch (err: any) {
@@ -1237,10 +1273,64 @@ wss.on('connection', (twilioWs: WebSocket) => {
         bookingStep = 'ask_time';
         return true;
       }
-      bookingSlots = buildBookingSlotOptions(slots, readable, tz).slice(0, 3);
+      bookingSlots = buildBookingSlotOptions(slots, readable, tz);
+      if (hasExplicitTime) {
+        const match = pickSlotFromResponse(text, bookingSlots);
+        if (match) {
+          pendingSlot = match;
+          sendPrompt(`I can do ${match.label}. Want me to book that?`);
+          bookingStep = 'confirm_time';
+          return true;
+        }
+      }
       const labels = bookingSlots.map((slot) => slot.label).join(', ');
-      sendPrompt(`I have ${labels}. Which works best?`);
+      sendPrompt(`I have these times: ${labels}. Which works best?`);
       bookingStep = 'offer_slots';
+      return true;
+    }
+
+    if (bookingStep === 'confirm_time') {
+      if (!pendingSlot) {
+        bookingStep = 'ask_time';
+        sendPrompt('What day and time would you prefer?');
+        return true;
+      }
+      if (isAffirmative(text)) {
+        const tz = tenant?.timezone || 'UTC';
+        const customerName = pendingName || (typeof intake.name === 'string' ? intake.name : '') || 'Caller';
+        try {
+          const notes =
+            typeof intake.issue === 'string' && intake.issue.trim()
+              ? `Issue: ${intake.issue.trim()}`
+              : undefined;
+          await invokeTool(ctx, 'create_booking', {
+            start_time: pendingSlot.iso,
+            timezone: tz,
+            customer_name: customerName,
+            notes,
+          });
+          intake.preferred_time = pendingSlot.label;
+          syncIntakeToModel();
+          sendPrompt(`You're booked for ${pendingSlot.label}. Is there anything else I can help with today?`);
+          bookingStep = 'done';
+          pendingSlot = null;
+          return true;
+        } catch (err: any) {
+          log('create_booking failed (booking flow)', err?.message ?? String(err));
+          pendingSlot = null;
+          bookingStep = 'offer_slots';
+          const remaining = bookingSlots.map((slot) => slot.label).join(', ');
+          sendPrompt(`That time just got taken. I still have ${remaining}. Which works best?`);
+          return true;
+        }
+      }
+      if (isNegative(text)) {
+        pendingSlot = null;
+        bookingStep = 'ask_time';
+        sendPrompt('Okay. What day and time would you prefer instead?');
+        return true;
+      }
+      sendPrompt('Just to confirm, should I book that time?');
       return true;
     }
 
@@ -1290,12 +1380,34 @@ wss.on('connection', (twilioWs: WebSocket) => {
     }
 
     if (bookingStep === 'done') {
-      if (isAffirmative(text) || isNegative(text)) {
+      if (isNegative(text)) {
+        const summary = intake.preferred_time
+          ? `Booked appointment for ${intake.preferred_time}.`
+          : 'Booked an appointment.';
+        try {
+          await invokeTool(ctx, 'save_call', {
+            summary,
+            collected_info: intake,
+          });
+        } catch (err: any) {
+          log('save_call failed (booking flow)', err?.message ?? String(err));
+        }
+        sendPrompt("Thanks for calling — if you need anything else, just give us a call back.");
+        if (!pendingAutoHangup) {
+          pendingAutoHangup = true;
+          pendingHangupMarkName = `booking_done_${Date.now()}`;
+        }
+        scheduleForcedHangup('booking complete');
         bookingStep = 'idle';
-        return false;
+        return true;
       }
-      bookingStep = 'idle';
-      return false;
+      if (isAffirmative(text)) {
+        bookingStep = 'idle';
+        sendPrompt('Sure. How else can I help?');
+        return true;
+      }
+      sendPrompt('Is there anything else I can help with today?');
+      return true;
     }
 
     return false;
@@ -1310,6 +1422,23 @@ wss.on('connection', (twilioWs: WebSocket) => {
       // Don't interrupt if the assistant is actively speaking.
       if (Date.now() < assistantAudioActiveUntil) {
         armNoResponseTimer();
+        return;
+      }
+
+      if (bookingStep !== 'idle' && lastBookingPrompt) {
+        if (noResponseStage === 0) {
+          noResponseStage = 1;
+          sendPrompt(lastBookingPrompt);
+          armNoResponseTimer();
+          return;
+        }
+        // Second failure: say goodbye and end the call.
+        sendPrompt('No problem. Feel free to call back if you still need help.');
+        if (!pendingAutoHangup) {
+          pendingAutoHangup = true;
+          pendingHangupMarkName = `no_response_${Date.now()}`;
+        }
+        scheduleForcedHangup('no response after two prompts');
         return;
       }
 
