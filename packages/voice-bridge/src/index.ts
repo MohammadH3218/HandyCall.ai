@@ -1102,6 +1102,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
   let bookingPromptActive = false;
   let lastAvailabilitySlots: string[] = [];
   let lastAvailabilityTimezone: string | null = null;
+  let initialGreetingSent = false;
 
   function log(msg: string, extra?: any) {
     const prefix = ctx ? `[callSid=${ctx.callSid} streamSid=${ctx.streamSid}]` : '[twilio]';
@@ -1131,16 +1132,16 @@ wss.on('connection', (twilioWs: WebSocket) => {
     return ulawByte;
   }
 
-  function pcm16BytesToG711UlawBase64Adaptive(pcmBytes: Buffer): string {
+  function pcm16BytesToG711UlawBytesAdaptive(pcmBytes: Buffer): Buffer {
     const sampleCount = Math.floor(pcmBytes.length / 2);
-    if (sampleCount <= 0) return '';
+    if (sampleCount <= 0) return Buffer.alloc(0);
 
     let factor = 3;
     if (pcmBytes.length <= 420) factor = 1;
     else if (pcmBytes.length <= 740) factor = 2;
 
     const outSamples = Math.floor(sampleCount / factor);
-    if (outSamples <= 0) return '';
+    if (outSamples <= 0) return Buffer.alloc(0);
 
     const out = Buffer.allocUnsafe(outSamples);
     for (let i = 0; i < outSamples; i++) {
@@ -1153,7 +1154,12 @@ wss.on('connection', (twilioWs: WebSocket) => {
       const avg = Math.max(-32768, Math.min(32767, Math.round(sum / factor)));
       out[i] = linearPcm16ToMuLawSample(avg);
     }
-    return out.toString('base64');
+    return out;
+  }
+
+  function pcm16BytesToG711UlawBase64Adaptive(pcmBytes: Buffer): string {
+    const ulawBytes = pcm16BytesToG711UlawBytesAdaptive(pcmBytes);
+    return ulawBytes.toString('base64');
   }
 
   function decodeBase64Safe(data: string): Buffer | null {
@@ -1284,7 +1290,9 @@ wss.on('connection', (twilioWs: WebSocket) => {
   function sendPrompt(text: string, options?: { max_output_tokens?: number }) {
     if (!openaiWs || pendingAutoHangup) return;
     clearPendingResponseTimer();
-    sendToOpenAI(openaiWs, { type: 'response.cancel' });
+    if (lastResponseId) {
+      sendToOpenAI(openaiWs, { type: 'response.cancel' });
+    }
     const safe = text.replace(/"/g, '\\"');
     if (fsmEnabled) {
       lastFsmPrompt = text;
@@ -2283,22 +2291,6 @@ wss.on('connection', (twilioWs: WebSocket) => {
         });
         openaiOutputAudioFormat = 'pcm16';
 
-        if (fsmEnabled) {
-          sessionContext.state = 'GREETING';
-          sendPrompt('Hi, thanks for calling. How can I help you today?');
-        } else {
-          // Kick off an initial greeting ASAP (don't block on backend/tool latency).
-          sendToOpenAI(openaiWs, {
-            type: 'response.create',
-            response: {
-              modalities: ['audio', 'text'],
-              instructions: 'Give one short greeting (do not repeat it) and ask how you can help.',
-            },
-          });
-        }
-        noResponseStage = 0;
-        armNoResponseTimer();
-
         // Create lead/call record in the background (so greeting isn't delayed).
         invokeTool(ctx, 'create_lead', { collected_info: {} }).catch((e: any) =>
           log('create_lead failed (non-fatal)', e?.message ?? String(e))
@@ -2324,6 +2316,26 @@ wss.on('connection', (twilioWs: WebSocket) => {
           const fmt = msg?.session?.output_audio_format;
           if (typeof fmt === 'string' && fmt) openaiOutputAudioFormat = fmt;
           log('OpenAI session updated', { output_audio_format: openaiOutputAudioFormat });
+
+          // Send initial greeting after session is fully configured
+          if (!initialGreetingSent) {
+            initialGreetingSent = true;
+            if (fsmEnabled) {
+              sessionContext.state = 'GREETING';
+              sendPrompt('Hi, thanks for calling. How can I help you today?');
+            } else {
+              // Kick off an initial greeting ASAP (don't block on backend/tool latency).
+              sendToOpenAI(openaiWs, {
+                type: 'response.create',
+                response: {
+                  modalities: ['audio', 'text'],
+                  instructions: 'Give one short greeting (do not repeat it) and ask how you can help.',
+                },
+              });
+            }
+            noResponseStage = 0;
+            armNoResponseTimer();
+          }
         }
 
         // Barge-in: cancel assistant output when user starts talking.
