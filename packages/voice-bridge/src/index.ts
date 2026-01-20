@@ -222,6 +222,25 @@ function isConfirmationPrompt(prompt: string): boolean {
   );
 }
 
+function formatSlotForPrompt(slotIso: string, timeZone: string): string {
+  const d = new Date(slotIso);
+  if (!Number.isFinite(d.getTime())) return slotIso;
+  try {
+    const fmt = new Intl.DateTimeFormat('en-US', {
+      timeZone,
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    });
+    return fmt.format(d);
+  } catch {
+    return slotIso;
+  }
+}
+
 function isLikelyNonAnswer(lastPrompt: string, userText: string): boolean {
   const prompt = (lastPrompt || '').toLowerCase();
   const text = userText.trim().toLowerCase();
@@ -444,6 +463,7 @@ function buildInstructions(input: {
     `Confirm critical fields (name, phone, address/zip, preferred time) before ending, but do NOT repeat the caller word-for-word.`,
     `When confirming, paraphrase naturally and group info: e.g., "Got it - plumbing help in 77441, aiming for Monday around 11. Is that right?"`,
     `Confirmation policy (very important): confirm EACH field immediately when it is first provided, then mark it confirmed in update_intake. Example flow: ask name -> confirm name -> ask zip/address -> confirm zip/address -> ask preferred time -> confirm time. Once confirmed, do NOT confirm that same field again unless the caller corrects it. If the caller says a field is wrong, ask for the correct value and THEN confirm the corrected value again before moving on. Do NOT do a full end-of-call recap of every detail.`,
+    `After you ask a confirmation question, STOP. Do not answer your own confirmation or continue to the next question until the caller responds.`,
     `If the caller already told you the issue/service details, do NOT ask again. Summarize briefly and move forward.`,
     `Use update_intake any time you learn a detail (name, zip, address, phone, service, issue, preferred time) so you do not ask twice. After the caller confirms a field (e.g., says "yes"), immediately call update_intake to lock it in.`,
     `Zip codes: confirm digits explicitly (e.g., "Just to confirm, that's 7-7-4-4-1?").`,
@@ -455,6 +475,8 @@ function buildInstructions(input: {
     `- If they ask "what times are available on Monday": call get_availability for that day and offer a small set of options (e.g., 3-5).`,
     `If get_availability returns no slots, expand the window once before telling the caller there are no openings.`,
     `Always keep scheduling within the business hours. Never invent availability.`,
+    `If get_availability returns readable_slots, read those times exactly as written. Do NOT convert timezones or say "UTC".`,
+    `Do NOT confirm or announce a booking until after create_booking succeeds.`,
     `If the caller talks over you, stop immediately and listen (barge-in).`,
     `If you are unsure, ask one clarifying question.`,
     `Always be truthful; never invent availability.`,
@@ -775,6 +797,8 @@ wss.on('connection', (twilioWs: WebSocket) => {
   let lastAssistantText = '';
   let lastAssistantAt = 0;
   let lastResponseId: string | null = null;
+  let lastCallerText = '';
+  let lastCallerAt = 0;
   let lastAvailabilitySlots: string[] = [];
   let lastAvailabilityTimezone: string | null = null;
 
@@ -1149,7 +1173,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
             input_audio_transcription: { model: 'gpt-4o-mini-transcribe' },
             // Lower silence threshold reduces perceived latency between user stop -> assistant start.
             // Too low can cause interruptions; tune if you notice cutoffs.
-            turn_detection: { type: 'server_vad', silence_duration_ms: 900 },
+            turn_detection: { type: 'server_vad', silence_duration_ms: 1200 },
           },
         });
         openaiOutputAudioFormat = 'pcm16';
@@ -1291,8 +1315,16 @@ wss.on('connection', (twilioWs: WebSocket) => {
         if (msg?.type === 'conversation.item.input_audio_transcription.completed') {
           const t = msg?.transcript;
           if (typeof t === 'string' && t.trim()) {
+            clearNoResponseTimer();
             lastUserTranscriptAt = Date.now();
             const text = t.trim();
+            const normalizedText = text.toLowerCase();
+            if (normalizedText === lastCallerText && Date.now() - lastCallerAt < 1500) {
+              log('Skipping duplicate transcript', { text });
+              return;
+            }
+            lastCallerText = normalizedText;
+            lastCallerAt = Date.now();
             conversation.push({ role: 'caller', text });
             pendingUserTranscript = pendingUserTranscript
               ? `${pendingUserTranscript} ${text}`
@@ -1564,13 +1596,21 @@ wss.on('connection', (twilioWs: WebSocket) => {
             if (toolName === 'get_availability') {
               const slots = Array.isArray((result as any)?.slots) ? result.slots : [];
               if (slots.length) {
+                const tz =
+                  (typeof (result as any)?.timezone === 'string' && (result as any).timezone) ||
+                  (typeof args?.timezone === 'string' ? args.timezone : '') ||
+                  tenant?.timezone ||
+                  'UTC';
+                const readableSlots = Array.isArray((result as any)?.readable_slots)
+                  ? (result as any).readable_slots
+                  : slots.map((slot) => formatSlotForPrompt(slot, tz));
                 sendToOpenAI(
                   openaiWs,
                   responseCreate(
                     ['audio', 'text'],
-                    `Offer only these available slots (no other times): ${slots.join(
+                    `Offer only these available times in ${tz} (no other times): ${readableSlots.join(
                       ', '
-                    )}. Ask which one they want.`
+                    )}. Ask which one they want. Do not confirm a time until they choose one.`
                   )
                 );
               } else {

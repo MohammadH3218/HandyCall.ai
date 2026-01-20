@@ -121,7 +121,7 @@ export class RealtimeToolsService {
     return out;
   }
 
-  private coerceToUtcIso(input: string, timeZone: string): string {
+  private coerceToUtcIso(input: string, timeZone: string, referenceDate?: Date): string {
     const raw = String(input || '').trim();
     if (!raw) throw new BadRequestException('start_time/end_time is required');
 
@@ -130,7 +130,7 @@ export class RealtimeToolsService {
       return new Date(msIso).toISOString();
     }
 
-    const parsed = chrono.parseDate(raw, new Date());
+    const parsed = chrono.parseDate(raw, referenceDate ?? new Date());
     if (!parsed) {
       throw new BadRequestException(`Unrecognized date/time: ${raw}`);
     }
@@ -147,6 +147,24 @@ export class RealtimeToolsService {
       timeZone
     );
     return new Date(utcMs).toISOString();
+  }
+
+  private formatSlotForCaller(slotIso: string, timeZone: string): string {
+    const date = new Date(slotIso);
+    if (!Number.isFinite(date.getTime())) return slotIso;
+    try {
+      return new Intl.DateTimeFormat('en-US', {
+        timeZone,
+        weekday: 'short',
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true,
+      }).format(date);
+    } catch {
+      return slotIso;
+    }
   }
 
   private normalizeTimeZone(input: string | undefined, fallback: string): string {
@@ -620,20 +638,21 @@ export class RealtimeToolsService {
     if (!company) throw new NotFoundException('Company not found');
 
     const timeZone = this.normalizeTimeZone(dto.timezone, company.timezone || 'UTC');
+    const referenceDate = new Date(new Date().toLocaleString('en-US', { timeZone }));
     const startRaw = String(dto.start_time || '').trim();
     const endRaw = String(dto.end_time || '').trim();
-    const parsedRange = chrono.parse(startRaw, new Date());
+    const parsedRange = chrono.parse(startRaw, referenceDate);
     const parsed = parsedRange?.[0];
     const hasTime = !!(parsed?.start?.isCertain('hour') || parsed?.start?.isCertain('minute'));
-    let startIso = this.coerceToUtcIso(startRaw, timeZone);
+    let startIso = this.coerceToUtcIso(startRaw, timeZone, referenceDate);
     if (parsed && !hasTime) {
-      const dt = parsed.start?.date?.() ?? chrono.parseDate(startRaw, new Date());
+      const dt = parsed.start?.date?.() ?? chrono.parseDate(startRaw, referenceDate);
       if (dt) {
         const utcMs = zonedTimeToUtcMs(
           {
-            year: dt.getUTCFullYear(),
-            month: dt.getUTCMonth() + 1,
-            day: dt.getUTCDate(),
+            year: dt.getFullYear(),
+            month: dt.getMonth() + 1,
+            day: dt.getDate(),
             hour: 0,
             minute: 0,
           },
@@ -645,7 +664,7 @@ export class RealtimeToolsService {
     let endIso = '';
     if (endRaw) {
       try {
-        endIso = this.coerceToUtcIso(endRaw, timeZone);
+        endIso = this.coerceToUtcIso(endRaw, timeZone, referenceDate);
       } catch {
         endIso = '';
       }
@@ -668,6 +687,7 @@ export class RealtimeToolsService {
       company_id,
       timezone: timeZone,
       slots: slots.map((s) => s.start_time),
+      readable_slots: slots.map((s) => this.formatSlotForCaller(s.start_time, timeZone)),
     };
   }
 
@@ -679,14 +699,15 @@ export class RealtimeToolsService {
     if (!company) throw new NotFoundException('Company not found');
 
     const timeZone = this.normalizeTimeZone(dto.timezone, company.timezone || 'UTC');
+    const referenceDate = new Date(new Date().toLocaleString('en-US', { timeZone }));
     const customerEmail =
       (dto.customer_email && dto.customer_email.trim()) ||
       `caller-${(dto.contact_id || dto.call_id || 'unknown').replace(/[^a-zA-Z0-9]/g, '')}@handycall.invalid`;
 
-    const startIso = this.coerceToUtcIso(dto.start_time, timeZone);
+    const startIso = this.coerceToUtcIso(dto.start_time, timeZone, referenceDate);
     const durationMinutes = this.scheduling.getDurationMinutes(company);
     let endIso = dto.end_time
-      ? this.coerceToUtcIso(dto.end_time, timeZone)
+      ? this.coerceToUtcIso(dto.end_time, timeZone, referenceDate)
       : new Date(Date.parse(startIso) + durationMinutes * 60_000).toISOString();
     const startMs = Date.parse(startIso);
     let endMs = Date.parse(endIso);
