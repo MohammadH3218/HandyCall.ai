@@ -1038,7 +1038,9 @@ wss.on('connection', (twilioWs: WebSocket) => {
   let lastUserSpeechStartedAt = 0;
   let lastUserSpeechStoppedAt = 0;
   let lastUserSpeechDurationMs = 0;
-  let pendingBargeIn = false;
+  let pendingBargeInTimer: NodeJS.Timeout | null = null;
+  let pendingBargeInSegmentId: number | null = null;
+  let assistantAudioSegmentId = 0;
   let isProcessingTool = false;
   let bookingStep: BookingStep = 'idle';
   let bookingSlots: BookingSlotOption[] = [];
@@ -1904,7 +1906,18 @@ wss.on('connection', (twilioWs: WebSocket) => {
           clearNoResponseTimer();
           clearPendingResponseTimer();
           if (Date.now() < assistantAudioActiveUntil) {
-            pendingBargeIn = true;
+            pendingBargeInSegmentId = assistantAudioSegmentId;
+            if (pendingBargeInTimer) clearTimeout(pendingBargeInTimer);
+            pendingBargeInTimer = setTimeout(() => {
+              pendingBargeInTimer = null;
+              if (!openaiWs || !ctx) return;
+              if (!userSpeechActive) return;
+              if (pendingBargeInSegmentId !== assistantAudioSegmentId) return;
+              if (Date.now() >= assistantAudioActiveUntil) return;
+              sendToOpenAI(openaiWs, { type: 'response.cancel' });
+              sendToTwilio(twilioWs, { event: 'clear', streamSid: ctx.streamSid });
+              pendingBargeInSegmentId = null;
+            }, 350);
           }
         }
 
@@ -1914,9 +1927,11 @@ wss.on('connection', (twilioWs: WebSocket) => {
           if (lastUserSpeechStartedAt > 0) {
             lastUserSpeechDurationMs = Math.max(0, lastUserSpeechStoppedAt - lastUserSpeechStartedAt);
           }
-          if (pendingBargeIn && lastUserSpeechDurationMs < 250) {
-            pendingBargeIn = false;
+          if (pendingBargeInTimer) {
+            clearTimeout(pendingBargeInTimer);
+            pendingBargeInTimer = null;
           }
+          pendingBargeInSegmentId = null;
           if (pendingResponseAfterSpeech && !pendingAutoHangup) {
             pendingResponseAfterSpeech = false;
             scheduleAssistantResponse();
@@ -1924,7 +1939,12 @@ wss.on('connection', (twilioWs: WebSocket) => {
         }
 
         if (msg?.type === 'response.audio.delta' && typeof msg?.delta === 'string') {
-          assistantAudioActiveUntil = Date.now() + 350;
+          const now = Date.now();
+          const wasSpeaking = now < assistantAudioActiveUntil;
+          if (!wasSpeaking) {
+            assistantAudioSegmentId += 1;
+          }
+          assistantAudioActiveUntil = now + 350;
           const asPcm16 = shouldTreatDeltaAsPcm16(msg.delta);
           const bytes = asPcm16 ? decodeBase64Safe(msg.delta) : null;
           const payload = asPcm16 && bytes ? pcm16BytesToG711UlawBase64Adaptive(bytes) : msg.delta;
@@ -2033,30 +2053,15 @@ wss.on('connection', (twilioWs: WebSocket) => {
               isLikelyEcho(text, assistantSnapshot);
             if (isEcho) {
               log('Ignoring echo transcript', { text });
-              pendingBargeIn = false;
               armNoResponseTimer();
               return;
             }
             const recentSpeechStart = lastUserSpeechStartedAt > 0 && Date.now() - lastUserSpeechStartedAt < 4000;
             if (assistantRecentlySpoke && !recentSpeechStart) {
               log('Ignoring transcript without speech start', { text });
-              pendingBargeIn = false;
               armNoResponseTimer();
               return;
             }
-            const bargeWordCount = text.trim().split(/\s+/).filter(Boolean).length;
-            const explicitBargeIn = isExplicitBargeIn(text);
-            const canBargeIn =
-              pendingBargeIn &&
-              !isEcho &&
-              Date.now() < assistantAudioActiveUntil &&
-              (explicitBargeIn ||
-                (lastUserSpeechDurationMs >= 700 && (bargeWordCount >= 3 || /\d/.test(text))));
-            if (canBargeIn) {
-              sendToOpenAI(openaiWs, { type: 'response.cancel' });
-              sendToTwilio(twilioWs, { event: 'clear', streamSid: ctx.streamSid });
-            }
-            pendingBargeIn = false;
             if (bookingStep !== 'idle' && shouldIgnoreBookingTranscript(text)) {
               log('Ignoring short booking response', { text, bookingStep });
               armNoResponseTimer();
