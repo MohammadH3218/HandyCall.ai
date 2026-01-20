@@ -1136,23 +1136,12 @@ wss.on('connection', (twilioWs: WebSocket) => {
     const sampleCount = Math.floor(pcmBytes.length / 2);
     if (sampleCount <= 0) return Buffer.alloc(0);
 
-    let factor = 3;
-    if (pcmBytes.length <= 420) factor = 1;
-    else if (pcmBytes.length <= 740) factor = 2;
-
-    const outSamples = Math.floor(sampleCount / factor);
-    if (outSamples <= 0) return Buffer.alloc(0);
-
-    const out = Buffer.allocUnsafe(outSamples);
-    for (let i = 0; i < outSamples; i++) {
-      const base = i * factor;
-      let sum = 0;
-      for (let k = 0; k < factor; k++) {
-        const idx = (base + k) * 2;
-        sum += pcmBytes.readInt16LE(idx);
-      }
-      const avg = Math.max(-32768, Math.min(32767, Math.round(sum / factor)));
-      out[i] = linearPcm16ToMuLawSample(avg);
+    // No downsampling - convert all samples 1:1 to preserve audio quality
+    const out = Buffer.allocUnsafe(sampleCount);
+    for (let i = 0; i < sampleCount; i++) {
+      const idx = i * 2;
+      const sample = pcmBytes.readInt16LE(idx);
+      out[i] = linearPcm16ToMuLawSample(sample);
     }
     return out;
   }
@@ -2320,21 +2309,25 @@ wss.on('connection', (twilioWs: WebSocket) => {
           // Send initial greeting after session is fully configured
           if (!initialGreetingSent) {
             initialGreetingSent = true;
-            if (fsmEnabled) {
-              sessionContext.state = 'GREETING';
-              sendPrompt('Hi, thanks for calling. How can I help you today?');
-            } else {
-              // Kick off an initial greeting ASAP (don't block on backend/tool latency).
-              sendToOpenAI(openaiWs, {
-                type: 'response.create',
-                response: {
-                  modalities: ['audio', 'text'],
-                  instructions: 'Give one short greeting (do not repeat it) and ask how you can help.',
-                },
-              });
-            }
-            noResponseStage = 0;
-            armNoResponseTimer();
+            // Small delay to ensure audio pipeline is ready
+            setTimeout(() => {
+              if (!ctx || !openaiWs) return;
+              if (fsmEnabled) {
+                sessionContext.state = 'GREETING';
+                sendPrompt('Hi, thanks for calling. How can I help you today?');
+              } else {
+                // Kick off an initial greeting ASAP (don't block on backend/tool latency).
+                sendToOpenAI(openaiWs, {
+                  type: 'response.create',
+                  response: {
+                    modalities: ['audio', 'text'],
+                    instructions: 'Give one short greeting (do not repeat it) and ask how you can help.',
+                  },
+                });
+              }
+              noResponseStage = 0;
+              armNoResponseTimer();
+            }, 200);
           }
         }
 
