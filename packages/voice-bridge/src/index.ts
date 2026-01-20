@@ -1113,15 +1113,21 @@ wss.on('connection', (twilioWs: WebSocket) => {
   }
 
   function linearPcm16ToMuLawSample(sample: number): number {
-    // G.711 mu-law encode (8-bit) from 16-bit linear PCM.
+    // G.711 mu-law encode (8-bit) from 16-bit linear PCM with volume boost
     const BIAS = 0x84; // 132
+    const VOLUME_BOOST = 1.5; // Boost volume by 50%
+
     let sign = 0;
-    let pcm = sample;
+    let pcm = Math.round(sample * VOLUME_BOOST);
+
     if (pcm < 0) {
       sign = 0x80;
       pcm = -pcm;
     }
+
+    // Clamp to prevent clipping
     if (pcm > 32635) pcm = 32635;
+
     pcm = pcm + BIAS;
     let exponent = 7;
     for (let expMask = 0x4000; (pcm & expMask) === 0 && exponent > 0; expMask >>= 1) {
@@ -1303,9 +1309,32 @@ wss.on('connection', (twilioWs: WebSocket) => {
     setTimeout(() => {
       if (!ctx || !openaiWs) return;
       log('Playing initial greeting now');
+
+      // Add greeting as a conversation item, then trigger response
+      // This works better with server VAD enabled
+      const greetingText = 'Hi, thanks for calling. How can I help you today?';
+
       if (fsmEnabled) {
         sessionContext.state = 'GREETING';
-        sendPrompt('Hi, thanks for calling. How can I help you today?');
+
+        // Add the greeting to conversation history
+        sendToOpenAI(openaiWs, {
+          type: 'conversation.item.create',
+          item: {
+            type: 'message',
+            role: 'assistant',
+            content: [{ type: 'input_text', text: greetingText }],
+          },
+        });
+
+        // Trigger response to speak it
+        sendToOpenAI(openaiWs, {
+          type: 'response.create',
+          response: {
+            modalities: ['audio', 'text'],
+            instructions: `Say exactly: "${greetingText}"`,
+          },
+        });
       } else {
         sendToOpenAI(openaiWs, {
           type: 'response.create',
