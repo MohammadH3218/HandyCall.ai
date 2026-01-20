@@ -26,6 +26,7 @@ interface AuthState {
   logout: () => Promise<void>;
   setTokens: (accessToken: string, idToken: string, refreshToken: string) => void;
   checkAuth: () => Promise<void>;
+  setCompany: (company: Company | null) => void;
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
@@ -375,5 +376,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         _checkAuthInProgress: false,
       });
     }
+  },
+  setCompany: (company: Company | null) => {
+    set({ company });
   },
 }));

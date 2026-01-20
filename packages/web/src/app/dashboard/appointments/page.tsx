@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { apiClient } from '@/lib/api-client';
+import { useAuthStore } from '@/stores/auth-store';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -95,6 +96,7 @@ function statusBadge(status?: string): { label: string; className: string } {
 
 export default function AppointmentsPage() {
   const [company, setCompany] = useState<any>(null);
+  const setCompanyInStore = useAuthStore((state) => state.setCompany);
   const [appointments, setAppointments] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -300,6 +302,7 @@ export default function AppointmentsPage() {
         apiClient.getAppointmentsRange(visibleRange.start.toISOString(), visibleRange.end.toISOString()),
       ]);
       setCompany(c);
+      setCompanyInStore(c);
       setCalendarTimezone(c?.timezone || '');
       setBusinessHoursDraft(normalizeBusinessHours(c?.business_hours));
       setDateOverridesDraft(normalizeOverrides(c?.schedule_overrides));

@@ -38,7 +38,7 @@ function hasWorkingHours(hours: any): boolean {
 export default function SetupPage() {
   const router = useRouter();
   const { toast } = useToast();
-  const { company } = useAuthStore();
+  const { company, setCompany } = useAuthStore();
   const [knowledgeCount, setKnowledgeCount] = useState<number | null>(null);
   const [isLoadingKnowledge, setIsLoadingKnowledge] = useState(false);
   const [companyNumber, setCompanyNumber] = useState<string | null>(null);
@@ -113,11 +113,14 @@ export default function SetupPage() {
     if (!company) return;
     setIsSavingCalendarMode(true);
     try {
-      await apiClient.updateMyCompany({
+      const updatedCompany = await apiClient.updateMyCompany({
         calendar_mode: 'INTERNAL',
         calendar_provider: 'NONE',
         calendar_setup_completed: true,
       });
+      if (updatedCompany) {
+        setCompany(updatedCompany);
+      }
       toast({
         title: 'Calendar ready',
         description: 'HandyCall calendar is now active for this account.',
@@ -145,7 +148,10 @@ export default function SetupPage() {
     }
     setIsMarkingSchedule(true);
     try {
-      await apiClient.updateMyCompany({ schedule_setup_completed: true });
+      const updatedCompany = await apiClient.updateMyCompany({ schedule_setup_completed: true });
+      if (updatedCompany) {
+        setCompany(updatedCompany);
+      }
       toast({
         title: 'Working hours confirmed',
         description: 'Scheduling step marked complete.',
