@@ -9,9 +9,7 @@ import { apiClient } from '@/lib/api-client';
 import { Logo } from '@/components/ui/logo';
 import { ProfileDropdown } from '@/components/profile-dropdown';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { AlertCircle, BarChart3, Calendar, CheckSquare, CreditCard, Home, Menu, MessageSquare, Phone, Settings, Users, X } from 'lucide-react';
+import { BarChart3, Calendar, CheckSquare, CreditCard, Home, Menu, MessageSquare, Phone, Settings, Users, X } from 'lucide-react';
 import { UserRole } from '@handycall/shared';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -107,8 +105,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }, [company, userRole]);
 
   const setupDataReady = knowledgeCount !== null && companyNumberLoaded;
-  const showSetupModal =
-    setupDataReady && needsSetup && pathname !== '/dashboard/setup' && userRole !== UserRole.ADMIN;
 
   useEffect(() => {
     const populate = async () => {
@@ -308,58 +304,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </main>
       </div>
 
-      <Dialog open={showSetupModal}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Complete setup to continue</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="flex items-start gap-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-              <AlertCircle className="h-5 w-5 mt-0.5" />
-              <div>
-                Finish the setup steps so the AI can schedule correctly. This prompt will stay until setup is complete.
-              </div>
-            </div>
-            <div className="space-y-2 text-sm text-gray-700">
-              <div className="flex items-center justify-between">
-                <span>Billing & plan</span>
-                <Badge className={setupStatus.billing ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-700 border border-amber-200'}>
-                  {setupStatus.billing ? 'Done' : 'Required'}
-                </Badge>
-              </div>
-              <div className="flex items-center justify-between">
-                <span>Calendar connection</span>
-                <Badge className={setupStatus.calendar ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-700 border border-amber-200'}>
-                  {setupStatus.calendar ? 'Done' : 'Required'}
-                </Badge>
-              </div>
-              <div className="flex items-center justify-between">
-                <span>Working hours & timezone</span>
-                <Badge className={setupStatus.schedule ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-700 border border-amber-200'}>
-                  {setupStatus.schedule ? 'Done' : 'Required'}
-                </Badge>
-              </div>
-              <div className="flex items-center justify-between">
-                <span>Knowledge base</span>
-                <Badge className={setupStatus.knowledge ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-700 border border-amber-200'}>
-                  {setupStatus.knowledge ? 'Done' : 'Required'}
-                </Badge>
-              </div>
-              <div className="flex items-center justify-between">
-                <span>Company phone number</span>
-                <Badge className={setupStatus.phone ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-700 border border-amber-200'}>
-                  {setupStatus.phone ? 'Linked' : 'Missing'}
-                </Badge>
-              </div>
-            </div>
-            <div className="flex justify-end">
-              <Button asChild>
-                <Link href="/dashboard/setup">Continue setup</Link>
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
