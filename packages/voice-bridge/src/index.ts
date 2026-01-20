@@ -230,6 +230,21 @@ function normalizeForEcho(text: string): string {
     .trim();
 }
 
+function isExplicitBargeIn(text: string): boolean {
+  const t = normalizeForEcho(text);
+  if (!t) return false;
+  return [
+    'stop',
+    'hold on',
+    'wait',
+    'one second',
+    'give me a second',
+    'pause',
+    'cancel',
+    'actually',
+  ].some((phrase) => t === phrase || t.startsWith(`${phrase} `) || t.includes(phrase));
+}
+
 function isLikelyEcho(userText: string, assistantText: string): boolean {
   const user = normalizeForEcho(userText);
   const assistant = normalizeForEcho(assistantText);
@@ -1024,6 +1039,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
   let lastUserSpeechStoppedAt = 0;
   let lastUserSpeechDurationMs = 0;
   let pendingBargeIn = false;
+  let isProcessingTool = false;
   let bookingStep: BookingStep = 'idle';
   let bookingSlots: BookingSlotOption[] = [];
   let pendingName: string | null = null;
@@ -1405,6 +1421,8 @@ wss.on('connection', (twilioWs: WebSocket) => {
         return true;
       }
       bookingSlots = buildBookingSlotOptions(slots, readable, tz);
+      const spokenAvailability =
+        typeof result?.spoken_availability === 'string' ? result.spoken_availability.trim() : '';
       if (hasExplicitTime) {
         const match = pickSlotFromResponse(text, bookingSlots);
         if (match) {
@@ -1416,6 +1434,11 @@ wss.on('connection', (twilioWs: WebSocket) => {
       }
       const maxSlotsToSpeak = 12;
       if (bookingSlots.length > maxSlotsToSpeak) {
+        if (spokenAvailability) {
+          sendPrompt(spokenAvailability);
+          bookingStep = 'offer_slots';
+          return true;
+        }
         const first = bookingSlots[0];
         const last = bookingSlots[bookingSlots.length - 1];
         const startLabel = formatSlotTimeOnly(first.iso, tz);
@@ -1824,7 +1847,12 @@ wss.on('connection', (twilioWs: WebSocket) => {
             input_audio_transcription: { model: 'gpt-4o-mini-transcribe' },
             // Lower silence threshold reduces perceived latency between user stop -> assistant start.
             // Too low can cause interruptions; tune if you notice cutoffs.
-            turn_detection: { type: 'server_vad', silence_duration_ms: 1500 },
+            turn_detection: {
+              type: 'server_vad',
+              threshold: 0.6,
+              prefix_padding_ms: 300,
+              silence_duration_ms: 1200,
+            },
           },
         });
         openaiOutputAudioFormat = 'pcm16';
@@ -1963,16 +1991,38 @@ wss.on('connection', (twilioWs: WebSocket) => {
         }
 
         if (msg?.type === 'conversation.item.input_audio_transcription.completed') {
-          const t = msg?.transcript;
-          if (typeof t === 'string' && t.trim()) {
-            clearNoResponseTimer();
-            lastUserTranscriptAt = Date.now();
-            const text = t.trim();
-            const normalizedText = text.toLowerCase();
-            if (normalizedText === lastCallerText && Date.now() - lastCallerAt < 1500) {
-              log('Skipping duplicate transcript', { text });
-              return;
-            }
+            const t = msg?.transcript;
+            if (typeof t === 'string' && t.trim()) {
+              clearNoResponseTimer();
+              lastUserTranscriptAt = Date.now();
+              const text = t.trim();
+              const normalizedText = text.toLowerCase();
+              const wordCount = text.trim().split(/\s+/).filter(Boolean).length;
+              if (isProcessingTool && !isExplicitBargeIn(text)) {
+                const fillerTokens = new Set([
+                  'uh',
+                  'um',
+                  'uhh',
+                  'umm',
+                  'okay',
+                  'ok',
+                  'yeah',
+                  'yep',
+                  'right',
+                  'hmm',
+                  'mm',
+                ]);
+                const normalized = normalizeForEcho(text);
+                if (wordCount <= 2 || fillerTokens.has(normalized)) {
+                  log('Ignoring filler while tool in flight', { text });
+                  armNoResponseTimer();
+                  return;
+                }
+              }
+              if (normalizedText === lastCallerText && Date.now() - lastCallerAt < 1500) {
+                log('Skipping duplicate transcript', { text });
+                return;
+              }
             const assistantSnapshot =
               pendingAssistantText.trim() || pendingAssistantHeuristicText.trim() || lastAssistantText;
             const msSinceAssistant = Date.now() - lastAssistantAt;
@@ -1995,12 +2045,13 @@ wss.on('connection', (twilioWs: WebSocket) => {
               return;
             }
             const wordCount = text.trim().split(/\s+/).filter(Boolean).length;
+            const explicitBargeIn = isExplicitBargeIn(text);
             const canBargeIn =
               pendingBargeIn &&
-              lastUserSpeechDurationMs >= 300 &&
-              (wordCount >= 2 || /\d/.test(text)) &&
               !isEcho &&
-              Date.now() < assistantAudioActiveUntil;
+              Date.now() < assistantAudioActiveUntil &&
+              (explicitBargeIn ||
+                (lastUserSpeechDurationMs >= 700 && (wordCount >= 3 || /\d/.test(text))));
             if (canBargeIn) {
               sendToOpenAI(openaiWs, { type: 'response.cancel' });
               sendToTwilio(twilioWs, { event: 'clear', streamSid: ctx.streamSid });
@@ -2119,6 +2170,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
           }
 
           try {
+            isProcessingTool = true;
             if (toolName === 'get_availability' || toolName === 'create_booking') {
               const calendarBlocked = tenant?.calendar_setup_completed === false;
               const scheduleBlocked = tenant?.schedule_setup_completed === false;
@@ -2134,6 +2186,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
                     }),
                   },
                 });
+                isProcessingTool = false;
                 sendToOpenAI(
                   openaiWs,
                   responseCreate(
@@ -2154,6 +2207,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
                   type: 'conversation.item.create',
                   item: { type: 'function_call_output', call_id: toolCallId, output: JSON.stringify({ ok: true }) },
                 });
+                isProcessingTool = false;
                 return;
               }
               const patch = args?.intake ?? args ?? {};
@@ -2180,6 +2234,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
                 type: 'conversation.item.create',
                 item: { type: 'function_call_output', call_id: toolCallId, output: JSON.stringify({ ok: true, intake }) },
               });
+              isProcessingTool = false;
               const patchKeys = patch && typeof patch === 'object' ? Object.keys(patch) : [];
               if (patchKeys.length === 0) {
                 return;
@@ -2207,6 +2262,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
                   output: JSON.stringify({ ok: true }),
                 },
               });
+              isProcessingTool = false;
               sendToOpenAI(openaiWs, responseCreate());
               return;
             }
@@ -2276,6 +2332,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
                 type: 'conversation.item.create',
                 item: { type: 'function_call_output', call_id: toolCallId, output: JSON.stringify(result) },
               });
+              isProcessingTool = false;
               sendToOpenAI(openaiWs, {
                 type: 'response.create',
                 response: {
@@ -2291,25 +2348,35 @@ wss.on('connection', (twilioWs: WebSocket) => {
               item: { type: 'function_call_output', call_id: toolCallId, output: JSON.stringify(result) },
             });
             if (toolName === 'get_availability') {
+              isProcessingTool = false;
               const slots = Array.isArray((result as any)?.slots) ? result.slots : [];
+              const spokenAvailability =
+                typeof (result as any)?.spoken_availability === 'string' ? (result as any).spoken_availability.trim() : '';
               if (slots.length) {
                 const tz =
                   (typeof (result as any)?.timezone === 'string' && (result as any).timezone) ||
                   (typeof args?.timezone === 'string' ? args.timezone : '') ||
                   tenant?.timezone ||
                   'UTC';
-                const readableSlots = Array.isArray((result as any)?.readable_slots)
-                  ? (result as any).readable_slots
-                  : slots.map((slot: string) => formatSlotForPrompt(slot, tz));
-                sendToOpenAI(
-                  openaiWs,
-                  responseCreate(
-                    ['audio', 'text'],
-                    `Offer only these available times in ${tz} (no other times): ${readableSlots.join(
-                      ', '
-                    )}. Ask which one they want. Do not confirm a time until they choose one.`
-                  )
-                );
+                if (spokenAvailability) {
+                  sendToOpenAI(
+                    openaiWs,
+                    responseCreate(['audio', 'text'], spokenAvailability)
+                  );
+                } else {
+                  const readableSlots = Array.isArray((result as any)?.readable_slots)
+                    ? (result as any).readable_slots
+                    : slots.map((slot: string) => formatSlotForPrompt(slot, tz));
+                  sendToOpenAI(
+                    openaiWs,
+                    responseCreate(
+                      ['audio', 'text'],
+                      `Offer only these available times in ${tz} (no other times): ${readableSlots.join(
+                        ', '
+                      )}. Ask which one they want. Do not confirm a time until they choose one.`
+                    )
+                  );
+                }
               } else {
                 sendToOpenAI(
                   openaiWs,
@@ -2321,6 +2388,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
               }
               return;
             }
+            isProcessingTool = false;
             sendToOpenAI(openaiWs, responseCreate());
           } catch (err: any) {
             // Keep the caller experience smooth: save_call failures should never be spoken back to the caller.
@@ -2340,6 +2408,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
                   output: JSON.stringify({ ok: true }),
                 },
               });
+              isProcessingTool = false;
               sendToOpenAI(openaiWs, {
                 type: 'response.create',
                 response: {
@@ -2381,6 +2450,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
             } else {
               sendToOpenAI(openaiWs, responseCreate());
             }
+            isProcessingTool = false;
           }
         }
 

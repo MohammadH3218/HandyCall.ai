@@ -167,6 +167,21 @@ export class RealtimeToolsService {
     }
   }
 
+  private formatSlotTimeOnly(slotIso: string, timeZone: string): string {
+    const date = new Date(slotIso);
+    if (!Number.isFinite(date.getTime())) return slotIso;
+    try {
+      return new Intl.DateTimeFormat('en-US', {
+        timeZone,
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true,
+      }).format(date);
+    } catch {
+      return slotIso;
+    }
+  }
+
   private normalizeTimeZone(input: string | undefined, fallback: string): string {
     const candidate = String(input || '').trim();
     const safeFallback = String(fallback || 'UTC').trim() || 'UTC';
@@ -641,6 +656,8 @@ export class RealtimeToolsService {
     const referenceDate = new Date(new Date().toLocaleString('en-US', { timeZone }));
     const startRaw = String(dto.start_time || '').trim();
     const endRaw = String(dto.end_time || '').trim();
+    let dayAnchor: Date | null = null;
+    let dayOnly = false;
     const parsedRange = chrono.parse(startRaw, referenceDate);
     const parsed = parsedRange?.[0];
     const hasTime = !!(parsed?.start?.isCertain('hour') || parsed?.start?.isCertain('minute'));
@@ -653,12 +670,14 @@ export class RealtimeToolsService {
             year: dt.getFullYear(),
             month: dt.getMonth() + 1,
             day: dt.getDate(),
-            hour: 0,
+            hour: 8,
             minute: 0,
           },
           timeZone
         );
         startIso = new Date(utcMs).toISOString();
+        dayAnchor = dt;
+        dayOnly = true;
       }
     }
     let endIso = '';
@@ -676,18 +695,46 @@ export class RealtimeToolsService {
     const minWindowMs = durationMinutes * 60_000;
     const endTooShort = Number.isFinite(endMs) && endMs - startMs < minWindowMs;
     if (!Number.isFinite(endMs) || endMs <= startMs || endTooShort) {
-      const extendMinutes = hasTime ? Math.max(120, durationMinutes) : 24 * 60;
+      const extendMinutes = hasTime ? Math.max(120, durationMinutes) : Math.max(10 * 60, durationMinutes);
       endIso = new Date(startMs + extendMinutes * 60_000).toISOString();
       endMs = Date.parse(endIso);
     }
+    if (dayOnly && dayAnchor && !endRaw) {
+      const utcMs = zonedTimeToUtcMs(
+        {
+          year: dayAnchor.getFullYear(),
+          month: dayAnchor.getMonth() + 1,
+          day: dayAnchor.getDate(),
+          hour: 18,
+          minute: 0,
+        },
+        timeZone
+      );
+      const candidate = new Date(utcMs).toISOString();
+      if (Date.parse(candidate) > startMs) {
+        endIso = candidate;
+        endMs = Date.parse(endIso);
+      }
+    }
     const slots = await this.scheduling.getAvailability(company, startIso, endIso);
+    const readableSlots = slots.map((s) => this.formatSlotForCaller(s.start_time, timeZone));
+    const timeOnlySlots = slots.map((s) => this.formatSlotTimeOnly(s.start_time, timeZone));
+    let spokenAvailability = '';
+    if (slots.length > 12) {
+      const first = timeOnlySlots[0];
+      const last = timeOnlySlots[timeOnlySlots.length - 1];
+      spokenAvailability = `I have wide availability from ${first} to ${last}. What time works best?`;
+    } else if (slots.length) {
+      spokenAvailability = `I have slots open at ${timeOnlySlots.join(', ')}. Which time works best?`;
+    }
 
     return {
       ok: true,
       company_id,
       timezone: timeZone,
       slots: slots.map((s) => s.start_time),
-      readable_slots: slots.map((s) => this.formatSlotForCaller(s.start_time, timeZone)),
+      readable_slots: readableSlots,
+      spoken_availability: spokenAvailability,
     };
   }
 
