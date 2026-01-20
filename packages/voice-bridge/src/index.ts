@@ -1603,7 +1603,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
                   'UTC';
                 const readableSlots = Array.isArray((result as any)?.readable_slots)
                   ? (result as any).readable_slots
-                  : slots.map((slot) => formatSlotForPrompt(slot, tz));
+                  : slots.map((slot: string) => formatSlotForPrompt(slot, tz));
                 sendToOpenAI(
                   openaiWs,
                   responseCreate(
