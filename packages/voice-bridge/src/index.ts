@@ -1166,7 +1166,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
     const wordCount = pendingUserTranscript.trim().split(/\s+/).filter(Boolean).length;
     const delayMs = wordCount <= 2 ? 900 : 650;
     const minSilenceMs = 750;
-    pendingResponseTimer = setTimeout(() => {
+    pendingResponseTimer = setTimeout(async () => {
       pendingResponseTimer = null;
       if (!openaiWs || pendingAutoHangup) return;
       if (userSpeechActive) {
@@ -1179,6 +1179,19 @@ wss.on('connection', (twilioWs: WebSocket) => {
         return;
       }
       if (!pendingUserTranscript.trim()) return;
+      const bufferedText = pendingUserTranscript;
+      if (bookingStep === 'idle') {
+        try {
+          const handledBooking = await handleBookingTurn(bufferedText);
+          if (handledBooking) {
+            noResponseStage = 0;
+            pendingUserTranscript = '';
+            return;
+          }
+        } catch (err: any) {
+          log('handleBookingTurn failed (deferred)', err?.message ?? String(err));
+        }
+      }
       pendingUserTranscript = '';
       sendToOpenAI(openaiWs!, responseCreate());
     }, delayMs);
@@ -2004,8 +2017,10 @@ wss.on('connection', (twilioWs: WebSocket) => {
             pendingUserTranscript = pendingUserTranscript
               ? `${pendingUserTranscript} ${text}`
               : text;
-            const bookingText = bookingStep === 'idle' ? pendingUserTranscript : text;
-            const handledBooking = await handleBookingTurn(bookingText);
+            let handledBooking = false;
+            if (bookingStep !== 'idle') {
+              handledBooking = await handleBookingTurn(text);
+            }
             if (handledBooking) {
               noResponseStage = 0;
               pendingUserTranscript = '';
