@@ -281,11 +281,20 @@ type BookingSlotOption = {
 
 function hasBookingIntent(text: string): boolean {
   const t = String(text || '').toLowerCase();
-  return /\b(book|booking|schedule|appointment|appt|set up)\b/.test(t);
+  if (
+    /\b(book|booking|schedule|appointment|appt|reschedule|availability|available|time\s+slot|time\s+slots|timeslot|visit)\b/.test(
+      t
+    )
+  ) {
+    return true;
+  }
+  return /\b(set\s+up|set-up|come\s+out|come\s+by|send\s+someone|send\s+somebody)\b/.test(t);
 }
 
 function extractNameValue(text: string): string | null {
-  const match = text.match(/(?:my name is|this is|it['’]s|it is)\s+([A-Za-z][A-Za-z\s'-]{1,60})/i);
+  const match = text.match(
+    /(?:my name is|my full name is|this is|it's|it is|i am|i'm|im)\s+([A-Za-z][A-Za-z\s'-]{1,60})/i
+  );
   const candidate = match?.[1] || text;
   return normalizeNameCandidate(candidate);
 }
@@ -295,13 +304,44 @@ function extractZipValue(text: string): string | null {
   return match ? match[0] : null;
 }
 
+type ParsedTimeNeedle = {
+  hour: number;
+  minute: string;
+  meridiem: 'am' | 'pm';
+};
+
+function extractTimeNeedle(text: string): ParsedTimeNeedle | null {
+  const raw = normalizeTimeLabel(text).replace(/\./g, '');
+  if (!raw) return null;
+  const normalized = raw.replace(/\b(a\s*m|p\s*m)\b/g, (match) => match.replace(/\s+/g, ''));
+  if (normalized.includes('noon')) {
+    return { hour: 12, minute: '00', meridiem: 'pm' };
+  }
+  if (normalized.includes('midnight')) {
+    return { hour: 12, minute: '00', meridiem: 'am' };
+  }
+  let meridiem: 'am' | 'pm' | null = null;
+  if (normalized.includes('am') || normalized.includes('morning')) meridiem = 'am';
+  if (normalized.includes('pm') || normalized.includes('afternoon') || normalized.includes('evening') || normalized.includes('night')) {
+    meridiem = meridiem ?? 'pm';
+  }
+  if (!meridiem) return null;
+  const match = normalized.match(/\b(\d{1,2})(?::(\d{2}))?\b/);
+  if (!match) return null;
+  const hour = Number(match[1]);
+  if (!Number.isFinite(hour) || hour < 1 || hour > 12) return null;
+  const minute = match[2] ? match[2].padStart(2, '0') : '00';
+  return { hour, minute, meridiem };
+}
+
 function looksLikeTimeRequest(text: string): boolean {
   const t = String(text || '').toLowerCase();
   if (/\b(mon|tue|wed|thu|fri|sat|sun|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/.test(t)) {
     return true;
   }
-  if (/\b(today|tomorrow|next|this|week|weekend|morning|afternoon|evening)\b/.test(t)) return true;
-  if (/\b\d{1,2}(:\d{2})?\s*(am|pm)\b/.test(t)) return true;
+  if (/\b(today|tomorrow|next|this|week|weekend|morning|afternoon|evening|night)\b/.test(t)) return true;
+  if (extractTimeNeedle(t)) return true;
+  if (/\b(at|around|about|for)\s+\d{1,2}(?::\d{2})?\b/.test(t)) return true;
   return false;
 }
 
@@ -329,8 +369,11 @@ function normalizeTimeLabel(text: string): string {
 
 function stripTimeFromText(text: string): string {
   return String(text || '')
-    .replace(/\b(at|around|about)\b/gi, ' ')
-    .replace(/\b\d{1,2}(?::\d{2})?\s*(am|pm)\b/gi, ' ')
+    .replace(/\b(?:at|around|about|for)\s+\d{1,2}(?::\d{2})?\b/gi, ' ')
+    .replace(/\b(at|around|about|for)\b/gi, ' ')
+    .replace(/\b(noon|midnight)\b/gi, ' ')
+    .replace(/\b\d{1,2}(?::\d{2})?\s*(a\s*\.?\s*m\.?|p\s*\.?\s*m\.?)\b/gi, ' ')
+    .replace(/\b\d{1,2}\s*o'?clock\b/gi, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 }
@@ -349,15 +392,26 @@ function pickSlotFromResponse(text: string, slots: BookingSlotOption[]): Booking
   if (t.includes('second')) return slots[1] || null;
   if (t.includes('third')) return slots[2] || null;
   if (t.includes('fourth')) return slots[3] || null;
+  if (t.includes('earliest') || t.includes('first available') || t.includes('next available')) {
+    return slots[0] || null;
+  }
+  if (t.includes('latest')) return slots[slots.length - 1] || null;
 
-  const timeMatch = t.match(/\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/);
-  if (timeMatch) {
-    const hour = String(Number(timeMatch[1]));
-    const minute = timeMatch[2] ? timeMatch[2].padStart(2, '0') : '00';
-    const meridiem = timeMatch[3];
-    const needle = normalizeTimeLabel(`${hour}:${minute} ${meridiem}`);
+  const timeNeedle = extractTimeNeedle(text);
+  if (timeNeedle) {
+    const needle = normalizeTimeLabel(`${timeNeedle.hour}:${timeNeedle.minute} ${timeNeedle.meridiem}`);
     const matched = slots.find((slot) => slot.timeLabel === needle);
     if (matched) return matched;
+  }
+  if (!/\b\d{5}\b/.test(t)) {
+    const hourOnly = t.match(/\b(\d{1,2})\b/);
+    if (hourOnly) {
+      const hour = Number(hourOnly[1]);
+      if (Number.isFinite(hour) && hour >= 1 && hour <= 12) {
+        const matches = slots.filter((slot) => slot.timeLabel.startsWith(`${hour}:`));
+        if (matches.length === 1) return matches[0];
+      }
+    }
   }
 
   return null;
@@ -641,6 +695,7 @@ function buildInstructions(input: {
     `If the caller talks over you, stop immediately and listen (barge-in).`,
     `If you are unsure, ask one clarifying question.`,
     `Always be truthful; never invent availability.`,
+    `Never invent caller details (name, address, zip, phone, appointment time). If you do not have it, ask.`,
     `End-of-call policy: once the caller confirms the details are correct, ask: "Is there anything else I can help with today?"`,
     `If they say no, say one short friendly goodbye (e.g., "Thanks for calling - if you need anything else, just give us a call back."), then call save_call with a concise summary + collected fields, then call end_call.`,
     `If they say yes, continue helping and do NOT end the call.`,
@@ -948,7 +1003,6 @@ wss.on('connection', (twilioWs: WebSocket) => {
   let pendingHangupTimer: NodeJS.Timeout | null = null;
   let forcedHangupTimer: NodeJS.Timeout | null = null;
   let assistantAudioActiveUntil = 0;
-  let pendingBargeInTimer: NodeJS.Timeout | null = null;
   let noResponseTimer: NodeJS.Timeout | null = null;
   let noResponseStage: 0 | 1 = 0;
   let recordingStartAttempted = false;
@@ -967,12 +1021,16 @@ wss.on('connection', (twilioWs: WebSocket) => {
   let lastCallerAt = 0;
   let lastAssistantQuestionAt = 0;
   let lastUserSpeechStartedAt = 0;
+  let lastUserSpeechStoppedAt = 0;
+  let lastUserSpeechDurationMs = 0;
   let bookingStep: BookingStep = 'idle';
   let bookingSlots: BookingSlotOption[] = [];
   let pendingName: string | null = null;
   let pendingZip: string | null = null;
   let pendingSlot: BookingSlotOption | null = null;
   let lastBookingPrompt: string | null = null;
+  let lastBookingPromptAt = 0;
+  let bookingPromptActive = false;
   let lastAvailabilitySlots: string[] = [];
   let lastAvailabilityTimezone: string | null = null;
 
@@ -1121,19 +1179,66 @@ wss.on('connection', (twilioWs: WebSocket) => {
     }, delayMs);
   }
 
-  function sendPrompt(text: string) {
+  function sendPrompt(text: string, options?: { max_output_tokens?: number }) {
     if (!openaiWs || pendingAutoHangup) return;
     clearPendingResponseTimer();
     sendToOpenAI(openaiWs, { type: 'response.cancel' });
     const safe = text.replace(/"/g, '\\"');
-    if (bookingStep !== 'idle') lastBookingPrompt = text;
+    if (bookingStep !== 'idle') {
+      lastBookingPrompt = text;
+      lastBookingPromptAt = Date.now();
+      bookingPromptActive = true;
+    }
+    const maxTokens = options?.max_output_tokens ?? 120;
     sendToOpenAI(
       openaiWs,
-      responseCreate(['audio', 'text'], `Say exactly: "${safe}" Do not add anything else.`, {
-        temperature: 0,
-        max_output_tokens: 80,
-      })
+      responseCreate(
+        ['audio', 'text'],
+        `Read the following sentence verbatim. Do not add, remove, or paraphrase any words: "${safe}"`,
+        {
+          temperature: 0,
+          max_output_tokens: maxTokens,
+        }
+      )
     );
+  }
+
+  function getRecentSpeechDurationMs() {
+    if (lastUserSpeechDurationMs > 0) return lastUserSpeechDurationMs;
+    if (
+      lastUserSpeechStoppedAt > 0 &&
+      lastUserSpeechStartedAt > 0 &&
+      lastUserSpeechStoppedAt >= lastUserSpeechStartedAt
+    ) {
+      return lastUserSpeechStoppedAt - lastUserSpeechStartedAt;
+    }
+    return 0;
+  }
+
+  function shouldIgnoreBookingTranscript(text: string): boolean {
+    if (bookingStep === 'idle') return false;
+    const trimmed = text.trim();
+    if (!trimmed) return true;
+    const now = Date.now();
+    const elapsed = lastBookingPromptAt ? now - lastBookingPromptAt : null;
+    const speechMs = getRecentSpeechDurationMs();
+    const wordCount = trimmed.split(/\s+/).filter(Boolean).length;
+    const shortReply = wordCount <= 2;
+    const hasZip = /\b\d{5}\b/.test(trimmed);
+    const hasTime = looksLikeTimeRequest(trimmed);
+    const hasName = normalizeNameCandidate(trimmed) !== null;
+    const yesNo = isAffirmative(trimmed) || isNegative(trimmed);
+    const slotKeyword = /\b(first|second|third|fourth|earliest|latest|next available)\b/i.test(trimmed);
+    const assistantSpeaking = now < assistantAudioActiveUntil;
+
+    if (assistantSpeaking && elapsed !== null && elapsed < 800 && shortReply && !hasZip && !hasTime && !hasName && !slotKeyword) {
+      return true;
+    }
+    if (elapsed !== null && elapsed < 450 && shortReply && !hasZip && !hasTime && !hasName && !slotKeyword) return true;
+    if (speechMs > 0 && speechMs < 220 && shortReply && !hasZip && !hasTime && !hasName && !slotKeyword) return true;
+    if (hasName && shortReply && elapsed !== null && elapsed < 350 && speechMs > 0 && speechMs < 220) return true;
+    if (yesNo && elapsed !== null && elapsed < 550 && speechMs > 0 && speechMs < 240) return true;
+    return false;
   }
 
   function syncIntakeToModel() {
@@ -1169,8 +1274,13 @@ wss.on('connection', (twilioWs: WebSocket) => {
     if (!ctx || !openaiWs) return false;
     if (bookingStep === 'idle') {
       if (!hasBookingIntent(text)) return false;
+      bookingSlots = [];
+      pendingName = null;
+      pendingZip = null;
+      pendingSlot = null;
+      lastBookingPrompt = null;
       bookingStep = 'ask_name';
-      sendPrompt("Sure — what's your full name?");
+      sendPrompt("Sure, what's your full name?");
       return true;
     }
 
@@ -1215,7 +1325,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
       }
       pendingZip = zip;
       bookingStep = 'confirm_zip';
-      sendPrompt(`Got it — that's ${zipToSpoken(zip)}, right?`);
+      sendPrompt(`Got it, that's ${zipToSpoken(zip)}, right?`);
       return true;
     }
 
@@ -1236,7 +1346,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
         return true;
       }
       const fallbackZip = pendingZip ? zipToSpoken(pendingZip) : 'that zip code';
-      sendPrompt(`Sorry, just a yes or no — is that ${fallbackZip}?`);
+      sendPrompt(`Sorry, just a yes or no - is that ${fallbackZip}?`);
       return true;
     }
 
@@ -1246,7 +1356,10 @@ wss.on('connection', (twilioWs: WebSocket) => {
         return true;
       }
       const tz = tenant?.timezone || 'UTC';
-      const hasExplicitTime = /\b\d{1,2}(?::\d{2})?\s*(am|pm)\b/i.test(text);
+      const explicitTime = extractTimeNeedle(text);
+      const ambiguousHour =
+        !explicitTime && /\b(at|around|about|for)\s+\d{1,2}(?::\d{2})?\b/i.test(text);
+      const hasExplicitTime = !!explicitTime || ambiguousHour;
       const hasDay = hasDayReference(text);
       if (hasExplicitTime && !hasDay) {
         sendPrompt('What day would you like to book that time for?');
@@ -1283,8 +1396,19 @@ wss.on('connection', (twilioWs: WebSocket) => {
           return true;
         }
       }
+      const maxSlotsToSpeak = 12;
+      if (bookingSlots.length > maxSlotsToSpeak) {
+        const first = bookingSlots[0];
+        const last = bookingSlots[bookingSlots.length - 1];
+        const startLabel = formatSlotTimeOnly(first.iso, tz);
+        const endLabel = formatSlotTimeOnly(last.iso, tz);
+        sendPrompt(`That day has wide availability from ${startLabel} to ${endLabel}. What time works best?`);
+        bookingStep = 'offer_slots';
+        return true;
+      }
       const labels = bookingSlots.map((slot) => slot.label).join(', ');
-      sendPrompt(`I have these times: ${labels}. Which works best?`);
+      const maxTokens = labels.length > 180 ? 240 : 160;
+      sendPrompt(`I have these times: ${labels}. Which works best?`, { max_output_tokens: maxTokens });
       bookingStep = 'offer_slots';
       return true;
     }
@@ -1319,8 +1443,21 @@ wss.on('connection', (twilioWs: WebSocket) => {
           log('create_booking failed (booking flow)', err?.message ?? String(err));
           pendingSlot = null;
           bookingStep = 'offer_slots';
-          const remaining = bookingSlots.map((slot) => slot.label).join(', ');
-          sendPrompt(`That time just got taken. I still have ${remaining}. Which works best?`);
+          if (bookingSlots.length > 12) {
+            const first = bookingSlots[0];
+            const last = bookingSlots[bookingSlots.length - 1];
+            const startLabel = formatSlotTimeOnly(first.iso, tz);
+            const endLabel = formatSlotTimeOnly(last.iso, tz);
+            sendPrompt(
+              `That time just got taken. I still have availability from ${startLabel} to ${endLabel}. What time works best?`
+            );
+          } else {
+            const remaining = bookingSlots.map((slot) => slot.label).join(', ');
+            const maxTokens = remaining.length > 180 ? 240 : 160;
+            sendPrompt(`That time just got taken. I still have ${remaining}. Which works best?`, {
+              max_output_tokens: maxTokens,
+            });
+          }
           return true;
         }
       }
@@ -1359,8 +1496,21 @@ wss.on('connection', (twilioWs: WebSocket) => {
           log('create_booking failed (booking flow)', err?.message ?? String(err));
           bookingSlots = bookingSlots.filter((slot) => slot.iso !== chosen.iso);
           if (bookingSlots.length) {
-            const remaining = bookingSlots.map((slot) => slot.label).join(', ');
-            sendPrompt(`That time just got taken. I still have ${remaining}. Which works best?`);
+            if (bookingSlots.length > 12) {
+              const first = bookingSlots[0];
+              const last = bookingSlots[bookingSlots.length - 1];
+              const startLabel = formatSlotTimeOnly(first.iso, tz);
+              const endLabel = formatSlotTimeOnly(last.iso, tz);
+              sendPrompt(
+                `That time just got taken. I still have availability from ${startLabel} to ${endLabel}. What time works best?`
+              );
+            } else {
+              const remaining = bookingSlots.map((slot) => slot.label).join(', ');
+              const maxTokens = remaining.length > 180 ? 240 : 160;
+              sendPrompt(`That time just got taken. I still have ${remaining}. Which works best?`, {
+                max_output_tokens: maxTokens,
+              });
+            }
             bookingStep = 'offer_slots';
             return true;
           }
@@ -1392,7 +1542,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
         } catch (err: any) {
           log('save_call failed (booking flow)', err?.message ?? String(err));
         }
-        sendPrompt("Thanks for calling — if you need anything else, just give us a call back.");
+        sendPrompt("Thanks for calling - if you need anything else, just give us a call back.");
         if (!pendingAutoHangup) {
           pendingAutoHangup = true;
           pendingHangupMarkName = `booking_done_${Date.now()}`;
@@ -1656,7 +1806,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
             input_audio_transcription: { model: 'gpt-4o-mini-transcribe' },
             // Lower silence threshold reduces perceived latency between user stop -> assistant start.
             // Too low can cause interruptions; tune if you notice cutoffs.
-            turn_detection: { type: 'server_vad', silence_duration_ms: 1200 },
+            turn_detection: { type: 'server_vad', silence_duration_ms: 1500 },
           },
         });
         openaiOutputAudioFormat = 'pcm16';
@@ -1704,24 +1854,16 @@ wss.on('connection', (twilioWs: WebSocket) => {
         if (msg?.type === 'input_audio_buffer.speech_started') {
           userSpeechActive = true;
           lastUserSpeechStartedAt = Date.now();
+          lastUserSpeechDurationMs = 0;
           clearNoResponseTimer();
           clearPendingResponseTimer();
-          const assistantSpeaking = Date.now() < assistantAudioActiveUntil;
-          if (!assistantSpeaking) return;
-
-          if (pendingBargeInTimer) clearTimeout(pendingBargeInTimer);
-          pendingBargeInTimer = setTimeout(() => {
-            pendingBargeInTimer = null;
-            sendToOpenAI(openaiWs!, { type: 'response.cancel' });
-            sendToTwilio(twilioWs, { event: 'clear', streamSid: ctx!.streamSid });
-          }, 250);
         }
 
         if (msg?.type === 'input_audio_buffer.speech_stopped') {
           userSpeechActive = false;
-          if (pendingBargeInTimer) {
-            clearTimeout(pendingBargeInTimer);
-            pendingBargeInTimer = null;
+          lastUserSpeechStoppedAt = Date.now();
+          if (lastUserSpeechStartedAt > 0) {
+            lastUserSpeechDurationMs = Math.max(0, lastUserSpeechStoppedAt - lastUserSpeechStartedAt);
           }
           if (pendingResponseAfterSpeech && !pendingAutoHangup) {
             pendingResponseAfterSpeech = false;
@@ -1811,11 +1953,11 @@ wss.on('connection', (twilioWs: WebSocket) => {
               pendingAssistantText.trim() || pendingAssistantHeuristicText.trim() || lastAssistantText;
             const msSinceAssistant = Date.now() - lastAssistantAt;
             const assistantRecentlySpoke = Date.now() < assistantAudioActiveUntil + 500;
-            if (
+            const isEcho =
               assistantSnapshot &&
               (assistantRecentlySpoke || msSinceAssistant < 5000) &&
-              isLikelyEcho(text, assistantSnapshot)
-            ) {
+              isLikelyEcho(text, assistantSnapshot);
+            if (isEcho) {
               log('Ignoring echo transcript', { text });
               armNoResponseTimer();
               return;
@@ -1823,6 +1965,20 @@ wss.on('connection', (twilioWs: WebSocket) => {
             const recentSpeechStart = lastUserSpeechStartedAt > 0 && Date.now() - lastUserSpeechStartedAt < 4000;
             if (assistantRecentlySpoke && !recentSpeechStart) {
               log('Ignoring transcript without speech start', { text });
+              armNoResponseTimer();
+              return;
+            }
+            const wordCount = text.trim().split(/\s+/).filter(Boolean).length;
+            if (
+              Date.now() < assistantAudioActiveUntil &&
+              recentSpeechStart &&
+              (wordCount >= 2 || /\d/.test(text))
+            ) {
+              sendToOpenAI(openaiWs, { type: 'response.cancel' });
+              sendToTwilio(twilioWs, { event: 'clear', streamSid: ctx.streamSid });
+            }
+            if (bookingStep !== 'idle' && shouldIgnoreBookingTranscript(text)) {
+              log('Ignoring short booking response', { text, bookingStep });
               armNoResponseTimer();
               return;
             }
@@ -1961,6 +2117,13 @@ wss.on('connection', (twilioWs: WebSocket) => {
             }
 
             if (toolName === 'update_intake') {
+              if (bookingStep !== 'idle') {
+                sendToOpenAI(openaiWs, {
+                  type: 'conversation.item.create',
+                  item: { type: 'function_call_output', call_id: toolCallId, output: JSON.stringify({ ok: true }) },
+                });
+                return;
+              }
               const patch = args?.intake ?? args ?? {};
               if (patch && typeof patch === 'object') {
                 intake = { ...intake, ...patch };
@@ -2206,6 +2369,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
         }
 
         if (msg?.type === 'response.done') {
+          if (bookingPromptActive) bookingPromptActive = false;
           const extracted = extractAssistantTextFromDone(msg);
           const candidate =
             pendingAssistantText.trim() || pendingAssistantHeuristicText.trim() || extracted;
