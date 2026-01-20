@@ -262,6 +262,131 @@ function formatSlotForPrompt(slotIso: string, timeZone: string): string {
   }
 }
 
+type BookingStep =
+  | 'idle'
+  | 'ask_name'
+  | 'confirm_name'
+  | 'ask_zip'
+  | 'confirm_zip'
+  | 'ask_time'
+  | 'offer_slots'
+  | 'done';
+
+type BookingSlotOption = {
+  iso: string;
+  label: string;
+  timeLabel: string;
+};
+
+function hasBookingIntent(text: string): boolean {
+  const t = String(text || '').toLowerCase();
+  return /\b(book|booking|schedule|appointment|appt|set up)\b/.test(t);
+}
+
+function extractNameValue(text: string): string | null {
+  const match = text.match(/(?:my name is|this is|it['’]s|it is)\s+([A-Za-z][A-Za-z\s'-]{1,60})/i);
+  const candidate = match?.[1] || text;
+  return normalizeNameCandidate(candidate);
+}
+
+function extractZipValue(text: string): string | null {
+  const match = text.match(/\b\d{5}\b/);
+  return match ? match[0] : null;
+}
+
+function looksLikeTimeRequest(text: string): boolean {
+  const t = String(text || '').toLowerCase();
+  if (/\b(mon|tue|wed|thu|fri|sat|sun|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/.test(t)) {
+    return true;
+  }
+  if (/\b(today|tomorrow|next|this|week|weekend|morning|afternoon|evening)\b/.test(t)) return true;
+  if (/\b\d{1,2}(:\d{2})?\s*(am|pm)\b/.test(t)) return true;
+  return false;
+}
+
+function formatSlotTimeOnly(slotIso: string, timeZone: string): string {
+  const d = new Date(slotIso);
+  if (!Number.isFinite(d.getTime())) return slotIso;
+  try {
+    return new Intl.DateTimeFormat('en-US', {
+      timeZone,
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    }).format(d);
+  } catch {
+    return slotIso;
+  }
+}
+
+function normalizeTimeLabel(text: string): string {
+  return String(text || '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function pickSlotFromResponse(text: string, slots: BookingSlotOption[]): BookingSlotOption | null {
+  if (!slots.length) return null;
+  const t = normalizeTimeLabel(text);
+  if (!t) return null;
+  if (t.includes('first')) return slots[0] || null;
+  if (t.includes('second')) return slots[1] || null;
+  if (t.includes('third')) return slots[2] || null;
+  if (t.includes('fourth')) return slots[3] || null;
+
+  const timeMatch = t.match(/\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/);
+  if (timeMatch) {
+    const hour = String(Number(timeMatch[1]));
+    const minute = timeMatch[2] ? timeMatch[2].padStart(2, '0') : '00';
+    const meridiem = timeMatch[3];
+    const needle = normalizeTimeLabel(`${hour}:${minute} ${meridiem}`);
+    const matched = slots.find((slot) => slot.timeLabel === needle);
+    if (matched) return matched;
+  }
+
+  return null;
+}
+
+function zipToSpoken(zip: string): string {
+  return zip.split('').join('-');
+}
+
+function isAffirmative(text: string): boolean {
+  const t = normalizeForEcho(text);
+  if (!t) return false;
+  return [
+    'yes',
+    'yeah',
+    'yep',
+    'yup',
+    'correct',
+    'right',
+    'that is right',
+    'thats right',
+    'that is correct',
+    'sounds good',
+    'ok',
+    'okay',
+    'sure',
+  ].some((phrase) => t === phrase || t.includes(phrase));
+}
+
+function isNegative(text: string): boolean {
+  const t = normalizeForEcho(text);
+  if (!t) return false;
+  return [
+    'no',
+    'nope',
+    'nah',
+    'incorrect',
+    'wrong',
+    'not correct',
+    'thats wrong',
+    'that is wrong',
+  ].some((phrase) => t === phrase || t.includes(phrase));
+}
+
 function isLikelyNonAnswer(lastPrompt: string, userText: string): boolean {
   const prompt = (lastPrompt || '').toLowerCase();
   const text = userText.trim().toLowerCase();
@@ -818,9 +943,15 @@ wss.on('connection', (twilioWs: WebSocket) => {
   let lastAssistantText = '';
   let lastAssistantAt = 0;
   let lastResponseId: string | null = null;
+  let tenant: any = null;
   let lastCallerText = '';
   let lastCallerAt = 0;
   let lastAssistantQuestionAt = 0;
+  let lastUserSpeechStartedAt = 0;
+  let bookingStep: BookingStep = 'idle';
+  let bookingSlots: BookingSlotOption[] = [];
+  let pendingName: string | null = null;
+  let pendingZip: string | null = null;
   let lastAvailabilitySlots: string[] = [];
   let lastAvailabilityTimezone: string | null = null;
 
@@ -966,6 +1097,208 @@ wss.on('connection', (twilioWs: WebSocket) => {
       pendingUserTranscript = '';
       sendToOpenAI(openaiWs!, responseCreate());
     }, delayMs);
+  }
+
+  function sendPrompt(text: string) {
+    if (!openaiWs || pendingAutoHangup) return;
+    const safe = text.replace(/"/g, '\\"');
+    sendToOpenAI(
+      openaiWs,
+      responseCreate(['audio', 'text'], `Say exactly: "${safe}" Do not add anything else.`)
+    );
+  }
+
+  function syncIntakeToModel() {
+    if (!openaiWs) return;
+    sendToOpenAI(openaiWs, {
+      type: 'conversation.item.create',
+      item: {
+        type: 'message',
+        role: 'system',
+        content: [
+          {
+            type: 'input_text',
+            text: `Current intake (authoritative, do not re-ask unless missing): ${JSON.stringify(intake)}`,
+          },
+        ],
+      },
+    });
+  }
+
+  function buildBookingSlotOptions(slots: string[], readableSlots: string[], timeZone: string): BookingSlotOption[] {
+    return slots.map((iso, idx) => {
+      const rawLabel = readableSlots[idx];
+      const label =
+        typeof rawLabel === 'string' && rawLabel.trim()
+          ? rawLabel.trim()
+          : formatSlotForPrompt(iso, timeZone);
+      const timeLabel = normalizeTimeLabel(formatSlotTimeOnly(iso, timeZone));
+      return { iso, label, timeLabel };
+    });
+  }
+
+  async function handleBookingTurn(text: string): Promise<boolean> {
+    if (!ctx || !openaiWs) return false;
+    if (bookingStep === 'idle') {
+      if (!hasBookingIntent(text)) return false;
+      bookingStep = 'ask_name';
+      sendPrompt("Sure — what's your full name?");
+      return true;
+    }
+
+    if (bookingStep === 'ask_name') {
+      const name = extractNameValue(text);
+      if (!name) {
+        sendPrompt("Sorry, I didn't catch the name. What name should I use?");
+        return true;
+      }
+      pendingName = name;
+      bookingStep = 'confirm_name';
+      sendPrompt(`Just to confirm, is the name ${name}?`);
+      return true;
+    }
+
+    if (bookingStep === 'confirm_name') {
+      if (isAffirmative(text)) {
+        if (pendingName) {
+          intake.name = pendingName;
+          syncIntakeToModel();
+        }
+        bookingStep = 'ask_zip';
+        sendPrompt("Thanks. What's your zip code?");
+        return true;
+      }
+      if (isNegative(text)) {
+        pendingName = null;
+        bookingStep = 'ask_name';
+        sendPrompt('No problem. What name should I use?');
+        return true;
+      }
+      const fallbackName = pendingName || 'that name';
+      sendPrompt(`Sorry, I just need a yes or no. Is the name ${fallbackName}?`);
+      return true;
+    }
+
+    if (bookingStep === 'ask_zip') {
+      const zip = extractZipValue(text);
+      if (!zip) {
+        sendPrompt("What's your 5-digit zip code?");
+        return true;
+      }
+      pendingZip = zip;
+      bookingStep = 'confirm_zip';
+      sendPrompt(`Got it — that's ${zipToSpoken(zip)}, right?`);
+      return true;
+    }
+
+    if (bookingStep === 'confirm_zip') {
+      if (isAffirmative(text)) {
+        if (pendingZip) {
+          intake.zip = pendingZip;
+          syncIntakeToModel();
+        }
+        bookingStep = 'ask_time';
+        sendPrompt('What day and time would you prefer?');
+        return true;
+      }
+      if (isNegative(text)) {
+        pendingZip = null;
+        bookingStep = 'ask_zip';
+        sendPrompt('Okay, what is the correct zip code?');
+        return true;
+      }
+      const fallbackZip = pendingZip ? zipToSpoken(pendingZip) : 'that zip code';
+      sendPrompt(`Sorry, just a yes or no — is that ${fallbackZip}?`);
+      return true;
+    }
+
+    if (bookingStep === 'ask_time') {
+      if (!looksLikeTimeRequest(text)) {
+        sendPrompt('What day and time would you prefer?');
+        return true;
+      }
+      const tz = tenant?.timezone || 'UTC';
+      let result: any;
+      try {
+        result = await invokeTool(ctx, 'get_availability', {
+          start_time: text,
+          timezone: tz,
+        });
+      } catch (err: any) {
+        log('get_availability failed (booking flow)', err?.message ?? String(err));
+        sendPrompt("I couldn't check availability right now. What day or time works instead?");
+        bookingStep = 'ask_time';
+        return true;
+      }
+      const slots = Array.isArray(result?.slots) ? result.slots : [];
+      const readable = Array.isArray(result?.readable_slots) ? result.readable_slots : [];
+      if (!slots.length) {
+        sendPrompt("I don't see openings around that time. What day or time works instead?");
+        bookingStep = 'ask_time';
+        return true;
+      }
+      bookingSlots = buildBookingSlotOptions(slots, readable, tz).slice(0, 3);
+      const labels = bookingSlots.map((slot) => slot.label).join(', ');
+      sendPrompt(`I have ${labels}. Which works best?`);
+      bookingStep = 'offer_slots';
+      return true;
+    }
+
+    if (bookingStep === 'offer_slots') {
+      const tz = tenant?.timezone || 'UTC';
+      const chosen = pickSlotFromResponse(text, bookingSlots);
+      if (chosen) {
+        const customerName = pendingName || (typeof intake.name === 'string' ? intake.name : '') || 'Caller';
+        try {
+          const notes =
+            typeof intake.issue === 'string' && intake.issue.trim()
+              ? `Issue: ${intake.issue.trim()}`
+              : undefined;
+          await invokeTool(ctx, 'create_booking', {
+            start_time: chosen.iso,
+            timezone: tz,
+            customer_name: customerName,
+            notes,
+          });
+          intake.preferred_time = chosen.label;
+          syncIntakeToModel();
+          sendPrompt(`You're booked for ${chosen.label}. Is there anything else I can help with today?`);
+          bookingStep = 'done';
+          return true;
+        } catch (err: any) {
+          log('create_booking failed (booking flow)', err?.message ?? String(err));
+          bookingSlots = bookingSlots.filter((slot) => slot.iso !== chosen.iso);
+          if (bookingSlots.length) {
+            const remaining = bookingSlots.map((slot) => slot.label).join(', ');
+            sendPrompt(`That time just got taken. I still have ${remaining}. Which works best?`);
+            bookingStep = 'offer_slots';
+            return true;
+          }
+          bookingStep = 'ask_time';
+          sendPrompt('That time just got taken. What day or time works instead?');
+          return true;
+        }
+      }
+
+      if (looksLikeTimeRequest(text)) {
+        bookingStep = 'ask_time';
+        return await handleBookingTurn(text);
+      }
+
+      sendPrompt('Which of those times would you like?');
+      return true;
+    }
+
+    if (bookingStep === 'done') {
+      if (isAffirmative(text) || isNegative(text)) {
+        bookingStep = 'idle';
+        return false;
+      }
+      bookingStep = 'idle';
+      return false;
+    }
+
+    return false;
   }
 
   function armNoResponseTimer() {
@@ -1140,7 +1473,6 @@ wss.on('connection', (twilioWs: WebSocket) => {
         return;
       }
 
-      let tenant: any;
       try {
         tenant = await resolveTenant(to);
       } catch (err: any) {
@@ -1242,6 +1574,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
         // Debounced to avoid background noise triggering constant interruptions.
         if (msg?.type === 'input_audio_buffer.speech_started') {
           userSpeechActive = true;
+          lastUserSpeechStartedAt = Date.now();
           clearNoResponseTimer();
           clearPendingResponseTimer();
           const assistantSpeaking = Date.now() < assistantAudioActiveUntil;
@@ -1358,12 +1691,24 @@ wss.on('connection', (twilioWs: WebSocket) => {
               armNoResponseTimer();
               return;
             }
+            const recentSpeechStart = lastUserSpeechStartedAt > 0 && Date.now() - lastUserSpeechStartedAt < 4000;
+            if (assistantRecentlySpoke && !recentSpeechStart) {
+              log('Ignoring transcript without speech start', { text });
+              armNoResponseTimer();
+              return;
+            }
             lastCallerText = normalizedText;
             lastCallerAt = Date.now();
             conversation.push({ role: 'caller', text });
             pendingUserTranscript = pendingUserTranscript
               ? `${pendingUserTranscript} ${text}`
               : text;
+            const handledBooking = await handleBookingTurn(text);
+            if (handledBooking) {
+              noResponseStage = 0;
+              pendingUserTranscript = '';
+              return;
+            }
             const inlinePatch = extractInlineIntake(lastAssistantText, text);
             if (Object.keys(inlinePatch).length) {
               intake = { ...intake, ...inlinePatch };
