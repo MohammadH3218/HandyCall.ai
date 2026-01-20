@@ -1298,9 +1298,11 @@ wss.on('connection', (twilioWs: WebSocket) => {
     initialGreetingSent = true;
     log('Sending initial greeting', { openaiReady: openaiSessionReady, twilioReady: twilioStreamReady });
 
-    // Small delay to ensure both pipelines are stable
+    // Longer delay to ensure Twilio stream is fully ready to play audio to caller
+    // Twilio needs time to establish the audio path even after sending media
     setTimeout(() => {
       if (!ctx || !openaiWs) return;
+      log('Playing initial greeting now');
       if (fsmEnabled) {
         sessionContext.state = 'GREETING';
         sendPrompt('Hi, thanks for calling. How can I help you today?');
@@ -1315,7 +1317,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
       }
       noResponseStage = 0;
       armNoResponseTimer();
-    }, 100);
+    }, 1500);
   }
 
   function sendPrompt(text: string, options?: { max_output_tokens?: number }) {
