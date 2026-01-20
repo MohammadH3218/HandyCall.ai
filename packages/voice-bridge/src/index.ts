@@ -1023,6 +1023,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
   let lastUserSpeechStartedAt = 0;
   let lastUserSpeechStoppedAt = 0;
   let lastUserSpeechDurationMs = 0;
+  let pendingBargeIn = false;
   let bookingStep: BookingStep = 'idle';
   let bookingSlots: BookingSlotOption[] = [];
   let pendingName: string | null = null;
@@ -1156,6 +1157,10 @@ wss.on('connection', (twilioWs: WebSocket) => {
     clearPendingResponseTimer();
     if (!pendingUserTranscript.trim()) {
       if (!pendingAutoHangup) armNoResponseTimer();
+      return;
+    }
+    if (lastUserSpeechStoppedAt && Date.now() - lastUserSpeechStoppedAt < 250) {
+      pendingResponseAfterSpeech = true;
       return;
     }
     const wordCount = pendingUserTranscript.trim().split(/\s+/).filter(Boolean).length;
@@ -1857,6 +1862,9 @@ wss.on('connection', (twilioWs: WebSocket) => {
           lastUserSpeechDurationMs = 0;
           clearNoResponseTimer();
           clearPendingResponseTimer();
+          if (Date.now() < assistantAudioActiveUntil) {
+            pendingBargeIn = true;
+          }
         }
 
         if (msg?.type === 'input_audio_buffer.speech_stopped') {
@@ -1864,6 +1872,9 @@ wss.on('connection', (twilioWs: WebSocket) => {
           lastUserSpeechStoppedAt = Date.now();
           if (lastUserSpeechStartedAt > 0) {
             lastUserSpeechDurationMs = Math.max(0, lastUserSpeechStoppedAt - lastUserSpeechStartedAt);
+          }
+          if (pendingBargeIn && lastUserSpeechDurationMs < 250) {
+            pendingBargeIn = false;
           }
           if (pendingResponseAfterSpeech && !pendingAutoHangup) {
             pendingResponseAfterSpeech = false;
@@ -1959,24 +1970,29 @@ wss.on('connection', (twilioWs: WebSocket) => {
               isLikelyEcho(text, assistantSnapshot);
             if (isEcho) {
               log('Ignoring echo transcript', { text });
+              pendingBargeIn = false;
               armNoResponseTimer();
               return;
             }
             const recentSpeechStart = lastUserSpeechStartedAt > 0 && Date.now() - lastUserSpeechStartedAt < 4000;
             if (assistantRecentlySpoke && !recentSpeechStart) {
               log('Ignoring transcript without speech start', { text });
+              pendingBargeIn = false;
               armNoResponseTimer();
               return;
             }
             const wordCount = text.trim().split(/\s+/).filter(Boolean).length;
-            if (
-              Date.now() < assistantAudioActiveUntil &&
-              recentSpeechStart &&
-              (wordCount >= 2 || /\d/.test(text))
-            ) {
+            const canBargeIn =
+              pendingBargeIn &&
+              lastUserSpeechDurationMs >= 300 &&
+              (wordCount >= 2 || /\d/.test(text)) &&
+              !isEcho &&
+              Date.now() < assistantAudioActiveUntil;
+            if (canBargeIn) {
               sendToOpenAI(openaiWs, { type: 'response.cancel' });
               sendToTwilio(twilioWs, { event: 'clear', streamSid: ctx.streamSid });
             }
+            pendingBargeIn = false;
             if (bookingStep !== 'idle' && shouldIgnoreBookingTranscript(text)) {
               log('Ignoring short booking response', { text, bookingStep });
               armNoResponseTimer();
@@ -1988,7 +2004,8 @@ wss.on('connection', (twilioWs: WebSocket) => {
             pendingUserTranscript = pendingUserTranscript
               ? `${pendingUserTranscript} ${text}`
               : text;
-            const handledBooking = await handleBookingTurn(text);
+            const bookingText = bookingStep === 'idle' ? pendingUserTranscript : text;
+            const handledBooking = await handleBookingTurn(bookingText);
             if (handledBooking) {
               noResponseStage = 0;
               pendingUserTranscript = '';
