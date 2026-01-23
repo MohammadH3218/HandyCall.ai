@@ -50,7 +50,7 @@ export class RealtimeToolsService {
     private readonly scheduling: SchedulingService,
     private readonly usageService: UsageService,
     private readonly appointmentsService: AppointmentsService,
-  ) {}
+  ) { }
 
   private twilioAuthHeader(): string {
     const sid = this.config.get<string>('TWILIO_ACCOUNT_SID');
@@ -242,6 +242,7 @@ export class RealtimeToolsService {
       sms_enabled: company.sms_enabled,
       calendar_setup_completed: company.calendar_setup_completed ?? false,
       schedule_setup_completed: (company as any).schedule_setup_completed ?? false,
+      service_area_zipcodes: (company as any).service_area_zipcodes,
     };
   }
 
@@ -479,8 +480,8 @@ export class RealtimeToolsService {
 
       const fromNumber = asE164(
         (typeof existing?.from_number === 'string' && existing.from_number) ||
-          (typeof collected.phone === 'string' && collected.phone) ||
-          ''
+        (typeof collected.phone === 'string' && collected.phone) ||
+        ''
       );
 
       let contact_id: string | undefined = existing?.contact_id;

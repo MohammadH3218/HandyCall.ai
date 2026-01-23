@@ -584,6 +584,7 @@ type ActiveCallMeta = {
   from: string;
   to: string;
   startedAt: number;
+  service_area_zipcodes?: string[];
 };
 
 const activeCalls = new Map<string, ActiveCallMeta>();
@@ -603,6 +604,18 @@ function toolsSchema() {
               'Structured intake fields you have collected so far (first_name, last_name, email, address, zip, service, issue, preferred_time, etc.).',
           },
         },
+      },
+    },
+    {
+      type: 'function',
+      name: 'check_service_availability',
+      description: 'Check if the company services a specific zip code. MUST be called immediately after getting the zip code.',
+      parameters: {
+        type: 'object',
+        properties: {
+          zip_code: { type: 'string', description: 'The 5-digit zip code to check.' },
+        },
+        required: ['zip_code'],
       },
     },
     {
@@ -735,11 +748,18 @@ function buildInstructions(input: {
   const lang = (language || 'english').toLowerCase();
   const isArabic = lang.includes('arabic') || lang.includes('ar');
 
+  const isPestControl = (service_type || '').toUpperCase() === 'PEST_CONTROL';
+
 
   const lines = [
     `You are a friendly, natural-sounding receptionist for ${company_name}.`,
     isArabic ? `Speak predominantly in Arabic (Gulf/GCC dialect preferred) but can switch to English if the user speaks English.` : `Speak in English.`,
     `Your job: quickly understand the caller's need, capture details, and either schedule or create a lead.`,
+    `CRITICAL RULE: If the caller wants to book a service or appointment, you MUST ask for their 5-digit Zip Code FIRST, before asking for their name, address, or details.`,
+    `Once you get the Zip Code, IMMEDIATELY call check_service_availability(zip_code).`,
+    `- If it returns false (not serviced): Apologize, explain you only serve specific areas, and politely end the call (do NOT ask for name).`,
+    `- If it returns true (serviced): Confirm the zip code, then proceed to ask for their Name and Service needs.`,
+    isPestControl ? `Pest Control Flow: 1. Zip Code -> 2. Pest Type (ants, roaches, etc.) -> 3. Name -> 4. Address -> 5. Schedule.` : `General Flow: 1. Zip Code -> 2. Problem Description -> 3. Name -> 4. Address -> 5. Schedule.`,
     `Be conversational and adaptive while still collecting what is needed.`,
     `Ask only ONE question per turn. Never ask a second question until the caller answers.`,
     `Sound like a real person on the phone: use contractions, vary phrasing, and avoid repeating a sentence in the same turn.`,
@@ -776,7 +796,8 @@ function buildInstructions(input: {
     `- Call create_lead early, once you know the caller's phone number and intent.`,
     `- Call save_call near the end with a concise summary + collected fields (not a verbatim transcript).`,
     `- Use get_availability + create_booking for scheduling; never guess availability.`,
-    `- Before calling get_availability, collect name and zip (or address) and confirm them.`,
+    `- Always call check_service_availability(zip) as the FIRST step of booking.`,
+    `- Before calling get_availability, collect name and zip (or address) and verify service area.`,
     `- Never present specific available times unless they came from get_availability in the current turn.`,
     extra ? `Extra instructions: ${extra}` : null,
   ].filter(Boolean) as string[];
@@ -887,6 +908,25 @@ async function invokeTool(ctx: CallContext, name: string, args: any) {
   if (name === 'update_intake') {
     // Handled locally in the WS loop because it is per-call state.
     return { ok: true };
+  }
+
+  if (name === 'check_service_availability') {
+    const zip = String(args.zip_code || '').trim();
+    if (!zip) return { serviced: false, message: 'Zip code is required' };
+
+    const call = activeCalls.get(ctx.callSid);
+    const allowed = call?.service_area_zipcodes;
+
+    // If no restricted areas defined, assume open.
+    if (!allowed || !allowed.length) {
+      return { serviced: true, message: 'Service available (open territory).' };
+    }
+
+    const serviced = allowed.includes(zip);
+    if (!serviced) {
+      return { serviced: false, message: 'Sorry, we do not service this zip code area.' };
+    }
+    return { serviced: true, message: 'Great! We service that area.' };
   }
 
   if (name === 'end_call') {
@@ -2335,7 +2375,13 @@ wss.on('connection', (twilioWs: WebSocket) => {
       ctx = { callSid, streamSid, from, to, company_id: tenant.company_id, startedAt };
       log('Media stream started', { to, from, company_id: tenant.company_id });
 
-      activeCalls.set(callSid, { company_id: tenant.company_id, from, to, startedAt });
+      activeCalls.set(callSid, {
+        company_id: tenant.company_id,
+        from,
+        to,
+        startedAt,
+        service_area_zipcodes: tenant.service_area_zipcodes
+      });
 
       void startTwilioRecording(callSid);
 
