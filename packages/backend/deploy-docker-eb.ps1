@@ -17,7 +17,7 @@ Write-Host ""
 
 # Step 1: Get AWS Account ID
 Write-Host "Step 1: Getting AWS account info..." -ForegroundColor Cyan
-$ACCOUNT_ID = (aws sts get-caller-identity --query Account --output text)
+$ACCOUNT_ID = (aws sts get-caller-identity --query Account --output text --no-cli-pager)
 if ($LASTEXITCODE -ne 0) {
     Write-Host "ERROR: Failed to get AWS account ID. Check your AWS credentials." -ForegroundColor Red
     exit 1
@@ -30,13 +30,13 @@ Write-Host "Step 2: Setting up ECR repository..." -ForegroundColor Cyan
 $ECR_REPO = "$ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$IMAGE_NAME"
 
 $ErrorActionPreference = "Continue"
-$repoCheck = aws ecr describe-repositories --repository-names $IMAGE_NAME --region $REGION 2>&1
+$repoCheck = aws ecr describe-repositories --repository-names $IMAGE_NAME --region $REGION --no-cli-pager 2>&1
 $repoExists = $LASTEXITCODE -eq 0
 $ErrorActionPreference = "Stop"
 
 if (-not $repoExists) {
     Write-Host "Creating ECR repository..." -ForegroundColor Yellow
-    aws ecr create-repository --repository-name $IMAGE_NAME --region $REGION
+    aws ecr create-repository --repository-name $IMAGE_NAME --region $REGION --no-cli-pager
     if ($LASTEXITCODE -ne 0) {
         Write-Host "ERROR: Failed to create ECR repository" -ForegroundColor Red
         exit 1
@@ -49,7 +49,7 @@ if (-not $repoExists) {
 # Step 3: Login to ECR
 Write-Host ""
 Write-Host "Step 3: Logging into ECR..." -ForegroundColor Cyan
-$ecrPassword = aws ecr get-login-password --region $REGION
+$ecrPassword = aws ecr get-login-password --region $REGION --no-cli-pager
 if ($LASTEXITCODE -ne 0) {
     Write-Host "ERROR: Failed to get ECR login password" -ForegroundColor Red
     exit 1
@@ -157,13 +157,13 @@ $S3_BUCKET = "elasticbeanstalk-$REGION-$ACCOUNT_ID"
 $S3_KEY = "$APP_NAME/deploy-docker-$TIMESTAMP.zip"
 
 # Create S3 bucket if it doesn't exist
-aws s3 ls "s3://$S3_BUCKET" 2>&1 | Out-Null
+aws s3 ls "s3://$S3_BUCKET" --no-cli-pager 2>&1 | Out-Null
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Creating S3 bucket..." -ForegroundColor Yellow
-    aws s3 mb "s3://$S3_BUCKET" --region $REGION
+    aws s3 mb "s3://$S3_BUCKET" --region $REGION --no-cli-pager
 }
 
-aws s3 cp deploy.zip "s3://$S3_BUCKET/$S3_KEY" --region $REGION --only-show-errors
+aws s3 cp deploy.zip "s3://$S3_BUCKET/$S3_KEY" --region $REGION --only-show-errors --no-cli-pager
 if ($LASTEXITCODE -ne 0) {
     Write-Host "ERROR: Failed to upload to S3" -ForegroundColor Red
     exit 1
@@ -180,6 +180,7 @@ aws elasticbeanstalk create-application-version `
     --version-label $VERSION_LABEL `
     --source-bundle "S3Bucket=$S3_BUCKET,S3Key=$S3_KEY" `
     --region $REGION `
+    --no-cli-pager `
     --output json | Out-Null
 
 if ($LASTEXITCODE -ne 0) {
@@ -196,6 +197,7 @@ $currentPlatform = aws elasticbeanstalk describe-environments `
     --environment-names $ENV_NAME `
     --region $REGION `
     --query "Environments[0].PlatformArn" `
+    --no-cli-pager `
     --output text
 
 if ($currentPlatform -notlike "*Docker*") {
@@ -220,6 +222,7 @@ aws elasticbeanstalk update-environment `
     --environment-name $ENV_NAME `
     --version-label $VERSION_LABEL `
     --region $REGION `
+    --no-cli-pager `
     --output json | Out-Null
 
 if ($LASTEXITCODE -ne 0) {
