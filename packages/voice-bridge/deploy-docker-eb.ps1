@@ -18,22 +18,22 @@ Write-Host "HandyCall Voice Bridge Docker EB Deploy" -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
 
-$ACCOUNT_ID = (aws sts get-caller-identity --query Account --output text)
+$ACCOUNT_ID = (aws sts get-caller-identity --query Account --output text --no-cli-pager)
 if ($LASTEXITCODE -ne 0) { throw "Failed to get AWS account ID" }
 
 $ECR_REPO = "$ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$IMAGE_NAME"
 
 Write-Host "Ensuring ECR repo exists..." -ForegroundColor Cyan
 $ErrorActionPreference = "Continue"
-$repoCheck = aws ecr describe-repositories --repository-names $IMAGE_NAME --region $REGION 2>&1
+$repoCheck = aws ecr describe-repositories --repository-names $IMAGE_NAME --region $REGION --no-cli-pager 2>&1
 $repoExists = $LASTEXITCODE -eq 0
 $ErrorActionPreference = "Stop"
 if (-not $repoExists) {
-  aws ecr create-repository --repository-name $IMAGE_NAME --region $REGION | Out-Null
+  aws ecr create-repository --repository-name $IMAGE_NAME --region $REGION --no-cli-pager | Out-Null
 }
 
 Write-Host "Logging into ECR..." -ForegroundColor Cyan
-$ecrPassword = aws ecr get-login-password --region $REGION
+$ecrPassword = aws ecr get-login-password --region $REGION --no-cli-pager
 $ecrPassword | docker login --username AWS --password-stdin "$ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com" 2>&1 | Out-Null
 
 Write-Host "Building Docker image..." -ForegroundColor Cyan
@@ -117,10 +117,10 @@ if (Test-Path $platformDir) {
 $S3_BUCKET = "elasticbeanstalk-$REGION-$ACCOUNT_ID"
 $S3_KEY = "$APP_NAME/deploy-docker-$TIMESTAMP.zip"
 
-aws s3 ls "s3://$S3_BUCKET" 2>&1 | Out-Null
-if ($LASTEXITCODE -ne 0) { aws s3 mb "s3://$S3_BUCKET" --region $REGION | Out-Null }
+aws s3 ls "s3://$S3_BUCKET" --no-cli-pager 2>&1 | Out-Null
+if ($LASTEXITCODE -ne 0) { aws s3 mb "s3://$S3_BUCKET" --region $REGION --no-cli-pager | Out-Null }
 
-aws s3 cp voice-bridge-deploy.zip "s3://$S3_BUCKET/$S3_KEY" --region $REGION --only-show-errors
+aws s3 cp voice-bridge-deploy.zip "s3://$S3_BUCKET/$S3_KEY" --region $REGION --only-show-errors --no-cli-pager
 if ($LASTEXITCODE -ne 0) { throw "Failed to upload bundle" }
 
 $VERSION_LABEL = "docker-v-$TIMESTAMP"
@@ -128,13 +128,15 @@ aws elasticbeanstalk create-application-version `
   --application-name $APP_NAME `
   --version-label $VERSION_LABEL `
   --source-bundle "S3Bucket=$S3_BUCKET,S3Key=$S3_KEY" `
-  --region $REGION | Out-Null
+  --region $REGION `
+  --no-cli-pager | Out-Null
 
 aws elasticbeanstalk update-environment `
   --application-name $APP_NAME `
   --environment-name $ENV_NAME `
   --version-label $VERSION_LABEL `
-  --region $REGION | Out-Null
+  --region $REGION `
+  --no-cli-pager | Out-Null
 
 Write-Host "Deployment started for $ENV_NAME with version $VERSION_LABEL" -ForegroundColor Green
 

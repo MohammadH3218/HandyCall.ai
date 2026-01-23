@@ -734,7 +734,7 @@ function buildInstructions(input: {
   const { company_name, service_type, timezone, language, extra } = input;
   const lang = (language || 'english').toLowerCase();
   const isArabic = lang.includes('arabic') || lang.includes('ar');
-  const greeting = isArabic ? 'Ahlan' : 'Hi';
+
 
   const lines = [
     `You are a friendly, natural-sounding receptionist for ${company_name}.`,
