@@ -9,7 +9,7 @@ import { apiClient } from '@/lib/api-client';
 import { Logo } from '@/components/ui/logo';
 import { ProfileDropdown } from '@/components/profile-dropdown';
 import { Button } from '@/components/ui/button';
-import { BarChart3, Calendar, CheckSquare, CreditCard, Home, Menu, MessageSquare, Phone, Settings, Users, X } from 'lucide-react';
+import { BarChart3, Building2, Calendar, CheckSquare, CreditCard, Home, Menu, MessageSquare, Phone, Settings, Users, X } from 'lucide-react';
 import { UserRole } from '@handycall/shared';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -45,10 +45,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     }
     const billing = Boolean(
       company.subscription_plan ||
-        company.stripe_subscription_id ||
-        (company.subscription_status &&
-          (company.subscription_status === 'ACTIVE' || company.subscription_status === 'TRIALING')) ||
-        (company.trial_ends_at && company.trial_ends_at > Date.now())
+      company.stripe_subscription_id ||
+      (company.subscription_status &&
+        (company.subscription_status === 'ACTIVE' || company.subscription_status === 'TRIALING')) ||
+      (company.trial_ends_at && company.trial_ends_at > Date.now())
     );
     const scheduleReady = Boolean(company.timezone) && hasWorkingHours;
     const schedule = Boolean((company as any).schedule_setup_completed) || scheduleReady;
@@ -112,35 +112,35 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         try {
           // Give session a moment to stabilize before checking auth
           await new Promise(resolve => setTimeout(resolve, 300));
-          
+
           await checkAuth();
-          
+
           // Wait a bit more for state to update
           await new Promise(resolve => setTimeout(resolve, 200));
-          
+
           // After checkAuth, verify we actually have valid credentials
           const state = useAuthStore.getState();
-          
+
           // Only check auth if we're not still loading
           if (state.isLoading) {
             return; // Still loading, wait for next cycle
           }
-          
+
           // For admin users, check for tokens. For customers, check for company or tokens
           // But be lenient - if session exists, give it time
           const hasValidAuth = state.isAuthenticated && (
-            state.accessToken || 
+            state.accessToken ||
             state.idToken ||
             (state.userRole === UserRole.ADMIN) ||
             state.company
           );
-          
+
           // Only sign out if we're definitely unauthenticated and not loading
           if (!hasValidAuth && !state.isLoading) {
             // Check session one more time before signing out
             const sessionCheck = await fetch('/api/auth/session', { cache: 'no-store' }).catch(() => null);
             const sessionData = sessionCheck?.ok ? await sessionCheck.json() : null;
-            
+
             if (!sessionData || (!sessionData.accessToken && !sessionData.idToken)) {
               // No valid credentials, sign out
               console.log('[DashboardLayout] No valid credentials after checkAuth, signing out');
@@ -150,12 +150,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           }
         } catch (err) {
           console.error('checkAuth failed, checking session before signing out', err);
-          
+
           // Don't immediately sign out on error - check session first
           try {
             const sessionCheck = await fetch('/api/auth/session', { cache: 'no-store' }).catch(() => null);
             const sessionData = sessionCheck?.ok ? await sessionCheck.json() : null;
-            
+
             if (!sessionData || (!sessionData.accessToken && !sessionData.idToken)) {
               // Sign out without redirect to avoid loops, then navigate manually
               await signOut({ redirect: false });
@@ -247,8 +247,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <NavLink href="/dashboard/appointments" icon={<Calendar className="h-5 w-5" />} onClick={() => setSidebarOpen(false)}>
               Appointments
             </NavLink>
+          </div>
+
+          <div className="pt-2 border-t border-border space-y-1">
+            <p className="px-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Company</p>
             <NavLink href="/dashboard/knowledge" icon={<MessageSquare className="h-5 w-5" />} onClick={() => setSidebarOpen(false)}>
               Knowledge Base
+            </NavLink>
+            <NavLink href="/dashboard/settings" icon={<Settings className="h-5 w-5" />} onClick={() => setSidebarOpen(false)}>
+              Settings
             </NavLink>
           </div>
 
@@ -259,9 +266,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </NavLink>
             <NavLink href="/dashboard/billing" icon={<CreditCard className="h-5 w-5" />} onClick={() => setSidebarOpen(false)}>
               Billing
-            </NavLink>
-            <NavLink href="/dashboard/settings" icon={<Settings className="h-5 w-5" />} onClick={() => setSidebarOpen(false)}>
-              Settings
             </NavLink>
           </div>
         </nav>
