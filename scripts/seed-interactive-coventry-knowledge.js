@@ -14,17 +14,17 @@
 const { randomUUID } = require('crypto');
 const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
 const { DynamoDBDocumentClient, PutCommand, GetCommand, UpdateCommand } = require('@aws-sdk/lib-dynamodb');
-const { BedrockRuntimeClient, InvokeModelCommand } = require('@aws-sdk/client-bedrock-runtime');
+const { OpenAI } = require('openai');
 
 const REGION = process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION || 'us-east-1';
 const TABLE_PREFIX = process.env.DYNAMODB_TABLE_PREFIX || 'handycall_prod_';
 const COMPANY_ID = process.env.COMPANY_ID || 'b2d6d09a-794f-4b0f-bb62-9e9fedd596dd';
-const EMBEDDING_MODEL_ID = process.env.BEDROCK_EMBEDDING_MODEL_ID || 'amazon.titan-embed-text-v1';
+const EMBEDDING_MODEL_ID = process.env.OPENAI_EMBEDDING_MODEL_ID || 'text-embedding-3-small';
 
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({ region: REGION }), {
   marshallOptions: { removeUndefinedValues: true, convertClassInstanceToMap: true },
 });
-const bedrock = new BedrockRuntimeClient({ region: REGION });
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY }); // Ensure OPENAI_API_KEY is in env
 
 function splitTextIntoChunks(text, chunkSize = 500, overlap = 50) {
   const cleaned = String(text || '').replace(/\r\n/g, '\n');
@@ -40,18 +40,11 @@ function splitTextIntoChunks(text, chunkSize = 500, overlap = 50) {
 }
 
 async function generateEmbedding(text) {
-  const command = new InvokeModelCommand({
-    modelId: EMBEDDING_MODEL_ID,
-    body: JSON.stringify({ inputText: text }),
-    contentType: 'application/json',
-    accept: 'application/json',
+  const response = await openai.embeddings.create({
+    model: EMBEDDING_MODEL_ID,
+    input: text,
   });
-  const response = await bedrock.send(command);
-  const result = JSON.parse(Buffer.from(response.body).toString('utf8'));
-  if (!result || !Array.isArray(result.embedding)) {
-    throw new Error('Unexpected embedding response from Bedrock');
-  }
-  return result.embedding;
+  return response.data[0].embedding;
 }
 
 async function chunkAndStoreKnowledge(companyId, knowledgeId, fullText) {

@@ -19,10 +19,9 @@
     "test:e2e": "jest --config ./test/jest-e2e.json"
   },
   "dependencies": {
-    "@aws-sdk/client-bedrock-runtime": "^3.490.0",
     "@aws-sdk/client-cognito-identity-provider": "^3.490.0",
-    "@aws-sdk/client-connect": "^3.965.0",
     "@aws-sdk/client-dynamodb": "^3.490.0",
+    "openai": "^4.24.0",
     "@aws-sdk/client-s3": "^3.490.0",
     "@aws-sdk/client-ssm": "^3.490.0",
     "@aws-sdk/lib-dynamodb": "^3.490.0",

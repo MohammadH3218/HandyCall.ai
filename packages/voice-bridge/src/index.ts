@@ -728,11 +728,17 @@ function buildInstructions(input: {
   company_name: string;
   service_type?: string;
   timezone?: string;
+  language?: string;
   extra?: string;
 }) {
-  const { company_name, service_type, timezone, extra } = input;
+  const { company_name, service_type, timezone, language, extra } = input;
+  const lang = (language || 'english').toLowerCase();
+  const isArabic = lang.includes('arabic') || lang.includes('ar');
+  const greeting = isArabic ? 'Ahlan' : 'Hi';
+
   const lines = [
     `You are a friendly, natural-sounding receptionist for ${company_name}.`,
+    isArabic ? `Speak predominantly in Arabic (Gulf/GCC dialect preferred) but can switch to English if the user speaks English.` : `Speak in English.`,
     `Your job: quickly understand the caller's need, capture details, and either schedule or create a lead.`,
     `Be conversational and adaptive while still collecting what is needed.`,
     `Ask only ONE question per turn. Never ask a second question until the caller answers.`,
@@ -1138,6 +1144,30 @@ wss.on('connection', (twilioWs: WebSocket) => {
     if (ulawByte === 0) return 0x02;
     if (ulawByte === 0xff) return 0x7f;
     return ulawByte;
+  }
+
+  function calculateRmsFromBase64(b64: string): number {
+    try {
+      const buf = Buffer.from(b64, 'base64');
+      if (buf.length === 0) return 0;
+      let sumSq = 0;
+      // Mu-law to linear expansion approximation or just treating as raw 8-bit for rough energy check
+      // Mu-law roughly: s = sign(m) * (1/255) * ((1+255)^|m| - 1)
+      // For a simple noise gate, raw byte variance is often enough, but let's do a quick lookup-based expansion if needed.
+      // Actually, simple sum of squares of bytes is a rough proxy for energy in mu-law but very non-linear.
+      // Better: expand mu-law to linear 14-bit.
+      for (const byte of buf) {
+        // Simple mu-law expansion
+        const sign = (byte & 0x80) ? -1 : 1;
+        const exponent = (byte >> 4) & 0x07;
+        const mantissa = byte & 0x0F;
+        const sample = sign * ((((mantissa << 3) + 0x84) << exponent) - 0x84);
+        sumSq += sample * sample;
+      }
+      return Math.sqrt(sumSq / buf.length);
+    } catch {
+      return 0;
+    }
   }
 
   function pcm16BytesToG711UlawBytesAdaptive(pcmBytes: Buffer): Buffer {
@@ -2321,6 +2351,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
         company_name: tenant.company_name,
         service_type: tenant.service_type,
         timezone: tenant.timezone,
+        language: tenant.language || tenant.agent_config?.language,
         extra: tenant?.agent_config?.realtime_instructions,
       });
 
@@ -2350,9 +2381,9 @@ wss.on('connection', (twilioWs: WebSocket) => {
             // Too low can cause interruptions; tune if you notice cutoffs.
             turn_detection: {
               type: 'server_vad',
-              threshold: 0.6,
+              threshold: Number(envFirst(['REALTIME_VAD_THRESHOLD']) || 0.75),
               prefix_padding_ms: 300,
-              silence_duration_ms: 1200,
+              silence_duration_ms: Number(envFirst(['REALTIME_SILENCE_MS']) || 400),
             },
           },
         });
@@ -2366,7 +2397,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
         // Recording is started earlier on stream start (best-effort).
       });
 
-        openaiWs.on('message', async (raw) => {
+      openaiWs.on('message', async (raw) => {
         if (!ctx || !openaiWs) return;
         let msg: any;
         try {
@@ -2608,13 +2639,51 @@ wss.on('connection', (twilioWs: WebSocket) => {
             }
           }
 
-          // Only generate a response after we have an actual transcription, but debounce slightly
-          // so we don't cut off follow-ups like "Yes, but I also had a question...".
+          // Only generate a response after we have an actual transcription.
+          // Trigger IMMEDIATELY without delay for snappy feel, unless speech is currently active.
           if (typeof t === 'string' && t.trim() && openaiWs && !pendingAutoHangup) {
             if (userSpeechActive) {
               pendingResponseAfterSpeech = true;
             } else {
-              scheduleAssistantResponse();
+              // Execute turn logic immediately (deterministic response)
+              const bufferedText = pendingUserTranscript.trim();
+              if (bufferedText) {
+                // Immediate execution
+                (async () => {
+                  if (fsmEnabled) {
+                    try {
+                      const handled = await handleFsmTurn(bufferedText);
+                      pendingUserTranscript = '';
+                      if (handled) {
+                        noResponseStage = 0;
+                        return;
+                      }
+                      // If not handled, fall through? FSM should handle everything or return false.
+                      // Use a generic fallback if FSM returned false (shouldn't happen if properly covered).
+                      sendPrompt("Sorry, I didn't catch that. Could you repeat?");
+                    } catch (err: any) {
+                      log('handleFsmTurn immediate failed', err?.message);
+                      sendPrompt("Sorry, I had a glitch. One more time?");
+                    }
+                  } else if (bookingStep !== 'idle') {
+                    // Legacy booking flow
+                    try {
+                      const handled = await handleBookingTurn(bufferedText);
+                      if (handled) {
+                        noResponseStage = 0;
+                        pendingUserTranscript = '';
+                        return;
+                      }
+                    } catch (e) { }
+                  }
+
+                  // Fallback / Default conversation
+                  if (pendingUserTranscript) { // if not consumed
+                    pendingUserTranscript = '';
+                    sendToOpenAI(openaiWs!, responseCreate());
+                  }
+                })();
+              }
             }
           } else if (!pendingAutoHangup) {
             // Silence/incomprehensible: (re)arm the no-response timer.
@@ -2744,22 +2813,22 @@ wss.on('connection', (twilioWs: WebSocket) => {
             const toolArgs =
               toolName === 'save_call'
                 ? {
-                    ...args,
-                    transcript:
-                      typeof args?.transcript === 'string' && args.transcript.trim()
-                        ? args.transcript
-                        : mergedTranscriptText() || undefined,
-                    duration_seconds:
-                      typeof args?.duration_seconds === 'number'
-                        ? args.duration_seconds
-                        : ctx.startedAt
-                          ? Math.max(1, Math.ceil((Date.now() - ctx.startedAt) / 1000))
-                          : undefined,
-                    collected_info:
-                      args?.collected_info && typeof args.collected_info === 'object'
-                        ? args.collected_info
-                        : intake,
-                  }
+                  ...args,
+                  transcript:
+                    typeof args?.transcript === 'string' && args.transcript.trim()
+                      ? args.transcript
+                      : mergedTranscriptText() || undefined,
+                  duration_seconds:
+                    typeof args?.duration_seconds === 'number'
+                      ? args.duration_seconds
+                      : ctx.startedAt
+                        ? Math.max(1, Math.ceil((Date.now() - ctx.startedAt) / 1000))
+                        : undefined,
+                  collected_info:
+                    args?.collected_info && typeof args.collected_info === 'object'
+                      ? args.collected_info
+                      : intake,
+                }
                 : args;
 
             const result = await invokeTool(ctx, toolName, toolArgs);
@@ -2996,6 +3065,18 @@ wss.on('connection', (twilioWs: WebSocket) => {
       if (!twilioStreamReady) {
         twilioStreamReady = true;
         tryInitialGreeting();
+      }
+
+      // NOISE GATE: RMS-based filtering
+      const gateThreshold = Number(envFirst(['NOISE_GATE_THRESHOLD']) || 500); // 14-bit PCM scale max 8192 approx
+      const rms = calculateRmsFromBase64(payload);
+      if (rms < gateThreshold) {
+        // Send silence frame or skip?
+        // Skipping completely might cause VAD issues if it expects continuous stream?
+        // OpenAI Realtime VAD handles silence gaps fine, but sending strict silence is safer.
+        // For now, let's just skip sending to OpenAI if it's pure noise, effectively "muting" the line.
+        // But we must be careful not to cut off soft speech.
+        return;
       }
 
       sendToOpenAI(openaiWs, { type: 'input_audio_buffer.append', audio: payload });

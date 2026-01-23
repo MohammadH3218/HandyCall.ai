@@ -1,37 +1,35 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { BedrockRuntimeClient, InvokeModelCommand } from '@aws-sdk/client-bedrock-runtime';
+import OpenAI from 'openai';
 import { DynamoDBService } from '../../infrastructure/database/dynamodb.service';
 
 @Injectable()
 export class RagService {
-  private bedrockClient: BedrockRuntimeClient;
+  private openai: OpenAI;
   private embeddingModelId: string;
 
   constructor(
     private configService: ConfigService,
     private dynamodb: DynamoDBService,
   ) {
-    const region = this.configService.get<string>('AWS_REGION');
-    this.bedrockClient = new BedrockRuntimeClient({ region });
-    this.embeddingModelId = this.configService.get<string>('BEDROCK_EMBEDDING_MODEL_ID') || 'amazon.titan-embed-text-v1';
+    const apiKey = this.configService.get<string>('OPENAI_API_KEY');
+    if (!apiKey) {
+      console.warn('OPENAI_API_KEY not found in config, RAG embedding generation will fail.');
+    }
+    this.openai = new OpenAI({ apiKey: apiKey || 'dummy' });
+    this.embeddingModelId = this.configService.get<string>('OPENAI_EMBEDDING_MODEL_ID') || 'text-embedding-3-small';
   }
 
   /**
-   * Generate embeddings for text using Amazon Bedrock Titan
+   * Generate embeddings for text using OpenAI
    */
   async generateEmbedding(text: string): Promise<number[]> {
     try {
-      const command = new InvokeModelCommand({
-        modelId: this.embeddingModelId,
-        body: JSON.stringify({ inputText: text }),
-        contentType: 'application/json',
-        accept: 'application/json',
+      const response = await this.openai.embeddings.create({
+        model: this.embeddingModelId,
+        input: text,
       });
-
-      const response = await this.bedrockClient.send(command);
-      const result = JSON.parse(new TextDecoder().decode(response.body));
-      return result.embedding;
+      return response.data[0].embedding;
     } catch (error: any) {
       console.error('Error generating embedding:', error);
       throw new Error(`Failed to generate embedding: ${(error as any)?.message || String(error)}`);

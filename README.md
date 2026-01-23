@@ -18,9 +18,8 @@ This is a monorepo containing:
 - [PROJECT_CONTEXT.md](./PROJECT_CONTEXT.md) - Single source of truth for the entire project
 - [DB_SCHEMA.md](./DB_SCHEMA.md) - DynamoDB table designs and access patterns
 - [API_REFERENCE.md](./API_REFERENCE.md) - Complete API endpoint documentation
-- [docs/REALTIME_STREAMING_SETUP.md](./docs/REALTIME_STREAMING_SETUP.md) - Connect Media Streams + realtime cache setup
-- [docs/REALTIME_SIP_REWORK.md](./docs/REALTIME_SIP_REWORK.md) - OpenAI Realtime SIP architecture rework
-- [docs/TWILIO_MEDIA_STREAMS_SETUP.md](./docs/TWILIO_MEDIA_STREAMS_SETUP.md) - Twilio Media Streams bridge (recommended for Twilio)
+- [docs/REALTIME_SIP_REWORK.md](./docs/REALTIME_SIP_REWORK.md) - **Realtime Voice Architecture** (Twilio Media Streams + OpenAI)
+- [docs/TWILIO_MEDIA_STREAMS_SETUP.md](./docs/TWILIO_MEDIA_STREAMS_SETUP.md) - Twilio Bridge Setup Guide
 
 ## 🚀 Quick Start
 
