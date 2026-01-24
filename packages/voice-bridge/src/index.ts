@@ -211,16 +211,7 @@ function extractInlineIntake(lastPrompt: string, userText: string): Record<strin
   return out;
 }
 
-function isConfirmationPrompt(prompt: string): boolean {
-  const p = (prompt || '').toLowerCase();
-  return (
-    p.includes('confirm') ||
-    p.includes('is that correct') ||
-    p.includes('is that right') ||
-    p.includes('right?') ||
-    p.includes('correct?')
-  );
-}
+
 
 function normalizeForEcho(text: string): string {
   return String(text || '')
@@ -520,42 +511,10 @@ function isNegative(text: string): boolean {
   ].some((phrase) => t === phrase || t.includes(phrase));
 }
 
-function isLikelyNonAnswer(lastPrompt: string, userText: string): boolean {
-  const prompt = (lastPrompt || '').toLowerCase();
-  const text = userText.trim().toLowerCase();
-  if (!prompt.includes('?')) return false;
-  if (isConfirmationPrompt(prompt)) return false;
-
-  const fillers = new Set([
-    'hi',
-    'hello',
-    'hey',
-    'yeah',
-    'yep',
-    'yes',
-    'no',
-    'nope',
-    'ok',
-    'okay',
-    'sure',
-    'right',
-  ]);
-  if (fillers.has(text)) return true;
-
-  const wordCount = text.split(/\s+/).filter(Boolean).length;
-  if (wordCount <= 1) return true;
-
-  // If the user gave a plausible answer, don't treat it as a non-answer.
-  if (prompt.includes('zip') && /\b\d{5}\b/.test(text)) return false;
-  if (prompt.includes('name')) {
-    if (normalizeNameCandidate(text)) return false;
-    return true;
-  }
-  if ((prompt.includes('time') || prompt.includes('date')) && /\d/.test(text)) return false;
-  if ((prompt.includes('issue') || prompt.includes('problem') || prompt.includes('pest')) && wordCount >= 2) return false;
-  if (prompt.includes('zip') && looksLikeAddress(text)) return false;
-  if (prompt.includes('zip') && !/\b\d{5}\b/.test(text)) return true;
-
+// function isLikelyNonAnswer(lastPrompt: string, userText: string): boolean {
+function isLikelyNonAnswer(): boolean {
+  // Completely disable this heuristic for now to prevent dropping valid short answers.
+  // The LLM is smart enough to handle "ok" or "hi" if it's contextually relevant.
   return false;
 }
 
@@ -1133,7 +1092,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
   let lastAssistantQuestionAt = 0;
   let lastUserSpeechStartedAt = 0;
   let lastUserSpeechStoppedAt = 0;
-  let lastUserSpeechDurationMs = 0;
+  // let lastUserSpeechDurationMs = 0;
   let isProcessingTool = false;
   const fsmEnabled = true;
   let sessionContext: SessionContext = { state: 'GREETING', intent: 'unknown' };
@@ -1145,7 +1104,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
   let pendingZip: string | null = null;
   let pendingSlot: BookingSlotOption | null = null;
   let lastBookingPrompt: string | null = null;
-  let lastBookingPromptAt = 0;
+  // let lastBookingPromptAt = 0; // Unused
   let bookingPromptActive = false;
   let lastAvailabilitySlots: string[] = [];
   let lastAvailabilityTimezone: string | null = null;
@@ -1431,7 +1390,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
       lastFsmPrompt = text;
     } else if (bookingStep !== 'idle') {
       lastBookingPrompt = text;
-      lastBookingPromptAt = Date.now();
+      // lastBookingPromptAt = Date.now();
       bookingPromptActive = true;
     }
     const maxTokens = options?.max_output_tokens ?? 120;
@@ -1449,41 +1408,21 @@ wss.on('connection', (twilioWs: WebSocket) => {
     );
   }
 
-  function getRecentSpeechDurationMs() {
-    if (lastUserSpeechDurationMs > 0) return lastUserSpeechDurationMs;
-    if (
-      lastUserSpeechStoppedAt > 0 &&
-      lastUserSpeechStartedAt > 0 &&
-      lastUserSpeechStoppedAt >= lastUserSpeechStartedAt
-    ) {
-      return lastUserSpeechStoppedAt - lastUserSpeechStartedAt;
-    }
-    return 0;
-  }
+  // function getRecentSpeechDurationMs() {
+  //   if (lastUserSpeechDurationMs > 0) return lastUserSpeechDurationMs;
+  //   if (
+  //     lastUserSpeechStoppedAt > 0 &&
+  //     lastUserSpeechStartedAt > 0 &&
+  //     lastUserSpeechStoppedAt >= lastUserSpeechStartedAt
+  //   ) {
+  //     return lastUserSpeechStoppedAt - lastUserSpeechStartedAt;
+  //   }
+  //   return 0;
+  // }
 
-  function shouldIgnoreBookingTranscript(text: string): boolean {
-    if (bookingStep === 'idle') return false;
-    const trimmed = text.trim();
-    if (!trimmed) return true;
-    const now = Date.now();
-    const elapsed = lastBookingPromptAt ? now - lastBookingPromptAt : null;
-    const speechMs = getRecentSpeechDurationMs();
-    const wordCount = trimmed.split(/\s+/).filter(Boolean).length;
-    const shortReply = wordCount <= 2;
-    const hasZip = /\b\d{5}\b/.test(trimmed);
-    const hasTime = looksLikeTimeRequest(trimmed);
-    const hasName = normalizeNameCandidate(trimmed) !== null;
-    const yesNo = isAffirmative(trimmed) || isNegative(trimmed);
-    const slotKeyword = /\b(first|second|third|fourth|earliest|latest|next available)\b/i.test(trimmed);
-    const assistantSpeaking = now < assistantAudioActiveUntil;
-
-    if (assistantSpeaking && elapsed !== null && elapsed < 800 && shortReply && !hasZip && !hasTime && !hasName && !slotKeyword) {
-      return true;
-    }
-    if (elapsed !== null && elapsed < 450 && shortReply && !hasZip && !hasTime && !hasName && !slotKeyword) return true;
-    if (speechMs > 0 && speechMs < 220 && shortReply && !hasZip && !hasTime && !hasName && !slotKeyword) return true;
-    if (hasName && shortReply && elapsed !== null && elapsed < 350 && speechMs > 0 && speechMs < 220) return true;
-    if (yesNo && elapsed !== null && elapsed < 550 && speechMs > 0 && speechMs < 240) return true;
+  function shouldIgnoreBookingTranscript(): boolean {
+    // Disable client-side filtering of transcripts during booking.
+    // Let the LLM (or FSM) decide if the input is useful.
     return false;
   }
 
@@ -2472,7 +2411,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
         if (msg?.type === 'input_audio_buffer.speech_started') {
           userSpeechActive = true;
           lastUserSpeechStartedAt = Date.now();
-          lastUserSpeechDurationMs = 0;
+          // lastUserSpeechDurationMs = 0;
           clearNoResponseTimer();
           clearPendingResponseTimer();
         }
@@ -2481,7 +2420,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
           userSpeechActive = false;
           lastUserSpeechStoppedAt = Date.now();
           if (lastUserSpeechStartedAt > 0) {
-            lastUserSpeechDurationMs = Math.max(0, lastUserSpeechStoppedAt - lastUserSpeechStartedAt);
+            // lastUserSpeechDurationMs = Math.max(0, lastUserSpeechStoppedAt - lastUserSpeechStartedAt);
           }
           if (pendingResponseAfterSpeech && !pendingAutoHangup) {
             pendingResponseAfterSpeech = false;
@@ -2565,11 +2504,12 @@ wss.on('connection', (twilioWs: WebSocket) => {
             const text = t.trim();
             const normalizedText = text.toLowerCase();
             if (isProcessingTool && !isExplicitBargeIn(text)) {
-              if (isFillerUtterance(text)) {
-                log('Ignoring filler while tool in flight', { text });
-                armNoResponseTimer();
-                return;
-              }
+              // DISABLED: filtering filler utterance while tool in flight often drops the actual answer if it starts with "uh" or "well"
+              // if (isFillerUtterance(text)) {
+              //   log('Ignoring filler while tool in flight', { text });
+              //   armNoResponseTimer();
+              //   return;
+              // }
             }
             if (normalizedText === lastCallerText && Date.now() - lastCallerAt < 1500) {
               log('Skipping duplicate transcript', { text });
@@ -2599,7 +2539,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
               sendToTwilio(twilioWs, { event: 'clear', streamSid: ctx.streamSid });
               assistantAudioActiveUntil = 0;
             }
-            if (!fsmEnabled && bookingStep !== 'idle' && shouldIgnoreBookingTranscript(text)) {
+            if (!fsmEnabled && bookingStep !== 'idle' && shouldIgnoreBookingTranscript()) {
               log('Ignoring short booking response', { text, bookingStep });
               armNoResponseTimer();
               return;
@@ -2640,7 +2580,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
                 });
               }
             }
-            if (isLikelyNonAnswer(lastAssistantText, text) && !Object.keys(inlinePatch).length) {
+            if (isLikelyNonAnswer() && !Object.keys(inlinePatch).length) {
               const sinceQuestionMs = lastAssistantQuestionAt ? Date.now() - lastAssistantQuestionAt : null;
               log('Ignoring non-answer transcript', { text, sinceQuestionMs });
               if (!pendingAutoHangup) armNoResponseTimer();
