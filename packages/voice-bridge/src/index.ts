@@ -1342,7 +1342,8 @@ wss.on('connection', (twilioWs: WebSocket) => {
 
       // Add greeting as a conversation item, then trigger response
       // This works better with server VAD enabled
-      const greetingText = 'Hi, thanks for calling. How can I help you today?';
+      const companyName = tenant?.company_name || 'HandyCall';
+      const greetingText = `Hi, thanks for calling ${companyName}. How can I help you today?`;
 
       if (fsmEnabled) {
         sessionContext.state = 'GREETING';
