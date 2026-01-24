@@ -641,7 +641,7 @@ export class RealtimeToolsService {
       knowledge_id: r?.item?.knowledge_id,
       title: r?.item?.title,
       type: r?.item?.type,
-      text: r?.text,
+      text: (r?.text || '').slice(0, 1000),
       similarity: r?.similarity,
     }));
   }

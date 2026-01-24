@@ -823,6 +823,7 @@ async function invokeTool(ctx: CallContext, name: string, args: any) {
     ''
   );
   const toolsKey = requireEnvFirst(['TOOLS_API_KEY', 'HANDYCALL_TOOLS_API_KEY']);
+  console.log(`[invokeTool] calling ${name} for ${ctx.callSid}`, { args });
 
   if (name === 'create_lead') {
     return postJson(
@@ -1860,6 +1861,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
     if (!ctx || !openaiWs) return false;
     const trimmed = text.trim();
     if (!trimmed) return false;
+    log('handleFsmTurn processing', { text: trimmed, state: sessionContext.state });
 
     const isGreeting = /^(hi|hello|hey)\b/i.test(trimmed) && trimmed.split(/\s+/).length <= 3;
     const bookingIntent = hasBookingIntent(trimmed);
