@@ -26,8 +26,20 @@ export class CreateBookingDto {
   @IsString()
   timezone?: string;
 
+  @IsOptional()
   @IsString()
-  customer_name!: string;
+  customer_name?: string;
+
+  @IsOptional()
+  @IsString()
+  full_name?: string;
+
+  @IsOptional()
+  @IsString()
+  service_type?: string;
+
+  @IsOptional()
+  details?: Record<string, any>;
 
   @IsOptional()
   @IsString()
@@ -36,4 +48,7 @@ export class CreateBookingDto {
   @IsOptional()
   @IsString()
   notes?: string;
+
+  @IsOptional()
+  confirmed?: boolean;
 }

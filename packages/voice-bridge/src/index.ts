@@ -2,6 +2,7 @@ import http from 'http';
 import { WebSocketServer, WebSocket, RawData } from 'ws';
 import twilio from 'twilio';
 import { SSMClient, GetParameterCommand } from '@aws-sdk/client-ssm';
+import { toolsSchema } from './toolsSchema';
 
 function env(name: string): string | undefined {
   return process.env[name];
@@ -548,153 +549,6 @@ type ActiveCallMeta = {
 
 const activeCalls = new Map<string, ActiveCallMeta>();
 
-function toolsSchema() {
-  const tools: any[] = [
-    {
-      type: 'function',
-      name: 'create_lead',
-      description: 'Create/update the caller contact and open a call record for this inbound call.',
-      parameters: {
-        type: 'object',
-        properties: {
-          collected_info: {
-            type: 'object',
-            description:
-              'Structured intake fields you have collected so far (first_name, last_name, email, address, zip, service, issue, preferred_time, etc.).',
-          },
-        },
-      },
-    },
-    {
-      type: 'function',
-      name: 'check_service_availability',
-      description: 'Check if the company services a specific zip code. MUST be called immediately after getting the zip code.',
-      parameters: {
-        type: 'object',
-        properties: {
-          zip_code: { type: 'string', description: 'The 5-digit zip code to check.' },
-        },
-        required: ['zip_code'],
-      },
-    },
-    {
-      type: 'function',
-      name: 'save_call',
-      description: 'Persist transcript/summary + collected fields for the completed call.',
-      parameters: {
-        type: 'object',
-        properties: {
-          summary: { type: 'string', description: 'Short 1-3 sentence summary of the call outcome.' },
-          collected_info: { type: 'object', description: 'Final structured intake fields.' },
-          transcript: { type: 'string', description: 'Full transcript text (if available).' },
-          duration_seconds: { type: 'number', description: 'Call duration in seconds (if known).' },
-        },
-      },
-    },
-    {
-      type: 'function',
-      name: 'update_intake',
-      description:
-        'Update the structured intake fields you have collected so far (so you do not ask twice).',
-      parameters: {
-        type: 'object',
-        properties: {
-          intake: {
-            type: 'object',
-            description:
-              'Partial intake object. Only include fields you are confident about.',
-          },
-        },
-      },
-    },
-    {
-      type: 'function',
-      name: 'knowledge_search',
-      description:
-        "Search the company's knowledge base (RAG). Use this to answer questions about services, products/solutions used, hours, pricing policy, and other business facts.",
-      parameters: {
-        type: 'object',
-        properties: {
-          query: { type: 'string', description: 'The natural language search query.' },
-          top_k: { type: 'number', description: 'How many snippets to return (1-5 recommended).' },
-        },
-        required: ['query'],
-      },
-    },
-  ];
-
-  tools.push({
-    type: 'function',
-    name: 'get_availability',
-    description:
-      'Check available appointment start times in a time range. Use this before booking to confirm availability.',
-    parameters: {
-      type: 'object',
-      properties: {
-        start_time: {
-          type: 'string',
-          description:
-            'Start of the window. Prefer ISO 8601 UTC, but natural language is allowed (interpreted in the company timezone).',
-        },
-        end_time: {
-          type: 'string',
-          description:
-            'End of the window. Prefer ISO 8601 UTC, but natural language is allowed (interpreted in the company timezone).',
-        },
-        timezone: {
-          type: 'string',
-          description: 'IANA timezone (e.g., America/Chicago). Optional; defaults to company timezone.',
-        },
-      },
-      required: ['start_time'],
-    },
-  });
-
-  tools.push({
-    type: 'function',
-    name: 'create_booking',
-    description:
-      'Create an appointment booking for the caller. Only book if get_availability shows the requested slot is open.',
-    parameters: {
-      type: 'object',
-      properties: {
-        start_time: {
-          type: 'string',
-          description:
-            'Requested start time. Prefer ISO 8601 UTC, but natural language is allowed (interpreted in the company timezone).',
-        },
-        end_time: {
-          type: 'string',
-          description:
-            'Requested end time. Optional; if omitted we use the company default appointment duration. Prefer ISO 8601 UTC.',
-        },
-        timezone: {
-          type: 'string',
-          description: 'IANA timezone (e.g., America/Chicago). Optional; defaults to company timezone.',
-        },
-        contact_id: { type: 'string', description: 'Known contact_id from create_lead output (optional).' },
-        customer_name: { type: 'string', description: 'Customer full name.' },
-        customer_email: { type: 'string', description: 'Customer email (optional).' },
-        notes: { type: 'string', description: 'Notes for the appointment (optional).' },
-      },
-      required: ['start_time', 'customer_name'],
-    },
-  });
-
-  tools.push({
-    type: 'function',
-    name: 'end_call',
-    description: 'Politely end and hang up the phone call after confirmation.',
-    parameters: {
-      type: 'object',
-      properties: {
-        reason: { type: 'string', description: 'Short reason for ending the call.' },
-      },
-    },
-  });
-
-  return tools;
-}
 
 function buildInstructions(input: {
   company_name: string;
@@ -826,6 +680,14 @@ async function invokeTool(ctx: CallContext, name: string, args: any) {
     );
   }
 
+  if (name === 'check_service_area') {
+    return postJson(
+      `${toolsBase}/tools/check_service_area`,
+      { 'x-handycall-tools-key': toolsKey },
+      { company_id: ctx.company_id, zip: args.zip }
+    );
+  }
+
   if (name === 'knowledge_search') {
     return postJson(
       `${toolsBase}/tools/knowledge_search`,
@@ -840,27 +702,70 @@ async function invokeTool(ctx: CallContext, name: string, args: any) {
       { 'x-handycall-tools-key': toolsKey },
       {
         company_id: ctx.company_id,
-        start_time: args?.start_time ?? '',
-        end_time: args?.end_time ?? '',
-        timezone: args?.timezone,
+        start_time: args.preferred_time || args.start_time || args.window_start,
+        end_time: args.window_end || args.end_time || '',
+        timezone: args.timezone || '',
+        duration_minutes: args.duration_minutes || 60,
       }
     );
   }
 
   if (name === 'create_booking') {
+    // Basic gate: ensure model is sending confirmed=true
+    if (args.confirmed !== true) {
+      return { error: 'You must confirm with the user before booking.' };
+    }
     return postJson(
       `${toolsBase}/tools/create_booking`,
       { 'x-handycall-tools-key': toolsKey },
       {
         company_id: ctx.company_id,
         call_id: ctx.callSid,
-        contact_id: args?.contact_id,
-        start_time: args?.start_time ?? '',
-        end_time: args?.end_time,
-        timezone: args?.timezone,
-        customer_name: args?.customer_name ?? '',
-        customer_email: args?.customer_email,
-        notes: args?.notes,
+        from_phone: ctx.from,
+        full_name: args.full_name || args.customer_name,
+        service_type: args.service_type || 'General',
+        details: args.details || {},
+        start_time: args.start_time,
+        end_time: args.end_time,
+        timezone: args.timezone,
+        confirmed: true,
+      }
+    );
+  }
+
+  if (name === 'list_appointments_by_phone') {
+    return postJson(
+      `${toolsBase}/tools/list_appointments_by_phone`,
+      { 'x-handycall-tools-key': toolsKey },
+      {
+        company_id: ctx.company_id,
+        phone: ctx.from,
+        range_days: args.range_days || 90,
+      }
+    );
+  }
+
+  if (name === 'cancel_appointment') {
+    return postJson(
+      `${toolsBase}/tools/cancel_appointment`,
+      { 'x-handycall-tools-key': toolsKey },
+      {
+        company_id: ctx.company_id,
+        appointment_id: args.appointment_id,
+        reason: args.reason || '',
+      }
+    );
+  }
+
+  if (name === 'reschedule_appointment') {
+    return postJson(
+      `${toolsBase}/tools/reschedule_appointment`,
+      { 'x-handycall-tools-key': toolsKey },
+      {
+        company_id: ctx.company_id,
+        appointment_id: args.appointment_id,
+        new_start_time: args.new_start_time,
+        timezone: args.timezone,
       }
     );
   }
@@ -1094,7 +999,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
   let lastUserSpeechStoppedAt = 0;
   // let lastUserSpeechDurationMs = 0;
   let isProcessingTool = false;
-  const fsmEnabled = true;
+  const fsmEnabled = false;
   let sessionContext: SessionContext = { state: 'GREETING', intent: 'unknown' };
   let lastFsmPrompt: string | null = null;
   let pendingAnswerFollowUp = false;

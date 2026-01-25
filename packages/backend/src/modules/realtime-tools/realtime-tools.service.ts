@@ -237,12 +237,17 @@ export class RealtimeToolsService {
       company_name: company.company_name,
       timezone: company.timezone,
       service_type: company.service_type,
-      agent_config: config,
-      calls_enabled: company.calls_enabled,
-      sms_enabled: company.sms_enabled,
-      calendar_setup_completed: company.calendar_setup_completed ?? false,
-      schedule_setup_completed: (company as any).schedule_setup_completed ?? false,
-      service_area_zipcodes: (company as any).service_area_zipcodes,
+      service_template_id: (company as any).service_template_id || 'tmpl_handyman_v1', // Fallback
+      subscription_status: (company as any).subscription_status || 'active',
+      calls_enabled: company.calls_enabled !== (false as any),
+      business_hours: company.business_hours,
+      service_area_zipcodes: (company as any).service_area_zipcodes || [],
+      agent_config: config ? {
+        language: (config as any).language || 'en',
+        voice: (config as any).voice || 'alloy',
+        model: (config as any).model || 'gpt-4o-realtime-preview-2024-10-01',
+        extra_instructions: (config as any).custom_greeting || ''
+      } : undefined
     };
   }
 
@@ -743,6 +748,10 @@ export class RealtimeToolsService {
     const company_id = dto.company_id;
     if (!company_id) throw new BadRequestException('company_id is required');
 
+    if (!dto.confirmed) {
+      throw new BadRequestException('Booking not confirmed. Ask user to confirm first.');
+    }
+
     const company = await this.companies.findById(company_id);
     if (!company) throw new NotFoundException('Company not found');
 
@@ -808,6 +817,103 @@ export class RealtimeToolsService {
       appointment_id,
       start_time: slot.start_time,
       end_time: slot.end_time,
+    };
+  }
+
+  async checkServiceArea(company_id: string, zip: string) {
+    const company = await this.companies.findById(company_id);
+    if (!company) throw new NotFoundException('Company not found');
+
+    const zips = (company as any).service_area_zipcodes ?? [];
+    if (!zips.length) return { eligible: true };
+
+    const normalized = zip.trim();
+    const eligible = zips.includes(normalized);
+
+    return {
+      eligible,
+      message: eligible ? undefined : `Sorry, we don’t service zipcode ${normalized}.`,
+    };
+  }
+
+  async listAppointmentsByPhone(dto: { company_id: string; phone: string; range_days?: number }) {
+    const days = dto.range_days ?? 90;
+    const now = Date.now();
+    const startMs = now - days * 24 * 60 * 60 * 1000;
+    const endMs = now + days * 24 * 60 * 60 * 1000;
+
+    // First find the contact by phone
+    const contactScan = await this.dynamodb.scan('contacts', {
+      filterExpression: '#company_id = :company_id AND #phone = :phone',
+      expressionAttributeNames: { '#company_id': 'company_id', '#phone': 'phone_number' },
+      expressionAttributeValues: { ':company_id': dto.company_id, ':phone': dto.phone },
+      limit: 1,
+    });
+
+    const contact = contactScan.items?.[0];
+    if (!contact) return { appointments: [] };
+
+    // Then find appointments by contact-appointments GSI
+    const company_contact = `${dto.company_id}#${contact.contact_id}`;
+    const result = await this.dynamodb.query(
+      'appointments',
+      '#company_contact = :cc AND #start BETWEEN :s AND :e',
+      { '#company_contact': 'company_contact', '#start': 'scheduled_start' },
+      { ':cc': company_contact, ':s': startMs, ':e': endMs },
+      { indexName: 'contact-appointments' }
+    );
+
+    return {
+      appointments: (result.items || []).map((a: any) => ({
+        appointment_id: a.appointment_id,
+        start_time: new Date(a.scheduled_start).toISOString(),
+        end_time: new Date(a.scheduled_end).toISOString(),
+        service_type: a.service_type,
+        status: a.status,
+        notes: a.notes,
+      })),
+    };
+  }
+
+  async cancelAppointment(dto: { company_id: string; appointment_id: string; reason?: string }) {
+    const result = await this.appointmentsService.cancelAppointment(dto.company_id, dto.appointment_id);
+    if (dto.reason) {
+      await this.dynamodb.update(
+        'appointments',
+        { company_id: dto.company_id, appointment_id: dto.appointment_id },
+        { notes: `Cancellation reason: ${dto.reason}. Updated at: ${new Date().toISOString()}` }
+      );
+    }
+    return { ok: true, appointment_id: dto.appointment_id };
+  }
+
+  async rescheduleAppointment(dto: {
+    company_id: string;
+    appointment_id: string;
+    new_start_time: string;
+    timezone?: string;
+  }) {
+    const company = await this.companies.findById(dto.company_id);
+    if (!company) throw new NotFoundException('Company not found');
+
+    const timeZone = this.normalizeTimeZone(dto.timezone, company.timezone || 'UTC');
+    const startIso = this.coerceToUtcIso(dto.new_start_time, timeZone);
+    const startMs = Date.parse(startIso);
+
+    const appt = await this.appointmentsService.getAppointment(dto.company_id, dto.appointment_id);
+    const durationMs = appt.scheduled_end - appt.scheduled_start;
+    const endMs = startMs + durationMs;
+
+    const updated = await this.appointmentsService.updateAppointment(dto.company_id, dto.appointment_id, {
+      scheduled_start: startMs,
+      scheduled_end: endMs,
+    });
+
+    return {
+      ok: true,
+      appointment_id: dto.appointment_id,
+      start_time: new Date(startMs).toISOString(),
+      end_time: new Date(endMs).toISOString(),
     };
   }
 }

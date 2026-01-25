@@ -1,0 +1,696 @@
+----------------------------------------
+/var/log/eb-engine.log
+----------------------------------------
+2026/01/24 08:31:49.282141 [INFO] making STAGING app container current...
+2026/01/24 08:31:49.282157 [INFO] Running command: docker tag e88666e1a4db aws_beanstalk/current-app
+2026/01/24 08:31:49.305021 [INFO] Running command: docker rmi aws_beanstalk/staging-app
+2026/01/24 08:31:49.324219 [INFO] Untagged: aws_beanstalk/staging-app:latest
+
+2026/01/24 08:31:49.324290 [INFO] Running command: systemctl show -p PartOf eb-docker.service
+2026/01/24 08:31:49.342077 [INFO] Running command: systemctl daemon-reload
+2026/01/24 08:31:49.636744 [INFO] Running command: systemctl reset-failed
+2026/01/24 08:31:49.645375 [INFO] Running command: systemctl enable eb-docker.service
+2026/01/24 08:31:49.900948 [INFO] The unit files have no installation config (WantedBy=, RequiredBy=, Also=,
+Alias= settings in the [Install] section, and DefaultInstance= for template
+units). This means they are not meant to be enabled using systemctl.
+ 
+Possible reasons for having this kind of units are:
+• A unit may be statically enabled by being symlinked from another unit's
+  .wants/ or .requires/ directory.
+• A unit's purpose may be to act as a helper for some other unit which has
+  a requirement dependency on it.
+• A unit may be started when needed via activation (socket, path, timer,
+  D-Bus, udev, scripted systemctl call, ...).
+• In case of template units, the unit is meant to be enabled with some
+  instance name specified.
+
+2026/01/24 08:31:49.900984 [INFO] Running command: systemctl show -p PartOf eb-docker.service
+2026/01/24 08:31:49.914703 [INFO] Running command: systemctl is-active eb-docker.service
+2026/01/24 08:31:49.923110 [INFO] Running command: systemctl start eb-docker.service
+2026/01/24 08:31:49.969251 [INFO] Running command: systemctl show -p PartOf eb-docker-log.service
+2026/01/24 08:31:49.985826 [INFO] Running command: systemctl daemon-reload
+2026/01/24 08:31:50.321373 [INFO] Running command: systemctl reset-failed
+2026/01/24 08:31:50.337707 [INFO] Running command: systemctl enable eb-docker-log.service
+2026/01/24 08:31:50.667287 [INFO] Created symlink /etc/systemd/system/eb-docker.service.wants/eb-docker-log.service → /etc/systemd/system/eb-docker-log.service.
+
+2026/01/24 08:31:50.667331 [INFO] Running command: systemctl show -p PartOf eb-docker-log.service
+2026/01/24 08:31:50.689258 [INFO] Running command: systemctl is-active eb-docker-log.service
+2026/01/24 08:31:50.700525 [INFO] Running command: systemctl start eb-docker-log.service
+2026/01/24 08:31:50.762770 [INFO] docker container a5ae33c4a2e8 is running aws_beanstalk/current-app
+2026/01/24 08:31:50.762787 [INFO] Cleanup images ...
+2026/01/24 08:31:50.762797 [INFO] Running command: docker images -a
+2026/01/24 08:31:50.788875 [INFO] REPOSITORY                                                            TAG               IMAGE ID       CREATED              SIZE
+982081079378.dkr.ecr.us-east-1.amazonaws.com/handycall-voice-bridge   20260124-113052   74f323d19baf   About a minute ago   232MB
+aws_beanstalk/current-app                                             latest            e88666e1a4db   About a minute ago   232MB
+
+2026/01/24 08:31:50.788904 [INFO] Running command: docker rmi `docker images -aq`
+2026/01/24 08:31:50.827426 [INFO] Untagged: 982081079378.dkr.ecr.us-east-1.amazonaws.com/handycall-voice-bridge:20260124-113052
+Untagged: 982081079378.dkr.ecr.us-east-1.amazonaws.com/handycall-voice-bridge@sha256:c691d10c2fdb64a5e80bec036dc719617dc62fd2d52cb64c3e94bfac59a21cf6
+Deleted: sha256:74f323d19baf462a805ac1ec2801b1026a83ca8c0f6384417cadbc3af6e207b5
+
+2026/01/24 08:31:50.827442 [INFO] Error response from daemon: conflict: unable to delete e88666e1a4db (cannot be forced) - image is being used by running container a5ae33c4a2e8
+
+2026/01/24 08:31:50.827449 [INFO] Running command: docker images -a
+2026/01/24 08:31:50.845161 [INFO] REPOSITORY                  TAG       IMAGE ID       CREATED              SIZE
+aws_beanstalk/current-app   latest    e88666e1a4db   About a minute ago   232MB
+
+2026/01/24 08:31:50.845198 [INFO] Pruning build cache ...
+2026/01/24 08:31:50.845209 [INFO] Running command: docker builder prune -f
+2026/01/24 08:31:51.317854 [INFO] ID						RECLAIMABLE	SIZE		LAST ACCESSED
+2muimpcexti8qbtbi0m8kshau*              	true 		100B      	24 seconds ago
+85qqhog2s1eeye1y9xrnbv36f*              	true 	0B        	24 seconds ago
+t79y7roc6s3mvhow68pjzm53t               	true 	0B        	24 hours ago
+xibzj85oqlfykcv8c5nasxeb3               	true 	0B        	24 hours ago
+osah0likk70mtah764eilnlvw               	true 	0B        	24 hours ago
+Total:	100B
+
+2026/01/24 08:31:51.317956 [INFO] Executing instruction: start X-Ray
+2026/01/24 08:31:51.317965 [INFO] X-Ray is not enabled.
+2026/01/24 08:31:51.317970 [INFO] Executing instruction: configureSqsd
+2026/01/24 08:31:51.317975 [INFO] This is a web server environment instance, skip configure sqsd daemon ...
+2026/01/24 08:31:51.317979 [INFO] Executing instruction: startSqsd
+2026/01/24 08:31:51.317982 [INFO] This is a web server environment instance, skip start sqsd daemon ...
+2026/01/24 08:31:51.317985 [INFO] Executing instruction: Track pids in healthd
+2026/01/24 08:31:51.317990 [INFO] This is an enhanced health env...
+2026/01/24 08:31:51.318004 [INFO] Running command: systemctl show -p ConsistsOf aws-eb.target | cut -d= -f2
+2026/01/24 08:31:51.332008 [INFO] nginx.service healthd.service cfn-hup.service eb-docker.service docker.service eb-docker-events.service eb-docker-log.service
+
+2026/01/24 08:31:51.332042 [INFO] Running command: systemctl show -p ConsistsOf eb-app.target | cut -d= -f2
+2026/01/24 08:31:51.341229 [INFO] 
+
+2026/01/24 08:31:51.342991 [INFO] Executing instruction: RunAppDeployPostDeployHooks
+2026/01/24 08:31:51.343073 [INFO] Executing platform hooks in .platform/hooks/postdeploy/
+2026/01/24 08:31:51.343094 [INFO] The dir .platform/hooks/postdeploy/ does not exist
+2026/01/24 08:31:51.343097 [INFO] Finished running scripts in /var/app/current/.platform/hooks/postdeploy
+2026/01/24 08:31:51.343102 [INFO] Executing cleanup logic
+2026/01/24 08:31:51.347661 [INFO] CommandService Response: {"status":"SUCCESS","api_version":"1.0","results":[{"status":"SUCCESS","msg":"Engine execution has succeeded.","returncode":0,"events":[{"msg":"Instance deployment completed successfully.","timestamp":1769243511343,"severity":"INFO"}]}]}
+
+2026/01/24 08:31:51.347865 [INFO] Platform Engine finished execution on command: app-deploy
+
+2026/01/24 08:41:18.416248 [INFO] Starting...
+2026/01/24 08:41:18.416302 [INFO] Starting EBPlatform-PlatformEngine
+2026/01/24 08:41:18.416329 [INFO] reading event message file
+2026/01/24 08:41:18.418552 [INFO] Engine received EB command cfn-hup-exec
+
+2026/01/24 08:41:18.569185 [INFO] Running command: /opt/aws/bin/cfn-get-metadata -s arn:aws:cloudformation:us-east-1:982081079378:stack/awseb-e-tz2dm9pvgf-stack/5e7d57d0-ef6a-11f0-aa6a-0affd8bc8b43 -r AWSEBAutoScalingGroup --region us-east-1
+2026/01/24 08:41:18.885655 [INFO] Running command: /opt/aws/bin/cfn-get-metadata -s arn:aws:cloudformation:us-east-1:982081079378:stack/awseb-e-tz2dm9pvgf-stack/5e7d57d0-ef6a-11f0-aa6a-0affd8bc8b43 -r AWSEBBeanstalkMetadata --region us-east-1
+2026/01/24 08:41:19.193425 [INFO] checking whether command tail-log is applicable to this instance...
+2026/01/24 08:41:19.193442 [INFO] this command is applicable to the instance, thus instance should execute command
+2026/01/24 08:41:19.193447 [INFO] Engine command: (tail-log)
+
+2026/01/24 08:41:19.194667 [INFO] Executing instruction: GetTailLogs
+2026/01/24 08:41:19.194675 [INFO] Tail Logs...
+2026/01/24 08:41:19.195209 [INFO] Running command: tail -n 100 /var/log/eb-engine.log
+
+
+----------------------------------------
+/var/log/eb-hooks.log
+----------------------------------------
+
+
+----------------------------------------
+/var/log/nginx/access.log
+----------------------------------------
+172.31.22.181 - - [24/Jan/2026:08:29:15 +0000] "GET / HTTP/1.1" 200 11 "-" "ELB-HealthChecker/2.0" "-"
+172.31.12.37 - - [24/Jan/2026:08:29:17 +0000] "GET / HTTP/1.1" 200 11 "-" "ELB-HealthChecker/2.0" "-"
+172.31.22.181 - - [24/Jan/2026:08:29:30 +0000] "GET / HTTP/1.1" 200 11 "-" "ELB-HealthChecker/2.0" "-"
+172.31.12.37 - - [24/Jan/2026:08:29:32 +0000] "GET / HTTP/1.1" 200 11 "-" "ELB-HealthChecker/2.0" "-"
+172.31.22.181 - - [24/Jan/2026:08:29:45 +0000] "GET / HTTP/1.1" 200 11 "-" "ELB-HealthChecker/2.0" "-"
+172.31.12.37 - - [24/Jan/2026:08:29:47 +0000] "GET / HTTP/1.1" 200 11 "-" "ELB-HealthChecker/2.0" "-"
+172.31.22.181 - - [24/Jan/2026:08:30:00 +0000] "GET / HTTP/1.1" 200 11 "-" "ELB-HealthChecker/2.0" "-"
+172.31.12.37 - - [24/Jan/2026:08:30:02 +0000] "GET / HTTP/1.1" 200 11 "-" "ELB-HealthChecker/2.0" "-"
+172.31.22.181 - - [24/Jan/2026:08:30:15 +0000] "GET / HTTP/1.1" 200 11 "-" "ELB-HealthChecker/2.0" "-"
+172.31.12.37 - - [24/Jan/2026:08:30:17 +0000] "GET / HTTP/1.1" 200 11 "-" "ELB-HealthChecker/2.0" "-"
+172.31.22.181 - - [24/Jan/2026:08:30:31 +0000] "GET / HTTP/1.1" 200 11 "-" "ELB-HealthChecker/2.0" "-"
+172.31.12.37 - - [24/Jan/2026:08:30:32 +0000] "GET / HTTP/1.1" 200 11 "-" "ELB-HealthChecker/2.0" "-"
+172.31.12.37 - - [24/Jan/2026:08:30:42 +0000] "PROPFIND / HTTP/1.1" 404 32 "http://98.82.38.82:443/" "-" "164.90.167.137"
+172.31.22.181 - - [24/Jan/2026:08:30:46 +0000] "GET / HTTP/1.1" 200 11 "-" "ELB-HealthChecker/2.0" "-"
+172.31.12.37 - - [24/Jan/2026:08:30:47 +0000] "GET / HTTP/1.1" 200 11 "-" "ELB-HealthChecker/2.0" "-"
+172.31.22.181 - - [24/Jan/2026:08:31:01 +0000] "GET / HTTP/1.1" 200 11 "-" "ELB-HealthChecker/2.0" "-"
+172.31.12.37 - - [24/Jan/2026:08:31:02 +0000] "GET / HTTP/1.1" 200 11 "-" "ELB-HealthChecker/2.0" "-"
+172.31.22.181 - - [24/Jan/2026:08:31:16 +0000] "GET / HTTP/1.1" 200 11 "-" "ELB-HealthChecker/2.0" "-"
+172.31.12.37 - - [24/Jan/2026:08:31:17 +0000] "GET / HTTP/1.1" 200 11 "-" "ELB-HealthChecker/2.0" "-"
+172.31.22.181 - - [24/Jan/2026:08:32:01 +0000] "GET / HTTP/1.1" 200 11 "-" "ELB-HealthChecker/2.0" "-"
+172.31.12.37 - - [24/Jan/2026:08:32:02 +0000] "GET / HTTP/1.1" 200 11 "-" "ELB-HealthChecker/2.0" "-"
+172.31.22.181 - - [24/Jan/2026:08:32:16 +0000] "GET / HTTP/1.1" 200 11 "-" "ELB-HealthChecker/2.0" "-"
+172.31.12.37 - - [24/Jan/2026:08:32:17 +0000] "GET / HTTP/1.1" 200 11 "-" "ELB-HealthChecker/2.0" "-"
+172.31.22.181 - - [24/Jan/2026:08:32:31 +0000] "GET / HTTP/1.1" 200 11 "-" "ELB-HealthChecker/2.0" "-"
+172.31.12.37 - - [24/Jan/2026:08:32:32 +0000] "GET / HTTP/1.1" 200 11 "-" "ELB-HealthChecker/2.0" "-"
+172.31.22.181 - - [24/Jan/2026:08:32:46 +0000] "GET / HTTP/1.1" 200 11 "-" "ELB-HealthChecker/2.0" "-"
+172.31.12.37 - - [24/Jan/2026:08:32:47 +0000] "GET / HTTP/1.1" 200 11 "-" "ELB-HealthChecker/2.0" "-"
+172.31.22.181 - - [24/Jan/2026:08:33:01 +0000] "GET / HTTP/1.1" 200 11 "-" "ELB-HealthChecker/2.0" "-"
+172.31.12.37 - - [24/Jan/2026:08:33:02 +0000] "GET / HTTP/1.1" 200 11 "-" "ELB-HealthChecker/2.0" "-"
+172.31.22.181 - - [24/Jan/2026:08:33:16 +0000] "GET / HTTP/1.1" 200 11 "-" "ELB-HealthChecker/2.0" "-"
+172.31.12.37 - - [24/Jan/2026:08:33:17 +0000] "GET / HTTP/1.1" 200 11 "-" "ELB-HealthChecker/2.0" "-"
+172.31.22.181 - - [24/Jan/2026:08:33:31 +0000] "GET / HTTP/1.1" 200 11 "-" "ELB-HealthChecker/2.0" "-"
+172.31.12.37 - - [24/Jan/2026:08:33:32 +0000] "GET / HTTP/1.1" 200 11 "-" "ELB-HealthChecker/2.0" "-"
+172.31.22.181 - - [24/Jan/2026:08:33:46 +0000] "GET / HTTP/1.1" 200 11 "-" "ELB-HealthChecker/2.0" "-"
+172.31.12.37 - - [24/Jan/2026:08:33:47 +0000] "GET / HTTP/1.1" 200 11 "-" "ELB-HealthChecker/2.0" "-"
+172.31.22.181 - - [24/Jan/2026:08:34:01 +0000] "GET / HTTP/1.1" 200 11 "-" "ELB-HealthChecker/2.0" "-"
+172.31.12.37 - - [24/Jan/2026:08:34:02 +0000] "GET / HTTP/1.1" 200 11 "-" "ELB-HealthChecker/2.0" "-"
+172.31.22.181 - - [24/Jan/2026:08:34:16 +0000] "GET / HTTP/1.1" 200 11 "-" "ELB-HealthChecker/2.0" "-"
+172.31.12.37 - - [24/Jan/2026:08:34:17 +0000] "GET / HTTP/1.1" 200 11 "-" "ELB-HealthChecker/2.0" "-"
+172.31.22.181 - - [24/Jan/2026:08:34:31 +0000] "GET / HTTP/1.1" 200 11 "-" "ELB-HealthChecker/2.0" "-"
+172.31.12.37 - - [24/Jan/2026:08:34:32 +0000] "GET / HTTP/1.1" 200 11 "-" "ELB-HealthChecker/2.0" "-"
+172.31.22.181 - - [24/Jan/2026:08:34:46 +0000] "GET / HTTP/1.1" 200 11 "-" "ELB-HealthChecker/2.0" "-"
+172.31.12.37 - - [24/Jan/2026:08:34:47 +0000] "GET / HTTP/1.1" 200 11 "-" "ELB-HealthChecker/2.0" "-"
+172.31.22.181 - - [24/Jan/2026:08:35:01 +0000] "GET / HTTP/1.1" 200 11 "-" "ELB-HealthChecker/2.0" "-"
+172.31.12.37 - - [24/Jan/2026:08:35:02 +0000] "GET / HTTP/1.1" 200 11 "-" "ELB-HealthChecker/2.0" "-"
+172.31.22.181 - - [24/Jan/2026:08:35:16 +0000] "GET / HTTP/1.1" 200 11 "-" "ELB-HealthChecker/2.0" "-"
+172.31.12.37 - - [24/Jan/2026:08:35:17 +0000] "GET / HTTP/1.1" 200 11 "-" "ELB-HealthChecker/2.0" "-"
+172.31.22.181 - - [24/Jan/2026:08:35:31 +0000] "GET / HTTP/1.1" 200 11 "-" "ELB-HealthChecker/2.0" "-"
+172.31.12.37 - - [24/Jan/2026:08:35:32 +0000] "GET / HTTP/1.1" 200 11 "-" "ELB-HealthChecker/2.0" "-"
+172.31.22.181 - - [24/Jan/2026:08:35:46 +0000] "GET / HTTP/1.1" 200 11 "-" "ELB-HealthChecker/2.0" "-"
+172.31.12.37 - - [24/Jan/2026:08:35:47 +0000] "GET / HTTP/1.1" 200 11 "-" "ELB-HealthChecker/2.0" "-"
+172.31.22.181 - - [24/Jan/2026:08:36:01 +0000] "GET / HTTP/1.1" 200 11 "-" "ELB-HealthChecker/2.0" "-"
+172.31.12.37 - - [24/Jan/2026:08:36:02 +0000] "GET / HTTP/1.1" 200 11 "-" "ELB-HealthChecker/2.0" "-"
+172.31.22.181 - - [24/Jan/2026:08:36:16 +0000] "GET / HTTP/1.1" 200 11 "-" "ELB-HealthChecker/2.0" "-"
+172.31.12.37 - - [24/Jan/2026:08:36:17 +0000] "GET / HTTP/1.1" 200 11 "-" "ELB-HealthChecker/2.0" "-"
+172.31.22.181 - - [24/Jan/2026:08:36:31 +0000] "GET / HTTP/1.1" 200 11 "-" "ELB-HealthChecker/2.0" "-"
+172.31.12.37 - - [24/Jan/2026:08:36:32 +0000] "GET / HTTP/1.1" 200 11 "-" "ELB-HealthChecker/2.0" "-"
+172.31.22.181 - - [24/Jan/2026:08:36:46 +0000] "GET / HTTP/1.1" 200 11 "-" "ELB-HealthChecker/2.0" "-"
+172.31.12.37 - - [24/Jan/2026:08:36:47 +0000] "GET / HTTP/1.1" 200 11 "-" "ELB-HealthChecker/2.0" "-"
+172.31.22.181 - - [24/Jan/2026:08:36:56 +0000] "POST /twilio/voice HTTP/1.1" 200 436 "-" "TwilioProxy/1.1" "52.90.196.167"
+172.31.22.181 - - [24/Jan/2026:08:37:01 +0000] "GET / HTTP/1.1" 200 11 "-" "ELB-HealthChecker/2.0" "-"
+172.31.12.37 - - [24/Jan/2026:08:37:02 +0000] "GET / HTTP/1.1" 200 11 "-" "ELB-HealthChecker/2.0" "-"
+172.31.22.181 - - [24/Jan/2026:08:37:13 +0000] "GET /twilio/media HTTP/1.1" 101 52528 "-" "Twilio.TmeWs/1.0" "54.167.40.222"
+172.31.22.181 - - [24/Jan/2026:08:37:16 +0000] "GET / HTTP/1.1" 200 11 "-" "ELB-HealthChecker/2.0" "-"
+172.31.22.181 - - [24/Jan/2026:08:37:17 +0000] "POST /twilio/recording-status HTTP/1.1" 200 11 "-" "TwilioProxy/1.1" "52.90.196.167"
+172.31.12.37 - - [24/Jan/2026:08:37:17 +0000] "GET / HTTP/1.1" 200 11 "-" "ELB-HealthChecker/2.0" "-"
+172.31.12.37 - - [24/Jan/2026:08:37:31 +0000] "GET /.git/config HTTP/1.1" 404 63 "-" "Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/60.0.3112.90 Safari/537.36" "194.59.31.141"
+172.31.22.181 - - [24/Jan/2026:08:37:31 +0000] "GET / HTTP/1.1" 200 11 "-" "ELB-HealthChecker/2.0" "-"
+172.31.12.37 - - [24/Jan/2026:08:37:32 +0000] "GET / HTTP/1.1" 200 11 "-" "ELB-HealthChecker/2.0" "-"
+172.31.22.181 - - [24/Jan/2026:08:37:46 +0000] "GET / HTTP/1.1" 200 11 "-" "ELB-HealthChecker/2.0" "-"
+172.31.12.37 - - [24/Jan/2026:08:37:47 +0000] "GET / HTTP/1.1" 200 11 "-" "ELB-HealthChecker/2.0" "-"
+172.31.22.181 - - [24/Jan/2026:08:38:01 +0000] "GET / HTTP/1.1" 200 11 "-" "ELB-HealthChecker/2.0" "-"
+172.31.12.37 - - [24/Jan/2026:08:38:02 +0000] "GET / HTTP/1.1" 200 11 "-" "ELB-HealthChecker/2.0" "-"
+172.31.22.181 - - [24/Jan/2026:08:38:16 +0000] "GET / HTTP/1.1" 200 11 "-" "ELB-HealthChecker/2.0" "-"
+172.31.12.37 - - [24/Jan/2026:08:38:17 +0000] "GET / HTTP/1.1" 200 11 "-" "ELB-HealthChecker/2.0" "-"
+172.31.22.181 - - [24/Jan/2026:08:38:31 +0000] "GET / HTTP/1.1" 200 11 "-" "ELB-HealthChecker/2.0" "-"
+172.31.12.37 - - [24/Jan/2026:08:38:32 +0000] "GET / HTTP/1.1" 200 11 "-" "ELB-HealthChecker/2.0" "-"
+172.31.22.181 - - [24/Jan/2026:08:38:46 +0000] "GET / HTTP/1.1" 200 11 "-" "ELB-HealthChecker/2.0" "-"
+172.31.12.37 - - [24/Jan/2026:08:38:47 +0000] "GET / HTTP/1.1" 200 11 "-" "ELB-HealthChecker/2.0" "-"
+172.31.22.181 - - [24/Jan/2026:08:39:01 +0000] "GET / HTTP/1.1" 200 11 "-" "ELB-HealthChecker/2.0" "-"
+172.31.12.37 - - [24/Jan/2026:08:39:02 +0000] "GET / HTTP/1.1" 200 11 "-" "ELB-HealthChecker/2.0" "-"
+172.31.22.181 - - [24/Jan/2026:08:39:16 +0000] "GET / HTTP/1.1" 200 11 "-" "ELB-HealthChecker/2.0" "-"
+172.31.12.37 - - [24/Jan/2026:08:39:17 +0000] "GET / HTTP/1.1" 200 11 "-" "ELB-HealthChecker/2.0" "-"
+172.31.22.181 - - [24/Jan/2026:08:39:31 +0000] "GET / HTTP/1.1" 200 11 "-" "ELB-HealthChecker/2.0" "-"
+172.31.12.37 - - [24/Jan/2026:08:39:32 +0000] "GET / HTTP/1.1" 200 11 "-" "ELB-HealthChecker/2.0" "-"
+172.31.22.181 - - [24/Jan/2026:08:39:46 +0000] "GET / HTTP/1.1" 200 11 "-" "ELB-HealthChecker/2.0" "-"
+172.31.12.37 - - [24/Jan/2026:08:39:47 +0000] "GET / HTTP/1.1" 200 11 "-" "ELB-HealthChecker/2.0" "-"
+172.31.22.181 - - [24/Jan/2026:08:40:01 +0000] "GET / HTTP/1.1" 200 11 "-" "ELB-HealthChecker/2.0" "-"
+172.31.12.37 - - [24/Jan/2026:08:40:02 +0000] "GET / HTTP/1.1" 200 11 "-" "ELB-HealthChecker/2.0" "-"
+172.31.22.181 - - [24/Jan/2026:08:40:16 +0000] "GET / HTTP/1.1" 200 11 "-" "ELB-HealthChecker/2.0" "-"
+172.31.12.37 - - [24/Jan/2026:08:40:17 +0000] "GET / HTTP/1.1" 200 11 "-" "ELB-HealthChecker/2.0" "-"
+172.31.22.181 - - [24/Jan/2026:08:40:31 +0000] "GET / HTTP/1.1" 200 11 "-" "ELB-HealthChecker/2.0" "-"
+172.31.12.37 - - [24/Jan/2026:08:40:33 +0000] "GET / HTTP/1.1" 200 11 "-" "ELB-HealthChecker/2.0" "-"
+172.31.22.181 - - [24/Jan/2026:08:40:46 +0000] "GET / HTTP/1.1" 200 11 "-" "curl/7.29.0" "165.154.173.74"
+172.31.22.181 - - [24/Jan/2026:08:40:46 +0000] "GET / HTTP/1.1" 200 11 "-" "ELB-HealthChecker/2.0" "-"
+172.31.12.37 - - [24/Jan/2026:08:40:48 +0000] "GET / HTTP/1.1" 200 11 "-" "ELB-HealthChecker/2.0" "-"
+172.31.22.181 - - [24/Jan/2026:08:41:01 +0000] "GET / HTTP/1.1" 200 11 "-" "ELB-HealthChecker/2.0" "-"
+172.31.12.37 - - [24/Jan/2026:08:41:03 +0000] "GET / HTTP/1.1" 200 11 "-" "ELB-HealthChecker/2.0" "-"
+172.31.22.181 - - [24/Jan/2026:08:41:16 +0000] "GET / HTTP/1.1" 200 11 "-" "ELB-HealthChecker/2.0" "-"
+172.31.12.37 - - [24/Jan/2026:08:41:18 +0000] "GET / HTTP/1.1" 200 11 "-" "ELB-HealthChecker/2.0" "-"
+
+
+----------------------------------------
+/var/log/nginx/error.log
+----------------------------------------
+2026/01/19 11:38:50 [warn] 397036#397036: could not build optimal types_hash, you should increase either types_hash_max_size: 1024 or types_hash_bucket_size: 64; ignoring types_hash_bucket_size
+2026/01/19 12:10:08 [warn] 399243#399243: could not build optimal types_hash, you should increase either types_hash_max_size: 1024 or types_hash_bucket_size: 64; ignoring types_hash_bucket_size
+2026/01/19 12:10:09 [warn] 399301#399301: could not build optimal types_hash, you should increase either types_hash_max_size: 1024 or types_hash_bucket_size: 64; ignoring types_hash_bucket_size
+2026/01/19 12:10:09 [warn] 399302#399302: could not build optimal types_hash, you should increase either types_hash_max_size: 1024 or types_hash_bucket_size: 64; ignoring types_hash_bucket_size
+2026/01/19 12:18:37 [warn] 400586#400586: could not build optimal types_hash, you should increase either types_hash_max_size: 1024 or types_hash_bucket_size: 64; ignoring types_hash_bucket_size
+2026/01/19 12:18:38 [warn] 400692#400692: could not build optimal types_hash, you should increase either types_hash_max_size: 1024 or types_hash_bucket_size: 64; ignoring types_hash_bucket_size
+2026/01/19 12:18:38 [warn] 400693#400693: could not build optimal types_hash, you should increase either types_hash_max_size: 1024 or types_hash_bucket_size: 64; ignoring types_hash_bucket_size
+2026/01/19 13:42:53 [warn] 404565#404565: could not build optimal types_hash, you should increase either types_hash_max_size: 1024 or types_hash_bucket_size: 64; ignoring types_hash_bucket_size
+2026/01/19 13:42:54 [warn] 404623#404623: could not build optimal types_hash, you should increase either types_hash_max_size: 1024 or types_hash_bucket_size: 64; ignoring types_hash_bucket_size
+2026/01/19 13:42:54 [warn] 404624#404624: could not build optimal types_hash, you should increase either types_hash_max_size: 1024 or types_hash_bucket_size: 64; ignoring types_hash_bucket_size
+2026/01/19 14:22:45 [warn] 407081#407081: could not build optimal types_hash, you should increase either types_hash_max_size: 1024 or types_hash_bucket_size: 64; ignoring types_hash_bucket_size
+2026/01/19 14:22:46 [warn] 407140#407140: could not build optimal types_hash, you should increase either types_hash_max_size: 1024 or types_hash_bucket_size: 64; ignoring types_hash_bucket_size
+2026/01/19 14:22:46 [warn] 407141#407141: could not build optimal types_hash, you should increase either types_hash_max_size: 1024 or types_hash_bucket_size: 64; ignoring types_hash_bucket_size
+2026/01/19 15:39:39 [warn] 410770#410770: could not build optimal types_hash, you should increase either types_hash_max_size: 1024 or types_hash_bucket_size: 64; ignoring types_hash_bucket_size
+2026/01/19 15:39:40 [warn] 410876#410876: could not build optimal types_hash, you should increase either types_hash_max_size: 1024 or types_hash_bucket_size: 64; ignoring types_hash_bucket_size
+2026/01/19 15:39:40 [warn] 410877#410877: could not build optimal types_hash, you should increase either types_hash_max_size: 1024 or types_hash_bucket_size: 64; ignoring types_hash_bucket_size
+2026/01/19 15:59:32 [warn] 412522#412522: could not build optimal types_hash, you should increase either types_hash_max_size: 1024 or types_hash_bucket_size: 64; ignoring types_hash_bucket_size
+2026/01/19 15:59:33 [warn] 412580#412580: could not build optimal types_hash, you should increase either types_hash_max_size: 1024 or types_hash_bucket_size: 64; ignoring types_hash_bucket_size
+2026/01/19 15:59:33 [warn] 412581#412581: could not build optimal types_hash, you should increase either types_hash_max_size: 1024 or types_hash_bucket_size: 64; ignoring types_hash_bucket_size
+2026/01/19 16:21:33 [warn] 414454#414454: could not build optimal types_hash, you should increase either types_hash_max_size: 1024 or types_hash_bucket_size: 64; ignoring types_hash_bucket_size
+2026/01/19 16:21:34 [warn] 414512#414512: could not build optimal types_hash, you should increase either types_hash_max_size: 1024 or types_hash_bucket_size: 64; ignoring types_hash_bucket_size
+2026/01/19 16:21:34 [warn] 414513#414513: could not build optimal types_hash, you should increase either types_hash_max_size: 1024 or types_hash_bucket_size: 64; ignoring types_hash_bucket_size
+2026/01/19 16:34:17 [warn] 415999#415999: could not build optimal types_hash, you should increase either types_hash_max_size: 1024 or types_hash_bucket_size: 64; ignoring types_hash_bucket_size
+2026/01/19 16:34:18 [warn] 416057#416057: could not build optimal types_hash, you should increase either types_hash_max_size: 1024 or types_hash_bucket_size: 64; ignoring types_hash_bucket_size
+2026/01/19 16:34:18 [warn] 416058#416058: could not build optimal types_hash, you should increase either types_hash_max_size: 1024 or types_hash_bucket_size: 64; ignoring types_hash_bucket_size
+2026/01/19 16:52:10 [warn] 417690#417690: could not build optimal types_hash, you should increase either types_hash_max_size: 1024 or types_hash_bucket_size: 64; ignoring types_hash_bucket_size
+2026/01/19 16:52:11 [warn] 417748#417748: could not build optimal types_hash, you should increase either types_hash_max_size: 1024 or types_hash_bucket_size: 64; ignoring types_hash_bucket_size
+2026/01/19 16:52:11 [warn] 417749#417749: could not build optimal types_hash, you should increase either types_hash_max_size: 1024 or types_hash_bucket_size: 64; ignoring types_hash_bucket_size
+2026/01/19 16:59:51 [warn] 419003#419003: could not build optimal types_hash, you should increase either types_hash_max_size: 1024 or types_hash_bucket_size: 64; ignoring types_hash_bucket_size
+2026/01/19 16:59:52 [warn] 419061#419061: could not build optimal types_hash, you should increase either types_hash_max_size: 1024 or types_hash_bucket_size: 64; ignoring types_hash_bucket_size
+2026/01/19 16:59:52 [warn] 419062#419062: could not build optimal types_hash, you should increase either types_hash_max_size: 1024 or types_hash_bucket_size: 64; ignoring types_hash_bucket_size
+2026/01/19 17:05:02 [warn] 419821#419821: could not build optimal types_hash, you should increase either types_hash_max_size: 1024 or types_hash_bucket_size: 64; ignoring types_hash_bucket_size
+2026/01/19 17:05:02 [warn] 419827#419827: could not build optimal types_hash, you should increase either types_hash_max_size: 1024 or types_hash_bucket_size: 64; ignoring types_hash_bucket_size
+2026/01/19 17:10:04 [warn] 420795#420795: could not build optimal types_hash, you should increase either types_hash_max_size: 1024 or types_hash_bucket_size: 64; ignoring types_hash_bucket_size
+2026/01/19 17:10:04 [warn] 420855#420855: could not build optimal types_hash, you should increase either types_hash_max_size: 1024 or types_hash_bucket_size: 64; ignoring types_hash_bucket_size
+2026/01/19 17:10:04 [warn] 420856#420856: could not build optimal types_hash, you should increase either types_hash_max_size: 1024 or types_hash_bucket_size: 64; ignoring types_hash_bucket_size
+2026/01/19 17:19:30 [warn] 422176#422176: could not build optimal types_hash, you should increase either types_hash_max_size: 1024 or types_hash_bucket_size: 64; ignoring types_hash_bucket_size
+2026/01/19 17:19:30 [warn] 422234#422234: could not build optimal types_hash, you should increase either types_hash_max_size: 1024 or types_hash_bucket_size: 64; ignoring types_hash_bucket_size
+2026/01/19 17:19:30 [warn] 422235#422235: could not build optimal types_hash, you should increase either types_hash_max_size: 1024 or types_hash_bucket_size: 64; ignoring types_hash_bucket_size
+2026/01/19 19:19:17 [warn] 427319#427319: could not build optimal types_hash, you should increase either types_hash_max_size: 1024 or types_hash_bucket_size: 64; ignoring types_hash_bucket_size
+2026/01/19 19:19:17 [warn] 427377#427377: could not build optimal types_hash, you should increase either types_hash_max_size: 1024 or types_hash_bucket_size: 64; ignoring types_hash_bucket_size
+2026/01/19 19:19:17 [warn] 427378#427378: could not build optimal types_hash, you should increase either types_hash_max_size: 1024 or types_hash_bucket_size: 64; ignoring types_hash_bucket_size
+2026/01/20 07:17:28 [warn] 452931#452931: could not build optimal types_hash, you should increase either types_hash_max_size: 1024 or types_hash_bucket_size: 64; ignoring types_hash_bucket_size
+2026/01/20 07:17:28 [warn] 452989#452989: could not build optimal types_hash, you should increase either types_hash_max_size: 1024 or types_hash_bucket_size: 64; ignoring types_hash_bucket_size
+2026/01/20 07:17:28 [warn] 452990#452990: could not build optimal types_hash, you should increase either types_hash_max_size: 1024 or types_hash_bucket_size: 64; ignoring types_hash_bucket_size
+2026/01/20 07:33:00 [warn] 454516#454516: could not build optimal types_hash, you should increase either types_hash_max_size: 1024 or types_hash_bucket_size: 64; ignoring types_hash_bucket_size
+2026/01/20 07:33:01 [warn] 454574#454574: could not build optimal types_hash, you should increase either types_hash_max_size: 1024 or types_hash_bucket_size: 64; ignoring types_hash_bucket_size
+2026/01/20 07:33:01 [warn] 454575#454575: could not build optimal types_hash, you should increase either types_hash_max_size: 1024 or types_hash_bucket_size: 64; ignoring types_hash_bucket_size
+2026/01/20 07:56:35 [warn] 456344#456344: could not build optimal types_hash, you should increase either types_hash_max_size: 1024 or types_hash_bucket_size: 64; ignoring types_hash_bucket_size
+2026/01/20 07:56:36 [warn] 456402#456402: could not build optimal types_hash, you should increase either types_hash_max_size: 1024 or types_hash_bucket_size: 64; ignoring types_hash_bucket_size
+2026/01/20 07:56:36 [warn] 456403#456403: could not build optimal types_hash, you should increase either types_hash_max_size: 1024 or types_hash_bucket_size: 64; ignoring types_hash_bucket_size
+2026/01/20 08:20:19 [warn] 458329#458329: could not build optimal types_hash, you should increase either types_hash_max_size: 1024 or types_hash_bucket_size: 64; ignoring types_hash_bucket_size
+2026/01/20 08:20:19 [warn] 458387#458387: could not build optimal types_hash, you should increase either types_hash_max_size: 1024 or types_hash_bucket_size: 64; ignoring types_hash_bucket_size
+2026/01/20 08:20:19 [warn] 458388#458388: could not build optimal types_hash, you should increase either types_hash_max_size: 1024 or types_hash_bucket_size: 64; ignoring types_hash_bucket_size
+2026/01/20 09:20:36 [warn] 461480#461480: could not build optimal types_hash, you should increase either types_hash_max_size: 1024 or types_hash_bucket_size: 64; ignoring types_hash_bucket_size
+2026/01/20 09:20:36 [warn] 461538#461538: could not build optimal types_hash, you should increase either types_hash_max_size: 1024 or types_hash_bucket_size: 64; ignoring types_hash_bucket_size
+2026/01/20 09:20:36 [warn] 461539#461539: could not build optimal types_hash, you should increase either types_hash_max_size: 1024 or types_hash_bucket_size: 64; ignoring types_hash_bucket_size
+2026/01/20 09:51:18 [warn] 463577#463577: could not build optimal types_hash, you should increase either types_hash_max_size: 1024 or types_hash_bucket_size: 64; ignoring types_hash_bucket_size
+2026/01/20 09:51:18 [warn] 463635#463635: could not build optimal types_hash, you should increase either types_hash_max_size: 1024 or types_hash_bucket_size: 64; ignoring types_hash_bucket_size
+2026/01/20 09:51:18 [warn] 463636#463636: could not build optimal types_hash, you should increase either types_hash_max_size: 1024 or types_hash_bucket_size: 64; ignoring types_hash_bucket_size
+2026/01/20 10:59:02 [warn] 466923#466923: could not build optimal types_hash, you should increase either types_hash_max_size: 1024 or types_hash_bucket_size: 64; ignoring types_hash_bucket_size
+2026/01/20 10:59:03 [warn] 466982#466982: could not build optimal types_hash, you should increase either types_hash_max_size: 1024 or types_hash_bucket_size: 64; ignoring types_hash_bucket_size
+2026/01/20 10:59:03 [warn] 466983#466983: could not build optimal types_hash, you should increase either types_hash_max_size: 1024 or types_hash_bucket_size: 64; ignoring types_hash_bucket_size
+2026/01/20 11:11:36 [warn] 468474#468474: could not build optimal types_hash, you should increase either types_hash_max_size: 1024 or types_hash_bucket_size: 64; ignoring types_hash_bucket_size
+2026/01/20 11:11:37 [warn] 468580#468580: could not build optimal types_hash, you should increase either types_hash_max_size: 1024 or types_hash_bucket_size: 64; ignoring types_hash_bucket_size
+2026/01/20 11:11:37 [warn] 468581#468581: could not build optimal types_hash, you should increase either types_hash_max_size: 1024 or types_hash_bucket_size: 64; ignoring types_hash_bucket_size
+2026/01/20 11:25:20 [warn] 470029#470029: could not build optimal types_hash, you should increase either types_hash_max_size: 1024 or types_hash_bucket_size: 64; ignoring types_hash_bucket_size
+2026/01/20 11:25:21 [warn] 470087#470087: could not build optimal types_hash, you should increase either types_hash_max_size: 1024 or types_hash_bucket_size: 64; ignoring types_hash_bucket_size
+2026/01/20 11:25:21 [warn] 470088#470088: could not build optimal types_hash, you should increase either types_hash_max_size: 1024 or types_hash_bucket_size: 64; ignoring types_hash_bucket_size
+2026/01/20 11:55:49 [warn] 472110#472110: could not build optimal types_hash, you should increase either types_hash_max_size: 1024 or types_hash_bucket_size: 64; ignoring types_hash_bucket_size
+2026/01/20 11:55:49 [warn] 472168#472168: could not build optimal types_hash, you should increase either types_hash_max_size: 1024 or types_hash_bucket_size: 64; ignoring types_hash_bucket_size
+2026/01/20 11:55:49 [warn] 472169#472169: could not build optimal types_hash, you should increase either types_hash_max_size: 1024 or types_hash_bucket_size: 64; ignoring types_hash_bucket_size
+2026/01/20 12:20:09 [warn] 474126#474126: could not build optimal types_hash, you should increase either types_hash_max_size: 1024 or types_hash_bucket_size: 64; ignoring types_hash_bucket_size
+2026/01/20 12:20:10 [warn] 474184#474184: could not build optimal types_hash, you should increase either types_hash_max_size: 1024 or types_hash_bucket_size: 64; ignoring types_hash_bucket_size
+2026/01/20 12:20:10 [warn] 474185#474185: could not build optimal types_hash, you should increase either types_hash_max_size: 1024 or types_hash_bucket_size: 64; ignoring types_hash_bucket_size
+2026/01/20 12:28:24 [warn] 475446#475446: could not build optimal types_hash, you should increase either types_hash_max_size: 1024 or types_hash_bucket_size: 64; ignoring types_hash_bucket_size
+2026/01/20 12:28:25 [warn] 475504#475504: could not build optimal types_hash, you should increase either types_hash_max_size: 1024 or types_hash_bucket_size: 64; ignoring types_hash_bucket_size
+2026/01/20 12:28:25 [warn] 475505#475505: could not build optimal types_hash, you should increase either types_hash_max_size: 1024 or types_hash_bucket_size: 64; ignoring types_hash_bucket_size
+2026/01/20 12:36:10 [warn] 476816#476816: could not build optimal types_hash, you should increase either types_hash_max_size: 1024 or types_hash_bucket_size: 64; ignoring types_hash_bucket_size
+2026/01/20 12:36:11 [warn] 476874#476874: could not build optimal types_hash, you should increase either types_hash_max_size: 1024 or types_hash_bucket_size: 64; ignoring types_hash_bucket_size
+2026/01/20 12:36:11 [warn] 476875#476875: could not build optimal types_hash, you should increase either types_hash_max_size: 1024 or types_hash_bucket_size: 64; ignoring types_hash_bucket_size
+2026/01/20 12:46:06 [warn] 478242#478242: could not build optimal types_hash, you should increase either types_hash_max_size: 1024 or types_hash_bucket_size: 64; ignoring types_hash_bucket_size
+2026/01/20 12:46:07 [warn] 478300#478300: could not build optimal types_hash, you should increase either types_hash_max_size: 1024 or types_hash_bucket_size: 64; ignoring types_hash_bucket_size
+2026/01/20 12:46:07 [warn] 478301#478301: could not build optimal types_hash, you should increase either types_hash_max_size: 1024 or types_hash_bucket_size: 64; ignoring types_hash_bucket_size
+2026/01/20 13:28:24 [warn] 480846#480846: could not build optimal types_hash, you should increase either types_hash_max_size: 1024 or types_hash_bucket_size: 64; ignoring types_hash_bucket_size
+2026/01/20 13:28:25 [warn] 480904#480904: could not build optimal types_hash, you should increase either types_hash_max_size: 1024 or types_hash_bucket_size: 64; ignoring types_hash_bucket_size
+2026/01/20 13:28:25 [warn] 480905#480905: could not build optimal types_hash, you should increase either types_hash_max_size: 1024 or types_hash_bucket_size: 64; ignoring types_hash_bucket_size
+2026/01/20 13:38:02 [warn] 482229#482229: could not build optimal types_hash, you should increase either types_hash_max_size: 1024 or types_hash_bucket_size: 64; ignoring types_hash_bucket_size
+2026/01/20 13:38:03 [warn] 482287#482287: could not build optimal types_hash, you should increase either types_hash_max_size: 1024 or types_hash_bucket_size: 64; ignoring types_hash_bucket_size
+2026/01/20 13:38:03 [warn] 482288#482288: could not build optimal types_hash, you should increase either types_hash_max_size: 1024 or types_hash_bucket_size: 64; ignoring types_hash_bucket_size
+2026/01/23 07:38:40 [warn] 618607#618607: could not build optimal types_hash, you should increase either types_hash_max_size: 1024 or types_hash_bucket_size: 64; ignoring types_hash_bucket_size
+2026/01/23 07:38:41 [warn] 618665#618665: could not build optimal types_hash, you should increase either types_hash_max_size: 1024 or types_hash_bucket_size: 64; ignoring types_hash_bucket_size
+2026/01/23 07:38:41 [warn] 618666#618666: could not build optimal types_hash, you should increase either types_hash_max_size: 1024 or types_hash_bucket_size: 64; ignoring types_hash_bucket_size
+2026/01/23 08:09:47 [warn] 620839#620839: could not build optimal types_hash, you should increase either types_hash_max_size: 1024 or types_hash_bucket_size: 64; ignoring types_hash_bucket_size
+2026/01/23 08:09:48 [warn] 620897#620897: could not build optimal types_hash, you should increase either types_hash_max_size: 1024 or types_hash_bucket_size: 64; ignoring types_hash_bucket_size
+2026/01/23 08:09:48 [warn] 620898#620898: could not build optimal types_hash, you should increase either types_hash_max_size: 1024 or types_hash_bucket_size: 64; ignoring types_hash_bucket_size
+2026/01/23 16:18:54 [error] 620901#620901: *6114 upstream prematurely closed connection while reading response header from upstream, client: 172.31.22.181, server: , request: "GET / HTTP/1.1", upstream: "http://172.17.0.2:8080/", host: "34.224.73.6"
+2026/01/24 08:31:48 [warn] 671852#671852: could not build optimal types_hash, you should increase either types_hash_max_size: 1024 or types_hash_bucket_size: 64; ignoring types_hash_bucket_size
+2026/01/24 08:31:49 [warn] 671910#671910: could not build optimal types_hash, you should increase either types_hash_max_size: 1024 or types_hash_bucket_size: 64; ignoring types_hash_bucket_size
+2026/01/24 08:31:49 [warn] 671911#671911: could not build optimal types_hash, you should increase either types_hash_max_size: 1024 or types_hash_bucket_size: 64; ignoring types_hash_bucket_size
+
+
+----------------------------------------
+/var/log/eb-docker/containers/eb-current-app/eb-a5ae33c4a2e8-stdouterr.log
+----------------------------------------
+handycall-voice-bridge listening on :8080
+[twilio] Twilio stream connected
+[callSid=CAcbddcc6ee5a172b773a8659d39e72f9c streamSid=MZ57e657848aaa5655733534e39bd7f534] Media stream started {
+  to: '+18324605974',
+  from: '+18324041336',
+  company_id: 'b2d6d09a-794f-4b0f-bb62-9e9fedd596dd'
+}
+[invokeTool] calling create_lead for CAcbddcc6ee5a172b773a8659d39e72f9c { args: { collected_info: {} } }
+[callSid=CAcbddcc6ee5a172b773a8659d39e72f9c streamSid=MZ57e657848aaa5655733534e39bd7f534] OpenAI session created { id: 'sess_D1TQX7oYvEZCDkAR9v2rs' }
+[callSid=CAcbddcc6ee5a172b773a8659d39e72f9c streamSid=MZ57e657848aaa5655733534e39bd7f534] OpenAI session updated { output_audio_format: 'pcm16' }
+[callSid=CAcbddcc6ee5a172b773a8659d39e72f9c streamSid=MZ57e657848aaa5655733534e39bd7f534] Sending initial greeting { openaiReady: true, twilioReady: true }
+[callSid=CAcbddcc6ee5a172b773a8659d39e72f9c streamSid=MZ57e657848aaa5655733534e39bd7f534] Playing initial greeting now
+[callSid=CAcbddcc6ee5a172b773a8659d39e72f9c streamSid=MZ57e657848aaa5655733534e39bd7f534] audio.delta {
+  output_audio_format: 'pcm16',
+  raw_bytes: 9600,
+  converted: true,
+  payload_bytes: 1600
+}
+[callSid=CAcbddcc6ee5a172b773a8659d39e72f9c streamSid=MZ57e657848aaa5655733534e39bd7f534] audio.delta {
+  output_audio_format: 'pcm16',
+  raw_bytes: 19200,
+  converted: true,
+  payload_bytes: 3200
+}
+[callSid=CAcbddcc6ee5a172b773a8659d39e72f9c streamSid=MZ57e657848aaa5655733534e39bd7f534] audio.delta {
+  output_audio_format: 'pcm16',
+  raw_bytes: 19200,
+  converted: true,
+  payload_bytes: 3200
+}
+[callSid=CAcbddcc6ee5a172b773a8659d39e72f9c streamSid=MZ57e657848aaa5655733534e39bd7f534] Ignoring non-answer transcript { text: 'أوكي', sinceQuestionMs: 4203 }
+[callSid=CAcbddcc6ee5a172b773a8659d39e72f9c streamSid=MZ57e657848aaa5655733534e39bd7f534] handleFsmTurn processing {
+  text: "أوكي Hi, yeah, I'm trying to book an appointment.",
+  state: 'GREETING'
+}
+[callSid=CAcbddcc6ee5a172b773a8659d39e72f9c streamSid=MZ57e657848aaa5655733534e39bd7f534] Media stream stopped
+[invokeTool] calling save_call for CAcbddcc6ee5a172b773a8659d39e72f9c {
+  args: {
+    summary: 'Call ended.',
+    transcript: 'Assistant: Hi, thanks for calling. How can I help you today?\n' +
+      'Caller: أوكي\n' +
+      "Assistant: Sure! Let's start with your 5-digit zip code,\n" +
+      "Caller: Hi, yeah, I'm trying to book an appointment.\n" +
+      'Assistant: Great! Could you share your',
+    duration_seconds: 17,
+    collected_info: {}
+  }
+}
+[callSid=CAcbddcc6ee5a172b773a8659d39e72f9c streamSid=MZ57e657848aaa5655733534e39bd7f534] OpenAI websocket closed
+[callSid=CAcbddcc6ee5a172b773a8659d39e72f9c streamSid=MZ57e657848aaa5655733534e39bd7f534] Twilio websocket closed
+[invokeTool] calling save_recording for CAcbddcc6ee5a172b773a8659d39e72f9c {
+  args: {
+    recording_sid: 'RE5da1172f2d521c7b92c0c621b009487f',
+    duration_seconds: 17
+  }
+}
+
+
+----------------------------------------
+/var/log/docker-events.log
+----------------------------------------
+2026-01-20T13:27:57.101985508Z container prune  (reclaimed=0)
+2026-01-20T13:28:00.831147209Z image pull 982081079378.dkr.ecr.us-east-1.amazonaws.com/handycall-voice-bridge:20260120-162728 (name=982081079378.dkr.ecr.us-east-1.amazonaws.com/handycall-voice-bridge)
+2026-01-20T13:28:01.610102568Z image tag sha256:6f8c72ef9b02e0e63be88e631967acd480df826af35d05f9e3f074dc644c98dd (name=aws_beanstalk/staging-app)
+2026-01-20T13:28:06.921131470Z container kill 95495a420ba4eba6f8744197fd6e77da9d2f317562879402b8b93187fb1a9f5f (image=c234dc5e8d12, name=busy_goodall, signal=15)
+2026-01-20T13:28:16.938159755Z container kill 95495a420ba4eba6f8744197fd6e77da9d2f317562879402b8b93187fb1a9f5f (image=c234dc5e8d12, name=busy_goodall, signal=9)
+2026-01-20T13:28:17.223540163Z network disconnect 101843cf96ac26d7020523a148af7e6e02d9b82361bc14c5757a0b0c3c26c89c (container=95495a420ba4eba6f8744197fd6e77da9d2f317562879402b8b93187fb1a9f5f, name=bridge, type=bridge)
+2026-01-20T13:28:17.278055848Z container stop 95495a420ba4eba6f8744197fd6e77da9d2f317562879402b8b93187fb1a9f5f (image=c234dc5e8d12, name=busy_goodall)
+2026-01-20T13:28:17.283574063Z container die 95495a420ba4eba6f8744197fd6e77da9d2f317562879402b8b93187fb1a9f5f (execDuration=2535, exitCode=137, image=c234dc5e8d12, name=busy_goodall)
+2026-01-20T13:28:18.696568038Z container destroy 95495a420ba4eba6f8744197fd6e77da9d2f317562879402b8b93187fb1a9f5f (image=c234dc5e8d12, name=busy_goodall)
+2026-01-20T13:28:18.696603132Z container prune  (reclaimed=0)
+2026-01-20T13:28:18.729555274Z image untag sha256:c234dc5e8d127b9e4226f6f21a7b262c1e6ffbc2c0286e176175fb72ff75b12e (name=sha256:c234dc5e8d127b9e4226f6f21a7b262c1e6ffbc2c0286e176175fb72ff75b12e)
+2026-01-20T13:28:18.730789479Z image delete sha256:c234dc5e8d127b9e4226f6f21a7b262c1e6ffbc2c0286e176175fb72ff75b12e (name=sha256:c234dc5e8d127b9e4226f6f21a7b262c1e6ffbc2c0286e176175fb72ff75b12e)
+2026-01-20T13:28:18.780233097Z container create c2bce234e32cc3fdd76d1b0a683f18a300e7276111e89e8004d0401f9ba69431 (image=6f8c72ef9b02, name=nostalgic_kowalevski)
+2026-01-20T13:28:18.814982330Z network connect 101843cf96ac26d7020523a148af7e6e02d9b82361bc14c5757a0b0c3c26c89c (container=c2bce234e32cc3fdd76d1b0a683f18a300e7276111e89e8004d0401f9ba69431, name=bridge, type=bridge)
+2026-01-20T13:28:19.175743186Z container start c2bce234e32cc3fdd76d1b0a683f18a300e7276111e89e8004d0401f9ba69431 (image=6f8c72ef9b02, name=nostalgic_kowalevski)
+2026-01-20T13:28:25.202914118Z image tag sha256:6f8c72ef9b02e0e63be88e631967acd480df826af35d05f9e3f074dc644c98dd (name=aws_beanstalk/current-app:latest)
+2026-01-20T13:28:25.221082311Z image untag sha256:6f8c72ef9b02e0e63be88e631967acd480df826af35d05f9e3f074dc644c98dd (name=sha256:6f8c72ef9b02e0e63be88e631967acd480df826af35d05f9e3f074dc644c98dd)
+2026-01-20T13:28:26.995932054Z image untag sha256:f003fff73abd08bcb399923f774b558927b19994bd3397131073c57a7d458ce5 (name=sha256:f003fff73abd08bcb399923f774b558927b19994bd3397131073c57a7d458ce5)
+2026-01-20T13:28:27.002042079Z image untag sha256:f003fff73abd08bcb399923f774b558927b19994bd3397131073c57a7d458ce5 (name=sha256:f003fff73abd08bcb399923f774b558927b19994bd3397131073c57a7d458ce5)
+2026-01-20T13:28:27.005044452Z image delete sha256:f003fff73abd08bcb399923f774b558927b19994bd3397131073c57a7d458ce5 (name=sha256:f003fff73abd08bcb399923f774b558927b19994bd3397131073c57a7d458ce5)
+2026-01-20T13:37:38.523453722Z container prune  (reclaimed=0)
+2026-01-20T13:37:40.183145972Z image pull 982081079378.dkr.ecr.us-east-1.amazonaws.com/handycall-voice-bridge:20260120-163714 (name=982081079378.dkr.ecr.us-east-1.amazonaws.com/handycall-voice-bridge)
+2026-01-20T13:37:40.538147261Z image tag sha256:54df41199178bdb7911f6ca623a43cf4480e4b80df0fb97b57c203cd7179cc05 (name=aws_beanstalk/staging-app)
+2026-01-20T13:37:45.343501893Z container kill c2bce234e32cc3fdd76d1b0a683f18a300e7276111e89e8004d0401f9ba69431 (image=6f8c72ef9b02, name=nostalgic_kowalevski, signal=15)
+2026-01-20T13:37:55.366799805Z container kill c2bce234e32cc3fdd76d1b0a683f18a300e7276111e89e8004d0401f9ba69431 (image=6f8c72ef9b02, name=nostalgic_kowalevski, signal=9)
+2026-01-20T13:37:55.603169194Z network disconnect 101843cf96ac26d7020523a148af7e6e02d9b82361bc14c5757a0b0c3c26c89c (container=c2bce234e32cc3fdd76d1b0a683f18a300e7276111e89e8004d0401f9ba69431, name=bridge, type=bridge)
+2026-01-20T13:37:55.612095727Z container stop c2bce234e32cc3fdd76d1b0a683f18a300e7276111e89e8004d0401f9ba69431 (image=6f8c72ef9b02, name=nostalgic_kowalevski)
+2026-01-20T13:37:55.617123094Z container die c2bce234e32cc3fdd76d1b0a683f18a300e7276111e89e8004d0401f9ba69431 (execDuration=576, exitCode=137, image=6f8c72ef9b02, name=nostalgic_kowalevski)
+2026-01-20T13:37:57.065788863Z container destroy c2bce234e32cc3fdd76d1b0a683f18a300e7276111e89e8004d0401f9ba69431 (image=6f8c72ef9b02, name=nostalgic_kowalevski)
+2026-01-20T13:37:57.065820968Z container prune  (reclaimed=0)
+2026-01-20T13:37:57.106607413Z image untag sha256:6f8c72ef9b02e0e63be88e631967acd480df826af35d05f9e3f074dc644c98dd (name=sha256:6f8c72ef9b02e0e63be88e631967acd480df826af35d05f9e3f074dc644c98dd)
+2026-01-20T13:37:57.107793415Z image delete sha256:6f8c72ef9b02e0e63be88e631967acd480df826af35d05f9e3f074dc644c98dd (name=sha256:6f8c72ef9b02e0e63be88e631967acd480df826af35d05f9e3f074dc644c98dd)
+2026-01-20T13:37:57.209267399Z container create 78aaaea0ddc2043fd51a9f98304df414885ec69b095340dc66233da08547919e (image=54df41199178, name=laughing_benz)
+2026-01-20T13:37:57.247111055Z network connect 101843cf96ac26d7020523a148af7e6e02d9b82361bc14c5757a0b0c3c26c89c (container=78aaaea0ddc2043fd51a9f98304df414885ec69b095340dc66233da08547919e, name=bridge, type=bridge)
+2026-01-20T13:37:57.596989289Z container start 78aaaea0ddc2043fd51a9f98304df414885ec69b095340dc66233da08547919e (image=54df41199178, name=laughing_benz)
+2026-01-20T13:38:03.676440171Z image tag sha256:54df41199178bdb7911f6ca623a43cf4480e4b80df0fb97b57c203cd7179cc05 (name=aws_beanstalk/current-app:latest)
+2026-01-20T13:38:03.694979100Z image untag sha256:54df41199178bdb7911f6ca623a43cf4480e4b80df0fb97b57c203cd7179cc05 (name=sha256:54df41199178bdb7911f6ca623a43cf4480e4b80df0fb97b57c203cd7179cc05)
+2026-01-20T13:38:05.495808537Z image untag sha256:a344dfcaaae7a82ad64b343b8cdf7f6f0b6cc45ddf7d1472ae8ce3587e3359c1 (name=sha256:a344dfcaaae7a82ad64b343b8cdf7f6f0b6cc45ddf7d1472ae8ce3587e3359c1)
+2026-01-20T13:38:05.498619518Z image untag sha256:a344dfcaaae7a82ad64b343b8cdf7f6f0b6cc45ddf7d1472ae8ce3587e3359c1 (name=sha256:a344dfcaaae7a82ad64b343b8cdf7f6f0b6cc45ddf7d1472ae8ce3587e3359c1)
+2026-01-20T13:38:05.501676047Z image delete sha256:a344dfcaaae7a82ad64b343b8cdf7f6f0b6cc45ddf7d1472ae8ce3587e3359c1 (name=sha256:a344dfcaaae7a82ad64b343b8cdf7f6f0b6cc45ddf7d1472ae8ce3587e3359c1)
+2026-01-23T07:38:13.820208591Z container prune  (reclaimed=0)
+2026-01-23T07:38:17.659080034Z image pull 982081079378.dkr.ecr.us-east-1.amazonaws.com/handycall-voice-bridge:20260123-103747 (name=982081079378.dkr.ecr.us-east-1.amazonaws.com/handycall-voice-bridge)
+2026-01-23T07:38:18.278752773Z image tag sha256:52035f8449d14e85f26783c2c17981fcd98332e0aca15b2a8ee403c87b4339c3 (name=aws_beanstalk/staging-app)
+2026-01-23T07:38:23.044122281Z container kill 78aaaea0ddc2043fd51a9f98304df414885ec69b095340dc66233da08547919e (image=54df41199178, name=laughing_benz, signal=15)
+2026-01-23T07:38:33.065288555Z container kill 78aaaea0ddc2043fd51a9f98304df414885ec69b095340dc66233da08547919e (image=54df41199178, name=laughing_benz, signal=9)
+2026-01-23T07:38:33.343172414Z network disconnect 101843cf96ac26d7020523a148af7e6e02d9b82361bc14c5757a0b0c3c26c89c (container=78aaaea0ddc2043fd51a9f98304df414885ec69b095340dc66233da08547919e, name=bridge, type=bridge)
+2026-01-23T07:38:33.403075607Z container stop 78aaaea0ddc2043fd51a9f98304df414885ec69b095340dc66233da08547919e (image=54df41199178, name=laughing_benz)
+2026-01-23T07:38:33.408870255Z container die 78aaaea0ddc2043fd51a9f98304df414885ec69b095340dc66233da08547919e (execDuration=237635, exitCode=137, image=54df41199178, name=laughing_benz)
+2026-01-23T07:38:34.852079975Z container destroy 78aaaea0ddc2043fd51a9f98304df414885ec69b095340dc66233da08547919e (image=54df41199178, name=laughing_benz)
+2026-01-23T07:38:34.852117431Z container prune  (reclaimed=0)
+2026-01-23T07:38:34.916411020Z image untag sha256:54df41199178bdb7911f6ca623a43cf4480e4b80df0fb97b57c203cd7179cc05 (name=sha256:54df41199178bdb7911f6ca623a43cf4480e4b80df0fb97b57c203cd7179cc05)
+2026-01-23T07:38:34.918051151Z image delete sha256:54df41199178bdb7911f6ca623a43cf4480e4b80df0fb97b57c203cd7179cc05 (name=sha256:54df41199178bdb7911f6ca623a43cf4480e4b80df0fb97b57c203cd7179cc05)
+2026-01-23T07:38:34.978868710Z container create 9dd0683130f6572678631e5bc296e2855f5194614f5e7f36447a83e41b4aeb1b (image=52035f8449d1, name=beautiful_ellis)
+2026-01-23T07:38:35.013588939Z network connect 101843cf96ac26d7020523a148af7e6e02d9b82361bc14c5757a0b0c3c26c89c (container=9dd0683130f6572678631e5bc296e2855f5194614f5e7f36447a83e41b4aeb1b, name=bridge, type=bridge)
+2026-01-23T07:38:35.413823767Z container start 9dd0683130f6572678631e5bc296e2855f5194614f5e7f36447a83e41b4aeb1b (image=52035f8449d1, name=beautiful_ellis)
+2026-01-23T07:38:41.476383495Z image tag sha256:52035f8449d14e85f26783c2c17981fcd98332e0aca15b2a8ee403c87b4339c3 (name=aws_beanstalk/current-app:latest)
+2026-01-23T07:38:41.497584284Z image untag sha256:52035f8449d14e85f26783c2c17981fcd98332e0aca15b2a8ee403c87b4339c3 (name=sha256:52035f8449d14e85f26783c2c17981fcd98332e0aca15b2a8ee403c87b4339c3)
+2026-01-23T07:38:43.308691933Z image untag sha256:3c633f872e52af5c030c536d815dd216051137f0161ae0115569a39ca5b30c4c (name=sha256:3c633f872e52af5c030c536d815dd216051137f0161ae0115569a39ca5b30c4c)
+2026-01-23T07:38:43.311095384Z image untag sha256:3c633f872e52af5c030c536d815dd216051137f0161ae0115569a39ca5b30c4c (name=sha256:3c633f872e52af5c030c536d815dd216051137f0161ae0115569a39ca5b30c4c)
+2026-01-23T07:38:43.314080861Z image delete sha256:3c633f872e52af5c030c536d815dd216051137f0161ae0115569a39ca5b30c4c (name=sha256:3c633f872e52af5c030c536d815dd216051137f0161ae0115569a39ca5b30c4c)
+2026-01-23T08:09:23.888592711Z container prune  (reclaimed=0)
+2026-01-23T08:09:25.436117383Z image pull 982081079378.dkr.ecr.us-east-1.amazonaws.com/handycall-voice-bridge:20260123-110859 (name=982081079378.dkr.ecr.us-east-1.amazonaws.com/handycall-voice-bridge)
+2026-01-23T08:09:25.727559074Z image tag sha256:abf69596f0e828aac8eeae46e6655ff6b30ab2b65f96b42bc58771e3295456e1 (name=aws_beanstalk/staging-app)
+2026-01-23T08:09:30.400057347Z container kill 9dd0683130f6572678631e5bc296e2855f5194614f5e7f36447a83e41b4aeb1b (image=52035f8449d1, name=beautiful_ellis, signal=15)
+2026-01-23T08:09:40.419004690Z container kill 9dd0683130f6572678631e5bc296e2855f5194614f5e7f36447a83e41b4aeb1b (image=52035f8449d1, name=beautiful_ellis, signal=9)
+2026-01-23T08:09:40.752649551Z network disconnect 101843cf96ac26d7020523a148af7e6e02d9b82361bc14c5757a0b0c3c26c89c (container=9dd0683130f6572678631e5bc296e2855f5194614f5e7f36447a83e41b4aeb1b, name=bridge, type=bridge)
+2026-01-23T08:09:40.760544786Z container stop 9dd0683130f6572678631e5bc296e2855f5194614f5e7f36447a83e41b4aeb1b (image=52035f8449d1, name=beautiful_ellis)
+2026-01-23T08:09:40.765734948Z container die 9dd0683130f6572678631e5bc296e2855f5194614f5e7f36447a83e41b4aeb1b (execDuration=1865, exitCode=137, image=52035f8449d1, name=beautiful_ellis)
+2026-01-23T08:09:42.123185444Z container destroy 9dd0683130f6572678631e5bc296e2855f5194614f5e7f36447a83e41b4aeb1b (image=52035f8449d1, name=beautiful_ellis)
+2026-01-23T08:09:42.123222215Z container prune  (reclaimed=0)
+2026-01-23T08:09:42.159489062Z image untag sha256:52035f8449d14e85f26783c2c17981fcd98332e0aca15b2a8ee403c87b4339c3 (name=sha256:52035f8449d14e85f26783c2c17981fcd98332e0aca15b2a8ee403c87b4339c3)
+2026-01-23T08:09:42.160711783Z image delete sha256:52035f8449d14e85f26783c2c17981fcd98332e0aca15b2a8ee403c87b4339c3 (name=sha256:52035f8449d14e85f26783c2c17981fcd98332e0aca15b2a8ee403c87b4339c3)
+2026-01-23T08:09:42.203296441Z container create 6f4c1e61d86d45eb6e8a6ff24639e7d628d2ffa69dd6e352dbdb6d16f02bfed5 (image=abf69596f0e8, name=dreamy_burnell)
+2026-01-23T08:09:42.243144162Z network connect 101843cf96ac26d7020523a148af7e6e02d9b82361bc14c5757a0b0c3c26c89c (container=6f4c1e61d86d45eb6e8a6ff24639e7d628d2ffa69dd6e352dbdb6d16f02bfed5, name=bridge, type=bridge)
+2026-01-23T08:09:42.572901266Z container start 6f4c1e61d86d45eb6e8a6ff24639e7d628d2ffa69dd6e352dbdb6d16f02bfed5 (image=abf69596f0e8, name=dreamy_burnell)
+2026-01-23T08:09:48.543779335Z image tag sha256:abf69596f0e828aac8eeae46e6655ff6b30ab2b65f96b42bc58771e3295456e1 (name=aws_beanstalk/current-app:latest)
+2026-01-23T08:09:48.562552971Z image untag sha256:abf69596f0e828aac8eeae46e6655ff6b30ab2b65f96b42bc58771e3295456e1 (name=sha256:abf69596f0e828aac8eeae46e6655ff6b30ab2b65f96b42bc58771e3295456e1)
+2026-01-23T08:09:50.314312518Z image untag sha256:b6810972b429fb8a553f62c92e9deb081487273a2e3cc606b295f7927f9862fd (name=sha256:b6810972b429fb8a553f62c92e9deb081487273a2e3cc606b295f7927f9862fd)
+2026-01-23T08:09:50.316853816Z image untag sha256:b6810972b429fb8a553f62c92e9deb081487273a2e3cc606b295f7927f9862fd (name=sha256:b6810972b429fb8a553f62c92e9deb081487273a2e3cc606b295f7927f9862fd)
+2026-01-23T08:09:50.320001549Z image delete sha256:b6810972b429fb8a553f62c92e9deb081487273a2e3cc606b295f7927f9862fd (name=sha256:b6810972b429fb8a553f62c92e9deb081487273a2e3cc606b295f7927f9862fd)
+2026-01-24T08:31:22.222120101Z container prune  (reclaimed=0)
+2026-01-24T08:31:25.826093773Z image pull 982081079378.dkr.ecr.us-east-1.amazonaws.com/handycall-voice-bridge:20260124-113052 (name=982081079378.dkr.ecr.us-east-1.amazonaws.com/handycall-voice-bridge)
+2026-01-24T08:31:26.412498356Z image tag sha256:e88666e1a4db5074d9a15dd8b9e0358961dd9827479e7fdecaa14ef868d71633 (name=aws_beanstalk/staging-app)
+2026-01-24T08:31:31.029167332Z container kill 6f4c1e61d86d45eb6e8a6ff24639e7d628d2ffa69dd6e352dbdb6d16f02bfed5 (image=abf69596f0e8, name=dreamy_burnell, signal=15)
+2026-01-24T08:31:41.051085257Z container kill 6f4c1e61d86d45eb6e8a6ff24639e7d628d2ffa69dd6e352dbdb6d16f02bfed5 (image=abf69596f0e8, name=dreamy_burnell, signal=9)
+2026-01-24T08:31:41.393637169Z network disconnect 101843cf96ac26d7020523a148af7e6e02d9b82361bc14c5757a0b0c3c26c89c (container=6f4c1e61d86d45eb6e8a6ff24639e7d628d2ffa69dd6e352dbdb6d16f02bfed5, name=bridge, type=bridge)
+2026-01-24T08:31:41.466315468Z container stop 6f4c1e61d86d45eb6e8a6ff24639e7d628d2ffa69dd6e352dbdb6d16f02bfed5 (image=abf69596f0e8, name=dreamy_burnell)
+2026-01-24T08:31:41.472338859Z container die 6f4c1e61d86d45eb6e8a6ff24639e7d628d2ffa69dd6e352dbdb6d16f02bfed5 (execDuration=87718, exitCode=137, image=abf69596f0e8, name=dreamy_burnell)
+2026-01-24T08:31:42.829025138Z container destroy 6f4c1e61d86d45eb6e8a6ff24639e7d628d2ffa69dd6e352dbdb6d16f02bfed5 (image=abf69596f0e8, name=dreamy_burnell)
+2026-01-24T08:31:42.829058333Z container prune  (reclaimed=0)
+2026-01-24T08:31:42.863624912Z image untag sha256:abf69596f0e828aac8eeae46e6655ff6b30ab2b65f96b42bc58771e3295456e1 (name=sha256:abf69596f0e828aac8eeae46e6655ff6b30ab2b65f96b42bc58771e3295456e1)
+2026-01-24T08:31:42.864702188Z image delete sha256:abf69596f0e828aac8eeae46e6655ff6b30ab2b65f96b42bc58771e3295456e1 (name=sha256:abf69596f0e828aac8eeae46e6655ff6b30ab2b65f96b42bc58771e3295456e1)
+2026-01-24T08:31:42.905649625Z container create a5ae33c4a2e88174f29919ea7ae150ee5749a1b7f7070ef78396b8abb21e7981 (image=e88666e1a4db, name=vigorous_cohen)
+2026-01-24T08:31:42.946113457Z network connect 101843cf96ac26d7020523a148af7e6e02d9b82361bc14c5757a0b0c3c26c89c (container=a5ae33c4a2e88174f29919ea7ae150ee5749a1b7f7070ef78396b8abb21e7981, name=bridge, type=bridge)
+2026-01-24T08:31:43.294089328Z container start a5ae33c4a2e88174f29919ea7ae150ee5749a1b7f7070ef78396b8abb21e7981 (image=e88666e1a4db, name=vigorous_cohen)
+2026-01-24T08:31:49.303677999Z image tag sha256:e88666e1a4db5074d9a15dd8b9e0358961dd9827479e7fdecaa14ef868d71633 (name=aws_beanstalk/current-app:latest)
+2026-01-24T08:31:49.322752636Z image untag sha256:e88666e1a4db5074d9a15dd8b9e0358961dd9827479e7fdecaa14ef868d71633 (name=sha256:e88666e1a4db5074d9a15dd8b9e0358961dd9827479e7fdecaa14ef868d71633)
+2026-01-24T08:31:50.818372662Z image untag sha256:74f323d19baf462a805ac1ec2801b1026a83ca8c0f6384417cadbc3af6e207b5 (name=sha256:74f323d19baf462a805ac1ec2801b1026a83ca8c0f6384417cadbc3af6e207b5)
+2026-01-24T08:31:50.820745741Z image untag sha256:74f323d19baf462a805ac1ec2801b1026a83ca8c0f6384417cadbc3af6e207b5 (name=sha256:74f323d19baf462a805ac1ec2801b1026a83ca8c0f6384417cadbc3af6e207b5)
+2026-01-24T08:31:50.824626283Z image delete sha256:74f323d19baf462a805ac1ec2801b1026a83ca8c0f6384417cadbc3af6e207b5 (name=sha256:74f323d19baf462a805ac1ec2801b1026a83ca8c0f6384417cadbc3af6e207b5)
+
+
+----------------------------------------
+/var/log/eb-docker-process.log
+----------------------------------------
+2026/01/20 11:25:23.386364 [INFO] Checking if docker is running...
+2026/01/20 11:25:23.386425 [INFO] Fetch current app container id...
+2026/01/20 11:25:23.387049 [INFO] Running command: docker ps | grep cc3167e15a5f
+2026/01/20 11:25:23.405672 [INFO] cc3167e15a5f   c59d3c604183   "docker-entrypoint.s…"   8 seconds ago   Up 7 seconds   8080/tcp   laughing_khorana
+
+2026/01/20 11:25:23.405702 [INFO] Running command: docker wait  cc3167e15a5f
+2026/01/20 11:55:42.383648 [INFO] 137
+
+2026/01/20 11:55:50.758590 [INFO] Loading Manifest...
+2026/01/20 11:55:50.771485 [INFO] Running command: /opt/aws/bin/cfn-get-metadata -s arn:aws:cloudformation:us-east-1:982081079378:stack/awseb-e-tz2dm9pvgf-stack/5e7d57d0-ef6a-11f0-aa6a-0affd8bc8b43 -r AWSEBAutoScalingGroup --region us-east-1
+2026/01/20 11:55:51.242974 [INFO] Running command: /opt/aws/bin/cfn-get-metadata -s arn:aws:cloudformation:us-east-1:982081079378:stack/awseb-e-tz2dm9pvgf-stack/5e7d57d0-ef6a-11f0-aa6a-0affd8bc8b43 -r AWSEBBeanstalkMetadata --region us-east-1
+2026/01/20 11:55:51.701527 [INFO] Checking if docker is running...
+2026/01/20 11:55:51.701637 [INFO] Fetch current app container id...
+2026/01/20 11:55:51.701662 [INFO] Running command: docker ps | grep a8ddca5c8cf1
+2026/01/20 11:55:51.739824 [INFO] a8ddca5c8cf1   2391b088be87   "docker-entrypoint.s…"   8 seconds ago   Up 7 seconds   8080/tcp   hardcore_carver
+
+2026/01/20 11:55:51.739885 [INFO] Running command: docker wait  a8ddca5c8cf1
+2026/01/20 12:20:11.390661 [INFO] Loading Manifest...
+2026/01/20 12:20:11.434412 [INFO] Running command: /opt/aws/bin/cfn-get-metadata -s arn:aws:cloudformation:us-east-1:982081079378:stack/awseb-e-tz2dm9pvgf-stack/5e7d57d0-ef6a-11f0-aa6a-0affd8bc8b43 -r AWSEBAutoScalingGroup --region us-east-1
+2026/01/20 12:20:11.896685 [INFO] Running command: /opt/aws/bin/cfn-get-metadata -s arn:aws:cloudformation:us-east-1:982081079378:stack/awseb-e-tz2dm9pvgf-stack/5e7d57d0-ef6a-11f0-aa6a-0affd8bc8b43 -r AWSEBBeanstalkMetadata --region us-east-1
+2026/01/20 12:20:12.370195 [INFO] Checking if docker is running...
+2026/01/20 12:20:12.370281 [INFO] Fetch current app container id...
+2026/01/20 12:20:12.371241 [INFO] Running command: docker ps | grep 61a4022c8435
+2026/01/20 12:20:12.403975 [INFO] 61a4022c8435   88129114f1ad   "docker-entrypoint.s…"   8 seconds ago   Up 7 seconds   8080/tcp   stoic_benz
+
+2026/01/20 12:20:12.404007 [INFO] Running command: docker wait  61a4022c8435
+2026/01/20 12:28:26.407400 [INFO] Loading Manifest...
+2026/01/20 12:28:26.425637 [INFO] Running command: /opt/aws/bin/cfn-get-metadata -s arn:aws:cloudformation:us-east-1:982081079378:stack/awseb-e-tz2dm9pvgf-stack/5e7d57d0-ef6a-11f0-aa6a-0affd8bc8b43 -r AWSEBAutoScalingGroup --region us-east-1
+2026/01/20 12:28:26.888164 [INFO] Running command: /opt/aws/bin/cfn-get-metadata -s arn:aws:cloudformation:us-east-1:982081079378:stack/awseb-e-tz2dm9pvgf-stack/5e7d57d0-ef6a-11f0-aa6a-0affd8bc8b43 -r AWSEBBeanstalkMetadata --region us-east-1
+2026/01/20 12:28:27.320011 [INFO] Checking if docker is running...
+2026/01/20 12:28:27.320119 [INFO] Fetch current app container id...
+2026/01/20 12:28:27.320151 [INFO] Running command: docker ps | grep 20f183d1d91c
+2026/01/20 12:28:27.363972 [INFO] 20f183d1d91c   397c0c6381d5   "docker-entrypoint.s…"   8 seconds ago   Up 7 seconds   8080/tcp   elated_poitras
+
+2026/01/20 12:28:27.364002 [INFO] Running command: docker wait  20f183d1d91c
+2026/01/20 12:36:12.289994 [INFO] Loading Manifest...
+2026/01/20 12:36:12.310378 [INFO] Running command: /opt/aws/bin/cfn-get-metadata -s arn:aws:cloudformation:us-east-1:982081079378:stack/awseb-e-tz2dm9pvgf-stack/5e7d57d0-ef6a-11f0-aa6a-0affd8bc8b43 -r AWSEBAutoScalingGroup --region us-east-1
+2026/01/20 12:36:12.780765 [INFO] Running command: /opt/aws/bin/cfn-get-metadata -s arn:aws:cloudformation:us-east-1:982081079378:stack/awseb-e-tz2dm9pvgf-stack/5e7d57d0-ef6a-11f0-aa6a-0affd8bc8b43 -r AWSEBBeanstalkMetadata --region us-east-1
+2026/01/20 12:36:13.221083 [INFO] Checking if docker is running...
+2026/01/20 12:36:13.221159 [INFO] Fetch current app container id...
+2026/01/20 12:36:13.221184 [INFO] Running command: docker ps | grep 1f550f2b23bb
+2026/01/20 12:36:13.246121 [INFO] 1f550f2b23bb   0686eb8fd9d7   "docker-entrypoint.s…"   8 seconds ago   Up 7 seconds   8080/tcp   tender_blackwell
+
+2026/01/20 12:36:13.246155 [INFO] Running command: docker wait  1f550f2b23bb
+2026/01/20 12:46:08.624360 [INFO] Loading Manifest...
+2026/01/20 12:46:08.646260 [INFO] Running command: /opt/aws/bin/cfn-get-metadata -s arn:aws:cloudformation:us-east-1:982081079378:stack/awseb-e-tz2dm9pvgf-stack/5e7d57d0-ef6a-11f0-aa6a-0affd8bc8b43 -r AWSEBAutoScalingGroup --region us-east-1
+2026/01/20 12:46:09.116453 [INFO] Running command: /opt/aws/bin/cfn-get-metadata -s arn:aws:cloudformation:us-east-1:982081079378:stack/awseb-e-tz2dm9pvgf-stack/5e7d57d0-ef6a-11f0-aa6a-0affd8bc8b43 -r AWSEBBeanstalkMetadata --region us-east-1
+2026/01/20 12:46:09.590010 [INFO] Checking if docker is running...
+2026/01/20 12:46:09.590159 [INFO] Fetch current app container id...
+2026/01/20 12:46:09.590201 [INFO] Running command: docker ps | grep 95495a420ba4
+2026/01/20 12:46:09.636058 [INFO] 95495a420ba4   c234dc5e8d12   "docker-entrypoint.s…"   8 seconds ago   Up 7 seconds   8080/tcp   busy_goodall
+
+2026/01/20 12:46:09.636092 [INFO] Running command: docker wait  95495a420ba4
+2026/01/20 13:28:25.985733 [INFO] Loading Manifest...
+2026/01/20 13:28:26.007732 [INFO] Running command: /opt/aws/bin/cfn-get-metadata -s arn:aws:cloudformation:us-east-1:982081079378:stack/awseb-e-tz2dm9pvgf-stack/5e7d57d0-ef6a-11f0-aa6a-0affd8bc8b43 -r AWSEBAutoScalingGroup --region us-east-1
+2026/01/20 13:28:26.493291 [INFO] Running command: /opt/aws/bin/cfn-get-metadata -s arn:aws:cloudformation:us-east-1:982081079378:stack/awseb-e-tz2dm9pvgf-stack/5e7d57d0-ef6a-11f0-aa6a-0affd8bc8b43 -r AWSEBBeanstalkMetadata --region us-east-1
+2026/01/20 13:28:26.995102 [INFO] Checking if docker is running...
+2026/01/20 13:28:26.995244 [INFO] Fetch current app container id...
+2026/01/20 13:28:26.995279 [INFO] Running command: docker ps | grep c2bce234e32c
+2026/01/20 13:28:27.021569 [INFO] c2bce234e32c   6f8c72ef9b02   "docker-entrypoint.s…"   9 seconds ago   Up 7 seconds   8080/tcp   nostalgic_kowalevski
+
+2026/01/20 13:28:27.021598 [INFO] Running command: docker wait  c2bce234e32c
+2026/01/20 13:37:55.616744 [INFO] 137
+
+2026/01/20 13:38:04.447734 [INFO] Loading Manifest...
+2026/01/20 13:38:04.470086 [INFO] Running command: /opt/aws/bin/cfn-get-metadata -s arn:aws:cloudformation:us-east-1:982081079378:stack/awseb-e-tz2dm9pvgf-stack/5e7d57d0-ef6a-11f0-aa6a-0affd8bc8b43 -r AWSEBAutoScalingGroup --region us-east-1
+2026/01/20 13:38:04.900577 [INFO] Running command: /opt/aws/bin/cfn-get-metadata -s arn:aws:cloudformation:us-east-1:982081079378:stack/awseb-e-tz2dm9pvgf-stack/5e7d57d0-ef6a-11f0-aa6a-0affd8bc8b43 -r AWSEBBeanstalkMetadata --region us-east-1
+2026/01/20 13:38:05.376433 [INFO] Checking if docker is running...
+2026/01/20 13:38:05.376524 [INFO] Fetch current app container id...
+2026/01/20 13:38:05.376556 [INFO] Running command: docker ps | grep 78aaaea0ddc2
+2026/01/20 13:38:05.403355 [INFO] 78aaaea0ddc2   54df41199178   "docker-entrypoint.s…"   8 seconds ago   Up 7 seconds   8080/tcp   laughing_benz
+
+2026/01/20 13:38:05.403392 [INFO] Running command: docker wait  78aaaea0ddc2
+2026/01/23 07:38:42.275801 [INFO] Loading Manifest...
+2026/01/23 07:38:42.296841 [INFO] Running command: /opt/aws/bin/cfn-get-metadata -s arn:aws:cloudformation:us-east-1:982081079378:stack/awseb-e-tz2dm9pvgf-stack/5e7d57d0-ef6a-11f0-aa6a-0affd8bc8b43 -r AWSEBAutoScalingGroup --region us-east-1
+2026/01/23 07:38:42.758080 [INFO] Running command: /opt/aws/bin/cfn-get-metadata -s arn:aws:cloudformation:us-east-1:982081079378:stack/awseb-e-tz2dm9pvgf-stack/5e7d57d0-ef6a-11f0-aa6a-0affd8bc8b43 -r AWSEBBeanstalkMetadata --region us-east-1
+2026/01/23 07:38:43.249735 [INFO] Checking if docker is running...
+2026/01/23 07:38:43.249823 [INFO] Fetch current app container id...
+2026/01/23 07:38:43.249857 [INFO] Running command: docker ps | grep 9dd0683130f6
+2026/01/23 07:38:43.279314 [INFO] 9dd0683130f6   52035f8449d1   "docker-entrypoint.s…"   9 seconds ago   Up 7 seconds   8080/tcp   beautiful_ellis
+
+2026/01/23 07:38:43.279358 [INFO] Running command: docker wait  9dd0683130f6
+2026/01/23 08:09:49.247151 [INFO] Loading Manifest...
+2026/01/23 08:09:49.268058 [INFO] Running command: /opt/aws/bin/cfn-get-metadata -s arn:aws:cloudformation:us-east-1:982081079378:stack/awseb-e-tz2dm9pvgf-stack/5e7d57d0-ef6a-11f0-aa6a-0affd8bc8b43 -r AWSEBAutoScalingGroup --region us-east-1
+2026/01/23 08:09:49.740692 [INFO] Running command: /opt/aws/bin/cfn-get-metadata -s arn:aws:cloudformation:us-east-1:982081079378:stack/awseb-e-tz2dm9pvgf-stack/5e7d57d0-ef6a-11f0-aa6a-0affd8bc8b43 -r AWSEBBeanstalkMetadata --region us-east-1
+2026/01/23 08:09:50.240025 [INFO] Checking if docker is running...
+2026/01/23 08:09:50.240117 [INFO] Fetch current app container id...
+2026/01/23 08:09:50.240158 [INFO] Running command: docker ps | grep 6f4c1e61d86d
+2026/01/23 08:09:50.283671 [INFO] 6f4c1e61d86d   abf69596f0e8   "docker-entrypoint.s…"   8 seconds ago   Up 7 seconds   8080/tcp   dreamy_burnell
+
+2026/01/23 08:09:50.283704 [INFO] Running command: docker wait  6f4c1e61d86d
+2026/01/24 08:31:49.997623 [INFO] Loading Manifest...
+2026/01/24 08:31:50.026952 [INFO] Running command: /opt/aws/bin/cfn-get-metadata -s arn:aws:cloudformation:us-east-1:982081079378:stack/awseb-e-tz2dm9pvgf-stack/5e7d57d0-ef6a-11f0-aa6a-0affd8bc8b43 -r AWSEBAutoScalingGroup --region us-east-1
+2026/01/24 08:31:50.411735 [INFO] Running command: /opt/aws/bin/cfn-get-metadata -s arn:aws:cloudformation:us-east-1:982081079378:stack/awseb-e-tz2dm9pvgf-stack/5e7d57d0-ef6a-11f0-aa6a-0affd8bc8b43 -r AWSEBBeanstalkMetadata --region us-east-1
+2026/01/24 08:31:50.819739 [INFO] Checking if docker is running...
+2026/01/24 08:31:50.819819 [INFO] Fetch current app container id...
+2026/01/24 08:31:50.819857 [INFO] Running command: docker ps | grep a5ae33c4a2e8
+2026/01/24 08:31:50.838133 [INFO] a5ae33c4a2e8   e88666e1a4db   "docker-entrypoint.s…"   8 seconds ago   Up 7 seconds   8080/tcp   vigorous_cohen
+
+2026/01/24 08:31:50.838169 [INFO] Running command: docker wait  a5ae33c4a2e8
+
+
+----------------------------------------
+/var/log/docker
+----------------------------------------
+Jan 19 16:59:44 ip-172-31-12-14 docker[1854]: time="2026-01-19T16:59:44.279614818Z" level=info msg="ignoring event" container=1ac66e6575fc9736da7d7e0abcd4a7758fda720df6abf1dec0805e75903a6ee1 module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+Jan 19 16:59:53 ip-172-31-12-14 docker[1854]: 2026/01/19 16:59:53 http: superfluous response.WriteHeader call from go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp.(*respWriterWrapper).WriteHeader (wrap.go:98)
+Jan 19 17:04:59 ip-172-31-12-14 docker[1854]: time="2026-01-19T17:04:59.640391768Z" level=info msg="ignoring event" container=7cb728f8023e22c5e9dcd0d342b305b528e9b35d0ad7e6b1f7f97ad7a93322cd module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+Jan 19 17:05:02 ip-172-31-12-14 docker[1854]: 2026/01/19 17:05:02 http: superfluous response.WriteHeader call from go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp.(*respWriterWrapper).WriteHeader (wrap.go:98)
+Jan 19 17:09:41 ip-172-31-12-14 docker[1854]: 2026/01/19 17:09:41 http2: server: error reading preface from client @: read unix /run/docker.sock->@: read: connection reset by peer
+Jan 19 17:09:41 ip-172-31-12-14 docker[1854]: 2026/01/19 17:09:41 http2: server: error reading preface from client @: read unix /run/docker.sock->@: read: connection reset by peer
+Jan 19 17:09:56 ip-172-31-12-14 docker[1854]: time="2026-01-19T17:09:56.728980193Z" level=info msg="Container failed to exit within 10s of signal 15 - using the force" container=7cb728f8023e22c5e9dcd0d342b305b528e9b35d0ad7e6b1f7f97ad7a93322cd
+Jan 19 17:09:56 ip-172-31-12-14 docker[1854]: time="2026-01-19T17:09:56.789575128Z" level=info msg="ignoring event" container=7cb728f8023e22c5e9dcd0d342b305b528e9b35d0ad7e6b1f7f97ad7a93322cd module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+Jan 19 17:10:06 ip-172-31-12-14 docker[1854]: 2026/01/19 17:10:06 http: superfluous response.WriteHeader call from go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp.(*respWriterWrapper).WriteHeader (wrap.go:98)
+Jan 19 17:19:07 ip-172-31-12-14 docker[1854]: 2026/01/19 17:19:07 http2: server: error reading preface from client @: read unix /run/docker.sock->@: read: connection reset by peer
+Jan 19 17:19:07 ip-172-31-12-14 docker[1854]: 2026/01/19 17:19:07 http2: server: error reading preface from client @: read unix /run/docker.sock->@: read: connection reset by peer
+Jan 19 17:19:23 ip-172-31-12-14 docker[1854]: time="2026-01-19T17:19:23.009788808Z" level=info msg="Container failed to exit within 10s of signal 15 - using the force" container=46087ccada86d0bc40934a5ff1dafd1be5204a52eea18ecc798be7dfa3883364
+Jan 19 17:19:23 ip-172-31-12-14 docker[1854]: time="2026-01-19T17:19:23.069746131Z" level=info msg="ignoring event" container=46087ccada86d0bc40934a5ff1dafd1be5204a52eea18ecc798be7dfa3883364 module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+Jan 19 17:19:32 ip-172-31-12-14 docker[1854]: 2026/01/19 17:19:32 http: superfluous response.WriteHeader call from go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp.(*respWriterWrapper).WriteHeader (wrap.go:98)
+Jan 19 19:18:54 ip-172-31-12-14 docker[1854]: 2026/01/19 19:18:54 http2: server: error reading preface from client @: read unix /run/docker.sock->@: read: connection reset by peer
+Jan 19 19:18:54 ip-172-31-12-14 docker[1854]: 2026/01/19 19:18:54 http2: server: error reading preface from client @: read unix /run/docker.sock->@: read: connection reset by peer
+Jan 19 19:19:09 ip-172-31-12-14 docker[1854]: time="2026-01-19T19:19:09.775467693Z" level=info msg="Container failed to exit within 10s of signal 15 - using the force" container=245118f07d2db16cf4bd7903d02e2b815c03d488d7d2efb7d84db02e82bd519b
+Jan 19 19:19:09 ip-172-31-12-14 docker[1854]: time="2026-01-19T19:19:09.839820107Z" level=info msg="ignoring event" container=245118f07d2db16cf4bd7903d02e2b815c03d488d7d2efb7d84db02e82bd519b module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+Jan 19 19:19:19 ip-172-31-12-14 docker[1854]: 2026/01/19 19:19:19 http: superfluous response.WriteHeader call from go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp.(*respWriterWrapper).WriteHeader (wrap.go:98)
+Jan 20 07:17:06 ip-172-31-12-14 docker[1854]: 2026/01/20 07:17:06 http2: server: error reading preface from client @: read unix /run/docker.sock->@: read: connection reset by peer
+Jan 20 07:17:06 ip-172-31-12-14 docker[1854]: 2026/01/20 07:17:06 http2: server: error reading preface from client @: read unix /run/docker.sock->@: read: connection reset by peer
+Jan 20 07:17:20 ip-172-31-12-14 docker[1854]: time="2026-01-20T07:17:20.856663980Z" level=info msg="Container failed to exit within 10s of signal 15 - using the force" container=f470b1c824756163ce0ea04e93acc07b5b613662fd2ad9aaecfa2656b4a2ca20
+Jan 20 07:17:20 ip-172-31-12-14 docker[1854]: time="2026-01-20T07:17:20.919281406Z" level=info msg="ignoring event" container=f470b1c824756163ce0ea04e93acc07b5b613662fd2ad9aaecfa2656b4a2ca20 module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+Jan 20 07:17:30 ip-172-31-12-14 docker[1854]: 2026/01/20 07:17:30 http: superfluous response.WriteHeader call from go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp.(*respWriterWrapper).WriteHeader (wrap.go:98)
+Jan 20 07:32:38 ip-172-31-12-14 docker[1854]: 2026/01/20 07:32:38 http2: server: error reading preface from client @: read unix /run/docker.sock->@: read: connection reset by peer
+Jan 20 07:32:38 ip-172-31-12-14 docker[1854]: 2026/01/20 07:32:38 http2: server: error reading preface from client @: read unix /run/docker.sock->@: read: connection reset by peer
+Jan 20 07:32:53 ip-172-31-12-14 docker[1854]: time="2026-01-20T07:32:53.292395409Z" level=info msg="Container failed to exit within 10s of signal 15 - using the force" container=a9e8c14d55a413236765c1a6d65f06b893bc1e3bdbfc34b2485daecb366811eb
+Jan 20 07:32:53 ip-172-31-12-14 docker[1854]: time="2026-01-20T07:32:53.379685321Z" level=info msg="ignoring event" container=a9e8c14d55a413236765c1a6d65f06b893bc1e3bdbfc34b2485daecb366811eb module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+Jan 20 07:33:04 ip-172-31-12-14 docker[1854]: 2026/01/20 07:33:04 http: superfluous response.WriteHeader call from go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp.(*respWriterWrapper).WriteHeader (wrap.go:98)
+Jan 20 07:56:13 ip-172-31-12-14 docker[1854]: 2026/01/20 07:56:13 http2: server: error reading preface from client @: read unix /run/docker.sock->@: read: connection reset by peer
+Jan 20 07:56:28 ip-172-31-12-14 docker[1854]: time="2026-01-20T07:56:28.249384716Z" level=info msg="Container failed to exit within 10s of signal 15 - using the force" container=c5542629b47cd1ebc888480ee2d6d313479e3508aed98b59e1a72d2106cd0fa0
+Jan 20 07:56:28 ip-172-31-12-14 docker[1854]: time="2026-01-20T07:56:28.309551645Z" level=info msg="ignoring event" container=c5542629b47cd1ebc888480ee2d6d313479e3508aed98b59e1a72d2106cd0fa0 module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+Jan 20 07:56:38 ip-172-31-12-14 docker[1854]: 2026/01/20 07:56:38 http: superfluous response.WriteHeader call from go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp.(*respWriterWrapper).WriteHeader (wrap.go:98)
+Jan 20 08:19:56 ip-172-31-12-14 docker[1854]: 2026/01/20 08:19:56 http2: server: error reading preface from client @: read unix /run/docker.sock->@: read: connection reset by peer
+Jan 20 08:20:11 ip-172-31-12-14 docker[1854]: time="2026-01-20T08:20:11.838591910Z" level=info msg="Container failed to exit within 10s of signal 15 - using the force" container=fd80334b4d606cba6509cdd100af4a705a95453e2f4cc104f170286f057ec58d
+Jan 20 08:20:11 ip-172-31-12-14 docker[1854]: time="2026-01-20T08:20:11.919624815Z" level=info msg="ignoring event" container=fd80334b4d606cba6509cdd100af4a705a95453e2f4cc104f170286f057ec58d module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+Jan 20 08:20:21 ip-172-31-12-14 docker[1854]: 2026/01/20 08:20:21 http: superfluous response.WriteHeader call from go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp.(*respWriterWrapper).WriteHeader (wrap.go:98)
+Jan 20 08:20:21 ip-172-31-12-14 docker[1854]: 2026/01/20 08:20:21 http2: server: error reading preface from client @: read unix /run/docker.sock->@: read: connection reset by peer
+Jan 20 09:20:13 ip-172-31-12-14 docker[1854]: 2026/01/20 09:20:13 http2: server: error reading preface from client @: read unix /run/docker.sock->@: read: connection reset by peer
+Jan 20 09:20:28 ip-172-31-12-14 docker[1854]: time="2026-01-20T09:20:28.836538995Z" level=info msg="Container failed to exit within 10s of signal 15 - using the force" container=6595a2dc8dcbf73d4a28819f6e12a146fb839636e926bf2b1baad2a238cf9387
+Jan 20 09:20:28 ip-172-31-12-14 docker[1854]: time="2026-01-20T09:20:28.900921644Z" level=info msg="ignoring event" container=6595a2dc8dcbf73d4a28819f6e12a146fb839636e926bf2b1baad2a238cf9387 module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+Jan 20 09:20:38 ip-172-31-12-14 docker[1854]: 2026/01/20 09:20:38 http: superfluous response.WriteHeader call from go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp.(*respWriterWrapper).WriteHeader (wrap.go:98)
+Jan 20 09:20:38 ip-172-31-12-14 docker[1854]: 2026/01/20 09:20:38 http2: server: error reading preface from client @: read unix /run/docker.sock->@: read: connection reset by peer
+Jan 20 09:51:10 ip-172-31-12-14 docker[1854]: time="2026-01-20T09:51:10.845216520Z" level=info msg="Container failed to exit within 10s of signal 15 - using the force" container=501bb7ddccf0ea7cb1d00d32d4d989e2c9b7b5d9a4258ca7ce5f0eda15e71b8c
+Jan 20 09:51:10 ip-172-31-12-14 docker[1854]: time="2026-01-20T09:51:10.909588296Z" level=info msg="ignoring event" container=501bb7ddccf0ea7cb1d00d32d4d989e2c9b7b5d9a4258ca7ce5f0eda15e71b8c module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+Jan 20 09:51:20 ip-172-31-12-14 docker[1854]: 2026/01/20 09:51:20 http: superfluous response.WriteHeader call from go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp.(*respWriterWrapper).WriteHeader (wrap.go:98)
+Jan 20 10:58:40 ip-172-31-12-14 docker[1854]: 2026/01/20 10:58:40 http2: server: error reading preface from client @: read unix /run/docker.sock->@: read: connection reset by peer
+Jan 20 10:58:55 ip-172-31-12-14 docker[1854]: time="2026-01-20T10:58:55.309371310Z" level=info msg="Container failed to exit within 10s of signal 15 - using the force" container=1e6cd7802e8a8ccd8bf3850fcfd7cd22cc3a82e1408bf45010a8bf7c44f11bf6
+Jan 20 10:58:55 ip-172-31-12-14 docker[1854]: time="2026-01-20T10:58:55.360651490Z" level=info msg="ignoring event" container=1e6cd7802e8a8ccd8bf3850fcfd7cd22cc3a82e1408bf45010a8bf7c44f11bf6 module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+Jan 20 10:59:05 ip-172-31-12-14 docker[1854]: 2026/01/20 10:59:05 http: superfluous response.WriteHeader call from go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp.(*respWriterWrapper).WriteHeader (wrap.go:98)
+Jan 20 11:11:29 ip-172-31-12-14 docker[1854]: time="2026-01-20T11:11:29.628759045Z" level=info msg="Container failed to exit within 10s of signal 15 - using the force" container=5ba39ad423041b8f91363f88b03ed1a9895cf15a49edef461e4f4e4830afb7ad
+Jan 20 11:11:29 ip-172-31-12-14 docker[1854]: time="2026-01-20T11:11:29.689801586Z" level=info msg="ignoring event" container=5ba39ad423041b8f91363f88b03ed1a9895cf15a49edef461e4f4e4830afb7ad module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+Jan 20 11:11:39 ip-172-31-12-14 docker[1854]: 2026/01/20 11:11:39 http: superfluous response.WriteHeader call from go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp.(*respWriterWrapper).WriteHeader (wrap.go:98)
+Jan 20 11:24:57 ip-172-31-12-14 docker[1854]: 2026/01/20 11:24:57 http2: server: error reading preface from client @: read unix /run/docker.sock->@: read: connection reset by peer
+Jan 20 11:24:57 ip-172-31-12-14 docker[1854]: 2026/01/20 11:24:57 http2: server: error reading preface from client @: read unix /run/docker.sock->@: read: connection reset by peer
+Jan 20 11:25:13 ip-172-31-12-14 docker[1854]: time="2026-01-20T11:25:13.634272773Z" level=info msg="Container failed to exit within 10s of signal 15 - using the force" container=1d457ad76ea517d5bce0d056b62e01f090c2918a70317b042ac03c108347dca3
+Jan 20 11:25:13 ip-172-31-12-14 docker[1854]: time="2026-01-20T11:25:13.689743493Z" level=info msg="ignoring event" container=1d457ad76ea517d5bce0d056b62e01f090c2918a70317b042ac03c108347dca3 module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+Jan 20 11:25:23 ip-172-31-12-14 docker[1854]: 2026/01/20 11:25:23 http: superfluous response.WriteHeader call from go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp.(*respWriterWrapper).WriteHeader (wrap.go:98)
+Jan 20 11:55:27 ip-172-31-12-14 docker[1854]: 2026/01/20 11:55:27 http2: server: error reading preface from client @: read unix /run/docker.sock->@: read: connection reset by peer
+Jan 20 11:55:42 ip-172-31-12-14 docker[1854]: time="2026-01-20T11:55:42.032756570Z" level=info msg="Container failed to exit within 10s of signal 15 - using the force" container=cc3167e15a5ff6428228ddd0db19f0653701cc2ae04bca4b6f66b2948885159d
+Jan 20 11:55:51 ip-172-31-12-14 docker[1854]: 2026/01/20 11:55:51 http: superfluous response.WriteHeader call from go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp.(*respWriterWrapper).WriteHeader (wrap.go:98)
+Jan 20 11:55:51 ip-172-31-12-14 docker[1854]: 2026/01/20 11:55:51 http2: server: error reading preface from client @: read unix /run/docker.sock->@: read: connection reset by peer
+Jan 20 12:19:46 ip-172-31-12-14 docker[1854]: 2026/01/20 12:19:46 http2: server: error reading preface from client @: read unix /run/docker.sock->@: read: connection reset by peer
+Jan 20 12:20:01 ip-172-31-12-14 docker[1854]: time="2026-01-20T12:20:01.572227740Z" level=info msg="Container failed to exit within 10s of signal 15 - using the force" container=a8ddca5c8cf10a78fe83fb61e5b2277757494adf120765183561d29b122152a9
+Jan 20 12:20:01 ip-172-31-12-14 docker[1854]: time="2026-01-20T12:20:01.707207593Z" level=info msg="ignoring event" container=a8ddca5c8cf10a78fe83fb61e5b2277757494adf120765183561d29b122152a9 module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+Jan 20 12:20:12 ip-172-31-12-14 docker[1854]: 2026/01/20 12:20:12 http: superfluous response.WriteHeader call from go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp.(*respWriterWrapper).WriteHeader (wrap.go:98)
+Jan 20 12:20:12 ip-172-31-12-14 docker[1854]: 2026/01/20 12:20:12 http2: server: error reading preface from client @: read unix /run/docker.sock->@: read: connection reset by peer
+Jan 20 12:28:17 ip-172-31-12-14 docker[1854]: time="2026-01-20T12:28:17.734747301Z" level=info msg="Container failed to exit within 10s of signal 15 - using the force" container=61a4022c84358778fc3b5c8c476b94c25981a06e762f8cec47b35d1baf8f34f9
+Jan 20 12:28:17 ip-172-31-12-14 docker[1854]: time="2026-01-20T12:28:17.789753767Z" level=info msg="ignoring event" container=61a4022c84358778fc3b5c8c476b94c25981a06e762f8cec47b35d1baf8f34f9 module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+Jan 20 12:28:27 ip-172-31-12-14 docker[1854]: 2026/01/20 12:28:27 http: superfluous response.WriteHeader call from go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp.(*respWriterWrapper).WriteHeader (wrap.go:98)
+Jan 20 12:28:27 ip-172-31-12-14 docker[1854]: 2026/01/20 12:28:27 http2: server: error reading preface from client @: read unix /run/docker.sock->@: read: connection reset by peer
+Jan 20 12:36:03 ip-172-31-12-14 docker[1854]: time="2026-01-20T12:36:03.624068046Z" level=info msg="Container failed to exit within 10s of signal 15 - using the force" container=20f183d1d91c7c87a09f1ef02fc41ec91ff1438939001e05eff4db48cd052513
+Jan 20 12:36:03 ip-172-31-12-14 docker[1854]: time="2026-01-20T12:36:03.681709347Z" level=info msg="ignoring event" container=20f183d1d91c7c87a09f1ef02fc41ec91ff1438939001e05eff4db48cd052513 module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+Jan 20 12:36:13 ip-172-31-12-14 docker[1854]: 2026/01/20 12:36:13 http: superfluous response.WriteHeader call from go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp.(*respWriterWrapper).WriteHeader (wrap.go:98)
+Jan 20 12:36:13 ip-172-31-12-14 docker[1854]: 2026/01/20 12:36:13 http2: server: error reading preface from client @: read unix /run/docker.sock->@: read: connection reset by peer
+Jan 20 12:45:44 ip-172-31-12-14 docker[1854]: 2026/01/20 12:45:44 http2: server: error reading preface from client @: read unix /run/docker.sock->@: read: connection reset by peer
+Jan 20 12:45:59 ip-172-31-12-14 docker[1854]: time="2026-01-20T12:45:59.285923292Z" level=info msg="Container failed to exit within 10s of signal 15 - using the force" container=1f550f2b23bbb99d491ad351f238649386d7efef1377b6c464b96eb758c6a8ce
+Jan 20 12:45:59 ip-172-31-12-14 docker[1854]: time="2026-01-20T12:45:59.350685571Z" level=info msg="ignoring event" container=1f550f2b23bbb99d491ad351f238649386d7efef1377b6c464b96eb758c6a8ce module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+Jan 20 12:46:09 ip-172-31-12-14 docker[1854]: 2026/01/20 12:46:09 http: superfluous response.WriteHeader call from go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp.(*respWriterWrapper).WriteHeader (wrap.go:98)
+Jan 20 13:28:16 ip-172-31-12-14 docker[1854]: time="2026-01-20T13:28:16.922058708Z" level=info msg="Container failed to exit within 10s of signal 15 - using the force" container=95495a420ba4eba6f8744197fd6e77da9d2f317562879402b8b93187fb1a9f5f
+Jan 20 13:28:16 ip-172-31-12-14 docker[1854]: time="2026-01-20T13:28:16.980049506Z" level=info msg="ignoring event" container=95495a420ba4eba6f8744197fd6e77da9d2f317562879402b8b93187fb1a9f5f module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+Jan 20 13:28:26 ip-172-31-12-14 docker[1854]: 2026/01/20 13:28:26 http: superfluous response.WriteHeader call from go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp.(*respWriterWrapper).WriteHeader (wrap.go:98)
+Jan 20 13:37:55 ip-172-31-12-14 docker[1854]: time="2026-01-20T13:37:55.344800658Z" level=info msg="Container failed to exit within 10s of signal 15 - using the force" container=c2bce234e32cc3fdd76d1b0a683f18a300e7276111e89e8004d0401f9ba69431
+Jan 20 13:37:55 ip-172-31-12-14 docker[1854]: time="2026-01-20T13:37:55.399488167Z" level=info msg="ignoring event" container=c2bce234e32cc3fdd76d1b0a683f18a300e7276111e89e8004d0401f9ba69431 module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+Jan 20 13:38:05 ip-172-31-12-14 docker[1854]: 2026/01/20 13:38:05 http: superfluous response.WriteHeader call from go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp.(*respWriterWrapper).WriteHeader (wrap.go:98)
+Jan 23 07:38:17 ip-172-31-12-14 docker[1854]: 2026/01/23 07:38:17 http2: server: error reading preface from client @: read unix /run/docker.sock->@: read: connection reset by peer
+Jan 23 07:38:33 ip-172-31-12-14 docker[1854]: time="2026-01-23T07:38:33.044426733Z" level=info msg="Container failed to exit within 10s of signal 15 - using the force" container=78aaaea0ddc2043fd51a9f98304df414885ec69b095340dc66233da08547919e
+Jan 23 07:38:33 ip-172-31-12-14 docker[1854]: time="2026-01-23T07:38:33.109885059Z" level=info msg="ignoring event" container=78aaaea0ddc2043fd51a9f98304df414885ec69b095340dc66233da08547919e module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+Jan 23 07:38:43 ip-172-31-12-14 docker[1854]: 2026/01/23 07:38:43 http: superfluous response.WriteHeader call from go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp.(*respWriterWrapper).WriteHeader (wrap.go:98)
+Jan 23 07:38:43 ip-172-31-12-14 docker[1854]: 2026/01/23 07:38:43 http2: server: error reading preface from client @: read unix /run/docker.sock->@: read: connection reset by peer
+Jan 23 08:09:25 ip-172-31-12-14 docker[1854]: 2026/01/23 08:09:25 http2: server: error reading preface from client @: read unix /run/docker.sock->@: read: connection reset by peer
+Jan 23 08:09:40 ip-172-31-12-14 docker[1854]: time="2026-01-23T08:09:40.401091022Z" level=info msg="Container failed to exit within 10s of signal 15 - using the force" container=9dd0683130f6572678631e5bc296e2855f5194614f5e7f36447a83e41b4aeb1b
+Jan 23 08:09:40 ip-172-31-12-14 docker[1854]: time="2026-01-23T08:09:40.520335705Z" level=info msg="ignoring event" container=9dd0683130f6572678631e5bc296e2855f5194614f5e7f36447a83e41b4aeb1b module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+Jan 23 08:09:50 ip-172-31-12-14 docker[1854]: 2026/01/23 08:09:50 http: superfluous response.WriteHeader call from go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp.(*respWriterWrapper).WriteHeader (wrap.go:98)
+Jan 23 08:09:50 ip-172-31-12-14 docker[1854]: 2026/01/23 08:09:50 http2: server: error reading preface from client @: read unix /run/docker.sock->@: read: connection reset by peer
+Jan 24 08:31:26 ip-172-31-12-14 docker[1854]: 2026/01/24 08:31:26 http2: server: error reading preface from client @: read unix /run/docker.sock->@: read: connection reset by peer
+Jan 24 08:31:26 ip-172-31-12-14 docker[1854]: 2026/01/24 08:31:26 http2: server: error reading preface from client @: read unix /run/docker.sock->@: read: connection reset by peer
+Jan 24 08:31:41 ip-172-31-12-14 docker[1854]: time="2026-01-24T08:31:41.030179180Z" level=info msg="Container failed to exit within 10s of signal 15 - using the force" container=6f4c1e61d86d45eb6e8a6ff24639e7d628d2ffa69dd6e352dbdb6d16f02bfed5
+Jan 24 08:31:41 ip-172-31-12-14 docker[1854]: time="2026-01-24T08:31:41.156162045Z" level=info msg="ignoring event" container=6f4c1e61d86d45eb6e8a6ff24639e7d628d2ffa69dd6e352dbdb6d16f02bfed5 module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+Jan 24 08:31:50 ip-172-31-12-14 docker[1854]: 2026/01/24 08:31:50 http: superfluous response.WriteHeader call from go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp.(*respWriterWrapper).WriteHeader (wrap.go:98)
+
+

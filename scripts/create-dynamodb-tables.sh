@@ -477,6 +477,24 @@ else
       ]" \
     --tags Key=Environment,Value="$ENV" Key=Project,Value=HandyCall
   wait_for_table "$TABLE_NAME"
+# =============================================================================
+# 13. SERVICE TEMPLATES TABLE
+# =============================================================================
+TABLE_NAME="${TABLE_PREFIX}service_templates"
+if [ -n "$(table_exists $TABLE_NAME)" ]; then
+  echo "⚠️  Table $TABLE_NAME already exists, skipping..."
+else
+  echo "📦 Creating table: $TABLE_NAME"
+  aws dynamodb create-table \
+    --table-name "$TABLE_NAME" \
+    --region "$REGION" \
+    --billing-mode "$BILLING_MODE" \
+    --attribute-definitions \
+      AttributeName=template_id,AttributeType=S \
+    --key-schema \
+      AttributeName=template_id,KeyType=HASH \
+    --tags Key=Environment,Value="$ENV" Key=Project,Value=HandyCall
+  wait_for_table "$TABLE_NAME"
 fi
 
 echo ""

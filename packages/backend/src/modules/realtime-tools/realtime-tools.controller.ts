@@ -8,13 +8,17 @@ import { KnowledgeSearchDto } from './dto/knowledge-search.dto';
 import { ResolveTenantDto } from './dto/resolve-tenant.dto';
 import { SaveCallDto } from './dto/save-call.dto';
 import { SaveRecordingDto } from './dto/save-recording.dto';
+import { CheckServiceAreaDto } from './dto/check-service-area.dto';
+import { ListAppointmentsByPhoneDto } from './dto/list-appointments.dto';
+import { CancelAppointmentDto } from './dto/cancel-appointment.dto';
+import { RescheduleAppointmentDto } from './dto/reschedule-appointment.dto';
 import { RealtimeToolsService } from './realtime-tools.service';
 
 @Controller()
 @Public()
 @UseGuards(ToolsAuthGuard)
 export class RealtimeToolsController {
-  constructor(private readonly tools: RealtimeToolsService) {}
+  constructor(private readonly tools: RealtimeToolsService) { }
 
   @Post('tenant/resolve')
   resolveTenant(@Body() dto: ResolveTenantDto) {
@@ -51,5 +55,25 @@ export class RealtimeToolsController {
   @Post('tools/knowledge_search')
   knowledgeSearch(@Body() dto: KnowledgeSearchDto) {
     return this.tools.knowledgeSearch(dto);
+  }
+
+  @Post('tools/check_service_area')
+  checkServiceArea(@Body() dto: CheckServiceAreaDto) {
+    return this.tools.checkServiceArea(dto.company_id, dto.zip);
+  }
+
+  @Post('tools/list_appointments_by_phone')
+  listAppointmentsByPhone(@Body() dto: ListAppointmentsByPhoneDto) {
+    return this.tools.listAppointmentsByPhone(dto);
+  }
+
+  @Post('tools/cancel_appointment')
+  cancelAppointment(@Body() dto: CancelAppointmentDto) {
+    return this.tools.cancelAppointment(dto);
+  }
+
+  @Post('tools/reschedule_appointment')
+  rescheduleAppointment(@Body() dto: RescheduleAppointmentDto) {
+    return this.tools.rescheduleAppointment(dto);
   }
 }
