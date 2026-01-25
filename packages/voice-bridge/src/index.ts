@@ -1259,7 +1259,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
           item: {
             type: 'message',
             role: 'assistant',
-            content: [{ type: 'input_text', text: greetingText }],
+            content: [{ type: 'text', text: greetingText }],
           },
         });
 
@@ -2267,8 +2267,8 @@ wss.on('connection', (twilioWs: WebSocket) => {
           session: {
             voice,
             instructions,
-            tools: fsmEnabled ? [] : toolsSchema(),
-            tool_choice: fsmEnabled ? 'none' : 'auto',
+            tools: toolsSchema(),
+            tool_choice: 'auto',
             input_audio_format: 'g711_ulaw',
             output_audio_format: 'pcm16',
             input_audio_transcription: { model: 'gpt-4o-mini-transcribe' },
@@ -2276,9 +2276,9 @@ wss.on('connection', (twilioWs: WebSocket) => {
             // Too low can cause interruptions; tune if you notice cutoffs.
             turn_detection: {
               type: 'server_vad',
-              threshold: Number(envFirst(['REALTIME_VAD_THRESHOLD']) || 0.75),
+              threshold: Number(envFirst(['REALTIME_VAD_THRESHOLD']) || 0.8),
               prefix_padding_ms: 300,
-              silence_duration_ms: Number(envFirst(['REALTIME_SILENCE_MS']) || 800),
+              silence_duration_ms: Number(envFirst(['REALTIME_SILENCE_MS']) || 1000),
             },
           },
         });
