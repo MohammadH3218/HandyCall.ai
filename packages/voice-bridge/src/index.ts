@@ -705,7 +705,6 @@ async function invokeTool(ctx: CallContext, name: string, args: any) {
         start_time: args.preferred_time || args.start_time || args.window_start,
         end_time: args.window_end || args.end_time || '',
         timezone: args.timezone || '',
-        duration_minutes: args.duration_minutes || 60,
       }
     );
   }
