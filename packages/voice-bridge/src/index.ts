@@ -419,6 +419,7 @@ function formatSlotTimeOnly(slotIso: string, timeZone: string): string {
 function normalizeTimeLabel(text: string): string {
   return String(text || '')
     .toLowerCase()
+    .replace(/\./g, '')
     .replace(/\s+/g, ' ')
     .trim();
 }
@@ -480,7 +481,7 @@ function zipToSpoken(zip: string): string {
 function isAffirmative(text: string): boolean {
   const t = normalizeForEcho(text);
   if (!t) return false;
-  return [
+  const phrases = [
     'yes',
     'yeah',
     'yep',
@@ -494,22 +495,25 @@ function isAffirmative(text: string): boolean {
     'ok',
     'okay',
     'sure',
-  ].some((phrase) => t === phrase || t.includes(phrase));
+  ];
+  return phrases.some((phrase) => t === phrase || new RegExp(`\\b${phrase}\\b`).test(t));
 }
 
 function isNegative(text: string): boolean {
   const t = normalizeForEcho(text);
   if (!t) return false;
-  return [
+  const phrases = [
     'no',
     'nope',
     'nah',
     'incorrect',
     'wrong',
+    'not',
     'not correct',
     'thats wrong',
     'that is wrong',
-  ].some((phrase) => t === phrase || t.includes(phrase));
+  ];
+  return phrases.some((phrase) => t === phrase || new RegExp(`\\b${phrase}\\b`).test(t));
 }
 
 // function isLikelyNonAnswer(lastPrompt: string, userText: string): boolean {
@@ -1365,6 +1369,12 @@ wss.on('connection', (twilioWs: WebSocket) => {
 
   async function handleBookingTurn(text: string): Promise<boolean> {
     if (!ctx || !openaiWs) return false;
+
+    // Ignore empty or likely echo/noise inputs to prevent accidental state machine advancement
+    if (!text || text.length < 2 || isLikelyEcho(text, lastAssistantText)) {
+      return false;
+    }
+
     if (bookingStep === 'idle') {
       if (!hasBookingIntent(text)) return false;
       bookingSlots = [];
@@ -2822,6 +2832,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
             }
             isProcessingTool = false;
             sendToOpenAI(openaiWs, responseCreate());
+            isProcessingTool = false;
           } catch (err: any) {
             // Keep the caller experience smooth: save_call failures should never be spoken back to the caller.
             // We'll retry on stop/hangup as best-effort.
@@ -2870,11 +2881,13 @@ wss.on('connection', (twilioWs: WebSocket) => {
               },
             });
             if (toolName === 'create_booking' && filteredSlots.length) {
+              const tz = lastAvailabilityTimezone || tenant?.timezone || 'UTC';
+              const readableSlots = filteredSlots.map(s => formatSlotForPrompt(s, tz));
               sendToOpenAI(
                 openaiWs,
                 responseCreate(
                   ['audio', 'text'],
-                  `The requested time is unavailable. Offer only these available slots: ${filteredSlots.join(
+                  `The requested time is unavailable. Offer only these available slots: ${readableSlots.join(
                     ', '
                   )}.`
                 )
