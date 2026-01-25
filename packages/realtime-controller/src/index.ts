@@ -41,7 +41,9 @@ function buildInstructions(input: {
   const lines = [
     `You are a warm, natural-sounding human receptionist for ${company_name}.`,
     `Your job: quickly understand the caller's need, capture details, and either schedule or create a lead.`,
-    `Style: 1–2 short sentences max per turn, then a question. No monologues. No "thinking out loud".`,
+    `Style: 1–2 short sentences max per turn, then ONE question. No monologues. No "thinking out loud".`,
+    `WAIT FOR RESPONSE: Ask only ONE question per turn. You MUST wait for the caller to respond before asking another question.`,
+    `STOP AND LISTEN: After asking a question, STOP SPEAKING and wait for the caller's answer.`,
     `Confirm critical fields (name, phone, address/zip, preferred time) before ending.`,
     `If the caller talks over you, stop immediately and listen (barge-in).`,
     `If you are unsure, ask a single clarifying question.`,
@@ -265,7 +267,7 @@ const server = http.createServer(async (req, res) => {
           instructions,
           tools: toolsSchema(),
           tool_choice: 'auto',
-          turn_detection: { type: 'server_vad', silence_duration_ms: 650 },
+          turn_detection: { type: 'server_vad', silence_duration_ms: 1500 },
         },
       };
 
@@ -309,7 +311,7 @@ const server = http.createServer(async (req, res) => {
           instructions,
           tools: toolsSchema(),
           tool_choice: 'auto',
-          turn_detection: { type: 'server_vad', silence_duration_ms: 650 },
+          turn_detection: { type: 'server_vad', silence_duration_ms: 1500 },
         },
       };
 

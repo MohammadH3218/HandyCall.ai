@@ -558,19 +558,16 @@ function buildInstructions(input: {
   company_name: string;
   service_type?: string;
   timezone?: string;
-  language?: string;
   extra?: string;
 }) {
-  const { company_name, service_type, timezone, language, extra } = input;
-  const lang = (language || 'english').toLowerCase();
-  const isArabic = lang.includes('arabic') || lang.includes('ar');
+  const { company_name, service_type, timezone, extra } = input;
 
   const isPestControl = (service_type || '').toUpperCase() === 'PEST_CONTROL';
 
 
   const lines = [
     `You are a friendly, natural-sounding receptionist for ${company_name}.`,
-    isArabic ? `Speak predominantly in Arabic (Gulf/GCC dialect preferred) but can switch to English if the user speaks English.` : `Speak in English.`,
+    `Speak in English only.`,
     `Your job: quickly understand the caller's need, capture details, and either schedule or create a lead.`,
     `CRITICAL RULE: If the caller wants to book a service or appointment, you MUST ask for their 5-digit Zip Code FIRST, before asking for their name, address, or details.`,
     `Once you get the Zip Code, IMMEDIATELY call check_service_area(zip).`,
@@ -578,10 +575,10 @@ function buildInstructions(input: {
     `- If it returns true (serviced): Confirm the zip code, then proceed to ask for their Name and Service needs.`,
     isPestControl ? `Pest Control Flow: 1. Zip Code -> 2. Pest Type (ants, roaches, etc.) -> 3. Name -> 4. Address -> 5. Schedule.` : `General Flow: 1. Zip Code -> 2. Problem Description -> 3. Name -> 4. Address -> 5. Schedule.`,
     `Be conversational and adaptive while still collecting what is needed.`,
-    `Ask only ONE question per turn. Never ask a second question until the caller answers.`,
+    `WAIT FOR RESPONSE: Ask only ONE question per turn. You MUST wait for the caller to respond before asking another question. NEVER ask two questions in a row.`,
+    `STOP AND LISTEN: After asking a question, STOP SPEAKING and wait for the caller's answer. Do not continue talking.`,
     `Sound like a real person on the phone: use contractions, vary phrasing, and avoid repeating a sentence in the same turn.`,
-    `Style: 1-2 short sentences max per turn, then a question. No monologues. No "thinking out loud".`,
-    `Ask only ONE question per turn. Never ask a second question until the caller answers.`,
+    `Style: 1-2 short sentences max per turn, then ONE question. No monologues. No "thinking out loud". WAIT for their answer.`,
     `Confirm critical fields (name, phone, address/zip, preferred time) ONLY at the end of the booking flow. Do NOT confirm each field one-by-one.`,
     `When validating input, just acknowledge and move to the next question (e.g., "Thanks, what's your zip code?").`,
     `Confirmation policy: Collect Name, Zip, Address, Service, and Preferred Time efficiently. Once you have identifying info and a valid time slot (after get_availability succeeds), perform a single SUMMARY confirmation relative to the booking.`,
@@ -1003,7 +1000,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
   let lastUserSpeechStoppedAt = 0;
   // let lastUserSpeechDurationMs = 0;
   let isProcessingTool = false;
-  const fsmEnabled = false;
+  const fsmEnabled = true;
   let sessionContext: SessionContext = { state: 'GREETING', intent: 'unknown' };
   let lastFsmPrompt: string | null = null;
   let pendingAnswerFollowUp = false;
@@ -1737,23 +1734,60 @@ wss.on('connection', (twilioWs: WebSocket) => {
       resetFsmBookingContext();
       const name = extractNameValue(trimmed);
       if (name) {
-        pendingName = name;
-        sessionContext.customerName = name;
-        sessionContext.state = 'CONFIRM_NAME';
-        sendPrompt(`Just to confirm, is the name ${name}?`);
-        return true;
+        // Check if we have at least first and last name
+        const nameParts = name.trim().split(/\s+/).filter(Boolean);
+        if (nameParts.length >= 2) {
+          pendingName = name;
+          sessionContext.customerName = name;
+          sessionContext.state = 'CONFIRM_NAME';
+          sendPrompt(`Just to confirm, is the name ${name}?`);
+          return true;
+        } else {
+          // Only first name provided, ask for last name
+          pendingName = name;
+          sessionContext.state = 'ASK_NAME';
+          sendPrompt(`Thanks, ${name}. And what's your last name?`);
+          return true;
+        }
       }
       sessionContext.state = 'ASK_NAME';
-      sendPrompt("Sure, what's your full name?");
+      sendPrompt("Sure, what's your first and last name?");
       return true;
     }
 
     if (sessionContext.state === 'ASK_NAME') {
+      // Check if we're collecting last name (pendingName already has first name)
+      if (pendingName && pendingName.trim().split(/\s+/).length === 1) {
+        // We already have first name, this is the last name response
+        const lastName = extractNameValue(trimmed) || trimmed.trim();
+        if (lastName) {
+          const fullName = `${pendingName} ${lastName}`;
+          pendingName = fullName;
+          sessionContext.customerName = fullName;
+          sessionContext.state = 'CONFIRM_NAME';
+          sendPrompt(`Just to confirm, is the name ${fullName}?`);
+          return true;
+        } else {
+          sendPrompt("Sorry, I didn't catch that. What's your last name?");
+          return true;
+        }
+      }
+
       const name = extractNameValue(trimmed);
       if (!name) {
-        sendPrompt("Sorry, I didn't catch the name. What name should I use?");
+        sendPrompt("Sorry, I didn't catch the name. What's your first and last name?");
         return true;
       }
+
+      // Check if we have at least first and last name (2 words minimum)
+      const nameParts = name.trim().split(/\s+/).filter(Boolean);
+      if (nameParts.length < 2) {
+        sendPrompt(`Thanks, ${name}. And what's your last name?`);
+        // Store the first name temporarily and stay in ASK_NAME state
+        pendingName = name;
+        return true;
+      }
+
       pendingName = name;
       sessionContext.customerName = name;
       sessionContext.state = 'CONFIRM_NAME';
@@ -2258,7 +2292,6 @@ wss.on('connection', (twilioWs: WebSocket) => {
         company_name: tenant.company_name,
         service_type: tenant.service_type,
         timezone: tenant.timezone,
-        language: tenant.language || tenant.agent_config?.language,
         extra: tenant?.agent_config?.realtime_instructions,
       });
 
@@ -2290,7 +2323,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
               type: 'server_vad',
               threshold: Number(envFirst(['REALTIME_VAD_THRESHOLD']) || 0.8),
               prefix_padding_ms: 300,
-              silence_duration_ms: Number(envFirst(['REALTIME_SILENCE_MS']) || 1000),
+              silence_duration_ms: Number(envFirst(['REALTIME_SILENCE_MS']) || 1500),
             },
           },
         });
