@@ -57,7 +57,7 @@ export function toolsSchema() {
                     timezone: { type: 'string' },
                     confirmed: { type: 'boolean', description: 'Must be true only after explicit user confirmation.' }
                 },
-                required: ['full_name', 'service_type', 'details', 'start_time', 'end_time', 'timezone', 'confirmed']
+                required: ['full_name', 'service_type', 'details', 'start_time', 'timezone', 'confirmed']
             }
         },
         {

@@ -588,7 +588,8 @@ function buildInstructions(input: {
     `If you can't find it in knowledge_search or you're not sure, do NOT guess; say you'll note it and have the team follow up.`,
     `If the caller asks about the business, use knowledge_search to answer accurately.`,
     `Scheduling policy: the caller can request a specific date/time or ask what times are available on a day.`,
-    `- If they request a time (e.g. "tomorrow at 1pm"): call get_availability(start_time="tomorrow at 1pm"). If available, offer it. If not, suggest closests.`,
+    `- If they request a time (e.g. "tomorrow at 1pm"): call get_availability(start_time="tomorrow at 1pm"). If available, say "Yes, that time is available" and confirm the booking summary immediately. Do NOT list it as an option asking "which works best?".`,
+    `- If the requested time is NOT available, suggest the closest options returned.`,
     `- If they ask "what times are available on Monday": call get_availability for that day and offer a small set of options (e.g., 3-5).`,
     `If get_availability fails or returns error, apologize and ask for the time again or a different day.`,
     `If get_availability returns no slots, expand the window once before telling the caller there are no openings.`,
@@ -2277,7 +2278,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
               type: 'server_vad',
               threshold: Number(envFirst(['REALTIME_VAD_THRESHOLD']) || 0.75),
               prefix_padding_ms: 300,
-              silence_duration_ms: Number(envFirst(['REALTIME_SILENCE_MS']) || 400),
+              silence_duration_ms: Number(envFirst(['REALTIME_SILENCE_MS']) || 800),
             },
           },
         });
