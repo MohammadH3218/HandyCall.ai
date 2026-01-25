@@ -1532,6 +1532,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
             timezone: tz,
             customer_name: customerName,
             notes,
+            confirmed: true,
           });
           intake.preferred_time = pendingSlot.label;
           syncIntakeToModel();
@@ -1913,6 +1914,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
             timezone: tz,
             customer_name: customerName,
             notes,
+            confirmed: true,
           });
           intake.preferred_time = pendingSlot.label;
           syncIntakeToModel();

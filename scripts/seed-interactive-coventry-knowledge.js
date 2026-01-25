@@ -24,7 +24,13 @@ const EMBEDDING_MODEL_ID = process.env.OPENAI_EMBEDDING_MODEL_ID || 'text-embedd
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({ region: REGION }), {
   marshallOptions: { removeUndefinedValues: true, convertClassInstanceToMap: true },
 });
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY }); // Ensure OPENAI_API_KEY is in env
+const apiKey = process.env.OPENAI_API_KEY;
+let openai;
+if (apiKey) {
+  openai = new OpenAI({ apiKey });
+} else {
+  console.warn('WARNING: OPENAI_API_KEY not found. Skipping embeddings generation (keyword search fallback will be used).');
+}
 
 function splitTextIntoChunks(text, chunkSize = 500, overlap = 50) {
   const cleaned = String(text || '').replace(/\r\n/g, '\n');
@@ -40,11 +46,22 @@ function splitTextIntoChunks(text, chunkSize = 500, overlap = 50) {
 }
 
 async function generateEmbedding(text) {
-  const response = await openai.embeddings.create({
-    model: EMBEDDING_MODEL_ID,
-    input: text,
-  });
-  return response.data[0].embedding;
+  if (!openai) {
+    // Return a dummy 1536-dim vector or empty if downstream supports it. 
+    // DynamoDB doesn't care about content, but application might. 
+    // For now, return empty array which indicates "no embedding".
+    return [];
+  }
+  try {
+    const response = await openai.embeddings.create({
+      model: EMBEDDING_MODEL_ID,
+      input: text,
+    });
+    return response.data[0].embedding;
+  } catch (err) {
+    console.warn('Embedding generation failed:', err.message);
+    return [];
+  }
 }
 
 async function chunkAndStoreKnowledge(companyId, knowledgeId, fullText) {
