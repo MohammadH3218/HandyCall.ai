@@ -8,18 +8,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
-import { Badge } from '@/components/ui/badge';
-import { X } from 'lucide-react';
-
 export default function SettingsPage() {
   const { company } = useAuthStore();
   const [formData, setFormData] = useState({
     company_name: '',
     phone_number: '',
     timezone: '',
-    service_area_zipcodes: [] as string[],
   });
-  const [zipInput, setZipInput] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState('');
   const [myNumber, setMyNumber] = useState<string | null>(null);
@@ -36,7 +31,6 @@ export default function SettingsPage() {
       company_name: company.company_name,
       phone_number: company.phone_number ?? '',
       timezone: company.timezone,
-      service_area_zipcodes: (company as any).service_area_zipcodes ?? [],
     });
   }, [company]);
 
@@ -70,32 +64,6 @@ export default function SettingsPage() {
     }
   };
 
-  const handleAddZip = () => {
-    const val = zipInput.trim();
-    if (val && /^\d{5}$/.test(val)) {
-      if (!formData.service_area_zipcodes.includes(val)) {
-        setFormData((prev) => ({
-          ...prev,
-          service_area_zipcodes: [...prev.service_area_zipcodes, val],
-        }));
-      }
-      setZipInput('');
-    }
-  };
-
-  const handleRemoveZip = (zip: string) => {
-    setFormData((prev) => ({
-      ...prev,
-      service_area_zipcodes: prev.service_area_zipcodes.filter((z) => z !== zip),
-    }));
-  };
-
-  const handleZipKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      handleAddZip();
-    }
-  };
 
   return (
     <div className="p-8 max-w-4xl">
@@ -205,50 +173,6 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Service Area</CardTitle>
-            <CardDescription>
-              Restrict bookings to specific zip codes. Leave empty to allow all areas.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="flex gap-2">
-                <Input
-                  placeholder="Enter 5-digit Zip Code"
-                  value={zipInput}
-                  onChange={(e) => setZipInput(e.target.value)}
-                  onKeyDown={handleZipKeyDown}
-                  maxLength={5}
-                />
-                <Button type="button" onClick={handleAddZip} variant="secondary">
-                  Add
-                </Button>
-              </div>
-
-              <div className="flex flex-wrap gap-2">
-                {formData.service_area_zipcodes.length === 0 && (
-                  <span className="text-sm text-gray-500 italic">Open Territory (All zip codes allowed)</span>
-                )}
-                {formData.service_area_zipcodes.map((zip) => (
-                  <Badge key={zip} variant="outline" className="text-sm py-1 px-3">
-                    {zip}
-                    <button
-                      onClick={() => handleRemoveZip(zip)}
-                      className="ml-2 hover:text-destructive focus:outline-none"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </Badge>
-                ))}
-              </div>
-              <p className="text-xs text-gray-500">
-                The AI will check this list when a customer requests service.
-              </p>
-            </div>
-          </CardContent>
-        </Card>
       </div>
     </div>
   );

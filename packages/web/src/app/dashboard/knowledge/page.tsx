@@ -5,9 +5,10 @@ import { apiClient } from '@/lib/api-client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { MessageSquare, Plus, Edit2, Trash2, X } from 'lucide-react';
+import { MessageSquare, Plus, Edit2, Trash2, X, MapPin } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
+import { ServiceAreaTab } from './service-area-tab';
 
 interface KnowledgeItem {
   knowledge_id: string;
@@ -21,6 +22,9 @@ interface KnowledgeItem {
 }
 
 export default function KnowledgePage() {
+  const [activeTab, setActiveTab] = useState<'knowledge' | 'service-area'>('knowledge');
+
+  // Knowledge Items State
   const [items, setItems] = useState<KnowledgeItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -39,8 +43,10 @@ export default function KnowledgePage() {
   });
 
   useEffect(() => {
-    loadItems();
-  }, []);
+    if (activeTab === 'knowledge') {
+      loadItems();
+    }
+  }, [activeTab]);
 
   const loadItems = async () => {
     try {
@@ -121,96 +127,126 @@ export default function KnowledgePage() {
     }
   };
 
-  if (error) {
-    return (
-      <div className="p-8">
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-          <p className="text-red-800">{error}</p>
-          <button onClick={loadItems} className="mt-2 text-sm text-red-600 hover:text-red-800 underline">
-            Try again
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="p-8 animate-fade-in">
+    <div className="p-8 animate-fade-in max-w-5xl mx-auto">
       <div className="mb-8 flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Knowledge Base</h1>
-          <p className="mt-2 text-gray-600">Teach your AI about your services and policies</p>
+          <p className="mt-2 text-gray-600">Teach your AI about your services, policies, and service areas.</p>
         </div>
-        <Button onClick={handleCreate}>
-          <Plus className="h-4 w-4 mr-2" />
-          Add Knowledge
-        </Button>
+        {activeTab === 'knowledge' && (
+          <Button onClick={handleCreate}>
+            <Plus className="h-4 w-4 mr-2" />
+            Add Knowledge
+          </Button>
+        )}
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Your Knowledge Items ({items.length})</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="space-y-3">
-              {[1, 2, 3, 4].map((i) => (
-                <div key={i} className="animate-pulse">
-                  <div className="h-6 bg-gray-200 rounded w-2/3 mb-2"></div>
-                  <div className="h-4 bg-gray-200 rounded w-full"></div>
-                </div>
-              ))}
-            </div>
-          ) : items.length > 0 ? (
-            <div className="space-y-4">
-              {items.map((item) => (
-                <div key={item.knowledge_id} className="border border-gray-200 rounded-lg p-4 hover:border-blue-500 transition-all">
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-2">
-                        <h3 className="font-semibold text-gray-900">{item.title}</h3>
-                        <span className={`text-xs px-2 py-1 rounded-full ${getTypeColor(item.type)}`}>
-                          {item.type}
-                        </span>
-                      </div>
-                      <p className="text-sm text-gray-600 line-clamp-2">{item.content}</p>
-                      {item.tags && item.tags.length > 0 && (
-                        <div className="flex gap-2 mt-2">
-                          {item.tags.map((tag, idx) => (
-                            <span key={idx} className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded">
-                              {tag}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex gap-2">
-                      <Button variant="ghost" size="sm" onClick={() => handleEdit(item)}>
-                        <Edit2 className="h-4 w-4" />
-                      </Button>
-                      <Button variant="ghost" size="sm" onClick={() => handleDelete(item.knowledge_id)}>
-                        <Trash2 className="h-4 w-4 text-red-600" />
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-12">
-              <MessageSquare className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">No knowledge items yet</h3>
-              <p className="text-sm text-gray-500 mb-6">
-                Add FAQs, service information, and policies to help your AI answer customer questions.
-              </p>
-              <Button onClick={handleCreate}>
-                <Plus className="h-4 w-4 mr-2" />
-                Add Your First Item
-              </Button>
+      {/* Tabs */}
+      <div className="flex space-x-2 border-b border-gray-200 mb-8">
+        <button
+          onClick={() => setActiveTab('knowledge')}
+          className={`flex items-center px-4 py-2 border-b-2 font-medium text-sm transition-colors ${activeTab === 'knowledge'
+              ? 'border-blue-500 text-blue-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+        >
+          <MessageSquare className="h-4 w-4 mr-2" />
+          Q&A and Info
+        </button>
+        <button
+          onClick={() => setActiveTab('service-area')}
+          className={`flex items-center px-4 py-2 border-b-2 font-medium text-sm transition-colors ${activeTab === 'service-area'
+              ? 'border-blue-500 text-blue-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+        >
+          <MapPin className="h-4 w-4 mr-2" />
+          Service Area
+        </button>
+      </div>
+
+      {activeTab === 'knowledge' && (
+        <>
+          {error && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+              <p className="text-red-800">{error}</p>
+              <button onClick={loadItems} className="mt-2 text-sm text-red-600 hover:text-red-800 underline">
+                Try again
+              </button>
             </div>
           )}
-        </CardContent>
-      </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Your Knowledge Items ({items.length})</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {isLoading ? (
+                <div className="space-y-3">
+                  {[1, 2, 3, 4].map((i) => (
+                    <div key={i} className="animate-pulse">
+                      <div className="h-6 bg-gray-200 rounded w-2/3 mb-2"></div>
+                      <div className="h-4 bg-gray-200 rounded w-full"></div>
+                    </div>
+                  ))}
+                </div>
+              ) : items.length > 0 ? (
+                <div className="space-y-4">
+                  {items.map((item) => (
+                    <div key={item.knowledge_id} className="border border-gray-200 rounded-lg p-4 hover:border-blue-500 transition-all">
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-2">
+                            <h3 className="font-semibold text-gray-900">{item.title}</h3>
+                            <span className={`text-xs px-2 py-1 rounded-full ${getTypeColor(item.type)}`}>
+                              {item.type}
+                            </span>
+                          </div>
+                          <p className="text-sm text-gray-600 line-clamp-2">{item.content}</p>
+                          {item.tags && item.tags.length > 0 && (
+                            <div className="flex gap-2 mt-2">
+                              {item.tags.map((tag, idx) => (
+                                <span key={idx} className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded">
+                                  {tag}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex gap-2">
+                          <Button variant="ghost" size="sm" onClick={() => handleEdit(item)}>
+                            <Edit2 className="h-4 w-4" />
+                          </Button>
+                          <Button variant="ghost" size="sm" onClick={() => handleDelete(item.knowledge_id)}>
+                            <Trash2 className="h-4 w-4 text-red-600" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-12">
+                  <MessageSquare className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">No knowledge items yet</h3>
+                  <p className="text-sm text-gray-500 mb-6">
+                    Add FAQs, service information, and policies to help your AI answer customer questions.
+                  </p>
+                  <Button onClick={handleCreate}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Your First Item
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </>
+      )}
+
+      {activeTab === 'service-area' && (
+        <ServiceAreaTab />
+      )}
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="max-w-2xl">

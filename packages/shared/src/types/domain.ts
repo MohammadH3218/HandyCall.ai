@@ -63,6 +63,7 @@ export interface Company {
   connect_instance_id?: string; // Connect instance ID
 
   use_simple_scheduling?: boolean; // Fallback to simple time slots
+  service_area_zipcodes?: string[];
 
   // Calendar / scheduling setup
   calendar_setup_completed?: boolean;

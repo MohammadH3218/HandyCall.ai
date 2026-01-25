@@ -75,6 +75,8 @@ export class UpdateCompanyDto {
 
   @IsOptional()
   @IsIn(['INTERNAL', 'EXTERNAL'])
+  @IsOptional()
+  @IsIn(['INTERNAL', 'EXTERNAL'])
   calendar_mode?: 'INTERNAL' | 'EXTERNAL';
 
   @IsOptional()
@@ -84,4 +86,9 @@ export class UpdateCompanyDto {
   @IsOptional()
   @IsObject()
   calendar_connection?: any;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  service_area_zipcodes?: string[];
 }
