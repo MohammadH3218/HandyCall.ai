@@ -1272,17 +1272,19 @@ wss.on('connection', (twilioWs: WebSocket) => {
           },
         });
       } else {
+        const companyName = tenant?.company_name || 'HandyCall';
+        const greetingText = `Hi, thanks for calling ${companyName}. How can I help you today?`;
         sendToOpenAI(openaiWs, {
           type: 'response.create',
           response: {
             modalities: ['audio', 'text'],
-            instructions: 'Give one short greeting (do not repeat it) and ask how you can help.',
+            instructions: `Say exactly: "${greetingText}"`,
           },
         });
       }
       noResponseStage = 0;
       armNoResponseTimer();
-    }, 1500);
+    }, 400);
   }
 
   function sendPrompt(text: string, options?: { max_output_tokens?: number }) {
