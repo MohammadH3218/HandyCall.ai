@@ -1712,6 +1712,34 @@ wss.on('connection', (twilioWs: WebSocket) => {
     return true;
   }
 
+  async function ensureServiceArea(zip: string): Promise<boolean> {
+    if (!ctx || !openaiWs) return false;
+    try {
+      isProcessingTool = true;
+      const result = await invokeTool(ctx, 'check_service_area', { zip });
+      const serviced = typeof result?.serviced === 'boolean' ? result.serviced : true;
+      if (!serviced) {
+        sendPrompt(result?.message || "Sorry, we don't service that area.");
+        if (!pendingAutoHangup) {
+          pendingAutoHangup = true;
+          pendingHangupMarkName = `service_area_${Date.now()}`;
+        }
+        scheduleForcedHangup('service area not serviced');
+        sessionContext.state = 'CLOSING';
+        return false;
+      }
+      return true;
+    } catch (err: any) {
+      log('check_service_area failed (fsm)', err?.message ?? String(err));
+      sendPrompt(
+        "I'm having trouble checking the service area right now. I can take your details and have the team follow up."
+      );
+      return true;
+    } finally {
+      isProcessingTool = false;
+    }
+  }
+
   async function handleFsmTurn(text: string): Promise<boolean> {
     if (!ctx || !openaiWs) return false;
     const trimmed = text.trim();
@@ -1732,26 +1760,20 @@ wss.on('connection', (twilioWs: WebSocket) => {
       }
       sessionContext.intent = 'booking';
       resetFsmBookingContext();
-      const name = extractNameValue(trimmed);
-      if (name) {
-        // Check if we have at least first and last name
-        const nameParts = name.trim().split(/\s+/).filter(Boolean);
-        if (nameParts.length >= 2) {
-          pendingName = name;
-          sessionContext.customerName = name;
-          sessionContext.state = 'CONFIRM_NAME';
-          sendPrompt(`Just to confirm, is the name ${name}?`);
-          return true;
-        } else {
-          // Only first name provided, ask for last name
-          pendingName = name;
-          sessionContext.state = 'ASK_NAME';
-          sendPrompt(`Thanks, ${name}. And what's your last name?`);
-          return true;
-        }
+      const zip = extractZipValue(trimmed);
+      if (zip) {
+        pendingZip = zip;
+        sessionContext.zipCode = zip;
+        intake.zip = zip;
+        syncIntakeToModel();
+        const serviced = await ensureServiceArea(zip);
+        if (!serviced) return true;
+        sessionContext.state = 'ASK_NAME';
+        sendPrompt("Thanks. What's your first and last name?");
+        return true;
       }
-      sessionContext.state = 'ASK_NAME';
-      sendPrompt("Sure, what's your first and last name?");
+      sessionContext.state = 'ASK_ZIP';
+      sendPrompt("Sure, what's your 5-digit zip code?");
       return true;
     }
 
@@ -1764,8 +1786,10 @@ wss.on('connection', (twilioWs: WebSocket) => {
           const fullName = `${pendingName} ${lastName}`;
           pendingName = fullName;
           sessionContext.customerName = fullName;
-          sessionContext.state = 'CONFIRM_NAME';
-          sendPrompt(`Just to confirm, is the name ${fullName}?`);
+          intake.name = fullName;
+          syncIntakeToModel();
+          sessionContext.state = 'ASK_TIME';
+          sendPrompt('Thanks. What day and time would you prefer?');
           return true;
         } else {
           sendPrompt("Sorry, I didn't catch that. What's your last name?");
@@ -1790,8 +1814,10 @@ wss.on('connection', (twilioWs: WebSocket) => {
 
       pendingName = name;
       sessionContext.customerName = name;
-      sessionContext.state = 'CONFIRM_NAME';
-      sendPrompt(`Just to confirm, is the name ${name}?`);
+      intake.name = name;
+      syncIntakeToModel();
+      sessionContext.state = 'ASK_TIME';
+      sendPrompt('Thanks. What day and time would you prefer?');
       return true;
     }
 
@@ -1801,8 +1827,13 @@ wss.on('connection', (twilioWs: WebSocket) => {
           intake.name = pendingName;
           syncIntakeToModel();
         }
-        sessionContext.state = 'ASK_ZIP';
-        sendPrompt("Thanks. What's your 5-digit zip code?");
+        if (intake.zip) {
+          sessionContext.state = 'ASK_TIME';
+          sendPrompt('Thanks. What day and time would you prefer?');
+        } else {
+          sessionContext.state = 'ASK_ZIP';
+          sendPrompt("Thanks. What's your 5-digit zip code?");
+        }
         return true;
       }
       if (isNegative(trimmed)) {
@@ -1828,8 +1859,12 @@ wss.on('connection', (twilioWs: WebSocket) => {
       }
       pendingZip = zip;
       sessionContext.zipCode = zip;
-      sessionContext.state = 'CONFIRM_ZIP';
-      sendPrompt(`Got it, that's ${zipToSpoken(zip)}, right?`);
+      intake.zip = zip;
+      syncIntakeToModel();
+      const serviced = await ensureServiceArea(zip);
+      if (!serviced) return true;
+      sessionContext.state = 'ASK_NAME';
+      sendPrompt("Thanks. What's your first and last name?");
       return true;
     }
 
@@ -3069,8 +3104,6 @@ wss.on('connection', (twilioWs: WebSocket) => {
 
     if (event?.event === 'connected') {
       log('Twilio stream connected');
-      twilioStreamReady = true;
-      tryInitialGreeting();
       return;
     }
 
