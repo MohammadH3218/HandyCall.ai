@@ -558,22 +558,41 @@ function buildInstructions(input: {
   company_name: string;
   service_type?: string;
   timezone?: string;
+  service_template?: any;
   extra?: string;
 }) {
-  const { company_name, service_type, timezone, extra } = input;
+  const { company_name, service_type, timezone, service_template, extra } = input;
 
   const isPestControl = (service_type || '').toUpperCase() === 'PEST_CONTROL';
-
+  const templatePrompt = typeof service_template?.base_system_prompt === 'string'
+    ? service_template.base_system_prompt
+    : null;
+  const renderedTemplatePrompt = templatePrompt
+    ? templatePrompt.replace(/\{company_name\}/g, company_name)
+    : null;
+  const requireZipCheck = service_template?.tool_policy?.require_zip_check === true;
 
   const lines = [
-    `You are a friendly, natural-sounding receptionist for ${company_name}.`,
+    renderedTemplatePrompt || `You are a friendly, natural-sounding receptionist for ${company_name}.`,
     `Speak in English only.`,
     `Your job: quickly understand the caller's need, capture details, and either schedule or create a lead.`,
-    `CRITICAL RULE: If the caller wants to book a service or appointment, you MUST ask for their 5-digit Zip Code FIRST, before asking for their name, address, or details.`,
-    `Once you get the Zip Code, IMMEDIATELY call check_service_area(zip).`,
-    `- If it returns false (not serviced): Apologize, explain you only serve specific areas, and politely end the call (do NOT ask for name).`,
-    `- If it returns true (serviced): Confirm the zip code, then proceed to ask for their Name and Service needs.`,
-    isPestControl ? `Pest Control Flow: 1. Zip Code -> 2. Pest Type (ants, roaches, etc.) -> 3. Name -> 4. Address -> 5. Schedule.` : `General Flow: 1. Zip Code -> 2. Problem Description -> 3. Name -> 4. Address -> 5. Schedule.`,
+    requireZipCheck
+      ? `CRITICAL RULE: If the caller wants to book a service or appointment, ask for their 5-digit Zip Code FIRST, before asking for their name or address.`
+      : `If a service-area check is enabled, ask for the ZIP before name/address; otherwise, you may proceed without ZIP.`,
+    requireZipCheck
+      ? `Once you get the Zip Code, IMMEDIATELY call check_service_area(zip).`
+      : `Call check_service_area(zip) only if the service area check is enabled or a ZIP is explicitly provided.`,
+    requireZipCheck
+      ? `- If it returns false (not serviced): Apologize, explain you only serve specific areas, and politely end the call (do NOT ask for name).`
+      : null,
+    requireZipCheck
+      ? `- If it returns true (serviced): Confirm the zip code, then proceed to ask for their Name and Service needs.`
+      : null,
+    requireZipCheck
+      ? (isPestControl
+        ? `Pest Control Flow: 1. Zip Code -> 2. Pest Type (ants, roaches, etc.) -> 3. Name -> 4. Address -> 5. Schedule.`
+        : `General Flow: 1. Zip Code -> 2. Problem Description -> 3. Name -> 4. Address -> 5. Schedule.`)
+      : null,
     `Be conversational and adaptive while still collecting what is needed.`,
     `WAIT FOR RESPONSE: Ask only ONE question per turn. You MUST wait for the caller to respond before asking another question. NEVER ask two questions in a row.`,
     `STOP AND LISTEN: After asking a question, STOP SPEAKING and wait for the caller's answer. Do not continue talking.`,
@@ -611,9 +630,17 @@ function buildInstructions(input: {
     `- Call create_lead early, once you know the caller's phone number and intent.`,
     `- Call save_call near the end with a concise summary + collected fields (not a verbatim transcript).`,
     `- Use get_availability + create_booking for scheduling; never guess availability.`,
-    `- Always call check_service_area(zip) as the FIRST step of booking.`,
-    `- Before calling get_availability, collect name and zip (or address) and verify service area.`,
+    requireZipCheck ? `- Always call check_service_area(zip) as the FIRST step of booking.` : `- Call check_service_area(zip) only if required for this business.`,
+    requireZipCheck
+      ? `- Before calling get_availability, collect name and zip (or address) and verify service area.`
+      : `- Before calling get_availability, collect the caller's name and service needs; get ZIP/address if required.`,
     `- Never present specific available times unless they came from get_availability in the current turn.`,
+    service_template?.intake_schema?.required?.length
+      ? `Required intake fields: ${service_template.intake_schema.required.join(', ')}.`
+      : null,
+    service_template?.intake_schema?.optional?.length
+      ? `Optional intake fields: ${service_template.intake_schema.optional.join(', ')}.`
+      : null,
     extra ? `Extra instructions: ${extra}` : null,
   ].filter(Boolean) as string[];
   return lines.join('\n');
@@ -1681,6 +1708,13 @@ wss.on('connection', (twilioWs: WebSocket) => {
     sessionContext.proposedTime = undefined;
   }
 
+  function requiresServiceAreaCheck(): boolean {
+    const policy = tenant?.service_template?.tool_policy;
+    if (typeof policy?.require_zip_check === 'boolean') return policy.require_zip_check;
+    const zips = tenant?.service_area_zipcodes;
+    return Array.isArray(zips) && zips.length > 0;
+  }
+
   async function answerWithKnowledge(question: string): Promise<boolean> {
     if (!ctx || !openaiWs) return false;
     sessionContext.state = 'ANSWERING';
@@ -1714,10 +1748,16 @@ wss.on('connection', (twilioWs: WebSocket) => {
 
   async function ensureServiceArea(zip: string): Promise<boolean> {
     if (!ctx || !openaiWs) return false;
+    if (!requiresServiceAreaCheck()) return true;
     try {
       isProcessingTool = true;
       const result = await invokeTool(ctx, 'check_service_area', { zip });
-      const serviced = typeof result?.serviced === 'boolean' ? result.serviced : true;
+      const serviced =
+        typeof result?.serviced === 'boolean'
+          ? result.serviced
+          : typeof result?.eligible === 'boolean'
+            ? result.eligible
+            : true;
       if (!serviced) {
         sendPrompt(result?.message || "Sorry, we don't service that area.");
         if (!pendingAutoHangup) {
@@ -1749,6 +1789,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
     const isGreeting = /^(hi|hello|hey)\b/i.test(trimmed) && trimmed.split(/\s+/).length <= 3;
     const bookingIntent = hasBookingIntent(trimmed);
     const questionIntent = looksLikeQuestion(trimmed);
+    const requireZipCheck = requiresServiceAreaCheck();
 
     if (sessionContext.state === 'GREETING') {
       if (isGreeting && !bookingIntent && !questionIntent) {
@@ -1760,20 +1801,47 @@ wss.on('connection', (twilioWs: WebSocket) => {
       }
       sessionContext.intent = 'booking';
       resetFsmBookingContext();
-      const zip = extractZipValue(trimmed);
-      if (zip) {
-        pendingZip = zip;
-        sessionContext.zipCode = zip;
-        intake.zip = zip;
-        syncIntakeToModel();
-        const serviced = await ensureServiceArea(zip);
-        if (!serviced) return true;
-        sessionContext.state = 'ASK_NAME';
-        sendPrompt("Thanks. What's your first and last name?");
+      if (requireZipCheck) {
+        const zip = extractZipValue(trimmed);
+        if (zip) {
+          pendingZip = zip;
+          sessionContext.zipCode = zip;
+          intake.zip = zip;
+          syncIntakeToModel();
+          const serviced = await ensureServiceArea(zip);
+          if (!serviced) return true;
+          sessionContext.state = 'ASK_NAME';
+          sendPrompt("Thanks. What's your first and last name?");
+          return true;
+        }
+        sessionContext.state = 'ASK_ZIP';
+        sendPrompt("Sure, what's your 5-digit zip code?");
         return true;
       }
-      sessionContext.state = 'ASK_ZIP';
-      sendPrompt("Sure, what's your 5-digit zip code?");
+
+      const name = extractNameValue(trimmed);
+      if (name) {
+        const nameParts = name.trim().split(/\s+/).filter(Boolean);
+        if (nameParts.length < 2) {
+          pendingName = name;
+          sessionContext.state = 'ASK_NAME';
+          sendPrompt(`Thanks, ${name}. And what's your last name?`);
+          return true;
+        }
+        pendingName = name;
+        sessionContext.customerName = name;
+        intake.name = name;
+        syncIntakeToModel();
+        sessionContext.state = requireZipCheck && !intake.zip ? 'ASK_ZIP' : 'ASK_TIME';
+        sendPrompt(
+          sessionContext.state === 'ASK_ZIP'
+            ? "Thanks. What's your 5-digit zip code?"
+            : 'Thanks. What day and time would you prefer?'
+        );
+        return true;
+      }
+      sessionContext.state = 'ASK_NAME';
+      sendPrompt("Sure, what's your first and last name?");
       return true;
     }
 
@@ -1788,8 +1856,12 @@ wss.on('connection', (twilioWs: WebSocket) => {
           sessionContext.customerName = fullName;
           intake.name = fullName;
           syncIntakeToModel();
-          sessionContext.state = 'ASK_TIME';
-          sendPrompt('Thanks. What day and time would you prefer?');
+          sessionContext.state = requireZipCheck && !intake.zip ? 'ASK_ZIP' : 'ASK_TIME';
+          sendPrompt(
+            sessionContext.state === 'ASK_ZIP'
+              ? "Thanks. What's your 5-digit zip code?"
+              : 'Thanks. What day and time would you prefer?'
+          );
           return true;
         } else {
           sendPrompt("Sorry, I didn't catch that. What's your last name?");
@@ -1816,8 +1888,12 @@ wss.on('connection', (twilioWs: WebSocket) => {
       sessionContext.customerName = name;
       intake.name = name;
       syncIntakeToModel();
-      sessionContext.state = 'ASK_TIME';
-      sendPrompt('Thanks. What day and time would you prefer?');
+      sessionContext.state = requireZipCheck && !intake.zip ? 'ASK_ZIP' : 'ASK_TIME';
+      sendPrompt(
+        sessionContext.state === 'ASK_ZIP'
+          ? "Thanks. What's your 5-digit zip code?"
+          : 'Thanks. What day and time would you prefer?'
+      );
       return true;
     }
 
@@ -1827,12 +1903,12 @@ wss.on('connection', (twilioWs: WebSocket) => {
           intake.name = pendingName;
           syncIntakeToModel();
         }
-        if (intake.zip) {
-          sessionContext.state = 'ASK_TIME';
-          sendPrompt('Thanks. What day and time would you prefer?');
-        } else {
+        if (requireZipCheck && !intake.zip) {
           sessionContext.state = 'ASK_ZIP';
           sendPrompt("Thanks. What's your 5-digit zip code?");
+        } else {
+          sessionContext.state = 'ASK_TIME';
+          sendPrompt('Thanks. What day and time would you prefer?');
         }
         return true;
       }
@@ -1848,6 +1924,11 @@ wss.on('connection', (twilioWs: WebSocket) => {
     }
 
     if (sessionContext.state === 'ASK_ZIP') {
+      if (!requireZipCheck) {
+        sessionContext.state = 'ASK_NAME';
+        sendPrompt("Thanks. What's your first and last name?");
+        return true;
+      }
       const zip = extractZipValue(trimmed);
       if (!zip) {
         if (looksLikeAddress(trimmed)) {
@@ -1863,8 +1944,12 @@ wss.on('connection', (twilioWs: WebSocket) => {
       syncIntakeToModel();
       const serviced = await ensureServiceArea(zip);
       if (!serviced) return true;
-      sessionContext.state = 'ASK_NAME';
-      sendPrompt("Thanks. What's your first and last name?");
+      sessionContext.state = intake.name ? 'ASK_TIME' : 'ASK_NAME';
+      sendPrompt(
+        sessionContext.state === 'ASK_TIME'
+          ? 'Thanks. What day and time would you prefer?'
+          : "Thanks. What's your first and last name?"
+      );
       return true;
     }
 
@@ -2327,6 +2412,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
         company_name: tenant.company_name,
         service_type: tenant.service_type,
         timezone: tenant.timezone,
+        service_template: tenant.service_template,
         extra: tenant?.agent_config?.realtime_instructions,
       });
 

@@ -20,6 +20,26 @@ export interface TenantResolveResponse {
     company_name: string;
     timezone: string;
     service_template_id: string;
+    service_template?: {
+        template_id: string;
+        name: string;
+        category?: string;
+        base_system_prompt: string;
+        intake_schema?: {
+            required?: string[];
+            optional?: string[];
+            conditional?: Record<string, any>;
+        };
+        booking_defaults?: {
+            duration_minutes?: number;
+            buffer_minutes?: number;
+        };
+        tool_policy?: {
+            require_zip_check?: boolean;
+            require_confirm?: boolean;
+            allowed_tools?: string[];
+        };
+    };
     subscription_status: 'active' | 'trial' | 'past_due' | 'canceled' | 'inactive';
     calls_enabled: boolean;
 

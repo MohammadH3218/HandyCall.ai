@@ -232,12 +232,21 @@ export class RealtimeToolsService {
 
     const config = (await this.agentConfig.getConfig(company.company_id)) ?? undefined;
 
+    const service_template_id = (company as any).service_template_id || 'tmpl_handyman_v1';
+    let service_template: any = null;
+    try {
+      service_template = await this.dynamodb.get('service_templates', { template_id: service_template_id });
+    } catch {
+      service_template = null;
+    }
+
     return {
       company_id: company.company_id,
       company_name: company.company_name,
       timezone: company.timezone,
       service_type: company.service_type,
-      service_template_id: (company as any).service_template_id || 'tmpl_handyman_v1', // Fallback
+      service_template_id,
+      service_template: service_template || undefined,
       subscription_status: (company as any).subscription_status || 'active',
       calls_enabled: company.calls_enabled !== (false as any),
       business_hours: company.business_hours,
