@@ -32,14 +32,11 @@ export function toolsSchema() {
             parameters: {
                 type: 'object',
                 properties: {
-                    preferred_time: { type: 'string', description: 'Specific time requested by caller (ISO or natural language).' },
-                    window_start: { type: 'string' },
-                    window_end: { type: 'string' },
-                    duration_minutes: { type: 'number' },
-                    timezone: { type: 'string' },
-                    limit: { type: 'number' }
+                    start_time: { type: 'string', description: 'Requested time or day (ISO or natural language).' },
+                    end_time: { type: 'string', description: 'Optional end of the window (ISO or natural language).' },
+                    timezone: { type: 'string' }
                 },
-                required: []
+                required: ['start_time']
             }
         },
         {
