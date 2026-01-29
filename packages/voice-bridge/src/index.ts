@@ -2390,6 +2390,11 @@ wss.on('connection', (twilioWs: WebSocket) => {
       ctx = { callSid, streamSid, from, to, company_id: tenant.company_id, startedAt };
       log('Media stream started', { to, from, company_id: tenant.company_id });
 
+      if (!twilioStreamReady) {
+        twilioStreamReady = true;
+        tryInitialGreeting();
+      }
+
       activeCalls.set(callSid, {
         company_id: tenant.company_id,
         from,
