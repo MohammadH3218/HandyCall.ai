@@ -162,6 +162,28 @@ function isFillerUtterance(text: string) {
   return normalized.split(' ').length <= 2 && fillerUtterances.has(normalized);
 }
 
+function isOutroText(text: string) {
+  const normalized = String(text || '')
+    .toLowerCase()
+    .replace(/[^\w\s']/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!normalized) return false;
+  const patterns = [
+    /\bthank you for calling\b/,
+    /\bthanks for calling\b/,
+    /\bthanks for your call\b/,
+    /\bwe appreciate your call\b/,
+    /\bhave a great day\b/,
+    /\bhave a good day\b/,
+    /\bbye\b/,
+    /\bgoodbye\b/,
+    /\btake care\b/,
+    /\btalk to you soon\b/,
+  ];
+  return patterns.some((pattern) => pattern.test(normalized));
+}
+
 function looksLikeIso(value?: string) {
   if (!value) return false;
   const v = value.trim();
@@ -572,6 +594,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
   let lastAvailabilitySlots: string[] = [];
   let lastAvailabilityTimezone: string | null = null;
   let lastAvailabilityAt = 0;
+  let endCallScheduled = false;
 
   function tryGreet() {
     if (!openaiWs || !openaiReady || !twilioReady || greeted) return;
@@ -599,6 +622,17 @@ wss.on('connection', (twilioWs: WebSocket) => {
       // ignore
     }
     openaiWs = null;
+  }
+
+  function scheduleEndCall() {
+    if (endCallScheduled) return;
+    endCallScheduled = true;
+    setTimeout(() => {
+      if (!ctx) return;
+      callTool(ctx, 'end_call', {}).catch((err: any) =>
+        console.warn('[bridge] end_call failed', err?.message ?? String(err))
+      );
+    }, 800);
   }
 
   async function connectOpenAI(tenant: TenantInfo) {
@@ -669,6 +703,9 @@ wss.on('connection', (twilioWs: WebSocket) => {
       if (msg?.type === 'response.audio_transcript.done') {
         const text = msg?.transcript;
         if (text) transcript.push(`Assistant: ${text}`);
+        if (text && isOutroText(text)) {
+          scheduleEndCall();
+        }
         return;
       }
 
