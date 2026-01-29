@@ -132,6 +132,7 @@ type TenantInfo = {
   company_id: string;
   company_name: string;
   timezone?: string;
+  service_area_zipcodes?: string[];
   agent_config?: {
     realtime_model?: string;
     realtime_voice?: string;
@@ -141,19 +142,50 @@ type TenantInfo = {
   service_type?: string;
 };
 
-function buildInstructions(tenant: TenantInfo) {
+function formatFieldList(fields?: any[]): string | null {
+  if (!Array.isArray(fields) || fields.length === 0) return null;
+  const cleaned = fields.map((item) => String(item || '').trim()).filter(Boolean);
+  return cleaned.length ? cleaned.join(', ') : null;
+}
+
+function buildInstructions(tenant: TenantInfo, options: { serviceAreaRequired: boolean; defaultDurationMinutes: number }) {
   const name = tenant.company_name || 'our company';
   const extra = tenant.agent_config?.realtime_instructions;
-  const base = [
-    `You are the phone receptionist for ${name}.`,
+  const templatePrompt = typeof tenant.service_template?.base_system_prompt === 'string'
+    ? tenant.service_template.base_system_prompt
+    : null;
+  const renderedTemplatePrompt = templatePrompt ? templatePrompt.replace(/\{company_name\}/g, name) : null;
+  const requiredFields = formatFieldList(tenant.service_template?.intake_schema?.required);
+  const optionalFields = formatFieldList(tenant.service_template?.intake_schema?.optional);
+  const serviceAreaRequired = options.serviceAreaRequired;
+  const defaultDurationMinutes = options.defaultDurationMinutes;
+
+  const lines = [
+    renderedTemplatePrompt || `You are the phone receptionist for ${name}.`,
     `Greet the caller immediately and include the company name in the first sentence.`,
     `Be friendly, concise, and phone-like. Ask one question at a time.`,
     `You can answer FAQs and schedule/reschedule/cancel when asked.`,
-    `Before booking, summarize details and ask "Is that correct?" then call create_booking with confirmed:true.`,
-    `If you need company-specific info, use knowledge_search.`,
-  ];
-  if (extra && extra.trim()) base.push(extra.trim());
-  return base.join('\n');
+    `Never ask for the caller's phone number. Use the caller ID.`,
+    serviceAreaRequired
+      ? `If the caller wants to book or check availability, ask for their 5-digit ZIP code first and call check_service_area(zip) before proceeding.`
+      : `If service-area checks are enabled or the caller provides a ZIP, call check_service_area(zip) before booking.`,
+    serviceAreaRequired
+      ? `If the ZIP is not serviced, apologize and end the call politely.`
+      : `If the ZIP is not serviced, apologize and end the call politely.`,
+    requiredFields ? `Required intake fields for booking: ${requiredFields}.` : null,
+    optionalFields ? `Optional intake fields: ${optionalFields}.` : null,
+    `Collect the required info before asking for a date/time.`,
+    `For availability: call get_availability with start_time (natural language is OK) and timezone if known.`,
+    `Default appointment length is ${defaultDurationMinutes} minutes unless the caller requests a different duration.`,
+    `Before booking, summarize the details and ask: "Is that correct?" Only then call create_booking with confirmed:true.`,
+    `If the caller corrects anything, update it and summarize again for confirmation.`,
+    `If the caller asks about prior appointments, use list_appointments_by_phone.`,
+    `Use knowledge_search for company-specific questions (services, pricing, policies, service areas).`,
+    `After finishing the main task, ask: "Is there anything else I can help with today?" If no, give a short friendly goodbye.`,
+    extra && extra.trim() ? extra.trim() : null,
+  ].filter(Boolean) as string[];
+
+  return lines.join('\n');
 }
 
 async function resolveTenant(toNumber: string) {
@@ -183,14 +215,16 @@ async function callTool(ctx: CallContext, name: string, args: any) {
   }
 
   if (name === 'get_availability') {
+    const startTime = args?.start_time ?? args?.preferred_time ?? args?.window_start;
+    const endTime = args?.end_time ?? args?.window_end;
+    if (!startTime) {
+      return { ok: false, error: 'MissingStartTime', message: 'start_time is required' };
+    }
     return postJson(`${toolsBase}/tools/get_availability`, headers, {
       company_id: ctx.company_id,
-      preferred_time: args?.preferred_time,
-      window_start: args?.window_start,
-      window_end: args?.window_end,
-      duration_minutes: args?.duration_minutes,
+      start_time: startTime,
+      end_time: endTime,
       timezone: args?.timezone ?? ctx.timezone,
-      limit: args?.limit,
     });
   }
 
@@ -202,9 +236,23 @@ async function callTool(ctx: CallContext, name: string, args: any) {
         message: 'You must confirm booking details with the user first.',
       };
     }
+    const startTime = args?.start_time ?? args?.preferred_time;
+    if (!startTime) {
+      return { ok: false, error: 'MissingStartTime', message: 'start_time is required' };
+    }
+    let endTime = args?.end_time;
+    if (startTime && !endTime) {
+      const parsed = Date.parse(startTime);
+      if (Number.isFinite(parsed)) {
+        const minutes = Number(envFirst(['DEFAULT_APPOINTMENT_MINUTES']) || 120);
+        endTime = new Date(parsed + minutes * 60_000).toISOString();
+      }
+    }
     return postJson(`${toolsBase}/tools/create_booking`, headers, {
       company_id: ctx.company_id,
-      from_phone: ctx.from,
+      call_id: ctx.callSid,
+      start_time: startTime,
+      end_time: endTime,
       ...args,
     });
   }
@@ -238,7 +286,10 @@ async function callTool(ctx: CallContext, name: string, args: any) {
   if (name === 'create_lead') {
     return postJson(`${toolsBase}/tools/create_lead`, headers, {
       company_id: ctx.company_id,
-      from_phone: ctx.from,
+      from_number: ctx.from,
+      to_number: ctx.to,
+      call_id: ctx.callSid,
+      collected_info: args?.collected_info ?? args ?? {},
     });
   }
 
@@ -246,16 +297,17 @@ async function callTool(ctx: CallContext, name: string, args: any) {
     return postJson(`${toolsBase}/tools/save_call`, headers, {
       company_id: ctx.company_id,
       call_id: ctx.callSid,
-      from_phone: ctx.from,
-      to_phone: ctx.to,
       transcript: args?.transcript,
       summary: args?.summary,
+      duration_seconds: args?.duration_seconds,
+      collected_info: args?.collected_info,
     });
   }
 
   if (name === 'save_recording') {
     return postJson(`${toolsBase}/tools/save_recording`, headers, {
       company_id: ctx.company_id,
+      call_id: ctx.callSid,
       recording_sid: args?.recording_sid,
       duration_seconds: args?.duration_seconds,
     });
@@ -291,6 +343,7 @@ function sendToTwilio(ws: WebSocket, msg: any) {
 }
 
 const port = Number(process.env.PORT || 8080);
+const DEFAULT_APPOINTMENT_MINUTES = Number(envFirst(['DEFAULT_APPOINTMENT_MINUTES']) || 120);
 
 const server = http.createServer(async (req, res) => {
   try {
@@ -400,6 +453,8 @@ wss.on('connection', (twilioWs: WebSocket) => {
   let greeted = false;
   let assistantSpeaking = false;
   let lastAssistantAudioAt = 0;
+  let serviceAreaRequired = false;
+  let serviceAreaEligible: boolean | null = null;
 
   function tryGreet() {
     if (!openaiWs || !openaiReady || !twilioReady || greeted) return;
@@ -438,7 +493,10 @@ wss.on('connection', (twilioWs: WebSocket) => {
       tenant?.agent_config?.realtime_voice ||
       envFirst(['OPENAI_REALTIME_VOICE', 'REALTIME_VOICE']) ||
       'alloy';
-    const instructions = buildInstructions(tenant);
+    const instructions = buildInstructions(tenant, {
+      serviceAreaRequired,
+      defaultDurationMinutes: DEFAULT_APPOINTMENT_MINUTES,
+    });
     const openaiKey = await getSecret('OPENAI_API_KEY');
     const openaiUrl = `wss://api.openai.com/v1/realtime?model=${encodeURIComponent(model)}`;
 
@@ -530,7 +588,24 @@ wss.on('connection', (twilioWs: WebSocket) => {
         let result: any;
         try {
           if (!ctx) throw new Error('Missing call context');
-          result = await callTool(ctx, toolName, args);
+          if (
+            (toolName === 'get_availability' || toolName === 'create_booking') &&
+            serviceAreaRequired &&
+            serviceAreaEligible !== true
+          ) {
+            result = {
+              ok: false,
+              error: 'ServiceAreaNotConfirmed',
+              message: 'Ask for the 5-digit ZIP code and call check_service_area before booking.',
+            };
+          } else {
+            result = await callTool(ctx, toolName, args);
+            if (toolName === 'check_service_area') {
+              if (typeof (result as any)?.eligible === 'boolean') {
+                serviceAreaEligible = (result as any).eligible;
+              }
+            }
+          }
         } catch (err: any) {
           result = { ok: false, error: err?.message ?? String(err) };
         }
@@ -580,27 +655,33 @@ wss.on('connection', (twilioWs: WebSocket) => {
         return shutdown('token_mismatch');
       }
 
-      let tenant: TenantInfo;
+      let resolvedTenant: TenantInfo;
       try {
-        tenant = await resolveTenant(to);
+        resolvedTenant = await resolveTenant(to);
       } catch (err: any) {
         console.error('[twilio] resolveTenant failed', err?.message ?? String(err));
         return shutdown('tenant_resolve_failed');
       }
+
+      const templateRequiresZip = resolvedTenant?.service_template?.tool_policy?.require_zip_check === true;
+      const hasServiceZips =
+        Array.isArray(resolvedTenant?.service_area_zipcodes) && resolvedTenant.service_area_zipcodes.length > 0;
+      serviceAreaRequired = templateRequiresZip || hasServiceZips;
+      serviceAreaEligible = null;
 
       ctx = {
         callSid,
         streamSid,
         from,
         to,
-        company_id: tenant.company_id,
-        company_name: tenant.company_name,
-        timezone: tenant.timezone,
+        company_id: resolvedTenant.company_id,
+        company_name: resolvedTenant.company_name,
+        timezone: resolvedTenant.timezone,
         startedAt: Date.now(),
       };
 
       twilioReady = true;
-      await connectOpenAI(tenant);
+      await connectOpenAI(resolvedTenant);
 
       callTool(ctx, 'create_lead', { collected_info: {} }).catch((err: any) =>
         console.warn('[bridge] create_lead failed', err?.message ?? String(err))
@@ -622,11 +703,13 @@ wss.on('connection', (twilioWs: WebSocket) => {
     }
 
     if (msg?.event === 'stop') {
-      if (ctx && openaiWs) {
+      if (ctx) {
         const merged = transcript.join('\n');
+        const durationSeconds = Math.max(1, Math.ceil((Date.now() - ctx.startedAt) / 1000));
         callTool(ctx, 'save_call', {
           transcript: merged || undefined,
           summary: 'Call ended.',
+          duration_seconds: durationSeconds,
         }).catch((err: any) => console.warn('[bridge] save_call failed', err?.message ?? String(err)));
       }
       return shutdown('twilio_stop');
