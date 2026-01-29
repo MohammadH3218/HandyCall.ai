@@ -170,10 +170,6 @@ function isOutroText(text: string) {
     .trim();
   if (!normalized) return false;
   const patterns = [
-    /\bthank you for calling\b/,
-    /\bthanks for calling\b/,
-    /\bthanks for your call\b/,
-    /\bwe appreciate your call\b/,
     /\bhave a great day\b/,
     /\bhave a good day\b/,
     /\bbye\b/,
