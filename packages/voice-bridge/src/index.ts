@@ -1306,35 +1306,9 @@ wss.on('connection', (twilioWs: WebSocket) => {
 
       if (fsmEnabled) {
         sessionContext.state = 'GREETING';
-
-        // Add the greeting to conversation history
-        sendToOpenAI(openaiWs, {
-          type: 'conversation.item.create',
-          item: {
-            type: 'message',
-            role: 'assistant',
-            content: [{ type: 'text', text: greetingText }],
-          },
-        });
-
-        // Trigger response to speak it
-        sendToOpenAI(openaiWs, {
-          type: 'response.create',
-          response: {
-            modalities: ['audio', 'text'],
-            instructions: `Say exactly: "${greetingText}"`,
-          },
-        });
+        sendPrompt(greetingText);
       } else {
-        const companyName = tenant?.company_name || 'HandyCall';
-        const greetingText = `Hi, thanks for calling ${companyName}. How can I help you today?`;
-        sendToOpenAI(openaiWs, {
-          type: 'response.create',
-          response: {
-            modalities: ['audio', 'text'],
-            instructions: `Say exactly: "${greetingText}"`,
-          },
-        });
+        sendPrompt(greetingText);
       }
       noResponseStage = 0;
       armNoResponseTimer();
