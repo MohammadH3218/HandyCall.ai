@@ -931,12 +931,7 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'POST' && req.url?.startsWith('/twilio/stream-status')) {
       const raw = await readBody(req);
       const form = parseFormUrlEncoded(raw);
-      console.log('[twilio] stream status', {
-        callSid: form.CallSid,
-        streamSid: form.StreamSid,
-        event: form.StreamEvent,
-        error: form.ErrorCode,
-      });
+      console.log('[twilio] stream status', form);
       return json(res, 200, { ok: true });
     }
 
@@ -966,13 +961,16 @@ const server = http.createServer(async (req, res) => {
       const wsBase = toWsBaseUrl(publicBaseUrl);
       const mediaWsUrl = `${wsBase}/twilio/media`;
       const streamStatusUrl = `${publicBaseUrl}/twilio/stream-status`;
-      const streamTrack = envFirst(['TWILIO_STREAM_TRACK']) || 'both_tracks';
+      const streamTrack = envFirst(['TWILIO_STREAM_TRACK']);
       const mediaToken = process.env.TWILIO_MEDIA_STREAM_TOKEN || '';
+      const trackAttr = streamTrack ? ` track="${escapeXml(streamTrack)}"` : '';
+
+      console.log('[twilio] voice webhook', { callSid, from, to, mediaWsUrl, streamTrack: streamTrack || 'default' });
 
       const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Connect>
-    <Stream url="${escapeXml(mediaWsUrl)}" track="${escapeXml(streamTrack)}" statusCallback="${escapeXml(streamStatusUrl)}" statusCallbackEvent="start end">
+    <Stream url="${escapeXml(mediaWsUrl)}"${trackAttr} statusCallback="${escapeXml(streamStatusUrl)}" statusCallbackEvent="start end">
       <Parameter name="callSid" value="${escapeXml(callSid)}" />
       <Parameter name="to" value="${escapeXml(to)}" />
       <Parameter name="from" value="${escapeXml(from)}" />
