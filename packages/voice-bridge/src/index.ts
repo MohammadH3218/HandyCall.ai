@@ -1026,7 +1026,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
   let userSpeechActive = false;
   let pendingUserTranscript = '';
   let pendingResponseAfterSpeech = false;
-  let openaiOutputAudioFormat: string = 'pcm16';
+  let openaiOutputAudioFormat: string = 'g711_ulaw';
   let audioDeltaDebugCount = 0;
   let lastAssistantText = '';
   let lastAssistantAt = 0;
@@ -2495,7 +2495,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
             tools: toolsSchema(),
             tool_choice: 'auto',
             input_audio_format: 'g711_ulaw',
-            output_audio_format: 'pcm16',
+            output_audio_format: 'g711_ulaw',
             input_audio_transcription: { model: 'gpt-4o-mini-transcribe' },
             // Lower silence threshold reduces perceived latency between user stop -> assistant start.
             // Too low can cause interruptions; tune if you notice cutoffs.
@@ -2507,7 +2507,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
             },
           },
         });
-        openaiOutputAudioFormat = 'pcm16';
+        openaiOutputAudioFormat = 'g711_ulaw';
 
         // Create lead/call record in the background (so greeting isn't delayed).
         invokeTool(ctx, 'create_lead', { collected_info: {} }).catch((e: any) =>
