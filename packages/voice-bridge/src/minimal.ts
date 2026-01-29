@@ -162,6 +162,73 @@ function isFillerUtterance(text: string) {
   return normalized.split(' ').length <= 2 && fillerUtterances.has(normalized);
 }
 
+function looksLikeIso(value?: string) {
+  if (!value) return false;
+  const v = value.trim();
+  if (!v) return false;
+  return v.includes('T') && (v.endsWith('Z') || v.includes('+') || v.includes('-'));
+}
+
+function extractTimeNeedle(text?: string): { hour: number; minute: number; meridiem: 'am' | 'pm' } | null {
+  if (!text) return null;
+  const normalized = text
+    .toLowerCase()
+    .replace(/\./g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!normalized) return null;
+  const hasNoon = normalized.includes('noon');
+  if (hasNoon) return { hour: 12, minute: 0, meridiem: 'pm' };
+  const hasMidnight = normalized.includes('midnight');
+  if (hasMidnight) return { hour: 12, minute: 0, meridiem: 'am' };
+  const meridiem =
+    normalized.includes('am') || normalized.includes('morning')
+      ? 'am'
+      : normalized.includes('pm') || normalized.includes('afternoon') || normalized.includes('evening') || normalized.includes('night')
+        ? 'pm'
+        : null;
+  const match = normalized.match(/\b(\d{1,2})(?::(\d{2}))?\b/);
+  if (!match || !meridiem) return null;
+  const hour = Number(match[1]);
+  if (!Number.isFinite(hour) || hour < 1 || hour > 12) return null;
+  const minute = match[2] ? Number(match[2]) : 0;
+  return { hour, minute, meridiem };
+}
+
+function slotMatchesNeedle(slotIso: string, timeZone: string, needle: { hour: number; minute: number; meridiem: 'am' | 'pm' }) {
+  try {
+    const date = new Date(slotIso);
+    if (!Number.isFinite(date.getTime())) return false;
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone,
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    }).formatToParts(date);
+    const hourPart = parts.find((p) => p.type === 'hour')?.value;
+    const minutePart = parts.find((p) => p.type === 'minute')?.value;
+    const meridiemPart = parts.find((p) => p.type === 'dayPeriod')?.value?.toLowerCase();
+    const hour = Number(hourPart);
+    const minute = Number(minutePart);
+    if (!Number.isFinite(hour) || !Number.isFinite(minute)) return false;
+    const meridiem = meridiemPart === 'am' || meridiemPart === 'pm' ? meridiemPart : '';
+    return hour === needle.hour && minute === needle.minute && meridiem === needle.meridiem;
+  } catch {
+    return false;
+  }
+}
+
+function selectAvailabilitySlot(requestedText: string | undefined, slots: string[], timeZone: string): string | null {
+  if (!requestedText || !Array.isArray(slots) || slots.length === 0) return null;
+  if (slots.length === 1) return slots[0] || null;
+  const needle = extractTimeNeedle(requestedText);
+  if (!needle) return null;
+  for (const slot of slots) {
+    if (slotMatchesNeedle(slot, timeZone, needle)) return slot;
+  }
+  return null;
+}
+
 function buildInstructions(tenant: TenantInfo, options: { serviceAreaRequired: boolean; defaultDurationMinutes: number }) {
   const name = tenant.company_name || 'our company';
   const extra = tenant.agent_config?.realtime_instructions;
@@ -245,7 +312,8 @@ async function callTool(ctx: CallContext, name: string, args: any) {
   }
 
   if (name === 'create_booking') {
-    if (!args?.confirmed) {
+    const confirmed = typeof args?.confirmed === 'boolean' ? args.confirmed : true;
+    if (!confirmed) {
       return {
         ok: false,
         error: 'BookingNotConfirmed',
@@ -276,6 +344,7 @@ async function callTool(ctx: CallContext, name: string, args: any) {
       ...(customerName ? { customer_name: customerName } : {}),
       start_time: startTime,
       end_time: endTime,
+      confirmed,
       ...args,
     });
   }
@@ -500,6 +569,9 @@ wss.on('connection', (twilioWs: WebSocket) => {
   let recordingSynced = false;
   let serviceAreaRequired = false;
   let serviceAreaEligible: boolean | null = null;
+  let lastAvailabilitySlots: string[] = [];
+  let lastAvailabilityTimezone: string | null = null;
+  let lastAvailabilityAt = 0;
 
   function tryGreet() {
     if (!openaiWs || !openaiReady || !twilioReady || greeted) return;
@@ -639,6 +711,30 @@ wss.on('connection', (twilioWs: WebSocket) => {
         let result: any;
         try {
           if (!ctx) throw new Error('Missing call context');
+          if (toolName === 'create_booking') {
+            const requestedText =
+              typeof args?.start_time === 'string'
+                ? args.start_time
+                : typeof args?.preferred_time === 'string'
+                  ? args.preferred_time
+                  : '';
+            const availabilityFresh = Date.now() - lastAvailabilityAt < 5 * 60_000;
+            const tz =
+              typeof args?.timezone === 'string'
+                ? args.timezone
+                : lastAvailabilityTimezone || ctx.timezone || 'UTC';
+            if (availabilityFresh && requestedText && Array.isArray(lastAvailabilitySlots) && lastAvailabilitySlots.length) {
+              if (!looksLikeIso(requestedText)) {
+                const match = selectAvailabilitySlot(requestedText, lastAvailabilitySlots, tz);
+                if (match) {
+                  args = { ...args, start_time: match, timezone: tz };
+                }
+              }
+            }
+            if (typeof args?.confirmed !== 'boolean') {
+              args = { ...args, confirmed: true };
+            }
+          }
           if (
             (toolName === 'get_availability' || toolName === 'create_booking') &&
             serviceAreaRequired &&
@@ -654,6 +750,17 @@ wss.on('connection', (twilioWs: WebSocket) => {
             if (toolName === 'check_service_area') {
               if (typeof (result as any)?.eligible === 'boolean') {
                 serviceAreaEligible = (result as any).eligible;
+              }
+            }
+            if (toolName === 'get_availability') {
+              if (Array.isArray((result as any)?.slots)) {
+                lastAvailabilitySlots = (result as any).slots.filter((slot: any) => typeof slot === 'string');
+                lastAvailabilityTimezone =
+                  typeof (result as any)?.timezone === 'string' ? (result as any).timezone : ctx.timezone || null;
+                lastAvailabilityAt = Date.now();
+              } else {
+                lastAvailabilitySlots = [];
+                lastAvailabilityAt = Date.now();
               }
             }
           }
