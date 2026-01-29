@@ -1056,9 +1056,6 @@ wss.on('connection', (twilioWs: WebSocket) => {
   let initialGreetingSent = false;
   let openaiSessionReady = false;
   let twilioStreamReady = false;
-  let twilioStreamStartedAt = 0;
-  let twilioMediaStarted = false;
-  let pendingGreetingRetry: NodeJS.Timeout | null = null;
   let outboundAudioQueue: string[] = [];
   let outboundAudioTimer: NodeJS.Timeout | null = null;
   let outboundNextSendAt = 0;
@@ -1331,41 +1328,21 @@ wss.on('connection', (twilioWs: WebSocket) => {
     if (initialGreetingSent) return;
     if (!openaiSessionReady || !twilioStreamReady) return;
     if (!ctx || !openaiWs || pendingAutoHangup) return;
-    const now = Date.now();
-    const mediaReady = twilioMediaStarted || (twilioStreamStartedAt > 0 && now - twilioStreamStartedAt > 1200);
-    if (!mediaReady) {
-      if (!pendingGreetingRetry) {
-        pendingGreetingRetry = setTimeout(() => {
-          pendingGreetingRetry = null;
-          tryInitialGreeting();
-        }, 200);
-      }
-      return;
-    }
 
     initialGreetingSent = true;
     log('Sending initial greeting', { openaiReady: openaiSessionReady, twilioReady: twilioStreamReady });
 
-    // Longer delay to ensure Twilio stream is fully ready to play audio to caller
-    // Twilio needs time to establish the audio path even after sending media
-    setTimeout(() => {
-      if (!ctx || !openaiWs) return;
-      log('Playing initial greeting now');
+    const companyName = tenant?.company_name || 'HandyCall';
+    const greetingText = `Hi, thanks for calling ${companyName}. How can I help you today?`;
 
-      // Add greeting as a conversation item, then trigger response
-      // This works better with server VAD enabled
-      const companyName = tenant?.company_name || 'HandyCall';
-      const greetingText = `Hi, thanks for calling ${companyName}. How can I help you today?`;
-
-      if (fsmEnabled) {
-        sessionContext.state = 'GREETING';
-        sendPrompt(greetingText);
-      } else {
-        sendPrompt(greetingText);
-      }
-      noResponseStage = 0;
-      armNoResponseTimer();
-    }, 400);
+    if (fsmEnabled) {
+      sessionContext.state = 'GREETING';
+      sendPrompt(greetingText, { max_output_tokens: 80 });
+    } else {
+      sendPrompt(greetingText, { max_output_tokens: 80 });
+    }
+    noResponseStage = 0;
+    armNoResponseTimer();
   }
 
   function sendPrompt(text: string, options?: { max_output_tokens?: number }) {
@@ -2443,7 +2420,6 @@ wss.on('connection', (twilioWs: WebSocket) => {
       ctx = { callSid, streamSid, from, to, company_id: tenant.company_id, startedAt };
       log('Media stream started', { to, from, company_id: tenant.company_id });
 
-      twilioStreamStartedAt = Date.now();
       if (!twilioStreamReady) {
         twilioStreamReady = true;
         tryInitialGreeting();
@@ -2547,6 +2523,16 @@ wss.on('connection', (twilioWs: WebSocket) => {
           // lastUserSpeechDurationMs = 0;
           clearNoResponseTimer();
           clearPendingResponseTimer();
+          // Barge-in: clear any buffered audio on the Twilio side and stop queued audio
+          outboundAudioQueue = [];
+          outboundNextSendAt = 0;
+          if (outboundAudioTimer) {
+            clearTimeout(outboundAudioTimer);
+            outboundAudioTimer = null;
+          }
+          if (ctx?.streamSid) {
+            sendToTwilio(twilioWs, { event: 'clear', streamSid: ctx.streamSid });
+          }
         }
 
         if (msg?.type === 'input_audio_buffer.speech_stopped') {
@@ -3182,7 +3168,6 @@ wss.on('connection', (twilioWs: WebSocket) => {
       if (typeof payload !== 'string') return;
 
       // Mark Twilio stream as ready when we receive first media chunk
-      twilioMediaStarted = true;
       if (!twilioStreamReady) {
         twilioStreamReady = true;
         tryInitialGreeting();
@@ -3246,7 +3231,6 @@ wss.on('connection', (twilioWs: WebSocket) => {
 
     if (event?.event === 'connected') {
       log('Twilio stream connected');
-      if (!twilioStreamStartedAt) twilioStreamStartedAt = Date.now();
       if (!twilioStreamReady) {
         twilioStreamReady = true;
         tryInitialGreeting();
