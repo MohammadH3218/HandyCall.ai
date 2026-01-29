@@ -25,4 +25,4 @@ RUN npm install --omit=dev
 COPY --from=builder /app/packages/voice-bridge/dist ./dist
 
 EXPOSE 8080
-CMD ["node", "dist/index.js"]
+CMD ["node", "dist/minimal.js"]
