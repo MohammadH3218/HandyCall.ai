@@ -47,6 +47,7 @@ export function toolsSchema() {
                 type: 'object',
                 properties: {
                     full_name: { type: 'string' },
+                    customer_name: { type: 'string' },
                     service_type: { type: 'string' },
                     details: { type: 'object', additionalProperties: true },
                     start_time: { type: 'string' },

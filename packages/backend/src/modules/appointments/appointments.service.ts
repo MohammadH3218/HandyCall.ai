@@ -21,22 +21,51 @@ export class AppointmentsService {
     if (!phone) return undefined;
 
     const existing = await this.dynamodb.scan('contacts', {
-      filterExpression: '#company_id = :company_id AND #phone = :phone',
-      expressionAttributeNames: { '#company_id': 'company_id', '#phone': 'phone' },
+      filterExpression: '#company_id = :company_id AND (#phone_number = :phone OR #phone = :phone)',
+      expressionAttributeNames: {
+        '#company_id': 'company_id',
+        '#phone_number': 'phone_number',
+        '#phone': 'phone',
+      },
       expressionAttributeValues: { ':company_id': companyId, ':phone': phone },
       limit: 1,
     });
 
-    const contact = existing.items?.[0];
-    if (contact?.contact_id) return contact.contact_id as string;
+    const contact = existing.items?.[0] as any;
+    if (contact?.contact_id) {
+      const nowIso = new Date().toISOString();
+      const name = input.contact_name?.trim();
+      const [first, ...rest] = name ? name.split(/\s+/) : [];
+      const last = rest.length ? rest.join(' ') : undefined;
+      await this.dynamodb.update(
+        'contacts',
+        { company_id: companyId, contact_id: contact.contact_id },
+        {
+          ...(name && { name }),
+          ...(first && { first_name: first }),
+          ...(last && { last_name: last }),
+          ...(phone && { phone, phone_number: phone }),
+          ...(input.contact_email && { email: input.contact_email.trim() }),
+          updated_at: nowIso,
+          last_contact_at: Date.now(),
+        }
+      );
+      return contact.contact_id as string;
+    }
 
     const nowIso = new Date().toISOString();
     const contact_id = uuidv4();
+    const name = input.contact_name?.trim();
+    const [first, ...rest] = name ? name.split(/\s+/) : [];
+    const last = rest.length ? rest.join(' ') : undefined;
     await this.dynamodb.put('contacts', {
       contact_id,
       company_id: companyId,
-      name: input.contact_name?.trim() || phone,
+      name: name || phone,
       phone,
+      phone_number: phone,
+      first_name: first || undefined,
+      last_name: last || undefined,
       email: input.contact_email?.trim() || undefined,
       source: 'MANUAL',
       tags: [],

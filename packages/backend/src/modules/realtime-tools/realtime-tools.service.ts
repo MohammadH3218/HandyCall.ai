@@ -297,11 +297,20 @@ export class RealtimeToolsService {
     }
 
     const collected = dto.collected_info ?? {};
-    const first_name = typeof collected.first_name === 'string' ? collected.first_name : undefined;
-    const last_name = typeof collected.last_name === 'string' ? collected.last_name : undefined;
+    const fullName =
+      typeof collected.full_name === 'string'
+        ? collected.full_name
+        : typeof collected.name === 'string'
+          ? collected.name
+          : undefined;
+    const [firstFromFull, ...restFromFull] = typeof fullName === 'string' ? fullName.trim().split(/\s+/) : [];
+    const derivedLast = restFromFull.length ? restFromFull.join(' ') : undefined;
+    const first_name = typeof collected.first_name === 'string' ? collected.first_name : firstFromFull || undefined;
+    const last_name = typeof collected.last_name === 'string' ? collected.last_name : derivedLast;
     const email = typeof collected.email === 'string' ? collected.email : undefined;
     const zipcode = typeof collected.zip === 'string' ? collected.zip : undefined;
     const address = typeof collected.address === 'string' ? collected.address : undefined;
+    const legacyName = [first_name, last_name].filter(Boolean).join(' ').trim() || fullName?.trim();
 
     let contact_id: string;
     if (existing.items.length > 0) {
@@ -311,6 +320,8 @@ export class RealtimeToolsService {
         'contacts',
         { company_id, contact_id },
         {
+          ...(legacyName && { name: legacyName }),
+          ...(from_number && { phone: from_number }),
           ...(first_name && { first_name }),
           ...(last_name && { last_name }),
           ...(email && { email }),
@@ -331,6 +342,8 @@ export class RealtimeToolsService {
         last_name,
         address,
         zipcode,
+        ...(legacyName ? { name: legacyName } : {}),
+        ...(from_number ? { phone: from_number } : {}),
         source: ContactSource.INBOUND_CALL,
         source_call_id: call_id,
         lead_status: LeadStatus.NEW,

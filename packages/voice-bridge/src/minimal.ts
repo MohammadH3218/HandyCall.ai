@@ -148,6 +148,20 @@ function formatFieldList(fields?: any[]): string | null {
   return cleaned.length ? cleaned.join(', ') : null;
 }
 
+const fillerUtterances = new Set(['mhm', 'mm', 'uh', 'um', 'uh-huh', 'uh huh', 'hmm', 'hm', 'ok', 'okay', 'yeah', 'yep']);
+
+function isFillerUtterance(text: string) {
+  const normalized = String(text || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!normalized) return false;
+  if (normalized.length <= 3 && fillerUtterances.has(normalized)) return true;
+  if (fillerUtterances.has(normalized)) return true;
+  return normalized.split(' ').length <= 2 && fillerUtterances.has(normalized);
+}
+
 function buildInstructions(tenant: TenantInfo, options: { serviceAreaRequired: boolean; defaultDurationMinutes: number }) {
   const name = tenant.company_name || 'our company';
   const extra = tenant.agent_config?.realtime_instructions;
@@ -172,13 +186,14 @@ function buildInstructions(tenant: TenantInfo, options: { serviceAreaRequired: b
     serviceAreaRequired
       ? `If the ZIP is not serviced, apologize and end the call politely.`
       : `If the ZIP is not serviced, apologize and end the call politely.`,
-    requiredFields ? `Required intake fields for booking: ${requiredFields}.` : null,
+    requiredFields ? `Required intake fields for booking (ask in this order): ${requiredFields}.` : null,
     optionalFields ? `Optional intake fields: ${optionalFields}.` : null,
-    `Collect the required info before asking for a date/time.`,
+    `Collect the required info before asking for a date/time or checking availability.`,
     `For availability: call get_availability with start_time (natural language is OK) and timezone if known.`,
-    `Default appointment length is ${defaultDurationMinutes} minutes unless the caller requests a different duration.`,
-    `Before booking, summarize the details and ask: "Is that correct?" Only then call create_booking with confirmed:true.`,
-    `If the caller corrects anything, update it and summarize again for confirmation.`,
+    `If the caller requests a specific time and it is available: say it's available and book it immediately (no long re-confirmation).`,
+    `If the time is unavailable: offer the closest available slots or ask for another day/time.`,
+    `Only summarize/confirm details if the caller corrects something or if a required field was missing.`,
+    `Do not mention appointment duration unless the caller asks. Default length is ${defaultDurationMinutes} minutes.`,
     `If the caller asks about prior appointments, use list_appointments_by_phone.`,
     `Use knowledge_search for company-specific questions (services, pricing, policies, service areas).`,
     `After finishing the main task, ask: "Is there anything else I can help with today?" If no, give a short friendly goodbye.`,
@@ -240,6 +255,12 @@ async function callTool(ctx: CallContext, name: string, args: any) {
     if (!startTime) {
       return { ok: false, error: 'MissingStartTime', message: 'start_time is required' };
     }
+    const customerName =
+      typeof args?.customer_name === 'string'
+        ? args.customer_name
+        : typeof args?.full_name === 'string'
+          ? args.full_name
+          : undefined;
     let endTime = args?.end_time;
     if (startTime && !endTime) {
       const parsed = Date.parse(startTime);
@@ -251,6 +272,7 @@ async function callTool(ctx: CallContext, name: string, args: any) {
     return postJson(`${toolsBase}/tools/create_booking`, headers, {
       company_id: ctx.company_id,
       call_id: ctx.callSid,
+      ...(customerName ? { customer_name: customerName } : {}),
       start_time: startTime,
       end_time: endTime,
       ...args,
@@ -557,7 +579,13 @@ wss.on('connection', (twilioWs: WebSocket) => {
 
       if (msg?.type === 'conversation.item.input_audio_transcription.completed') {
         const text = msg?.transcript || msg?.text;
-        if (text) transcript.push(`Caller: ${text}`);
+        if (text) {
+          transcript.push(`Caller: ${text}`);
+          if (isFillerUtterance(text)) {
+            sendToOpenAI(openaiWs, { type: 'response.cancel' });
+            return;
+          }
+        }
         return;
       }
 
