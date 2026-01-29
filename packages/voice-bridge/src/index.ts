@@ -834,10 +834,60 @@ async function invokeTool(ctx: CallContext, name: string, args: any) {
   throw new Error(`Unknown tool: ${name}`);
 }
 
-function sendToTwilio(ws: WebSocket, msg: any) {
-  if (ws.readyState !== ws.OPEN) return;
-  ws.send(JSON.stringify(msg));
-}
+  function sendToTwilio(ws: WebSocket, msg: any) {
+    if (ws.readyState !== ws.OPEN) return;
+    ws.send(JSON.stringify(msg));
+  }
+
+  function enqueueTwilioAudio(ws: WebSocket, payloadBase64: string) {
+    if (ws.readyState !== ws.OPEN) return;
+    let buf: Buffer;
+    try {
+      buf = Buffer.from(payloadBase64, 'base64');
+    } catch {
+      return;
+    }
+    const frameSize = 160; // 20ms of G.711 u-law at 8kHz
+    const padByte = 0xff; // u-law silence
+    for (let offset = 0; offset < buf.length; offset += frameSize) {
+      let chunk = buf.subarray(offset, offset + frameSize);
+      if (chunk.length < frameSize) {
+        const padded = Buffer.alloc(frameSize, padByte);
+        chunk.copy(padded, 0, 0, chunk.length);
+        chunk = padded;
+      }
+      outboundAudioQueue.push(chunk.toString('base64'));
+    }
+    if (!outboundNextSendAt) outboundNextSendAt = Date.now();
+    if (!outboundAudioTimer) scheduleTwilioAudioDrain(ws);
+  }
+
+  function scheduleTwilioAudioDrain(ws: WebSocket) {
+    if (outboundAudioTimer) return;
+    const delay = Math.max(0, outboundNextSendAt - Date.now());
+    outboundAudioTimer = setTimeout(() => drainTwilioAudio(ws), delay);
+  }
+
+  function drainTwilioAudio(ws: WebSocket) {
+    outboundAudioTimer = null;
+    if (ws.readyState !== ws.OPEN) {
+      outboundAudioQueue = [];
+      outboundNextSendAt = 0;
+      return;
+    }
+    const payload = outboundAudioQueue.shift();
+    if (!payload) {
+      outboundNextSendAt = 0;
+      return;
+    }
+    sendToTwilio(ws, {
+      event: 'media',
+      streamSid: ctx?.streamSid,
+      media: { payload },
+    });
+    outboundNextSendAt = Math.max(outboundNextSendAt + 20, Date.now() + 20);
+    if (outboundAudioQueue.length > 0) scheduleTwilioAudioDrain(ws);
+  }
 
 function sendToOpenAI(ws: WebSocket, msg: any) {
   if (ws.readyState !== ws.OPEN) return;
@@ -1059,6 +1109,9 @@ wss.on('connection', (twilioWs: WebSocket) => {
   let twilioStreamStartedAt = 0;
   let twilioMediaStarted = false;
   let pendingGreetingRetry: NodeJS.Timeout | null = null;
+  let outboundAudioQueue: string[] = [];
+  let outboundAudioTimer: NodeJS.Timeout | null = null;
+  let outboundNextSendAt = 0;
 
   function log(msg: string, extra?: any) {
     const prefix = ctx ? `[callSid=${ctx.callSid} streamSid=${ctx.streamSid}]` : '[twilio]';
@@ -1792,7 +1845,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
     const requireZipCheck = requiresServiceAreaCheck();
 
     if (sessionContext.state === 'GREETING') {
-      if (isGreeting && !bookingIntent && !questionIntent) {
+      if (isGreeting) {
         sendPrompt('How can I help you today?');
         return true;
       }
@@ -2524,11 +2577,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
               payload_bytes: decodeBase64Safe(payload)?.length,
             });
           }
-          sendToTwilio(twilioWs, {
-            event: 'media',
-            streamSid: ctx.streamSid,
-            media: { payload },
-          });
+          enqueueTwilioAudio(twilioWs, payload);
         }
 
         if (
