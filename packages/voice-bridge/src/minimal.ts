@@ -162,24 +162,6 @@ function isFillerUtterance(text: string) {
   return normalized.split(' ').length <= 2 && fillerUtterances.has(normalized);
 }
 
-function isOutroText(text: string) {
-  const normalized = String(text || '')
-    .toLowerCase()
-    .replace(/[^\w\s']/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
-  if (!normalized) return false;
-  const patterns = [
-    /\bhave a great day\b/,
-    /\bhave a good day\b/,
-    /\bbye\b/,
-    /\bgoodbye\b/,
-    /\btake care\b/,
-    /\btalk to you soon\b/,
-  ];
-  return patterns.some((pattern) => pattern.test(normalized));
-}
-
 function looksLikeIso(value?: string) {
   if (!value) return false;
   const v = value.trim();
@@ -590,7 +572,9 @@ wss.on('connection', (twilioWs: WebSocket) => {
   let lastAvailabilitySlots: string[] = [];
   let lastAvailabilityTimezone: string | null = null;
   let lastAvailabilityAt = 0;
-  let endCallScheduled = false;
+  let pendingHangup = false;
+  let waitingForHangupMark = false;
+  let hangupFallbackTimer: ReturnType<typeof setTimeout> | null = null;
 
   function tryGreet() {
     if (!openaiWs || !openaiReady || !twilioReady || greeted) return;
@@ -620,15 +604,18 @@ wss.on('connection', (twilioWs: WebSocket) => {
     openaiWs = null;
   }
 
-  function scheduleEndCall() {
-    if (endCallScheduled) return;
-    endCallScheduled = true;
-    setTimeout(() => {
+  function queueHangupMark() {
+    if (!ctx?.streamSid || waitingForHangupMark) return;
+    sendToTwilio(twilioWs, { event: 'mark', streamSid: ctx.streamSid, mark: { name: 'hangup_now' } });
+    waitingForHangupMark = true;
+    if (hangupFallbackTimer) clearTimeout(hangupFallbackTimer);
+    hangupFallbackTimer = setTimeout(() => {
       if (!ctx) return;
       callTool(ctx, 'end_call', {}).catch((err: any) =>
-        console.warn('[bridge] end_call failed', err?.message ?? String(err))
+        console.warn('[bridge] end_call fallback failed', err?.message ?? String(err))
       );
-    }, 800);
+      shutdown('hangup_fallback');
+    }, 2500);
   }
 
   async function connectOpenAI(tenant: TenantInfo) {
@@ -699,9 +686,6 @@ wss.on('connection', (twilioWs: WebSocket) => {
       if (msg?.type === 'response.audio_transcript.done') {
         const text = msg?.transcript;
         if (text) transcript.push(`Assistant: ${text}`);
-        if (text && isOutroText(text)) {
-          scheduleEndCall();
-        }
         return;
       }
 
@@ -719,6 +703,9 @@ wss.on('connection', (twilioWs: WebSocket) => {
 
       if (msg?.type === 'response.done' || msg?.type === 'response.audio.done') {
         assistantSpeaking = false;
+        if (pendingHangup && !waitingForHangupMark) {
+          queueHangupMark();
+        }
         return;
       }
 
@@ -768,7 +755,11 @@ wss.on('connection', (twilioWs: WebSocket) => {
               args = { ...args, confirmed: true };
             }
           }
-          if (
+          if (toolName === 'end_call') {
+            pendingHangup = true;
+            result = { ok: true, status: 'pending_hangup' };
+            if (!assistantSpeaking) queueHangupMark();
+          } else if (
             (toolName === 'get_availability' || toolName === 'create_booking') &&
             serviceAreaRequired &&
             serviceAreaEligible !== true
@@ -809,7 +800,9 @@ wss.on('connection', (twilioWs: WebSocket) => {
             output: JSON.stringify(result),
           },
         });
-        sendToOpenAI(openaiWs, { type: 'response.create' });
+        if (toolName !== 'end_call') {
+          sendToOpenAI(openaiWs, { type: 'response.create' });
+        }
       }
 
       if (msg?.type === 'error') {
@@ -921,6 +914,17 @@ wss.on('connection', (twilioWs: WebSocket) => {
         }
       }
       return shutdown('twilio_stop');
+    }
+
+    if (msg?.event === 'mark') {
+      const name = msg?.mark?.name || '';
+      if (name === 'hangup_now' && ctx) {
+        if (hangupFallbackTimer) clearTimeout(hangupFallbackTimer);
+        callTool(ctx, 'end_call', {}).catch((err: any) =>
+          console.warn('[bridge] end_call (mark) failed', err?.message ?? String(err))
+        );
+        return shutdown('hangup_mark');
+      }
     }
   });
 
