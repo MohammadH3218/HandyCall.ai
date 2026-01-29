@@ -955,14 +955,32 @@ const server = http.createServer(async (req, res) => {
       const mediaWsUrl = `${wsBase}/twilio/media`;
       const mediaToken = process.env.TWILIO_MEDIA_STREAM_TOKEN || '';
 
+      let preGreetingEnabled = false;
+      let preGreetingText = '';
+      try {
+        if (to) {
+          const tenant = await resolveTenant(to);
+          const companyName = tenant?.company_name || '';
+          if (companyName) {
+            preGreetingEnabled = true;
+            preGreetingText = `Hi, thanks for calling ${companyName}.`;
+          }
+        }
+      } catch {
+        preGreetingEnabled = false;
+        preGreetingText = '';
+      }
+
       const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
+  ${preGreetingEnabled ? `<Say>${escapeXml(preGreetingText)}</Say>` : ''}
   <Connect>
     <Stream url="${escapeXml(mediaWsUrl)}" track="inbound_track">
       <Parameter name="callSid" value="${escapeXml(callSid)}" />
       <Parameter name="to" value="${escapeXml(to)}" />
       <Parameter name="from" value="${escapeXml(from)}" />
       <Parameter name="token" value="${escapeXml(mediaToken)}" />
+      <Parameter name="pre_greeting" value="${preGreetingEnabled ? '1' : '0'}" />
     </Stream>
   </Connect>
 </Response>`;
@@ -1044,6 +1062,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
   let initialGreetingSent = false;
   let openaiSessionReady = false;
   let twilioStreamReady = false;
+  let preGreetingEnabled = false;
 
   function log(msg: string, extra?: any) {
     const prefix = ctx ? `[callSid=${ctx.callSid} streamSid=${ctx.streamSid}]` : '[twilio]';
@@ -1263,6 +1282,13 @@ wss.on('connection', (twilioWs: WebSocket) => {
     if (initialGreetingSent) return;
     if (!openaiSessionReady || !twilioStreamReady) return;
     if (!ctx || !openaiWs || pendingAutoHangup) return;
+
+    if (preGreetingEnabled) {
+      initialGreetingSent = true;
+      noResponseStage = 0;
+      armNoResponseTimer();
+      return;
+    }
 
     initialGreetingSent = true;
     log('Sending initial greeting', { openaiReady: openaiSessionReady, twilioReady: twilioStreamReady });
@@ -2365,6 +2391,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
       const to = custom.to || '';
       const from = custom.from || '';
       const token = custom.token || '';
+      preGreetingEnabled = custom.pre_greeting === '1';
 
       const expectedToken = process.env.TWILIO_MEDIA_STREAM_TOKEN || '';
       if (expectedToken && token !== expectedToken) {
