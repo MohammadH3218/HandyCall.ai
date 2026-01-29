@@ -928,6 +928,18 @@ const server = http.createServer(async (req, res) => {
       return json(res, 200, { ok: true });
     }
 
+    if (req.method === 'POST' && req.url?.startsWith('/twilio/stream-status')) {
+      const raw = await readBody(req);
+      const form = parseFormUrlEncoded(raw);
+      console.log('[twilio] stream status', {
+        callSid: form.CallSid,
+        streamSid: form.StreamSid,
+        event: form.StreamEvent,
+        error: form.ErrorCode,
+      });
+      return json(res, 200, { ok: true });
+    }
+
     if (req.method === 'POST' && req.url?.startsWith('/twilio/voice')) {
       const publicBaseUrl = requireEnvFirst(['PUBLIC_BASE_URL', 'VOICE_BRIDGE_PUBLIC_BASE_URL']).replace(
         /\/$/,
@@ -953,12 +965,14 @@ const server = http.createServer(async (req, res) => {
 
       const wsBase = toWsBaseUrl(publicBaseUrl);
       const mediaWsUrl = `${wsBase}/twilio/media`;
+      const streamStatusUrl = `${publicBaseUrl}/twilio/stream-status`;
+      const streamTrack = envFirst(['TWILIO_STREAM_TRACK']) || 'both_tracks';
       const mediaToken = process.env.TWILIO_MEDIA_STREAM_TOKEN || '';
 
       const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Connect>
-    <Stream url="${escapeXml(mediaWsUrl)}" track="both_tracks">
+    <Stream url="${escapeXml(mediaWsUrl)}" track="${escapeXml(streamTrack)}" statusCallback="${escapeXml(streamStatusUrl)}" statusCallbackEvent="start end">
       <Parameter name="callSid" value="${escapeXml(callSid)}" />
       <Parameter name="to" value="${escapeXml(to)}" />
       <Parameter name="from" value="${escapeXml(from)}" />
@@ -1044,6 +1058,9 @@ wss.on('connection', (twilioWs: WebSocket) => {
   let initialGreetingSent = false;
   let openaiSessionReady = false;
   let twilioStreamReady = false;
+  let twilioStreamStartedAt = 0;
+  let twilioMediaStarted = false;
+  let pendingGreetingRetry: NodeJS.Timeout | null = null;
 
   function log(msg: string, extra?: any) {
     const prefix = ctx ? `[callSid=${ctx.callSid} streamSid=${ctx.streamSid}]` : '[twilio]';
@@ -1263,6 +1280,17 @@ wss.on('connection', (twilioWs: WebSocket) => {
     if (initialGreetingSent) return;
     if (!openaiSessionReady || !twilioStreamReady) return;
     if (!ctx || !openaiWs || pendingAutoHangup) return;
+    const now = Date.now();
+    const mediaReady = twilioMediaStarted || (twilioStreamStartedAt > 0 && now - twilioStreamStartedAt > 1200);
+    if (!mediaReady) {
+      if (!pendingGreetingRetry) {
+        pendingGreetingRetry = setTimeout(() => {
+          pendingGreetingRetry = null;
+          tryInitialGreeting();
+        }, 200);
+      }
+      return;
+    }
 
     initialGreetingSent = true;
     log('Sending initial greeting', { openaiReady: openaiSessionReady, twilioReady: twilioStreamReady });
@@ -2390,6 +2418,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
       ctx = { callSid, streamSid, from, to, company_id: tenant.company_id, startedAt };
       log('Media stream started', { to, from, company_id: tenant.company_id });
 
+      twilioStreamStartedAt = Date.now();
       if (!twilioStreamReady) {
         twilioStreamReady = true;
         tryInitialGreeting();
@@ -3132,6 +3161,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
       if (typeof payload !== 'string') return;
 
       // Mark Twilio stream as ready when we receive first media chunk
+      twilioMediaStarted = true;
       if (!twilioStreamReady) {
         twilioStreamReady = true;
         tryInitialGreeting();
@@ -3195,6 +3225,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
 
     if (event?.event === 'connected') {
       log('Twilio stream connected');
+      if (!twilioStreamStartedAt) twilioStreamStartedAt = Date.now();
       if (!twilioStreamReady) {
         twilioStreamReady = true;
         tryInitialGreeting();
