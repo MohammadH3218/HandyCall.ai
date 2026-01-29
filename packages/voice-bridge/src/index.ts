@@ -958,7 +958,7 @@ const server = http.createServer(async (req, res) => {
       const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Connect>
-    <Stream url="${escapeXml(mediaWsUrl)}" track="inbound_track">
+    <Stream url="${escapeXml(mediaWsUrl)}" track="both_tracks">
       <Parameter name="callSid" value="${escapeXml(callSid)}" />
       <Parameter name="to" value="${escapeXml(to)}" />
       <Parameter name="from" value="${escapeXml(from)}" />
