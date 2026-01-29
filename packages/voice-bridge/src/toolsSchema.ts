@@ -97,6 +97,15 @@ export function toolsSchema() {
                 },
                 required: ['appointment_id', 'new_start_time', 'timezone']
             }
+        },
+        {
+            type: 'function',
+            name: 'end_call',
+            description: 'Politely end the call after the goodbye message.',
+            parameters: {
+                type: 'object',
+                properties: {}
+            }
         }
     ];
 }

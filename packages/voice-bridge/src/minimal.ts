@@ -196,7 +196,8 @@ function buildInstructions(tenant: TenantInfo, options: { serviceAreaRequired: b
     `Do not mention appointment duration unless the caller asks. Default length is ${defaultDurationMinutes} minutes.`,
     `If the caller asks about prior appointments, use list_appointments_by_phone.`,
     `Use knowledge_search for company-specific questions (services, pricing, policies, service areas).`,
-    `After finishing the main task, ask: "Is there anything else I can help with today?" If no, give a short friendly goodbye.`,
+    `After finishing the main task, ask: "Is there anything else I can help with today?"`,
+    `If the caller says no, give a short friendly goodbye, then call end_call immediately.`,
     extra && extra.trim() ? extra.trim() : null,
   ].filter(Boolean) as string[];
 
@@ -335,6 +336,14 @@ async function callTool(ctx: CallContext, name: string, args: any) {
     });
   }
 
+  if (name === 'end_call') {
+    const accountSid = envFirst(['TWILIO_ACCOUNT_SID', 'TWILIO_SID']) || (await getSecret('TWILIO_ACCOUNT_SID'));
+    const authToken = await getSecret('TWILIO_AUTH_TOKEN');
+    const client = twilio(accountSid, authToken);
+    await client.calls(ctx.callSid).update({ status: 'completed' });
+    return { ok: true };
+  }
+
   throw new Error(`Unknown tool: ${name}`);
 }
 
@@ -342,16 +351,29 @@ async function startTwilioRecording(callSid: string) {
   const enabled = (process.env.TWILIO_RECORD_CALLS ?? 'true') !== 'false';
   if (!enabled) return;
 
-  const publicBaseUrl = requireEnvFirst(['PUBLIC_BASE_URL', 'VOICE_BRIDGE_PUBLIC_BASE_URL']).replace(/\/$/, '');
+  try {
+    const publicBaseUrl = requireEnvFirst(['PUBLIC_BASE_URL', 'VOICE_BRIDGE_PUBLIC_BASE_URL']).replace(/\/$/, '');
+    const accountSid = envFirst(['TWILIO_ACCOUNT_SID', 'TWILIO_SID']) || (await getSecret('TWILIO_ACCOUNT_SID'));
+    const authToken = await getSecret('TWILIO_AUTH_TOKEN');
+    const client = twilio(accountSid, authToken);
+    await client.calls(callSid).recordings.create({
+      recordingStatusCallback: `${publicBaseUrl}/twilio/recording-status`,
+      recordingStatusCallbackMethod: 'POST',
+      recordingStatusCallbackEvent: ['completed'],
+      recordingChannels: 'dual',
+    });
+  } catch (err: any) {
+    console.warn('[twilio] start recording failed', err?.message ?? String(err));
+  }
+}
+
+async function fetchLatestRecordingSid(callSid: string): Promise<string | null> {
   const accountSid = envFirst(['TWILIO_ACCOUNT_SID', 'TWILIO_SID']) || (await getSecret('TWILIO_ACCOUNT_SID'));
   const authToken = await getSecret('TWILIO_AUTH_TOKEN');
   const client = twilio(accountSid, authToken);
-  await client.calls(callSid).recordings.create({
-    recordingStatusCallback: `${publicBaseUrl}/twilio/recording-status`,
-    recordingStatusCallbackMethod: 'POST',
-    recordingStatusCallbackEvent: ['completed'],
-    recordingChannels: 'dual',
-  });
+  const recordings = await client.recordings.list({ callSid, limit: 1 });
+  if (!recordings.length) return null;
+  return recordings[0]?.sid || null;
 }
 
 function sendToOpenAI(ws: WebSocket, msg: any) {
@@ -475,6 +497,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
   let greeted = false;
   let assistantSpeaking = false;
   let lastAssistantAudioAt = 0;
+  let recordingSynced = false;
   let serviceAreaRequired = false;
   let serviceAreaEligible: boolean | null = null;
 
@@ -739,6 +762,23 @@ wss.on('connection', (twilioWs: WebSocket) => {
           summary: 'Call ended.',
           duration_seconds: durationSeconds,
         }).catch((err: any) => console.warn('[bridge] save_call failed', err?.message ?? String(err)));
+
+        if ((process.env.TWILIO_RECORD_CALLS ?? 'true') !== 'false') {
+          const delays = [5000, 15000, 30000];
+          for (const delay of delays) {
+            setTimeout(async () => {
+              if (!ctx || recordingSynced) return;
+              try {
+                const recordingSid = await fetchLatestRecordingSid(ctx.callSid);
+                if (!recordingSid) return;
+                await callTool(ctx, 'save_recording', { recording_sid: recordingSid });
+                recordingSynced = true;
+              } catch (err: any) {
+                console.warn('[bridge] recording sync failed', err?.message ?? String(err));
+              }
+            }, delay);
+          }
+        }
       }
       return shutdown('twilio_stop');
     }
