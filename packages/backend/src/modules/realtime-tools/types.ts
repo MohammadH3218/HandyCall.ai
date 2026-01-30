@@ -1,6 +1,7 @@
 export type ToolName =
     | 'tenant_resolve'
     | 'create_lead'
+    | 'start_call'
     | 'save_call'
     | 'save_recording'
     | 'knowledge_search'
@@ -9,7 +10,8 @@ export type ToolName =
     | 'check_service_area'
     | 'list_appointments_by_phone'
     | 'cancel_appointment'
-    | 'reschedule_appointment';
+    | 'reschedule_appointment'
+    | 'send_booking_link';
 
 export interface TenantResolveRequest {
     to_number: string;

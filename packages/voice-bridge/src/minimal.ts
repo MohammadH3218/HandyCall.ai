@@ -229,38 +229,30 @@ function selectAvailabilitySlot(requestedText: string | undefined, slots: string
   return null;
 }
 
-function buildInstructions(tenant: TenantInfo, options: { serviceAreaRequired: boolean; defaultDurationMinutes: number }) {
+function buildInstructions(tenant: TenantInfo, options: { serviceAreaRequired: boolean }) {
   const name = tenant.company_name || 'our company';
   const extra = tenant.agent_config?.realtime_instructions;
   const templatePrompt = typeof tenant.service_template?.base_system_prompt === 'string'
     ? tenant.service_template.base_system_prompt
     : null;
   const renderedTemplatePrompt = templatePrompt ? templatePrompt.replace(/\{company_name\}/g, name) : null;
-  const requiredFields = formatFieldList(tenant.service_template?.intake_schema?.required);
-  const optionalFields = formatFieldList(tenant.service_template?.intake_schema?.optional);
   const serviceAreaRequired = options.serviceAreaRequired;
-  const defaultDurationMinutes = options.defaultDurationMinutes;
-
   const lines = [
     renderedTemplatePrompt || `You are the phone receptionist for ${name}.`,
     `Greet the caller immediately and include the company name in the first sentence.`,
     `Be friendly, concise, and phone-like. Ask one question at a time.`,
-    `You can answer FAQs and schedule/reschedule/cancel when asked.`,
+    `You can answer FAQs and help callers book by sending a booking link.`,
     `Never ask for the caller's phone number. Use the caller ID.`,
     serviceAreaRequired
-      ? `If the caller wants to book or check availability, ask for their 5-digit ZIP code first and call check_service_area(zip) before proceeding.`
-      : `If service-area checks are enabled or the caller provides a ZIP, call check_service_area(zip) before booking.`,
+      ? `If the caller wants to book, ask for their 5-digit ZIP code first and call check_service_area(zip) before offering a booking link.`
+      : `If service-area checks are enabled or the caller provides a ZIP, call check_service_area(zip) before sending a booking link.`,
     serviceAreaRequired
       ? `If the ZIP is not serviced, apologize and end the call politely.`
       : `If the ZIP is not serviced, apologize and end the call politely.`,
-    requiredFields ? `Required intake fields for booking (ask in this order): ${requiredFields}.` : null,
-    optionalFields ? `Optional intake fields: ${optionalFields}.` : null,
-    `Collect the required info before asking for a date/time or checking availability.`,
-    `For availability: call get_availability with start_time (natural language is OK) and timezone if known.`,
-    `If the caller requests a specific time and it is available: say it's available and book it immediately (no long re-confirmation).`,
-    `If the time is unavailable: offer the closest available slots or ask for another day/time.`,
-    `Only summarize/confirm details if the caller corrects something or if a required field was missing.`,
-    `Do not mention appointment duration unless the caller asks. Default length is ${defaultDurationMinutes} minutes.`,
+    `Do NOT collect name, address, or other intake details on the phone.`,
+    `After confirming the service area, ask permission to text a booking link to the caller's number.`,
+    `If the caller agrees, call send_booking_link immediately and confirm it was sent.`,
+    `Do not book appointments or check availability on the phone; use the booking link flow only.`,
     `If the caller asks about prior appointments, use list_appointments_by_phone.`,
     `Use knowledge_search for company-specific questions (services, pricing, policies, service areas).`,
     `After finishing the main task, ask: "Is there anything else I can help with today?"`,
@@ -385,6 +377,15 @@ async function callTool(ctx: CallContext, name: string, args: any) {
     });
   }
 
+  if (name === 'start_call') {
+    return postJson(`${toolsBase}/tools/start_call`, headers, {
+      company_id: ctx.company_id,
+      call_id: ctx.callSid,
+      from_number: ctx.from,
+      to_number: ctx.to,
+    });
+  }
+
   if (name === 'save_call') {
     return postJson(`${toolsBase}/tools/save_call`, headers, {
       company_id: ctx.company_id,
@@ -393,6 +394,7 @@ async function callTool(ctx: CallContext, name: string, args: any) {
       summary: args?.summary,
       duration_seconds: args?.duration_seconds,
       collected_info: args?.collected_info,
+      skip_contact_update: args?.skip_contact_update,
     });
   }
 
@@ -402,6 +404,15 @@ async function callTool(ctx: CallContext, name: string, args: any) {
       call_id: ctx.callSid,
       recording_sid: args?.recording_sid,
       duration_seconds: args?.duration_seconds,
+    });
+  }
+
+  if (name === 'send_booking_link') {
+    return postJson(`${toolsBase}/tools/send_booking_link`, headers, {
+      company_id: ctx.company_id,
+      call_id: ctx.callSid,
+      from_number: ctx.from,
+      to_number: ctx.to,
     });
   }
 
@@ -629,7 +640,6 @@ wss.on('connection', (twilioWs: WebSocket) => {
       'alloy';
     const instructions = buildInstructions(tenant, {
       serviceAreaRequired,
-      defaultDurationMinutes: DEFAULT_APPOINTMENT_MINUTES,
     });
     const openaiKey = await getSecret('OPENAI_API_KEY');
     const openaiUrl = `wss://api.openai.com/v1/realtime?model=${encodeURIComponent(model)}`;
@@ -760,7 +770,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
             result = { ok: true, status: 'pending_hangup' };
             if (!assistantSpeaking) queueHangupMark();
           } else if (
-            (toolName === 'get_availability' || toolName === 'create_booking') &&
+            (toolName === 'get_availability' || toolName === 'create_booking' || toolName === 'send_booking_link') &&
             serviceAreaRequired &&
             serviceAreaEligible !== true
           ) {
@@ -867,8 +877,8 @@ wss.on('connection', (twilioWs: WebSocket) => {
       twilioReady = true;
       await connectOpenAI(resolvedTenant);
 
-      callTool(ctx, 'create_lead', { collected_info: {} }).catch((err: any) =>
-        console.warn('[bridge] create_lead failed', err?.message ?? String(err))
+      callTool(ctx, 'start_call', {}).catch((err: any) =>
+        console.warn('[bridge] start_call failed', err?.message ?? String(err))
       );
 
       startTwilioRecording(callSid).catch((err: any) =>
@@ -894,6 +904,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
           transcript: merged || undefined,
           summary: 'Call ended.',
           duration_seconds: durationSeconds,
+          skip_contact_update: true,
         }).catch((err: any) => console.warn('[bridge] save_call failed', err?.message ?? String(err)));
 
         if ((process.env.TWILIO_RECORD_CALLS ?? 'true') !== 'false') {

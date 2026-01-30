@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsNumber, IsObject, IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsNotEmpty, IsNumber, IsObject, IsOptional, IsString } from 'class-validator';
 
 export class SaveCallDto {
   @IsString()
@@ -24,5 +24,8 @@ export class SaveCallDto {
   @IsNumber()
   @IsOptional()
   duration_seconds?: number;
-}
 
+  @IsBoolean()
+  @IsOptional()
+  skip_contact_update?: boolean;
+}

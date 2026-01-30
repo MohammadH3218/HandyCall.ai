@@ -28,6 +28,8 @@ import { KnowledgeSearchDto } from './dto/knowledge-search.dto';
 import { SaveCallDto } from './dto/save-call.dto';
 import { ConfigService } from '@nestjs/config';
 import { SaveRecordingDto } from './dto/save-recording.dto';
+import { signBookingToken } from '../public-booking/booking-link.util';
+import { sendTwilioSms } from '../public-booking/sms.util';
 
 function asE164(input: string): string {
   const trimmed = (input || '').trim();
@@ -60,6 +62,26 @@ export class RealtimeToolsService {
     }
     const basic = Buffer.from(`${sid}:${token}`, 'utf8').toString('base64');
     return `Basic ${basic}`;
+  }
+
+  private getBookingSecret(): string {
+    const secret =
+      this.config.get<string>('BOOKING_LINK_SECRET') || this.config.get<string>('JWT_SECRET');
+    if (!secret) throw new Error('Missing BOOKING_LINK_SECRET/JWT_SECRET');
+    return secret;
+  }
+
+  private getFrontendBaseUrl(): string {
+    return (this.config.get<string>('FRONTEND_URL') || 'https://handycall.org').replace(/\/$/, '');
+  }
+
+  private buildBookingLink(companyId: string, callId: string): string {
+    const expiresMs = Number(this.config.get<string>('BOOKING_LINK_EXPIRES_MS') || 7 * 24 * 60 * 60 * 1000);
+    const token = signBookingToken(
+      { company_id: companyId, call_id: callId, exp: Date.now() + expiresMs },
+      this.getBookingSecret()
+    );
+    return `${this.getFrontendBaseUrl()}/book/${token}`;
   }
 
   private buildSummaryFallback(collected: Record<string, any> | undefined): string | undefined {
@@ -260,6 +282,49 @@ export class RealtimeToolsService {
     };
   }
 
+  async startCall(dto: { company_id: string; call_id: string; from_number: string; to_number: string }) {
+    const company_id = dto.company_id;
+    if (!company_id) throw new BadRequestException('company_id is required');
+
+    const call_id = dto.call_id;
+    if (!call_id) throw new BadRequestException('call_id is required');
+
+    const from_number = asE164(dto.from_number);
+    const to_number = asE164(dto.to_number);
+    if (!from_number || !to_number) {
+      throw new BadRequestException('from_number and to_number are required');
+    }
+
+    const existing = await this.dynamodb.get('calls', { company_id, call_id });
+    const now = Date.now();
+    if (existing) {
+      await this.dynamodb.update('calls', { company_id, call_id }, {
+        from_number,
+        to_number,
+        status: CallStatus.IN_PROGRESS,
+        updated_at: now,
+      });
+      return { ok: true, call_id };
+    }
+
+    const call: Call = {
+      company_id,
+      call_id,
+      direction: CallDirection.INBOUND,
+      from_number,
+      to_number,
+      status: CallStatus.IN_PROGRESS,
+      ai_handled: true,
+      escalated: false,
+      lead_captured: false,
+      started_at: now,
+      created_at: now,
+    };
+
+    await this.dynamodb.put('calls', call);
+    return { ok: true, call_id };
+  }
+
   async createLead(dto: CreateLeadDto) {
     const company_id = dto.company_id;
     if (!company_id) throw new BadRequestException('company_id is required');
@@ -404,6 +469,8 @@ export class RealtimeToolsService {
 
     const transcriptText = dto.transcript && dto.transcript.trim() ? dto.transcript.trim() : undefined;
 
+    const skipContactUpdate = dto.skip_contact_update === true;
+
     const incomingCollected =
       dto.collected_info && typeof dto.collected_info === 'object'
         ? (dto.collected_info as Record<string, any>)
@@ -418,7 +485,7 @@ export class RealtimeToolsService {
       );
 
     const extractedCollected =
-      transcriptText && !incomingHasAny ? this.extractCollectedInfoFromTranscript(transcriptText) : {};
+      transcriptText && !incomingHasAny && !skipContactUpdate ? this.extractCollectedInfoFromTranscript(transcriptText) : {};
     const extractedHasAny = Object.keys(extractedCollected).some(
       (k) => extractedCollected[k] !== undefined && extractedCollected[k] !== null && `${extractedCollected[k]}`.trim() !== ''
     );
@@ -492,80 +559,82 @@ export class RealtimeToolsService {
     }
 
     // Ensure contact is de-duplicated by phone number and enriched by collected fields.
-    try {
-      const collected = (updates.collected_info as any) ?? dto.collected_info ?? {};
-      const name = typeof collected.name === 'string' ? collected.name.trim() : '';
-      const first =
-        (typeof collected.first_name === 'string' ? collected.first_name.trim() : '') ||
-        (name ? name.split(/\s+/)[0]?.trim() : '');
-      const last =
-        (typeof collected.last_name === 'string' ? collected.last_name.trim() : '') ||
-        (name ? name.split(/\s+/).slice(1).join(' ')?.trim() : '');
-      const email = typeof collected.email === 'string' ? collected.email.trim() : '';
-      const address = typeof collected.address === 'string' ? collected.address.trim() : '';
-      const zip = typeof collected.zip === 'string' ? collected.zip.trim() : '';
+    if (!skipContactUpdate) {
+      try {
+        const collected = (updates.collected_info as any) ?? dto.collected_info ?? {};
+        const name = typeof collected.name === 'string' ? collected.name.trim() : '';
+        const first =
+          (typeof collected.first_name === 'string' ? collected.first_name.trim() : '') ||
+          (name ? name.split(/\s+/)[0]?.trim() : '');
+        const last =
+          (typeof collected.last_name === 'string' ? collected.last_name.trim() : '') ||
+          (name ? name.split(/\s+/).slice(1).join(' ')?.trim() : '');
+        const email = typeof collected.email === 'string' ? collected.email.trim() : '';
+        const address = typeof collected.address === 'string' ? collected.address.trim() : '';
+        const zip = typeof collected.zip === 'string' ? collected.zip.trim() : '';
 
-      const fromNumber = asE164(
-        (typeof existing?.from_number === 'string' && existing.from_number) ||
-        (typeof collected.phone === 'string' && collected.phone) ||
-        ''
-      );
+        const fromNumber = asE164(
+          (typeof existing?.from_number === 'string' && existing.from_number) ||
+          (typeof collected.phone === 'string' && collected.phone) ||
+          ''
+        );
 
-      let contact_id: string | undefined = existing?.contact_id;
-      if (!contact_id && fromNumber) {
-        // Best-effort find by phone; avoid requiring the phone-lookup index.
-        const scan = await this.dynamodb.scan('contacts', {
-          filterExpression: '#company_id = :company_id AND #phone_number = :phone_number',
-          expressionAttributeNames: { '#company_id': 'company_id', '#phone_number': 'phone_number' },
-          expressionAttributeValues: { ':company_id': company_id, ':phone_number': fromNumber },
-          limit: 1,
-        });
-        contact_id = scan.items?.[0]?.contact_id;
-      }
-
-      if (!contact_id && fromNumber) {
-        contact_id = uuidv4();
-        const contact: Contact = {
-          company_id,
-          contact_id,
-          phone_number: fromNumber,
-          email: email || undefined,
-          first_name: first || undefined,
-          last_name: last || undefined,
-          address: address || undefined,
-          zipcode: zip || undefined,
-          source: ContactSource.INBOUND_CALL,
-          source_call_id: call_id,
-          lead_status: LeadStatus.NEW,
-          created_at: now,
-          updated_at: now,
-          last_contact_at: now,
-        };
-        await this.dynamodb.put('contacts', contact);
-      }
-
-      if (contact_id) {
-        updates.contact_id = contact_id as any;
-        const contactUpdates: Record<string, any> = {
-          ...(first ? { first_name: first } : {}),
-          ...(last ? { last_name: last } : {}),
-          ...(email ? { email } : {}),
-          ...(address ? { address } : {}),
-          ...(zip ? { zipcode: zip } : {}),
-          last_contact_at: now,
-          updated_at: now,
-        };
-        if (Object.keys(contactUpdates).length > 2) {
-          await this.dynamodb.update('contacts', { company_id, contact_id }, contactUpdates);
-        } else {
-          await this.dynamodb.update('contacts', { company_id, contact_id }, { last_contact_at: now, updated_at: now });
+        let contact_id: string | undefined = existing?.contact_id;
+        if (!contact_id && fromNumber) {
+          // Best-effort find by phone; avoid requiring the phone-lookup index.
+          const scan = await this.dynamodb.scan('contacts', {
+            filterExpression: '#company_id = :company_id AND #phone_number = :phone_number',
+            expressionAttributeNames: { '#company_id': 'company_id', '#phone_number': 'phone_number' },
+            expressionAttributeValues: { ':company_id': company_id, ':phone_number': fromNumber },
+            limit: 1,
+          });
+          contact_id = scan.items?.[0]?.contact_id;
         }
 
-        const displayName = [first, last].filter(Boolean).join(' ').trim();
-        if (displayName) updates.caller_name = displayName;
+        if (!contact_id && fromNumber) {
+          contact_id = uuidv4();
+          const contact: Contact = {
+            company_id,
+            contact_id,
+            phone_number: fromNumber,
+            email: email || undefined,
+            first_name: first || undefined,
+            last_name: last || undefined,
+            address: address || undefined,
+            zipcode: zip || undefined,
+            source: ContactSource.INBOUND_CALL,
+            source_call_id: call_id,
+            lead_status: LeadStatus.NEW,
+            created_at: now,
+            updated_at: now,
+            last_contact_at: now,
+          };
+          await this.dynamodb.put('contacts', contact);
+        }
+
+        if (contact_id) {
+          updates.contact_id = contact_id as any;
+          const contactUpdates: Record<string, any> = {
+            ...(first ? { first_name: first } : {}),
+            ...(last ? { last_name: last } : {}),
+            ...(email ? { email } : {}),
+            ...(address ? { address } : {}),
+            ...(zip ? { zipcode: zip } : {}),
+            last_contact_at: now,
+            updated_at: now,
+          };
+          if (Object.keys(contactUpdates).length > 2) {
+            await this.dynamodb.update('contacts', { company_id, contact_id }, contactUpdates);
+          } else {
+            await this.dynamodb.update('contacts', { company_id, contact_id }, { last_contact_at: now, updated_at: now });
+          }
+
+          const displayName = [first, last].filter(Boolean).join(' ').trim();
+          if (displayName) updates.caller_name = displayName;
+        }
+      } catch (err) {
+        console.error('[RealtimeToolsService] Failed to update contact from collected_info (non-fatal):', err);
       }
-    } catch (err) {
-      console.error('[RealtimeToolsService] Failed to update contact from collected_info (non-fatal):', err);
     }
 
     // Track call usage for billing (idempotent, supports multiple saves with increasing accuracy)
@@ -840,6 +909,85 @@ export class RealtimeToolsService {
       start_time: slot.start_time,
       end_time: slot.end_time,
     };
+  }
+
+  async sendBookingLink(dto: { company_id: string; call_id: string; from_number?: string; to_number?: string }) {
+    const company_id = dto.company_id;
+    const call_id = dto.call_id;
+    if (!company_id || !call_id) {
+      throw new BadRequestException('company_id and call_id are required');
+    }
+
+    const company = await this.companies.findById(company_id);
+    if (!company) throw new NotFoundException('Company not found');
+    if (company.sms_enabled === false) {
+      throw new ForbiddenException('SMS is disabled for this account.');
+    }
+
+    const existingCall = await this.dynamodb.get('calls', { company_id, call_id });
+    const from_number = asE164(
+      (typeof dto.from_number === 'string' && dto.from_number) ||
+      (typeof existingCall?.from_number === 'string' && existingCall.from_number) ||
+      ''
+    );
+    const to_number = asE164(
+      (typeof dto.to_number === 'string' && dto.to_number) ||
+      (typeof existingCall?.to_number === 'string' && existingCall.to_number) ||
+      ''
+    );
+    if (!from_number || !to_number) {
+      throw new BadRequestException('from_number and to_number are required');
+    }
+
+    const bookingLink = this.buildBookingLink(company_id, call_id);
+    const message = `Thanks for calling ${company.company_name}. Book your appointment here: ${bookingLink}`;
+
+    const accountSid = this.config.get<string>('TWILIO_ACCOUNT_SID');
+    const authToken = this.config.get<string>('TWILIO_AUTH_TOKEN');
+    if (!accountSid || !authToken) {
+      throw new Error('Missing TWILIO_ACCOUNT_SID/TWILIO_AUTH_TOKEN');
+    }
+
+    await sendTwilioSms({
+      accountSid,
+      authToken,
+      from: to_number,
+      to: from_number,
+      body: message,
+    });
+    await this.usageService.incrementSmsCount(company_id);
+
+    const now = Date.now();
+    if (existingCall) {
+      await this.dynamodb.update(
+        'calls',
+        { company_id, call_id },
+        {
+          lead_captured: true,
+          outcome: 'LEAD',
+          booking_link_sent_at: now,
+          updated_at: now,
+        }
+      );
+    } else {
+      const call: Call = {
+        company_id,
+        call_id,
+        direction: CallDirection.INBOUND,
+        from_number,
+        to_number,
+        status: CallStatus.IN_PROGRESS,
+        ai_handled: true,
+        escalated: false,
+        lead_captured: true,
+        started_at: now,
+        created_at: now,
+        outcome: 'LEAD' as any,
+      } as any;
+      await this.dynamodb.put('calls', call);
+    }
+
+    return { ok: true, booking_link: bookingLink };
   }
 
   async checkServiceArea(company_id: string, zip: string) {

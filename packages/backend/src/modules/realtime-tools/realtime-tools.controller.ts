@@ -12,6 +12,8 @@ import { CheckServiceAreaDto } from './dto/check-service-area.dto';
 import { ListAppointmentsByPhoneDto } from './dto/list-appointments.dto';
 import { CancelAppointmentDto } from './dto/cancel-appointment.dto';
 import { RescheduleAppointmentDto } from './dto/reschedule-appointment.dto';
+import { StartCallDto } from './dto/start-call.dto';
+import { SendBookingLinkDto } from './dto/send-booking-link.dto';
 import { RealtimeToolsService } from './realtime-tools.service';
 
 @Controller()
@@ -30,6 +32,11 @@ export class RealtimeToolsController {
   @Post('tools/create_lead')
   createLead(@Body() dto: CreateLeadDto) {
     return this.tools.createLead(dto);
+  }
+
+  @Post('tools/start_call')
+  startCall(@Body() dto: StartCallDto) {
+    return this.tools.startCall(dto);
   }
 
   @Post('tools/save_call')
@@ -75,5 +82,10 @@ export class RealtimeToolsController {
   @Post('tools/reschedule_appointment')
   rescheduleAppointment(@Body() dto: RescheduleAppointmentDto) {
     return this.tools.rescheduleAppointment(dto);
+  }
+
+  @Post('tools/send_booking_link')
+  sendBookingLink(@Body() dto: SendBookingLinkDto) {
+    return this.tools.sendBookingLink(dto);
   }
 }

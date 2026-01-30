@@ -107,9 +107,6 @@ export default function CallsPage() {
     if (outcome === 'LEAD' || call.lead_captured) {
       return { label: 'Lead', className: 'bg-amber-50 text-amber-800 border-amber-200' };
     }
-    if (call.summary || call.transcript || call.collected_info) {
-      return { label: 'Possible Lead', className: 'bg-blue-50 text-blue-700 border-blue-200' };
-    }
     return { label: 'No Lead', className: 'bg-gray-50 text-gray-700 border-gray-200' };
   };
 

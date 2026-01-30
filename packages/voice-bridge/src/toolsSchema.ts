@@ -27,35 +27,11 @@ export function toolsSchema() {
         },
         {
             type: 'function',
-            name: 'get_availability',
-            description: 'Find available appointment slots.',
+            name: 'send_booking_link',
+            description: 'Send a booking link by SMS so the caller can schedule and fill out details.',
             parameters: {
                 type: 'object',
-                properties: {
-                    start_time: { type: 'string', description: 'Requested time or day (ISO or natural language).' },
-                    end_time: { type: 'string', description: 'Optional end of the window (ISO or natural language).' },
-                    timezone: { type: 'string' }
-                },
-                required: ['start_time']
-            }
-        },
-        {
-            type: 'function',
-            name: 'create_booking',
-            description: 'Create an appointment booking. MUST ONLY be called after user confirms details.',
-            parameters: {
-                type: 'object',
-                properties: {
-                    full_name: { type: 'string' },
-                    customer_name: { type: 'string' },
-                    service_type: { type: 'string' },
-                    details: { type: 'object', additionalProperties: true },
-                    start_time: { type: 'string' },
-                    end_time: { type: 'string' },
-                    timezone: { type: 'string' },
-                    confirmed: { type: 'boolean', description: 'Must be true only after explicit user confirmation.' }
-                },
-                required: ['full_name', 'service_type', 'details', 'start_time', 'timezone', 'confirmed']
+                properties: {}
             }
         },
         {

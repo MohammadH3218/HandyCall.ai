@@ -16,6 +16,8 @@ type Contact = {
   phone_number?: string;
   first_name?: string;
   last_name?: string;
+  address?: string;
+  zipcode?: string;
   // Back-compat (older backend responses)
   name?: string;
   phone?: string;
@@ -67,12 +69,14 @@ export default function CustomersPage() {
       setError(null);
 
       const now = new Date();
+      const start = new Date(now);
+      start.setDate(start.getDate() - 365);
       const end = new Date(now);
-      end.setDate(end.getDate() + 180);
+      end.setDate(end.getDate() + 365);
 
       const [contactsResp, apptsResp] = await Promise.all([
         apiClient.getContacts(200),
-        apiClient.getAppointmentsRange(now.toISOString(), end.toISOString()),
+        apiClient.getAppointmentsRange(start.toISOString(), end.toISOString()),
       ]);
 
       setContacts((contactsResp.contacts || []) as Contact[]);
@@ -107,6 +111,13 @@ export default function CustomersPage() {
         const name = String(c.name || `${c.first_name || ''} ${c.last_name || ''}`.trim()).trim();
         const text = [name, phone, c.email].filter(Boolean).join(' ').toLowerCase();
         return text.includes(q);
+      })
+      .filter((c) => {
+        const phone = String(c.phone_number || c.phone || '').trim();
+        const hasBooking = phone && byPhone.has(phone);
+        const hasName = String(c.name || `${c.first_name || ''} ${c.last_name || ''}`.trim()).trim().length > 0;
+        const hasAddress = Boolean((c.address || '').trim()) || Boolean((c.zipcode || '').trim());
+        return hasBooking && hasName && phone && hasAddress;
       })
       .map((c) => {
         const phone = String(c.phone_number || c.phone || '').trim();
@@ -243,7 +254,7 @@ export default function CustomersPage() {
             <div className="text-center py-12">
               <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
               <h3 className="text-lg font-semibold text-gray-900 mb-2">No customers yet</h3>
-              <p className="text-sm text-gray-500">Customers are created from calls and appointments.</p>
+              <p className="text-sm text-gray-500">Customers appear after a confirmed booking.</p>
             </div>
           )}
         </CardContent>
@@ -265,6 +276,11 @@ export default function CustomersPage() {
                 </div>
                 <div className="text-sm text-gray-600">{String(selectedContact.phone_number || selectedContact.phone || '').trim()}</div>
                 {selectedContact.email ? <div className="text-sm text-gray-600">{selectedContact.email}</div> : null}
+                {selectedContact.address ? (
+                  <div className="text-sm text-gray-600">{selectedContact.address}</div>
+                ) : selectedContact.zipcode ? (
+                  <div className="text-sm text-gray-600">ZIP {selectedContact.zipcode}</div>
+                ) : null}
                 <div className="text-xs text-gray-500 mt-2">
                   Added: {formatDate(selectedContact.created_at)} • Last contact: {formatDate(selectedContact.last_contact_at)}
                 </div>

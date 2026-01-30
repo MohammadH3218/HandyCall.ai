@@ -15,7 +15,7 @@ export class AppointmentsService {
 
   private async findOrCreateContactId(
     companyId: string,
-    input: { contact_name?: string; contact_email?: string; contact_phone?: string; notes?: string }
+    input: { contact_name?: string; contact_email?: string; contact_phone?: string; notes?: string; address?: { street?: string; city?: string; state?: string; zip?: string } }
   ): Promise<string | undefined> {
     const phone = input.contact_phone?.trim();
     if (!phone) return undefined;
@@ -37,6 +37,9 @@ export class AppointmentsService {
       const name = input.contact_name?.trim();
       const [first, ...rest] = name ? name.split(/\s+/) : [];
       const last = rest.length ? rest.join(' ') : undefined;
+      const addressLine = input.address
+        ? [input.address.street, input.address.city, input.address.state, input.address.zip].filter(Boolean).join(', ')
+        : undefined;
       await this.dynamodb.update(
         'contacts',
         { company_id: companyId, contact_id: contact.contact_id },
@@ -46,6 +49,8 @@ export class AppointmentsService {
           ...(last && { last_name: last }),
           ...(phone && { phone, phone_number: phone }),
           ...(input.contact_email && { email: input.contact_email.trim() }),
+          ...(addressLine && { address: addressLine }),
+          ...(input.address?.zip && { zipcode: input.address.zip }),
           updated_at: nowIso,
           last_contact_at: Date.now(),
         }
@@ -58,6 +63,9 @@ export class AppointmentsService {
     const name = input.contact_name?.trim();
     const [first, ...rest] = name ? name.split(/\s+/) : [];
     const last = rest.length ? rest.join(' ') : undefined;
+    const addressLine = input.address
+      ? [input.address.street, input.address.city, input.address.state, input.address.zip].filter(Boolean).join(', ')
+      : undefined;
     await this.dynamodb.put('contacts', {
       contact_id,
       company_id: companyId,
@@ -67,6 +75,8 @@ export class AppointmentsService {
       first_name: first || undefined,
       last_name: last || undefined,
       email: input.contact_email?.trim() || undefined,
+      address: addressLine,
+      zipcode: input.address?.zip || undefined,
       source: 'MANUAL',
       tags: [],
       notes: input.notes,
@@ -229,6 +239,7 @@ export class AppointmentsService {
       contact_email: input.contact_email,
       contact_phone: input.contact_phone,
       notes: input.notes,
+      address: input.address,
     });
 
     const base = {
