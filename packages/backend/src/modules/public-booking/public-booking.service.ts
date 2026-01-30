@@ -278,10 +278,17 @@ export class PublicBookingService {
       const label = formatSlotLabel(startIso, timeZone);
       const body = `You're confirmed with ${company.company_name} for ${label}. Reply if you have questions.`;
       try {
-        await sendTwilioSms({ accountSid, authToken, from: fromNumber, to: phone, body });
+        const result = await sendTwilioSms({ accountSid, authToken, from: fromNumber, to: phone, body });
+        console.log('[public_booking] confirmation SMS sent', {
+          appointment_id: appointment?.appointment_id,
+          sid: result.sid,
+          status: result.status,
+          error_code: result.error_code,
+          error_message: result.error_message,
+        });
         await this.usage.incrementSmsCount(company.company_id);
       } catch (err) {
-        console.warn('[public-booking] failed to send confirmation SMS', err);
+        console.warn('[public_booking] failed to send confirmation SMS', err);
       }
     }
 

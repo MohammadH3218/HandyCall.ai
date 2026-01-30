@@ -6,7 +6,9 @@ type SmsParams = {
   body: string;
 };
 
-export async function sendTwilioSms(params: SmsParams): Promise<{ sid?: string; status?: string }> {
+export async function sendTwilioSms(
+  params: SmsParams
+): Promise<{ sid?: string; status?: string; error_code?: number | null; error_message?: string | null }> {
   const { accountSid, authToken, from, to, body } = params;
   const basic = Buffer.from(`${accountSid}:${authToken}`, 'utf8').toString('base64');
   const form = new URLSearchParams();
@@ -25,8 +27,21 @@ export async function sendTwilioSms(params: SmsParams): Promise<{ sid?: string; 
   });
   const text = await res.text();
   if (!res.ok) {
-    throw new Error(`Twilio SMS ${res.status}: ${text}`);
+    const err: any = new Error(`Twilio SMS ${res.status}: ${text}`);
+    err.status = res.status;
+    err.body = text;
+    throw err;
   }
-  const data = text ? (JSON.parse(text) as any) : {};
-  return { sid: data?.sid, status: data?.status };
+  let data: any = {};
+  try {
+    data = text ? (JSON.parse(text) as any) : {};
+  } catch {
+    data = {};
+  }
+  return {
+    sid: data?.sid,
+    status: data?.status,
+    error_code: data?.error_code ?? null,
+    error_message: data?.error_message ?? null,
+  };
 }

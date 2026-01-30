@@ -941,6 +941,13 @@ export class RealtimeToolsService {
 
     const bookingLink = this.buildBookingLink(company_id, call_id);
     const message = `Thanks for calling ${company.company_name}. Book your appointment here: ${bookingLink}`;
+    console.log('[send_booking_link] preparing', {
+      company_id,
+      call_id,
+      from_number,
+      to_number,
+      sms_enabled: company.sms_enabled !== false,
+    });
 
     const accountSid = this.config.get<string>('TWILIO_ACCOUNT_SID');
     const authToken = this.config.get<string>('TWILIO_AUTH_TOKEN');
@@ -948,14 +955,31 @@ export class RealtimeToolsService {
       throw new Error('Missing TWILIO_ACCOUNT_SID/TWILIO_AUTH_TOKEN');
     }
 
-    await sendTwilioSms({
-      accountSid,
-      authToken,
-      from: to_number,
-      to: from_number,
-      body: message,
-    });
-    await this.usageService.incrementSmsCount(company_id);
+    try {
+      const result = await sendTwilioSms({
+        accountSid,
+        authToken,
+        from: to_number,
+        to: from_number,
+        body: message,
+      });
+      console.log('[send_booking_link] twilio sent', {
+        sid: result.sid,
+        status: result.status,
+        error_code: result.error_code,
+        error_message: result.error_message,
+      });
+      await this.usageService.incrementSmsCount(company_id);
+    } catch (err: any) {
+      console.error('[send_booking_link] twilio send failed', {
+        message: err?.message ?? String(err),
+        status: err?.status,
+        body: err?.body,
+        from_number,
+        to_number,
+      });
+      throw err;
+    }
 
     const now = Date.now();
     if (existingCall) {
