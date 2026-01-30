@@ -142,12 +142,6 @@ type TenantInfo = {
   service_type?: string;
 };
 
-function formatFieldList(fields?: any[]): string | null {
-  if (!Array.isArray(fields) || fields.length === 0) return null;
-  const cleaned = fields.map((item) => String(item || '').trim()).filter(Boolean);
-  return cleaned.length ? cleaned.join(', ') : null;
-}
-
 const fillerUtterances = new Set(['mhm', 'mm', 'uh', 'um', 'uh-huh', 'uh huh', 'hmm', 'hm', 'ok', 'okay', 'yeah', 'yep']);
 
 function isFillerUtterance(text: string) {
@@ -467,8 +461,6 @@ function sendToTwilio(ws: WebSocket, msg: any) {
 }
 
 const port = Number(process.env.PORT || 8080);
-const DEFAULT_APPOINTMENT_MINUTES = Number(envFirst(['DEFAULT_APPOINTMENT_MINUTES']) || 120);
-
 const server = http.createServer(async (req, res) => {
   try {
     if (req.method === 'GET' && (req.url === '/health' || req.url === '/')) {
