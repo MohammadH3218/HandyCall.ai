@@ -120,13 +120,6 @@ export class PublicBookingService {
     const missing: string[] = [];
     const custom = dto.custom_fields ?? {};
     const address = this.resolveAddressInput(dto);
-    const serviceZips = (company as any).service_area_zipcodes ?? [];
-    if (serviceZips.length && (address.zip || dto.zip)) {
-      const checkZip = (address.zip || dto.zip || '').trim();
-      if (checkZip && !serviceZips.includes(checkZip)) {
-        throw new BadRequestException(`Sorry, we don't service zipcode ${checkZip}.`);
-      }
-    }
     const hasAddress = Boolean(address.street && address.city && address.state && address.zip);
 
     for (const field of required) {
