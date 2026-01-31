@@ -21,6 +21,16 @@
   },
   {
     "Namespace": "aws:elasticbeanstalk:application:environment",
+    "OptionName": "SES_REGION",
+    "Value": "us-east-1"
+  },
+  {
+    "Namespace": "aws:elasticbeanstalk:application:environment",
+    "OptionName": "BOOKING_EMAIL_DOMAIN",
+    "Value": "handycall.org"
+  },
+  {
+    "Namespace": "aws:elasticbeanstalk:application:environment",
     "OptionName": "DYNAMODB_TABLE_PREFIX",
     "Value": "handycall_prod_"
   },

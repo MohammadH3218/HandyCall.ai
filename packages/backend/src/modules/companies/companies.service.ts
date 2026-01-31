@@ -30,6 +30,17 @@ export class CompaniesService {
 
   constructor(private dynamodb: DynamoDBService) {}
 
+  private buildBookingFromEmail(companyName: string, companyId: string): string {
+    const domain = process.env.BOOKING_EMAIL_DOMAIN || process.env.SES_FROM_DOMAIN || 'handycall.org';
+    const slug = String(companyName || '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 32);
+    const local = `no-reply+${slug || companyId}`;
+    return `${local}@${domain}`;
+  }
+
   async findByName(companyName: string): Promise<Company | null> {
     // Case-insensitive match via scan (tables are small enough for admin operations)
     const result = await this.dynamodb.scan(this.tableName, {
@@ -105,6 +116,7 @@ export class CompaniesService {
       service_type: serviceType,
       ...(phoneNumber ? { phone_number: phoneNumber } : {}),
       email,
+      booking_from_email: this.buildBookingFromEmail(companyName, companyId),
       status: CompanyStatus.INACTIVE,
       timezone,
       business_hours: defaultBusinessHours,

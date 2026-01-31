@@ -4,10 +4,10 @@ import { CompaniesService } from '../companies/companies.service';
 import { DynamoDBService } from '../../infrastructure/database/dynamodb.service';
 import { SchedulingService } from '../scheduling/scheduling.service';
 import { AppointmentsService } from '../appointments/appointments.service';
-import { UsageService } from '../billing/usage.service';
 import { parseHHmm, zonedTimeToUtcMs } from '../scheduling/timezone';
 import { PublicBookingRequestDto } from './dto/public-booking.dto';
-import { sendTwilioSms } from './sms.util';
+import { sendSesEmail } from './email.util';
+import { isValidEmail } from '@handycall/shared';
 import { signBookingToken, verifyBookingToken } from './booking-link.util';
 
 type BookingTemplate = {
@@ -57,7 +57,6 @@ export class PublicBookingService {
     private readonly dynamodb: DynamoDBService,
     private readonly scheduling: SchedulingService,
     private readonly appointments: AppointmentsService,
-    private readonly usage: UsageService,
   ) {}
 
   private getBookingSecret(): string {
@@ -69,6 +68,26 @@ export class PublicBookingService {
 
   private getFrontendBaseUrl(): string {
     return (this.config.get<string>('FRONTEND_URL') || 'https://handycall.org').replace(/\/$/, '');
+  }
+
+  private resolveBookingFromEmail(company: any): { from: string; display: string } {
+    const override =
+      (typeof company?.booking_from_email === 'string' && company.booking_from_email) ||
+      (typeof company?.email_from === 'string' && company.email_from);
+    const domain =
+      this.config.get<string>('BOOKING_EMAIL_DOMAIN') ||
+      this.config.get<string>('SES_FROM_DOMAIN') ||
+      'handycall.org';
+    const rawName = String(company?.company_name || company?.company_id || 'company');
+    const slug = rawName
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 32);
+    const local = `no-reply+${slug || company?.company_id || 'company'}`;
+    const from = override || `${local}@${domain}`;
+    const display = rawName;
+    return { from, display };
   }
 
   async buildBookingLink(companyId: string, callId: string) {
@@ -167,6 +186,12 @@ export class PublicBookingService {
 
     const call = await this.dynamodb.get('calls', { company_id: payload.company_id, call_id: payload.call_id });
     const phone = typeof call?.from_number === 'string' ? call.from_number : undefined;
+    const email =
+      typeof (call as any)?.lead_email === 'string'
+        ? String((call as any).lead_email)
+        : typeof (call as any)?.email === 'string'
+          ? String((call as any).email)
+          : undefined;
     const template = await this.loadTemplate(payload.company_id);
     const fields = this.extractRequiredFields(template);
 
@@ -177,6 +202,7 @@ export class PublicBookingService {
       service_type: company.service_type,
       timezone: company.timezone,
       phone_number: phone,
+      email,
       intake_schema: {
         required: fields.required,
         optional: fields.optional,
@@ -266,29 +292,35 @@ export class PublicBookingService {
           appointment_id: appointment?.appointment_id,
           outcome: 'APPOINTMENT_BOOKED',
           lead_captured: true,
+          ...(dto.email ? { lead_email: dto.email } : {}),
           updated_at: Date.now(),
         }
       );
     }
 
-    const accountSid = this.config.get<string>('TWILIO_ACCOUNT_SID');
-    const authToken = this.config.get<string>('TWILIO_AUTH_TOKEN');
-    const fromNumber = typeof call?.to_number === 'string' ? call.to_number : undefined;
-    if (accountSid && authToken && fromNumber) {
+    const region = this.config.get<string>('SES_REGION') || this.config.get<string>('AWS_REGION') || 'us-east-1';
+    const fromMeta = this.resolveBookingFromEmail(company);
+    const fromAddress = `${fromMeta.display} <${fromMeta.from}>`;
+    const toEmail = dto.email?.trim() || (call as any)?.lead_email;
+    if (toEmail && isValidEmail(toEmail)) {
       const label = formatSlotLabel(startIso, timeZone);
-      const body = `You're confirmed with ${company.company_name} for ${label}. Reply if you have questions.`;
+      const subject = `${company.company_name} booking confirmation`;
+      const body = `You're confirmed with ${company.company_name} for ${label}.\n\nIf you need to make changes, please call us back.`;
       try {
-        const result = await sendTwilioSms({ accountSid, authToken, from: fromNumber, to: phone, body });
-        console.log('[public_booking] confirmation SMS sent', {
-          appointment_id: appointment?.appointment_id,
-          sid: result.sid,
-          status: result.status,
-          error_code: result.error_code,
-          error_message: result.error_message,
+        const result = await sendSesEmail({
+          region,
+          from: fromAddress,
+          to: [toEmail],
+          subject,
+          text: body,
         });
-        await this.usage.incrementSmsCount(company.company_id);
+        console.log('[public_booking] confirmation email sent', {
+          appointment_id: appointment?.appointment_id,
+          message_id: (result as any)?.MessageId,
+          to: toEmail,
+        });
       } catch (err) {
-        console.warn('[public_booking] failed to send confirmation SMS', err);
+        console.warn('[public_booking] failed to send confirmation email', err);
       }
     }
 

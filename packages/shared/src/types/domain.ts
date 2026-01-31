@@ -56,6 +56,8 @@ export interface Company {
   // Service toggles
   calls_enabled?: boolean;
   sms_enabled?: boolean;
+  booking_from_email?: string;
+  email_from?: string;
 
   // AWS Connect integration
   connect_phone_number_id?: string; // Phone number ID from AWS Connect

@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsEmail, IsNotEmpty, IsString } from 'class-validator';
 
 export class SendBookingLinkDto {
   @IsString()
@@ -10,10 +10,7 @@ export class SendBookingLinkDto {
   call_id!: string;
 
   @IsString()
-  @IsOptional()
-  from_number?: string;
-
-  @IsString()
-  @IsOptional()
-  to_number?: string;
+  @IsNotEmpty()
+  @IsEmail()
+  email!: string;
 }

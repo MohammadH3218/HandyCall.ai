@@ -83,6 +83,7 @@ export default function BookingPage() {
         if (!alive) return;
         setInfo(data);
         if (data?.phone_number) setPhone(data.phone_number);
+        if (data?.email) setEmail(data.email);
       } catch (err: any) {
         if (!alive) return;
         setError(err?.message || 'Unable to load booking info');

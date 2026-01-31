@@ -29,7 +29,8 @@ import { SaveCallDto } from './dto/save-call.dto';
 import { ConfigService } from '@nestjs/config';
 import { SaveRecordingDto } from './dto/save-recording.dto';
 import { signBookingToken } from '../public-booking/booking-link.util';
-import { sendTwilioSms } from '../public-booking/sms.util';
+import { sendSesEmail } from '../public-booking/email.util';
+import { isValidEmail } from '@handycall/shared';
 
 function asE164(input: string): string {
   const trimmed = (input || '').trim();
@@ -911,7 +912,27 @@ export class RealtimeToolsService {
     };
   }
 
-  async sendBookingLink(dto: { company_id: string; call_id: string; from_number?: string; to_number?: string }) {
+  private resolveBookingFromEmail(company: any): { from: string; display: string } {
+    const override =
+      (typeof company?.booking_from_email === 'string' && company.booking_from_email) ||
+      (typeof company?.email_from === 'string' && company.email_from);
+    const domain =
+      this.config.get<string>('BOOKING_EMAIL_DOMAIN') ||
+      this.config.get<string>('SES_FROM_DOMAIN') ||
+      'handycall.org';
+    const rawName = String(company?.company_name || company?.company_id || 'company');
+    const slug = rawName
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 32);
+    const local = `no-reply+${slug || company?.company_id || 'company'}`;
+    const from = override || `${local}@${domain}`;
+    const display = rawName;
+    return { from, display };
+  }
+
+  async sendBookingLink(dto: { company_id: string; call_id: string; email?: string }) {
     const company_id = dto.company_id;
     const call_id = dto.call_id;
     if (!company_id || !call_id) {
@@ -920,23 +941,11 @@ export class RealtimeToolsService {
 
     const company = await this.companies.findById(company_id);
     if (!company) throw new NotFoundException('Company not found');
-    if (company.sms_enabled === false) {
-      throw new ForbiddenException('SMS is disabled for this account.');
-    }
 
     const existingCall = await this.dynamodb.get('calls', { company_id, call_id });
-    const from_number = asE164(
-      (typeof dto.from_number === 'string' && dto.from_number) ||
-      (typeof existingCall?.from_number === 'string' && existingCall.from_number) ||
-      ''
-    );
-    const to_number = asE164(
-      (typeof dto.to_number === 'string' && dto.to_number) ||
-      (typeof existingCall?.to_number === 'string' && existingCall.to_number) ||
-      ''
-    );
-    if (!from_number || !to_number) {
-      throw new BadRequestException('from_number and to_number are required');
+    const email = typeof dto.email === 'string' ? dto.email.trim() : '';
+    if (!email || !isValidEmail(email)) {
+      throw new BadRequestException('A valid email is required');
     }
 
     const bookingLink = this.buildBookingLink(company_id, call_id);
@@ -944,39 +953,33 @@ export class RealtimeToolsService {
     console.log('[send_booking_link] preparing', {
       company_id,
       call_id,
-      from_number,
-      to_number,
-      sms_enabled: company.sms_enabled !== false,
+      email,
     });
 
-    const accountSid = this.config.get<string>('TWILIO_ACCOUNT_SID');
-    const authToken = this.config.get<string>('TWILIO_AUTH_TOKEN');
-    if (!accountSid || !authToken) {
-      throw new Error('Missing TWILIO_ACCOUNT_SID/TWILIO_AUTH_TOKEN');
-    }
+    const region = this.config.get<string>('SES_REGION') || this.config.get<string>('AWS_REGION') || 'us-east-1';
+    const fromMeta = this.resolveBookingFromEmail(company);
+    const fromAddress = `${fromMeta.display} <${fromMeta.from}>`;
+    const subject = `${company.company_name} booking link`;
 
     try {
-      const result = await sendTwilioSms({
-        accountSid,
-        authToken,
-        from: to_number,
-        to: from_number,
-        body: message,
+      const result = await sendSesEmail({
+        region,
+        from: fromAddress,
+        to: [email],
+        subject,
+        text: message,
       });
-      console.log('[send_booking_link] twilio sent', {
-        sid: result.sid,
-        status: result.status,
-        error_code: result.error_code,
-        error_message: result.error_message,
+      console.log('[send_booking_link] email sent', {
+        message_id: (result as any)?.MessageId,
+        email,
+        from: fromMeta.from,
+        region,
       });
-      await this.usageService.incrementSmsCount(company_id);
     } catch (err: any) {
-      console.error('[send_booking_link] twilio send failed', {
+      console.error('[send_booking_link] email send failed', {
         message: err?.message ?? String(err),
-        status: err?.status,
-        body: err?.body,
-        from_number,
-        to_number,
+        email,
+        from: fromMeta.from,
       });
       throw err;
     }
@@ -990,6 +993,8 @@ export class RealtimeToolsService {
           lead_captured: true,
           outcome: 'LEAD',
           booking_link_sent_at: now,
+          booking_link_channel: 'EMAIL',
+          lead_email: email,
           updated_at: now,
         }
       );
@@ -998,8 +1003,8 @@ export class RealtimeToolsService {
         company_id,
         call_id,
         direction: CallDirection.INBOUND,
-        from_number,
-        to_number,
+        from_number: (existingCall?.from_number as string) || '',
+        to_number: (existingCall?.to_number as string) || '',
         status: CallStatus.IN_PROGRESS,
         ai_handled: true,
         escalated: false,
@@ -1007,6 +1012,8 @@ export class RealtimeToolsService {
         started_at: now,
         created_at: now,
         outcome: 'LEAD' as any,
+        lead_email: email,
+        booking_link_channel: 'EMAIL',
       } as any;
       await this.dynamodb.put('calls', call);
     }

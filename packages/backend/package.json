@@ -23,6 +23,7 @@
     "@aws-sdk/client-dynamodb": "^3.490.0",
     "openai": "^4.24.0",
     "@aws-sdk/client-s3": "^3.490.0",
+    "@aws-sdk/client-sesv2": "^3.490.0",
     "@aws-sdk/client-ssm": "^3.490.0",
     "@aws-sdk/lib-dynamodb": "^3.490.0",
     "@aws-sdk/s3-request-presigner": "^3.958.0",

@@ -28,10 +28,13 @@ export function toolsSchema() {
         {
             type: 'function',
             name: 'send_booking_link',
-            description: 'Send a booking link by SMS so the caller can schedule and fill out details.',
+            description: 'Send a booking link by email so the caller can schedule and fill out details.',
             parameters: {
                 type: 'object',
-                properties: {}
+                properties: {
+                    email: { type: 'string', description: 'Customer email address to send the booking link to.' }
+                },
+                required: ['email']
             }
         },
         {

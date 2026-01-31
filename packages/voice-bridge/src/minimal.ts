@@ -244,8 +244,10 @@ function buildInstructions(tenant: TenantInfo, options: { serviceAreaRequired: b
       ? `If the ZIP is not serviced, apologize and end the call politely.`
       : `If the ZIP is not serviced, apologize and end the call politely.`,
     `Do NOT collect name, address, or other intake details on the phone.`,
-    `After confirming the service area, ask permission to text a booking link to the caller's number.`,
-    `If the caller agrees, call send_booking_link immediately and confirm it was sent.`,
+    `After confirming the service area, ask permission to email a booking link.`,
+    `If the caller agrees, collect their email address and repeat it letter by letter to confirm.`,
+    `If they say it's incorrect, fix it and confirm again until they approve.`,
+    `When confirmed, call send_booking_link with the email and confirm it was sent.`,
     `Do not book appointments or check availability on the phone; use the booking link flow only.`,
     `If the caller asks about prior appointments, use list_appointments_by_phone.`,
     `Use knowledge_search for company-specific questions (services, pricing, policies, service areas).`,
@@ -405,8 +407,7 @@ async function callTool(ctx: CallContext, name: string, args: any) {
     return postJson(`${toolsBase}/tools/send_booking_link`, headers, {
       company_id: ctx.company_id,
       call_id: ctx.callSid,
-      from_number: ctx.from,
-      to_number: ctx.to,
+      email: args?.email ?? '',
     });
   }
 
