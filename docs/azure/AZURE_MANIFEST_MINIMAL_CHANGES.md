@@ -69,7 +69,7 @@ If it's wrong:
 
 ## Complete Corrected Manifest
 
-I've created `scripts/AZURE_MANIFEST_FINAL_FIX.json` with all your fields plus the fixes. You can copy that entire file if you prefer, but the minimal changes above should work.
+I've created `docs/azure/manifests/AZURE_MANIFEST_FINAL_FIX.json` with all your fields plus the fixes. You can copy that entire file if you prefer, but the minimal changes above should work.
 
 ## After Saving
 

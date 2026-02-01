@@ -65,6 +65,7 @@ nul
 *.tsbuildinfo
 *.mkv
 *.tar.gz
+*.bak
 build-output.txt
 query-phone.json
 test-*.json
@@ -98,6 +99,8 @@ test-*.json
 /TailLogs*.txt
 /Dockerrun.aws.json
 /Dockerrun.calcom.aws.json
+/log_url.txt
+/logs*.txt
 /ssm-*.json
 /ssm-tmp-*.json
 /r53-*.json
@@ -105,6 +108,9 @@ test-*.json
 /calcom-logs/
 /calcom-*.json
 /calcom-*.txt
+/.deploy/
+**/eb-logs-success/
+/.trash/
 
 # Claude settings (may contain secrets)
 .claude/settings.local.json
