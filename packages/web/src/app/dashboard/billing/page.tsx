@@ -66,9 +66,14 @@ export default function BillingPage() {
 
       setSubscription(subData);
       setUsage(normalizeUsageResponse(usageData, subData));
-      const limits = resolvePlanLimits(plan, usageData?.plan_limits) || (plan ? PLAN_CATALOG[plan].limits : undefined);
+      const limits =
+        resolvePlanLimits(plan, usageData?.plan_limits) ||
+        (plan ? PLAN_CATALOG[plan]?.limits : undefined);
       setPlanLimits(limits);
-      setPaymentMethods(paymentData?.payment_methods || []);
+      const sanitizedPaymentMethods = Array.isArray(paymentData?.payment_methods)
+        ? paymentData.payment_methods.filter((method): method is PaymentMethod => Boolean(method && method.id))
+        : [];
+      setPaymentMethods(sanitizedPaymentMethods);
       setDefaultPaymentMethodId(paymentData?.default_payment_method_id || null);
     } catch (error: any) {
       console.error('Failed to load billing data:', error);
