@@ -6,8 +6,8 @@ import { SiteHeader } from '@/components/marketing/site-header';
 
 const highlights = [
   { title: 'Instant call answering', desc: 'AI receptionist greets every caller 24/7 with your brand voice.' },
-  { title: 'Lead capture & routing', desc: 'Collect caller info, qualify, and route to the right workflow in seconds.' },
-  { title: 'Bookings that stick', desc: 'Secure appointment details and send SMS confirmations automatically.' },
+  { title: 'Lead capture and routing', desc: 'Collect caller info, qualify, and route to the right workflow in seconds.' },
+  { title: 'Bookings that stick', desc: 'Secure appointment details and send confirmations automatically.' },
 ];
 
 const steps = [
@@ -50,7 +50,7 @@ export default function Home() {
               </div>
               <div className="flex items-center gap-2">
                 <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                SMS follow-ups
+                Automated follow-ups
               </div>
             </div>
           </div>
@@ -107,10 +107,13 @@ export default function Home() {
               },
               {
                 title: 'Follow-ups that convert',
-                desc: 'Automatic SMS summaries, reminders, and replies so leads don't slip through cracks.',
+                desc: 'Automatic reminders and replies so leads never slip through the cracks.',
               },
             ].map((item) => (
-              <Card key={item.title} className="border-emerald-100 bg-white/80 shadow-sm transition hover:-translate-y-1 hover:shadow-md">
+              <Card
+                key={item.title}
+                className="border-emerald-100 bg-white/80 shadow-sm transition hover:-translate-y-1 hover:shadow-md"
+              >
                 <CardContent className="space-y-2 p-6">
                   <h3 className="text-xl font-semibold text-gray-900">{item.title}</h3>
                   <p className="text-sm text-muted-foreground">{item.desc}</p>
@@ -136,7 +139,7 @@ export default function Home() {
           <div className="mx-auto max-w-2xl space-y-4">
             <h3 className="text-3xl font-bold text-gray-900">Ready to capture every call?</h3>
             <p className="text-muted-foreground">
-              Start with HandyCall and give every caller a professional, on-brand experience-day or night.
+              Start with HandyCall and give every caller a professional, on-brand experience day or night.
             </p>
             <div className="flex flex-wrap justify-center gap-3">
               <Button asChild size="lg">
