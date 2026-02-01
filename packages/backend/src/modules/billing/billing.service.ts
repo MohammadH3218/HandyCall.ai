@@ -447,6 +447,124 @@ export class BillingService {
   }
 
   /**
+   * List payment methods for a company
+   */
+  async listPaymentMethods(companyId: string): Promise<any> {
+    const company = await this.companiesService.findById(companyId);
+    if (!company) {
+      throw new NotFoundException('Company not found');
+    }
+
+    if (!company.stripe_customer_id) {
+      return { payment_methods: [], default_payment_method_id: null };
+    }
+
+    const customer = await this.stripeService.getCustomer(company.stripe_customer_id);
+    const defaultId = (customer as any).invoice_settings?.default_payment_method || null;
+    const methods = await this.stripeService.listCustomerPaymentMethods(company.stripe_customer_id);
+
+    const paymentMethods = methods.map((pm) => ({
+      id: pm.id,
+      brand: pm.card?.brand,
+      last4: pm.card?.last4,
+      exp_month: pm.card?.exp_month,
+      exp_year: pm.card?.exp_year,
+      is_default: pm.id === defaultId,
+    }));
+
+    const defaultPm = methods.find((pm) => pm.id === defaultId);
+    if (defaultPm?.card?.last4) {
+      if (
+        company.payment_method_last4 !== defaultPm.card.last4 ||
+        company.payment_method_brand !== defaultPm.card.brand
+      ) {
+        await this.companiesService.updateCompany(companyId, {
+          payment_method_last4: defaultPm.card.last4,
+          payment_method_brand: defaultPm.card.brand,
+        });
+      }
+    }
+
+    return { payment_methods: paymentMethods, default_payment_method_id: defaultId };
+  }
+
+  /**
+   * Set default payment method for a company
+   */
+  async setDefaultPaymentMethod(companyId: string, paymentMethodId: string): Promise<any> {
+    const company = await this.companiesService.findById(companyId);
+    if (!company) {
+      throw new NotFoundException('Company not found');
+    }
+
+    if (!company.stripe_customer_id) {
+      throw new BadRequestException('No Stripe customer found');
+    }
+
+    const methods = await this.stripeService.listCustomerPaymentMethods(company.stripe_customer_id);
+    const match = methods.find((pm) => pm.id === paymentMethodId);
+    if (!match) {
+      throw new BadRequestException('Payment method not found');
+    }
+
+    await this.stripeService.setCustomerDefaultPaymentMethod(company.stripe_customer_id, paymentMethodId);
+
+    if (match.card?.last4) {
+      await this.companiesService.updateCompany(companyId, {
+        payment_method_last4: match.card.last4,
+        payment_method_brand: match.card.brand,
+      });
+    }
+
+    return { success: true, default_payment_method_id: paymentMethodId };
+  }
+
+  /**
+   * Remove a payment method (requires at least one remaining)
+   */
+  async deletePaymentMethod(companyId: string, paymentMethodId: string): Promise<any> {
+    const company = await this.companiesService.findById(companyId);
+    if (!company) {
+      throw new NotFoundException('Company not found');
+    }
+
+    if (!company.stripe_customer_id) {
+      throw new BadRequestException('No Stripe customer found');
+    }
+
+    const customer = await this.stripeService.getCustomer(company.stripe_customer_id);
+    const defaultId = (customer as any).invoice_settings?.default_payment_method || null;
+    const methods = await this.stripeService.listCustomerPaymentMethods(company.stripe_customer_id);
+
+    if (methods.length <= 1) {
+      throw new BadRequestException('At least one payment method is required');
+    }
+
+    const isDefault = paymentMethodId === defaultId;
+    let nextDefaultId = defaultId;
+
+    if (isDefault) {
+      const replacement = methods.find((pm) => pm.id !== paymentMethodId);
+      if (!replacement) {
+        throw new BadRequestException('At least one payment method is required');
+      }
+      nextDefaultId = replacement.id;
+      await this.stripeService.setCustomerDefaultPaymentMethod(company.stripe_customer_id, nextDefaultId);
+
+      if (replacement.card?.last4) {
+        await this.companiesService.updateCompany(companyId, {
+          payment_method_last4: replacement.card.last4,
+          payment_method_brand: replacement.card.brand,
+        });
+      }
+    }
+
+    await this.stripeService.detachPaymentMethod(paymentMethodId);
+
+    return { success: true, default_payment_method_id: nextDefaultId };
+  }
+
+  /**
    * Get usage stats for a company
    */
   async getUsageStats(companyId: string): Promise<any> {

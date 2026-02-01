@@ -179,6 +179,39 @@ export class StripeService {
   }
 
   /**
+   * Set the default payment method for invoices
+   */
+  async setCustomerDefaultPaymentMethod(
+    customerId: string,
+    paymentMethodId: string | null
+  ): Promise<void> {
+    await this.stripe.customers.update(customerId, {
+      invoice_settings: {
+        default_payment_method: paymentMethodId || undefined,
+      },
+    });
+  }
+
+  /**
+   * List customer payment methods
+   */
+  async listCustomerPaymentMethods(customerId: string, limit: number = 20): Promise<Stripe.PaymentMethod[]> {
+    const result = await this.stripe.paymentMethods.list({
+      customer: customerId,
+      type: 'card',
+      limit,
+    });
+    return result.data;
+  }
+
+  /**
+   * Detach a payment method from the customer
+   */
+  async detachPaymentMethod(paymentMethodId: string): Promise<void> {
+    await this.stripe.paymentMethods.detach(paymentMethodId);
+  }
+
+  /**
    * Construct and verify webhook event
    */
   constructWebhookEvent(payload: Buffer, signature: string): Stripe.Event {

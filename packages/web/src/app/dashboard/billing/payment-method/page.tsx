@@ -258,6 +258,12 @@ export default function PaymentMethodPage() {
       </Card>
 
       {!selectedPlan && (
+        <div className="mt-4 text-sm text-slate-600 text-center">
+          You can manage defaults and remove cards from the Billing page.
+        </div>
+      )}
+
+      {!selectedPlan && (
         <div className="mt-6 text-center">
           <Button variant="ghost" onClick={() => router.push('/dashboard/billing')}>
             Back to Billing

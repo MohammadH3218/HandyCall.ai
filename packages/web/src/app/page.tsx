@@ -1,154 +1,197 @@
 import Link from 'next/link';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { SiteHeader } from '@/components/marketing/site-header';
 
-const highlights = [
-  { title: 'Instant call answering', desc: 'AI receptionist greets every caller 24/7 with your brand voice.' },
-  { title: 'Lead capture and routing', desc: 'Collect caller info, qualify, and route to the right workflow in seconds.' },
-  { title: 'Bookings that stick', desc: 'Secure appointment details and send confirmations automatically.' },
+const flow = [
+  {
+    title: 'Answer with context',
+    desc: 'Your callers hear a calm, on-brand greeting that adapts to each service and location.',
+  },
+  {
+    title: 'Qualify and route',
+    desc: 'The AI captures intent, urgency, and availability, then routes to the right workflow.',
+  },
+  {
+    title: 'Book confidently',
+    desc: 'Appointments are proposed using your hours, then confirmed and logged automatically.',
+  },
 ];
 
-const steps = [
-  { title: 'Connect your number', desc: 'Point your business line to HandyCall in minutes.' },
-  { title: 'Teach your playbook', desc: 'Drop your FAQs, pricing rules, and scheduling rules.' },
-  { title: 'Go live', desc: 'AI answers every call, captures leads, and books jobs around the clock.' },
+const controls = [
+  {
+    title: 'Call handling rules',
+    desc: 'Set business hours, overflow rules, and after-hours behavior without scripting a flowchart.',
+  },
+  {
+    title: 'Service knowledge',
+    desc: 'Add policies, pricing hints, and service FAQs so the AI can answer real questions.',
+  },
+  {
+    title: 'Follow-up automation',
+    desc: 'Send booking links, reminders, and confirmations automatically once a lead is captured.',
+  },
+];
+
+const industries = [
+  'Pest control',
+  'HVAC',
+  'Cleaning services',
+  'Plumbing',
+  'Electrical',
+  'Landscaping',
+  'Garage doors',
+  'Property maintenance',
 ];
 
 export default function Home() {
   return (
-    <div className="min-h-screen bg-gradient-to-b from-white via-emerald-50/40 to-white text-foreground">
+    <div className="min-h-screen bg-gradient-to-b from-white via-emerald-50/30 to-white text-foreground">
       <SiteHeader />
-      <main className="mx-auto max-w-6xl px-4 pb-24 pt-12">
-        <section className="grid items-center gap-12 lg:grid-cols-2">
-          <div className="space-y-6 animate-slide-in-left">
-            <Badge className="bg-primary/10 text-primary">AI Receptionist for Service Pros</Badge>
-            <h1 className="text-4xl font-bold leading-tight tracking-tight text-gray-900 md:text-5xl">
-              Never miss a call. Capture every lead. Book more jobs.
-            </h1>
-            <p className="text-lg text-muted-foreground">
-              HandyCall answers every phone call with an AI receptionist trained on your business. It qualifies leads,
-              books appointments, and sends follow-ups while you stay focused on the work.
-            </p>
-            <div className="flex flex-wrap gap-3">
-              <Button asChild size="lg">
-                <Link href="/login">Launch HandyCall</Link>
-              </Button>
-              <Button asChild size="lg" variant="outline">
-                <Link href="/pricing">View pricing</Link>
-              </Button>
+      <main className="mx-auto flex max-w-6xl flex-col gap-24 px-4 pb-24 pt-10">
+        <section className="relative overflow-hidden rounded-[32px] border border-emerald-100 bg-white/70 p-8 shadow-xl shadow-emerald-100 md:p-12">
+          <div className="pointer-events-none absolute -right-24 -top-24 h-56 w-56 rounded-full bg-emerald-100/70 blur-3xl" />
+          <div className="pointer-events-none absolute -left-16 bottom-0 h-40 w-40 rounded-full bg-emerald-50 blur-2xl" />
+          <div className="grid items-center gap-12 lg:grid-cols-[1.2fr_0.8fr]">
+            <div className="space-y-6">
+              <Badge className="bg-emerald-100 text-emerald-700">AI receptionist for service businesses</Badge>
+              <h1 className="text-4xl font-display leading-tight text-slate-900 md:text-6xl">
+                Your phone line that closes jobs while you work.
+              </h1>
+              <p className="text-lg text-slate-600">
+                HandyCall answers every call, captures the right details, and locks in appointments using your
+                availability. You stay focused on the field while the line stays open.
+              </p>
+              <div className="flex flex-wrap gap-3">
+                <Button asChild size="lg">
+                  <Link href="/login">Launch HandyCall</Link>
+                </Button>
+                <Button asChild size="lg" variant="outline">
+                  <Link href="/pricing">View pricing</Link>
+                </Button>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div className="rounded-xl border border-emerald-100/70 bg-white/80 p-3">
+                  <p className="text-xs uppercase tracking-wide text-slate-500">Coverage</p>
+                  <p className="text-sm font-semibold text-slate-900">Every call, every hour</p>
+                </div>
+                <div className="rounded-xl border border-emerald-100/70 bg-white/80 p-3">
+                  <p className="text-xs uppercase tracking-wide text-slate-500">Tone</p>
+                  <p className="text-sm font-semibold text-slate-900">On-brand, professional</p>
+                </div>
+                <div className="rounded-xl border border-emerald-100/70 bg-white/80 p-3">
+                  <p className="text-xs uppercase tracking-wide text-slate-500">Outcome</p>
+                  <p className="text-sm font-semibold text-slate-900">Booked, confirmed, logged</p>
+                </div>
+              </div>
             </div>
-            <div className="flex flex-wrap items-center gap-6 text-sm text-muted-foreground">
-              <div className="flex items-center gap-2">
-                <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                24/7 answering
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                Real-time transcripts
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                Automated follow-ups
-              </div>
-            </div>
+
+            <Card className="border-emerald-100 bg-white/90 shadow-lg shadow-emerald-100">
+              <CardContent className="space-y-4 p-6">
+                <div className="flex items-center justify-between text-xs text-slate-500">
+                  <span className="uppercase tracking-wide">Live call snapshot</span>
+                  <span className="rounded-full bg-emerald-50 px-2 py-1 text-emerald-700">Active</span>
+                </div>
+                <div className="rounded-xl border border-emerald-100 bg-emerald-50/60 p-4">
+                  <p className="text-sm font-semibold text-emerald-800">Caller</p>
+                  <p className="text-sm text-slate-700">"Can you treat termites this week?"</p>
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-white p-4">
+                  <p className="text-sm font-semibold text-slate-900">HandyCall</p>
+                  <p className="text-sm text-slate-700">
+                    "We can help. I can send a booking link and secure a time that fits your schedule."
+                  </p>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="rounded-lg border border-slate-200 bg-white p-3">
+                    <p className="text-xs uppercase tracking-wide text-slate-500">Outcome</p>
+                    <p className="text-sm font-semibold text-slate-900">Lead captured</p>
+                  </div>
+                  <div className="rounded-lg border border-slate-200 bg-white p-3">
+                    <p className="text-xs uppercase tracking-wide text-slate-500">Next step</p>
+                    <p className="text-sm font-semibold text-slate-900">Booking link sent</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           </div>
-          <Card className="relative overflow-hidden border-0 shadow-xl shadow-emerald-100 animate-slide-in-right">
-            <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-emerald-100/60 via-transparent to-white" />
-            <CardContent className="relative space-y-6 p-8">
-              <div>
-                <p className="text-sm font-medium text-emerald-600">How HandyCall works</p>
-                <h3 className="mt-2 text-2xl font-semibold text-gray-900">A clean pipeline from call to booking</h3>
-                <p className="mt-2 text-muted-foreground">
-                  Your callers get a professional greeting, clear answers, and a confirmed appointment without waiting
-                  on hold.
-                </p>
-              </div>
-              <div className="space-y-4">
-                {highlights.map((item) => (
-                  <div key={item.title} className="rounded-lg border border-emerald-100 bg-white/70 p-4 shadow-sm">
-                    <h4 className="text-lg font-semibold text-gray-900">{item.title}</h4>
-                    <p className="text-sm text-muted-foreground">{item.desc}</p>
+        </section>
+
+        <section className="grid gap-12 lg:grid-cols-[0.9fr_1.1fr]">
+          <div className="space-y-4">
+            <Badge className="bg-emerald-100 text-emerald-700">Call flow, simplified</Badge>
+            <h2 className="text-3xl font-display text-slate-900 md:text-4xl">
+              A clear path from greeting to confirmed appointment.
+            </h2>
+            <p className="text-slate-600">
+              Everything is built around how service businesses actually answer the phone. No noise, no fluff, just
+              clean steps that move the caller forward.
+            </p>
+            <div className="mt-6 rounded-2xl border border-emerald-100 bg-white/80 p-6">
+              <p className="text-xs uppercase tracking-wide text-slate-500">What you control</p>
+              <div className="mt-3 grid gap-3">
+                {controls.map((item) => (
+                  <div key={item.title} className="rounded-xl border border-slate-200 bg-white p-4">
+                    <p className="text-sm font-semibold text-slate-900">{item.title}</p>
+                    <p className="text-sm text-slate-600">{item.desc}</p>
                   </div>
                 ))}
               </div>
-              <div className="flex items-center justify-between rounded-lg border border-emerald-100 bg-emerald-50/80 p-4">
-                <div>
-                  <p className="text-sm font-medium text-emerald-700">Response time</p>
-                  <p className="text-xl font-semibold text-gray-900">~2 seconds</p>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-emerald-700">Lead capture rate</p>
-                  <p className="text-xl font-semibold text-gray-900">98%</p>
+            </div>
+          </div>
+          <div className="space-y-4">
+            {flow.map((step, index) => (
+              <div key={step.title} className="rounded-2xl border border-emerald-100 bg-white/80 p-6">
+                <div className="flex items-start gap-4">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-50 text-sm font-semibold text-emerald-700">
+                    {index + 1}
+                  </div>
+                  <div>
+                    <p className="text-lg font-semibold text-slate-900">{step.title}</p>
+                    <p className="text-sm text-slate-600">{step.desc}</p>
+                  </div>
                 </div>
               </div>
-            </CardContent>
-          </Card>
+            ))}
+            <div className="rounded-2xl border border-emerald-100 bg-emerald-50/80 p-6">
+              <p className="text-sm font-semibold text-emerald-900">Result</p>
+              <p className="text-sm text-emerald-800/80">
+                Call logs, bookings, and customer records stay in sync with your dashboard.
+              </p>
+            </div>
+          </div>
         </section>
 
-        <section className="mt-24 space-y-10">
+        <section className="space-y-6">
           <div className="flex flex-col gap-3 text-center">
-            <Badge className="mx-auto bg-emerald-100 text-emerald-700">Built for field service teams</Badge>
-            <h2 className="text-3xl font-bold text-gray-900 md:text-4xl">Everything your phone line should do</h2>
-            <p className="mx-auto max-w-2xl text-muted-foreground">
-              HandyCall keeps your line open, your calendar full, and your customers informed with zero manual effort.
+            <Badge className="mx-auto bg-emerald-100 text-emerald-700">Built for busy field teams</Badge>
+            <h2 className="text-3xl font-display text-slate-900 md:text-4xl">Designed for real-world service lines</h2>
+            <p className="mx-auto max-w-2xl text-slate-600">
+              HandyCall works across industries that need quick answers, clear scheduling, and reliable follow-through.
             </p>
           </div>
-          <div className="grid gap-6 md:grid-cols-3">
-            {[
-              {
-                title: 'Call handling that feels human',
-                desc: 'Natural voice, accurate intent detection, and polite responses tuned to your brand.',
-              },
-              {
-                title: 'Appointments without back-and-forth',
-                desc: 'Book jobs based on your rules and hours, send confirmations, and capture all details.',
-              },
-              {
-                title: 'Follow-ups that convert',
-                desc: 'Automatic reminders and replies so leads never slip through the cracks.',
-              },
-            ].map((item) => (
-              <Card
-                key={item.title}
-                className="border-emerald-100 bg-white/80 shadow-sm transition hover:-translate-y-1 hover:shadow-md"
-              >
-                <CardContent className="space-y-2 p-6">
-                  <h3 className="text-xl font-semibold text-gray-900">{item.title}</h3>
-                  <p className="text-sm text-muted-foreground">{item.desc}</p>
-                </CardContent>
-              </Card>
+          <div className="flex flex-wrap justify-center gap-3">
+            {industries.map((item) => (
+              <span key={item} className="rounded-full border border-emerald-100 bg-white/80 px-4 py-2 text-sm text-slate-700">
+                {item}
+              </span>
             ))}
           </div>
         </section>
 
-        <section className="mt-24 grid gap-10 rounded-2xl border border-emerald-100 bg-emerald-50/70 p-10 shadow-inner md:grid-cols-3">
-          {steps.map((step, idx) => (
-            <div key={step.title} className="space-y-2">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-base font-semibold text-emerald-600 shadow">
-                {idx + 1}
-              </div>
-              <h4 className="text-lg font-semibold text-gray-900">{step.title}</h4>
-              <p className="text-sm text-emerald-800/80">{step.desc}</p>
-            </div>
-          ))}
-        </section>
-
-        <section className="mt-24 rounded-2xl border border-emerald-100 bg-white/80 p-10 text-center shadow-lg shadow-emerald-50">
-          <div className="mx-auto max-w-2xl space-y-4">
-            <h3 className="text-3xl font-bold text-gray-900">Ready to capture every call?</h3>
-            <p className="text-muted-foreground">
-              Start with HandyCall and give every caller a professional, on-brand experience day or night.
-            </p>
-            <div className="flex flex-wrap justify-center gap-3">
-              <Button asChild size="lg">
-                <Link href="/login">Get started</Link>
-              </Button>
-              <Button asChild size="lg" variant="outline">
-                <Link href="/contact">Talk to us</Link>
-              </Button>
-            </div>
+        <section className="rounded-[28px] border border-emerald-100 bg-white/80 p-10 text-center shadow-lg shadow-emerald-50">
+          <h3 className="text-3xl font-display text-slate-900">Ready to upgrade your phone experience?</h3>
+          <p className="mt-3 text-slate-600">
+            Launch in minutes and let HandyCall handle calls, bookings, and confirmations while your team stays on the job.
+          </p>
+          <div className="mt-6 flex flex-wrap justify-center gap-3">
+            <Button asChild size="lg">
+              <Link href="/login">Get started</Link>
+            </Button>
+            <Button asChild size="lg" variant="outline">
+              <Link href="/contact">Talk to us</Link>
+            </Button>
           </div>
         </section>
       </main>

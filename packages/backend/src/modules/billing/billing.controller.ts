@@ -126,6 +126,39 @@ export class BillingController {
   }
 
   /**
+   * List payment methods
+   * GET /billing/payment-methods
+   */
+  @Get('payment-methods')
+  async listPaymentMethods(@CompanyId() companyId: string) {
+    return this.billingService.listPaymentMethods(companyId);
+  }
+
+  /**
+   * Set default payment method
+   * POST /billing/payment-methods/default
+   */
+  @Post('payment-methods/default')
+  async setDefaultPaymentMethod(
+    @CompanyId() companyId: string,
+    @Body() body: { payment_method_id: string }
+  ) {
+    return this.billingService.setDefaultPaymentMethod(companyId, body.payment_method_id);
+  }
+
+  /**
+   * Delete payment method
+   * DELETE /billing/payment-methods/:paymentMethodId
+   */
+  @Delete('payment-methods/:paymentMethodId')
+  async deletePaymentMethod(
+    @CompanyId() companyId: string,
+    @Param('paymentMethodId') paymentMethodId: string
+  ) {
+    return this.billingService.deletePaymentMethod(companyId, paymentMethodId);
+  }
+
+  /**
    * Stripe webhook handler
    * POST /billing/webhook
    */

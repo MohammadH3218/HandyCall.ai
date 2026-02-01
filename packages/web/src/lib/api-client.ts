@@ -477,6 +477,28 @@ class ApiClient {
     return response.data ?? response;
   }
 
+  async getPaymentMethods(): Promise<any> {
+    const response = await this.request<any>('/billing/payment-methods', {
+      method: 'GET',
+    });
+    return response.data ?? response;
+  }
+
+  async setDefaultPaymentMethod(paymentMethodId: string): Promise<any> {
+    const response = await this.request<any>('/billing/payment-methods/default', {
+      method: 'POST',
+      body: JSON.stringify({ payment_method_id: paymentMethodId }),
+    });
+    return response.data ?? response;
+  }
+
+  async deletePaymentMethod(paymentMethodId: string): Promise<any> {
+    const response = await this.request<any>(`/billing/payment-methods/${paymentMethodId}`, {
+      method: 'DELETE',
+    });
+    return response.data ?? response;
+  }
+
   // Calendar Integration endpoints
   async getGoogleCalendarAuthUrl(): Promise<{ url: string }> {
     const response = await this.request<{ url: string }>('/calendar-integration/auth/google/url', {

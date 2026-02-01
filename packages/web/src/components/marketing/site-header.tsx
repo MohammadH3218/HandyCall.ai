@@ -14,20 +14,20 @@ export function SiteHeader({
   hideLogin = false,
 }: SiteHeaderProps) {
   return (
-    <header className="sticky top-0 z-20 border-b bg-white/90 backdrop-blur">
-      <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4">
+    <header className="sticky top-0 z-20 border-b border-emerald-100/60 bg-white/80 backdrop-blur">
+      <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
         <Link href="/" className="flex items-center gap-3">
           <Logo width={160} height={40} />
         </Link>
-        <nav className="hidden items-center gap-6 text-sm font-medium text-muted-foreground md:flex">
-          <Link href="/pricing" className="transition-colors hover:text-foreground">
+        <nav className="hidden items-center gap-6 rounded-full border border-emerald-100 bg-white/70 px-4 py-2 text-sm font-medium text-slate-600 shadow-sm md:flex">
+          <Link href="/pricing" className="transition-colors hover:text-slate-900">
             Pricing
           </Link>
-          <Link href="/contact" className="transition-colors hover:text-foreground">
+          <Link href="/contact" className="transition-colors hover:text-slate-900">
             Contact
           </Link>
           {!hideLogin && (
-            <Link href="/login" className="transition-colors hover:text-foreground">
+            <Link href="/login" className="transition-colors hover:text-slate-900">
               Login
             </Link>
           )}

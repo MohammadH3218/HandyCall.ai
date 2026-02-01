@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiClient } from '@/lib/api-client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -18,6 +18,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { CreditCard, ShieldCheck, Sparkles } from 'lucide-react';
+
+type PaymentMethod = {
+  id: string;
+  brand?: string;
+  last4?: string;
+  exp_month?: number;
+  exp_year?: number;
+  is_default?: boolean;
+};
 
 export default function BillingPage() {
   const router = useRouter();
@@ -29,6 +39,11 @@ export default function BillingPage() {
   const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [planLimits, setPlanLimits] = useState<{ minutes: number; sms: number; contacts: number }>();
+  const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
+  const [defaultPaymentMethodId, setDefaultPaymentMethodId] = useState<string | null>(null);
+  const [paymentActionId, setPaymentActionId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<PaymentMethod | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
   useEffect(() => {
     loadBillingData();
@@ -40,9 +55,10 @@ export default function BillingPage() {
       // Refresh company data first to get latest subscription status
       await checkAuth();
 
-      const [subData, usageData] = await Promise.all([
+      const [subData, usageData, paymentData] = await Promise.all([
         apiClient.getMySubscription(),
         apiClient.getUsageMetrics(),
+        apiClient.getPaymentMethods().catch(() => ({ payment_methods: [], default_payment_method_id: null })),
       ]);
       const plan =
         resolvePlan(company?.subscription_plan as SubscriptionPlan | undefined) ||
@@ -52,6 +68,8 @@ export default function BillingPage() {
       setUsage(normalizeUsageResponse(usageData, subData));
       const limits = resolvePlanLimits(plan, usageData?.plan_limits) || (plan ? PLAN_CATALOG[plan].limits : undefined);
       setPlanLimits(limits);
+      setPaymentMethods(paymentData?.payment_methods || []);
+      setDefaultPaymentMethodId(paymentData?.default_payment_method_id || null);
     } catch (error: any) {
       console.error('Failed to load billing data:', error);
     } finally {
@@ -75,6 +93,54 @@ export default function BillingPage() {
       });
     } finally {
       setCancelling(false);
+    }
+  };
+
+  const handleMakeDefault = async (paymentMethodId: string) => {
+    try {
+      setPaymentActionId(paymentMethodId);
+      await apiClient.setDefaultPaymentMethod(paymentMethodId);
+      await loadBillingData();
+      toast({
+        title: 'Default updated',
+        description: 'New payment method set as default.',
+      });
+    } catch (error: any) {
+      toast({
+        title: 'Update failed',
+        description: error?.message || 'Failed to update payment method.',
+        variant: 'destructive',
+      });
+    } finally {
+      setPaymentActionId(null);
+    }
+  };
+
+  const handleDeleteClick = (paymentMethod: PaymentMethod) => {
+    setDeleteTarget(paymentMethod);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
+    try {
+      setPaymentActionId(deleteTarget.id);
+      await apiClient.deletePaymentMethod(deleteTarget.id);
+      setDeleteDialogOpen(false);
+      setDeleteTarget(null);
+      await loadBillingData();
+      toast({
+        title: 'Payment method removed',
+        description: 'The card has been removed from your account.',
+      });
+    } catch (error: any) {
+      toast({
+        title: 'Remove failed',
+        description: error?.message || 'Failed to remove payment method.',
+        variant: 'destructive',
+      });
+    } finally {
+      setPaymentActionId(null);
     }
   };
 
@@ -148,7 +214,7 @@ export default function BillingPage() {
   const status = company?.subscription_status || subscription?.subscription_status;
   const isCanceling = Boolean(company?.cancel_at_period_end || subscription?.cancel_at_period_end);
 
-  const paymentMethod =
+  const fallbackPaymentMethod =
     company?.payment_method_last4
       ? { last4: company.payment_method_last4, brand: company.payment_method_brand }
       : (subscription as any)?.payment_method
@@ -157,6 +223,50 @@ export default function BillingPage() {
           brand: (subscription as any).payment_method.brand,
         }
       : null;
+
+  const displayPaymentMethods = useMemo(() => {
+    if (paymentMethods.length) return paymentMethods;
+    if (fallbackPaymentMethod) {
+      return [{ id: 'fallback', ...fallbackPaymentMethod, is_default: true } as PaymentMethod];
+    }
+    return [];
+  }, [paymentMethods, fallbackPaymentMethod]);
+
+  const canEditPaymentMethods = paymentMethods.length > 0;
+  const canRemovePaymentMethods = paymentMethods.length > 1;
+
+  const planHighlights = useMemo(
+    () => [
+      {
+        label: 'Call minutes',
+        value:
+          planLimits?.minutes === -1
+            ? 'Unlimited'
+            : typeof planLimits?.minutes === 'number'
+            ? `${planLimits.minutes}/week`
+            : '-',
+      },
+      {
+        label: 'SMS messages',
+        value:
+          planLimits?.sms === -1
+            ? 'Unlimited'
+            : typeof planLimits?.sms === 'number'
+            ? `${planLimits.sms}/week`
+            : '-',
+      },
+      {
+        label: 'Active contacts',
+        value:
+          planLimits?.contacts === -1
+            ? 'Unlimited'
+            : typeof planLimits?.contacts === 'number'
+            ? `${planLimits.contacts}/week`
+            : '-',
+      },
+    ],
+    [planLimits]
+  );
 
   return (
     <div className="p-8 max-w-7xl animate-fade-up">
@@ -169,59 +279,64 @@ export default function BillingPage() {
 
       <div className="grid gap-6 md:grid-cols-2 mb-6">
         {/* Current Plan */}
-        <Card>
+        <Card className="relative overflow-hidden">
+          <div className="pointer-events-none absolute -right-16 -top-16 h-40 w-40 rounded-full bg-emerald-100/70 blur-3xl" />
           <CardHeader>
-            <CardTitle>Current Plan</CardTitle>
-            <CardDescription>Your active subscription details</CardDescription>
+            <CardTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-emerald-600" />
+              Current plan
+            </CardTitle>
+            <CardDescription>Your active subscription and weekly limits.</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-5">
             {planDetails ? (
               <>
-                <div className="flex items-center justify-between">
+                <div className="flex flex-wrap items-start justify-between gap-4">
                   <div>
-                    <p className="text-2xl font-bold">{planDetails.name} Plan</p>
-                    <p className="text-gray-600">
-                      <span className="mr-2 line-through">{priceDisplay?.original}</span>
-                      <span className="font-semibold text-foreground">{priceDisplay?.current}</span>
-                      <span className="ml-1 text-muted-foreground">{priceDisplay?.cadence}</span>
-                    </p>
+                    <p className="text-sm uppercase tracking-wide text-slate-500">Plan</p>
+                    <p className="text-2xl font-semibold text-slate-900">{planDetails.name}</p>
+                    <div className="mt-2 flex flex-wrap items-baseline gap-2">
+                      <span className="text-sm text-slate-400 line-through">{priceDisplay?.original}</span>
+                      <span className="text-3xl font-semibold text-slate-900">{priceDisplay?.current}</span>
+                      <span className="text-sm text-slate-500">{priceDisplay?.cadence}</span>
+                    </div>
                   </div>
                   {getStatusBadge(isCanceling ? SubscriptionStatus.CANCELED : status)}
                 </div>
 
+                <div className="grid gap-3 sm:grid-cols-3">
+                  {planHighlights.map((item) => (
+                    <div key={item.label} className="rounded-lg border border-emerald-100/70 bg-white/80 p-3">
+                      <p className="text-xs uppercase tracking-wide text-slate-500">{item.label}</p>
+                      <p className="text-sm font-semibold text-slate-900">{item.value}</p>
+                    </div>
+                  ))}
+                </div>
+
                 {subscription?.current_period_start && (
-                  <div className="pt-4 border-t">
-                    <p className="text-sm text-gray-600">Current period</p>
-                    <p className="text-sm font-medium">
-                      {formatDate(subscription.current_period_start)} - {formatDate(subscription.current_period_end)}
-                    </p>
+                  <div className="rounded-lg border border-slate-200 bg-slate-50/70 p-3 text-sm text-slate-600">
+                    Current period: {formatDate(subscription.current_period_start)} - {formatDate(subscription.current_period_end)}
                   </div>
                 )}
 
                 {isCanceling && subscription?.current_period_end && (
-                  <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-md">
-                    <p className="text-sm font-semibold text-yellow-900 mb-1">
-                      Subscription Cancelling
-                    </p>
-                    <p className="text-sm text-yellow-800">
-                      Your subscription will remain active for {getDaysRemaining()} (until {formatDate(subscription.current_period_end)}).
-                      You'll retain full access until then.
-                    </p>
+                  <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-3 text-sm text-yellow-900">
+                    Subscription will end in {getDaysRemaining()} (on {formatDate(subscription.current_period_end)}).
                   </div>
                 )}
 
-                <div className="flex gap-2 pt-4">
+                <div className="flex flex-wrap gap-2 pt-2">
                   {status === SubscriptionStatus.CANCELED || subscription?.cancel_at_period_end ? (
-                    <Button onClick={() => router.push('/dashboard/billing/plans')} className="flex-1">
-                      Reactivate Subscription
+                    <Button onClick={() => router.push('/dashboard/billing/plans')}>
+                      Reactivate plan
                     </Button>
                   ) : (
                     <>
-                      <Button onClick={() => router.push('/dashboard/billing/plans')} className="flex-1">
-                        Change Plan
+                      <Button onClick={() => router.push('/dashboard/billing/plans')}>
+                        Manage plan
                       </Button>
-                      <Button onClick={() => setShowCancelDialog(true)} variant="destructive">
-                        Cancel Plan
+                      <Button onClick={() => setShowCancelDialog(true)} variant="outline" className="border-red-200 text-red-600 hover:bg-red-50">
+                        Cancel plan
                       </Button>
                     </>
                   )}
@@ -229,9 +344,9 @@ export default function BillingPage() {
               </>
             ) : (
               <div className="text-center py-8">
-                <p className="text-gray-600 mb-4">No active subscription</p>
+                <p className="text-slate-600 mb-4">No active subscription</p>
                 <Button onClick={() => router.push('/dashboard/billing/plans')}>
-                  Choose a Plan
+                  Choose a plan
                 </Button>
               </div>
             )}
@@ -239,43 +354,103 @@ export default function BillingPage() {
         </Card>
 
         {/* Payment Method */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Payment Method</CardTitle>
-            <CardDescription>Your billing payment details</CardDescription>
+        <Card className="relative overflow-hidden">
+          <div className="pointer-events-none absolute -left-20 top-10 h-32 w-32 rounded-full bg-emerald-100/60 blur-3xl" />
+          <CardHeader className="flex flex-row items-start justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <CreditCard className="h-5 w-5 text-emerald-600" />
+                Payment methods
+              </CardTitle>
+              <CardDescription>Manage how your subscription is billed.</CardDescription>
+            </div>
+            <Button size="sm" onClick={() => router.push('/dashboard/billing/payment-method')}>
+              Add new card
+            </Button>
           </CardHeader>
           <CardContent className="space-y-4">
-            {paymentMethod ? (
-              <>
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-8 bg-gray-200 rounded flex items-center justify-center">
-                    <span className="text-xs font-semibold text-gray-600">
-                      {paymentMethod.brand?.toUpperCase()}
-                    </span>
-                  </div>
-                  <div>
-                    <p className="font-medium">**** **** **** {paymentMethod.last4}</p>
-                    <p className="text-sm text-gray-600">
-                      {(paymentMethod.brand as string) || 'Card'} ending in {paymentMethod.last4}
-                    </p>
-                  </div>
-                </div>
-                <Button
-                  onClick={() => router.push('/dashboard/billing/payment-method')}
-                  variant="outline"
-                  className="w-full"
-                >
-                  Update Payment Method
-                </Button>
-              </>
+            {displayPaymentMethods.length ? (
+              <div className="space-y-3">
+                {displayPaymentMethods.map((method) => {
+                  const isDefault = method.is_default || method.id === defaultPaymentMethodId;
+                  return (
+                    <div
+                      key={method.id}
+                      className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-emerald-100/70 bg-white/85 p-4"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="h-10 w-12 rounded-md bg-emerald-50 flex items-center justify-center text-emerald-700">
+                          <CreditCard className="h-5 w-5" />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm font-semibold text-slate-900">
+                              {(method.brand || 'Card').toUpperCase()}
+                            </p>
+                            {isDefault && (
+                              <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs text-emerald-700">
+                                Default
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-sm text-slate-600">
+                            **** **** **** {method.last4 || '----'}
+                            {method.exp_month && method.exp_year ? `  ·  exp ${method.exp_month}/${method.exp_year}` : ''}
+                          </p>
+                        </div>
+                      </div>
+                      {canEditPaymentMethods && (
+                        <div className="flex flex-wrap items-center gap-2">
+                          {!isDefault && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleMakeDefault(method.id)}
+                              disabled={paymentActionId === method.id}
+                            >
+                              Make default
+                            </Button>
+                          )}
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                            onClick={() => handleDeleteClick(method)}
+                            disabled={!canRemovePaymentMethods || paymentActionId === method.id}
+                          >
+                            Remove
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+                {!canRemovePaymentMethods && canEditPaymentMethods && (
+                  <p className="text-xs text-slate-500">
+                    You must keep at least one payment method on file.
+                  </p>
+                )}
+              </div>
             ) : (
               <div className="text-center py-8">
-                <p className="text-gray-600 mb-4">No payment method on file</p>
+                <p className="text-slate-600 mb-4">No payment method on file</p>
                 <Button onClick={() => router.push('/dashboard/billing/payment-method')}>
-                  Add Payment Method
+                  Add payment method
                 </Button>
               </div>
             )}
+
+            <div className="rounded-lg border border-emerald-100 bg-emerald-50/70 p-4 text-sm text-emerald-900">
+              <div className="flex items-start gap-3">
+                <ShieldCheck className="h-5 w-5 text-emerald-700 mt-0.5" />
+                <div>
+                  <p className="font-semibold">Secure billing</p>
+                  <p className="text-emerald-800/80">
+                    Card details are encrypted and stored by Stripe. HandyCall never stores full card numbers.
+                  </p>
+                </div>
+              </div>
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -390,6 +565,29 @@ export default function BillingPage() {
           </CardContent>
         </Card>
       </div>
+
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Remove payment method</DialogTitle>
+            <DialogDescription>
+              This card will be removed from your account. You must keep at least one active payment method.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteDialogOpen(false)} disabled={paymentActionId === deleteTarget?.id}>
+              Keep card
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleConfirmDelete}
+              disabled={paymentActionId === deleteTarget?.id}
+            >
+              {paymentActionId === deleteTarget?.id ? 'Removing...' : 'Remove card'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Cancel Subscription Dialog */}
       <Dialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>

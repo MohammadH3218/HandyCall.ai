@@ -40,7 +40,7 @@ const plans: Plan[] = [
       { label: '50 minutes/week', available: true },
       { label: '100 SMS/week', available: true },
       { label: '200 contacts/week', available: true },
-      { label: 'AI bookings + SMS confirmations', available: true },
+      { label: 'AI bookings + confirmations', available: true },
       { label: 'Call recording retention: 7 days', available: true },
       { label: 'Call summaries & transcripts', available: false },
       { label: 'After-hours routing', available: false },
@@ -64,7 +64,7 @@ const plans: Plan[] = [
       { label: 'Call recording retention: 30 days', available: true },
       { label: 'Call summaries & transcripts', available: true },
       { label: 'After-hours routing', available: true },
-      { label: 'Lead export + Zapier/webhook', available: true },
+      { label: 'Lead export + webhook', available: true },
       { label: 'Priority support', available: true },
     ],
     highlight: true,
@@ -82,7 +82,7 @@ const plans: Plan[] = [
       { label: '1000 contacts/week', available: true },
       { label: 'AI bookings + SMS reminders', available: true },
       { label: 'Call recording retention: 90 days', available: true },
-      { label: 'Call summaries, transcripts, and follow-ups', available: true },
+      { label: 'Call summaries, transcripts, follow-ups', available: true },
       { label: 'Advanced routing (overflow + multi-location)', available: true },
       { label: 'Integrations + CRM sync', available: true },
       { label: 'Priority phone support', available: true },
@@ -96,7 +96,7 @@ const inclusions = [
   'Real-time call handling and booking',
   'Lead capture and qualification',
   'Smart appointment booking',
-  'Automated SMS confirmations and reminders',
+  'Automated confirmations and reminders',
   'Usage dashboard with call recordings',
 ];
 
@@ -150,27 +150,48 @@ export default function PricingPage() {
   const [compareOpen, setCompareOpen] = useState(false);
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-white via-emerald-50/30 to-white text-foreground">
+    <div className="min-h-screen bg-gradient-to-b from-white via-emerald-50/20 to-white text-foreground">
       <SiteHeader />
       <main className="mx-auto max-w-6xl px-4 pb-20 pt-12">
-        <section className="space-y-6 text-center">
-          <Badge className="mx-auto bg-primary/10 text-primary">Weekly plans built for service teams</Badge>
-          <h1 className="text-4xl font-bold text-gray-900 md:text-5xl">Pick the plan that fits your call volume.</h1>
-          <p className="mx-auto max-w-2xl text-lg text-muted-foreground">
-            Straightforward pricing. Contact us to activate your subscription and we&apos;ll tailor the setup for your
-            team.
-          </p>
-          <div className="flex flex-wrap justify-center gap-3">
-            <Button asChild size="lg">
-              <Link href="/contact">Talk to sales</Link>
-            </Button>
-            <Button asChild size="lg" variant="outline">
-              <Link href="/login">Existing customer? Log in</Link>
-            </Button>
-            <Button size="lg" variant="ghost" onClick={() => setCompareOpen(true)}>
-              Compare plans
-            </Button>
+        <section className="grid gap-10 lg:grid-cols-[1.1fr_0.9fr]">
+          <div className="space-y-6">
+            <Badge className="bg-emerald-100 text-emerald-700">Weekly plans built for service teams</Badge>
+            <h1 className="text-4xl font-display text-slate-900 md:text-5xl">
+              Pricing that matches your call volume.
+            </h1>
+            <p className="text-lg text-slate-600">
+              Choose a weekly plan that fits how many calls and appointments you manage. Upgrade any time as demand
+              grows.
+            </p>
+            <div className="flex flex-wrap gap-3">
+              <Button asChild size="lg">
+                <Link href="/contact">Talk to sales</Link>
+              </Button>
+              <Button asChild size="lg" variant="outline">
+                <Link href="/login">Existing customer? Log in</Link>
+              </Button>
+              <Button size="lg" variant="ghost" onClick={() => setCompareOpen(true)}>
+                Compare plans
+              </Button>
+            </div>
           </div>
+
+          <Card className="border-emerald-100 bg-white/80 shadow-lg shadow-emerald-100">
+            <CardHeader>
+              <CardTitle>Every plan includes</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {inclusions.map((item) => (
+                <div key={item} className="flex items-start gap-2 text-sm text-slate-700">
+                  <span className="mt-1 h-2 w-2 rounded-full bg-emerald-600" />
+                  <span>{item}</span>
+                </div>
+              ))}
+              <div className="rounded-lg border border-emerald-100 bg-emerald-50/70 p-3 text-sm text-emerald-900">
+                Need a custom package? We can tune minutes and onboarding for larger teams.
+              </div>
+            </CardContent>
+          </Card>
         </section>
 
         <section className="mt-14 grid gap-6 md:grid-cols-3">
@@ -178,23 +199,23 @@ export default function PricingPage() {
             <Card
               key={plan.name}
               className={`flex h-full flex-col border-emerald-100 shadow-sm transition hover:-translate-y-1 hover:shadow-md ${
-                plan.highlight ? 'bg-white shadow-lg shadow-emerald-100' : 'bg-white/80'
+                plan.highlight ? 'bg-white shadow-lg shadow-emerald-100 ring-1 ring-emerald-200' : 'bg-white/90'
               }`}
             >
-              <CardHeader>
-                <CardTitle className="flex items-center justify-between text-2xl">
-                  {plan.name}
+              <CardHeader className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-2xl">{plan.name}</CardTitle>
                   <div className="flex gap-2">
                     {plan.trialLabel && <Badge className="bg-emerald-100 text-emerald-700">{plan.trialLabel}</Badge>}
                     {plan.badge && <Badge className="bg-emerald-100 text-emerald-700">{plan.badge}</Badge>}
                   </div>
-                </CardTitle>
-                <div className="mt-4 flex flex-wrap items-baseline gap-2">
-                  <span className="text-xl text-muted-foreground line-through">{plan.originalPrice}</span>
-                  <span className="text-4xl font-bold text-gray-900">{plan.price}</span>
-                  <span className="text-sm text-muted-foreground">{plan.cadence}</span>
                 </div>
-                <p className="text-sm text-muted-foreground">{plan.bestFor}</p>
+                <div className="flex flex-wrap items-baseline gap-2">
+                  <span className="text-sm text-slate-400 line-through">{plan.originalPrice}</span>
+                  <span className="text-4xl font-semibold text-slate-900">{plan.price}</span>
+                  <span className="text-sm text-slate-500">{plan.cadence}</span>
+                </div>
+                <p className="text-sm text-slate-600">{plan.bestFor}</p>
               </CardHeader>
               <CardContent className="space-y-2">
                 {plan.features.map((item) => (
@@ -202,13 +223,13 @@ export default function PricingPage() {
                     key={item.label}
                     className={`flex items-center gap-2 text-sm ${
                       item.available === false
-                        ? 'text-muted-foreground line-through decoration-muted-foreground/60'
+                        ? 'text-slate-400 line-through decoration-slate-300'
                         : 'text-emerald-800'
                     }`}
                   >
                     <span
                       className={`h-1.5 w-1.5 rounded-full ${
-                        item.available === false ? 'bg-gray-300' : 'bg-emerald-500'
+                        item.available === false ? 'bg-slate-300' : 'bg-emerald-500'
                       }`}
                     />
                     {item.label}
@@ -224,33 +245,10 @@ export default function PricingPage() {
           ))}
         </section>
 
-        <section className="mt-16 rounded-2xl border border-emerald-100 bg-white/80 p-8 shadow-inner">
-          <div className="grid gap-8 md:grid-cols-2">
-            <div className="space-y-3">
-              <h2 className="text-2xl font-semibold text-gray-900">Every plan includes</h2>
-              <p className="text-muted-foreground">
-                We keep it simple: the same AI quality and reception experience across all tiers. Increase limits as you
-                grow.
-              </p>
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              {inclusions.map((item) => (
-                <div
-                  key={item}
-                  className="flex items-start gap-2 rounded-lg border border-emerald-100 bg-emerald-50/70 p-3 text-sm text-emerald-900"
-                >
-                  <span className="mt-1 h-2 w-2 rounded-full bg-emerald-600" />
-                  <span>{item}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        <section className="mt-14 rounded-2xl border border-emerald-100 bg-emerald-50/80 p-10 text-center shadow-lg shadow-emerald-50">
-          <h3 className="text-2xl font-bold text-gray-900">Want a custom package?</h3>
-          <p className="mt-2 text-muted-foreground">
-            Need more minutes or dedicated onboarding? Tell us what you need and we&apos;ll tailor a plan.
+        <section className="mt-16 rounded-2xl border border-emerald-100 bg-emerald-50/80 p-10 text-center shadow-lg shadow-emerald-50">
+          <h3 className="text-2xl font-display text-slate-900">Need a tailored rollout?</h3>
+          <p className="mt-2 text-slate-600">
+            Let us know your call volume and service mix. We will build a plan around your team.
           </p>
           <div className="mt-4 flex justify-center">
             <Button asChild size="lg" variant="secondary" className="bg-white text-emerald-700 shadow">
