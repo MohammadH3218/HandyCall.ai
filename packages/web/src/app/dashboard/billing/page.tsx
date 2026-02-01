@@ -163,9 +163,12 @@ export default function BillingPage() {
     );
   };
 
-  const formatDate = (timestamp: number) => {
+  const formatDate = (timestamp?: number) => {
+    if (!timestamp) return '-';
+    const date = new Date(timestamp);
+    if (Number.isNaN(date.getTime())) return '-';
     // Backend already sends timestamps in milliseconds
-    return new Date(timestamp).toLocaleDateString('en-US', {
+    return date.toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'long',
       day: 'numeric',
@@ -395,7 +398,7 @@ export default function BillingPage() {
                           </div>
                           <p className="text-sm text-slate-600">
                             **** **** **** {method.last4 || '----'}
-                            {method.exp_month && method.exp_year ? `  ·  exp ${method.exp_month}/${method.exp_year}` : ''}
+                            {method.exp_month && method.exp_year ? `  -  exp ${method.exp_month}/${method.exp_year}` : ''}
                           </p>
                         </div>
                       </div>
