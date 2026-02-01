@@ -66,10 +66,10 @@ export default function SettingsPage() {
 
 
   return (
-    <div className="p-8 max-w-4xl">
+    <div className="p-8 max-w-4xl animate-fade-up">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">Settings</h1>
-        <p className="mt-2 text-gray-600">Manage your business information and preferences</p>
+        <h1 className="text-3xl font-display text-slate-900">Settings</h1>
+        <p className="mt-2 text-slate-600">Manage your business information and preferences.</p>
       </div>
 
       <div className="space-y-6">
@@ -137,12 +137,12 @@ export default function SettingsPage() {
             <div className="space-y-2">
               <div className="flex justify-between">
                 <span className="text-sm font-medium">Status:</span>
-                <span className="text-sm text-gray-600">{statusLabel}</span>
+                <span className="text-sm text-slate-600">{statusLabel}</span>
               </div>
               {company?.trial_ends_at && (
                 <div className="flex justify-between">
                   <span className="text-sm font-medium">Trial Ends:</span>
-                  <span className="text-sm text-gray-600">
+                  <span className="text-sm text-slate-600">
                     {new Date(company.trial_ends_at).toLocaleDateString()}
                   </span>
                 </div>
@@ -159,14 +159,14 @@ export default function SettingsPage() {
           <CardContent>
             <div className="flex items-center justify-between gap-4">
               <div>
-                <div className="text-sm font-medium text-gray-900">Inbound number</div>
-                <div className="text-sm text-gray-600">{myNumber ?? 'Not assigned yet'}</div>
+                <div className="text-sm font-medium text-slate-900">Inbound number</div>
+                <div className="text-sm text-slate-600">{myNumber ?? 'Not assigned yet'}</div>
               </div>
             </div>
 
             {!myNumber && (
-              <div className="mt-3 text-sm text-gray-700 bg-gray-50 border border-gray-200 rounded-md p-3">
-                Phone numbers are assigned by the HandyCall team. If you need a number, contact support and we’ll set it
+              <div className="mt-3 text-sm text-slate-700 bg-slate-50 border border-slate-200 rounded-md p-3">
+                Phone numbers are assigned by the HandyCall team. If you need a number, contact support and we'll set it
                 up for you.
               </div>
             )}

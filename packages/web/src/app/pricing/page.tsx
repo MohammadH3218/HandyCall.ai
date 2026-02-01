@@ -55,7 +55,7 @@ const plans: Plan[] = [
     cadence: 'per week',
     bestFor: 'Growing teams that want consistent coverage and bookings.',
     badge: 'Most popular',
-    trialLabel: 'Free trial — 14 days',
+    trialLabel: 'Free trial - 14 days',
     features: [
       { label: '120 minutes/week', available: true },
       { label: '250 SMS/week', available: true },

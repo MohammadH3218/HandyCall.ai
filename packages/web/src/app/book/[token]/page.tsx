@@ -185,7 +185,7 @@ export default function BookingPage() {
         <div className="max-w-2xl mx-auto">
           <Card>
             <CardHeader>
-              <CardTitle>Loading booking form…</CardTitle>
+              <CardTitle>Loading booking form...</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="h-4 bg-gray-200 rounded w-2/3 mb-2" />
@@ -323,7 +323,7 @@ export default function BookingPage() {
             ) : null}
 
             <Button onClick={handleSubmit} disabled={submitting}>
-              {submitting ? 'Booking…' : 'Confirm booking'}
+              {submitting ? 'Booking...' : 'Confirm booking'}
             </Button>
           </CardContent>
         </Card>

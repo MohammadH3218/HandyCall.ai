@@ -278,7 +278,7 @@ export default function CompaniesPage() {
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-muted-foreground">Phone:</span>
-                      <span>{company.phone_number || '—'}</span>
+                      <span>{company.phone_number || '-'}</span>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-muted-foreground">Created:</span>
@@ -290,7 +290,7 @@ export default function CompaniesPage() {
                         <Badge variant="outline">
                           {company.subscription_plan || company.subscription_tier}
                           {company.subscription_status || company.cancel_at_period_end
-                            ? ` • ${formatSubscriptionStatus(company.subscription_status, company.cancel_at_period_end)}`
+                            ? ` - ${formatSubscriptionStatus(company.subscription_status, company.cancel_at_period_end)}`
                             : ''}
                         </Badge>
                       </div>

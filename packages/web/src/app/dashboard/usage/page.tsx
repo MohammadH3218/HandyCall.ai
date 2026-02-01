@@ -145,11 +145,11 @@ export default function UsagePage() {
   }
 
   return (
-    <div className="p-8 max-w-7xl space-y-8">
+    <div className="p-8 max-w-7xl space-y-8 animate-fade-up">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Usage</h1>
-          <p className="text-gray-600">
+          <h1 className="text-3xl font-display text-slate-900">Usage</h1>
+          <p className="text-slate-600">
             Monitor your call, SMS, and contact usage for the current billing period.
           </p>
         </div>

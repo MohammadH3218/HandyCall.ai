@@ -193,7 +193,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }
 
   return (
-    <div className="flex h-screen bg-background overflow-hidden">
+    <div className="flex min-h-screen bg-transparent overflow-hidden">
       {/* Mobile overlay */}
       {sidebarOpen && (
         <div
@@ -206,7 +206,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <aside
         className={`
           fixed lg:static inset-y-0 left-0 z-50
-          w-64 bg-card border-r border-border flex flex-col
+          w-72 bg-white/85 backdrop-blur-xl border-r border-border/60 flex flex-col
           transform transition-transform duration-200 ease-in-out
           ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
         `}
@@ -223,54 +223,99 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </Button>
         </div>
 
-        <div className="p-6 flex flex-col items-center justify-center border-b border-border">
+        <div className="p-6 flex flex-col items-center justify-center border-b border-border/60 bg-white/70">
           <Logo variant="words" width={160} height={40} />
           {company?.company_name && (
             <p className="mt-2 text-sm font-medium text-foreground text-center">{company.company_name}</p>
           )}
         </div>
 
-        <nav className="flex-1 px-4 py-4 space-y-4 overflow-y-auto">
+        <nav className="flex-1 px-4 py-5 space-y-5 overflow-y-auto">
           <div className="space-y-1">
-            <NavLink href="/dashboard" icon={<Home className="h-5 w-5" />} onClick={() => setSidebarOpen(false)}>
+            <NavLink
+              href="/dashboard"
+              icon={<Home className="h-5 w-5" />}
+              active={pathname === '/dashboard'}
+              onClick={() => setSidebarOpen(false)}
+            >
               Dashboard
             </NavLink>
-            <NavLink href="/dashboard/setup" icon={<CheckSquare className="h-5 w-5" />} onClick={() => setSidebarOpen(false)}>
+            <NavLink
+              href="/dashboard/setup"
+              icon={<CheckSquare className="h-5 w-5" />}
+              active={pathname?.startsWith('/dashboard/setup')}
+              onClick={() => setSidebarOpen(false)}
+            >
               Setup
             </NavLink>
-            <NavLink href="/dashboard/calls" icon={<Phone className="h-5 w-5" />} onClick={() => setSidebarOpen(false)}>
+            <NavLink
+              href="/dashboard/calls"
+              icon={<Phone className="h-5 w-5" />}
+              active={pathname?.startsWith('/dashboard/calls')}
+              onClick={() => setSidebarOpen(false)}
+            >
               Calls
             </NavLink>
-            <NavLink href="/dashboard/customers" icon={<Users className="h-5 w-5" />} onClick={() => setSidebarOpen(false)}>
+            <NavLink
+              href="/dashboard/customers"
+              icon={<Users className="h-5 w-5" />}
+              active={pathname?.startsWith('/dashboard/customers')}
+              onClick={() => setSidebarOpen(false)}
+            >
               Customers
             </NavLink>
-            <NavLink href="/dashboard/appointments" icon={<Calendar className="h-5 w-5" />} onClick={() => setSidebarOpen(false)}>
+            <NavLink
+              href="/dashboard/appointments"
+              icon={<Calendar className="h-5 w-5" />}
+              active={pathname?.startsWith('/dashboard/appointments')}
+              onClick={() => setSidebarOpen(false)}
+            >
               Appointments
             </NavLink>
           </div>
 
           <div className="pt-2 border-t border-border space-y-1">
             <p className="px-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Company</p>
-            <NavLink href="/dashboard/knowledge" icon={<MessageSquare className="h-5 w-5" />} onClick={() => setSidebarOpen(false)}>
+            <NavLink
+              href="/dashboard/knowledge"
+              icon={<MessageSquare className="h-5 w-5" />}
+              active={pathname?.startsWith('/dashboard/knowledge')}
+              onClick={() => setSidebarOpen(false)}
+            >
               Knowledge Base
             </NavLink>
-            <NavLink href="/dashboard/settings" icon={<Settings className="h-5 w-5" />} onClick={() => setSidebarOpen(false)}>
+            <NavLink
+              href="/dashboard/settings"
+              icon={<Settings className="h-5 w-5" />}
+              active={pathname?.startsWith('/dashboard/settings')}
+              onClick={() => setSidebarOpen(false)}
+            >
               Settings
             </NavLink>
           </div>
 
           <div className="pt-2 border-t border-border space-y-1">
             <p className="px-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Account</p>
-            <NavLink href="/dashboard/usage" icon={<BarChart3 className="h-5 w-5" />} onClick={() => setSidebarOpen(false)}>
+            <NavLink
+              href="/dashboard/usage"
+              icon={<BarChart3 className="h-5 w-5" />}
+              active={pathname?.startsWith('/dashboard/usage')}
+              onClick={() => setSidebarOpen(false)}
+            >
               Usage
             </NavLink>
-            <NavLink href="/dashboard/billing" icon={<CreditCard className="h-5 w-5" />} onClick={() => setSidebarOpen(false)}>
+            <NavLink
+              href="/dashboard/billing"
+              icon={<CreditCard className="h-5 w-5" />}
+              active={pathname?.startsWith('/dashboard/billing')}
+              onClick={() => setSidebarOpen(false)}
+            >
               Billing
             </NavLink>
           </div>
         </nav>
 
-        <div className="p-4 border-t border-border">
+        <div className="p-4 border-t border-border/60 bg-white/70">
           <ProfileDropdown />
         </div>
       </aside>
@@ -278,7 +323,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Mobile menu button */}
-        <div className="lg:hidden p-4 border-b border-border">
+        <div className="lg:hidden p-4 border-b border-border/60 bg-white/80 backdrop-blur">
           <Button
             variant="ghost"
             size="sm"
@@ -290,9 +335,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
 
         {/* Main Content Area */}
-        <main className="flex-1 overflow-auto p-4 sm:p-6 lg:p-8">
+        <main className="flex-1 overflow-auto p-4 sm:p-6 lg:p-10">
           {setupDataReady && needsSetup && (
-            <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="mb-6 rounded-2xl border border-amber-200/70 bg-amber-50/70 p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 shadow-sm">
               <div>
                 <div className="text-sm font-semibold text-amber-900">Finish your setup</div>
                 <div className="text-sm text-amber-800 mt-1">
@@ -304,7 +349,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               </Button>
             </div>
           )}
-          {children}
+          <div className="animate-fade-up">{children}</div>
         </main>
       </div>
 
@@ -316,20 +361,32 @@ function NavLink({
   href,
   icon,
   children,
+  active,
   onClick
 }: {
   href: string;
   icon: React.ReactNode;
   children: React.ReactNode;
+  active?: boolean;
   onClick?: () => void;
 }) {
   return (
     <Link
       href={href}
       onClick={onClick}
-      className="flex items-center px-4 py-3 text-foreground rounded-lg hover:bg-secondary transition-all duration-200 hover:translate-x-1 group"
+      className={`group flex items-center px-4 py-3 text-sm rounded-xl transition-all duration-200 ${
+        active
+          ? 'bg-emerald-50 text-emerald-900 shadow-sm border border-emerald-100'
+          : 'text-foreground/80 hover:bg-secondary/70 hover:text-foreground'
+      }`}
     >
-      <span className="mr-3 transition-colors duration-200 group-hover:text-primary">{icon}</span>
+      <span
+        className={`mr-3 transition-colors duration-200 ${
+          active ? 'text-emerald-600' : 'text-muted-foreground group-hover:text-emerald-600'
+        }`}
+      >
+        {icon}
+      </span>
       <span className="font-medium">{children}</span>
     </Link>
   );

@@ -228,10 +228,10 @@ export default function SetupPage() {
       : 'Not set up yet';
 
   return (
-    <div className="p-8 max-w-5xl">
+    <div className="p-8 max-w-5xl animate-fade-up">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">Account setup</h1>
-        <p className="mt-2 text-gray-600">
+        <h1 className="text-3xl font-display text-slate-900">Account setup</h1>
+        <p className="mt-2 text-slate-600">
           Complete the steps below so the AI can schedule appointments using your exact working hours and calendar.
         </p>
         <div className="mt-4 flex flex-wrap items-center gap-3">
@@ -244,7 +244,7 @@ export default function SetupPage() {
               You are fully set up.
             </div>
           ) : (
-            <div className="flex items-center gap-2 text-sm text-gray-600">
+            <div className="flex items-center gap-2 text-sm text-slate-600">
               <AlertCircle className="h-4 w-4" />
               Finish setup to enable reliable booking and scheduling.
             </div>
@@ -297,7 +297,7 @@ export default function SetupPage() {
               <Badge className={calendarComplete ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-700 border border-amber-200'}>
                 {calendarComplete ? 'Configured' : 'Needs setup'}
               </Badge>
-              <span className="text-sm text-gray-700">{calendarStatusLabel}</span>
+              <span className="text-sm text-slate-700">{calendarStatusLabel}</span>
             </div>
             <div className="flex flex-wrap gap-2">
               <Button onClick={handleUseInternalCalendar} disabled={isSavingCalendarMode}>
@@ -411,31 +411,31 @@ export default function SetupPage() {
           </DialogHeader>
           <div className="space-y-3">
             <button
-              className={`w-full border rounded-lg p-4 text-left hover:border-blue-500 transition ${
-                selectedProvider === 'GOOGLE' ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+              className={`w-full border rounded-lg p-4 text-left hover:border-emerald-400 transition ${
+                selectedProvider === 'GOOGLE' ? 'border-emerald-400 bg-emerald-50' : 'border-slate-200'
               }`}
               onClick={() => setSelectedProvider('GOOGLE')}
             >
-              <div className="font-semibold text-gray-900">Google Calendar</div>
-              <div className="text-sm text-gray-600 mt-1">Connect your Google/Gmail calendar</div>
+              <div className="font-semibold text-slate-900">Google Calendar</div>
+              <div className="text-sm text-slate-600 mt-1">Connect your Google/Gmail calendar</div>
             </button>
             <button
-              className={`w-full border rounded-lg p-4 text-left hover:border-blue-500 transition ${
-                selectedProvider === 'MICROSOFT' ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+              className={`w-full border rounded-lg p-4 text-left hover:border-emerald-400 transition ${
+                selectedProvider === 'MICROSOFT' ? 'border-emerald-400 bg-emerald-50' : 'border-slate-200'
               }`}
               onClick={() => setSelectedProvider('MICROSOFT')}
             >
-              <div className="font-semibold text-gray-900">Outlook / Microsoft 365</div>
-              <div className="text-sm text-gray-600 mt-1">Connect your Outlook or Microsoft calendar</div>
+              <div className="font-semibold text-slate-900">Outlook / Microsoft 365</div>
+              <div className="text-sm text-slate-600 mt-1">Connect your Outlook or Microsoft calendar</div>
             </button>
             <button
-              className={`w-full border rounded-lg p-4 text-left hover:border-blue-500 transition ${
-                selectedProvider === 'APPLE' ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+              className={`w-full border rounded-lg p-4 text-left hover:border-emerald-400 transition ${
+                selectedProvider === 'APPLE' ? 'border-emerald-400 bg-emerald-50' : 'border-slate-200'
               }`}
               onClick={() => setSelectedProvider('APPLE')}
             >
-              <div className="font-semibold text-gray-900">Apple iCloud Calendar</div>
-              <div className="text-sm text-gray-600 mt-1">Connect your iCloud calendar using an app-specific password</div>
+              <div className="font-semibold text-slate-900">Apple iCloud Calendar</div>
+              <div className="text-sm text-slate-600 mt-1">Connect your iCloud calendar using an app-specific password</div>
             </button>
           </div>
 

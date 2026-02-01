@@ -80,7 +80,7 @@ function ymd(d: Date): string {
 }
 
 function formatDateTime(ts?: number | string) {
-  if (!ts) return '—';
+  if (!ts) return '-';
   const date = typeof ts === 'number' ? new Date(ts) : new Date(ts);
   return date.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
@@ -676,11 +676,11 @@ export default function AppointmentsPage() {
   }
 
   return (
-    <div className="p-8 animate-fade-in">
+    <div className="p-8 animate-fade-up">
       <div className="mb-8 flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Appointments</h1>
-          <p className="mt-2 text-gray-600">View and manage your schedule</p>
+          <h1 className="text-3xl font-display text-slate-900">Appointments</h1>
+          <p className="mt-2 text-slate-600">Manage bookings, calendars, and availability.</p>
         </div>
         <Button onClick={() => setIsCreateOpen(true)} disabled={!isCalendarSetupComplete}>
           <Plus className="h-4 w-4 mr-2" />
@@ -860,7 +860,7 @@ export default function AppointmentsPage() {
                           </Badge>
                         </div>
                         <div className="text-sm text-gray-600 mt-1">
-                          {formatDateTime(apt.scheduled_start)} • {apt.service_type || 'Service'}
+                          {formatDateTime(apt.scheduled_start)} - {apt.service_type || 'Service'}
                         </div>
                       </div>
                       <ExternalLink className="h-4 w-4 text-gray-400 mt-1" />
@@ -902,8 +902,8 @@ export default function AppointmentsPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <div className="text-xs text-gray-500 mb-1">Customer</div>
-                  <div className="font-medium text-gray-900">{selectedAppointment.contact_name || '—'}</div>
-                  <div className="text-sm text-gray-600">{selectedAppointment.contact_email || selectedAppointment.contact_phone || '—'}</div>
+                  <div className="font-medium text-gray-900">{selectedAppointment.contact_name || '-'}</div>
+                  <div className="text-sm text-gray-600">{selectedAppointment.contact_email || selectedAppointment.contact_phone || '-'}</div>
                 </div>
                 <div>
                   <div className="text-xs text-gray-500 mb-1">Status</div>
@@ -1247,7 +1247,7 @@ export default function AppointmentsPage() {
                             </Badge>
                           </div>
                           <div className="text-sm text-gray-600">
-                            {startTime} - {endTime} • {apt.service_type || 'Service'}
+                            {startTime} - {endTime} - {apt.service_type || 'Service'}
                           </div>
                           {apt.notes && (
                             <div className="text-sm text-gray-500 mt-1 truncate">{apt.notes}</div>

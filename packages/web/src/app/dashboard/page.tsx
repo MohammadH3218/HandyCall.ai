@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { useAuthStore } from '@/stores/auth-store';
 import { apiClient } from '@/lib/api-client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Phone, Users, Calendar, AlertCircle, MessageSquare, PhoneCall } from 'lucide-react';
+import { Phone, Users, Calendar, AlertCircle, MessageSquare, PhoneCall, ArrowUpRight } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 interface DashboardStats {
@@ -52,7 +53,6 @@ export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [recentCalls, setRecentCalls] = useState<RecentCall[]>([]);
   const [upcomingAppointments, setUpcomingAppointments] = useState<UpcomingAppointment[]>([]);
-  const [showAllAppointments, setShowAllAppointments] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [companyPhoneNumber, setCompanyPhoneNumber] = useState<string | null>(null);
@@ -130,8 +130,10 @@ export default function DashboardPage() {
     }
   };
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
+  const formatDate = (dateValue?: string | number) => {
+    if (!dateValue) return '-';
+    const date = new Date(dateValue);
+    if (Number.isNaN(date.getTime())) return '-';
     return date.toLocaleDateString('en-US', {
       month: 'short',
       day: 'numeric',
@@ -141,11 +143,21 @@ export default function DashboardPage() {
   };
 
   const formatDuration = (seconds?: number) => {
-    if (!seconds) return 'N/A';
+    if (!seconds) return '-';
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
+
+  const recentLimit = 2;
+  const appointmentLimit = 2;
+  const recentPreview = useMemo(() => recentCalls.slice(0, recentLimit), [recentCalls]);
+  const appointmentPreview = useMemo(
+    () => upcomingAppointments.slice(0, appointmentLimit),
+    [upcomingAppointments]
+  );
+  const hasMoreCalls = recentCalls.length > recentLimit;
+  const hasMoreAppointments = upcomingAppointments.length > appointmentLimit;
 
   const toggleService = async (service: 'calls' | 'sms', enabled: boolean) => {
     if (!company) return;
@@ -267,27 +279,33 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="p-8 animate-fade-in">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-        <p className="mt-2 text-gray-600">Welcome back to {company?.company_name || 'HandyCall'}</p>
+    <div className="space-y-8 animate-fade-up">
+      <div className="flex flex-col gap-3">
+        <div className="space-y-1">
+          <p className="text-xs uppercase tracking-[0.22em] text-muted-foreground">Overview</p>
+          <h1 className="text-3xl font-semibold text-foreground">
+            Welcome back, {company?.company_name || 'HandyCall'}
+          </h1>
+        </div>
         {companyPhoneNumber && (
-          <p className="mt-1 text-sm text-gray-600">
-            Company phone number: <span className="font-medium text-gray-900">{companyPhoneNumber}</span>
+          <p className="text-sm text-muted-foreground">
+            Company line: <span className="font-medium text-foreground">{companyPhoneNumber}</span>
           </p>
         )}
       </div>
 
       {/* Service Control Panel */}
-      <Card className="mb-8 border-2 border-blue-100 bg-gradient-to-r from-blue-50 to-purple-50">
+      <Card className="border border-emerald-100/80 bg-emerald-50/70">
         <CardContent className="pt-6">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div>
-              <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse"></div>
-                Service Controls
+              <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
+                <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></div>
+                Service controls
               </h3>
-              <p className="text-sm text-gray-600 mt-1">Enable or disable incoming calls and SMS</p>
+              <p className="text-sm text-muted-foreground mt-1">
+                Manage live channels and pause them when you need a break.
+              </p>
             </div>
             <div className="flex gap-6">
               <ServiceToggle
@@ -316,28 +334,28 @@ export default function DashboardPage() {
         <StatCard
           title="Today's Calls"
           value={isLoading ? '-' : stats?.todayCalls.toString() || '0'}
-          icon={<Phone className="h-8 w-8 text-blue-600" />}
+          icon={<Phone className="h-8 w-8 text-emerald-600" />}
           description={stats?.todayCalls ? 'calls received today' : 'No calls yet today'}
           isLoading={isLoading}
         />
         <StatCard
           title="New Leads"
           value={isLoading ? '-' : stats?.newLeads.toString() || '0'}
-          icon={<Users className="h-8 w-8 text-green-600" />}
+          icon={<Users className="h-8 w-8 text-emerald-500" />}
           description={stats?.newLeads ? 'new contacts added' : 'Waiting for first lead'}
           isLoading={isLoading}
         />
         <StatCard
           title="Appointments"
           value={isLoading ? '-' : stats?.appointments.toString() || '0'}
-          icon={<Calendar className="h-8 w-8 text-purple-600" />}
+          icon={<Calendar className="h-8 w-8 text-emerald-600" />}
           description={stats?.appointments ? 'upcoming appointments' : 'No scheduled appointments'}
           isLoading={isLoading}
         />
         <StatCard
           title="Pending Questions"
           value={isLoading ? '-' : stats?.pendingQuestions.toString() || '0'}
-          icon={<AlertCircle className="h-8 w-8 text-orange-600" />}
+          icon={<AlertCircle className="h-8 w-8 text-amber-600" />}
           description={stats?.pendingQuestions ? 'need your attention' : 'No flagged questions'}
           isLoading={isLoading}
         />
@@ -346,8 +364,17 @@ export default function DashboardPage() {
       {/* Recent Activity */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>
-          <CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle>Recent Calls</CardTitle>
+            {hasMoreCalls && (
+              <Link
+                href="/dashboard/calls"
+                className="inline-flex items-center text-xs font-semibold text-emerald-700 hover:text-emerald-600"
+              >
+                View all
+                <ArrowUpRight className="ml-1 h-3.5 w-3.5" />
+              </Link>
+            )}
           </CardHeader>
           <CardContent>
             {isLoading ? (
@@ -359,27 +386,27 @@ export default function DashboardPage() {
                   </div>
                 ))}
               </div>
-            ) : recentCalls.length > 0 ? (
+            ) : recentPreview.length > 0 ? (
               <div className="space-y-4">
-                {recentCalls.map((call) => (
-                  <div key={call.call_id} className="border-b border-gray-200 pb-3 last:border-0">
-                    <div className="flex justify-between items-start">
+                {recentPreview.map((call) => (
+                  <div key={call.call_id} className="border-b border-border/60 pb-3 last:border-0">
+                    <div className="flex justify-between items-start gap-4">
                       <div>
-                        <p className="font-medium text-gray-900">
+                        <p className="font-medium text-foreground">
                           {call.caller_name || call.caller_phone}
                         </p>
-                        <p className="text-sm text-gray-500 mt-1">
-                          {call.summary || 'No summary available'}
+                        <p className="text-sm text-muted-foreground mt-1">
+                          {call.summary?.trim() || 'No summary available'}
                         </p>
                       </div>
-                      <span className="text-xs text-gray-500">{formatDuration(call.duration)}</span>
+                      <span className="text-xs text-muted-foreground">{formatDuration(call.duration)}</span>
                     </div>
-                    <p className="text-xs text-gray-400 mt-2">{formatDate(call.created_at)}</p>
+                    <p className="text-xs text-muted-foreground/70 mt-2">{formatDate(call.created_at)}</p>
                   </div>
                 ))}
               </div>
             ) : (
-              <p className="text-sm text-gray-500 text-center py-8">
+              <p className="text-sm text-muted-foreground text-center py-8">
                 No calls yet. Your AI receptionist is ready to answer!
               </p>
             )}
@@ -387,8 +414,17 @@ export default function DashboardPage() {
         </Card>
 
         <Card>
-          <CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle>Upcoming Appointments</CardTitle>
+            {hasMoreAppointments && (
+              <Link
+                href="/dashboard/appointments"
+                className="inline-flex items-center text-xs font-semibold text-emerald-700 hover:text-emerald-600"
+              >
+                View all
+                <ArrowUpRight className="ml-1 h-3.5 w-3.5" />
+              </Link>
+            )}
           </CardHeader>
           <CardContent>
             {isLoading ? (
@@ -400,33 +436,25 @@ export default function DashboardPage() {
                   </div>
                 ))}
               </div>
-            ) : upcomingAppointments.length > 0 ? (
+            ) : appointmentPreview.length > 0 ? (
               <div className="space-y-4">
-                {upcomingAppointments.slice(0, showAllAppointments ? 50 : 3).map((apt) => (
-                  <div key={apt.appointment_id} className="border-b border-gray-200 pb-3 last:border-0">
-                    <div className="flex justify-between items-start">
+                {appointmentPreview.map((apt) => (
+                  <div key={apt.appointment_id} className="border-b border-border/60 pb-3 last:border-0">
+                    <div className="flex justify-between items-start gap-4">
                       <div>
-                        <p className="font-medium text-gray-900">{apt.contact_name}</p>
-                        <p className="text-sm text-gray-500 mt-1">
-                          {apt.service_type || 'Appointment'}
+                        <p className="font-medium text-foreground">{apt.contact_name || 'Appointment'}</p>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          {apt.service_type || 'Scheduled visit'}
                         </p>
                       </div>
-                      <span className="text-xs text-gray-500">{apt.status}</span>
+                      <span className="text-xs text-muted-foreground">{apt.status}</span>
                     </div>
-                    <p className="text-xs text-gray-400 mt-2">{formatDate(apt.scheduled_time)}</p>
+                    <p className="text-xs text-muted-foreground/70 mt-2">{formatDate(apt.scheduled_time)}</p>
                   </div>
                 ))}
-                {upcomingAppointments.length > 3 && (
-                  <button
-                    onClick={() => setShowAllAppointments(!showAllAppointments)}
-                    className="w-full text-center text-sm text-blue-600 hover:text-blue-800 py-2"
-                  >
-                    {showAllAppointments ? 'Show less' : `Show ${upcomingAppointments.length - 3} more`}
-                  </button>
-                )}
               </div>
             ) : (
-              <p className="text-sm text-gray-500 text-center py-8">
+              <p className="text-sm text-muted-foreground text-center py-8">
                 No appointments scheduled
               </p>
             )}
@@ -474,11 +502,11 @@ function StatCard({
   isLoading?: boolean;
 }) {
   return (
-    <Card className="transition-all hover:shadow-lg">
+    <Card className="group">
       <CardContent className="pt-6">
         <div className="flex items-center justify-between">
           <div className="flex-1">
-            <p className="text-sm font-medium text-gray-600">{title}</p>
+            <p className="text-sm font-medium text-muted-foreground">{title}</p>
             {isLoading ? (
               <div className="animate-pulse">
                 <div className="h-9 bg-gray-200 rounded w-16 mt-2"></div>
@@ -486,12 +514,14 @@ function StatCard({
               </div>
             ) : (
               <>
-                <p className="text-3xl font-bold text-gray-900 mt-2">{value}</p>
-                <p className="text-xs text-gray-500 mt-1">{description}</p>
+                <p className="text-3xl font-semibold text-foreground mt-2">{value}</p>
+                <p className="text-xs text-muted-foreground mt-1">{description}</p>
               </>
             )}
           </div>
-          <div className="flex-shrink-0">{icon}</div>
+          <div className="flex-shrink-0 rounded-2xl bg-emerald-50/70 p-3 shadow-sm transition-transform duration-200 group-hover:-translate-y-0.5">
+            {icon}
+          </div>
         </div>
       </CardContent>
     </Card>
@@ -508,13 +538,16 @@ function QuickAction({
   href: string;
 }) {
   return (
-    <a
+    <Link
       href={href}
-      className="block p-4 border border-gray-200 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-all"
+      className="group flex items-start justify-between rounded-2xl border border-border/70 bg-white/80 p-4 transition-all hover:-translate-y-0.5 hover:border-emerald-200 hover:shadow-md"
     >
-      <h4 className="font-semibold text-gray-900">{title}</h4>
-      <p className="text-sm text-gray-600 mt-1">{description}</p>
-    </a>
+      <div>
+        <h4 className="font-semibold text-foreground">{title}</h4>
+        <p className="text-sm text-muted-foreground mt-1">{description}</p>
+      </div>
+      <ArrowUpRight className="h-5 w-5 text-muted-foreground transition-transform duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+    </Link>
   );
 }
 
@@ -536,19 +569,19 @@ function ServiceToggle({
   return (
     <div className="flex flex-col items-center gap-2">
       <div className="flex items-center gap-2">
-        <div className={`transition-colors ${enabled ? 'text-green-600' : 'text-gray-400'}`}>
+        <div className={`transition-colors ${enabled ? 'text-emerald-600' : 'text-muted-foreground'}`}>
           {icon}
         </div>
-        <span className="text-sm font-medium text-gray-700">{label}</span>
+        <span className="text-sm font-medium text-foreground">{label}</span>
       </div>
       <button
         onClick={() => onToggle(!enabled)}
         disabled={loading || disabled}
         className={`
           relative inline-flex h-8 w-14 items-center rounded-full transition-all duration-300 ease-in-out
-          ${enabled ? 'bg-green-500 shadow-lg shadow-green-200' : 'bg-gray-300 shadow-md'}
+          ${enabled ? 'bg-emerald-500 shadow-lg shadow-emerald-200' : 'bg-slate-300 shadow-md'}
           ${loading || disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:shadow-xl'}
-          focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
+          focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2
         `}
         aria-label={`Toggle ${label}`}
       >
@@ -561,16 +594,16 @@ function ServiceToggle({
         >
           {loading && (
             <div className="absolute inset-0 flex items-center justify-center">
-              <div className="h-3 w-3 animate-spin rounded-full border-2 border-gray-300 border-t-blue-600"></div>
+              <div className="h-3 w-3 animate-spin rounded-full border-2 border-gray-300 border-t-emerald-600"></div>
             </div>
           )}
         </span>
         {/* Animated background gradient */}
         {enabled && !loading && (
-          <div className="absolute inset-0 rounded-full bg-gradient-to-r from-green-400 to-emerald-500 animate-pulse opacity-75"></div>
+          <div className="absolute inset-0 rounded-full bg-gradient-to-r from-emerald-400 to-emerald-600 animate-pulse opacity-70"></div>
         )}
       </button>
-      <span className={`text-xs font-semibold transition-colors ${enabled ? 'text-green-600' : 'text-gray-500'}`}>
+      <span className={`text-xs font-semibold transition-colors ${enabled ? 'text-emerald-600' : 'text-muted-foreground'}`}>
         {enabled ? 'Active' : 'Paused'}
       </span>
     </div>

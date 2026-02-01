@@ -107,7 +107,7 @@ export default function Home() {
               },
               {
                 title: 'Follow-ups that convert',
-                desc: 'Automatic SMS summaries, reminders, and replies so leads don’t slip through cracks.',
+                desc: 'Automatic SMS summaries, reminders, and replies so leads don't slip through cracks.',
               },
             ].map((item) => (
               <Card key={item.title} className="border-emerald-100 bg-white/80 shadow-sm transition hover:-translate-y-1 hover:shadow-md">
@@ -136,7 +136,7 @@ export default function Home() {
           <div className="mx-auto max-w-2xl space-y-4">
             <h3 className="text-3xl font-bold text-gray-900">Ready to capture every call?</h3>
             <p className="text-muted-foreground">
-              Start with HandyCall and give every caller a professional, on-brand experience—day or night.
+              Start with HandyCall and give every caller a professional, on-brand experience-day or night.
             </p>
             <div className="flex flex-wrap justify-center gap-3">
               <Button asChild size="lg">

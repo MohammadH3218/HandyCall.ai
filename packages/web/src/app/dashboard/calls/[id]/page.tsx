@@ -123,7 +123,7 @@ export default function CallDetailsPage() {
 
   if (isLoading) {
     return (
-      <div className="p-8 animate-fade-in">
+      <div className="p-8 animate-fade-up">
         <div className="flex items-center gap-4 mb-8">
           <Button variant="outline" onClick={() => router.push('/dashboard/calls')}>
             <ArrowLeft className="h-4 w-4 mr-2" />
@@ -140,7 +140,7 @@ export default function CallDetailsPage() {
 
   if (error || !call) {
     return (
-      <div className="p-8 animate-fade-in">
+      <div className="p-8 animate-fade-up">
         <div className="flex items-center gap-4 mb-8">
           <Button variant="outline" onClick={() => router.push('/dashboard/calls')}>
             <ArrowLeft className="h-4 w-4 mr-2" />
@@ -163,7 +163,7 @@ export default function CallDetailsPage() {
   const statusBadge = getStatusBadge(call.status);
 
   return (
-    <div className="p-8 animate-fade-in">
+    <div className="p-8 animate-fade-up">
       {/* Header */}
       <div className="mb-8">
         <Button variant="outline" onClick={() => router.push('/dashboard/calls')} className="mb-4">
@@ -172,14 +172,14 @@ export default function CallDetailsPage() {
         </Button>
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div className="min-w-0">
-            <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3 flex-wrap">
-              <PhoneCall className="h-8 w-8 text-blue-600" />
-              {call.caller_name ? `${call.caller_name} • ${call.caller_phone}` : call.caller_phone}
+            <h1 className="text-3xl font-display text-slate-900 flex items-center gap-3 flex-wrap">
+              <PhoneCall className="h-8 w-8 text-emerald-600" />
+              {call.caller_name ? `${call.caller_name} - ${call.caller_phone}` : call.caller_phone}
             </h1>
-            <div className="text-sm text-gray-600 flex items-center gap-2 mt-2">
+            <div className="text-sm text-slate-600 flex items-center gap-2 mt-2">
               <Clock className="h-4 w-4" />
               <span>{formatDate(call.created_at)}</span>
-              <span className="text-gray-300">•</span>
+              <span className="text-slate-300">-</span>
               <span>{formatDuration(call.duration)}</span>
             </div>
           </div>
@@ -199,35 +199,35 @@ export default function CallDetailsPage() {
         <div className="grid gap-4 md:grid-cols-2 mb-6">
           {call.contact_id && (
             <Card
-              className="cursor-pointer hover:border-blue-500 hover:shadow-md transition-all"
+              className="cursor-pointer hover:border-emerald-300 hover:shadow-md transition-all"
               onClick={() => router.push(`/dashboard/customers?contact=${call.contact_id}`)}
             >
               <CardContent className="flex items-center gap-3 py-4">
-                <div className="bg-purple-50 p-3 rounded-full">
-                  <User className="h-6 w-6 text-purple-600" />
+                <div className="bg-emerald-50 p-3 rounded-full">
+                  <User className="h-6 w-6 text-emerald-600" />
                 </div>
                 <div className="flex-1">
                   <p className="font-medium">Associated Contact</p>
-                  <p className="text-sm text-gray-500">View customer profile</p>
+                  <p className="text-sm text-slate-500">View customer profile</p>
                 </div>
-                <ExternalLink className="h-5 w-5 text-gray-400" />
+                <ExternalLink className="h-5 w-5 text-slate-400" />
               </CardContent>
             </Card>
           )}
           {call.appointment_id && (
             <Card
-              className="cursor-pointer hover:border-blue-500 hover:shadow-md transition-all"
+              className="cursor-pointer hover:border-emerald-300 hover:shadow-md transition-all"
               onClick={() => router.push(`/dashboard/appointments?appointment=${call.appointment_id}`)}
             >
               <CardContent className="flex items-center gap-3 py-4">
-                <div className="bg-green-50 p-3 rounded-full">
-                  <Calendar className="h-6 w-6 text-green-600" />
+                <div className="bg-emerald-50 p-3 rounded-full">
+                  <Calendar className="h-6 w-6 text-emerald-600" />
                 </div>
                 <div className="flex-1">
                   <p className="font-medium">Booked Appointment</p>
-                  <p className="text-sm text-gray-500">View appointment details</p>
+                  <p className="text-sm text-slate-500">View appointment details</p>
                 </div>
-                <ExternalLink className="h-5 w-5 text-gray-400" />
+                <ExternalLink className="h-5 w-5 text-slate-400" />
               </CardContent>
             </Card>
           )}
@@ -243,11 +243,11 @@ export default function CallDetailsPage() {
               Call Summary
             </CardTitle>
           </CardHeader>
-          <CardContent className="text-gray-700">
+          <CardContent className="text-slate-700">
             {call.summary ? (
               <p className="leading-relaxed">{call.summary}</p>
             ) : (
-              <p className="text-gray-500 italic">No summary available. Summary is generated after the call ends.</p>
+              <p className="text-slate-500 italic">No summary available. Summary is generated after the call ends.</p>
             )}
           </CardContent>
         </Card>
@@ -261,13 +261,13 @@ export default function CallDetailsPage() {
               <div className="space-y-3">
                 {Object.entries(call.collected_info).map(([key, value]) => (
                   <div key={key} className="flex justify-between items-start gap-4 pb-3 border-b last:border-b-0">
-                    <span className="text-sm text-gray-500 capitalize font-medium">{key.replace(/_/g, ' ')}</span>
-                    <span className="text-sm font-semibold text-gray-900 text-right">{String(value)}</span>
+                    <span className="text-sm text-slate-500 capitalize font-medium">{key.replace(/_/g, ' ')}</span>
+                    <span className="text-sm font-semibold text-slate-900 text-right">{String(value)}</span>
                   </div>
                 ))}
               </div>
             ) : (
-              <p className="text-gray-500 italic">No structured information captured during this call.</p>
+              <p className="text-slate-500 italic">No structured information captured during this call.</p>
             )}
           </CardContent>
         </Card>
@@ -277,22 +277,22 @@ export default function CallDetailsPage() {
       <Card className="mb-6">
         <CardHeader>
           <CardTitle>Call Recording</CardTitle>
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-slate-600">
             {call.recording_url ? 'Listen to the complete call recording.' : 'Recording is not available yet.'}
           </p>
         </CardHeader>
         <CardContent>
           {call.recording_url ? (
-            <div className="bg-gray-50 border border-gray-200 rounded-lg p-6">
+            <div className="bg-slate-50 border border-slate-200 rounded-lg p-6">
               <AudioPlayer
                 src={call.recording_url}
                 title={`Call with ${call.caller_name || call.caller_phone}`}
               />
             </div>
           ) : (
-            <div className="text-center py-8 bg-gray-50 border border-gray-200 rounded-lg">
-              <AlertCircle className="h-10 w-10 text-gray-400 mx-auto mb-3" />
-              <p className="text-gray-600">Recording will be available shortly after the call completes.</p>
+            <div className="text-center py-8 bg-slate-50 border border-slate-200 rounded-lg">
+              <AlertCircle className="h-10 w-10 text-slate-400 mx-auto mb-3" />
+              <p className="text-slate-600">Recording will be available shortly after the call completes.</p>
             </div>
           )}
         </CardContent>
@@ -302,11 +302,11 @@ export default function CallDetailsPage() {
       <Card>
         <CardHeader>
           <CardTitle>Full Transcript</CardTitle>
-          <p className="text-sm text-gray-600">Complete conversation text from the call.</p>
+          <p className="text-sm text-slate-600">Complete conversation text from the call.</p>
         </CardHeader>
         <CardContent>
           {call.transcript ? (
-            <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 max-h-[600px] overflow-auto">
+            <div className="bg-slate-50 border border-slate-200 rounded-lg p-6 max-h-[600px] overflow-auto">
               <div className="space-y-2">
                 {call.transcript.split('\n').filter(Boolean).map((line, idx) => {
                   const isCaller = line.startsWith('Caller:');
@@ -326,16 +326,16 @@ export default function CallDetailsPage() {
                       ) : (
                         <span className="shrink-0 w-16" />
                       )}
-                      <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap">{text}</p>
+                      <p className="text-sm text-slate-800 leading-relaxed whitespace-pre-wrap">{text}</p>
                     </div>
                   );
                 })}
               </div>
             </div>
           ) : (
-            <div className="text-center py-8 bg-gray-50 border border-gray-200 rounded-lg">
-              <AlertCircle className="h-10 w-10 text-gray-400 mx-auto mb-3" />
-              <p className="text-gray-600">Transcript is not available yet. It will be generated after the call ends.</p>
+            <div className="text-center py-8 bg-slate-50 border border-slate-200 rounded-lg">
+              <AlertCircle className="h-10 w-10 text-slate-400 mx-auto mb-3" />
+              <p className="text-slate-600">Transcript is not available yet. It will be generated after the call ends.</p>
             </div>
           )}
         </CardContent>

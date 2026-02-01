@@ -9,6 +9,7 @@ import { useAuthStore } from '@/stores/auth-store';
 import { SubscriptionPlan, SubscriptionStatus } from '@handycall/shared';
 import { PLAN_CATALOG, getPlanPriceDisplay } from '@/constants/plans';
 import { normalizeUsageResponse, resolvePlan, resolvePlanLimits } from '@/lib/billing-utils';
+import { useToast } from '@/hooks/use-toast';
 import {
   Dialog,
   DialogContent,
@@ -20,6 +21,7 @@ import {
 
 export default function BillingPage() {
   const router = useRouter();
+  const { toast } = useToast();
   const { company, checkAuth } = useAuthStore();
   const [subscription, setSubscription] = useState<any>(null);
   const [usage, setUsage] = useState<any>(null);
@@ -66,7 +68,11 @@ export default function BillingPage() {
       setShowCancelDialog(false);
     } catch (error: any) {
       console.error('Failed to cancel subscription:', error);
-      alert(error.message || 'Failed to cancel subscription');
+      toast({
+        title: 'Cancel failed',
+        description: error.message || 'Failed to cancel subscription',
+        variant: 'destructive',
+      });
     } finally {
       setCancelling(false);
     }
@@ -153,11 +159,11 @@ export default function BillingPage() {
       : null;
 
   return (
-    <div className="p-8 max-w-7xl">
+    <div className="p-8 max-w-7xl animate-fade-up">
       <div className="mb-8 flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Billing & Subscription</h1>
-          <p className="mt-2 text-gray-600">Manage your subscription, usage, and billing information</p>
+          <h1 className="text-3xl font-display text-slate-900">Billing & Subscription</h1>
+          <p className="mt-2 text-slate-600">Manage your subscription, usage, and billing information.</p>
         </div>
       </div>
 

@@ -169,24 +169,24 @@ export default function CustomersPage() {
   }
 
   return (
-    <div className="p-8 animate-fade-in">
+    <div className="p-8 animate-fade-up">
       <div className="mb-8 flex items-center justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Customers</h1>
-          <p className="mt-2 text-gray-600">Manage customers, upcoming jobs, and recurring service</p>
+          <h1 className="text-3xl font-display text-slate-900">Customers</h1>
+          <p className="mt-2 text-slate-600">Manage customers, upcoming jobs, and recurring service.</p>
         </div>
         <Button variant="outline" onClick={load}>
           Refresh
         </Button>
       </div>
 
-      <div className="mb-6 flex gap-2">
+      <div className="mb-6 flex gap-2 flex-wrap">
         <Input
           type="text"
-          placeholder="Search by name, phone, or email…"
+          placeholder="Search by name, phone, or email..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="flex-1"
+          className="flex-1 min-w-[220px]"
         />
         <Button onClick={() => void 0}>
           <Search className="h-4 w-4 mr-2" />
@@ -197,7 +197,7 @@ export default function CustomersPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Users className="h-5 w-5 text-blue-600" />
+            <Users className="h-5 w-5 text-emerald-700" />
             Customers ({derivedRows.length})
           </CardTitle>
         </CardHeader>
@@ -216,13 +216,13 @@ export default function CustomersPage() {
               {derivedRows.map((row) => (
                 <div
                   key={row.contact.contact_id}
-                  className="border border-gray-200 rounded-xl p-4 hover:border-blue-500 hover:shadow-sm transition-all cursor-pointer"
+                  className="border border-emerald-100/70 bg-white/85 rounded-xl p-4 hover:-translate-y-[1px] hover:shadow-md transition-all cursor-pointer"
                   onClick={() => void openDetails(row.contact)}
                 >
                   <div className="flex items-start justify-between gap-4">
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
-                        <div className="font-semibold text-gray-900 truncate">{row.displayName}</div>
+                        <div className="font-semibold text-slate-900 truncate">{row.displayName}</div>
                         {row.recurring ? (
                           <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">
                             Recurring
@@ -238,23 +238,23 @@ export default function CustomersPage() {
                           </Badge>
                         )}
                       </div>
-                      <div className="text-sm text-gray-600 mt-1 truncate">{row.displayPhone}</div>
-                      {row.contact.email ? <div className="text-sm text-gray-600 truncate">{row.contact.email}</div> : null}
-                      <div className="text-xs text-gray-500 mt-2 flex gap-4 flex-wrap">
-                        <span>Next: {row.nextStart ? formatDate(row.nextStart) : '—'}</span>
-                        <span>Upcoming value: {row.upcomingCount ? formatMoney(row.totalSpend) : '—'}</span>
+                      <div className="text-sm text-slate-600 mt-1 truncate">{row.displayPhone}</div>
+                      {row.contact.email ? <div className="text-sm text-slate-600 truncate">{row.contact.email}</div> : null}
+                      <div className="text-xs text-slate-500 mt-2 flex gap-4 flex-wrap">
+                        <span>Next: {row.nextStart ? formatDate(row.nextStart) : '-'}</span>
+                        <span>Upcoming value: {row.upcomingCount ? formatMoney(row.totalSpend) : '-'}</span>
                       </div>
                     </div>
-                    <ExternalLink className="h-4 w-4 text-gray-400 mt-1" />
+                    <ExternalLink className="h-4 w-4 text-slate-400 mt-1" />
                   </div>
                 </div>
               ))}
             </div>
           ) : (
             <div className="text-center py-12">
-              <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">No customers yet</h3>
-              <p className="text-sm text-gray-500">Customers appear after a confirmed booking.</p>
+              <Users className="h-12 w-12 text-slate-400 mx-auto mb-4" />
+              <h3 className="text-lg font-semibold text-slate-900 mb-2">No customers yet</h3>
+              <p className="text-sm text-slate-500">Customers appear after a confirmed booking.</p>
             </div>
           )}
         </CardContent>
@@ -282,7 +282,7 @@ export default function CustomersPage() {
                   <div className="text-sm text-gray-600">ZIP {selectedContact.zipcode}</div>
                 ) : null}
                 <div className="text-xs text-gray-500 mt-2">
-                  Added: {formatDate(selectedContact.created_at)} • Last contact: {formatDate(selectedContact.last_contact_at)}
+                  Added: {formatDate(selectedContact.created_at)} - Last contact: {formatDate(selectedContact.last_contact_at)}
                 </div>
               </div>
 
@@ -303,7 +303,7 @@ export default function CustomersPage() {
                         </div>
                         <div className="text-xs text-gray-500 mt-1">
                           Duration: {formatDuration(c.duration_seconds)}
-                          {c.summary ? ` • ${c.summary}` : ''}
+                          {c.summary ? ` - ${c.summary}` : ''}
                         </div>
                       </button>
                     ))}
@@ -326,7 +326,7 @@ export default function CustomersPage() {
                             <div className="text-xs text-gray-500">{formatDate(a.scheduled_start)}</div>
                           </div>
                           <div className="text-xs text-gray-500 mt-1">
-                            {a.status || '—'} • {typeof a.price_cents === 'number' ? formatMoney(a.price_cents) : '—'}
+                            {a.status || '-'} - {typeof a.price_cents === 'number' ? formatMoney(a.price_cents) : '-'}
                           </div>
                         </div>
                       ))}

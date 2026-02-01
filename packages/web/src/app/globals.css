@@ -4,47 +4,36 @@
 
 @layer base {
   :root {
-    /* Base colors - clean black and white */
-    --background: 0 0% 100%; /* Pure white */
-    --foreground: 0 0% 10%; /* Near black #1a1a1a */
+    --background: 150 40% 98%;
+    --foreground: 160 18% 12%;
 
-    /* Card colors */
-    --card: 0 0% 100%; /* White */
-    --card-foreground: 0 0% 10%; /* Near black */
+    --card: 0 0% 100%;
+    --card-foreground: 160 18% 12%;
 
-    /* Popover colors */
-    --popover: 0 0% 100%; /* White */
-    --popover-foreground: 0 0% 10%; /* Near black */
+    --popover: 0 0% 100%;
+    --popover-foreground: 160 18% 12%;
 
-    /* Primary color - Emerald green from logo */
-    --primary: 160 84% 39%; /* #10b981 - emerald green */
-    --primary-foreground: 0 0% 100%; /* White text on primary */
+    --primary: 160 84% 34%;
+    --primary-foreground: 0 0% 100%;
 
-    /* Secondary - Light gray */
-    --secondary: 0 0% 96%; /* Very light gray #f5f5f5 */
-    --secondary-foreground: 0 0% 10%; /* Near black */
+    --secondary: 160 20% 96%;
+    --secondary-foreground: 160 18% 15%;
 
-    /* Muted - Medium gray for subtle elements */
-    --muted: 0 0% 96%; /* Light gray background */
-    --muted-foreground: 0 0% 45%; /* Medium gray text #737373 */
+    --muted: 160 22% 94%;
+    --muted-foreground: 160 10% 40%;
 
-    /* Accent - Use emerald green for highlights */
-    --accent: 160 84% 39%; /* Same as primary - emerald green */
-    --accent-foreground: 0 0% 100%; /* White text on accent */
+    --accent: 160 60% 90%;
+    --accent-foreground: 160 35% 18%;
 
-    /* Destructive - Keep red for errors */
-    --destructive: 0 84% 60%; /* Red */
-    --destructive-foreground: 0 0% 100%; /* White */
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
 
-    /* Borders and inputs - Subtle gray */
-    --border: 0 0% 90%; /* Light gray border #e5e5e5 */
-    --input: 0 0% 90%; /* Light gray input border */
+    --border: 160 16% 86%;
+    --input: 160 20% 90%;
 
-    /* Focus ring - Use emerald green */
-    --ring: 160 84% 39%; /* Emerald green */
+    --ring: 160 84% 34%;
 
-    /* Border radius - Keep simple and clean */
-    --radius: 0.5rem; /* 8px */
+    --radius: 0.75rem;
   }
 }
 
@@ -54,10 +43,45 @@
   }
   body {
     @apply bg-background text-foreground;
+    background-image:
+      radial-gradient(900px 280px at 10% -10%, rgba(16, 185, 129, 0.15), transparent 60%),
+      radial-gradient(900px 280px at 90% -10%, rgba(16, 185, 129, 0.12), transparent 60%),
+      linear-gradient(180deg, hsl(var(--background)) 0%, #ffffff 45%, #f7faf9 100%);
+    background-attachment: fixed;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-display);
+    letter-spacing: -0.01em;
   }
 }
 
 @layer utilities {
+  @keyframes fade-up {
+    from {
+      opacity: 0;
+      transform: translateY(14px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes float-in {
+    from {
+      opacity: 0;
+      transform: translateY(12px) scale(0.98);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
   @keyframes fade-in {
     from {
       opacity: 0;
@@ -93,6 +117,14 @@
 
   .animate-fade-in {
     animation: fade-in 0.5s ease-out;
+  }
+
+  .animate-fade-up {
+    animation: fade-up 0.5s ease-out;
+  }
+
+  .animate-float-in {
+    animation: float-in 0.6s ease-out;
   }
 
   .animate-slide-in-right {

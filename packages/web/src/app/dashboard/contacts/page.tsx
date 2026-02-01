@@ -5,9 +5,11 @@ import { apiClient } from '@/lib/api-client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Users, Plus, Edit2, Trash2, Search, Phone as PhoneIcon, Mail } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { useToast } from '@/hooks/use-toast';
 
 interface Contact {
   contact_id: string;
@@ -23,11 +25,15 @@ interface Contact {
 }
 
 export default function ContactsPage() {
+  const { toast } = useToast();
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingContact, setEditingContact] = useState<Contact | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Contact | null>(null);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [formData, setFormData] = useState({
     name: '',
@@ -111,21 +117,43 @@ export default function ContactsPage() {
 
       setIsDialogOpen(false);
       loadContacts();
+      toast({
+        title: editingContact ? 'Contact updated' : 'Contact added',
+        description: 'Your contact list is up to date.',
+      });
     } catch (err: any) {
       console.error('Error saving contact:', err);
-      alert(err.message || 'Failed to save contact');
+      toast({
+        title: 'Save failed',
+        description: err.message || 'Failed to save contact',
+        variant: 'destructive',
+      });
     }
   };
 
-  const handleDelete = async (contactId: string) => {
-    if (!confirm('Are you sure you want to delete this contact?')) return;
+  const handleDeleteClick = (contact: Contact) => {
+    setDeleteTarget(contact);
+    setDeleteOpen(true);
+  };
 
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    setIsDeleting(true);
     try {
-      await apiClient.deleteContact(contactId);
+      await apiClient.deleteContact(deleteTarget.contact_id);
+      setDeleteOpen(false);
+      setDeleteTarget(null);
       loadContacts();
+      toast({ title: 'Contact deleted', description: 'The contact has been removed.' });
     } catch (err: any) {
       console.error('Error deleting contact:', err);
-      alert(err.message || 'Failed to delete contact');
+      toast({
+        title: 'Delete failed',
+        description: err.message || 'Failed to delete contact',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -161,11 +189,11 @@ export default function ContactsPage() {
   }
 
   return (
-    <div className="p-8 animate-fade-in">
+    <div className="p-8 animate-fade-up">
       <div className="mb-8 flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Contacts</h1>
-          <p className="mt-2 text-gray-600">Manage your customer contacts</p>
+          <h1 className="text-3xl font-display text-slate-900">Contacts</h1>
+          <p className="mt-2 text-slate-600">Keep your customers organized and reachable.</p>
         </div>
         <Button onClick={handleCreate}>
           <Plus className="h-4 w-4 mr-2" />
@@ -174,14 +202,14 @@ export default function ContactsPage() {
       </div>
 
       {/* Search Bar */}
-      <div className="mb-6 flex gap-2">
+      <div className="mb-6 flex flex-wrap gap-2">
         <Input
           type="text"
           placeholder="Search by name, phone, or email..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-          className="flex-1"
+          className="flex-1 min-w-[220px]"
         />
         <Button onClick={handleSearch}>
           <Search className="h-4 w-4 mr-2" />
@@ -206,23 +234,26 @@ export default function ContactsPage() {
           ) : contacts.length > 0 ? (
             <div className="space-y-4">
               {contacts.map((contact) => (
-                <div key={contact.contact_id} className="border border-gray-200 rounded-lg p-4 hover:border-blue-500 transition-all">
+                <div
+                  key={contact.contact_id}
+                  className="border border-emerald-100/70 bg-white/80 rounded-xl p-4 shadow-sm hover:-translate-y-[1px] hover:shadow-md transition-all"
+                >
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-2">
-                        <h3 className="font-semibold text-gray-900">{contact.name}</h3>
+                        <h3 className="font-semibold text-slate-900">{contact.name}</h3>
                         <span className={`text-xs px-2 py-1 rounded-full ${getSourceColor(contact.source)}`}>
                           {contact.source}
                         </span>
                       </div>
 
                       <div className="space-y-1 mb-2">
-                        <div className="flex items-center gap-2 text-sm text-gray-600">
+                        <div className="flex items-center gap-2 text-sm text-slate-600">
                           <PhoneIcon className="h-4 w-4" />
                           <span>{contact.phone}</span>
                         </div>
                         {contact.email && (
-                          <div className="flex items-center gap-2 text-sm text-gray-600">
+                          <div className="flex items-center gap-2 text-sm text-slate-600">
                             <Mail className="h-4 w-4" />
                             <span>{contact.email}</span>
                           </div>
@@ -230,7 +261,7 @@ export default function ContactsPage() {
                       </div>
 
                       {contact.notes && (
-                        <p className="text-sm text-gray-600 mb-2">{contact.notes}</p>
+                        <p className="text-sm text-slate-600 mb-2">{contact.notes}</p>
                       )}
 
                       {contact.tags && contact.tags.length > 0 && (
@@ -243,7 +274,7 @@ export default function ContactsPage() {
                         </div>
                       )}
 
-                      <div className="flex items-center gap-4 text-xs text-gray-500">
+                      <div className="flex items-center gap-4 text-xs text-slate-500">
                         <span>Added: {formatDate(contact.created_at)}</span>
                         {contact.total_calls !== undefined && (
                           <span>{contact.total_calls} calls</span>
@@ -258,7 +289,7 @@ export default function ContactsPage() {
                       <Button variant="ghost" size="sm" onClick={() => handleEdit(contact)}>
                         <Edit2 className="h-4 w-4" />
                       </Button>
-                      <Button variant="ghost" size="sm" onClick={() => handleDelete(contact.contact_id)}>
+                      <Button variant="ghost" size="sm" onClick={() => handleDeleteClick(contact)}>
                         <Trash2 className="h-4 w-4 text-red-600" />
                       </Button>
                     </div>
@@ -318,12 +349,11 @@ export default function ContactsPage() {
             </div>
             <div>
               <Label htmlFor="notes">Notes</Label>
-              <textarea
+              <Textarea
                 id="notes"
                 value={formData.notes}
                 onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                 rows={3}
-                className="w-full border border-gray-300 rounded-md p-2"
                 placeholder="Additional information..."
               />
             </div>
@@ -345,6 +375,25 @@ export default function ContactsPage() {
               </Button>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete contact</DialogTitle>
+            <DialogDescription>
+              This will permanently remove {deleteTarget?.name ?? 'this contact'} from your list.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteOpen(false)} disabled={isDeleting}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={confirmDelete} disabled={isDeleting}>
+              {isDeleting ? 'Deleting...' : 'Delete contact'}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

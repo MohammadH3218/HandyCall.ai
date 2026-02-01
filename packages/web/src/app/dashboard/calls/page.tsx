@@ -150,10 +150,10 @@ export default function CallsPage() {
   }
 
   return (
-    <div className="p-8 animate-fade-in">
+    <div className="p-8 animate-fade-up">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">Calls</h1>
-        <p className="mt-2 text-gray-600">View and manage your call history</p>
+        <h1 className="text-3xl font-display text-slate-900">Calls</h1>
+        <p className="mt-2 text-slate-600">Review conversations, outcomes, and follow-ups.</p>
       </div>
 
       <Card className="mb-6">
@@ -197,18 +197,18 @@ export default function CallsPage() {
               {calls.map((call) => (
                 <div
                   key={call.call_id}
-                  className="border border-gray-200 rounded-xl p-4 hover:border-blue-500 hover:shadow-sm transition-all cursor-pointer"
+                  className="border border-emerald-100/70 bg-white/85 rounded-xl p-4 hover:-translate-y-[1px] hover:shadow-md transition-all cursor-pointer"
                   onClick={() => handleViewCall(call.call_id)}
                 >
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex items-start gap-4 min-w-0 flex-1">
-                      <div className="bg-blue-50 p-2 rounded-full border border-blue-100 mt-0.5">
-                        <PhoneCall className="h-5 w-5 text-blue-600" />
+                      <div className="bg-emerald-50 p-2 rounded-full border border-emerald-100 mt-0.5">
+                        <PhoneCall className="h-5 w-5 text-emerald-700" />
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <div className="font-semibold text-gray-900 truncate">
-                            {call.caller_name ? `${call.caller_name} • ${call.caller_phone}` : call.caller_phone}
+                          <div className="font-semibold text-slate-900 truncate">
+                            {call.caller_name ? `${call.caller_name} - ${call.caller_phone}` : call.caller_phone}
                           </div>
                           {(() => {
                             const o = getOutcome(call);
@@ -228,31 +228,31 @@ export default function CallsPage() {
                           })()}
                         </div>
 
-                        <div className="text-sm text-gray-600 flex items-center gap-2 mt-1">
+                        <div className="text-sm text-slate-600 flex items-center gap-2 mt-1">
                           <Clock className="h-4 w-4" />
                           <span>{formatDate(call.created_at)}</span>
-                          <span className="text-gray-300">•</span>
+                          <span className="text-slate-300">-</span>
                           <span>{formatDuration(call.duration)}</span>
                         </div>
 
                         {call.summary ? (
-                          <p className="text-sm text-gray-700 mt-2 line-clamp-2">{call.summary}</p>
+                          <p className="text-sm text-slate-700 mt-2 line-clamp-2">{call.summary}</p>
                         ) : (
-                          <p className="text-sm text-gray-500 mt-2">No summary yet.</p>
+                          <p className="text-sm text-slate-500 mt-2">No summary yet.</p>
                         )}
                       </div>
                     </div>
 
-                    <ChevronRight className="h-5 w-5 text-gray-300 mt-1" />
+                    <ChevronRight className="h-5 w-5 text-slate-300 mt-1" />
                   </div>
                 </div>
               ))}
             </div>
           ) : (
             <div className="text-center py-12">
-              <Phone className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">No calls yet</h3>
-              <p className="text-sm text-gray-500">
+              <Phone className="h-12 w-12 text-slate-400 mx-auto mb-4" />
+              <h3 className="text-lg font-semibold text-slate-900 mb-2">No calls yet</h3>
+              <p className="text-sm text-slate-500">
                 Your AI receptionist will handle calls automatically when your business is unavailable.
               </p>
             </div>

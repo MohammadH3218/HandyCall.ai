@@ -5,10 +5,19 @@ import { apiClient } from '@/lib/api-client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { MessageSquare, Plus, Edit2, Trash2, X, MapPin } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { ServiceAreaTab } from './service-area-tab';
+import { useToast } from '@/hooks/use-toast';
 
 interface KnowledgeItem {
   knowledge_id: string;
@@ -22,6 +31,7 @@ interface KnowledgeItem {
 }
 
 export default function KnowledgePage() {
+  const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<'knowledge' | 'service-area'>('knowledge');
 
   // Knowledge Items State
@@ -30,6 +40,9 @@ export default function KnowledgePage() {
   const [error, setError] = useState<string | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<KnowledgeItem | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<KnowledgeItem | null>(null);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [formData, setFormData] = useState<{
     title: string;
     content: string;
@@ -98,21 +111,43 @@ export default function KnowledgePage() {
 
       setIsDialogOpen(false);
       loadItems();
+      toast({
+        title: editingItem ? 'Knowledge updated' : 'Knowledge added',
+        description: 'Your knowledge base is ready for the AI.',
+      });
     } catch (err: any) {
       console.error('Error saving knowledge item:', err);
-      alert(err.message || 'Failed to save knowledge item');
+      toast({
+        title: 'Save failed',
+        description: err.message || 'Failed to save knowledge item',
+        variant: 'destructive',
+      });
     }
   };
 
-  const handleDelete = async (knowledgeId: string) => {
-    if (!confirm('Are you sure you want to delete this knowledge item?')) return;
+  const handleDeleteClick = (item: KnowledgeItem) => {
+    setDeleteTarget(item);
+    setDeleteOpen(true);
+  };
 
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    setIsDeleting(true);
     try {
-      await apiClient.deleteKnowledgeItem(knowledgeId);
+      await apiClient.deleteKnowledgeItem(deleteTarget.knowledge_id);
+      setDeleteOpen(false);
+      setDeleteTarget(null);
       loadItems();
+      toast({ title: 'Deleted', description: 'Knowledge item removed.' });
     } catch (err: any) {
       console.error('Error deleting knowledge item:', err);
-      alert(err.message || 'Failed to delete knowledge item');
+      toast({
+        title: 'Delete failed',
+        description: err.message || 'Failed to delete knowledge item',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -128,11 +163,11 @@ export default function KnowledgePage() {
   };
 
   return (
-    <div className="p-8 animate-fade-in max-w-5xl mx-auto">
+    <div className="p-8 animate-fade-up max-w-5xl mx-auto">
       <div className="mb-8 flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Knowledge Base</h1>
-          <p className="mt-2 text-gray-600">Teach your AI about your services, policies, and service areas.</p>
+          <h1 className="text-3xl font-display text-slate-900">Knowledge Base</h1>
+          <p className="mt-2 text-slate-600">Teach your AI about services, policies, and service areas.</p>
         </div>
         {activeTab === 'knowledge' && (
           <Button onClick={handleCreate}>
@@ -143,23 +178,25 @@ export default function KnowledgePage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex space-x-2 border-b border-gray-200 mb-8">
+      <div className="flex flex-wrap gap-2 mb-8">
         <button
           onClick={() => setActiveTab('knowledge')}
-          className={`flex items-center px-4 py-2 border-b-2 font-medium text-sm transition-colors ${activeTab === 'knowledge'
-              ? 'border-blue-500 text-blue-600'
-              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-            }`}
+          className={`flex items-center px-4 py-2 rounded-full border text-sm transition-colors ${
+            activeTab === 'knowledge'
+              ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+              : 'border-transparent bg-white/70 text-slate-500 hover:text-slate-700'
+          }`}
         >
           <MessageSquare className="h-4 w-4 mr-2" />
           Q&A and Info
         </button>
         <button
           onClick={() => setActiveTab('service-area')}
-          className={`flex items-center px-4 py-2 border-b-2 font-medium text-sm transition-colors ${activeTab === 'service-area'
-              ? 'border-blue-500 text-blue-600'
-              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-            }`}
+          className={`flex items-center px-4 py-2 rounded-full border text-sm transition-colors ${
+            activeTab === 'service-area'
+              ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+              : 'border-transparent bg-white/70 text-slate-500 hover:text-slate-700'
+          }`}
         >
           <MapPin className="h-4 w-4 mr-2" />
           Service Area
@@ -169,7 +206,7 @@ export default function KnowledgePage() {
       {activeTab === 'knowledge' && (
         <>
           {error && (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+            <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-6">
               <p className="text-red-800">{error}</p>
               <button onClick={loadItems} className="mt-2 text-sm text-red-600 hover:text-red-800 underline">
                 Try again
@@ -194,16 +231,19 @@ export default function KnowledgePage() {
               ) : items.length > 0 ? (
                 <div className="space-y-4">
                   {items.map((item) => (
-                    <div key={item.knowledge_id} className="border border-gray-200 rounded-lg p-4 hover:border-blue-500 transition-all">
+                    <div
+                      key={item.knowledge_id}
+                      className="border border-emerald-100/70 bg-white/85 rounded-xl p-4 hover:-translate-y-[1px] hover:shadow-md transition-all"
+                    >
                       <div className="flex items-start justify-between mb-3">
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-2">
-                            <h3 className="font-semibold text-gray-900">{item.title}</h3>
+                            <h3 className="font-semibold text-slate-900">{item.title}</h3>
                             <span className={`text-xs px-2 py-1 rounded-full ${getTypeColor(item.type)}`}>
                               {item.type}
                             </span>
                           </div>
-                          <p className="text-sm text-gray-600 line-clamp-2">{item.content}</p>
+                          <p className="text-sm text-slate-600 line-clamp-2">{item.content}</p>
                           {item.tags && item.tags.length > 0 && (
                             <div className="flex gap-2 mt-2">
                               {item.tags.map((tag, idx) => (
@@ -218,7 +258,7 @@ export default function KnowledgePage() {
                           <Button variant="ghost" size="sm" onClick={() => handleEdit(item)}>
                             <Edit2 className="h-4 w-4" />
                           </Button>
-                          <Button variant="ghost" size="sm" onClick={() => handleDelete(item.knowledge_id)}>
+                          <Button variant="ghost" size="sm" onClick={() => handleDeleteClick(item)}>
                             <Trash2 className="h-4 w-4 text-red-600" />
                           </Button>
                         </div>
@@ -228,9 +268,9 @@ export default function KnowledgePage() {
                 </div>
               ) : (
                 <div className="text-center py-12">
-                  <MessageSquare className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">No knowledge items yet</h3>
-                  <p className="text-sm text-gray-500 mb-6">
+                  <MessageSquare className="h-12 w-12 text-slate-400 mx-auto mb-4" />
+                  <h3 className="text-lg font-semibold text-slate-900 mb-2">No knowledge items yet</h3>
+                  <p className="text-sm text-slate-500 mb-6">
                     Add FAQs, service information, and policies to help your AI answer customer questions.
                   </p>
                   <Button onClick={handleCreate}>
@@ -265,27 +305,34 @@ export default function KnowledgePage() {
             </div>
             <div>
               <Label htmlFor="type">Type</Label>
-              <select
-                id="type"
+              <Select
                 value={formData.type}
-                onChange={(e) => setFormData({ ...formData, type: e.target.value as 'FAQ' | 'SERVICE' | 'POLICY' | 'PRODUCT' | 'SAFETY' })}
-                className="w-full border border-gray-300 rounded-md p-2"
+                onValueChange={(value) =>
+                  setFormData({
+                    ...formData,
+                    type: value as 'FAQ' | 'SERVICE' | 'POLICY' | 'PRODUCT' | 'SAFETY',
+                  })
+                }
               >
-                <option value="FAQ">FAQ</option>
-                <option value="SERVICE">Service</option>
-                <option value="POLICY">Policy</option>
-                <option value="PRODUCT">Product</option>
-                <option value="SAFETY">Safety</option>
-              </select>
+                <SelectTrigger id="type">
+                  <SelectValue placeholder="Select type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="FAQ">FAQ</SelectItem>
+                  <SelectItem value="SERVICE">Service</SelectItem>
+                  <SelectItem value="POLICY">Policy</SelectItem>
+                  <SelectItem value="PRODUCT">Product</SelectItem>
+                  <SelectItem value="SAFETY">Safety</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <div>
               <Label htmlFor="content">Content</Label>
-              <textarea
+              <Textarea
                 id="content"
                 value={formData.content}
                 onChange={(e) => setFormData({ ...formData, content: e.target.value })}
                 rows={6}
-                className="w-full border border-gray-300 rounded-md p-2"
                 placeholder="Enter detailed information..."
               />
             </div>
@@ -307,6 +354,25 @@ export default function KnowledgePage() {
               </Button>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete knowledge item</DialogTitle>
+            <DialogDescription>
+              This will permanently remove "{deleteTarget?.title || 'this item'}" from your knowledge base.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteOpen(false)} disabled={isDeleting}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={confirmDelete} disabled={isDeleting}>
+              {isDeleting ? 'Deleting...' : 'Delete'}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
