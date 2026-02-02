@@ -117,6 +117,30 @@ function extractPhone(input: string): string | null {
   return null;
 }
 
+function spellEmailForConfirmation(input: string): string {
+  const email = String(input || '').trim().toLowerCase();
+  if (!email) return '';
+  const tokens: string[] = [];
+  for (const ch of email) {
+    if (/[a-z0-9]/.test(ch)) {
+      tokens.push(ch);
+      continue;
+    }
+    if (ch === '@') {
+      tokens.push('at');
+    } else if (ch === '.') {
+      tokens.push('dot');
+    } else if (ch === '-') {
+      tokens.push('dash');
+    } else if (ch === '_') {
+      tokens.push('underscore');
+    } else if (ch === '+') {
+      tokens.push('plus');
+    }
+  }
+  return tokens.join(' ');
+}
+
 function normalizeNameCandidate(input: string): string | null {
   const cleaned = input.replace(/[^A-Za-z\\s'-]/g, ' ').replace(/\\s+/g, ' ').trim();
   if (!cleaned) return null;
@@ -212,6 +236,145 @@ function extractInlineIntake(lastPrompt: string, userText: string): Record<strin
   return out;
 }
 
+function titleizeField(input: string): string {
+  return String(input || '')
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/\b\w/g, (m) => m.toUpperCase());
+}
+
+function normalizeFieldKey(input: string): string {
+  return String(input || '').trim().toLowerCase();
+}
+
+function isNameField(key: string): boolean {
+  const k = normalizeFieldKey(key);
+  return k === 'full_name' || k === 'name' || k === 'customer_name';
+}
+
+function isZipField(key: string): boolean {
+  const k = normalizeFieldKey(key);
+  return k === 'zip' || k === 'zipcode' || k === 'postal_code';
+}
+
+function isEmailField(key: string): boolean {
+  return normalizeFieldKey(key) === 'email';
+}
+
+function isPhoneField(key: string): boolean {
+  const k = normalizeFieldKey(key);
+  return k === 'phone' || k === 'phone_number' || k === 'phone_number_verification';
+}
+
+function isAddressField(key: string): boolean {
+  const k = normalizeFieldKey(key);
+  return [
+    'address',
+    'service_address',
+    'location_address',
+    'pickup_location',
+    'dropoff_location',
+  ].includes(k);
+}
+
+function isPreferredTimeField(key: string): boolean {
+  const k = normalizeFieldKey(key);
+  return k === 'preferred_time' || k === 'preferred_datetime';
+}
+
+function formatServiceTypeLabel(serviceType?: string): string {
+  const upper = String(serviceType || '').toUpperCase();
+  const map: Record<string, string> = {
+    PEST_CONTROL: 'Pest Control',
+    ELECTRICIAN: 'Electrical',
+    PLUMBING: 'Plumbing',
+    HVAC: 'HVAC',
+    LANDSCAPING: 'Landscaping',
+    CLEANING: 'Cleaning',
+    HANDYMAN: 'Handyman',
+    OTHER: 'Service',
+  };
+  if (map[upper]) return map[upper];
+  return titleizeField(serviceType || 'Service');
+}
+
+function buildIntakeFieldOrder(template: any, requireZipCheck: boolean): string[] {
+  const required = Array.isArray(template?.intake_schema?.required)
+    ? template.intake_schema.required.map((f: any) => String(f || '').trim()).filter(Boolean)
+    : [];
+  const fallback = [
+    'full_name',
+    ...(requireZipCheck ? ['zip'] : []),
+    'issue_summary',
+    'service_address',
+    'preferred_time',
+  ];
+  const unique = Array.from(new Set(required.length ? required : fallback));
+  const base = unique.filter((f) => !isPreferredTimeField(f));
+  const preferred = unique.find((f) => isPreferredTimeField(f)) ? ['preferred_time'] : ['preferred_time'];
+  const filtered = base.filter((f) => !isPhoneField(f));
+
+  const zipIndex = filtered.findIndex((f) => isZipField(f));
+  if (requireZipCheck) {
+    if (zipIndex === -1) {
+      filtered.unshift('zip');
+    } else if (zipIndex > 0) {
+      const [zipField] = filtered.splice(zipIndex, 1);
+      filtered.unshift(zipField);
+    }
+  }
+
+  return [...filtered, ...preferred];
+}
+
+function fieldPrompt(key: string, serviceLabel: string): string {
+  const k = normalizeFieldKey(key);
+  const prompts: Record<string, string> = {
+    full_name: "What's your full name?",
+    name: "What's your full name?",
+    service_request_type: `What service do you need from our ${serviceLabel.toLowerCase()} team?`,
+    issue_summary: "Briefly, what's the issue?",
+    issue_type: "What issue are you having?",
+    pest_type_or_symptoms: 'What pest issue are you seeing?',
+    where_seen: "Where have you seen it?",
+    severity: 'How severe is it? Low, medium, or high?',
+    service_address: "What's the service address?",
+    address: "What's the service address?",
+    location_address: "What's the service address?",
+    pickup_location: 'Where are you located for pickup?',
+    dropoff_location: 'Where should we drop it off?',
+    urgency: 'How urgent is it? (emergency, soon, or routine)',
+    system_type: 'What type of system is it?',
+    symptoms: 'What symptoms are you noticing?',
+    vehicle_make: 'What make is the vehicle?',
+    vehicle_model: 'What model is it?',
+    vehicle_year: 'What year is it?',
+    service_type: 'What type of service do you need?',
+    lot_approx_size: 'About how big is the property or lot?',
+    home_size_sqft: 'About how large is the home (square feet)?',
+    num_beds: 'How many bedrooms?',
+    num_baths: 'How many bathrooms?',
+    treatment_interest: 'Which treatment are you interested in?',
+    visit_reason: 'What are you coming in for?',
+    case_type: 'What type of case is this about?',
+    brief_summary: 'Can you give a brief summary?',
+    reason_for_visit: 'What is the reason for your visit?',
+    stylist_pref: 'Do you have a stylist preference?',
+    service_list: 'What service are you looking for?',
+    roof_age_approx: 'About how old is the roof?',
+    is_new_patient: 'Are you a new patient? (yes or no)',
+    is_new_client: 'Are you a new client? (yes or no)',
+    is_emergency: 'Is this an emergency? (yes or no)',
+    is_safe: 'Are you in a safe location right now? (yes or no)',
+    situation: 'Can you briefly describe the situation?',
+    insurance_type: 'What type of insurance do you have (PPO, HMO, or cash)?',
+    preferred_time: 'What day and time would you prefer?',
+    email: 'What email should I send your confirmation link to?',
+    zip: "What's your 5-digit zip code?",
+  };
+  return prompts[k] || `Please share your ${titleizeField(key)}.`;
+}
 
 
 function normalizeForEcho(text: string): string {
@@ -313,7 +476,10 @@ type ConversationState =
   | 'CONFIRM_NAME'
   | 'ASK_ZIP'
   | 'CONFIRM_ZIP'
+  | 'COLLECTING'
   | 'ASK_TIME'
+  | 'ASK_EMAIL'
+  | 'CONFIRM_EMAIL'
   | 'OFFER_SLOTS'
   | 'CONFIRM_BOOKING'
   | 'ANSWERING'
@@ -564,6 +730,7 @@ function buildInstructions(input: {
   const { company_name, service_type, timezone, service_template, extra } = input;
 
   const isPestControl = (service_type || '').toUpperCase() === 'PEST_CONTROL';
+  const serviceLabel = formatServiceTypeLabel(service_type);
   const templatePrompt = typeof service_template?.base_system_prompt === 'string'
     ? service_template.base_system_prompt
     : null;
@@ -574,7 +741,9 @@ function buildInstructions(input: {
 
   const lines = [
     renderedTemplatePrompt || `You are a friendly, natural-sounding receptionist for ${company_name}.`,
+    `Company type: ${serviceLabel}.`,
     `Speak in English only.`,
+    `Tone: warm, friendly, and conversational.`,
     `Your job: quickly understand the caller's need, capture details, and either schedule or create a lead.`,
     requireZipCheck
       ? `CRITICAL RULE: If the caller wants to book a service or appointment, ask for their 5-digit Zip Code FIRST, before asking for their name or address.`
@@ -603,6 +772,7 @@ function buildInstructions(input: {
     `Confirmation policy: Collect Name, Zip, Address, Service, and Preferred Time efficiently. Once you have identifying info and a valid time slot (after get_availability succeeds), perform a single SUMMARY confirmation relative to the booking.`,
     `Example Summary: "Okay, I have [Name] at [Address], looking for [Service] on [Date/Time]. Is that correct?"`,
     `If the user says yes, then call create_booking.`,
+    `After create_booking succeeds, send a confirmation link by email using send_booking_link. If you don't yet have an email, ask for it and confirm it.`,
     `Zip codes: Do not read back digits unless the user's input was unclear.`,
     `Knowledge policy: use knowledge_search for business-specific facts (services, products/solutions used, pricing, plans, what's included, policies). Answer naturally in 1-2 sentences. Do NOT ask "Does that help?" or "Is that what you were looking for?" after every answer. Only ask a follow-up if it helps move the task forward.`,
     `If you can't find it in knowledge_search or you're not sure, do NOT guess; say you'll note it and have the team follow up.`,
@@ -624,7 +794,6 @@ function buildInstructions(input: {
     `If they say no, say one short friendly goodbye (e.g., "Thanks for calling - if you need anything else, just give us a call back."), then call save_call with a concise summary + collected fields, then call end_call.`,
     `If they say yes, continue helping and do NOT end the call.`,
     timezone ? `Timezone: ${timezone}.` : null,
-    service_type ? `Business type: ${service_type}.` : null,
     '',
     `Tools policy:`,
     `- Call create_lead early, once you know the caller's phone number and intent.`,
@@ -750,9 +919,11 @@ async function invokeTool(ctx: CallContext, name: string, args: any) {
         company_id: ctx.company_id,
         call_id: ctx.callSid,
         from_phone: ctx.from,
-        full_name: args.full_name || args.customer_name,
+        customer_name: args.customer_name || args.full_name,
+        customer_email: args.customer_email,
         service_type: args.service_type || 'General',
         details: args.details || {},
+        notes: args.notes,
         start_time: args.start_time,
         end_time: args.end_time,
         timezone: args.timezone,
@@ -1048,6 +1219,10 @@ wss.on('connection', (twilioWs: WebSocket) => {
   let pendingName: string | null = null;
   let pendingZip: string | null = null;
   let pendingSlot: BookingSlotOption | null = null;
+  let pendingEmail: string | null = null;
+  let pendingEmailPurpose: 'intake' | 'link' | null = null;
+  let intakeFieldOrder: string[] = [];
+  let activeIntakeField: string | null = null;
   let lastBookingPrompt: string | null = null;
   // let lastBookingPromptAt = 0; // Unused
   let bookingPromptActive = false;
@@ -1587,14 +1762,14 @@ wss.on('connection', (twilioWs: WebSocket) => {
         const tz = tenant?.timezone || 'UTC';
         const customerName = pendingName || (typeof intake.name === 'string' ? intake.name : '') || 'Caller';
         try {
-          const notes =
-            typeof intake.issue === 'string' && intake.issue.trim()
-              ? `Issue: ${intake.issue.trim()}`
-              : undefined;
+          const notes = buildBookingNotes(intake, intakeFieldOrder.length ? intakeFieldOrder : Object.keys(intake));
           await invokeTool(ctx, 'create_booking', {
             start_time: pendingSlot.iso,
             timezone: tz,
             customer_name: customerName,
+            customer_email: intake.email,
+            service_type: tenant?.service_type,
+            details: intake,
             notes,
             confirmed: true,
           });
@@ -1642,15 +1817,16 @@ wss.on('connection', (twilioWs: WebSocket) => {
       if (chosen) {
         const customerName = pendingName || (typeof intake.name === 'string' ? intake.name : '') || 'Caller';
         try {
-          const notes =
-            typeof intake.issue === 'string' && intake.issue.trim()
-              ? `Issue: ${intake.issue.trim()}`
-              : undefined;
+          const notes = buildBookingNotes(intake, intakeFieldOrder.length ? intakeFieldOrder : Object.keys(intake));
           await invokeTool(ctx, 'create_booking', {
             start_time: chosen.iso,
             timezone: tz,
             customer_name: customerName,
+            customer_email: intake.email,
+            service_type: tenant?.service_type,
+            details: intake,
             notes,
+            confirmed: true,
           });
           intake.preferred_time = chosen.label;
           syncIntakeToModel();
@@ -1733,6 +1909,10 @@ wss.on('connection', (twilioWs: WebSocket) => {
     pendingName = null;
     pendingZip = null;
     pendingSlot = null;
+    pendingEmail = null;
+    pendingEmailPurpose = null;
+    intakeFieldOrder = [];
+    activeIntakeField = null;
     sessionContext.customerName = undefined;
     sessionContext.zipCode = undefined;
     sessionContext.proposedTime = undefined;
@@ -1810,6 +1990,111 @@ wss.on('connection', (twilioWs: WebSocket) => {
     }
   }
 
+  function initIntakePlan() {
+    intakeFieldOrder = buildIntakeFieldOrder(tenant?.service_template, requiresServiceAreaCheck());
+    activeIntakeField = null;
+    pendingEmail = null;
+    pendingEmailPurpose = null;
+  }
+
+  function hasFieldValue(field: string): boolean {
+    if (isPreferredTimeField(field)) {
+      return typeof intake.preferred_time === 'string' && intake.preferred_time.trim().length > 0;
+    }
+    if (isNameField(field)) {
+      return typeof intake.name === 'string' && intake.name.trim().length > 0;
+    }
+    if (isZipField(field)) {
+      return typeof intake.zip === 'string' && intake.zip.trim().length > 0;
+    }
+    if (isEmailField(field)) {
+      return typeof intake.email === 'string' && intake.email.trim().length > 0;
+    }
+    if (isAddressField(field)) {
+      return typeof intake.address === 'string' && intake.address.trim().length > 0;
+    }
+    if (isPhoneField(field)) {
+      return true;
+    }
+    const key = normalizeFieldKey(field);
+    const value = intake[key];
+    return value !== undefined && value !== null && String(value).trim().length > 0;
+  }
+
+  function setFieldValue(field: string, value: string) {
+    const key = normalizeFieldKey(field);
+    if (isNameField(field)) {
+      intake.name = value.trim();
+      return;
+    }
+    if (isZipField(field)) {
+      intake.zip = value.trim();
+      return;
+    }
+    if (isEmailField(field)) {
+      intake.email = value.trim();
+      return;
+    }
+    if (isAddressField(field)) {
+      intake.address = value.trim();
+      return;
+    }
+    if (isPhoneField(field)) {
+      intake.phone = value.trim();
+      return;
+    }
+    intake[key] = value.trim();
+  }
+
+  function nextMissingField(): string | null {
+    if (!intakeFieldOrder.length) return null;
+    for (const field of intakeFieldOrder) {
+      if (!hasFieldValue(field)) return field;
+    }
+    return null;
+  }
+
+  function askForNextField() {
+    const serviceLabel = formatServiceTypeLabel(tenant?.service_type);
+    const next = nextMissingField();
+    if (!next) {
+      sessionContext.state = 'ASK_TIME';
+      sendPrompt('What day and time would you prefer?');
+      return;
+    }
+    if (isPreferredTimeField(next)) {
+      sessionContext.state = 'ASK_TIME';
+      sendPrompt('What day and time would you prefer?');
+      return;
+    }
+    activeIntakeField = next;
+    sessionContext.state = 'COLLECTING';
+    sendPrompt(fieldPrompt(next, serviceLabel));
+  }
+
+  function buildBookingNotes(intakeData: Record<string, any>, fields: string[]): string | undefined {
+    const ignored = new Set(['name', 'full_name', 'zip', 'zipcode', 'preferred_time', 'email', 'phone', 'phone_number']);
+    const lines: string[] = [];
+    for (const field of fields) {
+      const key = normalizeFieldKey(field);
+      if (ignored.has(key)) continue;
+      let value: any;
+      if (isAddressField(field)) {
+        value = intakeData.address;
+      } else if (isNameField(field)) {
+        value = intakeData.name;
+      } else if (isZipField(field)) {
+        value = intakeData.zip;
+      } else {
+        value = intakeData[key];
+      }
+      if (value !== undefined && value !== null && String(value).trim().length > 0) {
+        lines.push(`${titleizeField(field)}: ${String(value).trim()}`);
+      }
+    }
+    return lines.length ? lines.join('\n') : undefined;
+  }
+
   async function handleFsmTurn(text: string): Promise<boolean> {
     if (!ctx || !openaiWs) return false;
     const trimmed = text.trim();
@@ -1831,47 +2116,186 @@ wss.on('connection', (twilioWs: WebSocket) => {
       }
       sessionContext.intent = 'booking';
       resetFsmBookingContext();
-      if (requireZipCheck) {
-        const zip = extractZipValue(trimmed);
-        if (zip) {
-          pendingZip = zip;
-          sessionContext.zipCode = zip;
-          intake.zip = zip;
-          syncIntakeToModel();
-          const serviced = await ensureServiceArea(zip);
-          if (!serviced) return true;
-          sessionContext.state = 'ASK_NAME';
-          sendPrompt("Thanks. What's your first and last name?");
-          return true;
-        }
-        sessionContext.state = 'ASK_ZIP';
-        sendPrompt("Sure, what's your 5-digit zip code?");
-        return true;
-      }
+      initIntakePlan();
 
+      const zip = extractZipValue(trimmed);
+      if (zip) {
+        pendingZip = zip;
+        sessionContext.zipCode = zip;
+        intake.zip = zip;
+      }
       const name = extractNameValue(trimmed);
       if (name) {
-        const nameParts = name.trim().split(/\s+/).filter(Boolean);
-        if (nameParts.length < 2) {
-          pendingName = name;
-          sessionContext.state = 'ASK_NAME';
-          sendPrompt(`Thanks, ${name}. And what's your last name?`);
-          return true;
-        }
         pendingName = name;
         sessionContext.customerName = name;
         intake.name = name;
-        syncIntakeToModel();
-        sessionContext.state = requireZipCheck && !intake.zip ? 'ASK_ZIP' : 'ASK_TIME';
-        sendPrompt(
-          sessionContext.state === 'ASK_ZIP'
-            ? "Thanks. What's your 5-digit zip code?"
-            : 'Thanks. What day and time would you prefer?'
-        );
+      }
+      const email = extractEmail(trimmed);
+      if (email) {
+        intake.email = email;
+      }
+      if (looksLikeAddress(trimmed)) {
+        intake.address = trimmed;
+      }
+      syncIntakeToModel();
+
+      if (requireZipCheck && intake.zip) {
+        const serviced = await ensureServiceArea(intake.zip);
+        if (!serviced) return true;
+      }
+
+      askForNextField();
+      return true;
+    }
+
+    if (sessionContext.state === 'COLLECTING') {
+      if (!activeIntakeField) {
+        askForNextField();
         return true;
       }
-      sessionContext.state = 'ASK_NAME';
-      sendPrompt("Sure, what's your first and last name?");
+      const fieldKey = activeIntakeField;
+      if (isZipField(fieldKey)) {
+        const zip = extractZipValue(trimmed);
+        if (!zip) {
+          sendPrompt("What's your 5-digit zip code?");
+          return true;
+        }
+        setFieldValue(fieldKey, zip);
+        pendingZip = zip;
+        sessionContext.zipCode = zip;
+        syncIntakeToModel();
+        if (requiresServiceAreaCheck()) {
+          const serviced = await ensureServiceArea(zip);
+          if (!serviced) return true;
+        }
+        activeIntakeField = null;
+        askForNextField();
+        return true;
+      }
+
+      if (isNameField(fieldKey)) {
+        const name = extractNameValue(trimmed) || trimmed;
+        if (!name) {
+          sendPrompt("Sorry, I didn't catch the name. What's your full name?");
+          return true;
+        }
+        setFieldValue(fieldKey, name);
+        pendingName = name;
+        sessionContext.customerName = name;
+        syncIntakeToModel();
+        activeIntakeField = null;
+        askForNextField();
+        return true;
+      }
+
+      if (isEmailField(fieldKey)) {
+        const email = extractEmail(trimmed);
+        if (!email) {
+          sendPrompt("Sorry, I didn't catch that email. Could you repeat it?");
+          return true;
+        }
+        pendingEmail = email;
+        pendingEmailPurpose = 'intake';
+        sessionContext.state = 'CONFIRM_EMAIL';
+        const spelled = spellEmailForConfirmation(email);
+        sendPrompt(`I have ${spelled}. Is that right?`);
+        return true;
+      }
+
+      if (isAddressField(fieldKey)) {
+        if (!trimmed) {
+          sendPrompt("What's the service address?");
+          return true;
+        }
+        setFieldValue(fieldKey, trimmed);
+        if (!intake.zip) {
+          const embeddedZip = extractZipValue(trimmed);
+          if (embeddedZip) {
+            intake.zip = embeddedZip;
+            sessionContext.zipCode = embeddedZip;
+          }
+        }
+        syncIntakeToModel();
+        activeIntakeField = null;
+        askForNextField();
+        return true;
+      }
+
+      if (!trimmed) {
+        sendPrompt(fieldPrompt(fieldKey, formatServiceTypeLabel(tenant?.service_type)));
+        return true;
+      }
+      setFieldValue(fieldKey, trimmed);
+      syncIntakeToModel();
+      activeIntakeField = null;
+      askForNextField();
+      return true;
+    }
+
+    if (sessionContext.state === 'ASK_EMAIL') {
+      if (isNegative(trimmed) || /\b(no email|no e-?mail|dont have email|don't have email|no email address)\b/i.test(trimmed)) {
+        pendingEmail = null;
+        pendingEmailPurpose = null;
+        sendPrompt("No problem. Your booking is confirmed. If you need changes, just call us.");
+        sessionContext.state = 'FOLLOW_UP';
+        return true;
+      }
+      const email = extractEmail(trimmed);
+      if (!email) {
+        sendPrompt("What's the best email to send your confirmation link to?");
+        return true;
+      }
+      pendingEmail = email;
+      pendingEmailPurpose = 'link';
+      sessionContext.state = 'CONFIRM_EMAIL';
+      const spelled = spellEmailForConfirmation(email);
+      sendPrompt(`I have ${spelled}. Is that right?`);
+      return true;
+    }
+
+    if (sessionContext.state === 'CONFIRM_EMAIL') {
+      if (isAffirmative(trimmed)) {
+        if (pendingEmail) {
+          intake.email = pendingEmail;
+          syncIntakeToModel();
+        }
+        const purpose = pendingEmailPurpose || (intake.preferred_time ? 'link' : 'intake');
+        pendingEmail = null;
+        pendingEmailPurpose = null;
+        if (purpose === 'intake') {
+          activeIntakeField = null;
+          askForNextField();
+          return true;
+        }
+        try {
+          if (intake.email) {
+            isProcessingTool = true;
+            await invokeTool(ctx, 'send_booking_link', { email: intake.email });
+          }
+        } catch (err: any) {
+          log('send_booking_link failed', err?.message ?? String(err));
+        } finally {
+          isProcessingTool = false;
+        }
+        sendPrompt('Great. Is there anything else I can help with today?');
+        sessionContext.state = 'FOLLOW_UP';
+        return true;
+      }
+      if (isNegative(trimmed)) {
+        pendingEmail = null;
+        if (pendingEmailPurpose === 'intake') {
+          pendingEmailPurpose = null;
+          sessionContext.state = 'COLLECTING';
+          activeIntakeField = 'email';
+          sendPrompt("Okay. What's the correct email?");
+          return true;
+        }
+        pendingEmailPurpose = null;
+        sessionContext.state = 'ASK_EMAIL';
+        sendPrompt("Okay. What's the correct email?");
+        return true;
+      }
+      sendPrompt('Sorry, just a yes or no. Is that email correct?');
       return true;
     }
 
@@ -2099,20 +2523,31 @@ wss.on('connection', (twilioWs: WebSocket) => {
         try {
           isProcessingTool = true;
           sendPrompt('Great. Booking that now.');
-          const notes =
-            typeof intake.issue === 'string' && intake.issue.trim()
-              ? `Issue: ${intake.issue.trim()}`
-              : undefined;
+          const notes = buildBookingNotes(intake, intakeFieldOrder.length ? intakeFieldOrder : Object.keys(intake));
           await invokeTool(ctx, 'create_booking', {
             start_time: pendingSlot.iso,
             timezone: tz,
             customer_name: customerName,
+            customer_email: intake.email,
+            service_type: tenant?.service_type,
+            details: intake,
             notes,
             confirmed: true,
           });
           intake.preferred_time = pendingSlot.label;
           syncIntakeToModel();
-          sendPrompt(`You're booked for ${pendingSlot.label}. Is there anything else I can help with today?`);
+          if (!intake.email) {
+            sessionContext.state = 'ASK_EMAIL';
+            sendPrompt(`You're booked for ${pendingSlot.label}. What email should I send your confirmation link to?`);
+            pendingSlot = null;
+            return true;
+          }
+          try {
+            await invokeTool(ctx, 'send_booking_link', { email: intake.email });
+          } catch (err: any) {
+            log('send_booking_link failed', err?.message ?? String(err));
+          }
+          sendPrompt(`You're booked for ${pendingSlot.label}. I'll email you a confirmation link. Anything else I can help with?`);
           sessionContext.state = 'FOLLOW_UP';
           pendingSlot = null;
           return true;
@@ -2146,8 +2581,10 @@ wss.on('connection', (twilioWs: WebSocket) => {
 
     if (sessionContext.state === 'ANSWERING') {
       if (bookingIntent) {
-        sessionContext.state = 'ASK_NAME';
-        sendPrompt("Sure, what's your full name?");
+        sessionContext.intent = 'booking';
+        resetFsmBookingContext();
+        initIntakePlan();
+        askForNextField();
         return true;
       }
       return await answerWithKnowledge(trimmed);
@@ -2178,8 +2615,10 @@ wss.on('connection', (twilioWs: WebSocket) => {
         return true;
       }
       if (bookingIntent) {
-        sessionContext.state = 'ASK_NAME';
-        sendPrompt("Sure, what's your full name?");
+        sessionContext.intent = 'booking';
+        resetFsmBookingContext();
+        initIntakePlan();
+        askForNextField();
         return true;
       }
       if (questionIntent) {
@@ -2419,6 +2858,8 @@ wss.on('connection', (twilioWs: WebSocket) => {
       const startedAt = Date.now();
       ctx = { callSid, streamSid, from, to, company_id: tenant.company_id, startedAt };
       log('Media stream started', { to, from, company_id: tenant.company_id });
+      intake.phone = from;
+      intake.phone_number = from;
 
       if (!twilioStreamReady) {
         twilioStreamReady = true;
@@ -2442,7 +2883,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
       const voice =
         tenant?.agent_config?.realtime_voice ||
         envFirst(['OPENAI_REALTIME_VOICE', 'REALTIME_VOICE']) ||
-        'alloy';
+        'nova';
       const instructions = buildInstructions({
         company_name: tenant.company_name,
         service_type: tenant.service_type,

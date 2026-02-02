@@ -949,7 +949,10 @@ export class RealtimeToolsService {
     }
 
     const bookingLink = this.buildBookingLink(company_id, call_id);
-    const message = `Thanks for calling ${company.company_name}. Book your appointment here: ${bookingLink}`;
+    const alreadyBooked = Boolean((existingCall as any)?.appointment_created);
+    const message = alreadyBooked
+      ? `Thanks for booking with ${company.company_name}. Manage or update your appointment here: ${bookingLink}`
+      : `Thanks for calling ${company.company_name}. Book your appointment here: ${bookingLink}`;
     console.log('[send_booking_link] preparing', {
       company_id,
       call_id,
@@ -959,7 +962,9 @@ export class RealtimeToolsService {
     const region = this.config.get<string>('SES_REGION') || this.config.get<string>('AWS_REGION') || 'us-east-1';
     const fromMeta = this.resolveBookingFromEmail(company);
     const fromAddress = `${fromMeta.display} <${fromMeta.from}>`;
-    const subject = `${company.company_name} booking link`;
+    const subject = alreadyBooked
+      ? `${company.company_name} booking details`
+      : `${company.company_name} booking link`;
 
     try {
       const result = await sendSesEmail({
@@ -986,18 +991,17 @@ export class RealtimeToolsService {
 
     const now = Date.now();
     if (existingCall) {
-      await this.dynamodb.update(
-        'calls',
-        { company_id, call_id },
-        {
-          lead_captured: true,
-          outcome: 'LEAD',
-          booking_link_sent_at: now,
-          booking_link_channel: 'EMAIL',
-          lead_email: email,
-          updated_at: now,
-        }
-      );
+      const updates: Record<string, any> = {
+        booking_link_sent_at: now,
+        booking_link_channel: 'EMAIL',
+        lead_email: email,
+        updated_at: now,
+      };
+      if (!alreadyBooked) {
+        updates.lead_captured = true;
+        updates.outcome = 'LEAD';
+      }
+      await this.dynamodb.update('calls', { company_id, call_id }, updates);
     } else {
       const call: Call = {
         company_id,

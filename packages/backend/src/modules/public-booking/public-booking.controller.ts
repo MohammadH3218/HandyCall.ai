@@ -1,7 +1,12 @@
 import { Controller, Get, Param, Post, Body } from '@nestjs/common';
 import { Public } from '../../common/decorators/public.decorator';
 import { PublicBookingService } from './public-booking.service';
-import { PublicBookingRequestDto } from './dto/public-booking.dto';
+import {
+  PublicBookingCancelDto,
+  PublicBookingRequestDto,
+  PublicBookingRescheduleDto,
+  PublicBookingUpdateDto,
+} from './dto/public-booking.dto';
 
 @Controller('public/booking')
 @Public()
@@ -16,5 +21,20 @@ export class PublicBookingController {
   @Post(':token')
   submitBooking(@Param('token') token: string, @Body() dto: PublicBookingRequestDto) {
     return this.bookings.submitBooking(token, dto);
+  }
+
+  @Post(':token/update')
+  updateBooking(@Param('token') token: string, @Body() dto: PublicBookingUpdateDto) {
+    return this.bookings.updateBooking(token, dto);
+  }
+
+  @Post(':token/reschedule')
+  rescheduleBooking(@Param('token') token: string, @Body() dto: PublicBookingRescheduleDto) {
+    return this.bookings.rescheduleBooking(token, dto);
+  }
+
+  @Post(':token/cancel')
+  cancelBooking(@Param('token') token: string, @Body() dto: PublicBookingCancelDto) {
+    return this.bookings.cancelBooking(token, dto);
   }
 }

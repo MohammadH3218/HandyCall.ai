@@ -5,9 +5,14 @@ import { DynamoDBService } from '../../infrastructure/database/dynamodb.service'
 import { SchedulingService } from '../scheduling/scheduling.service';
 import { AppointmentsService } from '../appointments/appointments.service';
 import { parseHHmm, zonedTimeToUtcMs } from '../scheduling/timezone';
-import { PublicBookingRequestDto } from './dto/public-booking.dto';
+import {
+  PublicBookingCancelDto,
+  PublicBookingRequestDto,
+  PublicBookingRescheduleDto,
+  PublicBookingUpdateDto,
+} from './dto/public-booking.dto';
 import { sendSesEmail } from './email.util';
-import { isValidEmail } from '@handycall/shared';
+import { AppointmentStatus, isValidEmail } from '@handycall/shared';
 import { signBookingToken, verifyBookingToken } from './booking-link.util';
 
 type BookingTemplate = {
@@ -111,6 +116,32 @@ export class PublicBookingService {
     }
   }
 
+  private isAppointmentExpired(appointment: any): boolean {
+    if (!appointment) return false;
+    const now = Date.now();
+    if (appointment.status === AppointmentStatus.CANCELLED || appointment.status === AppointmentStatus.COMPLETED || appointment.status === AppointmentStatus.NO_SHOW) {
+      return true;
+    }
+    if (typeof appointment.scheduled_end === 'number' && appointment.scheduled_end < now) {
+      return true;
+    }
+    return false;
+  }
+
+  private async loadCallAndAppointment(companyId: string, callId: string) {
+    const call = await this.dynamodb.get('calls', { company_id: companyId, call_id: callId });
+    const appointmentId = call?.appointment_id;
+    let appointment: any = null;
+    if (appointmentId) {
+      try {
+        appointment = await this.appointments.getAppointment(companyId, appointmentId);
+      } catch {
+        appointment = null;
+      }
+    }
+    return { call, appointment };
+  }
+
   private extractRequiredFields(template?: BookingTemplate) {
     const required = Array.isArray(template?.intake_schema?.required) ? template!.intake_schema!.required! : [];
     const optional = Array.isArray(template?.intake_schema?.optional) ? template!.intake_schema!.optional! : [];
@@ -184,7 +215,10 @@ export class PublicBookingService {
     const company = await this.companies.findById(payload.company_id);
     if (!company) throw new NotFoundException('Company not found');
 
-    const call = await this.dynamodb.get('calls', { company_id: payload.company_id, call_id: payload.call_id });
+    const { call, appointment } = await this.loadCallAndAppointment(payload.company_id, payload.call_id);
+    if (appointment && this.isAppointmentExpired(appointment)) {
+      throw new BadRequestException('This booking link has expired.');
+    }
     const phone = typeof call?.from_number === 'string' ? call.from_number : undefined;
     const email =
       typeof (call as any)?.lead_email === 'string'
@@ -197,12 +231,27 @@ export class PublicBookingService {
 
     return {
       ok: true,
+      mode: appointment ? 'manage' : 'book',
       company_id: company.company_id,
       company_name: company.company_name,
       service_type: company.service_type,
       timezone: company.timezone,
       phone_number: phone,
       email,
+      appointment: appointment
+        ? {
+            appointment_id: appointment.appointment_id,
+            scheduled_start: appointment.scheduled_start,
+            scheduled_end: appointment.scheduled_end,
+            status: appointment.status,
+            contact_name: appointment.contact_name,
+            contact_email: appointment.contact_email,
+            contact_phone: appointment.contact_phone,
+            address: appointment.address,
+            notes: appointment.notes,
+          }
+        : undefined,
+      collected_info: call?.collected_info,
       intake_schema: {
         required: fields.required,
         optional: fields.optional,
@@ -217,7 +266,13 @@ export class PublicBookingService {
     const company = await this.companies.findById(payload.company_id);
     if (!company) throw new NotFoundException('Company not found');
 
-    const call = await this.dynamodb.get('calls', { company_id: payload.company_id, call_id: payload.call_id });
+    const { call, appointment } = await this.loadCallAndAppointment(payload.company_id, payload.call_id);
+    if (appointment) {
+      if (this.isAppointmentExpired(appointment)) {
+        throw new BadRequestException('This booking link has expired.');
+      }
+      throw new BadRequestException('This booking link has already been used.');
+    }
 
     const template = await this.loadTemplate(payload.company_id);
     const requiredFields = Array.isArray(template?.intake_schema?.required) ? template!.intake_schema!.required! : [];
@@ -305,7 +360,10 @@ export class PublicBookingService {
     if (toEmail && isValidEmail(toEmail)) {
       const label = formatSlotLabel(startIso, timeZone);
       const subject = `${company.company_name} booking confirmation`;
-      const body = `You're confirmed with ${company.company_name} for ${label}.\n\nIf you need to make changes, please call us back.`;
+      const manageLink = `${this.getFrontendBaseUrl()}/book/${token}`;
+      const body =
+        `You're confirmed with ${company.company_name} for ${label}.\n\n` +
+        `Manage or update your appointment here: ${manageLink}`;
       try {
         const result = await sendSesEmail({
           region,
@@ -329,6 +387,135 @@ export class PublicBookingService {
       appointment_id: appointment?.appointment_id,
       start_time: startIso,
       end_time: endIso,
+    };
+  }
+
+  async updateBooking(token: string, dto: PublicBookingUpdateDto) {
+    const payload = verifyBookingToken(token, this.getBookingSecret());
+    const company = await this.companies.findById(payload.company_id);
+    if (!company) throw new NotFoundException('Company not found');
+
+    const { appointment, call } = await this.loadCallAndAppointment(payload.company_id, payload.call_id);
+    if (!appointment) throw new NotFoundException('Appointment not found for this booking link');
+    if (this.isAppointmentExpired(appointment)) {
+      throw new BadRequestException('This booking link has expired.');
+    }
+
+    const address = this.resolveAddressInput(dto as any);
+    const phone = dto.phone_number ? asE164(dto.phone_number) : undefined;
+    const custom = dto.custom_fields ?? {};
+    const customNotes = Object.entries(custom)
+      .filter(([_, v]) => v !== undefined && v !== null && String(v).trim() !== '')
+      .map(([k, v]) => `${titleize(k)}: ${String(v).trim()}`)
+      .join('\n');
+
+    const updated = await this.appointments.updateAppointment(company.company_id, appointment.appointment_id, {
+      contact_name: dto.full_name?.trim() || undefined,
+      contact_email: dto.email?.trim() || undefined,
+      contact_phone: phone,
+      address: address.street || address.city || address.state || address.zip ? address : undefined,
+      notes: customNotes || undefined,
+    });
+
+    if (call?.call_id && dto.email?.trim()) {
+      await this.dynamodb.update(
+        'calls',
+        { company_id: company.company_id, call_id: call.call_id },
+        { lead_email: dto.email.trim(), updated_at: Date.now() }
+      );
+    }
+
+    return {
+      ok: true,
+      appointment_id: appointment.appointment_id,
+      appointment: updated,
+    };
+  }
+
+  async rescheduleBooking(token: string, dto: PublicBookingRescheduleDto) {
+    const payload = verifyBookingToken(token, this.getBookingSecret());
+    const company = await this.companies.findById(payload.company_id);
+    if (!company) throw new NotFoundException('Company not found');
+
+    const { appointment } = await this.loadCallAndAppointment(payload.company_id, payload.call_id);
+    if (!appointment) throw new NotFoundException('Appointment not found for this booking link');
+    if (this.isAppointmentExpired(appointment)) {
+      throw new BadRequestException('This booking link has expired.');
+    }
+
+    if (!dto.preferred_date || !dto.preferred_time) {
+      throw new BadRequestException('preferred_date and preferred_time are required');
+    }
+
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dto.preferred_date.trim());
+    if (!match) {
+      throw new BadRequestException('preferred_date must be YYYY-MM-DD');
+    }
+    const { hour, minute } = parseHHmm(dto.preferred_time.trim());
+    const [year, month, day] = match.slice(1).map((n) => parseInt(n, 10));
+    const timeZone = company.timezone || 'UTC';
+    const startMs = zonedTimeToUtcMs({ year, month, day, hour, minute }, timeZone);
+    const durationMs = appointment.scheduled_end - appointment.scheduled_start;
+    const endMs = startMs + durationMs;
+
+    const startIso = new Date(startMs).toISOString();
+    const endIso = new Date(endMs).toISOString();
+    const slots = await this.scheduling.getAvailability(company, startIso, endIso);
+    const exact = slots.find((s) => Date.parse(s.start_time) === startMs);
+    if (!exact) {
+      const dayStart = zonedTimeToUtcMs({ year, month, day, hour: 8, minute: 0 }, timeZone);
+      const dayEnd = zonedTimeToUtcMs({ year, month, day, hour: 18, minute: 0 }, timeZone);
+      const daySlots = await this.scheduling.getAvailability(
+        company,
+        new Date(dayStart).toISOString(),
+        new Date(dayEnd).toISOString()
+      );
+      const suggestions = daySlots.slice(0, 5).map((s) => formatSlotLabel(s.start_time, timeZone));
+      throw new BadRequestException(
+        suggestions.length
+          ? `That time is no longer available. Try: ${suggestions.join(', ')}.`
+          : 'That time is no longer available. Please pick another time.'
+      );
+    }
+
+    const updated = await this.appointments.updateAppointment(company.company_id, appointment.appointment_id, {
+      scheduled_start: startMs,
+      scheduled_end: endMs,
+    });
+
+    return {
+      ok: true,
+      appointment_id: appointment.appointment_id,
+      start_time: startIso,
+      end_time: endIso,
+      appointment: updated,
+    };
+  }
+
+  async cancelBooking(token: string, dto: PublicBookingCancelDto) {
+    const payload = verifyBookingToken(token, this.getBookingSecret());
+    const company = await this.companies.findById(payload.company_id);
+    if (!company) throw new NotFoundException('Company not found');
+
+    const { appointment } = await this.loadCallAndAppointment(payload.company_id, payload.call_id);
+    if (!appointment) throw new NotFoundException('Appointment not found for this booking link');
+    if (this.isAppointmentExpired(appointment)) {
+      throw new BadRequestException('This booking link has expired.');
+    }
+
+    await this.appointments.cancelAppointment(company.company_id, appointment.appointment_id);
+
+    if (dto.reason) {
+      await this.dynamodb.update(
+        'appointments',
+        { company_id: company.company_id, appointment_id: appointment.appointment_id },
+        { notes: `Cancellation reason: ${dto.reason}. Updated at: ${new Date().toISOString()}` }
+      );
+    }
+
+    return {
+      ok: true,
+      appointment_id: appointment.appointment_id,
     };
   }
 }
