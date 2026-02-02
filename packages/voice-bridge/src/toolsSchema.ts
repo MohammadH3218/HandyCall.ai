@@ -28,7 +28,7 @@ export function toolsSchema() {
         {
             type: 'function',
             name: 'send_booking_link',
-            description: 'Send a booking/confirmation link by email so the caller can manage their appointment.',
+            description: 'Send a confirmation link by email after an appointment is booked so the caller can manage it.',
             parameters: {
                 type: 'object',
                 properties: {

@@ -431,10 +431,23 @@ function isLikelyEcho(userText: string, assistantText: string): boolean {
   if (user.length < 6) return false;
   if (assistant.includes(user) || user.includes(assistant)) return true;
   const userTokens = user.split(' ').filter(Boolean);
-  if (userTokens.length < 4) return false;
+  if (userTokens.length < 4) {
+    return assistant.includes(user) && user.length >= 5;
+  }
   const assistantTokens = new Set(assistant.split(' ').filter(Boolean));
   const overlap = userTokens.filter((t) => assistantTokens.has(t)).length;
   return overlap / userTokens.length >= 0.75;
+}
+
+function looksLikeServiceRequest(text: string): boolean {
+  const t = normalizeForEcho(text);
+  if (!t) return false;
+  if (hasBookingIntent(t) || looksLikeTimeRequest(t)) return true;
+  if (/\b(service|appointment|estimate|quote|visit|inspection|schedule|booking|book)\b/.test(t)) return true;
+  if (/\b(need|help|issue|problem|repair|fix|install|replace|maintenance)\b/.test(t)) return true;
+  if (/\b(pest|bug|bugs|roach|roaches|ant|ants|termite|termites|rat|rats|mouse|mice)\b/.test(t)) return true;
+  if (/\b(plumb|electric|hvac|heating|cooling|clean|landscape|roof|garage|appliance)\b/.test(t)) return true;
+  return false;
 }
 
 function formatSlotForPrompt(slotIso: string, timeZone: string): string {
@@ -776,6 +789,7 @@ function buildInstructions(input: {
     `Example Summary: "Okay, I have [Name] at [Address], looking for [Service] on [Date/Time]. Is that correct?"`,
     `If the user says yes, then call create_booking.`,
     `After create_booking succeeds, send a confirmation link by email using send_booking_link. If you don't yet have an email, ask for it and confirm it.`,
+    `Do NOT ask about or send a booking link before the appointment is booked.`,
     `Zip codes: Do not read back digits unless the user's input was unclear.`,
     `Knowledge policy: use knowledge_search for business-specific facts (services, products/solutions used, pricing, plans, what's included, policies). Answer naturally in 1-2 sentences. Do NOT ask "Does that help?" or "Is that what you were looking for?" after every answer. Only ask a follow-up if it helps move the task forward.`,
     `If you can't find it in knowledge_search or you're not sure, do NOT guess; say you'll note it and have the team follow up.`,
@@ -1211,7 +1225,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
   let lastAssistantQuestionAt = 0;
   let lastUserSpeechStartedAt = 0;
   let lastUserSpeechStoppedAt = 0;
-  // let lastUserSpeechDurationMs = 0;
+  let lastUserSpeechDurationMs = 0;
   let isProcessingTool = false;
   const fsmEnabled = true;
   let sessionContext: SessionContext = { state: 'GREETING', intent: 'unknown' };
@@ -1224,6 +1238,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
   let pendingSlot: BookingSlotOption | null = null;
   let pendingEmail: string | null = null;
   let pendingEmailPurpose: 'intake' | 'link' | null = null;
+  let appointmentCreated = false;
   let intakeFieldOrder: string[] = [];
   let activeIntakeField: string | null = null;
   let lastBookingPrompt: string | null = null;
@@ -1776,6 +1791,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
             notes,
             confirmed: true,
           });
+          appointmentCreated = true;
           intake.preferred_time = pendingSlot.label;
           syncIntakeToModel();
           sendPrompt(`You're booked for ${pendingSlot.label}. Is there anything else I can help with today?`);
@@ -1831,6 +1847,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
             notes,
             confirmed: true,
           });
+          appointmentCreated = true;
           intake.preferred_time = chosen.label;
           syncIntakeToModel();
           sendPrompt(`You're booked for ${chosen.label}. Is there anything else I can help with today?`);
@@ -1916,6 +1933,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
     pendingEmailPurpose = null;
     intakeFieldOrder = [];
     activeIntakeField = null;
+    appointmentCreated = false;
     sessionContext.customerName = undefined;
     sessionContext.zipCode = undefined;
     sessionContext.proposedTime = undefined;
@@ -2116,6 +2134,11 @@ wss.on('connection', (twilioWs: WebSocket) => {
       }
       if (questionIntent && !bookingIntent) {
         return await answerWithKnowledge(trimmed);
+      }
+      const serviceIntent = bookingIntent || looksLikeServiceRequest(trimmed);
+      if (!serviceIntent) {
+        sendPrompt('How can I help you today?');
+        return true;
       }
       sessionContext.intent = 'booking';
       resetFsmBookingContext();
@@ -2537,6 +2560,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
             notes,
             confirmed: true,
           });
+          appointmentCreated = true;
           intake.preferred_time = pendingSlot.label;
           syncIntakeToModel();
           if (!intake.email) {
@@ -2983,7 +3007,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
           userSpeechActive = false;
           lastUserSpeechStoppedAt = Date.now();
           if (lastUserSpeechStartedAt > 0) {
-            // lastUserSpeechDurationMs = Math.max(0, lastUserSpeechStoppedAt - lastUserSpeechStartedAt);
+            lastUserSpeechDurationMs = Math.max(0, lastUserSpeechStoppedAt - lastUserSpeechStartedAt);
           }
           if (pendingResponseAfterSpeech && !pendingAutoHangup) {
             pendingResponseAfterSpeech = false;
@@ -3062,6 +3086,13 @@ wss.on('connection', (twilioWs: WebSocket) => {
             lastUserTranscriptAt = Date.now();
             const text = t.trim();
             const normalizedText = text.toLowerCase();
+            const wordCount = text.split(/\s+/).filter(Boolean).length;
+            const speechDurationMs =
+              lastUserSpeechDurationMs > 0
+                ? lastUserSpeechDurationMs
+                : lastUserSpeechStoppedAt && lastUserSpeechStartedAt
+                  ? Math.max(0, lastUserSpeechStoppedAt - lastUserSpeechStartedAt)
+                  : 0;
             if (isProcessingTool && !isExplicitBargeIn(text)) {
               // DISABLED: filtering filler utterance while tool in flight often drops the actual answer if it starts with "uh" or "well"
               // if (isFillerUtterance(text)) {
@@ -3084,6 +3115,23 @@ wss.on('connection', (twilioWs: WebSocket) => {
               isLikelyEcho(text, assistantSnapshot);
             if (isEcho) {
               log('Ignoring echo transcript', { text });
+              armNoResponseTimer();
+              return;
+            }
+            const shortNoise =
+              speechDurationMs > 0 &&
+              speechDurationMs < 320 &&
+              wordCount <= 2 &&
+              !/\d/.test(text) &&
+              !isAffirmative(text) &&
+              !isNegative(text);
+            if (shortNoise) {
+              log('Ignoring very short speech/noise', { text, speechDurationMs });
+              armNoResponseTimer();
+              return;
+            }
+            if (assistantRecentlySpoke && wordCount <= 2 && !/\d/.test(text) && !isAffirmative(text) && !isNegative(text)) {
+              log('Ignoring short transcript near assistant speech', { text });
               armNoResponseTimer();
               return;
             }
@@ -3357,6 +3405,20 @@ wss.on('connection', (twilioWs: WebSocket) => {
               }
             }
 
+            if (toolName === 'send_booking_link' && fsmEnabled && !appointmentCreated) {
+              sendToOpenAI(openaiWs, {
+                type: 'conversation.item.create',
+                item: {
+                  type: 'function_call_output',
+                  call_id: toolCallId,
+                  output: JSON.stringify({ ok: false, error: 'Booking link can only be sent after booking is confirmed.' }),
+                },
+              });
+              isProcessingTool = false;
+              sendPrompt('I can send the confirmation link after we finish booking.');
+              return;
+            }
+
             const toolArgs =
               toolName === 'save_call'
                 ? {
@@ -3398,6 +3460,9 @@ wss.on('connection', (twilioWs: WebSocket) => {
                 ok: (result as any)?.ok,
                 appointment_id: (result as any)?.appointment_id,
               });
+              if ((result as any)?.ok) {
+                appointmentCreated = true;
+              }
             }
             if (toolName === 'save_call') {
               callSaved = true;
