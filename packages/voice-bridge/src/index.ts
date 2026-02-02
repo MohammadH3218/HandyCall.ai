@@ -339,7 +339,6 @@ function buildIntakeFieldOrder(template: any, requireZipCheck: boolean): string[
 
   const zipFields = filtered.filter((f) => isZipField(f));
   const serviceFields = filtered.filter((f) => isServiceField(f));
-  const emailFields = filtered.filter((f) => isEmailField(f));
   const otherFields = filtered.filter(
     (f) => !isZipField(f) && !isServiceField(f) && !isEmailField(f)
   );
@@ -355,7 +354,7 @@ function buildIntakeFieldOrder(template: any, requireZipCheck: boolean): string[
   if (requireZipCheck && zipFields.length) ordered.push(...zipFields);
   ordered.push(...serviceFields);
   ordered.push(...otherFields);
-  ordered.push(...emailFields);
+  // Collect email only after booking is created (ASK_EMAIL), so do not include in pre-booking intake order.
   ordered.push(...preferred);
 
   return Array.from(new Set(ordered.filter((f) => Boolean(f))));
