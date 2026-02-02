@@ -698,6 +698,20 @@ function isNegative(text: string): boolean {
   return phrases.some((phrase) => t === phrase || new RegExp(`\\b${phrase}\\b`).test(t));
 }
 
+function isYesNoPrompt(prompt: string): boolean {
+  const t = normalizeForEcho(prompt);
+  if (!t) return false;
+  if (t.includes('yes or no')) return true;
+  if (t.includes('is there anything else')) return true;
+  if (t.includes('want me to book') || t.includes('should i book')) return true;
+  if (t.startsWith('is ') || t.startsWith('are ') || t.startsWith('was ') || t.startsWith('were ')) return true;
+  if (t.startsWith('do ') || t.startsWith('does ') || t.startsWith('did ')) return true;
+  if (t.startsWith('can ') || t.startsWith('could ') || t.startsWith('would ') || t.startsWith('should ') || t.startsWith('will ')) {
+    return true;
+  }
+  return false;
+}
+
 // function isLikelyNonAnswer(lastPrompt: string, userText: string): boolean {
 function isLikelyNonAnswer(): boolean {
   // Completely disable this heuristic for now to prevent dropping valid short answers.
@@ -3125,21 +3139,30 @@ wss.on('connection', (twilioWs: WebSocket) => {
               !/\d/.test(text) &&
               !isAffirmative(text) &&
               !isNegative(text);
-            if (shortNoise) {
-              log('Ignoring very short speech/noise', { text, speechDurationMs });
-              armNoResponseTimer();
-              return;
-            }
-            if (assistantRecentlySpoke && wordCount <= 2 && !/\d/.test(text) && !isAffirmative(text) && !isNegative(text)) {
-              log('Ignoring short transcript near assistant speech', { text });
-              armNoResponseTimer();
-              return;
-            }
-            const recentSpeechStart = lastUserSpeechStartedAt > 0 && Date.now() - lastUserSpeechStartedAt < 4000;
-            if (assistantRecentlySpoke && !recentSpeechStart) {
-              log('Ignoring transcript without speech start', { text });
-              armNoResponseTimer();
-              return;
+              if (shortNoise) {
+                log('Ignoring very short speech/noise', { text, speechDurationMs });
+                armNoResponseTimer();
+                return;
+              }
+              if (assistantRecentlySpoke && wordCount <= 2 && !/\d/.test(text) && !isAffirmative(text) && !isNegative(text)) {
+                log('Ignoring short transcript near assistant speech', { text });
+                armNoResponseTimer();
+                return;
+              }
+              const lastPrompt =
+                (fsmEnabled ? lastFsmPrompt : lastBookingPrompt) || assistantSnapshot || lastAssistantText;
+              const shortYesNo =
+                wordCount <= 2 && !/\d/.test(text) && (isAffirmative(text) || isNegative(text));
+              if (shortYesNo && lastPrompt && !isYesNoPrompt(lastPrompt)) {
+                log('Ignoring short yes/no without yes/no prompt', { text, lastPrompt });
+                armNoResponseTimer();
+                return;
+              }
+              const recentSpeechStart = lastUserSpeechStartedAt > 0 && Date.now() - lastUserSpeechStartedAt < 4000;
+              if (assistantRecentlySpoke && !recentSpeechStart) {
+                log('Ignoring transcript without speech start', { text });
+                armNoResponseTimer();
+                return;
             }
             if (Date.now() < assistantAudioActiveUntil && !isFillerUtterance(text)) {
               sendToOpenAI(openaiWs, { type: 'response.cancel' });
