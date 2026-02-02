@@ -2567,15 +2567,20 @@ wss.on('connection', (twilioWs: WebSocket) => {
           askForNextField();
           return true;
         }
+        if (!/\d/.test(trimmed) && trimmed.length <= 3) {
+          log('Ignoring non-zip short response while waiting for zip', { text: trimmed });
+          sendPrompt("What's your 5-digit zip code?");
+          return true;
+        }
         const zip = extractZipValue(trimmed);
         if (!zip) {
           if (looksLikeAddress(trimmed)) {
-          intake.address = trimmed;
-          syncIntakeToModel();
+            intake.address = trimmed;
+            syncIntakeToModel();
+          }
+          sendPrompt("What's your 5-digit zip code?");
+          return true;
         }
-        sendPrompt("What's your 5-digit zip code?");
-        return true;
-      }
       pendingZip = zip;
       sessionContext.zipCode = zip;
       intake.zip = zip;
@@ -3270,15 +3275,26 @@ wss.on('connection', (twilioWs: WebSocket) => {
               armNoResponseTimer();
               return;
             }
-            const shortNoise =
-              speechDurationMs > 0 &&
-              speechDurationMs < 320 &&
-              wordCount <= 2 &&
-              !/\d/.test(text) &&
-              !isAffirmative(text) &&
-              !isNegative(text);
+              const shortNoise =
+                speechDurationMs > 0 &&
+                speechDurationMs < 320 &&
+                wordCount <= 2 &&
+                !/\d/.test(text) &&
+                !isAffirmative(text) &&
+                !isNegative(text);
               if (shortNoise) {
                 log('Ignoring very short speech/noise', { text, speechDurationMs });
+                armNoResponseTimer();
+                return;
+              }
+              const recentSpeechStart = lastUserSpeechStartedAt > 0 && Date.now() - lastUserSpeechStartedAt < 4000;
+              const noSpeechMarker =
+                !recentSpeechStart &&
+                speechDurationMs === 0 &&
+                wordCount <= 2 &&
+                !/\d/.test(text);
+              if (noSpeechMarker) {
+                log('Ignoring transcript without speech markers', { text });
                 armNoResponseTimer();
                 return;
               }
@@ -3296,12 +3312,11 @@ wss.on('connection', (twilioWs: WebSocket) => {
                 armNoResponseTimer();
                 return;
               }
-              const recentSpeechStart = lastUserSpeechStartedAt > 0 && Date.now() - lastUserSpeechStartedAt < 4000;
               if (assistantRecentlySpoke && !recentSpeechStart) {
                 log('Ignoring transcript without speech start', { text });
                 armNoResponseTimer();
                 return;
-            }
+              }
             if (Date.now() < assistantAudioActiveUntil && !isFillerUtterance(text)) {
               sendToOpenAI(openaiWs, { type: 'response.cancel' });
               sendToTwilio(twilioWs, { event: 'clear', streamSid: ctx.streamSid });
