@@ -71,7 +71,9 @@ export default function BillingPage() {
         (plan ? PLAN_CATALOG[plan]?.limits : undefined);
       setPlanLimits(limits);
       const sanitizedPaymentMethods = Array.isArray(paymentData?.payment_methods)
-        ? paymentData.payment_methods.filter((method): method is PaymentMethod => Boolean(method && method.id))
+        ? paymentData.payment_methods.filter(
+            (method: PaymentMethod | null | undefined): method is PaymentMethod => Boolean(method?.id)
+          )
         : [];
       setPaymentMethods(sanitizedPaymentMethods);
       setDefaultPaymentMethodId(paymentData?.default_payment_method_id || null);
