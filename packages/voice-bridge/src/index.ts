@@ -300,17 +300,20 @@ function formatServiceTypeLabel(serviceType?: string): string {
 }
 
 function buildIntakeFieldOrder(template: any, requireZipCheck: boolean): string[] {
-  const required = Array.isArray(template?.intake_schema?.required)
-    ? template.intake_schema.required.map((f: any) => String(f || '').trim()).filter(Boolean)
+  const required: string[] = Array.isArray(template?.intake_schema?.required)
+    ? template.intake_schema.required
+        .map((f: any) => String(f || '').trim())
+        .filter((f: string) => Boolean(f))
     : [];
-  const fallback = [
+  const fallback: string[] = [
     'full_name',
     ...(requireZipCheck ? ['zip'] : []),
     'issue_summary',
     'service_address',
     'preferred_time',
   ];
-  const unique = Array.from(new Set(required.length ? required : fallback));
+  const source = required.length ? required : fallback;
+  const unique: string[] = Array.from(new Set(source));
   const base = unique.filter((f) => !isPreferredTimeField(f));
   const preferred = unique.find((f) => isPreferredTimeField(f)) ? ['preferred_time'] : ['preferred_time'];
   const filtered = base.filter((f) => !isPhoneField(f));
