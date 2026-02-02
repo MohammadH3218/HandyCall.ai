@@ -49,6 +49,69 @@ export default function BillingPage() {
     loadBillingData();
   }, []);
 
+  const currentPlan = resolvePlan(
+    (company?.subscription_plan as SubscriptionPlan | undefined) ||
+      (subscription?.subscription_plan as SubscriptionPlan | undefined)
+  );
+  const planDetails = currentPlan ? PLAN_CATALOG[currentPlan] : null;
+  const priceDisplay = currentPlan ? getPlanPriceDisplay(currentPlan) : null;
+  const status = company?.subscription_status || subscription?.subscription_status;
+  const isCanceling = Boolean(company?.cancel_at_period_end || subscription?.cancel_at_period_end);
+
+  const fallbackPaymentMethod =
+    company?.payment_method_last4
+      ? { last4: company.payment_method_last4, brand: company.payment_method_brand }
+      : (subscription as any)?.payment_method
+      ? {
+          last4: (subscription as any).payment_method.last4,
+          brand: (subscription as any).payment_method.brand,
+        }
+      : null;
+
+  const displayPaymentMethods = useMemo(() => {
+    if (paymentMethods.length) return paymentMethods;
+    if (fallbackPaymentMethod) {
+      return [{ id: 'fallback', ...fallbackPaymentMethod, is_default: true } as PaymentMethod];
+    }
+    return [];
+  }, [paymentMethods, fallbackPaymentMethod]);
+
+  const canEditPaymentMethods = paymentMethods.length > 0;
+  const canRemovePaymentMethods = paymentMethods.length > 1;
+
+  const planHighlights = useMemo(
+    () => [
+      {
+        label: 'Call minutes',
+        value:
+          planLimits?.minutes === -1
+            ? 'Unlimited'
+            : typeof planLimits?.minutes === 'number'
+            ? `${planLimits.minutes}/week`
+            : '-',
+      },
+      {
+        label: 'SMS messages',
+        value:
+          planLimits?.sms === -1
+            ? 'Unlimited'
+            : typeof planLimits?.sms === 'number'
+            ? `${planLimits.sms}/week`
+            : '-',
+      },
+      {
+        label: 'Active contacts',
+        value:
+          planLimits?.contacts === -1
+            ? 'Unlimited'
+            : typeof planLimits?.contacts === 'number'
+            ? `${planLimits.contacts}/week`
+            : '-',
+      },
+    ],
+    [planLimits]
+  );
+
   const loadBillingData = async () => {
     try {
       setLoading(true);
@@ -214,69 +277,6 @@ export default function BillingPage() {
       </div>
     );
   }
-
-  const currentPlan = resolvePlan(
-    (company?.subscription_plan as SubscriptionPlan | undefined) ||
-      (subscription?.subscription_plan as SubscriptionPlan | undefined)
-  );
-  const planDetails = currentPlan ? PLAN_CATALOG[currentPlan] : null;
-  const priceDisplay = currentPlan ? getPlanPriceDisplay(currentPlan) : null;
-  const status = company?.subscription_status || subscription?.subscription_status;
-  const isCanceling = Boolean(company?.cancel_at_period_end || subscription?.cancel_at_period_end);
-
-  const fallbackPaymentMethod =
-    company?.payment_method_last4
-      ? { last4: company.payment_method_last4, brand: company.payment_method_brand }
-      : (subscription as any)?.payment_method
-      ? {
-          last4: (subscription as any).payment_method.last4,
-          brand: (subscription as any).payment_method.brand,
-        }
-      : null;
-
-  const displayPaymentMethods = useMemo(() => {
-    if (paymentMethods.length) return paymentMethods;
-    if (fallbackPaymentMethod) {
-      return [{ id: 'fallback', ...fallbackPaymentMethod, is_default: true } as PaymentMethod];
-    }
-    return [];
-  }, [paymentMethods, fallbackPaymentMethod]);
-
-  const canEditPaymentMethods = paymentMethods.length > 0;
-  const canRemovePaymentMethods = paymentMethods.length > 1;
-
-  const planHighlights = useMemo(
-    () => [
-      {
-        label: 'Call minutes',
-        value:
-          planLimits?.minutes === -1
-            ? 'Unlimited'
-            : typeof planLimits?.minutes === 'number'
-            ? `${planLimits.minutes}/week`
-            : '-',
-      },
-      {
-        label: 'SMS messages',
-        value:
-          planLimits?.sms === -1
-            ? 'Unlimited'
-            : typeof planLimits?.sms === 'number'
-            ? `${planLimits.sms}/week`
-            : '-',
-      },
-      {
-        label: 'Active contacts',
-        value:
-          planLimits?.contacts === -1
-            ? 'Unlimited'
-            : typeof planLimits?.contacts === 'number'
-            ? `${planLimits.contacts}/week`
-            : '-',
-      },
-    ],
-    [planLimits]
-  );
 
   return (
     <div className="p-8 max-w-7xl animate-fade-up">
