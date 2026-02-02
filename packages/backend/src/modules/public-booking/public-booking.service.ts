@@ -326,7 +326,7 @@ export class PublicBookingService {
       .join('\n');
     const notes = customNotes || undefined;
 
-    const appointment = await this.appointments.createAppointment(company.company_id, {
+    const createdAppointment = await this.appointments.createAppointment(company.company_id, {
       scheduled_start: startMs,
       scheduled_end: endMs,
       contact_name: dto.full_name?.trim() || undefined,
@@ -344,7 +344,7 @@ export class PublicBookingService {
         { company_id: company.company_id, call_id: call.call_id },
         {
           appointment_created: true,
-          appointment_id: appointment?.appointment_id,
+          appointment_id: createdAppointment?.appointment_id,
           outcome: 'APPOINTMENT_BOOKED',
           lead_captured: true,
           ...(dto.email ? { lead_email: dto.email } : {}),
@@ -373,7 +373,7 @@ export class PublicBookingService {
           text: body,
         });
         console.log('[public_booking] confirmation email sent', {
-          appointment_id: appointment?.appointment_id,
+          appointment_id: createdAppointment?.appointment_id,
           message_id: (result as any)?.MessageId,
           to: toEmail,
         });
@@ -384,7 +384,7 @@ export class PublicBookingService {
 
     return {
       ok: true,
-      appointment_id: appointment?.appointment_id,
+      appointment_id: createdAppointment?.appointment_id,
       start_time: startIso,
       end_time: endIso,
     };
