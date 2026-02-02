@@ -278,6 +278,25 @@ function isAddressField(key: string): boolean {
   ].includes(k);
 }
 
+const serviceFieldPriority = [
+  'service_request_type',
+  'service_type',
+  'service_list',
+  'issue_summary',
+  'issue_type',
+  'pest_type_or_symptoms',
+  'visit_reason',
+  'reason_for_visit',
+  'treatment_interest',
+  'symptoms',
+  'problem_description',
+];
+
+function isServiceField(key: string): boolean {
+  const k = normalizeFieldKey(key);
+  return serviceFieldPriority.includes(k);
+}
+
 function isPreferredTimeField(key: string): boolean {
   const k = normalizeFieldKey(key);
   return k === 'preferred_time' || k === 'preferred_datetime';
@@ -318,17 +337,28 @@ function buildIntakeFieldOrder(template: any, requireZipCheck: boolean): string[
   const preferred = unique.find((f) => isPreferredTimeField(f)) ? ['preferred_time'] : ['preferred_time'];
   const filtered = base.filter((f) => !isPhoneField(f));
 
-  const zipIndex = filtered.findIndex((f) => isZipField(f));
-  if (requireZipCheck) {
-    if (zipIndex === -1) {
-      filtered.unshift('zip');
-    } else if (zipIndex > 0) {
-      const [zipField] = filtered.splice(zipIndex, 1);
-      filtered.unshift(zipField);
-    }
+  const zipFields = filtered.filter((f) => isZipField(f));
+  const serviceFields = filtered.filter((f) => isServiceField(f));
+  const emailFields = filtered.filter((f) => isEmailField(f));
+  const otherFields = filtered.filter(
+    (f) => !isZipField(f) && !isServiceField(f) && !isEmailField(f)
+  );
+
+  if (requireZipCheck && !zipFields.length) {
+    zipFields.unshift('zip');
+  }
+  if (!serviceFields.length) {
+    serviceFields.push('service_request_type');
   }
 
-  return [...filtered, ...preferred];
+  const ordered: string[] = [];
+  if (requireZipCheck && zipFields.length) ordered.push(...zipFields);
+  ordered.push(...serviceFields);
+  ordered.push(...otherFields);
+  ordered.push(...emailFields);
+  ordered.push(...preferred);
+
+  return Array.from(new Set(ordered.filter((f) => Boolean(f))));
 }
 
 function fieldPrompt(key: string, serviceLabel: string): string {
@@ -493,6 +523,7 @@ type ConversationState =
   | 'ASK_ZIP'
   | 'CONFIRM_ZIP'
   | 'COLLECTING'
+  | 'ASK_PLAN'
   | 'ASK_TIME'
   | 'ASK_EMAIL'
   | 'CONFIRM_EMAIL'
@@ -508,6 +539,7 @@ type SessionContext = {
   customerName?: string;
   zipCode?: string;
   proposedTime?: string;
+  serviceNeed?: string;
 };
 
 function hasBookingIntent(text: string): boolean {
@@ -781,17 +813,17 @@ function buildInstructions(input: {
     requireZipCheck
       ? `Once you get the Zip Code, IMMEDIATELY call check_service_area(zip).`
       : `Call check_service_area(zip) only if the service area check is enabled or a ZIP is explicitly provided.`,
-    requireZipCheck
-      ? `- If it returns false (not serviced): Apologize, explain you only serve specific areas, and politely end the call (do NOT ask for name).`
-      : null,
-    requireZipCheck
-      ? `- If it returns true (serviced): Confirm the zip code, then proceed to ask for their Name and Service needs.`
-      : null,
-    requireZipCheck
-      ? (isPestControl
-        ? `Pest Control Flow: 1. Zip Code -> 2. Pest Type (ants, roaches, etc.) -> 3. Name -> 4. Address -> 5. Schedule.`
-        : `General Flow: 1. Zip Code -> 2. Problem Description -> 3. Name -> 4. Address -> 5. Schedule.`)
-      : null,
+      requireZipCheck
+        ? `- If it returns false (not serviced): Apologize, explain you only serve specific areas, and politely end the call (do NOT ask for name).`
+        : null,
+      requireZipCheck
+        ? `- If it returns true (serviced): Confirm the zip code, then ask what service they need. If knowledge_search mentions a subscription/plan/price, briefly offer it and ask which plan or a one-time service. Then collect the remaining required details.`
+        : null,
+      requireZipCheck
+        ? (isPestControl
+          ? `Pest Control Flow: 1. Zip Code -> 2. Pest issue/service needed -> 3. Offer subscription if advertised -> 4. Collect required details (name, address, etc.) -> 5. Schedule -> 6. Send confirmation link after booking.`
+          : `General Flow: 1. Zip Code -> 2. Service needed -> 3. Offer subscription if advertised -> 4. Collect required details -> 5. Schedule -> 6. Send confirmation link after booking.`)
+        : null,
     `Be conversational and adaptive while still collecting what is needed.`,
     `WAIT FOR RESPONSE: Ask only ONE question per turn. You MUST wait for the caller to respond before asking another question. NEVER ask two questions in a row.`,
     `STOP AND LISTEN: After asking a question, STOP SPEAKING and wait for the caller's answer. Do not continue talking.`,
@@ -1250,10 +1282,13 @@ wss.on('connection', (twilioWs: WebSocket) => {
   let pendingName: string | null = null;
   let pendingZip: string | null = null;
   let pendingSlot: BookingSlotOption | null = null;
-  let pendingEmail: string | null = null;
-  let pendingEmailPurpose: 'intake' | 'link' | null = null;
-  let appointmentCreated = false;
-  let intakeFieldOrder: string[] = [];
+    let pendingEmail: string | null = null;
+    let pendingEmailPurpose: 'intake' | 'link' | null = null;
+    let appointmentCreated = false;
+    let pendingPlanOffer: string | null = null;
+    let planInquiryComplete = false;
+    let lastPlanQueryKey: string | null = null;
+    let intakeFieldOrder: string[] = [];
   let activeIntakeField: string | null = null;
   let lastBookingPrompt: string | null = null;
   // let lastBookingPromptAt = 0; // Unused
@@ -1938,20 +1973,24 @@ wss.on('connection', (twilioWs: WebSocket) => {
     return false;
   }
 
-  function resetFsmBookingContext() {
-    bookingSlots = [];
-    pendingName = null;
-    pendingZip = null;
-    pendingSlot = null;
-    pendingEmail = null;
-    pendingEmailPurpose = null;
-    intakeFieldOrder = [];
-    activeIntakeField = null;
-    appointmentCreated = false;
-    sessionContext.customerName = undefined;
-    sessionContext.zipCode = undefined;
-    sessionContext.proposedTime = undefined;
-  }
+    function resetFsmBookingContext() {
+      bookingSlots = [];
+      pendingName = null;
+      pendingZip = null;
+      pendingSlot = null;
+      pendingEmail = null;
+      pendingEmailPurpose = null;
+      intakeFieldOrder = [];
+      activeIntakeField = null;
+      appointmentCreated = false;
+      pendingPlanOffer = null;
+      planInquiryComplete = false;
+      lastPlanQueryKey = null;
+      sessionContext.customerName = undefined;
+      sessionContext.zipCode = undefined;
+      sessionContext.proposedTime = undefined;
+      sessionContext.serviceNeed = undefined;
+    }
 
   function requiresServiceAreaCheck(): boolean {
     const policy = tenant?.service_template?.tool_policy;
@@ -2025,12 +2064,89 @@ wss.on('connection', (twilioWs: WebSocket) => {
     }
   }
 
-  function initIntakePlan() {
-    intakeFieldOrder = buildIntakeFieldOrder(tenant?.service_template, requiresServiceAreaCheck());
-    activeIntakeField = null;
-    pendingEmail = null;
-    pendingEmailPurpose = null;
-  }
+    function initIntakePlan() {
+      intakeFieldOrder = buildIntakeFieldOrder(tenant?.service_template, requiresServiceAreaCheck());
+      activeIntakeField = null;
+      pendingEmail = null;
+      pendingEmailPurpose = null;
+    }
+
+    function getServiceFieldKey(): string | null {
+      for (const field of intakeFieldOrder) {
+        if (isServiceField(field)) return field;
+      }
+      return null;
+    }
+
+    function recordServiceNeed(value: string) {
+      const trimmed = value.trim();
+      if (!trimmed) return;
+      const current = sessionContext.serviceNeed;
+      if (!current || normalizeForEcho(current) !== normalizeForEcho(trimmed)) {
+        planInquiryComplete = false;
+        pendingPlanOffer = null;
+        lastPlanQueryKey = null;
+      }
+      sessionContext.serviceNeed = trimmed;
+      const key = getServiceFieldKey();
+      if (key) {
+        setFieldValue(key, trimmed);
+        return;
+      }
+      intake.service_request_type = trimmed;
+    }
+
+    function summarizePlanText(raw: string): string | null {
+      const cleaned = String(raw || '').replace(/\s+/g, ' ').trim();
+      if (!cleaned) return null;
+      const sentence = cleaned.split(/(?<=[.!?])\s+/)[0] || cleaned;
+      if (sentence.length > 220) return `${sentence.slice(0, 220).trim()}...`;
+      return sentence;
+    }
+
+    async function findPlanOffer(serviceNeed: string): Promise<string | null> {
+      if (!ctx) return null;
+      const query = [
+        'subscription plan pricing',
+        serviceNeed,
+        tenant?.service_type ? formatServiceTypeLabel(tenant.service_type) : '',
+      ]
+        .filter(Boolean)
+        .join(' ');
+      let results: any[] = [];
+      try {
+        isProcessingTool = true;
+        results = await invokeTool(ctx, 'knowledge_search', { query, top_k: 3 });
+      } catch (err: any) {
+        log('knowledge_search failed (plan lookup)', err?.message ?? String(err));
+        results = [];
+      } finally {
+        isProcessingTool = false;
+      }
+      if (!Array.isArray(results) || !results.length) return null;
+      const keyword = /\b(subscription|plan|membership|annual|monthly|per\s+year|per\s+month|\$\d+)/i;
+      for (const item of results) {
+        const text = String(item?.text || item?.title || '').trim();
+        if (!text) continue;
+        if (!keyword.test(text)) continue;
+        const summary = summarizePlanText(text);
+        if (summary) return summary;
+      }
+      return null;
+    }
+
+    async function maybeOfferPlan(serviceNeed: string): Promise<boolean> {
+      const key = normalizeForEcho(serviceNeed);
+      if (planInquiryComplete && key === lastPlanQueryKey) return false;
+      lastPlanQueryKey = key;
+      const offer = await findPlanOffer(serviceNeed);
+      planInquiryComplete = true;
+      if (!offer) return false;
+      pendingPlanOffer = offer;
+      sessionContext.state = 'ASK_PLAN';
+      sendPrompt(`${offer} Would you like that subscription, or should we book a one-time service?`);
+      return true;
+    }
 
   function hasFieldValue(field: string): boolean {
     if (isPreferredTimeField(field)) {
@@ -2242,12 +2358,12 @@ wss.on('connection', (twilioWs: WebSocket) => {
         return true;
       }
 
-      if (isAddressField(fieldKey)) {
-        if (!trimmed) {
-          sendPrompt("What's the service address?");
-          return true;
-        }
-        setFieldValue(fieldKey, trimmed);
+        if (isAddressField(fieldKey)) {
+          if (!trimmed) {
+            sendPrompt("What's the service address?");
+            return true;
+          }
+          setFieldValue(fieldKey, trimmed);
         if (!intake.zip) {
           const embeddedZip = extractZipValue(trimmed);
           if (embeddedZip) {
@@ -2256,27 +2372,73 @@ wss.on('connection', (twilioWs: WebSocket) => {
           }
         }
         syncIntakeToModel();
-        activeIntakeField = null;
+          activeIntakeField = null;
+          askForNextField();
+          return true;
+        }
+
+        if (isServiceField(fieldKey)) {
+          if (!trimmed) {
+            sendPrompt(fieldPrompt(fieldKey, formatServiceTypeLabel(tenant?.service_type)));
+            return true;
+          }
+          recordServiceNeed(trimmed);
+          syncIntakeToModel();
+          activeIntakeField = null;
+          if (await maybeOfferPlan(trimmed)) {
+            return true;
+          }
+          askForNextField();
+          return true;
+        }
+
+        if (!trimmed) {
+          sendPrompt(fieldPrompt(fieldKey, formatServiceTypeLabel(tenant?.service_type)));
+          return true;
+        }
+        setFieldValue(fieldKey, trimmed);
+        syncIntakeToModel();
+      activeIntakeField = null;
         askForNextField();
         return true;
       }
 
-      if (!trimmed) {
-        sendPrompt(fieldPrompt(fieldKey, formatServiceTypeLabel(tenant?.service_type)));
+      if (sessionContext.state === 'ASK_PLAN') {
+        const normalized = normalizeForEcho(trimmed);
+        const choosesOneTime =
+          isNegative(trimmed) ||
+          /\bone[-\s]?time\b/.test(normalized) ||
+          /\b(one\s+time|single\s+visit|one\s+off|just\s+once)\b/.test(normalized);
+        const choosesPlan =
+          isAffirmative(trimmed) ||
+          /\b(subscription|plan|membership|annual|monthly)\b/.test(normalized);
+
+        if (choosesPlan) {
+          intake.plan_choice = pendingPlanOffer || 'subscription';
+          pendingPlanOffer = null;
+          sessionContext.state = 'COLLECTING';
+          askForNextField();
+          return true;
+        }
+        if (choosesOneTime) {
+          intake.plan_choice = 'one-time';
+          pendingPlanOffer = null;
+          sessionContext.state = 'COLLECTING';
+          askForNextField();
+          return true;
+        }
+        if (questionIntent) {
+          await answerWithKnowledge(trimmed);
+        }
+        sendPrompt('Would you like the subscription plan, or a one-time service?');
         return true;
       }
-      setFieldValue(fieldKey, trimmed);
-      syncIntakeToModel();
-      activeIntakeField = null;
-      askForNextField();
-      return true;
-    }
 
-    if (sessionContext.state === 'ASK_EMAIL') {
-      if (isNegative(trimmed) || /\b(no email|no e-?mail|dont have email|don't have email|no email address)\b/i.test(trimmed)) {
-        pendingEmail = null;
-        pendingEmailPurpose = null;
-        sendPrompt("No problem. Your booking is confirmed. If you need changes, just call us.");
+      if (sessionContext.state === 'ASK_EMAIL') {
+        if (isNegative(trimmed) || /\b(no email|no e-?mail|dont have email|don't have email|no email address)\b/i.test(trimmed)) {
+          pendingEmail = null;
+          pendingEmailPurpose = null;
+          sendPrompt("No problem. Your booking is confirmed. If you need changes, just call us.");
         sessionContext.state = 'FOLLOW_UP';
         return true;
       }
@@ -2339,29 +2501,24 @@ wss.on('connection', (twilioWs: WebSocket) => {
       return true;
     }
 
-    if (sessionContext.state === 'ASK_NAME') {
-      // Check if we're collecting last name (pendingName already has first name)
-      if (pendingName && pendingName.trim().split(/\s+/).length === 1) {
-        // We already have first name, this is the last name response
-        const lastName = extractNameValue(trimmed) || trimmed.trim();
-        if (lastName) {
-          const fullName = `${pendingName} ${lastName}`;
-          pendingName = fullName;
-          sessionContext.customerName = fullName;
-          intake.name = fullName;
-          syncIntakeToModel();
-          sessionContext.state = requireZipCheck && !intake.zip ? 'ASK_ZIP' : 'ASK_TIME';
-          sendPrompt(
-            sessionContext.state === 'ASK_ZIP'
-              ? "Thanks. What's your 5-digit zip code?"
-              : 'Thanks. What day and time would you prefer?'
-          );
-          return true;
-        } else {
-          sendPrompt("Sorry, I didn't catch that. What's your last name?");
-          return true;
+      if (sessionContext.state === 'ASK_NAME') {
+        // Check if we're collecting last name (pendingName already has first name)
+        if (pendingName && pendingName.trim().split(/\s+/).length === 1) {
+          // We already have first name, this is the last name response
+          const lastName = extractNameValue(trimmed) || trimmed.trim();
+          if (lastName) {
+            const fullName = `${pendingName} ${lastName}`;
+            pendingName = fullName;
+            sessionContext.customerName = fullName;
+            intake.name = fullName;
+            syncIntakeToModel();
+            askForNextField();
+            return true;
+          } else {
+            sendPrompt("Sorry, I didn't catch that. What's your last name?");
+            return true;
+          }
         }
-      }
 
       const name = extractNameValue(trimmed);
       if (!name) {
@@ -2378,34 +2535,23 @@ wss.on('connection', (twilioWs: WebSocket) => {
         return true;
       }
 
-      pendingName = name;
-      sessionContext.customerName = name;
-      intake.name = name;
-      syncIntakeToModel();
-      sessionContext.state = requireZipCheck && !intake.zip ? 'ASK_ZIP' : 'ASK_TIME';
-      sendPrompt(
-        sessionContext.state === 'ASK_ZIP'
-          ? "Thanks. What's your 5-digit zip code?"
-          : 'Thanks. What day and time would you prefer?'
-      );
-      return true;
-    }
-
-    if (sessionContext.state === 'CONFIRM_NAME') {
-      if (isAffirmative(trimmed)) {
-        if (pendingName) {
-          intake.name = pendingName;
-          syncIntakeToModel();
-        }
-        if (requireZipCheck && !intake.zip) {
-          sessionContext.state = 'ASK_ZIP';
-          sendPrompt("Thanks. What's your 5-digit zip code?");
-        } else {
-          sessionContext.state = 'ASK_TIME';
-          sendPrompt('Thanks. What day and time would you prefer?');
-        }
+        pendingName = name;
+        sessionContext.customerName = name;
+        intake.name = name;
+        syncIntakeToModel();
+        askForNextField();
         return true;
       }
+
+      if (sessionContext.state === 'CONFIRM_NAME') {
+        if (isAffirmative(trimmed)) {
+          if (pendingName) {
+            intake.name = pendingName;
+            syncIntakeToModel();
+          }
+          askForNextField();
+          return true;
+        }
       if (isNegative(trimmed)) {
         pendingName = null;
         sessionContext.customerName = undefined;
@@ -2417,15 +2563,14 @@ wss.on('connection', (twilioWs: WebSocket) => {
       return true;
     }
 
-    if (sessionContext.state === 'ASK_ZIP') {
-      if (!requireZipCheck) {
-        sessionContext.state = 'ASK_NAME';
-        sendPrompt("Thanks. What's your first and last name?");
-        return true;
-      }
-      const zip = extractZipValue(trimmed);
-      if (!zip) {
-        if (looksLikeAddress(trimmed)) {
+      if (sessionContext.state === 'ASK_ZIP') {
+        if (!requireZipCheck) {
+          askForNextField();
+          return true;
+        }
+        const zip = extractZipValue(trimmed);
+        if (!zip) {
+          if (looksLikeAddress(trimmed)) {
           intake.address = trimmed;
           syncIntakeToModel();
         }
@@ -2435,28 +2580,22 @@ wss.on('connection', (twilioWs: WebSocket) => {
       pendingZip = zip;
       sessionContext.zipCode = zip;
       intake.zip = zip;
-      syncIntakeToModel();
-      const serviced = await ensureServiceArea(zip);
-      if (!serviced) return true;
-      sessionContext.state = intake.name ? 'ASK_TIME' : 'ASK_NAME';
-      sendPrompt(
-        sessionContext.state === 'ASK_TIME'
-          ? 'Thanks. What day and time would you prefer?'
-          : "Thanks. What's your first and last name?"
-      );
-      return true;
-    }
-
-    if (sessionContext.state === 'CONFIRM_ZIP') {
-      if (isAffirmative(trimmed)) {
-        if (pendingZip) {
-          intake.zip = pendingZip;
-          syncIntakeToModel();
-        }
-        sessionContext.state = 'ASK_TIME';
-        sendPrompt('What day and time would you prefer?');
+        syncIntakeToModel();
+        const serviced = await ensureServiceArea(zip);
+        if (!serviced) return true;
+        askForNextField();
         return true;
       }
+
+      if (sessionContext.state === 'CONFIRM_ZIP') {
+        if (isAffirmative(trimmed)) {
+          if (pendingZip) {
+            intake.zip = pendingZip;
+            syncIntakeToModel();
+          }
+          askForNextField();
+          return true;
+        }
       if (isNegative(trimmed)) {
         pendingZip = null;
         sessionContext.zipCode = undefined;
