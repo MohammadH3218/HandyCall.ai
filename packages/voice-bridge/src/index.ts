@@ -1262,11 +1262,11 @@ wss.on('connection', (twilioWs: WebSocket) => {
   let openaiOutputAudioFormat: string = 'g711_ulaw';
   let audioDeltaDebugCount = 0;
   let lastAssistantText = '';
-  let lastAssistantAt = 0;
-  let lastResponseId: string | null = null;
-  let tenant: any = null;
-  let lastCallerText = '';
-  let lastCallerAt = 0;
+    let lastAssistantAt = 0;
+    let lastResponseId: string | null = null;
+    let tenant: any = null;
+    let lastCallerText = '';
+    let lastCallerAt = 0;
   let lastAssistantQuestionAt = 0;
   let lastUserSpeechStartedAt = 0;
   let lastUserSpeechStoppedAt = 0;
@@ -1292,12 +1292,13 @@ wss.on('connection', (twilioWs: WebSocket) => {
   let lastBookingPrompt: string | null = null;
   // let lastBookingPromptAt = 0; // Unused
   let bookingPromptActive = false;
-  let lastAvailabilitySlots: string[] = [];
-  let lastAvailabilityTimezone: string | null = null;
-  let initialGreetingSent = false;
-  let openaiSessionReady = false;
-  let twilioStreamReady = false;
-  let outboundAudioQueue: string[] = [];
+    let lastAvailabilitySlots: string[] = [];
+    let lastAvailabilityTimezone: string | null = null;
+    let initialGreetingSent = false;
+    let openaiSessionReady = false;
+    let twilioStreamReady = false;
+    let allowModelResponse = false;
+    let outboundAudioQueue: string[] = [];
   let outboundAudioTimer: NodeJS.Timeout | null = null;
   let outboundNextSendAt = 0;
 
@@ -1503,13 +1504,13 @@ wss.on('connection', (twilioWs: WebSocket) => {
     }
   }
 
-  function scheduleAssistantResponse() {
-    if (!openaiWs || pendingAutoHangup) return;
-    if (!fsmEnabled && bookingStep !== 'idle') return;
-    clearPendingResponseTimer();
-    if (!pendingUserTranscript.trim()) {
-      if (!pendingAutoHangup) armNoResponseTimer();
-      return;
+    function scheduleAssistantResponse() {
+      if (!openaiWs || pendingAutoHangup) return;
+      if (!fsmEnabled && bookingStep !== 'idle') return;
+      clearPendingResponseTimer();
+      if (!pendingUserTranscript.trim()) {
+        if (!pendingAutoHangup) armNoResponseTimer();
+        return;
     }
     if (lastUserSpeechStoppedAt && Date.now() - lastUserSpeechStoppedAt < 250) {
       pendingResponseAfterSpeech = true;
@@ -1559,11 +1560,12 @@ wss.on('connection', (twilioWs: WebSocket) => {
         } catch (err: any) {
           log('handleBookingTurn failed (deferred)', err?.message ?? String(err));
         }
-      }
-      pendingUserTranscript = '';
-      sendToOpenAI(openaiWs!, responseCreate());
-    }, delayMs);
-  }
+        }
+        pendingUserTranscript = '';
+        allowModelResponse = true;
+        sendToOpenAI(openaiWs!, responseCreate());
+      }, delayMs);
+    }
 
   function tryInitialGreeting() {
     if (initialGreetingSent) return;
@@ -1586,26 +1588,27 @@ wss.on('connection', (twilioWs: WebSocket) => {
     armNoResponseTimer();
   }
 
-  function sendPrompt(text: string, options?: { max_output_tokens?: number }) {
-    if (!openaiWs || pendingAutoHangup) return;
-    clearPendingResponseTimer();
-    if (lastResponseId) {
-      sendToOpenAI(openaiWs, { type: 'response.cancel' });
-    }
-    const safe = text.replace(/"/g, '\\"');
-    if (fsmEnabled) {
-      lastFsmPrompt = text;
-    } else if (bookingStep !== 'idle') {
-      lastBookingPrompt = text;
+    function sendPrompt(text: string, options?: { max_output_tokens?: number }) {
+      if (!openaiWs || pendingAutoHangup) return;
+      clearPendingResponseTimer();
+      if (lastResponseId) {
+        sendToOpenAI(openaiWs, { type: 'response.cancel' });
+      }
+      allowModelResponse = true;
+      const safe = text.replace(/"/g, '\\"');
+      if (fsmEnabled) {
+        lastFsmPrompt = text;
+      } else if (bookingStep !== 'idle') {
+        lastBookingPrompt = text;
       // lastBookingPromptAt = Date.now();
       bookingPromptActive = true;
     }
     const maxTokens = options?.max_output_tokens ?? 120;
-    sendToOpenAI(
-      openaiWs,
-      responseCreate(
-        ['audio', 'text'],
-        `Read the following sentence verbatim. Do not add, remove, or paraphrase any words: "${safe}"`,
+      sendToOpenAI(
+        openaiWs,
+        responseCreate(
+          ['audio', 'text'],
+          `Read the following sentence verbatim. Do not add, remove, or paraphrase any words: "${safe}"`,
         {
           temperature: 0,
           max_output_tokens: maxTokens,
@@ -2025,7 +2028,11 @@ wss.on('connection', (twilioWs: WebSocket) => {
       .filter(Boolean)
       .join('\n');
     const instructions = `Use only the information below to answer in 1-2 sentences. Do not ask a question.\n\n${snippets}`;
-    sendToOpenAI(openaiWs, responseCreate(['audio', 'text'], instructions, { temperature: 0.2, max_output_tokens: 200, tool_choice: 'none' }));
+    allowModelResponse = true;
+    sendToOpenAI(
+      openaiWs,
+      responseCreate(['audio', 'text'], instructions, { temperature: 0.2, max_output_tokens: 200, tool_choice: 'none' })
+    );
     return true;
   }
 
@@ -2863,16 +2870,17 @@ wss.on('connection', (twilioWs: WebSocket) => {
         return;
       }
 
-      if (noResponseStage === 0) {
-        noResponseStage = 1;
-        if (fsmEnabled) {
-          sendPrompt("Sorry, I didn't catch that. How can I help you today?");
-        } else {
-          sendToOpenAI(openaiWs, {
-            type: 'response.create',
-            response: {
-              modalities: ['audio', 'text'],
-              instructions:
+        if (noResponseStage === 0) {
+          noResponseStage = 1;
+          if (fsmEnabled) {
+            sendPrompt("Sorry, I didn't catch that. How can I help you today?");
+          } else {
+            allowModelResponse = true;
+            sendToOpenAI(openaiWs, {
+              type: 'response.create',
+              response: {
+                modalities: ['audio', 'text'],
+                instructions:
                 "Sorry, I didn't catch that. How can I help you today? Keep it to one short question.",
             },
           });
@@ -2886,13 +2894,14 @@ wss.on('connection', (twilioWs: WebSocket) => {
         pendingAutoHangup = true;
         pendingHangupMarkName = `no_response_${Date.now()}`;
       }
-      scheduleForcedHangup('no response after two prompts');
-      sendToOpenAI(openaiWs, { type: 'response.cancel' });
-      sendToOpenAI(openaiWs, {
-        type: 'response.create',
-        response: {
-          modalities: ['audio', 'text'],
-          instructions:
+        scheduleForcedHangup('no response after two prompts');
+        sendToOpenAI(openaiWs, { type: 'response.cancel' });
+        allowModelResponse = true;
+        sendToOpenAI(openaiWs, {
+          type: 'response.create',
+          response: {
+            modalities: ['audio', 'text'],
+            instructions:
             'No response from the caller. Say ONE short friendly goodbye sentence and end the call. Do not ask another question.',
         },
       });
@@ -3138,6 +3147,15 @@ wss.on('connection', (twilioWs: WebSocket) => {
 
           openaiSessionReady = true;
           tryInitialGreeting();
+        }
+
+        const responseEvent = typeof msg?.type === 'string' && msg.type.startsWith('response.');
+        if (responseEvent && !allowModelResponse) {
+          if (msg.type === 'response.created') {
+            log('Blocking unsolicited model response');
+            sendToOpenAI(openaiWs, { type: 'response.cancel' });
+          }
+          return;
         }
 
         // Barge-in: cancel assistant output when user starts talking.
@@ -3398,6 +3416,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
                 scheduleForcedHangup('caller said no (anything else)');
                 // Cancel any in-flight response and force a short goodbye before ending.
                 sendToOpenAI(openaiWs, { type: 'response.cancel' });
+                allowModelResponse = true;
                 sendToOpenAI(openaiWs, {
                   type: 'response.create',
                   response: {
@@ -3448,11 +3467,12 @@ wss.on('connection', (twilioWs: WebSocket) => {
                     } catch (e) { }
                   }
 
-                  // Fallback / Default conversation
-                  if (pendingUserTranscript) { // if not consumed
-                    pendingUserTranscript = '';
-                    sendToOpenAI(openaiWs!, responseCreate());
-                  }
+                    // Fallback / Default conversation
+                    if (pendingUserTranscript) { // if not consumed
+                      pendingUserTranscript = '';
+                      allowModelResponse = true;
+                      sendToOpenAI(openaiWs!, responseCreate());
+                    }
                 })();
               }
             }
@@ -3492,6 +3512,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
                   },
                 });
                 isProcessingTool = false;
+                allowModelResponse = true;
                 sendToOpenAI(
                   openaiWs,
                   responseCreate(
@@ -3544,11 +3565,12 @@ wss.on('connection', (twilioWs: WebSocket) => {
               if (patchKeys.length === 0) {
                 return;
               }
-              if (!assistantAskedQuestion) {
-                sendToOpenAI(openaiWs, responseCreate());
+                if (!assistantAskedQuestion) {
+                  allowModelResponse = true;
+                  sendToOpenAI(openaiWs, responseCreate());
+                }
+                return;
               }
-              return;
-            }
 
             if (toolName === 'end_call') {
               // Don't hang up immediately inside the tool call (it can cut off the final audio).
@@ -3566,11 +3588,12 @@ wss.on('connection', (twilioWs: WebSocket) => {
                   call_id: toolCallId,
                   output: JSON.stringify({ ok: true }),
                 },
-              });
-              isProcessingTool = false;
-              sendToOpenAI(openaiWs, responseCreate());
-              return;
-            }
+                });
+                isProcessingTool = false;
+                allowModelResponse = true;
+                sendToOpenAI(openaiWs, responseCreate());
+                return;
+              }
 
             if (toolName === 'create_booking') {
               const currentName =
@@ -3653,13 +3676,14 @@ wss.on('connection', (twilioWs: WebSocket) => {
               sendToOpenAI(openaiWs, {
                 type: 'conversation.item.create',
                 item: { type: 'function_call_output', call_id: toolCallId, output: JSON.stringify(result) },
-              });
-              isProcessingTool = false;
-              sendToOpenAI(openaiWs, {
-                type: 'response.create',
-                response: {
-                  modalities: ['audio', 'text'],
-                  instructions:
+                });
+                isProcessingTool = false;
+                allowModelResponse = true;
+                sendToOpenAI(openaiWs, {
+                  type: 'response.create',
+                  response: {
+                    modalities: ['audio', 'text'],
+                    instructions:
                     'Say ONE short friendly goodbye sentence (thank them and invite them to call back if needed). Do not mention saving. Do not ask another question.',
                 },
               });
@@ -3680,38 +3704,42 @@ wss.on('connection', (twilioWs: WebSocket) => {
                   (typeof args?.timezone === 'string' ? args.timezone : '') ||
                   tenant?.timezone ||
                   'UTC';
-                if (spokenAvailability) {
-                  sendToOpenAI(
-                    openaiWs,
-                    responseCreate(['audio', 'text'], spokenAvailability)
-                  );
-                } else {
-                  const readableSlots = Array.isArray((result as any)?.readable_slots)
-                    ? (result as any).readable_slots
-                    : slots.map((slot: string) => formatSlotForPrompt(slot, tz));
-                  sendToOpenAI(
-                    openaiWs,
-                    responseCreate(
-                      ['audio', 'text'],
-                      `Offer only these available times in ${tz} (no other times): ${readableSlots.join(
-                        ', '
+                  if (spokenAvailability) {
+                    allowModelResponse = true;
+                    sendToOpenAI(
+                      openaiWs,
+                      responseCreate(['audio', 'text'], spokenAvailability)
+                    );
+                  } else {
+                    const readableSlots = Array.isArray((result as any)?.readable_slots)
+                      ? (result as any).readable_slots
+                      : slots.map((slot: string) => formatSlotForPrompt(slot, tz));
+                    allowModelResponse = true;
+                    sendToOpenAI(
+                      openaiWs,
+                      responseCreate(
+                        ['audio', 'text'],
+                        `Offer only these available times in ${tz} (no other times): ${readableSlots.join(
+                          ', '
                       )}. Ask which one they want. Do not confirm a time until they choose one.`
                     )
                   );
                 }
-              } else {
-                sendToOpenAI(
-                  openaiWs,
-                  responseCreate(
-                    ['audio', 'text'],
-                    'There are no openings in that window. Ask for another day or a different time range.'
-                  )
-                );
+                } else {
+                  allowModelResponse = true;
+                  sendToOpenAI(
+                    openaiWs,
+                    responseCreate(
+                      ['audio', 'text'],
+                      'There are no openings in that window. Ask for another day or a different time range.'
+                    )
+                  );
+                }
+                return;
               }
-              return;
-            }
-            isProcessingTool = false;
-            sendToOpenAI(openaiWs, responseCreate());
+              isProcessingTool = false;
+              allowModelResponse = true;
+              sendToOpenAI(openaiWs, responseCreate());
             isProcessingTool = false;
           } catch (err: any) {
             // Keep the caller experience smooth: save_call failures should never be spoken back to the caller.
@@ -3818,16 +3846,17 @@ wss.on('connection', (twilioWs: WebSocket) => {
               if (!pendingAutoHangup) armNoResponseTimer();
             }
           }
-          if (responseId) lastResponseId = responseId;
-          pendingAssistantText = '';
-          pendingAssistantHeuristicText = '';
-          assistantTranscriptSource = null;
-          if (fsmEnabled && pendingAnswerFollowUp) {
-            pendingAnswerFollowUp = false;
-            sessionContext.state = 'FOLLOW_UP';
-            if (!pendingAutoHangup) {
-              sendPrompt('Is there anything else I can help with today?');
-            }
+            if (responseId) lastResponseId = responseId;
+            pendingAssistantText = '';
+            pendingAssistantHeuristicText = '';
+            assistantTranscriptSource = null;
+            allowModelResponse = false;
+            if (fsmEnabled && pendingAnswerFollowUp) {
+              pendingAnswerFollowUp = false;
+              sessionContext.state = 'FOLLOW_UP';
+              if (!pendingAutoHangup) {
+                sendPrompt('Is there anything else I can help with today?');
+              }
           }
         }
       });
