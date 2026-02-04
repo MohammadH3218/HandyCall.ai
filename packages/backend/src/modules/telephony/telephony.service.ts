@@ -168,6 +168,58 @@ export class TelephonyService {
     return { phoneNumberSid: sid, phoneNumber: did, companyName: company.company_name, voiceUrl };
   }
 
+  private demoSuffix(seed: string, salt: number = 0): string {
+    let hash = 0;
+    for (let i = 0; i < seed.length; i++) {
+      hash = (hash * 31 + seed.charCodeAt(i) + salt) % 10000000;
+    }
+    return String(hash).padStart(7, '0');
+  }
+
+  private buildDemoDid(companyId: string, salt: number = 0): string {
+    // Use 555 prefix to avoid real numbers; +1 + 10 digits total.
+    return `+1555${this.demoSuffix(companyId, salt)}`;
+  }
+
+  async assignDemoNumberForCompany(companyId: string) {
+    const company = await this.companiesService.findById(companyId);
+    if (!company) throw new NotFoundException('Company not found');
+
+    const existing = await this.companyNumbersService.listCompanyNumbers(companyId);
+    const preferred = existing.find((n) => n.provider === 'TWILIO') ?? existing[0];
+    if (preferred) {
+      return {
+        phoneNumber: preferred.did_e164,
+        provider: preferred.provider,
+        label: preferred.label,
+        demo: preferred.provider !== 'TWILIO',
+      };
+    }
+
+    let lastError: unknown;
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const did = this.buildDemoDid(companyId, attempt);
+      try {
+        const assigned = await this.companyNumbersService.assignDidToCompany({
+          did_e164: did,
+          company_id: companyId,
+          provider: 'OTHER',
+          label: 'Demo number (testing)',
+        });
+        return {
+          phoneNumber: assigned.did_e164,
+          provider: assigned.provider,
+          label: assigned.label,
+          demo: true,
+        };
+      } catch (error) {
+        lastError = error;
+      }
+    }
+
+    throw lastError instanceof Error ? lastError : new Error('Failed to assign demo number');
+  }
+
   /**
    * Product decision: 1 number per company, claim-once.
    * Keep endpoint for now but do not allow releases.
@@ -181,10 +233,10 @@ export class TelephonyService {
     if (!company) throw new NotFoundException('Company not found');
 
     const numbers = await this.companyNumbersService.listCompanyNumbers(companyId);
-    const twilio = numbers.find((n) => n.provider === 'TWILIO') ?? null;
-    if (!twilio) return null;
+    const primary = numbers.find((n) => n.provider === 'TWILIO') ?? numbers[0] ?? null;
+    if (!primary) return null;
 
-    return { phoneNumber: twilio.did_e164, provider: twilio.provider, label: twilio.label };
+    return { phoneNumber: primary.did_e164, provider: primary.provider, label: primary.label };
   }
 
   async verifyCompanyPhoneNumber(companyId: string): Promise<boolean> {
@@ -224,4 +276,3 @@ export class TelephonyService {
     return this.companyNumbersService.unassignDid({ did_e164: didE164, company_id: companyId });
   }
 }
-

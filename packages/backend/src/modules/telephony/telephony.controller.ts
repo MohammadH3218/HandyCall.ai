@@ -113,4 +113,25 @@ export class TelephonyController {
       );
     }
   }
+
+  /**
+   * POST /telephony/claim-demo
+   * Assign a demo/testing phone number without purchasing a real line.
+   */
+  @Post('claim-demo')
+  async claimDemoNumber(@CompanyId() companyId: string) {
+    try {
+      const result = await this.telephonyService.assignDemoNumberForCompany(companyId);
+      return { success: true, data: result };
+    } catch (error: any) {
+      throw new HttpException(
+        {
+          success: false,
+          message: 'Failed to assign demo phone number',
+          error: error?.message ?? String(error),
+        },
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
 }

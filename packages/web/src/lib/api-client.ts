@@ -290,6 +290,13 @@ class ApiClient {
     return response.data ?? response;
   }
 
+  async claimDemoPhoneNumber(): Promise<any> {
+    const response = await this.request<any>('/telephony/claim-demo', {
+      method: 'POST',
+    });
+    return response.data ?? response;
+  }
+
   // Knowledge endpoints
   async getKnowledgeItems(type?: string, status?: string, limit?: number): Promise<any> {
     const params = new URLSearchParams();

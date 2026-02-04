@@ -1051,6 +1051,7 @@ function PhoneStep({ nextStep }: { nextStep?: OnboardingStepId }) {
   const [availableNumbers, setAvailableNumbers] = useState<any[]>([]);
   const [searching, setSearching] = useState(false);
   const [claiming, setClaiming] = useState<string | null>(null);
+  const [demoClaiming, setDemoClaiming] = useState(false);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -1097,6 +1098,33 @@ function PhoneStep({ nextStep }: { nextStep?: OnboardingStepId }) {
       });
     } finally {
       setClaiming(null);
+    }
+  };
+
+  const handleClaimDemo = async () => {
+    setDemoClaiming(true);
+    try {
+      const res = await apiClient.claimDemoPhoneNumber();
+      const claimed =
+        res?.phoneNumber ??
+        res?.phone_number ??
+        res?.data?.phoneNumber ??
+        res?.data?.phone_number ??
+        null;
+      await refreshCompanyNumber();
+      await refreshAll();
+      toast({
+        title: 'Demo number assigned',
+        description: claimed ? `Your demo HandyCall line is ${claimed}.` : 'Your demo HandyCall line is ready.',
+      });
+    } catch (err: any) {
+      toast({
+        title: 'Demo assignment failed',
+        description: err?.message || 'Unable to assign a demo number.',
+        variant: 'destructive',
+      });
+    } finally {
+      setDemoClaiming(false);
     }
   };
 
@@ -1161,6 +1189,21 @@ function PhoneStep({ nextStep }: { nextStep?: OnboardingStepId }) {
                   Forward calls from your carrier to <strong>{companyNumber}</strong> to let HandyCall answer for you.
                 </div>
               )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Use a demo HandyCall number</CardTitle>
+              <CardDescription>Skip purchasing a line while you test the platform.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="rounded-xl border border-emerald-100 bg-emerald-50/60 p-4 text-sm text-emerald-900">
+                Demo numbers are for setup/testing only and are not connected to real telephony.
+              </div>
+              <Button onClick={handleClaimDemo} disabled={demoClaiming || Boolean(companyNumber)}>
+                {companyNumber ? 'Number already assigned' : demoClaiming ? 'Assigning...' : 'Use demo number'}
+              </Button>
             </CardContent>
           </Card>
 
