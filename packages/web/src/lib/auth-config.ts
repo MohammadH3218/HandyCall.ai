@@ -46,59 +46,59 @@ const COGNITO_AUTH_BASE_URL = COGNITO_AUTH_DOMAIN
     : `https://${COGNITO_AUTH_DOMAIN}.auth.${COGNITO_REGION}.amazoncognito.com`
   : undefined;
 
+const buildCognitoProvider = (options: {
+  id: string;
+  name: string;
+  identityProvider: string;
+}) =>
+  CognitoProvider({
+    id: options.id,
+    name: options.name,
+    clientId: COGNITO_CLIENT_ID,
+    clientSecret: COGNITO_CLIENT_SECRET,
+    issuer: COGNITO_ISSUER,
+    // Cognito Hosted UI can be picky about PKCE; rely on state checks only.
+    checks: ["state"],
+    client: {
+      token_endpoint_auth_method: "client_secret_post",
+    },
+    ...(COGNITO_AUTH_BASE_URL
+      ? {
+          authorization: {
+            url: `${COGNITO_AUTH_BASE_URL}/oauth2/authorize`,
+            params: {
+              identity_provider: options.identityProvider,
+              response_type: "code",
+              scope: "openid email profile",
+            },
+          },
+          token: `${COGNITO_AUTH_BASE_URL}/oauth2/token`,
+          userinfo: `${COGNITO_AUTH_BASE_URL}/oauth2/userInfo`,
+        }
+      : {
+          authorization: {
+            params: {
+              identity_provider: options.identityProvider,
+              response_type: "code",
+              scope: "openid email profile",
+            },
+          },
+        }),
+  });
+
 export const authOptions: NextAuthOptions = {
   providers: [
     ...(COGNITO_ISSUER && COGNITO_CLIENT_ID
       ? [
-          CognitoProvider({
+          buildCognitoProvider({
             id: "cognito-google",
             name: "Google",
-            clientId: COGNITO_CLIENT_ID,
-            clientSecret: COGNITO_CLIENT_SECRET,
-            issuer: COGNITO_ISSUER,
-            ...(COGNITO_AUTH_BASE_URL
-              ? {
-                  authorization: {
-                    url: `${COGNITO_AUTH_BASE_URL}/oauth2/authorize`,
-                    params: {
-                      identity_provider: COGNITO_GOOGLE_IDP,
-                    },
-                  },
-                  token: `${COGNITO_AUTH_BASE_URL}/oauth2/token`,
-                  userinfo: `${COGNITO_AUTH_BASE_URL}/oauth2/userInfo`,
-                }
-              : {
-                  authorization: {
-                    params: {
-                      identity_provider: COGNITO_GOOGLE_IDP,
-                    },
-                  },
-                }),
+            identityProvider: COGNITO_GOOGLE_IDP,
           }),
-          CognitoProvider({
+          buildCognitoProvider({
             id: "cognito-apple",
             name: "Apple",
-            clientId: COGNITO_CLIENT_ID,
-            clientSecret: COGNITO_CLIENT_SECRET,
-            issuer: COGNITO_ISSUER,
-            ...(COGNITO_AUTH_BASE_URL
-              ? {
-                  authorization: {
-                    url: `${COGNITO_AUTH_BASE_URL}/oauth2/authorize`,
-                    params: {
-                      identity_provider: COGNITO_APPLE_IDP,
-                    },
-                  },
-                  token: `${COGNITO_AUTH_BASE_URL}/oauth2/token`,
-                  userinfo: `${COGNITO_AUTH_BASE_URL}/oauth2/userInfo`,
-                }
-              : {
-                  authorization: {
-                    params: {
-                      identity_provider: COGNITO_APPLE_IDP,
-                    },
-                  },
-                }),
+            identityProvider: COGNITO_APPLE_IDP,
           }),
         ]
       : []),
