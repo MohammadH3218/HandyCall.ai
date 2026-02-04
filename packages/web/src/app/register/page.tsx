@@ -1,12 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { getSession, signIn } from 'next-auth/react';
 import { apiClient } from '@/lib/api-client';
 import { useAuthStore } from '@/stores/auth-store';
-import { UserRole } from '@handycall/shared';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -73,7 +72,7 @@ const AppleIcon = ({ className }: { className?: string }) => (
 
 export default function RegisterPage() {
   const router = useRouter();
-  const { checkAuth, isAuthenticated, isLoading, userRole } = useAuthStore();
+  const { checkAuth } = useAuthStore();
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -81,20 +80,6 @@ export default function RegisterPage() {
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [socialLoading, setSocialLoading] = useState<'cognito-google' | 'cognito-apple' | null>(null);
-
-  useEffect(() => {
-    checkAuth().catch(console.error);
-  }, [checkAuth]);
-
-  useEffect(() => {
-    if (!isLoading && isAuthenticated) {
-      if (userRole === UserRole.ADMIN) {
-        router.push('/admin');
-      } else {
-        router.push('/dashboard');
-      }
-    }
-  }, [isAuthenticated, isLoading, router, userRole]);
 
   const handleSocialSignUp = async (provider: 'cognito-google' | 'cognito-apple') => {
     setError('');
