@@ -39,7 +39,10 @@ export class CognitoService {
   private adminClientSecret: string;
 
   constructor(private configService: ConfigService) {
-    const region = this.configService.get<string>('AWS_REGION');
+    const region =
+      this.configService.get<string>('AWS_REGION') ||
+      this.configService.get<string>('AWS_DEFAULT_REGION') ||
+      'us-east-1';
     this.cognitoClient = new CognitoIdentityProviderClient({ region });
 
     this.usersPoolId = this.configService.get<string>('AWS_COGNITO_USERS_POOL_ID')!;

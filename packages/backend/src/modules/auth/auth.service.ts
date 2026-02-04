@@ -67,28 +67,48 @@ export class AuthService {
     // Format phone number when provided
     const formattedPhone = resolvedPhone ? formatPhoneNumber(resolvedPhone) : undefined;
 
-    // Create company
-    const companyProfileCompleted = Boolean(normalizedName && hasProvidedServiceType);
-    const company = await this.companiesService.createCompany(
-      resolvedCompanyName,
-      resolvedServiceType,
-      email,
-      formattedPhone,
-      resolvedTimezone,
-      { companyProfileCompleted }
-    );
+    let company = await this.companiesService.findByEmail(email);
+    let createdCompany = false;
 
-    // Create owner user
-    const { user } = await this.usersService.createUser(
-      company.company_id,
-      undefined, // companyName - already have company_id
-      email,
-      password,
-      derivedFirstName,
-      derivedLastName,
-      UserRole.OWNER,
-      'users'
-    );
+    if (!company) {
+      // Create company
+      const companyProfileCompleted = Boolean(normalizedName && hasProvidedServiceType);
+      company = await this.companiesService.createCompany(
+        resolvedCompanyName,
+        resolvedServiceType,
+        email,
+        formattedPhone,
+        resolvedTimezone,
+        { companyProfileCompleted }
+      );
+      createdCompany = true;
+    }
+
+    // Create owner user (or attach if company already existed but user didn't)
+    let user;
+    try {
+      const created = await this.usersService.createUser(
+        company.company_id,
+        undefined, // companyName - already have company_id
+        email,
+        password,
+        derivedFirstName,
+        derivedLastName,
+        UserRole.OWNER,
+        'users'
+      );
+      user = created.user;
+    } catch (error) {
+      // Roll back orphaned company if user creation failed
+      if (createdCompany && company?.company_id) {
+        try {
+          await this.companiesService.deleteCompany(company.company_id);
+        } catch (rollbackError) {
+          console.error('[AuthService] Failed to rollback company after user creation error:', rollbackError);
+        }
+      }
+      throw error;
+    }
 
     // Create default agent config
     await this.agentConfigService.createDefaultConfig(company.company_id);
