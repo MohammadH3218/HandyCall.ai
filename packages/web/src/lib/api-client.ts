@@ -488,8 +488,12 @@ class ApiClient {
     return response.data ?? response;
   }
 
-  async getUsageMetrics(): Promise<any> {
-    const response = await this.request<any>('/billing/usage', {
+  async getUsageMetrics(startDate?: string, endDate?: string): Promise<any> {
+    const params = new URLSearchParams();
+    if (startDate) params.append('start_date', startDate);
+    if (endDate) params.append('end_date', endDate);
+    const suffix = params.toString() ? `?${params.toString()}` : '';
+    const response = await this.request<any>(`/billing/usage${suffix}`, {
       method: 'GET',
     });
     return response.data ?? response;

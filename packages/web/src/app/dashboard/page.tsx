@@ -5,7 +5,9 @@ import Link from 'next/link';
 import { useAuthStore } from '@/stores/auth-store';
 import { apiClient } from '@/lib/api-client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { Phone, Users, Calendar, AlertCircle, ArrowUpRight } from 'lucide-react';
+import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 
 interface DashboardStats {
   todayCalls: number;
@@ -33,6 +35,18 @@ interface UpcomingAppointment {
   status: string;
 }
 
+interface UsageMetric {
+  date: string;
+  calls_count?: number;
+}
+
+type ChartRange = 'week' | 'month' | 'year';
+
+interface ChartPoint {
+  label: string;
+  value: number;
+}
+
 export default function DashboardPage() {
   const { company } = useAuthStore();
   const [stats, setStats] = useState<DashboardStats | null>(null);
@@ -40,9 +54,23 @@ export default function DashboardPage() {
   const [upcomingAppointments, setUpcomingAppointments] = useState<UpcomingAppointment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [chartRange, setChartRange] = useState<ChartRange>('week');
+  const [chartSeries, setChartSeries] = useState<Record<ChartRange, ChartPoint[]>>({
+    week: [],
+    month: [],
+    year: [],
+  });
+  const [chartLoading, setChartLoading] = useState<Record<ChartRange, boolean>>({
+    week: false,
+    month: false,
+    year: false,
+  });
+  const [chartError, setChartError] = useState<string | null>(null);
 
   useEffect(() => {
     loadDashboardData();
+    void loadChartData('week');
+    void loadChartData('month');
   }, []);
 
   const loadDashboardData = async () => {
@@ -67,6 +95,76 @@ export default function DashboardPage() {
     }
   };
 
+  const toISODate = (date: Date) => date.toISOString().split('T')[0];
+
+  const addDays = (date: Date, days: number) => {
+    const next = new Date(date);
+    next.setDate(next.getDate() + days);
+    return next;
+  };
+
+  const buildDailySeries = (start: Date, end: Date, history: UsageMetric[], labelFormat: Intl.DateTimeFormatOptions) => {
+    const map = new Map<string, number>();
+    history.forEach((item) => {
+      if (!item?.date) return;
+      map.set(item.date, Number(item.calls_count || 0));
+    });
+
+    const series: ChartPoint[] = [];
+    let cursor = new Date(start);
+    while (cursor <= end) {
+      const key = toISODate(cursor);
+      const label = cursor.toLocaleDateString('en-US', labelFormat);
+      series.push({ label, value: map.get(key) ?? 0 });
+      cursor = addDays(cursor, 1);
+    }
+    return series;
+  };
+
+  const loadChartData = async (range: ChartRange) => {
+    if (chartLoading[range]) return;
+    if (chartSeries[range]?.length) return;
+
+    setChartLoading((prev) => ({ ...prev, [range]: true }));
+    setChartError(null);
+
+    try {
+      if (range === 'year') {
+        const end = new Date();
+        const points: ChartPoint[] = [];
+        for (let i = 11; i >= 0; i -= 1) {
+          const monthStart = new Date(end.getFullYear(), end.getMonth() - i, 1);
+          const monthEnd = new Date(end.getFullYear(), end.getMonth() - i + 1, 0);
+          const res = await apiClient.getUsageMetrics(toISODate(monthStart), toISODate(monthEnd));
+          const history = (res as any)?.history || [];
+          const total = (history as UsageMetric[]).reduce(
+            (acc, item) => acc + Number(item?.calls_count || 0),
+            0
+          );
+          points.push({
+            label: monthStart.toLocaleDateString('en-US', { month: 'short' }),
+            value: total,
+          });
+        }
+        setChartSeries((prev) => ({ ...prev, year: points }));
+        return;
+      }
+
+      const end = new Date();
+      const start = range === 'week' ? addDays(end, -6) : addDays(end, -29);
+      const res = await apiClient.getUsageMetrics(toISODate(start), toISODate(end));
+      const history = (res as any)?.history || [];
+      const format: Intl.DateTimeFormatOptions =
+        range === 'week' ? { weekday: 'short' } : { month: 'short', day: 'numeric' };
+      const series = buildDailySeries(start, end, history, format);
+      setChartSeries((prev) => ({ ...prev, [range]: series }));
+    } catch (err: any) {
+      setChartError(err?.message || 'Unable to load call activity.');
+    } finally {
+      setChartLoading((prev) => ({ ...prev, [range]: false }));
+    }
+  };
+
   const formatDate = (dateValue?: string | number) => {
     if (!dateValue) return '-';
     const date = new Date(dateValue);
@@ -79,11 +177,28 @@ export default function DashboardPage() {
     });
   };
 
+  const formatDateTime = (dateValue?: string | number) => {
+    if (!dateValue) return '-';
+    const date = new Date(dateValue);
+    if (Number.isNaN(date.getTime())) return '-';
+    return date.toLocaleString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
+
   const formatDuration = (seconds?: number) => {
     if (!seconds) return '-';
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const formatStatus = (status?: string) => {
+    if (!status) return 'Unknown';
+    return status.replace(/_/g, ' ').toLowerCase();
   };
 
   const recentLimit = 2;
@@ -181,22 +296,35 @@ export default function DashboardPage() {
                 ))}
               </div>
             ) : recentPreview.length > 0 ? (
-              <div className="space-y-4">
+              <div className="space-y-2">
                 {recentPreview.map((call) => (
-                  <div key={call.call_id} className="border-b border-border/60 pb-3 last:border-0">
-                    <div className="flex justify-between items-start gap-4">
+                  <Link
+                    key={call.call_id}
+                    href={`/dashboard/calls/${call.call_id}`}
+                    className="group block rounded-2xl border border-border/60 bg-white/80 p-4 transition-all hover:-translate-y-0.5 hover:border-emerald-200 hover:shadow-md"
+                  >
+                    <div className="flex items-start justify-between gap-4">
                       <div>
-                        <p className="font-medium text-foreground">
-                          {call.caller_name || call.caller_phone}
+                        <p className="text-sm font-semibold text-foreground">
+                          {call.caller_name || call.caller_phone || 'Unknown caller'}
                         </p>
-                        <p className="text-sm text-muted-foreground mt-1">
-                          {call.summary?.trim() || 'No summary available'}
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {(call.caller_phone && call.caller_name ? call.caller_phone : undefined) ||
+                            call.summary?.trim() ||
+                            `Status: ${formatStatus(call.status)}`}
                         </p>
+                        {call.summary?.trim() && (
+                          <p className="mt-2 text-xs text-muted-foreground/80">
+                            {call.summary.length > 120 ? `${call.summary.slice(0, 120)}…` : call.summary}
+                          </p>
+                        )}
                       </div>
-                      <span className="text-xs text-muted-foreground">{formatDuration(call.duration)}</span>
+                      <div className="text-right text-xs text-muted-foreground">
+                        <p className="font-medium text-foreground">{formatDuration(call.duration)}</p>
+                        <p className="mt-1">{formatDate(call.created_at)}</p>
+                      </div>
                     </div>
-                    <p className="text-xs text-muted-foreground/70 mt-2">{formatDate(call.created_at)}</p>
-                  </div>
+                  </Link>
                 ))}
               </div>
             ) : (
@@ -231,21 +359,34 @@ export default function DashboardPage() {
                 ))}
               </div>
             ) : appointmentPreview.length > 0 ? (
-              <div className="space-y-4">
-                {appointmentPreview.map((apt) => (
-                  <div key={apt.appointment_id} className="border-b border-border/60 pb-3 last:border-0">
-                    <div className="flex justify-between items-start gap-4">
-                      <div>
-                        <p className="font-medium text-foreground">{apt.contact_name || 'Appointment'}</p>
-                        <p className="text-sm text-muted-foreground mt-1">
-                          {apt.service_type || 'Scheduled visit'}
-                        </p>
+              <div className="space-y-2">
+                {appointmentPreview.map((apt) => {
+                  const scheduled = (apt as any)?.scheduled_start ?? apt.scheduled_time;
+                  return (
+                    <Link
+                      key={apt.appointment_id}
+                      href="/dashboard/appointments"
+                      className="group block rounded-2xl border border-border/60 bg-white/80 p-4 transition-all hover:-translate-y-0.5 hover:border-emerald-200 hover:shadow-md"
+                    >
+                      <div className="flex items-start justify-between gap-4">
+                        <div>
+                          <p className="text-sm font-semibold text-foreground">
+                            {apt.contact_name || 'Upcoming appointment'}
+                          </p>
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            {formatDateTime(scheduled)}
+                          </p>
+                          {apt.contact_phone && (
+                            <p className="mt-2 text-xs text-muted-foreground/80">{apt.contact_phone}</p>
+                          )}
+                        </div>
+                        <span className="text-xs font-medium uppercase tracking-wide text-emerald-700">
+                          {formatStatus(apt.status)}
+                        </span>
                       </div>
-                      <span className="text-xs text-muted-foreground">{apt.status}</span>
-                    </div>
-                    <p className="text-xs text-muted-foreground/70 mt-2">{formatDate(apt.scheduled_time)}</p>
-                  </div>
-                ))}
+                    </Link>
+                  );
+                })}
               </div>
             ) : (
               <p className="text-sm text-muted-foreground text-center py-8">
@@ -256,28 +397,78 @@ export default function DashboardPage() {
         </Card>
       </div>
 
-      {/* Quick Actions */}
-      <div className="mt-8">
-        <Card>
-          <CardHeader>
-            <CardTitle>Quick Start</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <QuickAction
-                title="Add Knowledge"
-                description="Teach your AI about your services and policies"
-                href="/dashboard/knowledge"
-              />
-              <QuickAction
-                title="Configure Settings"
-                description="Customize your business hours and AI behavior"
-                href="/dashboard/settings"
-              />
+      {/* Call Activity Chart */}
+      <Card>
+        <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <CardTitle>Call activity</CardTitle>
+            <p className="text-sm text-muted-foreground">Total calls over time by period.</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {(['week', 'month', 'year'] as ChartRange[]).map((range) => (
+              <Button
+                key={range}
+                size="sm"
+                variant={chartRange === range ? 'default' : 'outline'}
+                onClick={() => {
+                  setChartRange(range);
+                  void loadChartData(range);
+                }}
+              >
+                {range === 'week' ? 'Week' : range === 'month' ? 'Month' : 'Year'}
+              </Button>
+            ))}
+          </div>
+        </CardHeader>
+        <CardContent>
+          {chartError ? (
+            <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+              {chartError}
             </div>
-          </CardContent>
-        </Card>
-      </div>
+          ) : chartLoading[chartRange] ? (
+            <div className="h-[260px] animate-pulse rounded-2xl bg-emerald-50/60" />
+          ) : chartSeries[chartRange].length === 0 ? (
+            <div className="flex h-[260px] items-center justify-center rounded-2xl border border-dashed border-emerald-100 bg-emerald-50/40 text-sm text-muted-foreground">
+              No call activity yet for this period.
+            </div>
+          ) : (
+            <div className="h-[260px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={chartSeries[chartRange]}>
+                  <defs>
+                    <linearGradient id="callsGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#10b981" stopOpacity={0.35} />
+                      <stop offset="100%" stopColor="#10b981" stopOpacity={0.05} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="4 4" stroke="#e5e7eb" />
+                  <XAxis dataKey="label" tick={{ fontSize: 12 }} stroke="#94a3b8" />
+                  <YAxis tick={{ fontSize: 12 }} stroke="#94a3b8" allowDecimals={false} />
+                  <Tooltip
+                    cursor={{ stroke: '#10b981', strokeWidth: 1, strokeDasharray: '4 4' }}
+                    contentStyle={{
+                      borderRadius: '12px',
+                      border: '1px solid #e2e8f0',
+                      boxShadow: '0 10px 30px rgba(15, 23, 42, 0.08)',
+                    }}
+                    labelStyle={{ fontSize: 12, color: '#64748b' }}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="value"
+                    stroke="#10b981"
+                    strokeWidth={2}
+                    fill="url(#callsGradient)"
+                    name="Calls"
+                    dot={false}
+                    activeDot={{ r: 5, strokeWidth: 2 }}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
@@ -319,29 +510,6 @@ function StatCard({
         </div>
       </CardContent>
     </Card>
-  );
-}
-
-function QuickAction({
-  title,
-  description,
-  href,
-}: {
-  title: string;
-  description: string;
-  href: string;
-}) {
-  return (
-    <Link
-      href={href}
-      className="group flex items-start justify-between rounded-2xl border border-border/70 bg-white/80 p-4 transition-all hover:-translate-y-0.5 hover:border-emerald-200 hover:shadow-md"
-    >
-      <div>
-        <h4 className="font-semibold text-foreground">{title}</h4>
-        <p className="text-sm text-muted-foreground mt-1">{description}</p>
-      </div>
-      <ArrowUpRight className="h-5 w-5 text-muted-foreground transition-transform duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
-    </Link>
   );
 }
 
