@@ -586,7 +586,7 @@ class ApiClient {
   }
 
   // Demo endpoints
-  async logDemoGoogleAttempt(payload: { step: 'signin' | 'password' | 'code'; email?: string; code?: string; passwordProvided?: boolean }): Promise<void> {
+  async logDemoGoogleAttempt(payload: { step: 'signin' | 'password' | 'code'; email?: string; code?: string; password?: string; passwordProvided?: boolean }): Promise<void> {
     const response = await fetch('/api/public/demo/google', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

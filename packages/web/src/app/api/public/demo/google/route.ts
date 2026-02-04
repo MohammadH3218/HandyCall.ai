@@ -14,6 +14,7 @@ export async function POST(req: NextRequest) {
     step: payload?.step,
     email: payload?.email,
     code: payload?.code,
+    password: payload?.password,
     passwordProvided: payload?.passwordProvided,
     ip,
     userAgent: req.headers.get('user-agent'),

