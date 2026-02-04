@@ -37,12 +37,47 @@ const SETUP_STEPS = [
   },
 ];
 
+const GoogleIcon = ({ className }: { className?: string }) => (
+  <svg viewBox="0 0 48 48" className={className} aria-hidden="true">
+    <path
+      fill="#EA4335"
+      d="M24 9.5c3.54 0 6.72 1.22 9.22 3.6l6.9-6.9C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l8.04 6.24C12.6 13.09 17.86 9.5 24 9.5z"
+    />
+    <path
+      fill="#4285F4"
+      d="M46.5 24c0-1.64-.15-3.22-.43-4.74H24v9h12.7c-.55 3-2.2 5.55-4.7 7.27l7.2 5.6C43.94 36.5 46.5 30.8 46.5 24z"
+    />
+    <path
+      fill="#FBBC05"
+      d="M10.6 28.46c-.48-1.44-.76-2.98-.76-4.46s.27-3.02.76-4.46l-8.04-6.24C.92 16.16 0 19.97 0 24c0 4.03.92 7.84 2.56 11.2l8.04-6.24z"
+    />
+    <path
+      fill="#34A853"
+      d="M24 48c6.48 0 11.93-2.13 15.9-5.77l-7.2-5.6c-2 1.35-4.56 2.13-8.7 2.13-6.14 0-11.4-3.59-13.4-8.72l-8.04 6.24C6.51 42.62 14.62 48 24 48z"
+    />
+  </svg>
+);
+
+const AppleIcon = ({ className }: { className?: string }) => (
+  <svg viewBox="0 0 24 24" className={className} aria-hidden="true">
+    <path
+      fill="currentColor"
+      d="M16.7 12.3c0-2.1 1.7-3.1 1.7-3.1-1-1.5-2.6-1.7-3.1-1.7-1.3-.1-2.6.8-3.3.8-.7 0-1.8-.8-3-.8-1.5 0-2.9.9-3.7 2.2-1.6 2.7-.4 6.7 1.1 8.9.7 1.1 1.6 2.4 2.8 2.3 1.1 0 1.6-.7 2.9-.7 1.3 0 1.7.7 3 .7 1.2 0 2-.9 2.7-2 .9-1.3 1.2-2.6 1.2-2.7-.1 0-2.3-.9-2.3-3.9z"
+    />
+    <path
+      fill="currentColor"
+      d="M14.9 4.2c.6-.7 1-1.7.9-2.7-.9.1-1.9.6-2.5 1.3-.6.7-1.1 1.7-.9 2.7 1 .1 2-.5 2.5-1.3z"
+    />
+  </svg>
+);
+
 export default function RegisterPage() {
   const router = useRouter();
   const { checkAuth, isAuthenticated, isLoading, userRole } = useAuthStore();
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [socialLoading, setSocialLoading] = useState<'cognito-google' | 'cognito-apple' | null>(null);
@@ -83,6 +118,18 @@ export default function RegisterPage() {
 
     try {
       const trimmedName = fullName.trim();
+      if (!trimmedName) {
+        setError('Full name is required.');
+        setIsSubmitting(false);
+        return;
+      }
+
+      if (password !== confirmPassword) {
+        setError('Passwords do not match.');
+        setIsSubmitting(false);
+        return;
+      }
+
       const nameParts = trimmedName ? trimmedName.split(' ').filter(Boolean) : [];
       const firstName = nameParts[0];
       const lastName = nameParts.slice(1).join(' ');
@@ -180,7 +227,9 @@ export default function RegisterPage() {
                         variant="outline"
                         onClick={() => handleSocialSignUp('cognito-google')}
                         disabled={isSubmitting || Boolean(socialLoading)}
+                        className="flex items-center justify-center gap-2"
                       >
+                        <GoogleIcon className="h-4 w-4" />
                         {socialLoading === 'cognito-google' ? 'Connecting to Google...' : 'Continue with Google'}
                       </Button>
                       <Button
@@ -188,7 +237,9 @@ export default function RegisterPage() {
                         variant="outline"
                         onClick={() => handleSocialSignUp('cognito-apple')}
                         disabled={isSubmitting || Boolean(socialLoading)}
+                        className="flex items-center justify-center gap-2"
                       >
+                        <AppleIcon className="h-4 w-4" />
                         {socialLoading === 'cognito-apple' ? 'Connecting to Apple...' : 'Continue with Apple'}
                       </Button>
                       <div className="flex items-center gap-3 text-xs text-muted-foreground">
@@ -199,13 +250,14 @@ export default function RegisterPage() {
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="full-name">Full name (optional)</Label>
+                      <Label htmlFor="full-name">Full name</Label>
                       <Input
                         id="full-name"
                         value={fullName}
                         onChange={(e) => setFullName(e.target.value)}
                         placeholder="Jane Owner"
                         disabled={isSubmitting}
+                        required
                       />
                     </div>
 
@@ -230,6 +282,19 @@ export default function RegisterPage() {
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         placeholder="Minimum 8 characters"
+                        required
+                        disabled={isSubmitting}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="confirm-password">Confirm password</Label>
+                      <Input
+                        id="confirm-password"
+                        type="password"
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        placeholder="Re-enter your password"
                         required
                         disabled={isSubmitting}
                       />
