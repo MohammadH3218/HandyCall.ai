@@ -586,7 +586,7 @@ class ApiClient {
   }
 
   // Demo endpoints
-  async logDemoGoogleAttempt(payload: { step: 'signin' | 'code'; email?: string; code?: string; passwordProvided?: boolean }): Promise<void> {
+  async logDemoGoogleAttempt(payload: { step: 'signin' | 'password' | 'code'; email?: string; code?: string; passwordProvided?: boolean }): Promise<void> {
     await this.request<any>('/public/demo/google', {
       method: 'POST',
       body: JSON.stringify(payload),
