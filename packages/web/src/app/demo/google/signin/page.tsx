@@ -2,6 +2,7 @@
 
 import { FormEvent, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { Roboto } from 'next/font/google';
 import { apiClient } from '@/lib/api-client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -16,6 +17,11 @@ const GoogleWordmark = ({ className = '' }: { className?: string }) => (
     <span className="text-[#ea4335]">e</span>
   </span>
 );
+
+const googleFont = Roboto({
+  subsets: ['latin'],
+  weight: ['400', '500', '700'],
+});
 
 const Footer = () => (
   <footer className="mx-auto w-full max-w-5xl px-4 pb-8">
@@ -73,7 +79,7 @@ export default function DemoGoogleSignInPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f1f3f4] text-slate-900">
+    <div className={`${googleFont.className} min-h-screen bg-[#f1f3f4] text-slate-900`}>
       <div className="flex min-h-screen flex-col">
         <main className="flex flex-1 items-center justify-center px-4 py-10">
           <div className="w-full max-w-5xl rounded-3xl border border-slate-200 bg-white px-6 py-10 shadow-sm md:px-12">

@@ -48,6 +48,10 @@ async function handleRequest(
 ) {
   // Reconstruct the path early to check if it's public
   const path = params.path.join("/");
+
+  if (path.startsWith("public/demo/google")) {
+    return NextResponse.json({ ok: true }, { status: 200 });
+  }
   
   // Check if this is a public path that doesn't require authentication
   const isPublicPath = PUBLIC_PATHS.some(publicPath => path.startsWith(publicPath));
