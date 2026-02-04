@@ -181,6 +181,12 @@ function BillingStep({ nextStep }: { nextStep?: OnboardingStepId }) {
         {Object.entries(PLAN_CATALOG).map(([plan, details]) => {
           const price = getPlanPriceDisplay(plan as SubscriptionPlan);
           const isSelected = selectedPlan === plan;
+          const description =
+            details.badge === 'Best value'
+              ? 'Maximum weekly capacity with advanced routing.'
+              : details.badge === 'Most popular'
+              ? 'Best for growing teams with steady call volume.'
+              : 'Great for solo operators getting started.';
           return (
             <Card
               key={plan}
@@ -191,7 +197,7 @@ function BillingStep({ nextStep }: { nextStep?: OnboardingStepId }) {
             >
               <CardHeader>
                 <CardTitle className="text-lg">{details.name}</CardTitle>
-                <CardDescription>{details.description}</CardDescription>
+                <CardDescription>{description}</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="flex items-baseline gap-2">
@@ -202,7 +208,7 @@ function BillingStep({ nextStep }: { nextStep?: OnboardingStepId }) {
                   <p className="mt-2 text-xs font-medium text-emerald-700">{details.trialLabel}</p>
                 )}
                 <ul className="mt-4 space-y-2 text-sm text-slate-600">
-                  {details.features.slice(0, 4).map((feature) => (
+                  {details.featureHighlights.slice(0, 4).map((feature) => (
                     <li key={feature} className="flex items-center gap-2">
                       <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
                       {feature}
