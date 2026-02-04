@@ -222,10 +222,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </Button>
         </div>
 
-        <div className="p-6 flex flex-col items-center justify-center border-b border-border/60 bg-white/70">
-          <Logo variant="words" width={160} height={40} />
+        <div className="p-6 flex flex-col items-start justify-center border-b border-border/60 bg-white/70">
+          <Logo variant="words" width={150} height={36} />
           {company?.company_name && (
-            <p className="mt-2 text-sm font-medium text-foreground text-center">{company.company_name}</p>
+            <p className="mt-1 text-sm font-semibold text-foreground/80 leading-tight">
+              {company.company_name}
+            </p>
           )}
         </div>
 
