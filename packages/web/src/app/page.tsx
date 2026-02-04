@@ -65,7 +65,7 @@ export default function Home() {
               </p>
               <div className="flex flex-wrap gap-3">
                 <Button asChild size="lg">
-                  <Link href="/login">Launch HandyCall</Link>
+                  <Link href="/register">Launch HandyCall</Link>
                 </Button>
                 <Button asChild size="lg" variant="outline">
                   <Link href="/pricing">View pricing</Link>
@@ -187,7 +187,7 @@ export default function Home() {
           </p>
           <div className="mt-6 flex flex-wrap justify-center gap-3">
             <Button asChild size="lg">
-              <Link href="/login">Get started</Link>
+              <Link href="/register">Get started</Link>
             </Button>
             <Button asChild size="lg" variant="outline">
               <Link href="/contact">Talk to us</Link>

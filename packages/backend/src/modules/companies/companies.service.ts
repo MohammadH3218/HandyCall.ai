@@ -63,7 +63,13 @@ export class CompaniesService {
     email: string,
     phoneNumber: string | undefined,
     timezone: string,
-    options?: { allowExisting?: boolean }
+    options?: {
+      allowExisting?: boolean;
+      companyProfileCompleted?: boolean;
+      serviceAreaCompleted?: boolean;
+      serviceAreaZipcodes?: string[];
+      serviceAreaCities?: string[];
+    }
   ): Promise<Company> {
     // Collect conflicts to report them all at once
     const conflicts: Record<string, string> = {};
@@ -120,6 +126,10 @@ export class CompaniesService {
       status: CompanyStatus.INACTIVE,
       timezone,
       business_hours: defaultBusinessHours,
+      service_area_zipcodes: options?.serviceAreaZipcodes ?? [],
+      service_area_cities: options?.serviceAreaCities ?? [],
+      company_profile_completed: options?.companyProfileCompleted ?? false,
+      service_area_completed: options?.serviceAreaCompleted ?? false,
       created_at: timestamp,
       updated_at: timestamp,
       calls_enabled: false, // Start disabled until a plan is active
@@ -170,6 +180,7 @@ export class CompaniesService {
     companyId: string,
     updates: {
       company_name?: string;
+      service_type?: ServiceType;
       phone_number?: string;
       email?: string;
       timezone?: string;
@@ -200,6 +211,10 @@ export class CompaniesService {
       calendar_mode?: 'INTERNAL' | 'EXTERNAL';
       calendar_provider?: 'NONE' | 'GOOGLE' | 'MICROSOFT' | 'APPLE';
       calendar_connection?: any;
+      service_area_zipcodes?: string[];
+      service_area_cities?: string[];
+      company_profile_completed?: boolean;
+      service_area_completed?: boolean;
     }
   ): Promise<Company> {
     const company = await this.findById(companyId);

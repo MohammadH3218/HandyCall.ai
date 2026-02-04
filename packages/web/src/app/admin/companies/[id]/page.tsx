@@ -15,6 +15,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
+import { SERVICE_TYPE_OPTIONS } from '@/constants/service-types';
 import { ArrowLeft, Phone, Save, Search, AlertTriangle, XCircle, CheckCircle } from 'lucide-react';
 
 type Company = {
@@ -46,16 +47,7 @@ type CompanyNumber = {
   label?: string;
 } | null;
 
-const SERVICE_TYPES: Array<{ value: string; label: string }> = [
-  { value: 'HANDYMAN', label: 'Handyman' },
-  { value: 'PEST_CONTROL', label: 'Pest Control' },
-  { value: 'ELECTRICIAN', label: 'Electrician' },
-  { value: 'PLUMBING', label: 'Plumbing' },
-  { value: 'HVAC', label: 'HVAC' },
-  { value: 'LANDSCAPING', label: 'Landscaping' },
-  { value: 'CLEANING', label: 'Cleaning' },
-  { value: 'OTHER', label: 'Other' },
-];
+const SERVICE_TYPES = SERVICE_TYPE_OPTIONS;
 
 const COMPANY_STATUSES: Array<{ value: string; label: string }> = [
   { value: 'ACTIVE', label: 'Active' },

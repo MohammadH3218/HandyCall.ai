@@ -263,6 +263,33 @@ class ApiClient {
     return response.data ?? response;
   }
 
+  async getAvailablePhoneNumbers(params: {
+    country?: string;
+    type?: string;
+    maxResults?: number;
+    areaCode?: string;
+    contains?: string;
+  }): Promise<any[]> {
+    const query = new URLSearchParams();
+    if (params.country) query.append('country', params.country);
+    if (params.type) query.append('type', params.type);
+    if (typeof params.maxResults === 'number') query.append('maxResults', String(params.maxResults));
+    if (params.areaCode) query.append('areaCode', params.areaCode);
+    if (params.contains) query.append('contains', params.contains);
+
+    const response = await this.request<any>(`/telephony/available-numbers?${query.toString()}`, { method: 'GET' });
+    const payload: any = response.data ?? response;
+    return Array.isArray(payload) ? payload : payload?.data || [];
+  }
+
+  async claimPhoneNumber(phoneNumber: string, description?: string): Promise<any> {
+    const response = await this.request<any>('/telephony/claim-number', {
+      method: 'POST',
+      body: JSON.stringify({ phoneNumber, description }),
+    });
+    return response.data ?? response;
+  }
+
   // Knowledge endpoints
   async getKnowledgeItems(type?: string, status?: string, limit?: number): Promise<any> {
     const params = new URLSearchParams();

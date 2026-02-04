@@ -1,14 +1,20 @@
 import "next-auth";
+import { UserRole } from "@handycall/shared";
 
 declare module "next-auth" {
   interface Session {
     accessToken?: string;
     idToken?: string;
     refreshToken?: string;
+    userRole?: UserRole;
+    poolType?: "users" | "admin";
     user: {
       id?: string;
       email?: string | null;
       name?: string | null;
+      role?: UserRole;
+      given_name?: string | null;
+      family_name?: string | null;
       image?: string | null;
     };
   }
@@ -19,6 +25,11 @@ declare module "next-auth" {
     accessToken?: string;
     idToken?: string;
     refreshToken?: string;
+    userRole?: UserRole;
+    poolType?: "users" | "admin";
+    name?: string | null;
+    given_name?: string | null;
+    family_name?: string | null;
   }
 }
 
@@ -29,6 +40,11 @@ declare module "next-auth/jwt" {
     refreshToken?: string;
     sub?: string;
     email?: string;
+    userRole?: UserRole;
+    poolType?: "users" | "admin";
+    name?: string;
+    given_name?: string;
+    family_name?: string;
   }
 }
 

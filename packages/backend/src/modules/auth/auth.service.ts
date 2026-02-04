@@ -14,6 +14,7 @@ import {
   ServiceType,
 } from '@handycall/shared';
 import { isValidEmail, isValidPhoneNumber, formatPhoneNumber, isValidTimezone } from '@handycall/shared';
+import { v4 as uuidv4 } from 'uuid';
 
 @Injectable()
 export class AuthService {
@@ -27,38 +28,54 @@ export class AuthService {
   ) {}
 
   async register(
-    companyName: string,
-    serviceType: ServiceType,
+    companyName: string | undefined,
+    serviceType: ServiceType | undefined,
     email: string,
     password: string,
-    phoneNumber: string,
-    firstName: string,
-    lastName: string,
-    timezone: string
+    phoneNumber: string | undefined,
+    firstName: string | undefined,
+    lastName: string | undefined,
+    timezone: string | undefined
   ): Promise<RegisterResponse> {
     // Validate inputs
     if (!isValidEmail(email)) {
       throw new BadRequestException('Invalid email format');
     }
 
-    if (!isValidPhoneNumber(phoneNumber)) {
+    const resolvedPhone = phoneNumber?.trim() || undefined;
+    if (resolvedPhone && !isValidPhoneNumber(resolvedPhone)) {
       throw new BadRequestException('Invalid phone number format (use E.164: +1234567890)');
     }
 
-    if (!isValidTimezone(timezone)) {
+    const resolvedTimezone = timezone?.trim() || 'America/New_York';
+    if (!isValidTimezone(resolvedTimezone)) {
       throw new BadRequestException('Invalid timezone');
     }
 
-    // Format phone number
-    const formattedPhone = formatPhoneNumber(phoneNumber);
+    const normalizedName = companyName?.trim();
+    const resolvedCompanyName = normalizedName && normalizedName.length > 0
+      ? normalizedName
+      : `HandyCall Account ${uuidv4().slice(0, 8)}`;
+    const hasProvidedServiceType = Object.values(ServiceType).includes(serviceType as ServiceType);
+    const resolvedServiceType = hasProvidedServiceType
+      ? (serviceType as ServiceType)
+      : ServiceType.OTHER;
+
+    const derivedFirstName = firstName?.trim() || email.split('@')[0] || 'Owner';
+    const derivedLastName = lastName?.trim() || 'Account';
+
+    // Format phone number when provided
+    const formattedPhone = resolvedPhone ? formatPhoneNumber(resolvedPhone) : undefined;
 
     // Create company
+    const companyProfileCompleted = Boolean(normalizedName && hasProvidedServiceType);
     const company = await this.companiesService.createCompany(
-      companyName,
-      serviceType,
+      resolvedCompanyName,
+      resolvedServiceType,
       email,
       formattedPhone,
-      timezone
+      resolvedTimezone,
+      { companyProfileCompleted }
     );
 
     // Create owner user
@@ -67,8 +84,8 @@ export class AuthService {
       undefined, // companyName - already have company_id
       email,
       password,
-      firstName,
-      lastName,
+      derivedFirstName,
+      derivedLastName,
       UserRole.OWNER,
       'users'
     );

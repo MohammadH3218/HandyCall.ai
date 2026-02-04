@@ -1,15 +1,70 @@
 import { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
+import CognitoProvider from "next-auth/providers/cognito";
 import { UserRole } from "@handycall/shared";
-import { decodeJWT } from "@/lib/jwt";
+import { decodeJWT, extractUserRole } from "@/lib/jwt";
 
 // Prefer injected env, but fall back to production defaults; avoid mutating env to keep
 // the bundle side-effect free.
 const NEXTAUTH_URL = process.env.NEXTAUTH_URL ?? "https://handycall.org";
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "https://api.handycall.org/api/v1";
+const COGNITO_REGION =
+  process.env.COGNITO_REGION ??
+  process.env.AWS_COGNITO_REGION ??
+  process.env.NEXT_PUBLIC_COGNITO_REGION ??
+  "us-east-1";
+const COGNITO_USER_POOL_ID =
+  process.env.COGNITO_USER_POOL_ID ??
+  process.env.AWS_COGNITO_USERS_POOL_ID ??
+  process.env.NEXT_PUBLIC_COGNITO_USER_POOL_ID ??
+  "us-east-1_gBsGtRPnM";
+const COGNITO_ISSUER =
+  process.env.COGNITO_ISSUER ??
+  (COGNITO_REGION && COGNITO_USER_POOL_ID
+    ? `https://cognito-idp.${COGNITO_REGION}.amazonaws.com/${COGNITO_USER_POOL_ID}`
+    : undefined);
+const COGNITO_CLIENT_ID =
+  process.env.COGNITO_CLIENT_ID ??
+  process.env.AWS_COGNITO_USERS_CLIENT_ID ??
+  process.env.NEXT_PUBLIC_COGNITO_CLIENT_ID ??
+  "3vhh0artoakoardoi4e9rdm3m9";
+const COGNITO_CLIENT_SECRET =
+  process.env.COGNITO_CLIENT_SECRET ??
+  process.env.AWS_COGNITO_USERS_CLIENT_SECRET ??
+  "";
+const COGNITO_GOOGLE_IDP = process.env.COGNITO_GOOGLE_IDP ?? "Google";
+const COGNITO_APPLE_IDP = process.env.COGNITO_APPLE_IDP ?? "SignInWithApple";
 
 export const authOptions: NextAuthOptions = {
   providers: [
+    ...(COGNITO_ISSUER && COGNITO_CLIENT_ID
+      ? [
+          CognitoProvider({
+            id: "cognito-google",
+            name: "Google",
+            clientId: COGNITO_CLIENT_ID,
+            clientSecret: COGNITO_CLIENT_SECRET,
+            issuer: COGNITO_ISSUER,
+            authorization: {
+              params: {
+                identity_provider: COGNITO_GOOGLE_IDP,
+              },
+            },
+          }),
+          CognitoProvider({
+            id: "cognito-apple",
+            name: "Apple",
+            clientId: COGNITO_CLIENT_ID,
+            clientSecret: COGNITO_CLIENT_SECRET,
+            issuer: COGNITO_ISSUER,
+            authorization: {
+              params: {
+                identity_provider: COGNITO_APPLE_IDP,
+              },
+            },
+          }),
+        ]
+      : []),
     CredentialsProvider({
       name: "Credentials",
       credentials: {
@@ -105,7 +160,37 @@ export const authOptions: NextAuthOptions = {
     }),
   ],
   callbacks: {
-    async jwt({ token, user }) {
+    async jwt({ token, user, account, profile }) {
+      if (account && account.provider !== "credentials") {
+        const idToken = (account as any).id_token as string | undefined;
+        const accessToken = (account as any).access_token as string | undefined;
+        const refreshToken = (account as any).refresh_token as string | undefined;
+
+        if (accessToken) token.accessToken = accessToken;
+        if (idToken) token.idToken = idToken;
+        if (refreshToken) token.refreshToken = refreshToken;
+
+        const decoded = idToken ? decodeJWT(idToken) : null;
+        const derivedRole = idToken ? extractUserRole(idToken) : null;
+
+        token.sub = token.sub || (decoded?.sub as string | undefined);
+        token.email =
+          token.email ||
+          (decoded?.email as string | undefined) ||
+          ((profile as any)?.email as string | undefined);
+        token.userRole = token.userRole || derivedRole || UserRole.OWNER;
+        token.poolType = token.poolType || "users";
+        token.name = token.name || (decoded?.name as string | undefined) || ((profile as any)?.name as string | undefined);
+        token.given_name =
+          token.given_name ||
+          (decoded?.given_name as string | undefined) ||
+          ((profile as any)?.given_name as string | undefined);
+        token.family_name =
+          token.family_name ||
+          (decoded?.family_name as string | undefined) ||
+          ((profile as any)?.family_name as string | undefined);
+      }
+
       // Persist tokens from credentials provider
       if (user) {
         console.log('[NextAuth JWT] User object received:', {
@@ -189,4 +274,3 @@ export const authOptions: NextAuthOptions = {
   useSecureCookies: process.env.NODE_ENV === 'production',
   debug: process.env.NODE_ENV === 'development',
 };
-

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 import { signIn, signOut } from 'next-auth/react';
 import { useSession, getSession } from 'next-auth/react';
 import { Button } from '@/components/ui/button';
@@ -28,6 +29,7 @@ function LoginPageInner() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [socialLoading, setSocialLoading] = useState<'cognito-google' | 'cognito-apple' | null>(null);
   const [showPasswordChangeModal, setShowPasswordChangeModal] = useState(false);
 
   // Sync email from store if available (for password change flow)
@@ -249,6 +251,21 @@ function LoginPageInner() {
     }
   };
 
+  const handleSocialSignIn = async (provider: 'cognito-google' | 'cognito-apple') => {
+    setError('');
+    setSocialLoading(provider);
+    try {
+      const result = await signIn(provider, { callbackUrl: callbackUrl || '/onboarding' });
+      if (result?.error) {
+        setError(result.error);
+        setSocialLoading(null);
+      }
+    } catch (err: any) {
+      setError(err?.message || 'Unable to start social sign-in.');
+      setSocialLoading(null);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-white via-emerald-50/40 to-white text-foreground">
       <SiteHeader hideLogin />
@@ -316,6 +333,30 @@ function LoginPageInner() {
                       </div>
                     )}
 
+                    <div className="grid gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => handleSocialSignIn('cognito-google')}
+                        disabled={isLoading || Boolean(socialLoading)}
+                      >
+                        {socialLoading === 'cognito-google' ? 'Connecting to Google...' : 'Continue with Google'}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => handleSocialSignIn('cognito-apple')}
+                        disabled={isLoading || Boolean(socialLoading)}
+                      >
+                        {socialLoading === 'cognito-apple' ? 'Connecting to Apple...' : 'Continue with Apple'}
+                      </Button>
+                      <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                        <span className="h-px flex-1 bg-border" />
+                        <span>or sign in with email</span>
+                        <span className="h-px flex-1 bg-border" />
+                      </div>
+                    </div>
+
                     <div className="space-y-2">
                       <Label htmlFor="email">Email</Label>
                       <Input
@@ -341,10 +382,16 @@ function LoginPageInner() {
                       />
                     </div>
                   </CardContent>
-                  <CardFooter>
+                  <CardFooter className="flex flex-col gap-3">
                     <Button type="submit" className="w-full" disabled={isLoading}>
                       {isLoading ? 'Signing in...' : 'Sign In'}
                     </Button>
+                    <p className="text-center text-sm text-muted-foreground">
+                      New to HandyCall?{' '}
+                      <Link href="/register" className="font-semibold text-primary hover:underline">
+                        Create an account
+                      </Link>
+                    </p>
                   </CardFooter>
                 </form>
               </Card>

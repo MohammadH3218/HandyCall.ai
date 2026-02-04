@@ -9,8 +9,8 @@ type SiteHeaderProps = {
 };
 
 export function SiteHeader({
-  ctaLabel = 'Login',
-  ctaHref = '/login',
+  ctaLabel = 'Get started',
+  ctaHref = '/register',
   hideLogin = false,
 }: SiteHeaderProps) {
   return (

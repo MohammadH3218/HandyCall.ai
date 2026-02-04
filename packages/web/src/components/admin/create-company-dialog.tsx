@@ -7,17 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-
-const SERVICE_TYPES = [
-  { value: 'HANDYMAN', label: 'Handyman' },
-  { value: 'PEST_CONTROL', label: 'Pest Control' },
-  { value: 'ELECTRICIAN', label: 'Electrician' },
-  { value: 'PLUMBING', label: 'Plumbing' },
-  { value: 'HVAC', label: 'HVAC' },
-  { value: 'LANDSCAPING', label: 'Landscaping' },
-  { value: 'CLEANING', label: 'Cleaning' },
-  { value: 'OTHER', label: 'Other' },
-];
+import { SERVICE_TYPE_OPTIONS } from '@/constants/service-types';
 
 const TIMEZONES = [
   { value: 'America/New_York', label: 'Eastern Time (ET)' },
@@ -182,7 +172,7 @@ export function CreateCompanyDialog({ open, onOpenChange, onSuccess }: CreateCom
                   <SelectValue placeholder="Select service type" />
                 </SelectTrigger>
                 <SelectContent>
-                  {SERVICE_TYPES.map((type) => (
+                  {SERVICE_TYPE_OPTIONS.map((type) => (
                     <SelectItem key={type.value} value={type.value}>
                       {type.label}
                     </SelectItem>

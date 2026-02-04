@@ -1,10 +1,14 @@
-import { IsString, IsOptional, IsObject, IsBoolean, IsNumber, IsIn, IsArray } from 'class-validator';
-import { BusinessHours } from '@handycall/shared';
+import { IsString, IsOptional, IsObject, IsBoolean, IsNumber, IsIn, IsArray, IsEnum } from 'class-validator';
+import { BusinessHours, ServiceType } from '@handycall/shared';
 
 export class UpdateCompanyDto {
   @IsOptional()
   @IsString()
   company_name?: string;
+
+  @IsOptional()
+  @IsEnum(ServiceType)
+  service_type?: ServiceType;
 
   @IsOptional()
   @IsString()
@@ -91,4 +95,17 @@ export class UpdateCompanyDto {
   @IsArray()
   @IsString({ each: true })
   service_area_zipcodes?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  service_area_cities?: string[];
+
+  @IsOptional()
+  @IsBoolean()
+  company_profile_completed?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  service_area_completed?: boolean;
 }

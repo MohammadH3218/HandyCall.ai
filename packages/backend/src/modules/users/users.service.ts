@@ -162,6 +162,71 @@ export class UsersService {
     return { user };
   }
 
+  async provisionUserFromCognito(input: {
+    email: string;
+    firstName?: string;
+    lastName?: string;
+    companyName?: string;
+    serviceType?: ServiceType;
+    timezone?: string;
+  }): Promise<User> {
+    const email = input.email.trim().toLowerCase();
+    const existingUser = await this.findByEmail(email);
+    if (existingUser) return existingUser;
+
+    const resolvedFirstName = input.firstName?.trim() || email.split('@')[0] || 'Owner';
+    const resolvedLastName = input.lastName?.trim() || 'Account';
+    const resolvedTimezone = input.timezone?.trim() || 'America/New_York';
+    const resolvedServiceType =
+      (input.serviceType && Object.values(ServiceType).includes(input.serviceType)) ? input.serviceType : ServiceType.OTHER;
+    const resolvedCompanyName = input.companyName?.trim() || `HandyCall Account ${uuidv4().slice(0, 8)}`;
+
+    const company = await this.companiesService.createCompany(
+      resolvedCompanyName,
+      resolvedServiceType,
+      email,
+      undefined,
+      resolvedTimezone,
+      { allowExisting: true, companyProfileCompleted: false, serviceAreaCompleted: false }
+    );
+
+    const userId = uuidv4();
+    const timestamp = Date.now();
+
+    const user: User = {
+      company_id: company.company_id,
+      user_id: userId,
+      email,
+      phone_number: undefined,
+      first_name: resolvedFirstName,
+      last_name: resolvedLastName,
+      role: UserRole.OWNER,
+      is_active: true,
+      created_at: timestamp,
+      updated_at: timestamp,
+    };
+
+    const dbUser = {
+      ...user,
+      pool_type: 'users',
+    };
+
+    await this.dynamodb.put(this.tableName, dbUser);
+
+    try {
+      await this.cognitoService.updateUserAttributes(
+        email,
+        { 'custom:company_id': company.company_id, 'custom:company_name': company.company_name },
+        'users'
+      );
+    } catch (error) {
+      // Non-fatal: user can still proceed even if attributes fail to update
+      console.warn('[UsersService] Failed to update Cognito attributes for provisioned user', error);
+    }
+
+    return user;
+  }
+
   private generateSecurePassword(): string {
     // Ensure mix of upper, lower, digits, and symbols, 14 chars
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz0123456789!@#$%^&*()';

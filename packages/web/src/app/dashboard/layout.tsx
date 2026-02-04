@@ -9,7 +9,7 @@ import { apiClient } from '@/lib/api-client';
 import { Logo } from '@/components/ui/logo';
 import { ProfileDropdown } from '@/components/profile-dropdown';
 import { Button } from '@/components/ui/button';
-import { BarChart3, Building2, Calendar, CheckSquare, CreditCard, Home, Menu, MessageSquare, Phone, Settings, Users, X } from 'lucide-react';
+import { BarChart3, Calendar, CreditCard, Home, Menu, MessageSquare, Phone, Settings, Users, X } from 'lucide-react';
 import { UserRole } from '@handycall/shared';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -22,23 +22,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [companyNumber, setCompanyNumber] = useState<string | null>(null);
   const [companyNumberLoaded, setCompanyNumberLoaded] = useState(false);
 
-  const hasWorkingHours = useMemo(() => {
-    if (!company?.business_hours || typeof company.business_hours !== 'object') return false;
-    return Object.values(company.business_hours).some((day: any) => {
-      if (!day || day.closed) return false;
-      const segments = Array.isArray((day as any).segments) ? (day as any).segments : [];
-      if (segments.length) return segments.some((s: any) => s?.open && s?.close);
-      return Boolean((day as any).open && (day as any).close);
-    });
-  }, [company]);
-
   const knowledgeComplete = knowledgeCount !== null ? knowledgeCount > 0 : false;
   const setupStatus = useMemo(() => {
     if (!company) {
       return {
         billing: false,
+        companyProfile: false,
+        serviceArea: false,
         calendar: false,
-        schedule: false,
         knowledge: false,
         phone: false,
       };
@@ -50,20 +41,21 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         (company.subscription_status === 'ACTIVE' || company.subscription_status === 'TRIALING')) ||
       (company.trial_ends_at && company.trial_ends_at > Date.now())
     );
-    const scheduleReady = Boolean(company.timezone) && hasWorkingHours;
-    const schedule = Boolean((company as any).schedule_setup_completed) || scheduleReady;
+    const companyProfile = company.company_profile_completed === true;
+    const serviceArea = company.service_area_completed === true;
     const calendar = company.calendar_setup_completed === true;
     const knowledge = knowledgeComplete;
     const phone = Boolean(companyNumber);
-    return { billing, calendar, schedule, knowledge, phone };
-  }, [company, hasWorkingHours, knowledgeComplete, companyNumber]);
+    return { billing, companyProfile, serviceArea, calendar, knowledge, phone };
+  }, [company, knowledgeComplete, companyNumber]);
 
   const needsSetup = useMemo(() => {
     if (!company) return false;
     return (
       !setupStatus.billing ||
+      !setupStatus.companyProfile ||
+      !setupStatus.serviceArea ||
       !setupStatus.calendar ||
-      !setupStatus.schedule ||
       !setupStatus.knowledge ||
       !setupStatus.phone
     );
@@ -105,6 +97,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }, [company, userRole]);
 
   const setupDataReady = knowledgeCount !== null && companyNumberLoaded;
+
+  useEffect(() => {
+    if (!setupDataReady) return;
+    if (status === 'authenticated' && userRole !== UserRole.ADMIN && needsSetup) {
+      router.replace('/onboarding');
+    }
+  }, [needsSetup, router, setupDataReady, status, userRole]);
 
   useEffect(() => {
     const populate = async () => {
@@ -241,14 +240,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               Dashboard
             </NavLink>
             <NavLink
-              href="/dashboard/setup"
-              icon={<CheckSquare className="h-5 w-5" />}
-              active={pathname?.startsWith('/dashboard/setup')}
-              onClick={() => setSidebarOpen(false)}
-            >
-              Setup
-            </NavLink>
-            <NavLink
               href="/dashboard/calls"
               icon={<Phone className="h-5 w-5" />}
               active={pathname?.startsWith('/dashboard/calls')}
@@ -336,19 +327,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
         {/* Main Content Area */}
         <main className="flex-1 overflow-auto p-4 sm:p-6 lg:p-10">
-          {setupDataReady && needsSetup && (
-            <div className="mb-6 rounded-2xl border border-amber-200/70 bg-amber-50/70 p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 shadow-sm">
-              <div>
-                <div className="text-sm font-semibold text-amber-900">Finish your setup</div>
-                <div className="text-sm text-amber-800 mt-1">
-                  Complete billing, calendar, and working hours so the AI can schedule accurately.
-                </div>
-              </div>
-              <Button asChild>
-                <Link href="/dashboard/setup">Continue setup</Link>
-              </Button>
-            </div>
-          )}
           <div className="animate-fade-up">{children}</div>
         </main>
       </div>

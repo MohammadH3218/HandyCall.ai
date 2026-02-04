@@ -58,10 +58,19 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     }
 
     if (!user) {
-      // If user is in Cognito but not in your DB, you might want to create them here
-      // or throw an error.
-      this.logger.warn(`User with email ${email} not found in database`);
-      throw new UnauthorizedException('User not found in system');
+      this.logger.warn(`User with email ${email} not found in database. Attempting auto-provisioning.`);
+      try {
+        const givenName = payload.given_name || payload['given_name'];
+        const familyName = payload.family_name || payload['family_name'];
+        user = await this.usersService.provisionUserFromCognito({
+          email,
+          firstName: givenName,
+          lastName: familyName,
+        });
+      } catch (err) {
+        this.logger.error(`Failed to auto-provision user for ${email}: ${err?.message || err}`);
+        throw new UnauthorizedException('User not found in system');
+      }
     }
 
     this.logger.log(`[JwtStrategy] User found: ${user.email}, company_id: ${user.company_id}, role: ${user.role}`);

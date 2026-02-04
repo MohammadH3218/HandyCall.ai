@@ -1,14 +1,14 @@
-import { IsEmail, IsString, MinLength, IsNotEmpty, IsEnum } from 'class-validator';
+import { IsEmail, IsString, MinLength, IsNotEmpty, IsEnum, IsOptional } from 'class-validator';
 import { ServiceType } from '@handycall/shared';
 
 export class RegisterDto {
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  company_name!: string;
+  company_name?: string;
 
+  @IsOptional()
   @IsEnum(ServiceType)
-  @IsNotEmpty()
-  service_type!: ServiceType;
+  service_type?: ServiceType;
 
   @IsEmail()
   @IsNotEmpty()
@@ -18,19 +18,19 @@ export class RegisterDto {
   @MinLength(8)
   password!: string;
 
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  phone_number!: string;
+  phone_number?: string;
 
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  first_name!: string;
+  first_name?: string;
 
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  last_name!: string;
+  last_name?: string;
 
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  timezone!: string;
+  timezone?: string;
 }

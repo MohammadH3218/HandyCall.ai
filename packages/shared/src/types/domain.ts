@@ -30,7 +30,29 @@ export enum ServiceType {
   PLUMBING = 'PLUMBING',
   HVAC = 'HVAC',
   LANDSCAPING = 'LANDSCAPING',
+  LAWN_CARE = 'LAWN_CARE',
   CLEANING = 'CLEANING',
+  CARPET_CLEANING = 'CARPET_CLEANING',
+  WINDOW_CLEANING = 'WINDOW_CLEANING',
+  PRESSURE_WASHING = 'PRESSURE_WASHING',
+  POOL_SERVICE = 'POOL_SERVICE',
+  TREE_SERVICE = 'TREE_SERVICE',
+  ROOFING = 'ROOFING',
+  PAINTING = 'PAINTING',
+  FLOORING = 'FLOORING',
+  REMODELING = 'REMODELING',
+  GARAGE_DOOR = 'GARAGE_DOOR',
+  APPLIANCE_REPAIR = 'APPLIANCE_REPAIR',
+  AUTO_MECHANIC = 'AUTO_MECHANIC',
+  LOCKSMITH = 'LOCKSMITH',
+  MOVING = 'MOVING',
+  JUNK_REMOVAL = 'JUNK_REMOVAL',
+  IRRIGATION = 'IRRIGATION',
+  SNOW_REMOVAL = 'SNOW_REMOVAL',
+  FENCING = 'FENCING',
+  CONCRETE = 'CONCRETE',
+  SOLAR = 'SOLAR',
+  SECURITY = 'SECURITY',
   OTHER = 'OTHER',
 }
 
@@ -66,6 +88,9 @@ export interface Company {
 
   use_simple_scheduling?: boolean; // Fallback to simple time slots
   service_area_zipcodes?: string[];
+  service_area_cities?: string[];
+  company_profile_completed?: boolean;
+  service_area_completed?: boolean;
 
   // Calendar / scheduling setup
   calendar_setup_completed?: boolean;

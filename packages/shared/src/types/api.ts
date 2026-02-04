@@ -87,14 +87,14 @@ export interface LoginResponse {
 }
 
 export interface RegisterRequest {
-  company_name: string;
-  service_type: string;
+  company_name?: string;
+  service_type?: string;
   email: string;
   password: string;
-  phone_number: string;
-  first_name: string;
-  last_name: string;
-  timezone: string;
+  phone_number?: string;
+  first_name?: string;
+  last_name?: string;
+  timezone?: string;
 }
 
 export interface RegisterResponse {
@@ -119,10 +119,15 @@ export interface RefreshTokenResponse {
 
 export interface UpdateCompanyRequest {
   company_name?: string;
+  service_type?: string;
   phone_number?: string;
   email?: string;
   timezone?: string;
   business_hours?: Company['business_hours'];
+  service_area_zipcodes?: string[];
+  service_area_cities?: string[];
+  company_profile_completed?: boolean;
+  service_area_completed?: boolean;
 }
 
 export type GetCompanyResponse = Company;
