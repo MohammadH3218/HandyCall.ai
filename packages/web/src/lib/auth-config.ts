@@ -34,6 +34,17 @@ const COGNITO_CLIENT_SECRET =
   "";
 const COGNITO_GOOGLE_IDP = process.env.COGNITO_GOOGLE_IDP ?? "Google";
 const COGNITO_APPLE_IDP = process.env.COGNITO_APPLE_IDP ?? "SignInWithApple";
+const COGNITO_AUTH_DOMAIN =
+  process.env.COGNITO_AUTH_DOMAIN ??
+  process.env.NEXT_PUBLIC_COGNITO_AUTH_DOMAIN ??
+  process.env.COGNITO_DOMAIN ??
+  process.env.NEXT_PUBLIC_COGNITO_DOMAIN ??
+  "handycall";
+const COGNITO_AUTH_BASE_URL = COGNITO_AUTH_DOMAIN
+  ? COGNITO_AUTH_DOMAIN.startsWith("http")
+    ? COGNITO_AUTH_DOMAIN
+    : `https://${COGNITO_AUTH_DOMAIN}.auth.${COGNITO_REGION}.amazoncognito.com`
+  : undefined;
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -45,11 +56,24 @@ export const authOptions: NextAuthOptions = {
             clientId: COGNITO_CLIENT_ID,
             clientSecret: COGNITO_CLIENT_SECRET,
             issuer: COGNITO_ISSUER,
-            authorization: {
-              params: {
-                identity_provider: COGNITO_GOOGLE_IDP,
-              },
-            },
+            ...(COGNITO_AUTH_BASE_URL
+              ? {
+                  authorization: {
+                    url: `${COGNITO_AUTH_BASE_URL}/oauth2/authorize`,
+                    params: {
+                      identity_provider: COGNITO_GOOGLE_IDP,
+                    },
+                  },
+                  token: `${COGNITO_AUTH_BASE_URL}/oauth2/token`,
+                  userinfo: `${COGNITO_AUTH_BASE_URL}/oauth2/userInfo`,
+                }
+              : {
+                  authorization: {
+                    params: {
+                      identity_provider: COGNITO_GOOGLE_IDP,
+                    },
+                  },
+                }),
           }),
           CognitoProvider({
             id: "cognito-apple",
@@ -57,11 +81,24 @@ export const authOptions: NextAuthOptions = {
             clientId: COGNITO_CLIENT_ID,
             clientSecret: COGNITO_CLIENT_SECRET,
             issuer: COGNITO_ISSUER,
-            authorization: {
-              params: {
-                identity_provider: COGNITO_APPLE_IDP,
-              },
-            },
+            ...(COGNITO_AUTH_BASE_URL
+              ? {
+                  authorization: {
+                    url: `${COGNITO_AUTH_BASE_URL}/oauth2/authorize`,
+                    params: {
+                      identity_provider: COGNITO_APPLE_IDP,
+                    },
+                  },
+                  token: `${COGNITO_AUTH_BASE_URL}/oauth2/token`,
+                  userinfo: `${COGNITO_AUTH_BASE_URL}/oauth2/userInfo`,
+                }
+              : {
+                  authorization: {
+                    params: {
+                      identity_provider: COGNITO_APPLE_IDP,
+                    },
+                  },
+                }),
           }),
         ]
       : []),
