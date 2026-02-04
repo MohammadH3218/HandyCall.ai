@@ -118,8 +118,9 @@ export const authOptions: NextAuthOptions = {
             (data.userRole as UserRole | undefined) ||
             (isAdminUser ? UserRole.ADMIN : UserRole.OWNER);
           const poolType =
-            poolTypeFromResponse ||
-            (resolvedUserRole === UserRole.ADMIN ? 'admin' : 'users');
+            poolTypeFromResponse === 'admin' || resolvedUserRole === UserRole.ADMIN
+              ? 'admin'
+              : 'users';
           const decoded = idToken ? decodeJWT(idToken) : null;
           const resolvedName =
             nameFromResponse ||
