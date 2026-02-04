@@ -192,7 +192,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }
 
   return (
-    <div className="flex min-h-screen bg-transparent overflow-hidden">
+    <div className="flex h-screen bg-transparent overflow-hidden">
       {/* Mobile overlay */}
       {sidebarOpen && (
         <div
@@ -204,8 +204,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       {/* Sidebar */}
       <aside
         className={`
-          fixed lg:static inset-y-0 left-0 z-50
-          w-72 bg-white/85 backdrop-blur-xl border-r border-border/60 flex flex-col
+          fixed lg:sticky lg:top-0 inset-y-0 left-0 z-50
+          h-screen w-72 bg-white/85 backdrop-blur-xl border-r border-border/60 flex flex-col
           transform transition-transform duration-200 ease-in-out
           ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
         `}
@@ -308,7 +308,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
         </nav>
 
-        <div className="p-4 border-t border-border/60 bg-white/70">
+        <div className="mt-auto p-4 border-t border-border/60 bg-white/70">
           <ProfileDropdown />
         </div>
       </aside>
