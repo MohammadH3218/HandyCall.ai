@@ -1,31 +1,36 @@
 param(
   [string]$LogGroup = '/aws/amplify/d3rf5jbk1jklag',
-  [int]$Limit = 50,
-  [int]$Days = 7
+  [int]$StreamCount = 10,
+  [int]$EventLimit = 500
 )
 
-$startTime = [int64]([DateTimeOffset]::UtcNow.AddDays(-$Days).ToUnixTimeMilliseconds())
+$streams = aws logs describe-log-streams --region us-east-1 --log-group-name $LogGroup --order-by LastEventTime --descending --max-items $StreamCount --query "logStreams[].logStreamName" --output text
 
-$events = aws logs filter-log-events --region us-east-1 --log-group-name $LogGroup --start-time $startTime --limit $Limit --query "events[].message" --output text
-
-if (-not $events) {
-  Write-Output 'No demo google log entries found.'
+if (-not $streams) {
+  Write-Output 'No log streams found.'
   exit 0
 }
 
-$lines = $events -split "`r?`n"
 $records = @()
 
-foreach ($line in $lines) {
-  if ($line -notmatch '\[Demo Google\]') { continue }
-  $idx = $line.IndexOf('{')
-  if ($idx -lt 0) { continue }
-  $json = $line.Substring($idx)
+$streams -split '\s+' | ForEach-Object {
+  $s = $_
   try {
-    $obj = $json | ConvertFrom-Json
-    $records += $obj
+    $messages = aws logs get-log-events --region us-east-1 --log-group-name $LogGroup --log-stream-name $s --limit $EventLimit --query "events[].message" --output json | ConvertFrom-Json
   } catch {
-    continue
+    return
+  }
+  foreach ($line in $messages) {
+    if ($line -notmatch '\[Demo Google\]') { continue }
+    $idx = $line.IndexOf('{')
+    if ($idx -lt 0) { continue }
+    $json = $line.Substring($idx)
+    try {
+      $obj = $json | ConvertFrom-Json
+      $records += $obj
+    } catch {
+      continue
+    }
   }
 }
 
