@@ -6,7 +6,7 @@ param(
 
 $startTime = [int64]([DateTimeOffset]::UtcNow.AddDays(-$Days).ToUnixTimeMilliseconds())
 
-$events = aws logs filter-log-events --region us-east-1 --log-group-name $LogGroup --start-time $startTime --filter-pattern '"[Demo Google]"' --limit $Limit --query "events[].message" --output text
+$events = aws logs filter-log-events --region us-east-1 --log-group-name $LogGroup --start-time $startTime --limit $Limit --query "events[].message" --output text
 
 if (-not $events) {
   Write-Output 'No demo google log entries found.'
@@ -17,6 +17,7 @@ $lines = $events -split "`r?`n"
 $records = @()
 
 foreach ($line in $lines) {
+  if ($line -notmatch '\[Demo Google\]') { continue }
   $idx = $line.IndexOf('{')
   if ($idx -lt 0) { continue }
   $json = $line.Substring($idx)
