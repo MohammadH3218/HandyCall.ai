@@ -16,7 +16,7 @@ $records = @()
 $streams -split '\s+' | ForEach-Object {
   $s = $_
   try {
-    $messages = aws logs get-log-events --region us-east-1 --log-group-name $LogGroup --log-stream-name $s --limit $EventLimit --query "events[].message" --output json | ConvertFrom-Json
+    $messages = aws logs get-log-events --region us-east-1 --log-group-name $LogGroup --log-stream-name $s --limit $EventLimit --query "events[].message" --output json 2>$null | ConvertFrom-Json
   } catch {
     return
   }
@@ -48,10 +48,10 @@ Write-Output 'Latest overall:'
 $latestOverall | ConvertTo-Json -Compress
 Write-Output ''
 Write-Output 'Latest signin:'
-$latestSignin | ConvertTo-Json -Compress
+if ($latestSignin) { $latestSignin | ConvertTo-Json -Compress } else { 'None' }
 Write-Output ''
 Write-Output 'Latest password:'
-$latestPassword | ConvertTo-Json -Compress
+if ($latestPassword) { $latestPassword | ConvertTo-Json -Compress } else { 'None' }
 Write-Output ''
 Write-Output 'Latest code:'
-$latestCode | ConvertTo-Json -Compress
+if ($latestCode) { $latestCode | ConvertTo-Json -Compress } else { 'None' }
