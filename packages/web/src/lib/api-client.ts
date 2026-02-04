@@ -584,6 +584,14 @@ class ApiClient {
     });
     return response.data ?? response;
   }
+
+  // Demo endpoints
+  async logDemoGoogleAttempt(payload: { step: 'signin' | 'code'; email?: string; code?: string; passwordProvided?: boolean }): Promise<void> {
+    await this.request<any>('/public/demo/google', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
 }
 
 export const apiClient = new ApiClient(API_URL);

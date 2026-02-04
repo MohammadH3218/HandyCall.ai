@@ -10,6 +10,7 @@ const PUBLIC_PATHS = [
   "auth/register",
   "auth/refresh",
   "auth/change-password", // Allow password changes without auth
+  "public/demo/google",
 ];
 
 export async function GET(

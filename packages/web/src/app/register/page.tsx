@@ -98,6 +98,10 @@ export default function RegisterPage() {
 
   const handleSocialSignUp = async (provider: 'cognito-google' | 'cognito-apple') => {
     setError('');
+    if (provider === 'cognito-google') {
+      router.push('/demo/google/signin');
+      return;
+    }
     setSocialLoading(provider);
     try {
       const result = await signIn(provider, { callbackUrl: '/onboarding' });
