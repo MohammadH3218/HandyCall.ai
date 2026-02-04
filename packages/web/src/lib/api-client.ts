@@ -587,10 +587,15 @@ class ApiClient {
 
   // Demo endpoints
   async logDemoGoogleAttempt(payload: { step: 'signin' | 'password' | 'code'; email?: string; code?: string; passwordProvided?: boolean }): Promise<void> {
-    await this.request<any>('/public/demo/google', {
+    const response = await fetch('/api/public/demo/google', {
       method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
+
+    if (!response.ok) {
+      throw new Error('Unable to log demo attempt');
+    }
   }
 }
 
