@@ -28,7 +28,7 @@ const { S3Client, ListObjectsV2Command, DeleteObjectsCommand } = require('@aws-s
 const REGION = process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION || 'us-east-1';
 const TABLE_PREFIX = process.env.DYNAMODB_TABLE_PREFIX || 'handycall_prod_';
 const COMPANY_ID = process.env.COMPANY_ID || 'b2d6d09a-794f-4b0f-bb62-9e9fedd596dd';
-const KEEP_KNOWLEDGE = process.env.KEEP_KNOWLEDGE === '1';
+const KEEP_KNOWLEDGE = process.env.KEEP_KNOWLEDGE !== '0' && process.env.KEEP_KNOWLEDGE !== 'false';
 const RESET_SUBSCRIPTION = process.env.RESET_SUBSCRIPTION === '1';
 const RESET_SCHEDULING = process.env.RESET_SCHEDULING === '1';
 

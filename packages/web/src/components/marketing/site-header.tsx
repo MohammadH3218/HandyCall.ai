@@ -14,30 +14,27 @@ export function SiteHeader({
   hideLogin = false,
 }: SiteHeaderProps) {
   return (
-    <header className="sticky top-0 z-20 border-b border-emerald-100/60 bg-white/80 backdrop-blur">
-      <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
-        <Link href="/" className="flex items-center gap-3">
-          <Logo width={160} height={40} />
+    <header className="sticky top-0 z-20 border-b border-slate-100 bg-white/95 backdrop-blur-sm">
+      <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3.5">
+        <Link href="/" className="flex items-center">
+          <Logo width={148} height={36} />
         </Link>
-        <nav className="hidden items-center gap-6 rounded-full border border-emerald-100 bg-white/70 px-4 py-2 text-sm font-medium text-slate-600 shadow-sm md:flex">
-          <Link href="/pricing" className="transition-colors hover:text-slate-900">
+
+        <nav className="hidden items-center gap-8 md:flex">
+          <Link href="/pricing" className="text-sm font-medium text-slate-600 transition-colors hover:text-slate-900">
             Pricing
           </Link>
-          <Link href="/contact" className="transition-colors hover:text-slate-900">
+          <Link href="/contact" className="text-sm font-medium text-slate-600 transition-colors hover:text-slate-900">
             Contact
           </Link>
-          {!hideLogin && (
-            <Link href="/login" className="transition-colors hover:text-slate-900">
-              Login
-            </Link>
-          )}
         </nav>
+
         {!hideLogin && (
           <div className="flex items-center gap-2">
-            <Button asChild size="sm" variant="outline" className="md:hidden">
-              <Link href={ctaHref}>{ctaLabel}</Link>
+            <Button asChild size="sm" variant="ghost" className="hidden text-slate-600 hover:text-slate-900 md:inline-flex">
+              <Link href="/login">Log in</Link>
             </Button>
-            <Button asChild className="hidden md:inline-flex">
+            <Button asChild size="sm">
               <Link href={ctaHref}>{ctaLabel}</Link>
             </Button>
           </div>

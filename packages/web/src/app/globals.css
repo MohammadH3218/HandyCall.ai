@@ -42,12 +42,7 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground;
-    background-image:
-      radial-gradient(900px 280px at 10% -10%, rgba(16, 185, 129, 0.15), transparent 60%),
-      radial-gradient(900px 280px at 90% -10%, rgba(16, 185, 129, 0.12), transparent 60%),
-      linear-gradient(180deg, hsl(var(--background)) 0%, #ffffff 45%, #f7faf9 100%);
-    background-attachment: fixed;
+    @apply bg-white text-foreground;
   }
 
   h1,
