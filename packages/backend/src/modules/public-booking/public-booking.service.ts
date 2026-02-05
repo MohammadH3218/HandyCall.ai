@@ -12,6 +12,7 @@ import {
   PublicBookingUpdateDto,
 } from './dto/public-booking.dto';
 import { sendSesEmail } from './email.util';
+import { renderHandycallEmail } from '../../common/email-templates';
 import { AppointmentStatus, isValidEmail } from '@handycall/shared';
 import { signBookingToken, verifyBookingToken } from './booking-link.util';
 
@@ -79,6 +80,10 @@ export class PublicBookingService {
     const override =
       (typeof company?.booking_from_email === 'string' && company.booking_from_email) ||
       (typeof company?.email_from === 'string' && company.email_from);
+    const explicitFrom =
+      this.config.get<string>('BOOKING_FROM_EMAIL') ||
+      this.config.get<string>('NO_CONTACT_EMAIL') ||
+      '';
     const domain =
       this.config.get<string>('BOOKING_EMAIL_DOMAIN') ||
       this.config.get<string>('SES_FROM_DOMAIN') ||
@@ -90,7 +95,7 @@ export class PublicBookingService {
       .replace(/^-+|-+$/g, '')
       .slice(0, 32);
     const local = `no-reply+${slug || company?.company_id || 'company'}`;
-    const from = override || `${local}@${domain}`;
+    const from = override || explicitFrom || `${local}@${domain}`;
     const display = rawName;
     return { from, display };
   }
@@ -364,6 +369,15 @@ export class PublicBookingService {
       const body =
         `You're confirmed with ${company.company_name} for ${label}.\n\n` +
         `Manage or update your appointment here: ${manageLink}`;
+      const html = renderHandycallEmail({
+        title: 'Booking confirmed',
+        preheader: `Your ${company.company_name} appointment is scheduled.`,
+        greeting: `Hi there,`,
+        body: `<p style="margin:0 0 16px;">You're confirmed with <strong>${company.company_name}</strong> for <strong>${label}</strong>.</p>
+               <p style="margin:0 0 16px;">Use the link below to view, reschedule, or cancel this appointment.</p>`,
+        cta: { label: 'View appointment', url: manageLink },
+        footer: `If you did not request this booking, just reply to this email and we'll take care of it.`,
+      });
       try {
         const result = await sendSesEmail({
           region,
@@ -371,6 +385,7 @@ export class PublicBookingService {
           to: [toEmail],
           subject,
           text: body,
+          html,
         });
         console.log('[public_booking] confirmation email sent', {
           appointment_id: createdAppointment?.appointment_id,

@@ -247,6 +247,18 @@ export class MicrosoftCalendarService implements OnModuleInit {
     return response.data;
   }
 
+  async getMailboxTimeZone(accessToken: string): Promise<string | null> {
+    try {
+      const response = await axios.get(`${this.graphEndpoint}/me/mailboxSettings`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      return response.data?.timeZone || null;
+    } catch (error: any) {
+      console.warn('[MicrosoftCalendarService] Failed to fetch mailbox timezone', error?.message || error);
+      return null;
+    }
+  }
+
   async deleteEvent(accessToken: string, eventId: string): Promise<void> {
     await axios.delete(`${this.graphEndpoint}/me/calendar/events/${eventId}`, {
       headers: { Authorization: `Bearer ${accessToken}` },

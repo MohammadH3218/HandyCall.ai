@@ -422,6 +422,11 @@ function LoginPageInner() {
                         required
                         disabled={isLoading}
                       />
+                      <div className="text-right">
+                        <Link href="/forgot-password" className="text-xs text-primary hover:underline">
+                          Forgot password?
+                        </Link>
+                      </div>
                     </div>
                   </CardContent>
                   <CardFooter className="flex flex-col gap-3">

@@ -279,6 +279,34 @@ export class UsersService {
     return user as User;
   }
 
+  async setPasswordResetToken(email: string, tokenHash: string, expiresAt: number): Promise<void> {
+    const user = await this.findByEmail(email);
+    if (!user) return;
+    await this.dynamodb.update(
+      this.tableName,
+      { company_id: (user as any).company_id, user_id: (user as any).user_id },
+      {
+        reset_token_hash: tokenHash,
+        reset_token_expires_at: expiresAt,
+        updated_at: Date.now(),
+      }
+    );
+  }
+
+  async clearPasswordResetToken(email: string): Promise<void> {
+    const user = await this.findByEmail(email);
+    if (!user) return;
+    await this.dynamodb.update(
+      this.tableName,
+      { company_id: (user as any).company_id, user_id: (user as any).user_id },
+      {
+        reset_token_hash: null,
+        reset_token_expires_at: null,
+        updated_at: Date.now(),
+      }
+    );
+  }
+
   async findById(companyId: string, userId: string): Promise<User | null> {
     const user = await this.dynamodb.get(this.tableName, {
       company_id: companyId,

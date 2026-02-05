@@ -15,6 +15,9 @@ import {
 } from '@handycall/shared';
 import { isValidEmail, isValidPhoneNumber, formatPhoneNumber, isValidTimezone } from '@handycall/shared';
 import { v4 as uuidv4 } from 'uuid';
+import { randomBytes, createHash } from 'crypto';
+import { sendSesEmail } from '../public-booking/email.util';
+import { renderHandycallEmail } from '../../common/email-templates';
 
 @Injectable()
 export class AuthService {
@@ -519,5 +522,97 @@ export class AuthService {
       email,
       company_id: companyId,
     };
+  }
+
+  private getFrontendBaseUrl(): string {
+    return (
+      this.configService.get<string>('FRONTEND_URL') ||
+      this.configService.get<string>('NEXTAUTH_URL') ||
+      'https://handycall.org'
+    ).replace(/\/$/, '');
+  }
+
+  async requestPasswordReset(email: string) {
+    const trimmed = String(email || '').trim();
+    if (!isValidEmail(trimmed)) {
+      throw new BadRequestException('Please provide a valid email address.');
+    }
+
+    const user = await this.usersService.findByEmail(trimmed);
+    if (!user) {
+      // Always return ok to avoid leaking account existence.
+      return { ok: true };
+    }
+
+    const token = randomBytes(32).toString('hex');
+    const tokenHash = createHash('sha256').update(token).digest('hex');
+    const ttlMinutes = Number(this.configService.get<string>('RESET_TOKEN_TTL_MINUTES') || '30');
+    const expiresAt = Date.now() + ttlMinutes * 60_000;
+
+    await this.usersService.setPasswordResetToken(trimmed, tokenHash, expiresAt);
+
+    const resetUrl = `${this.getFrontendBaseUrl()}/reset-password?email=${encodeURIComponent(
+      trimmed
+    )}&token=${encodeURIComponent(token)}`;
+
+    const fromAddress =
+      this.configService.get<string>('NO_CONTACT_EMAIL') || 'no-contact@handycall.org';
+    const region = this.configService.get<string>('SES_REGION') || this.configService.get<string>('AWS_REGION') || 'us-east-1';
+    const subject = 'Reset your HandyCall password';
+    const text =
+      `We received a request to reset your HandyCall password.\n\n` +
+      `Use the link below to set a new password (valid for ${ttlMinutes} minutes):\n${resetUrl}\n\n` +
+      `If you did not request this, you can safely ignore this email.`;
+    const html = renderHandycallEmail({
+      title: 'Reset your password',
+      preheader: 'Reset your HandyCall password',
+      greeting: 'Hi there,',
+      body: `<p style="margin:0 0 16px;">We received a request to reset your HandyCall password.</p>
+             <p style="margin:0 0 16px;">Use the link below to set a new password. This link expires in ${ttlMinutes} minutes.</p>`,
+      cta: { label: 'Reset password', url: resetUrl },
+      footer: 'If you did not request this, you can safely ignore this email.',
+    });
+
+    await sendSesEmail({
+      region,
+      from: `HandyCall <${fromAddress}>`,
+      to: [trimmed],
+      subject,
+      text,
+      html,
+    });
+
+    return { ok: true };
+  }
+
+  async confirmPasswordReset(email: string, token: string, newPassword: string) {
+    const trimmedEmail = String(email || '').trim();
+    const trimmedToken = String(token || '').trim();
+    if (!isValidEmail(trimmedEmail)) {
+      throw new BadRequestException('Please provide a valid email address.');
+    }
+    if (!trimmedToken) {
+      throw new BadRequestException('Reset token is required.');
+    }
+    if (!newPassword || newPassword.length < 8) {
+      throw new BadRequestException('Password must be at least 8 characters.');
+    }
+
+    const user = await this.usersService.findByEmail(trimmedEmail);
+    if (!user) {
+      throw new BadRequestException('Reset token is invalid or expired.');
+    }
+
+    const tokenHash = createHash('sha256').update(trimmedToken).digest('hex');
+    const storedHash = (user as any).reset_token_hash;
+    const expiresAt = Number((user as any).reset_token_expires_at || 0);
+    if (!storedHash || storedHash !== tokenHash || !expiresAt || Date.now() > expiresAt) {
+      throw new BadRequestException('Reset token is invalid or expired.');
+    }
+
+    await this.cognitoService.setUserPassword(trimmedEmail, newPassword, 'auto');
+    await this.usersService.clearPasswordResetToken(trimmedEmail);
+
+    return { ok: true };
   }
 }

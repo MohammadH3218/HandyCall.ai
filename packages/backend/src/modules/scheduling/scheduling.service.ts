@@ -123,7 +123,11 @@ export class SchedulingService {
     const endMs = asMs(endIso);
     if (endMs <= startMs) throw new BadRequestException('end_time must be after start_time');
 
-    const timeZone = company.timezone || 'UTC';
+    const timeZone =
+      (company as any)?.calendar_connection?.timezone ||
+      (company as any)?.calendar_connection?.timeZone ||
+      company.timezone ||
+      'UTC';
     const durationMinutes = this.getDurationMinutes(company);
     const intervalMinutes = this.getSlotIntervalMinutes(company);
 

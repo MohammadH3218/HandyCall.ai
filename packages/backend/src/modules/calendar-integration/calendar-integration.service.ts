@@ -41,6 +41,9 @@ export class CalendarIntegrationService {
   async handleGoogleCallback(code: string, state: string): Promise<void> {
     const companyId = state; // State contains companyId
     const tokens = await this.googleCalendar.exchangeCodeForTokens(code);
+    const calendarTimezone = tokens?.access_token
+      ? await this.googleCalendar.getPrimaryTimeZone(tokens.access_token)
+      : null;
 
     await this.companiesService.updateCompany(companyId, {
       calendar_provider: 'GOOGLE',
@@ -50,6 +53,7 @@ export class CalendarIntegrationService {
         access_token: tokens.access_token,
         refresh_token: tokens.refresh_token,
         expiry_date: tokens.expiry_date,
+        ...(calendarTimezone ? { timezone: calendarTimezone } : {}),
         connected_at: Date.now(),
       },
       calendar_setup_completed: true,
@@ -94,6 +98,10 @@ export class CalendarIntegrationService {
       throw new Error(`Failed to exchange authorization code: ${error.message}`);
     }
 
+    const calendarTimezone = tokens?.access_token
+      ? await this.microsoftCalendar.getMailboxTimeZone(tokens.access_token)
+      : null;
+
     console.log(`[CalendarIntegrationService] Updating company calendar connection...`);
     try {
       await this.companiesService.updateCompany(companyId, {
@@ -104,6 +112,7 @@ export class CalendarIntegrationService {
           access_token: tokens.access_token,
           refresh_token: tokens.refresh_token,
           expiry_date: tokens.expiry_date,
+          ...(calendarTimezone ? { timezone: calendarTimezone } : {}),
           connected_at: Date.now(),
         },
         calendar_setup_completed: true,

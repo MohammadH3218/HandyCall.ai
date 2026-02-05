@@ -242,6 +242,26 @@ export class GoogleCalendarService implements OnModuleInit {
     return response.data;
   }
 
+  async getPrimaryTimeZone(accessToken: string): Promise<string | null> {
+    // Ensure OAuth client is initialized
+    if (!this.oauth2Client || !this.oauth2Client._clientId) {
+      await this.ensureOAuthClient();
+    }
+
+    if (!this.oauth2Client) return null;
+
+    this.oauth2Client.setCredentials({ access_token: accessToken });
+    const calendar = google.calendar({ version: 'v3', auth: this.oauth2Client });
+
+    try {
+      const response = await calendar.calendars.get({ calendarId: 'primary' });
+      return response.data.timeZone || null;
+    } catch (err: any) {
+      console.warn('[GoogleCalendarService] Failed to fetch calendar timezone', err?.message || err);
+      return null;
+    }
+  }
+
   async updateEvent(accessToken: string, eventId: string, event: any): Promise<any> {
     // Ensure OAuth client is initialized
     if (!this.oauth2Client || !this.oauth2Client._clientId) {

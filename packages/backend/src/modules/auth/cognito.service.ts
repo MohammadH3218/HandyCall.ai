@@ -470,6 +470,36 @@ export class CognitoService {
     }
   }
 
+  async setUserPassword(
+    email: string,
+    newPassword: string,
+    poolType: 'auto' | 'users' | 'admin' = 'auto'
+  ): Promise<void> {
+    const poolsToTry: Array<'users' | 'admin'> = poolType === 'auto' ? ['users', 'admin'] : [poolType];
+    let lastError: any = null;
+
+    for (const pool of poolsToTry) {
+      const poolId = pool === 'admin' ? this.adminPoolId : this.usersPoolId;
+      if (!poolId) {
+        continue;
+      }
+      try {
+        const command = new AdminSetUserPasswordCommand({
+          UserPoolId: poolId,
+          Username: email,
+          Password: newPassword,
+          Permanent: true,
+        });
+        await this.cognitoClient.send(command);
+        return;
+      } catch (error: any) {
+        lastError = error;
+      }
+    }
+
+    throw new BadRequestException(lastError?.message || 'Failed to set new password');
+  }
+
   /**
    * List all users in a pool (with pagination)
    */

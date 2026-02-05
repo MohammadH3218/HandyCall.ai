@@ -26,6 +26,31 @@
   },
   {
     "Namespace": "aws:elasticbeanstalk:application:environment",
+    "OptionName": "NO_CONTACT_EMAIL",
+    "Value": "no-contact@handycall.org"
+  },
+  {
+    "Namespace": "aws:elasticbeanstalk:application:environment",
+    "OptionName": "CONTACT_EMAIL_TO",
+    "Value": "hello@handycall.org"
+  },
+  {
+    "Namespace": "aws:elasticbeanstalk:application:environment",
+    "OptionName": "CONTACT_EMAIL_FROM",
+    "Value": "hello@handycall.org"
+  },
+  {
+    "Namespace": "aws:elasticbeanstalk:application:environment",
+    "OptionName": "BOOKING_FROM_EMAIL",
+    "Value": "no-contact@handycall.org"
+  },
+  {
+    "Namespace": "aws:elasticbeanstalk:application:environment",
+    "OptionName": "RESET_TOKEN_TTL_MINUTES",
+    "Value": "30"
+  },
+  {
+    "Namespace": "aws:elasticbeanstalk:application:environment",
     "OptionName": "BOOKING_EMAIL_DOMAIN",
     "Value": "handycall.org"
   },
@@ -52,7 +77,7 @@
   {
     "Namespace": "aws:elasticbeanstalk:application:environment",
     "OptionName": "JWT_EXPIRES_IN",
-    "Value": "3600"
+    "Value": "28800"
   },
   {
     "Namespace": "aws:elasticbeanstalk:application:environment",

@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, type ChangeEvent } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -29,6 +30,21 @@ const points = [
 ];
 
 export default function ContactPage() {
+  const [formState, setFormState] = useState({
+    name: '',
+    company: '',
+    email: '',
+    phone: '',
+    message: '',
+  });
+  const [status, setStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
+  const [errorMessage, setErrorMessage] = useState('');
+
+  const handleChange =
+    (field: keyof typeof formState) => (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+      setFormState((prev) => ({ ...prev, [field]: event.target.value }));
+    };
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-white via-emerald-50/25 to-white text-foreground">
       <SiteHeader />
@@ -67,38 +83,73 @@ export default function ContactPage() {
             <CardContent>
               <form
                 className="space-y-4"
-                onSubmit={(e) => {
+                onSubmit={async (e) => {
                   e.preventDefault();
+                  setStatus('sending');
+                  setErrorMessage('');
+                  try {
+                    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/contact`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify(formState),
+                    });
+                    if (!response.ok) {
+                      const data = await response.json().catch(() => ({}));
+                      throw new Error(data?.message || 'Unable to send your message right now.');
+                    }
+                    setStatus('sent');
+                    setFormState({
+                      name: '',
+                      company: '',
+                      email: '',
+                      phone: '',
+                      message: '',
+                    });
+                  } catch (err: any) {
+                    setStatus('error');
+                    setErrorMessage(err?.message || 'Unable to send your message right now.');
+                  }
                 }}
               >
                 <div className="grid gap-4 md:grid-cols-2">
                   <div className="space-y-2">
                     <Label htmlFor="name">Full name</Label>
-                    <Input id="name" placeholder="Your name" required />
+                    <Input id="name" placeholder="Your name" required value={formState.name} onChange={handleChange('name')} />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="company">Company</Label>
-                    <Input id="company" placeholder="Business name" required />
+                    <Input id="company" placeholder="Business name" required value={formState.company} onChange={handleChange('company')} />
                   </div>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="email">Email</Label>
-                  <Input id="email" type="email" placeholder="you@business.com" required />
+                  <Input id="email" type="email" placeholder="you@business.com" required value={formState.email} onChange={handleChange('email')} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="phone">Phone</Label>
-                  <Input id="phone" type="tel" placeholder="(555) 123-4567" />
+                  <Input id="phone" type="tel" placeholder="(555) 123-4567" value={formState.phone} onChange={handleChange('phone')} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="message">How can we help?</Label>
-                  <Textarea id="message" placeholder="Share your call volume, services, and goals." rows={4} />
+                  <Textarea
+                    id="message"
+                    placeholder="Share your call volume, services, and goals."
+                    rows={4}
+                    value={formState.message}
+                    onChange={handleChange('message')}
+                  />
                 </div>
-                <Button type="submit" className="w-full">
-                  Send message
+                <Button type="submit" className="w-full" disabled={status === 'sending'}>
+                  {status === 'sending' ? 'Sending...' : 'Send message'}
                 </Button>
-                <p className="text-xs text-slate-500">
-                  This form is a placeholder. We can connect it to your preferred support channel.
-                </p>
+                {status === 'sent' ? (
+                  <p className="text-xs text-emerald-700">Thanks! We received your message and will reply soon.</p>
+                ) : null}
+                {status === 'error' ? (
+                  <p className="text-xs text-red-600">{errorMessage}</p>
+                ) : (
+                  <p className="text-xs text-slate-500">We typically respond within one business day.</p>
+                )}
               </form>
             </CardContent>
           </Card>

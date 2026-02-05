@@ -30,6 +30,7 @@ import { ConfigService } from '@nestjs/config';
 import { SaveRecordingDto } from './dto/save-recording.dto';
 import { signBookingToken } from '../public-booking/booking-link.util';
 import { sendSesEmail } from '../public-booking/email.util';
+import { renderHandycallEmail } from '../../common/email-templates';
 import { isValidEmail } from '@handycall/shared';
 
 function asE164(input: string): string {
@@ -74,6 +75,15 @@ export class RealtimeToolsService {
 
   private getFrontendBaseUrl(): string {
     return (this.config.get<string>('FRONTEND_URL') || 'https://handycall.org').replace(/\/$/, '');
+  }
+
+  private resolveCompanyTimeZone(company: any, fallback = 'UTC'): string {
+    const candidate =
+      company?.calendar_connection?.timezone ||
+      company?.calendar_connection?.timeZone ||
+      company?.timezone ||
+      fallback;
+    return candidate || fallback;
   }
 
   private pad2(n: number): string {
@@ -325,7 +335,7 @@ export class RealtimeToolsService {
     return {
       company_id: company.company_id,
       company_name: company.company_name,
-      timezone: company.timezone,
+      timezone: this.resolveCompanyTimeZone(company),
       service_type: company.service_type,
       service_template_id,
       service_template: service_template || undefined,
@@ -809,7 +819,7 @@ export class RealtimeToolsService {
     const company = await this.companies.findById(company_id);
     if (!company) throw new NotFoundException('Company not found');
 
-    const timeZone = this.normalizeTimeZone(dto.timezone, company.timezone || 'UTC');
+    const timeZone = this.normalizeTimeZone(dto.timezone, this.resolveCompanyTimeZone(company));
     const referenceDate = new Date(new Date().toLocaleString('en-US', { timeZone }));
     const startRaw = String(dto.start_time || '').trim();
     const endRaw = String(dto.end_time || '').trim();
@@ -947,7 +957,7 @@ export class RealtimeToolsService {
     const company = await this.companies.findById(company_id);
     if (!company) throw new NotFoundException('Company not found');
 
-    const timeZone = this.normalizeTimeZone(dto.timezone, company.timezone || 'UTC');
+    const timeZone = this.normalizeTimeZone(dto.timezone, this.resolveCompanyTimeZone(company));
     const referenceDate = new Date(new Date().toLocaleString('en-US', { timeZone }));
     const customerEmail =
       (dto.customer_email && dto.customer_email.trim()) ||
@@ -1016,6 +1026,10 @@ export class RealtimeToolsService {
     const override =
       (typeof company?.booking_from_email === 'string' && company.booking_from_email) ||
       (typeof company?.email_from === 'string' && company.email_from);
+    const explicitFrom =
+      this.config.get<string>('BOOKING_FROM_EMAIL') ||
+      this.config.get<string>('NO_CONTACT_EMAIL') ||
+      '';
     const domain =
       this.config.get<string>('BOOKING_EMAIL_DOMAIN') ||
       this.config.get<string>('SES_FROM_DOMAIN') ||
@@ -1027,7 +1041,7 @@ export class RealtimeToolsService {
       .replace(/^-+|-+$/g, '')
       .slice(0, 32);
     const local = `no-reply+${slug || company?.company_id || 'company'}`;
-    const from = override || `${local}@${domain}`;
+    const from = override || explicitFrom || `${local}@${domain}`;
     const display = rawName;
     return { from, display };
   }
@@ -1065,6 +1079,15 @@ export class RealtimeToolsService {
     const fromMeta = this.resolveBookingFromEmail(company);
     const fromAddress = `${fromMeta.display} <${fromMeta.from}>`;
     const subject = `${company.company_name} booking details`;
+    const html = renderHandycallEmail({
+      title: `${company.company_name} booking details`,
+      preheader: `Manage your ${company.company_name} appointment.`,
+      greeting: 'Hi there,',
+      body: `<p style="margin:0 0 16px;">Thanks for booking with <strong>${company.company_name}</strong>.</p>
+             <p style="margin:0 0 16px;">Use the link below to view or manage your appointment.</p>`,
+      cta: { label: 'Manage appointment', url: bookingLink },
+      footer: `Need help? Reply to this email and our team will assist.`,
+    });
 
     try {
       const result = await sendSesEmail({
@@ -1073,6 +1096,7 @@ export class RealtimeToolsService {
         to: [email],
         subject,
         text: message,
+        html,
       });
       console.log('[send_booking_link] email sent', {
         message_id: (result as any)?.MessageId,
@@ -1197,7 +1221,7 @@ export class RealtimeToolsService {
     const company = await this.companies.findById(dto.company_id);
     if (!company) throw new NotFoundException('Company not found');
 
-    const timeZone = this.normalizeTimeZone(dto.timezone, company.timezone || 'UTC');
+    const timeZone = this.normalizeTimeZone(dto.timezone, this.resolveCompanyTimeZone(company));
     const startIso = this.coerceToUtcIso(dto.new_start_time, timeZone);
     const startMs = Date.parse(startIso);
 
