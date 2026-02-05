@@ -27,6 +27,40 @@ export function toolsSchema() {
         },
         {
             type: 'function',
+            name: 'get_availability',
+            description: 'Check available appointment slots for a requested date/time.',
+            parameters: {
+                type: 'object',
+                properties: {
+                    start_time: { type: 'string', description: 'Preferred time or date range (natural language or ISO).' },
+                    end_time: { type: 'string', description: 'Optional window end time.' },
+                    timezone: { type: 'string', description: 'IANA timezone name, e.g. America/Chicago.' }
+                },
+                required: ['start_time']
+            }
+        },
+        {
+            type: 'function',
+            name: 'create_booking',
+            description: 'Create an appointment after confirming the booking details with the caller.',
+            parameters: {
+                type: 'object',
+                properties: {
+                    start_time: { type: 'string', description: 'Start time for the appointment (ISO or selected slot).' },
+                    end_time: { type: 'string', description: 'Optional end time.' },
+                    timezone: { type: 'string', description: 'IANA timezone name.' },
+                    customer_name: { type: 'string', description: 'Customer full name.' },
+                    customer_email: { type: 'string', description: 'Customer email (optional, can be collected after booking).' },
+                    service_type: { type: 'string', description: 'Service type label.' },
+                    details: { type: 'object', description: 'Collected intake fields.' },
+                    notes: { type: 'string', description: 'Notes for the appointment.' },
+                    confirmed: { type: 'boolean', description: 'Must be true once the caller confirms the booking.' }
+                },
+                required: ['start_time', 'confirmed']
+            }
+        },
+        {
+            type: 'function',
             name: 'send_booking_link',
             description: 'Send a confirmation link by email after an appointment is booked so the caller can manage it.',
             parameters: {

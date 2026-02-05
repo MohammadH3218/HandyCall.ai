@@ -223,6 +223,21 @@ function selectAvailabilitySlot(requestedText: string | undefined, slots: string
   return null;
 }
 
+function titleizeField(field: string) {
+  return field
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/\b\w/g, (m) => m.toUpperCase());
+}
+
+function formatFieldList(fields?: any[]): string | null {
+  if (!Array.isArray(fields)) return null;
+  const cleaned = fields.map((field) => String(field || '').trim()).filter(Boolean);
+  if (!cleaned.length) return null;
+  return cleaned.map((field) => titleizeField(field)).join(', ');
+}
+
 function buildInstructions(tenant: TenantInfo, options: { serviceAreaRequired: boolean }) {
   const name = tenant.company_name || 'our company';
   const extra = tenant.agent_config?.realtime_instructions;
@@ -231,24 +246,27 @@ function buildInstructions(tenant: TenantInfo, options: { serviceAreaRequired: b
     : null;
   const renderedTemplatePrompt = templatePrompt ? templatePrompt.replace(/\{company_name\}/g, name) : null;
   const serviceAreaRequired = options.serviceAreaRequired;
+  const requiredFields = formatFieldList(tenant.service_template?.intake_schema?.required);
+  const optionalFields = formatFieldList(tenant.service_template?.intake_schema?.optional);
   const lines = [
     renderedTemplatePrompt || `You are the phone receptionist for ${name}.`,
     `Greet the caller immediately and include the company name in the first sentence.`,
     `Be friendly, concise, and phone-like. Ask one question at a time.`,
-    `You can answer FAQs and help callers book by sending a booking link.`,
+    `You can answer FAQs and help callers book appointments directly.`,
     `Never ask for the caller's phone number. Use the caller ID.`,
     serviceAreaRequired
-      ? `If the caller wants to book, ask for their 5-digit ZIP code first and call check_service_area(zip) before offering a booking link.`
-      : `If service-area checks are enabled or the caller provides a ZIP, call check_service_area(zip) before sending a booking link.`,
-    serviceAreaRequired
-      ? `If the ZIP is not serviced, apologize and end the call politely.`
-      : `If the ZIP is not serviced, apologize and end the call politely.`,
-    `Do NOT collect name, address, or other intake details on the phone.`,
-    `After confirming the service area, ask permission to email a booking link.`,
-    `If the caller agrees, collect their email address and repeat it letter by letter to confirm.`,
-    `If they say it's incorrect, fix it and confirm again until they approve.`,
-    `When confirmed, call send_booking_link with the email and confirm it was sent.`,
-    `Do not book appointments or check availability on the phone; use the booking link flow only.`,
+      ? `If the caller wants to book, ask for their 5-digit ZIP code first and call check_service_area(zip) before anything else.`
+      : `If service-area checks are enabled or the caller provides a ZIP, call check_service_area(zip) before booking.`,
+    `If the ZIP is not serviced, apologize and end the call politely.`,
+    requiredFields ? `Required intake fields to collect before booking: ${requiredFields}.` : null,
+    optionalFields ? `Optional fields (collect only if relevant): ${optionalFields}.` : null,
+    `Collect required intake details first (based on the service template) before scheduling.`,
+    `Ask for preferred day/time, call get_availability, then offer available slots.`,
+    `Before booking, summarize the details and ask for confirmation. Only then call create_booking with confirmed=true.`,
+    `When calling create_booking, include the collected intake fields in the details object.`,
+    `After create_booking succeeds, ask for the best email to send the confirmation link.`,
+    `Only send the confirmation link after the booking is created. The link is for managing the booking, not scheduling.`,
+    `If the caller declines email, confirm the booking without a link.`,
     `If the caller asks about prior appointments, use list_appointments_by_phone.`,
     `Use knowledge_search for company-specific questions (services, pricing, policies, service areas).`,
     `After finishing the main task, ask: "Is there anything else I can help with today?"`,
@@ -579,6 +597,8 @@ wss.on('connection', (twilioWs: WebSocket) => {
   let pendingHangup = false;
   let waitingForHangupMark = false;
   let hangupFallbackTimer: ReturnType<typeof setTimeout> | null = null;
+  let appointmentCreated = false;
+  let appointmentId: string | null = null;
 
   function tryGreet() {
     if (!openaiWs || !openaiReady || !twilioReady || greeted) return;
@@ -762,6 +782,12 @@ wss.on('connection', (twilioWs: WebSocket) => {
             pendingHangup = true;
             result = { ok: true, status: 'pending_hangup' };
             if (!assistantSpeaking) queueHangupMark();
+          } else if (toolName === 'send_booking_link' && !appointmentCreated) {
+            result = {
+              ok: false,
+              error: 'BookingNotCreated',
+              message: 'Create the booking first, then ask for the email and send the confirmation link.',
+            };
           } else if (
             (toolName === 'get_availability' || toolName === 'create_booking' || toolName === 'send_booking_link') &&
             serviceAreaRequired &&
@@ -774,6 +800,12 @@ wss.on('connection', (twilioWs: WebSocket) => {
             };
           } else {
             result = await callTool(ctx, toolName, args);
+            if (toolName === 'create_booking') {
+              if ((result as any)?.ok === true || (result as any)?.appointment_id) {
+                appointmentCreated = true;
+                appointmentId = (result as any)?.appointment_id ?? null;
+              }
+            }
             if (toolName === 'check_service_area') {
               if (typeof (result as any)?.eligible === 'boolean') {
                 serviceAreaEligible = (result as any).eligible;
