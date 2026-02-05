@@ -156,6 +156,20 @@ function isFillerUtterance(text: string) {
   return normalized.split(' ').length <= 2 && fillerUtterances.has(normalized);
 }
 
+function isExplicitBargeIn(text: string) {
+  const t = normalizeSpeech(text);
+  if (!t) return false;
+  return [
+    'stop',
+    'hold on',
+    'wait',
+    'one second',
+    'give me a second',
+    'pause',
+    'actually',
+  ].some((phrase) => t === phrase || t.startsWith(`${phrase} `) || t.includes(phrase));
+}
+
 function looksLikeIso(value?: string) {
   if (!value) return false;
   const v = value.trim();
@@ -246,6 +260,12 @@ function normalizeSpeech(text?: string) {
     .trim();
 }
 
+function wordCount(text?: string) {
+  const t = normalizeSpeech(text);
+  if (!t) return 0;
+  return t.split(' ').length;
+}
+
 function isNegativeResponse(text?: string) {
   const t = normalizeSpeech(text);
   if (!t) return false;
@@ -265,6 +285,35 @@ function askedAnythingElse(text?: string) {
     t.includes('help with today') ||
     t.includes('help you with today')
   );
+}
+
+function hasDayReference(text?: string) {
+  const t = normalizeSpeech(text);
+  if (!t) return false;
+  const days = [
+    'monday',
+    'tuesday',
+    'wednesday',
+    'thursday',
+    'friday',
+    'saturday',
+    'sunday',
+    'mon',
+    'tue',
+    'tues',
+    'wed',
+    'thu',
+    'thur',
+    'thurs',
+    'fri',
+    'sat',
+    'sun',
+  ];
+  if (days.some((day) => t.includes(day))) return true;
+  if (/\b(today|tomorrow|tonight|this week|next week|this weekend|next weekend)\b/.test(t)) return true;
+  if (/\b\d{1,2}[\/\-]\d{1,2}(?:[\/\-]\d{2,4})?\b/.test(t)) return true;
+  if (/\b(jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\b/.test(t)) return true;
+  return false;
 }
 
 function buildNotesFromDetails(details: any): string | undefined {
@@ -311,6 +360,8 @@ function buildInstructions(tenant: TenantInfo, options: { serviceAreaRequired: b
     `Collect required intake details first (based on the service template) before scheduling.`,
     `Ask for preferred day/time, call get_availability, then offer available slots.`,
     `Never claim a time is available unless get_availability returns it. If a requested time is unavailable, say so and offer available slots from get_availability.`,
+    `If get_availability returns closed_day=true, tell the caller that day is closed and ask for another day.`,
+    `If a requested time is available, acknowledge it and continue (do not ask to confirm the time).`,
     `Before booking, summarize the details and ask for confirmation. Only then call create_booking with confirmed=true.`,
     `When calling create_booking, include the collected intake fields in the details object.`,
     `After create_booking succeeds, ask for the best email to send the confirmation link.`,
@@ -780,12 +831,23 @@ wss.on('connection', (twilioWs: WebSocket) => {
             sendToOpenAI(openaiWs, { type: 'response.cancel' });
             return;
           }
+          if (assistantSpeaking && Date.now() - lastAssistantAudioAt < 1500) {
+            if (wordCount(text) < 3 && !isExplicitBargeIn(text)) {
+              sendToOpenAI(openaiWs, { type: 'response.cancel' });
+              return;
+            }
+          }
           if (appointmentCreated && lastAssistantAskedFollowUp && isNegativeResponse(text) && ctx) {
             lastAssistantAskedFollowUp = false;
             pendingHangup = true;
-            callTool(ctx, 'end_call', {}).catch((err: any) =>
-              console.warn('[bridge] end_call failed', err?.message ?? String(err))
-            );
+            const farewell = `Thanks for calling ${ctx.company_name || 'HandyCall'}. Have a great day.`;
+            sendToOpenAI(openaiWs, {
+              type: 'response.create',
+              response: {
+                modalities: ['audio', 'text'],
+                instructions: `Say: "${farewell}"`,
+              },
+            });
             return;
           }
         }
@@ -835,7 +897,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
                 ? args.timezone
                 : lastAvailabilityTimezone || ctx.timezone || 'UTC';
             if (availabilityFresh && requestedText && Array.isArray(lastAvailabilitySlots) && lastAvailabilitySlots.length) {
-              if (!looksLikeIso(requestedText)) {
+              if (!looksLikeIso(requestedText) && !hasDayReference(requestedText)) {
                 const match = selectAvailabilitySlot(requestedText, lastAvailabilitySlots, tz);
                 if (match) {
                   args = { ...args, start_time: match, timezone: tz };

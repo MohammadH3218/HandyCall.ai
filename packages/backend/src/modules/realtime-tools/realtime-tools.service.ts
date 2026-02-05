@@ -8,7 +8,7 @@ import { S3Service } from '../../infrastructure/storage/s3.service';
 import { KnowledgeService } from '../knowledge/knowledge.service';
 import { SchedulingService } from '../scheduling/scheduling.service';
 import { UsageService } from '../billing/usage.service';
-import { zonedTimeToUtcMs } from '../scheduling/timezone';
+import { getLocalDateParts, getWeekdayKey, zonedTimeToUtcMs } from '../scheduling/timezone';
 import * as chrono from 'chrono-node';
 import { AppointmentsService } from '../appointments/appointments.service';
 import {
@@ -74,6 +74,65 @@ export class RealtimeToolsService {
 
   private getFrontendBaseUrl(): string {
     return (this.config.get<string>('FRONTEND_URL') || 'https://handycall.org').replace(/\/$/, '');
+  }
+
+  private pad2(n: number): string {
+    return String(n).padStart(2, '0');
+  }
+
+  private findOverrideForDate(company: any, ymd: string): any | undefined {
+    const overrides = company?.schedule_overrides;
+    if (!overrides) return undefined;
+
+    if (Array.isArray(overrides)) {
+      return overrides.find((o) => o?.date === ymd);
+    }
+
+    if (typeof overrides === 'object') {
+      return overrides[ymd];
+    }
+
+    return undefined;
+  }
+
+  private getScheduleForDay(company: any, weekdayKey: string): any | undefined {
+    const hours: any = company?.business_hours || {};
+    const direct = hours?.[weekdayKey];
+    if (direct) return direct;
+    const shortMap: Record<string, string> = {
+      monday: 'mon',
+      tuesday: 'tue',
+      wednesday: 'wed',
+      thursday: 'thu',
+      friday: 'fri',
+      saturday: 'sat',
+      sunday: 'sun',
+    };
+    const shortKey = shortMap[weekdayKey];
+    return shortKey ? hours?.[shortKey] : undefined;
+  }
+
+  private normalizeSegments(schedule?: any): Array<{ open: string; close: string }> {
+    if (!schedule || schedule?.closed) return [];
+    const segs = Array.isArray(schedule?.segments) ? schedule.segments : [];
+    if (segs.length) return segs.filter((s: any) => s?.open && s?.close);
+    const open = schedule?.open;
+    const close = schedule?.close;
+    if (open && close) return [{ open, close }];
+    return [];
+  }
+
+  private getClosedInfo(company: any, target: Date, timeZone: string): { closed: boolean; dayLabel: string } {
+    const parts = getLocalDateParts(target, timeZone);
+    const ymdKey = `${parts.year}-${this.pad2(parts.month)}-${this.pad2(parts.day)}`;
+    const override = this.findOverrideForDate(company, ymdKey);
+    const pivotUtc = new Date(Date.UTC(parts.year, parts.month - 1, parts.day, 12, 0, 0));
+    const weekdayKey = getWeekdayKey(pivotUtc, timeZone);
+    const schedule = override ?? this.getScheduleForDay(company, weekdayKey);
+    const segments = this.normalizeSegments(schedule);
+    const closed = Boolean(override?.closed) || segments.length === 0;
+    const dayLabel = new Intl.DateTimeFormat('en-US', { timeZone, weekday: 'long' }).format(target);
+    return { closed, dayLabel };
   }
 
   private buildBookingLink(companyId: string, callId: string): string {
@@ -814,11 +873,30 @@ export class RealtimeToolsService {
         endMs = Date.parse(endIso);
       }
     }
+    const closedCheckDate = dayAnchor ?? new Date(startMs);
+    const closedInfo = (dayOnly || hasTime) ? this.getClosedInfo(company, closedCheckDate, timeZone) : null;
+    const closedDay = closedInfo?.closed === true;
+
     const slots = await this.scheduling.getAvailability(company, startIso, endIso);
     const readableSlots = slots.map((s) => this.formatSlotForCaller(s.start_time, timeZone));
     const timeOnlySlots = slots.map((s) => this.formatSlotTimeOnly(s.start_time, timeZone));
+    let requested_time_available: boolean | undefined;
+    if (hasTime) {
+      const requestedMs = Date.parse(startIso);
+      if (Number.isFinite(requestedMs)) {
+        requested_time_available = slots.some((s) => {
+          const slotMs = Date.parse(s.start_time);
+          return Number.isFinite(slotMs) && Math.abs(slotMs - requestedMs) <= 5 * 60_000;
+        });
+      } else {
+        requested_time_available = false;
+      }
+    }
     let spokenAvailability = '';
-    if (slots.length > 12) {
+    if (closedDay && !slots.length) {
+      const label = closedInfo?.dayLabel || 'that day';
+      spokenAvailability = `We are closed on ${label}. What day works instead?`;
+    } else if (slots.length > 12) {
       const first = timeOnlySlots[0];
       const last = timeOnlySlots[timeOnlySlots.length - 1];
       spokenAvailability = `I have wide availability from ${first} to ${last}. What time works best?`;
@@ -833,6 +911,8 @@ export class RealtimeToolsService {
       slots: slots.map((s) => s.start_time),
       readable_slots: readableSlots,
       spoken_availability: spokenAvailability,
+      ...(closedInfo ? { closed_day: closedDay, closed_day_label: closedInfo.dayLabel } : {}),
+      ...(typeof requested_time_available === 'boolean' ? { requested_time_available } : {}),
     };
   }
 

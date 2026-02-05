@@ -86,7 +86,7 @@ export class SchedulingService {
   getDurationMinutes(company: Company): number {
     const anyCompany: any = company as any;
     const minutes =
-      typeof anyCompany?.appointment_duration_minutes === 'number' ? anyCompany.appointment_duration_minutes : 120;
+      typeof anyCompany?.appointment_duration_minutes === 'number' ? anyCompany.appointment_duration_minutes : 60;
     return Math.max(10, Math.min(240, Math.floor(minutes)));
   }
 
