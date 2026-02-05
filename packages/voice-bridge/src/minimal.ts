@@ -598,7 +598,6 @@ wss.on('connection', (twilioWs: WebSocket) => {
   let waitingForHangupMark = false;
   let hangupFallbackTimer: ReturnType<typeof setTimeout> | null = null;
   let appointmentCreated = false;
-  let appointmentId: string | null = null;
 
   function tryGreet() {
     if (!openaiWs || !openaiReady || !twilioReady || greeted) return;
@@ -803,7 +802,6 @@ wss.on('connection', (twilioWs: WebSocket) => {
             if (toolName === 'create_booking') {
               if ((result as any)?.ok === true || (result as any)?.appointment_id) {
                 appointmentCreated = true;
-                appointmentId = (result as any)?.appointment_id ?? null;
               }
             }
             if (toolName === 'check_service_area') {
