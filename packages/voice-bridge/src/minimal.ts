@@ -276,7 +276,8 @@ function buildNotesFromDetails(details: any): string | undefined {
     if (!key || ignored.has(normalized)) continue;
     if (value === undefined || value === null || String(value).trim() === '') continue;
     if (normalized === 'address' && typeof value === 'object') {
-      const addr = [value.street, value.city, value.state, value.zip].filter(Boolean).join(', ');
+      const addrObj = value as { street?: string; city?: string; state?: string; zip?: string };
+      const addr = [addrObj.street, addrObj.city, addrObj.state, addrObj.zip].filter(Boolean).join(', ');
       if (addr) lines.push(`Address: ${addr}`);
       continue;
     }
@@ -651,7 +652,6 @@ wss.on('connection', (twilioWs: WebSocket) => {
   let appointmentCreated = false;
   let hasExistingAppointments = false;
   let existingAppointmentsChecked = false;
-  let lastAssistantText = '';
   let lastAssistantAskedFollowUp = false;
 
   function tryGreet() {
@@ -767,7 +767,6 @@ wss.on('connection', (twilioWs: WebSocket) => {
         const text = msg?.transcript;
         if (text) {
           transcript.push(`Assistant: ${text}`);
-          lastAssistantText = text;
           lastAssistantAskedFollowUp = askedAnythingElse(text);
         }
         return;
@@ -781,7 +780,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
             sendToOpenAI(openaiWs, { type: 'response.cancel' });
             return;
           }
-          if (appointmentCreated && lastAssistantAskedFollowUp && isNegativeResponse(text)) {
+          if (appointmentCreated && lastAssistantAskedFollowUp && isNegativeResponse(text) && ctx) {
             lastAssistantAskedFollowUp = false;
             pendingHangup = true;
             callTool(ctx, 'end_call', {}).catch((err: any) =>
