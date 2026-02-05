@@ -305,7 +305,7 @@ export const authOptions: NextAuthOptions = {
   },
   // Set the base URL for NextAuth callbacks
   useSecureCookies: process.env.NODE_ENV === 'production',
-  debug: process.env.NODE_ENV === 'development',
+  debug: process.env.NODE_ENV === 'development' || process.env.NEXTAUTH_DEBUG === 'true',
   logger: {
     error(code, metadata) {
       console.error('[NextAuth Error]', code, metadata);
