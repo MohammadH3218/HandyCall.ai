@@ -100,6 +100,15 @@ export class PublicBookingService {
     return { from, display };
   }
 
+  private resolveCompanyTimeZone(company: any, fallback = 'UTC'): string {
+    const candidate =
+      company?.calendar_connection?.timezone ||
+      company?.calendar_connection?.timeZone ||
+      company?.timezone ||
+      fallback;
+    return candidate || fallback;
+  }
+
   async buildBookingLink(companyId: string, callId: string) {
     const expiresMs = Number(this.config.get<string>('BOOKING_LINK_EXPIRES_MS') || 7 * 24 * 60 * 60 * 1000);
     const token = signBookingToken(
@@ -240,7 +249,7 @@ export class PublicBookingService {
       company_id: company.company_id,
       company_name: company.company_name,
       service_type: company.service_type,
-      timezone: company.timezone,
+      timezone: this.resolveCompanyTimeZone(company),
       phone_number: phone,
       email,
       appointment: appointment
@@ -293,7 +302,7 @@ export class PublicBookingService {
     }
     const { hour, minute } = parseHHmm(dto.preferred_time.trim());
     const [year, month, day] = match.slice(1).map((n) => parseInt(n, 10));
-    const timeZone = company.timezone || 'UTC';
+    const timeZone = this.resolveCompanyTimeZone(company);
     const startMs = zonedTimeToUtcMs({ year, month, day, hour, minute }, timeZone);
     const durationMinutes = this.scheduling.getDurationMinutes(company);
     const endMs = startMs + durationMinutes * 60_000;
@@ -468,7 +477,7 @@ export class PublicBookingService {
     }
     const { hour, minute } = parseHHmm(dto.preferred_time.trim());
     const [year, month, day] = match.slice(1).map((n) => parseInt(n, 10));
-    const timeZone = company.timezone || 'UTC';
+    const timeZone = this.resolveCompanyTimeZone(company);
     const startMs = zonedTimeToUtcMs({ year, month, day, hour, minute }, timeZone);
     const durationMs = appointment.scheduled_end - appointment.scheduled_start;
     const endMs = startMs + durationMs;
