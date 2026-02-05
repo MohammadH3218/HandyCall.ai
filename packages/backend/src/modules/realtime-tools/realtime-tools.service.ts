@@ -896,6 +896,20 @@ export class RealtimeToolsService {
     if (closedDay && !slots.length) {
       const label = closedInfo?.dayLabel || 'that day';
       spokenAvailability = `We are closed on ${label}. What day works instead?`;
+    } else if (hasTime) {
+      if (requested_time_available === true) {
+        spokenAvailability = `That time is available.`;
+      } else if (requested_time_available === false) {
+        if (slots.length > 12) {
+          const first = timeOnlySlots[0];
+          const last = timeOnlySlots[timeOnlySlots.length - 1];
+          spokenAvailability = `That time isn't available. I have wide availability from ${first} to ${last}. What time works best?`;
+        } else if (slots.length) {
+          spokenAvailability = `That time isn't available. I have slots open at ${timeOnlySlots.join(', ')}. Which time works best?`;
+        } else {
+          spokenAvailability = `That time isn't available. What day or time works instead?`;
+        }
+      }
     } else if (slots.length > 12) {
       const first = timeOnlySlots[0];
       const last = timeOnlySlots[timeOnlySlots.length - 1];
