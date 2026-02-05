@@ -176,11 +176,13 @@ function ProfileStep({ nextStep }: { nextStep?: OnboardingStepId }) {
     try {
       await apiClient.updateMyProfile(payload);
       useAuthStore.setState((state) => ({
-        user: {
-          ...(state.user || {}),
-          first_name: firstName,
-          last_name: lastName || undefined,
-        },
+        user: state.user
+          ? {
+              ...state.user,
+              first_name: firstName,
+              last_name: lastName || state.user.last_name,
+            }
+          : state.user,
         email: state.email || (emailMissing ? contactEmail.trim() : state.email),
       }));
       toast({
