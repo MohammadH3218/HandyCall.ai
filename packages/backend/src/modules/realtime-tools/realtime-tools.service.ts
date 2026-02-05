@@ -818,24 +818,22 @@ export class RealtimeToolsService {
     const parsedRange = chrono.parse(startRaw, referenceDate);
     const parsed = parsedRange?.[0];
     const hasTime = !!(parsed?.start?.isCertain('hour') || parsed?.start?.isCertain('minute'));
-    let startIso = this.coerceToUtcIso(startRaw, timeZone, referenceDate);
-    if (parsed && !hasTime) {
+    const hasExplicitDate = !!(
+      parsed?.start?.isCertain('day') ||
+      parsed?.start?.isCertain('weekday') ||
+      parsed?.start?.isCertain('month') ||
+      parsed?.start?.isCertain('year')
+    );
+    const requestedIso = this.coerceToUtcIso(startRaw, timeZone, referenceDate);
+    let startIso = requestedIso;
+    if (parsed && hasExplicitDate) {
       const dt = parsed.start?.date?.() ?? chrono.parseDate(startRaw, referenceDate);
       if (dt) {
-        const utcMs = zonedTimeToUtcMs(
-          {
-            year: dt.getFullYear(),
-            month: dt.getMonth() + 1,
-            day: dt.getDate(),
-            hour: 8,
-            minute: 0,
-          },
-          timeZone
-        );
-        startIso = new Date(utcMs).toISOString();
         dayAnchor = dt;
-        dayOnly = true;
       }
+    }
+    if (parsed && hasExplicitDate && !hasTime && dayAnchor) {
+      dayOnly = true;
     }
     let endIso = '';
     if (endRaw) {
@@ -844,6 +842,31 @@ export class RealtimeToolsService {
       } catch {
         endIso = '';
       }
+    }
+    const usesDayWindow = !!(dayAnchor && (dayOnly || (hasTime && !endRaw)));
+    if (usesDayWindow && dayAnchor) {
+      const startUtcMs = zonedTimeToUtcMs(
+        {
+          year: dayAnchor.getFullYear(),
+          month: dayAnchor.getMonth() + 1,
+          day: dayAnchor.getDate(),
+          hour: 8,
+          minute: 0,
+        },
+        timeZone
+      );
+      const endUtcMs = zonedTimeToUtcMs(
+        {
+          year: dayAnchor.getFullYear(),
+          month: dayAnchor.getMonth() + 1,
+          day: dayAnchor.getDate(),
+          hour: 18,
+          minute: 0,
+        },
+        timeZone
+      );
+      startIso = new Date(startUtcMs).toISOString();
+      endIso = new Date(endUtcMs).toISOString();
     }
 
     const durationMinutes = this.scheduling.getDurationMinutes(company);
@@ -856,23 +879,6 @@ export class RealtimeToolsService {
       endIso = new Date(startMs + extendMinutes * 60_000).toISOString();
       endMs = Date.parse(endIso);
     }
-    if (dayOnly && dayAnchor && !endRaw) {
-      const utcMs = zonedTimeToUtcMs(
-        {
-          year: dayAnchor.getFullYear(),
-          month: dayAnchor.getMonth() + 1,
-          day: dayAnchor.getDate(),
-          hour: 18,
-          minute: 0,
-        },
-        timeZone
-      );
-      const candidate = new Date(utcMs).toISOString();
-      if (Date.parse(candidate) > startMs) {
-        endIso = candidate;
-        endMs = Date.parse(endIso);
-      }
-    }
     const closedCheckDate = dayAnchor ?? new Date(startMs);
     const closedInfo = (dayOnly || hasTime) ? this.getClosedInfo(company, closedCheckDate, timeZone) : null;
     const closedDay = closedInfo?.closed === true;
@@ -882,7 +888,7 @@ export class RealtimeToolsService {
     const timeOnlySlots = slots.map((s) => this.formatSlotTimeOnly(s.start_time, timeZone));
     let requested_time_available: boolean | undefined;
     if (hasTime) {
-      const requestedMs = Date.parse(startIso);
+      const requestedMs = Date.parse(requestedIso);
       if (Number.isFinite(requestedMs)) {
         requested_time_available = slots.some((s) => {
           const slotMs = Date.parse(s.start_time);
