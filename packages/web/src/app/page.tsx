@@ -1,11 +1,12 @@
 ﻿import Link from 'next/link';
-import { Phone, CheckCircle2, ArrowRight } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
 import { SiteHeader } from '@/components/marketing/site-header';
 import { Logo } from '@/components/ui/logo';
-import { Badge } from '@/components/ui/badge';
+import { CheckCircle2, Phone } from 'lucide-react';
 
-const steps = [
+const flow = [
   {
     emoji: '📞',
     title: 'Answer with context',
@@ -23,36 +24,21 @@ const steps = [
   },
 ];
 
-const features = [
+const controls = [
   {
-    emoji: '☎️',
-    title: 'Always-on call handling',
-    desc: 'Answer calls during business hours, after hours, and weekends without missing a lead.',
+    emoji: '🕒',
+    title: 'Call handling rules',
+    desc: 'Set business hours, overflow rules, and after-hours behavior without scripting a flowchart.',
   },
   {
-    emoji: '🧾',
-    title: 'Automatic lead capture',
-    desc: 'Caller identity, intent, and urgency are captured and stored in your dashboard without lifting a finger.',
+    emoji: '📚',
+    title: 'Service knowledge',
+    desc: 'Add policies, pricing hints, and service FAQs so the AI can answer real questions.',
   },
   {
-    emoji: '📆',
-    title: 'Real-time booking',
-    desc: 'Appointments are scheduled against your availability and confirmed instantly via SMS.',
-  },
-  {
-    emoji: '📝',
-    title: 'Call summaries',
-    desc: 'Every call gets an AI-generated summary with key details, action items, and recommended next steps.',
-  },
-  {
-    emoji: '⚡',
-    title: 'Automated follow-ups',
-    desc: 'Send confirmations, reminders, and follow-ups automatically from a single setup.',
-  },
-  {
-    emoji: '📈',
-    title: 'Analytics & reporting',
-    desc: 'Track call volume, lead conversion, booking rates, and revenue impact from a single dashboard.',
+    emoji: '🔔',
+    title: 'Follow-up automation',
+    desc: 'Send booking links, reminders, and confirmations automatically once a lead is captured.',
   },
 ];
 
@@ -75,14 +61,14 @@ const benchmarks = [
   {
     value: 'Auditable',
     label: 'Conversation logs',
-    detail: 'Summaries + transcripts on every call',
+    detail: 'Summaries and transcripts on every call',
   },
 ];
 
 const testingResults = [
   {
     value: '100%',
-    label: 'Calls answered in test harness',
+    label: 'Calls answered in testing',
     detail: 'Simulated inbound scenarios',
   },
   {
@@ -94,25 +80,6 @@ const testingResults = [
     value: '95%',
     label: 'Booking flow completion',
     detail: 'Scripted test appointments',
-  },
-];
-
-const reliability = [
-  {
-    emoji: '🔐',
-    label: 'Encrypted in transit',
-  },
-  {
-    emoji: '🧠',
-    label: 'Configurable AI prompts',
-  },
-  {
-    emoji: '📋',
-    label: 'Activity + audit logs',
-  },
-  {
-    emoji: '🛟',
-    label: 'Human handoff ready',
   },
 ];
 
@@ -131,282 +98,219 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-white via-emerald-50/30 to-white text-foreground">
       <SiteHeader />
-
-      <section className="px-4 pb-16 pt-20">
-        <div className="mx-auto max-w-6xl">
-          <Badge className="inline-flex items-center gap-2">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-            Now available for service businesses
-          </Badge>
-
-          <div className="mt-8 grid items-center gap-12 lg:grid-cols-[1.15fr_0.85fr] lg:gap-16">
-            <div>
-              <h1 className="text-5xl font-display font-semibold leading-[1.07] tracking-[-0.025em] text-slate-900 md:text-[60px]">
-                Your phone line
-                <br className="hidden sm:block" />
-                that closes jobs
-                <br className="hidden sm:block" />
-                while you work.
+      <main className="mx-auto flex max-w-6xl flex-col gap-24 px-4 pb-24 pt-10">
+        <section className="relative overflow-hidden rounded-[32px] border border-emerald-100 bg-white/70 p-8 shadow-xl shadow-emerald-100 md:p-12">
+          <div className="pointer-events-none absolute -right-24 -top-24 h-56 w-56 rounded-full bg-emerald-100/70 blur-3xl" />
+          <div className="pointer-events-none absolute -left-16 bottom-0 h-40 w-40 rounded-full bg-emerald-50 blur-2xl" />
+          <div className="grid items-center gap-12 lg:grid-cols-[1.2fr_0.8fr]">
+            <div className="space-y-6">
+              <Badge className="bg-emerald-100 text-emerald-700">AI receptionist for service businesses</Badge>
+              <h1 className="text-4xl font-display leading-tight text-slate-900 md:text-6xl">
+                Your phone line that closes jobs while you work.
               </h1>
-              <p className="mt-5 max-w-lg text-lg text-slate-500 leading-relaxed">
-                HandyCall answers every inbound call, qualifies the lead, and books the appointment before the caller
-                hangs up.
+              <p className="text-lg text-slate-600">
+                HandyCall answers every call, captures the right details, and locks in appointments using your
+                availability. You stay focused on the field while the line stays open.
               </p>
-              <div className="mt-8 flex flex-wrap items-center gap-3">
-                <Button asChild size="lg" className="text-base">
-                  <Link href="/register">
-                    Get started free
-                    <ArrowRight className="ml-2 h-4 w-4" />
-                  </Link>
+              <div className="flex flex-wrap gap-3">
+                <Button asChild size="lg">
+                  <Link href="/register">Launch HandyCall</Link>
                 </Button>
-                <Button asChild size="lg" variant="outline" className="text-base">
+                <Button asChild size="lg" variant="outline">
                   <Link href="/pricing">View pricing</Link>
                 </Button>
               </div>
-              <p className="mt-4 text-sm text-slate-400">No credit card required</p>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div className="rounded-xl border border-emerald-100/70 bg-white/80 p-3">
+                  <p className="text-xs uppercase tracking-wide text-slate-500">Coverage</p>
+                  <p className="text-sm font-semibold text-slate-900">Every call, every hour</p>
+                </div>
+                <div className="rounded-xl border border-emerald-100/70 bg-white/80 p-3">
+                  <p className="text-xs uppercase tracking-wide text-slate-500">Tone</p>
+                  <p className="text-sm font-semibold text-slate-900">On-brand, professional</p>
+                </div>
+                <div className="rounded-xl border border-emerald-100/70 bg-white/80 p-3">
+                  <p className="text-xs uppercase tracking-wide text-slate-500">Outcome</p>
+                  <p className="text-sm font-semibold text-slate-900">Booked, confirmed, logged</p>
+                </div>
+              </div>
             </div>
 
-            <div>
-              <div className="rounded-xl border border-slate-200 bg-white shadow-[0_8px_40px_-8px_rgba(0,0,0,0.1)] overflow-hidden">
-                <div className="flex items-center gap-1.5 border-b border-slate-100 bg-slate-50 px-4 py-2.5">
-                  <span className="h-2.5 w-2.5 rounded-full bg-slate-300" />
-                  <span className="h-2.5 w-2.5 rounded-full bg-slate-300" />
-                  <span className="h-2.5 w-2.5 rounded-full bg-slate-300" />
-                  <span className="ml-auto text-xs text-slate-400">handycall.org / demo</span>
+            <Card className="border-emerald-100 bg-white/90 shadow-lg shadow-emerald-100">
+              <CardContent className="space-y-4 p-6">
+                <div className="flex items-center justify-between text-xs text-slate-500">
+                  <div className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-emerald-400" />
+                    <span className="font-semibold text-slate-900">Sample Call</span>
+                    <span className="text-slate-400">Demo</span>
+                  </div>
+                  <span className="rounded-full border border-emerald-200/60 bg-emerald-50 px-2.5 py-1 text-emerald-700">
+                    Testing
+                  </span>
                 </div>
 
-                <div className="space-y-4 p-5">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-                      <span className="text-sm font-semibold text-slate-900">Sample Call</span>
-                      <span className="text-xs text-slate-400">Demo</span>
-                    </div>
-                    <span className="rounded-full border border-emerald-100 bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-600">
-                      Testing
-                    </span>
+                <div className="flex items-center gap-3 rounded-xl bg-slate-50/80 p-3">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-200">
+                    <Phone className="h-4 w-4 text-slate-500" />
                   </div>
+                  <div>
+                    <p className="text-sm font-semibold text-slate-900">(555) 891-2345</p>
+                    <p className="text-xs text-slate-500">Pest Control - Urgent request</p>
+                  </div>
+                </div>
 
-                  <div className="flex items-center gap-3 rounded-lg bg-slate-50 p-3">
-                    <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-slate-200">
-                      <Phone className="h-4 w-4 text-slate-500" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-slate-900">(555) 891-2345</p>
-                      <div className="flex items-center gap-2 mt-0.5">
-                        <span className="text-xs text-slate-400">Pest Control</span>
-                        <span className="h-1 w-1 rounded-full bg-slate-300" />
-                        <span className="text-xs font-medium text-amber-600">Urgent request</span>
+                <div className="rounded-xl border border-emerald-200/60 bg-emerald-50/70 p-3">
+                  <p className="text-xs font-semibold text-emerald-700">HandyCall</p>
+                  <p className="text-sm text-slate-700">
+                    "We can help with termite treatment. Let me check availability and get you booked in."
+                  </p>
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700">
+                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                    Lead captured
+                  </div>
+                  <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700">
+                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                    Booking sent
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-4 border-t border-slate-100 pt-3 text-center text-xs">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-900">-</p>
+                    <p className="text-slate-400">Calls</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-slate-900">-</p>
+                    <p className="text-slate-400">Leads</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-emerald-600">-</p>
+                    <p className="text-slate-400">Booked</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </section>
+
+        <section className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          {benchmarks.map((stat) => (
+            <div
+              key={stat.label}
+              className="rounded-2xl border border-emerald-100 bg-white/80 p-5 text-left shadow-sm"
+            >
+              <p className="text-2xl font-display font-semibold text-slate-900">{stat.value}</p>
+              <p className="mt-1 text-sm font-semibold text-slate-700">{stat.label}</p>
+              <p className="mt-1 text-xs text-slate-500">{stat.detail}</p>
+            </div>
+          ))}
+        </section>
+
+        <section className="grid gap-12 lg:grid-cols-[0.9fr_1.1fr]">
+          <div className="space-y-4">
+            <Badge className="bg-emerald-100 text-emerald-700">Call flow, simplified</Badge>
+            <h2 className="text-3xl font-display text-slate-900 md:text-4xl">
+              A clear path from greeting to confirmed appointment.
+            </h2>
+            <p className="text-slate-600">
+              Everything is built around how service businesses actually answer the phone. No noise, no fluff, just
+              clean steps that move the caller forward.
+            </p>
+            <div className="mt-6 rounded-2xl border border-emerald-100 bg-white/80 p-6">
+              <p className="text-xs uppercase tracking-wide text-slate-500">What you control</p>
+              <div className="mt-3 grid gap-3">
+                {controls.map((item) => (
+                  <div key={item.title} className="rounded-xl border border-slate-200 bg-white p-4">
+                    <div className="flex items-start gap-3">
+                      <div className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-50 text-lg">
+                        <span aria-hidden="true">{item.emoji}</span>
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-slate-900">{item.title}</p>
+                        <p className="text-sm text-slate-600">{item.desc}</p>
                       </div>
                     </div>
                   </div>
-
-                  <div className="rounded-lg border border-emerald-100 bg-emerald-50 p-3">
-                    <p className="text-xs font-semibold text-emerald-700 mb-1">HandyCall</p>
-                    <p className="text-sm leading-snug text-slate-700">
-                      "We can help with termite treatment. Let me check availability and get you booked in."
-                    </p>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="flex items-center gap-1.5 rounded-lg border border-slate-100 bg-white px-3 py-2">
-                      <CheckCircle2 className="h-3.5 w-3.5 flex-shrink-0 text-emerald-500" />
-                      <span className="text-xs font-medium text-slate-700">Lead captured</span>
-                    </div>
-                    <div className="flex items-center gap-1.5 rounded-lg border border-slate-100 bg-white px-3 py-2">
-                      <CheckCircle2 className="h-3.5 w-3.5 flex-shrink-0 text-emerald-500" />
-                      <span className="text-xs font-medium text-slate-700">Booking sent</span>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between border-t border-slate-100 pt-3">
-                    <div className="text-center">
-                      <p className="text-sm font-semibold text-slate-900">--</p>
-                      <p className="text-xs text-slate-400">Calls</p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-sm font-semibold text-slate-900">--</p>
-                      <p className="text-xs text-slate-400">Leads</p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-sm font-semibold text-emerald-600">--</p>
-                      <p className="text-xs text-slate-400">Booked</p>
-                    </div>
-                  </div>
-                </div>
+                ))}
               </div>
             </div>
           </div>
-        </div>
-      </section>
-
-      <section className="border-y border-emerald-100/60 bg-white/70">
-        <div className="mx-auto max-w-6xl px-4 py-12">
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            {benchmarks.map((stat) => (
-              <div
-                key={stat.label}
-                className="rounded-2xl border border-emerald-100 bg-white/80 p-5 text-left shadow-sm"
-              >
-                <p className="text-2xl font-display font-semibold text-slate-900">{stat.value}</p>
-                <p className="mt-1 text-sm font-semibold text-slate-700">{stat.label}</p>
-                <p className="mt-1 text-xs text-slate-500">{stat.detail}</p>
+          <div className="space-y-4">
+            {flow.map((step) => (
+              <div key={step.title} className="rounded-2xl border border-emerald-100 bg-white/80 p-6">
+                <div className="flex items-start gap-4">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-full bg-emerald-50 text-lg">
+                    <span aria-hidden="true">{step.emoji}</span>
+                  </div>
+                  <div>
+                    <p className="text-lg font-semibold text-slate-900">{step.title}</p>
+                    <p className="text-sm text-slate-600">{step.desc}</p>
+                  </div>
+                </div>
               </div>
             ))}
-          </div>
-        </div>
-      </section>
-
-      <section className="px-4 py-24">
-        <div className="mx-auto max-w-5xl">
-          <div className="mb-16 text-center">
-            <p className="text-sm font-semibold uppercase tracking-widest text-emerald-600">How it works</p>
-            <h2 className="mt-3 text-4xl font-display font-semibold tracking-[-0.015em] text-slate-900 md:text-[42px]">
-              Three steps to full coverage
-            </h2>
-            <p className="mx-auto mt-3 max-w-xl text-slate-500">
-              From the first ring to a confirmed appointment, every step is automated and logged.
-            </p>
-          </div>
-
-          <div className="relative">
-            <div className="absolute left-1/6 right-1/6 top-10 hidden h-px bg-slate-200 md:block" />
-
-            <div className="grid gap-12 md:grid-cols-3">
-              {steps.map((step, i) => (
-                <div key={step.title} className="flex flex-col items-center text-center">
-                  <div className="relative z-10">
-                    <div className="flex h-20 w-20 items-center justify-center rounded-full border border-slate-200 bg-white text-3xl shadow-sm">
-                      <span aria-hidden="true">{step.emoji}</span>
-                    </div>
-                    <span className="absolute -right-1 -top-1 flex h-6 w-6 items-center justify-center rounded-full bg-emerald-600 text-[11px] font-bold text-white">
-                      {i + 1}
-                    </span>
-                  </div>
-                  <h3 className="mt-5 text-lg font-semibold text-slate-900">{step.title}</h3>
-                  <p className="mt-1.5 text-sm text-slate-500 leading-relaxed">{step.desc}</p>
-                </div>
-              ))}
+            <div className="rounded-2xl border border-emerald-100 bg-emerald-50/80 p-6">
+              <p className="text-sm font-semibold text-emerald-900">Result</p>
+              <p className="text-sm text-emerald-800/80">
+                Call logs, bookings, and customer records stay in sync with your dashboard.
+              </p>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
 
-      <section className="bg-slate-50 px-4 py-24">
-        <div className="mx-auto max-w-6xl">
-          <div className="mb-16 text-center">
-            <p className="text-sm font-semibold uppercase tracking-widest text-emerald-600">What is included</p>
-            <h2 className="mt-3 text-4xl font-display font-semibold tracking-[-0.015em] text-slate-900 md:text-[42px]">
-              Everything your phone line needs
-            </h2>
-          </div>
-
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {features.map((feature) => (
-              <div
-                key={feature.title}
-                className="rounded-xl border border-slate-200 bg-white p-6 transition-colors hover:border-emerald-200"
-              >
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-50 text-xl">
-                  <span aria-hidden="true">{feature.emoji}</span>
-                </div>
-                <h3 className="mt-4 text-base font-semibold text-slate-900">{feature.title}</h3>
-                <p className="mt-1.5 text-sm text-slate-500 leading-relaxed">{feature.desc}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section className="px-4 py-24">
-        <div className="mx-auto max-w-5xl">
-          <div className="mb-14 text-center">
-            <p className="text-sm font-semibold uppercase tracking-widest text-emerald-600">The impact</p>
-            <h2 className="mt-3 text-4xl font-display font-semibold tracking-[-0.015em] text-slate-900 md:text-[42px]">
-              Real results from testing
-            </h2>
-            <p className="mx-auto mt-3 max-w-xl text-slate-500">
-              Benchmarks gathered from internal staging scenarios and scripted test calls.
+        <section className="space-y-6">
+          <div className="flex flex-col gap-3 text-center">
+            <Badge className="mx-auto bg-emerald-100 text-emerald-700">Real results from testing</Badge>
+            <h2 className="text-3xl font-display text-slate-900 md:text-4xl">Benchmarks from staging and QA runs</h2>
+            <p className="mx-auto max-w-2xl text-slate-600">
+              These numbers come from internal testing, not customer marketing claims.
             </p>
           </div>
-
           <div className="grid gap-6 md:grid-cols-3">
             {testingResults.map((item) => (
-              <div key={item.label} className="rounded-xl border border-slate-200 bg-white p-8 text-center">
-                <div className="flex items-baseline justify-center gap-1">
-                  <span className="text-5xl font-display font-bold text-slate-900">{item.value}</span>
-                </div>
-                <p className="mt-3 text-sm font-semibold text-slate-700">{item.label}</p>
+              <div key={item.label} className="rounded-2xl border border-emerald-100 bg-white/90 p-6 text-center">
+                <p className="text-4xl font-display font-semibold text-slate-900">{item.value}</p>
+                <p className="mt-2 text-sm font-semibold text-slate-700">{item.label}</p>
                 <p className="mt-1 text-xs text-slate-500">{item.detail}</p>
               </div>
             ))}
           </div>
-        </div>
-      </section>
+        </section>
 
-      <section className="border-y border-slate-100 px-4 py-10">
-        <div className="mx-auto max-w-5xl">
-          <div className="grid grid-cols-2 gap-6 md:grid-cols-4">
-            {reliability.map((item) => (
-              <div key={item.label} className="flex items-center justify-center gap-3">
-                <span className="text-lg" aria-hidden="true">{item.emoji}</span>
-                <span className="text-sm font-medium text-slate-700">{item.label}</span>
-              </div>
-            ))}
+        <section className="space-y-6">
+          <div className="flex flex-col gap-3 text-center">
+            <Badge className="mx-auto bg-emerald-100 text-emerald-700">Built for</Badge>
+            <h2 className="text-3xl font-display text-slate-900 md:text-4xl">Service businesses across every trade</h2>
           </div>
-        </div>
-      </section>
-
-      <section className="px-4 py-20">
-        <div className="mx-auto max-w-4xl text-center">
-          <p className="text-sm font-semibold uppercase tracking-widest text-emerald-600">Built for</p>
-          <h2 className="mt-2 text-2xl font-display font-semibold text-slate-900">
-            Service businesses across every trade
-          </h2>
-          <div className="mt-6 flex flex-wrap justify-center gap-2">
+          <div className="flex flex-wrap justify-center gap-3">
             {industries.map((item) => (
-              <span key={item} className="rounded-lg border border-slate-200 bg-white px-4 py-1.5 text-sm text-slate-600">
+              <span key={item} className="rounded-full border border-emerald-100 bg-white/80 px-4 py-2 text-sm text-slate-700">
                 {item}
               </span>
             ))}
           </div>
-        </div>
-      </section>
+        </section>
 
-      <section className="px-4 pb-16">
-        <div className="mx-auto max-w-6xl">
-          <div className="rounded-2xl bg-gradient-to-br from-slate-900 via-emerald-900/90 to-slate-900 px-8 py-20 text-center">
-            <h2 className="text-3xl font-display font-semibold tracking-[-0.015em] text-white md:text-4xl">
-              Ready to answer every call?
-            </h2>
-            <p className="mx-auto mt-3 max-w-xl text-lg text-slate-300">
-              Get HandyCall running in minutes. No scripting, no flowcharts - just set up and go.
-            </p>
-            <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-              <Button
-                asChild
-                size="lg"
-                className="text-base bg-emerald-600 text-white shadow-none hover:bg-emerald-500 hover:shadow-none"
-              >
-                <Link href="/register">
-                  Get started free
-                  <ArrowRight className="ml-2 h-4 w-4" />
-                </Link>
-              </Button>
-              <Button
-                asChild
-                size="lg"
-                variant="outline"
-                className="text-base border-slate-700 bg-transparent text-slate-300 hover:border-slate-600 hover:bg-transparent hover:text-white"
-              >
-                <Link href="/pricing">View pricing</Link>
-              </Button>
-            </div>
+        <section className="rounded-[28px] border border-emerald-100 bg-white/80 p-10 text-center shadow-lg shadow-emerald-50">
+          <h3 className="text-3xl font-display text-slate-900">Ready to upgrade your phone experience?</h3>
+          <p className="mt-3 text-slate-600">
+            Launch in minutes and let HandyCall handle calls, bookings, and confirmations while your team stays on the job.
+          </p>
+          <div className="mt-6 flex flex-wrap justify-center gap-3">
+            <Button asChild size="lg">
+              <Link href="/register">Get started</Link>
+            </Button>
+            <Button asChild size="lg" variant="outline">
+              <Link href="/contact">Talk to us</Link>
+            </Button>
           </div>
-        </div>
-      </section>
+        </section>
+      </main>
 
-      <footer className="border-t border-slate-100 px-4 py-10">
+      <footer className="border-t border-emerald-100/60 bg-white/80 px-4 py-8">
         <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-6 sm:flex-row">
           <div className="flex items-center gap-4">
             <Logo width={120} height={30} />
