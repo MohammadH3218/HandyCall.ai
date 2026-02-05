@@ -238,6 +238,53 @@ function formatFieldList(fields?: any[]): string | null {
   return cleaned.map((field) => titleizeField(field)).join(', ');
 }
 
+function normalizeSpeech(text?: string) {
+  return String(text || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s']/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function isNegativeResponse(text?: string) {
+  const t = normalizeSpeech(text);
+  if (!t) return false;
+  if (['no', 'nope', 'nah', 'no thanks', 'no thank you', 'nothing', 'nothing else', 'that is all', "that's all"].includes(t)) {
+    return true;
+  }
+  return /\b(no|nope|nah|nothing|nothing else|that is all|that's all|no thanks|no thank you)\b/.test(t);
+}
+
+function askedAnythingElse(text?: string) {
+  const t = normalizeSpeech(text);
+  if (!t) return false;
+  return (
+    t.includes('anything else') ||
+    t.includes('anything i can help') ||
+    t.includes('anything i can do') ||
+    t.includes('help with today') ||
+    t.includes('help you with today')
+  );
+}
+
+function buildNotesFromDetails(details: any): string | undefined {
+  if (!details || typeof details !== 'object') return undefined;
+  const ignored = new Set(['name', 'full_name', 'zip', 'zipcode', 'preferred_time', 'email', 'phone', 'phone_number']);
+  const lines: string[] = [];
+  for (const [key, value] of Object.entries(details)) {
+    const normalized = String(key || '').toLowerCase();
+    if (!key || ignored.has(normalized)) continue;
+    if (value === undefined || value === null || String(value).trim() === '') continue;
+    if (normalized === 'address' && typeof value === 'object') {
+      const addr = [value.street, value.city, value.state, value.zip].filter(Boolean).join(', ');
+      if (addr) lines.push(`Address: ${addr}`);
+      continue;
+    }
+    lines.push(`${titleizeField(String(key))}: ${String(value).trim()}`);
+  }
+  return lines.length ? lines.join('\n') : undefined;
+}
+
 function buildInstructions(tenant: TenantInfo, options: { serviceAreaRequired: boolean }) {
   const name = tenant.company_name || 'our company';
   const extra = tenant.agent_config?.realtime_instructions;
@@ -262,11 +309,15 @@ function buildInstructions(tenant: TenantInfo, options: { serviceAreaRequired: b
     optionalFields ? `Optional fields (collect only if relevant): ${optionalFields}.` : null,
     `Collect required intake details first (based on the service template) before scheduling.`,
     `Ask for preferred day/time, call get_availability, then offer available slots.`,
+    `Never claim a time is available unless get_availability returns it. If a requested time is unavailable, say so and offer available slots from get_availability.`,
     `Before booking, summarize the details and ask for confirmation. Only then call create_booking with confirmed=true.`,
     `When calling create_booking, include the collected intake fields in the details object.`,
     `After create_booking succeeds, ask for the best email to send the confirmation link.`,
     `Only send the confirmation link after the booking is created. The link is for managing the booking, not scheduling.`,
     `If the caller declines email, confirm the booking without a link.`,
+    `Do not repeat questions or confirm details except for the email address. Only repeat email by spelling it out.`,
+    `If the caller is an existing customer, ask if they want to manage an existing booking or create a new booking.`,
+    `If they want to manage an existing booking: explain they can use the confirmation link, or you can help by phone. Ask if they want to reschedule or cancel, then use list_appointments_by_phone and reschedule_appointment/cancel_appointment.`,
     `If the caller asks about prior appointments, use list_appointments_by_phone.`,
     `Use knowledge_search for company-specific questions (services, pricing, policies, service areas).`,
     `After finishing the main task, ask: "Is there anything else I can help with today?"`,
@@ -598,15 +649,22 @@ wss.on('connection', (twilioWs: WebSocket) => {
   let waitingForHangupMark = false;
   let hangupFallbackTimer: ReturnType<typeof setTimeout> | null = null;
   let appointmentCreated = false;
+  let hasExistingAppointments = false;
+  let existingAppointmentsChecked = false;
+  let lastAssistantText = '';
+  let lastAssistantAskedFollowUp = false;
 
   function tryGreet() {
     if (!openaiWs || !openaiReady || !twilioReady || greeted) return;
     const name = ctx?.company_name || 'our company';
+    const greeting = hasExistingAppointments
+      ? `Hi there, thanks for calling ${name}. Would you like to manage an existing booking, or book a new appointment?`
+      : `Hi there, thanks for calling ${name}. How can I help you today?`;
     sendToOpenAI(openaiWs, {
       type: 'response.create',
       response: {
         modalities: ['audio', 'text'],
-        instructions: `Greet the caller now. Say: "Hi there, thanks for calling ${name}. How can I help you today?"`,
+        instructions: `Greet the caller now. Say: "${greeting}"`,
       },
     });
     greeted = true;
@@ -707,7 +765,11 @@ wss.on('connection', (twilioWs: WebSocket) => {
 
       if (msg?.type === 'response.audio_transcript.done') {
         const text = msg?.transcript;
-        if (text) transcript.push(`Assistant: ${text}`);
+        if (text) {
+          transcript.push(`Assistant: ${text}`);
+          lastAssistantText = text;
+          lastAssistantAskedFollowUp = askedAnythingElse(text);
+        }
         return;
       }
 
@@ -717,6 +779,14 @@ wss.on('connection', (twilioWs: WebSocket) => {
           transcript.push(`Caller: ${text}`);
           if (isFillerUtterance(text)) {
             sendToOpenAI(openaiWs, { type: 'response.cancel' });
+            return;
+          }
+          if (appointmentCreated && lastAssistantAskedFollowUp && isNegativeResponse(text)) {
+            lastAssistantAskedFollowUp = false;
+            pendingHangup = true;
+            callTool(ctx, 'end_call', {}).catch((err: any) =>
+              console.warn('[bridge] end_call failed', err?.message ?? String(err))
+            );
             return;
           }
         }
@@ -776,6 +846,10 @@ wss.on('connection', (twilioWs: WebSocket) => {
             if (typeof args?.confirmed !== 'boolean') {
               args = { ...args, confirmed: true };
             }
+            if (args?.details && !args?.notes) {
+              const notes = buildNotesFromDetails(args.details);
+              if (notes) args = { ...args, notes };
+            }
           }
           if (toolName === 'end_call') {
             pendingHangup = true;
@@ -802,6 +876,12 @@ wss.on('connection', (twilioWs: WebSocket) => {
             if (toolName === 'create_booking') {
               if ((result as any)?.ok === true || (result as any)?.appointment_id) {
                 appointmentCreated = true;
+                if (args?.details) {
+                  callTool(ctx, 'save_call', {
+                    collected_info: args.details,
+                    summary: 'Booked appointment.',
+                  }).catch((err: any) => console.warn('[bridge] save_call after booking failed', err?.message ?? String(err)));
+                }
               }
             }
             if (toolName === 'check_service_area') {
@@ -896,6 +976,17 @@ wss.on('connection', (twilioWs: WebSocket) => {
         timezone: resolvedTenant.timezone,
         startedAt: Date.now(),
       };
+
+      if (!existingAppointmentsChecked) {
+        existingAppointmentsChecked = true;
+        try {
+          const existing = await callTool(ctx, 'list_appointments_by_phone', { range_days: 365 });
+          const appts = Array.isArray((existing as any)?.appointments) ? (existing as any).appointments : [];
+          hasExistingAppointments = appts.length > 0;
+        } catch (err: any) {
+          console.warn('[bridge] list_appointments_by_phone failed', err?.message ?? String(err));
+        }
+      }
 
       twilioReady = true;
       await connectOpenAI(resolvedTenant);
