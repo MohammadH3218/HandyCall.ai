@@ -57,11 +57,6 @@ const buildCognitoProvider = (options: {
     clientId: COGNITO_CLIENT_ID,
     clientSecret: COGNITO_CLIENT_SECRET,
     issuer: COGNITO_ISSUER,
-    // Cognito Hosted UI can be picky about PKCE; rely on state checks only.
-    checks: ["state"],
-    client: {
-      token_endpoint_auth_method: "client_secret_post",
-    },
     ...(COGNITO_AUTH_BASE_URL
       ? {
           authorization: {
@@ -311,4 +306,12 @@ export const authOptions: NextAuthOptions = {
   // Set the base URL for NextAuth callbacks
   useSecureCookies: process.env.NODE_ENV === 'production',
   debug: process.env.NODE_ENV === 'development',
+  logger: {
+    error(code, metadata) {
+      console.error('[NextAuth Error]', code, metadata);
+    },
+    warn(code) {
+      console.warn('[NextAuth Warning]', code);
+    },
+  },
 };
