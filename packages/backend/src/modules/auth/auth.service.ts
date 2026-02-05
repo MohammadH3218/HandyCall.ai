@@ -573,14 +573,19 @@ export class AuthService {
       footer: 'If you did not request this, you can safely ignore this email.',
     });
 
-    await sendSesEmail({
-      region,
-      from: `HandyCall <${fromAddress}>`,
-      to: [trimmed],
-      subject,
-      text,
-      html,
-    });
+    try {
+      await sendSesEmail({
+        region,
+        from: `HandyCall <${fromAddress}>`,
+        to: [trimmed],
+        subject,
+        text,
+        html,
+      });
+    } catch (err: any) {
+      // Don't leak account existence or SES sandbox state to caller.
+      console.warn('[AuthService] Password reset email send failed', err?.message || err);
+    }
 
     return { ok: true };
   }
