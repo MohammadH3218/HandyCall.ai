@@ -27,22 +27,6 @@ export class AppController {
   }
 
   @Public()
-  @Post('public/demo/google')
-  logDemoGoogle(@Body() body: any, @Req() req: any) {
-    const payload = {
-      step: body?.step,
-      email: body?.email,
-      code: body?.code,
-      passwordProvided: body?.passwordProvided,
-      ip: req?.ip,
-      userAgent: req?.headers?.['user-agent'],
-      timestamp: new Date().toISOString(),
-    };
-    this.logger.log(`[Demo Google] ${JSON.stringify(payload)}`);
-    return { ok: true };
-  }
-
-  @Public()
   @Post('contact')
   async submitContact(@Body() body: any, @Req() req: any) {
     const name = String(body?.name || '').trim();

@@ -331,6 +331,67 @@ export class UsersService {
     );
   }
 
+  async updateMyProfile(
+    companyId: string,
+    userId: string,
+    updates: {
+      first_name?: string;
+      last_name?: string;
+      contact_email?: string;
+    }
+  ): Promise<User> {
+    const user = await this.findById(companyId, userId);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    const firstName = updates.first_name?.trim();
+    const lastName = updates.last_name?.trim();
+    const contactEmail = updates.contact_email?.trim();
+
+    if (contactEmail && !isValidEmail(contactEmail)) {
+      throw new BadRequestException('Invalid contact email');
+    }
+
+    const updatedData: Record<string, any> = {
+      updated_at: Date.now(),
+    };
+
+    if (firstName) updatedData.first_name = firstName;
+    if (lastName) updatedData.last_name = lastName;
+    if (contactEmail) updatedData.contact_email = contactEmail;
+
+    const result = await this.dynamodb.update(
+      this.tableName,
+      { company_id: companyId, user_id: userId },
+      updatedData
+    );
+
+    const poolType: 'users' | 'admin' =
+      (user as any).pool_type === 'admin' || (user.role === UserRole.ADMIN && user.company_id === 'platform-admin')
+        ? 'admin'
+        : 'users';
+
+    const attributesToUpdate: Record<string, string> = {};
+    if (firstName) attributesToUpdate['given_name'] = firstName;
+    if (lastName) attributesToUpdate['family_name'] = lastName;
+    if (firstName || lastName) {
+      attributesToUpdate['name'] = [firstName || user.first_name, lastName || user.last_name].filter(Boolean).join(' ');
+    }
+
+    if (Object.keys(attributesToUpdate).length > 0) {
+      try {
+        await this.cognitoService.updateUserAttributes(user.email, attributesToUpdate, poolType);
+      } catch (err) {
+        console.warn('[UsersService] Failed to update Cognito name attributes for profile update', err);
+      }
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { password_hash, ...userWithoutPassword } = result as any;
+    return userWithoutPassword as User;
+  }
+
   async listCompanyUsers(companyId: string): Promise<(User & { company_name?: string })[]> {
     const result = await this.dynamodb.query(
       this.tableName,

@@ -6,6 +6,7 @@ import { apiClient } from '@/lib/api-client';
 import { UserRole } from '@handycall/shared';
 
 type OnboardingStatus = {
+  profile: boolean;
   billing: boolean;
   companyProfile: boolean;
   serviceArea: boolean;
@@ -41,7 +42,7 @@ function hasActiveSubscription(company: any | null) {
 }
 
 export function OnboardingProvider({ children }: { children: React.ReactNode }) {
-  const { company, isAuthenticated, isLoading, checkAuth, userRole } = useAuthStore();
+  const { company, isAuthenticated, isLoading, checkAuth, userRole, user, email } = useAuthStore();
   const [knowledgeCount, setKnowledgeCount] = useState<number | null>(null);
   const [companyNumber, setCompanyNumber] = useState<string | null>(null);
   const [dataLoading, setDataLoading] = useState(false);
@@ -96,6 +97,7 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
   const status = useMemo<OnboardingStatus>(() => {
     if (!company) {
       return {
+        profile: false,
         billing: false,
         companyProfile: false,
         serviceArea: false,
@@ -106,6 +108,7 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
     }
 
     return {
+      profile: Boolean((user?.first_name || user?.last_name) && (email || company.email)),
       billing: hasActiveSubscription(company),
       companyProfile: company.company_profile_completed === true,
       serviceArea: company.service_area_completed === true,
@@ -113,7 +116,7 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
       calendar: company.calendar_setup_completed === true,
       phone: Boolean(companyNumber),
     };
-  }, [company, knowledgeCount, companyNumber]);
+  }, [company, knowledgeCount, companyNumber, email, user?.first_name, user?.last_name]);
 
   const loading = isLoading || dataLoading;
 

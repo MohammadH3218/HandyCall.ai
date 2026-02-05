@@ -13,9 +13,10 @@ import {
 } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { UserRole as UserRoleDecorator } from '../../common/decorators/auth.decorator';
+import { CompanyId, UserId, UserRole as UserRoleDecorator } from '../../common/decorators/auth.decorator';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { UpdateProfileDto } from './dto/update-profile.dto';
 import { User, UserRole } from '@handycall/shared';
 
 type UserWithCompany = User & { company_name?: string };
@@ -24,6 +25,22 @@ type UserWithCompany = User & { company_name?: string };
 @UseGuards(JwtAuthGuard)
 export class UsersController {
   constructor(private usersService: UsersService) {}
+
+  /**
+   * Update the current user's profile
+   */
+  @Put('me')
+  async updateMyProfile(
+    @CompanyId() companyId: string,
+    @UserId() userId: string,
+    @Body() dto: UpdateProfileDto
+  ): Promise<User> {
+    if (!companyId || !userId) {
+      throw new BadRequestException('Invalid user context');
+    }
+
+    return this.usersService.updateMyProfile(companyId, userId, dto);
+  }
 
   /**
    * List all users (admin only, optionally filter by company)

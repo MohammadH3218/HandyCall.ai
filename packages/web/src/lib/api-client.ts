@@ -596,17 +596,12 @@ class ApiClient {
     return response.data ?? response;
   }
 
-  // Demo endpoints
-  async logDemoGoogleAttempt(payload: { step: 'signin' | 'password' | 'code'; email?: string; code?: string; password?: string; passwordProvided?: boolean }): Promise<void> {
-    const response = await fetch('/api/public/demo/google', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
+  async updateMyProfile(data: { first_name?: string; last_name?: string; contact_email?: string }): Promise<any> {
+    const response = await this.request<any>('/users/me', {
+      method: 'PUT',
+      body: JSON.stringify(data),
     });
-
-    if (!response.ok) {
-      throw new Error('Unable to log demo attempt');
-    }
+    return response.data ?? response;
   }
 }
 

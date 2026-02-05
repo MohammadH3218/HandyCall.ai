@@ -1,4 +1,5 @@
 export type OnboardingStepId =
+  | 'profile'
   | 'billing'
   | 'company'
   | 'service-area'
@@ -11,6 +12,11 @@ export const ONBOARDING_STEPS: Array<{
   label: string;
   description: string;
 }> = [
+  {
+    id: 'profile',
+    label: 'Profile',
+    description: 'Confirm your contact details.',
+  },
   {
     id: 'billing',
     label: 'Subscription',

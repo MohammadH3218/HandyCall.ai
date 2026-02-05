@@ -63,6 +63,8 @@ export default function OnboardingStepPage() {
   const commonProps = { nextStep };
 
   switch (stepParam) {
+    case 'profile':
+      return <ProfileStep {...commonProps} />;
     case 'billing':
       return <BillingStep {...commonProps} />;
     case 'company':
@@ -124,6 +126,139 @@ function NextStepButton({
       Continue
       <ChevronRight className="ml-2 h-4 w-4" />
     </Button>
+  );
+}
+
+function ProfileStep({ nextStep }: { nextStep?: OnboardingStepId }) {
+  const { user, email } = useAuthStore();
+  const { toast } = useToast();
+  const [fullName, setFullName] = useState('');
+  const [contactEmail, setContactEmail] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const emailMissing = !email || !email.includes('@');
+
+  useEffect(() => {
+    const existingName = [user?.first_name, user?.last_name].filter(Boolean).join(' ');
+    if (!fullName && existingName) {
+      setFullName(existingName);
+    }
+    if (!contactEmail && email) {
+      setContactEmail(email);
+    }
+  }, [contactEmail, email, fullName, user?.first_name, user?.last_name]);
+
+  const handleSave = async () => {
+    const trimmedName = fullName.trim();
+    if (!trimmedName) {
+      toast({
+        title: 'Add your name',
+        description: 'Please enter the name you want HandyCall to use.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const nameParts = trimmedName.split(' ').filter(Boolean);
+    const firstName = nameParts[0];
+    const lastName = nameParts.slice(1).join(' ');
+
+    const payload: { first_name?: string; last_name?: string; contact_email?: string } = {
+      first_name: firstName,
+      last_name: lastName || undefined,
+    };
+
+    if (emailMissing && contactEmail.trim()) {
+      payload.contact_email = contactEmail.trim();
+    }
+
+    setSaving(true);
+    try {
+      await apiClient.updateMyProfile(payload);
+      useAuthStore.setState((state) => ({
+        user: {
+          ...(state.user || {}),
+          first_name: firstName,
+          last_name: lastName || undefined,
+        },
+        email: state.email || (emailMissing ? contactEmail.trim() : state.email),
+      }));
+      toast({
+        title: 'Profile saved',
+        description: 'Thanks! You can continue your setup.',
+      });
+    } catch (err: any) {
+      toast({
+        title: 'Save failed',
+        description: err?.message || 'Unable to update profile.',
+        variant: 'destructive',
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div>
+      <SectionHeading
+        icon={<Sparkles className="h-4 w-4" />}
+        title="Confirm your profile"
+        subtitle="We use this to personalize your HandyCall greeting and follow-ups."
+      />
+
+      <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+        <Card>
+          <CardHeader>
+            <CardTitle>Your details</CardTitle>
+            <CardDescription>Confirm the name and contact email we should use.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="profile-name">Full name</Label>
+              <Input
+                id="profile-name"
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                placeholder="Jamie Owner"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="profile-email">Email</Label>
+              <Input
+                id="profile-email"
+                type="email"
+                value={emailMissing ? contactEmail : email || ''}
+                onChange={(e) => setContactEmail(e.target.value)}
+                placeholder="you@business.com"
+                disabled={!emailMissing}
+              />
+              {!emailMissing && (
+                <p className="text-xs text-slate-500">
+                  Your Google account email is already connected. You can update it later in Settings if needed.
+                </p>
+              )}
+            </div>
+            <div className="flex justify-end gap-3 pt-2">
+              <Button onClick={handleSave} disabled={saving}>
+                {saving ? 'Saving...' : 'Save profile'}
+              </Button>
+              <NextStepButton nextStep={nextStep} disabled={saving} />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-emerald-100 bg-emerald-50/70">
+          <CardHeader>
+            <CardTitle>Why we ask</CardTitle>
+            <CardDescription>Small details keep your customer experience consistent.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm text-emerald-900">
+            <p>Your name shows up in call summaries and appointment notes.</p>
+            <p>We use your email for confirmations and important account updates.</p>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
   );
 }
 

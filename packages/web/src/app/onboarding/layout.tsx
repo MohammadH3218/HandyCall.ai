@@ -29,6 +29,7 @@ function OnboardingShell({ children }: { children: React.ReactNode }) {
 
   const stepMap = useMemo(
     () => ({
+      profile: status.profile,
       billing: status.billing,
       company: status.companyProfile,
       'service-area': status.serviceArea,

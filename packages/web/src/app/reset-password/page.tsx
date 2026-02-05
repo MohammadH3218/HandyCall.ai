@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { SiteHeader } from '@/components/marketing/site-header';
 
-export default function ResetPasswordPage() {
+function ResetPasswordForm() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const emailParam = searchParams.get('email') || '';
@@ -78,7 +78,7 @@ export default function ResetPasswordPage() {
                 {status === 'sending' ? 'Updating...' : 'Update password'}
               </Button>
               {status === 'sent' ? (
-                <p className="text-xs text-emerald-700">Password updated. Redirecting to sign in…</p>
+                <p className="text-xs text-emerald-700">Password updated. Redirecting to sign in...</p>
               ) : null}
               {status === 'error' ? (
                 <p className="text-xs text-red-600">{errorMessage}</p>
@@ -88,5 +88,13 @@ export default function ResetPasswordPage() {
         </Card>
       </main>
     </div>
+  );
+}
+
+export default function ResetPasswordPage() {
+  return (
+    <Suspense fallback={null}>
+      <ResetPasswordForm />
+    </Suspense>
   );
 }
