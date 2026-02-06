@@ -102,11 +102,19 @@ function escapeXml(value: string) {
 function isLowSignalTranscript(input: string): boolean {
   const text = (input || '').trim();
   if (!text) return true;
-  if (text.length < 3) return true;
+  if (text.length < 4) return true;
   if (/^[\W_]+$/.test(text)) return true;
   const nonLatin = (text.match(/[^\u0000-\u024F\s]/g) || []).length;
   if (nonLatin / Math.max(1, text.length) > 0.25) return true;
   return false;
+}
+
+function isMeaningfulGreetingReply(text: string): boolean {
+  const trimmed = String(text || '').trim();
+  if (!trimmed) return false;
+  const wordCount = trimmed.split(/\s+/).filter(Boolean).length;
+  if (wordCount <= 1 && !/\d/.test(trimmed)) return false;
+  return true;
 }
 
 function toWsBaseUrl(publicBaseUrl: string) {
@@ -2399,6 +2407,10 @@ wss.on('connection', (twilioWs: WebSocket) => {
 
     if (sessionContext.state === 'GREETING') {
       if (isGreeting) {
+        sendPrompt('How can I help you today?');
+        return true;
+      }
+      if (!isMeaningfulGreetingReply(trimmed)) {
         sendPrompt('How can I help you today?');
         return true;
       }
