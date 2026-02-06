@@ -7,6 +7,7 @@ export type ToolName =
     | 'knowledge_search'
     | 'get_availability'
     | 'create_booking'
+    | 'hold_slot'
     | 'check_service_area'
     | 'list_appointments_by_phone'
     | 'cancel_appointment'
@@ -126,6 +127,20 @@ export interface CreateBookingRequest {
 export interface CreateBookingResponse {
     appointment_id: string;
     status: 'confirmed';
+}
+
+export interface HoldSlotRequest {
+    company_id: string;
+    slot: string; // ISO or natural language
+    timezone?: string;
+    hold_minutes?: number;
+    call_id?: string;
+}
+
+export interface HoldSlotResponse {
+    ok: true;
+    hold_id: string;
+    expires_at: number;
 }
 
 export interface CheckServiceAreaRequest {

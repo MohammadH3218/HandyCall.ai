@@ -77,6 +77,41 @@ function overlaps(aStart: number, aEnd: number, bStart: number, bEnd: number): b
 export class SchedulingService {
   constructor(private readonly dynamodb: DynamoDBService) {}
 
+  private async listSlotHolds(
+    companyId: string,
+    startMs: number,
+    endMs: number,
+    ignoreCallId?: string
+  ): Promise<Array<{ start: number; end: number }>> {
+    const nowTtl = Math.floor(Date.now() / 1000);
+    const prefix = `hold#${companyId}#`;
+    const scan = await this.dynamodb.scan('realtime_cache', {
+      filterExpression: 'begins_with(#contact_id, :prefix) AND #type = :type AND #ttl > :now',
+      expressionAttributeNames: {
+        '#contact_id': 'contact_id',
+        '#type': 'type',
+        '#ttl': 'ttl',
+      },
+      expressionAttributeValues: {
+        ':prefix': prefix,
+        ':type': 'slot_hold',
+        ':now': nowTtl,
+      },
+      limit: 200,
+    });
+
+    const holds: Array<{ start: number; end: number }> = [];
+    for (const item of scan.items || []) {
+      if (ignoreCallId && item?.call_id && item.call_id === ignoreCallId) continue;
+      const start = typeof item?.slot_start_ms === 'number' ? item.slot_start_ms : Date.parse(item?.slot_start);
+      const end = typeof item?.slot_end_ms === 'number' ? item.slot_end_ms : Date.parse(item?.slot_end);
+      if (!Number.isFinite(start) || !Number.isFinite(end)) continue;
+      if (end <= startMs || start >= endMs) continue;
+      holds.push({ start, end });
+    }
+    return holds;
+  }
+
   getSlotIntervalMinutes(company: Company): number {
     const anyCompany: any = company as any;
     const minutes = typeof anyCompany?.slot_interval_minutes === 'number' ? anyCompany.slot_interval_minutes : 30;
@@ -118,7 +153,12 @@ export class SchedulingService {
     }
   }
 
-  async getAvailability(company: Company, startIso: string, endIso: string): Promise<AvailabilitySlot[]> {
+  async getAvailability(
+    company: Company,
+    startIso: string,
+    endIso: string,
+    options?: { ignoreCallId?: string }
+  ): Promise<AvailabilitySlot[]> {
     const startMs = asMs(startIso);
     const endMs = asMs(endIso);
     if (endMs <= startMs) throw new BadRequestException('end_time must be after start_time');
@@ -144,6 +184,8 @@ export class SchedulingService {
     const busy = (appts || [])
       .filter((a) => typeof a?.scheduled_start === 'number' && typeof a?.scheduled_end === 'number')
       .map((a) => ({ start: a.scheduled_start as number, end: a.scheduled_end as number }));
+    const holds = await this.listSlotHolds(company.company_id, startMs - durationMs, endMs + durationMs, options?.ignoreCallId);
+    busy.push(...holds);
 
     const slots: AvailabilitySlot[] = [];
 

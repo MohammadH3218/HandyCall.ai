@@ -61,6 +61,20 @@ export function toolsSchema() {
         },
         {
             type: 'function',
+            name: 'hold_slot',
+            description: 'Temporarily reserve a specific appointment slot while confirming details.',
+            parameters: {
+                type: 'object',
+                properties: {
+                    slot: { type: 'string', description: 'The slot start time (ISO or selected slot).' },
+                    timezone: { type: 'string', description: 'IANA timezone name.' },
+                    hold_minutes: { type: 'number', description: 'How long to hold the slot (minutes).' }
+                },
+                required: ['slot']
+            }
+        },
+        {
+            type: 'function',
             name: 'send_booking_link',
             description: 'Send a confirmation link by email after an appointment is booked so the caller can manage it.',
             parameters: {

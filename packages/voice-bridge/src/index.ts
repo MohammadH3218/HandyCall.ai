@@ -606,6 +606,7 @@ type BookingSlotOption = {
   iso: string;
   label: string;
   timeLabel: string;
+  hold_id?: string;
 };
 
 type ConversationState =
@@ -1101,6 +1102,20 @@ async function invokeTool(ctx: CallContext, name: string, args: any) {
         start_time: args.preferred_time || args.start_time || args.window_start,
         end_time: args.window_end || args.end_time || '',
         timezone: args.timezone || '',
+      }
+    );
+  }
+
+  if (name === 'hold_slot') {
+    return postJson(
+      `${toolsBase}/tools/hold_slot`,
+      { 'x-handycall-tools-key': toolsKey },
+      {
+        company_id: ctx.company_id,
+        call_id: ctx.callSid,
+        slot: args.slot || args.start_time,
+        timezone: args.timezone || '',
+        hold_minutes: args.hold_minutes,
       }
     );
   }
@@ -1812,6 +1827,25 @@ wss.on('connection', (twilioWs: WebSocket) => {
     });
   }
 
+  async function holdBookingSlot(slot: BookingSlotOption, timeZone: string): Promise<boolean> {
+    if (!ctx) return false;
+    try {
+      const result = await invokeTool(ctx, 'hold_slot', {
+        slot: slot.iso,
+        timezone: timeZone,
+        hold_minutes: 5,
+      });
+      if (result?.ok) {
+        slot.hold_id = result.hold_id;
+        return true;
+      }
+      log('hold_slot rejected', { slot: slot.iso, result });
+    } catch (err: any) {
+      log('hold_slot failed', err?.message ?? String(err));
+    }
+    return false;
+  }
+
   async function handleBookingTurn(text: string): Promise<boolean> {
     if (!ctx || !openaiWs) return false;
 
@@ -1940,6 +1974,22 @@ wss.on('connection', (twilioWs: WebSocket) => {
       if (hasExplicitTime) {
         const match = pickSlotFromResponse(text, bookingSlots);
         if (match) {
+          const held = await holdBookingSlot(match, tz);
+          if (!held) {
+            bookingSlots = bookingSlots.filter((slot) => slot.iso !== match.iso);
+            if (bookingSlots.length) {
+              const remaining = bookingSlots.map((slot) => slot.label).join(', ');
+              const maxTokens = remaining.length > 180 ? 240 : 160;
+              sendPrompt(`That time just got taken. I still have ${remaining}. Which works best?`, {
+                max_output_tokens: maxTokens,
+              });
+              bookingStep = 'offer_slots';
+              return true;
+            }
+            sendPrompt('That time just got taken. What day or time works instead?');
+            bookingStep = 'ask_time';
+            return true;
+          }
           pendingSlot = match;
           sendPrompt(`I can do ${match.label}. Want me to book that?`);
           bookingStep = 'confirm_time';
@@ -1978,6 +2028,31 @@ wss.on('connection', (twilioWs: WebSocket) => {
         const tz = tenant?.timezone || 'UTC';
         const customerName = pendingName || (typeof intake.name === 'string' ? intake.name : '') || 'Caller';
         try {
+          if (pendingSlot && !pendingSlot.hold_id) {
+            const held = await holdBookingSlot(pendingSlot, tz);
+            if (!held) {
+              pendingSlot = null;
+              bookingStep = 'offer_slots';
+              if (bookingSlots.length > 12) {
+                const first = bookingSlots[0];
+                const last = bookingSlots[bookingSlots.length - 1];
+                const startLabel = formatSlotTimeOnly(first.iso, tz);
+                const endLabel = formatSlotTimeOnly(last.iso, tz);
+                sendPrompt(
+                  `That time just got taken. I still have availability from ${startLabel} to ${endLabel}. What time works best?`
+                );
+              } else if (bookingSlots.length) {
+                const remaining = bookingSlots.map((slot) => slot.label).join(', ');
+                const maxTokens = remaining.length > 180 ? 240 : 160;
+                sendPrompt(`That time just got taken. I still have ${remaining}. Which works best?`, {
+                  max_output_tokens: maxTokens,
+                });
+              } else {
+                sendPrompt('That time just got taken. What day or time works instead?');
+              }
+              return true;
+            }
+          }
           const notes = buildBookingNotes(intake, intakeFieldOrder.length ? intakeFieldOrder : Object.keys(intake));
           await invokeTool(ctx, 'create_booking', {
             start_time: pendingSlot.iso,
@@ -2034,6 +2109,32 @@ wss.on('connection', (twilioWs: WebSocket) => {
       if (chosen) {
         const customerName = pendingName || (typeof intake.name === 'string' ? intake.name : '') || 'Caller';
         try {
+          const held = await holdBookingSlot(chosen, tz);
+          if (!held) {
+            bookingSlots = bookingSlots.filter((slot) => slot.iso !== chosen.iso);
+            if (bookingSlots.length) {
+              if (bookingSlots.length > 12) {
+                const first = bookingSlots[0];
+                const last = bookingSlots[bookingSlots.length - 1];
+                const startLabel = formatSlotTimeOnly(first.iso, tz);
+                const endLabel = formatSlotTimeOnly(last.iso, tz);
+                sendPrompt(
+                  `That time just got taken. I still have availability from ${startLabel} to ${endLabel}. What time works best?`
+                );
+              } else {
+                const remaining = bookingSlots.map((slot) => slot.label).join(', ');
+                const maxTokens = remaining.length > 180 ? 240 : 160;
+                sendPrompt(`That time just got taken. I still have ${remaining}. Which works best?`, {
+                  max_output_tokens: maxTokens,
+                });
+              }
+              bookingStep = 'offer_slots';
+              return true;
+            }
+            bookingStep = 'ask_time';
+            sendPrompt('That time just got taken. What day or time works instead?');
+            return true;
+          }
           const notes = buildBookingNotes(intake, intakeFieldOrder.length ? intakeFieldOrder : Object.keys(intake));
           await invokeTool(ctx, 'create_booking', {
             start_time: chosen.iso,
@@ -2824,6 +2925,19 @@ wss.on('connection', (twilioWs: WebSocket) => {
       if (hasExplicitTime) {
         const match = pickSlotFromResponse(trimmed, bookingSlots);
         if (match) {
+          const held = await holdBookingSlot(match, tz);
+          if (!held) {
+            bookingSlots = bookingSlots.filter((slot) => slot.iso !== match.iso);
+            if (bookingSlots.length) {
+              const choices = formatSlotChoices(bookingSlots, 3);
+              sendPrompt(`That time isn't open. I do have ${choices.join(', ')}. Which works best?`);
+              sessionContext.state = 'OFFER_SLOTS';
+              return true;
+            }
+            sendPrompt('That time just got taken. What day or time works instead?');
+            sessionContext.state = 'ASK_TIME';
+            return true;
+          }
           pendingSlot = match;
           sessionContext.proposedTime = match.label;
           sessionContext.state = 'CONFIRM_BOOKING';
@@ -2860,6 +2974,20 @@ wss.on('connection', (twilioWs: WebSocket) => {
     if (sessionContext.state === 'OFFER_SLOTS') {
       const chosen = pickSlotFromResponse(trimmed, bookingSlots);
       if (chosen) {
+        const tz = tenant?.timezone || 'UTC';
+        const held = await holdBookingSlot(chosen, tz);
+        if (!held) {
+          bookingSlots = bookingSlots.filter((slot) => slot.iso !== chosen.iso);
+          if (bookingSlots.length) {
+            const choices = formatSlotChoices(bookingSlots, 3);
+            sendPrompt(`That time just got taken. I do have ${choices.join(', ')}. Which works best?`);
+            sessionContext.state = 'OFFER_SLOTS';
+            return true;
+          }
+          sendPrompt('That time just got taken. What day or time works instead?');
+          sessionContext.state = 'ASK_TIME';
+          return true;
+        }
         pendingSlot = chosen;
         sessionContext.proposedTime = chosen.label;
         sessionContext.state = 'CONFIRM_BOOKING';
@@ -2886,6 +3014,26 @@ wss.on('connection', (twilioWs: WebSocket) => {
         try {
           isProcessingTool = true;
           sendPrompt('Great. Booking that now.');
+          if (pendingSlot && !pendingSlot.hold_id) {
+            const held = await holdBookingSlot(pendingSlot, tz);
+            if (!held) {
+              pendingSlot = null;
+              sessionContext.state = 'OFFER_SLOTS';
+              if (bookingSlots.length > 12) {
+                sendPrompt('That time just got taken. What time works best instead?');
+              } else if (bookingSlots.length) {
+                const remaining = bookingSlots.map((slot) => slot.label).join(', ');
+                const maxTokens = remaining.length > 180 ? 240 : 160;
+                sendPrompt(`That time just got taken. I still have ${remaining}. Which works best?`, {
+                  max_output_tokens: maxTokens,
+                });
+              } else {
+                sendPrompt('That time just got taken. What day or time works instead?');
+                sessionContext.state = 'ASK_TIME';
+              }
+              return true;
+            }
+          }
           const notes = buildBookingNotes(intake, intakeFieldOrder.length ? intakeFieldOrder : Object.keys(intake));
           await invokeTool(ctx, 'create_booking', {
             start_time: pendingSlot.iso,

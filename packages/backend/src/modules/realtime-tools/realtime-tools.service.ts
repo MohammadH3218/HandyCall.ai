@@ -1008,7 +1008,7 @@ export class RealtimeToolsService {
       endMs = Date.parse(endIso);
     }
 
-    const [slot] = await this.scheduling.getAvailability(company, startIso, endIso);
+    const [slot] = await this.scheduling.getAvailability(company, startIso, endIso, { ignoreCallId: dto.call_id });
     if (!slot) {
       throw new BadRequestException('Requested time is no longer available');
     }
@@ -1053,6 +1053,56 @@ export class RealtimeToolsService {
       start_time: slot.start_time,
       end_time: slot.end_time,
     };
+  }
+
+  async holdSlot(dto: { company_id: string; slot: string; timezone?: string; hold_minutes?: number; call_id?: string }) {
+    const company_id = dto.company_id;
+    if (!company_id) throw new BadRequestException('company_id is required');
+    const company = await this.companies.findById(company_id);
+    if (!company) throw new NotFoundException('Company not found');
+
+    const timeZone = this.normalizeTimeZone(dto.timezone, this.resolveCompanyTimeZone(company));
+    const referenceDate = new Date(new Date().toLocaleString('en-US', { timeZone }));
+    const startIso = this.coerceToUtcIso(dto.slot, timeZone, referenceDate);
+    const durationMinutes = this.scheduling.getDurationMinutes(company);
+    const startMs = Date.parse(startIso);
+    const endIso = new Date(startMs + durationMinutes * 60_000).toISOString();
+    const endMs = Date.parse(endIso);
+
+    const holdId = `hold#${company_id}#${startIso}`;
+    const nowTtl = Math.floor(Date.now() / 1000);
+    const existing = await this.dynamodb.get('realtime_cache', { contact_id: holdId });
+    if (existing && typeof existing?.ttl === 'number' && existing.ttl > nowTtl) {
+      if (existing?.call_id && dto.call_id && existing.call_id !== dto.call_id) {
+        throw new BadRequestException('Requested time is no longer available');
+      }
+    }
+
+    const availability = await this.scheduling.getAvailability(company, startIso, endIso, {
+      ignoreCallId: dto.call_id,
+    });
+    const isAvailable = Array.isArray(availability) && availability.some((slot) => slot?.start_time === startIso);
+    if (!isAvailable) {
+      throw new BadRequestException('Requested time is no longer available');
+    }
+
+    const holdMinutes = Math.max(2, Math.min(15, Number(dto.hold_minutes || 5)));
+    const ttl = Math.floor(Date.now() / 1000) + holdMinutes * 60;
+
+    await this.dynamodb.put('realtime_cache', {
+      contact_id: holdId,
+      company_id,
+      type: 'slot_hold',
+      slot_start: startIso,
+      slot_end: endIso,
+      slot_start_ms: startMs,
+      slot_end_ms: endMs,
+      call_id: dto.call_id,
+      ttl,
+      created_at: Date.now(),
+    });
+
+    return { ok: true, hold_id: holdId, expires_at: ttl };
   }
 
   private resolveBookingFromEmail(company: any): { from: string; display: string } {

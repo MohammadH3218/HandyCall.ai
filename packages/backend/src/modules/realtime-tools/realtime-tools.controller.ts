@@ -3,6 +3,7 @@ import { Public } from '../../common/decorators/public.decorator';
 import { ToolsAuthGuard } from '../../common/guards/tools-auth.guard';
 import { CreateLeadDto } from './dto/create-lead.dto';
 import { CreateBookingDto } from './dto/create-booking.dto';
+import { HoldSlotDto } from './dto/hold-slot.dto';
 import { GetAvailabilityDto } from './dto/get-availability.dto';
 import { KnowledgeSearchDto } from './dto/knowledge-search.dto';
 import { ResolveTenantDto } from './dto/resolve-tenant.dto';
@@ -57,6 +58,11 @@ export class RealtimeToolsController {
   @Post('tools/create_booking')
   createBooking(@Body() dto: CreateBookingDto) {
     return this.tools.createBooking(dto);
+  }
+
+  @Post('tools/hold_slot')
+  holdSlot(@Body() dto: HoldSlotDto) {
+    return this.tools.holdSlot(dto);
   }
 
   @Post('tools/knowledge_search')
