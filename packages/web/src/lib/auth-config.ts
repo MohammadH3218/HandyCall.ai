@@ -225,7 +225,7 @@ export const authOptions: NextAuthOptions = {
           ((profile as any)?.family_name as string | undefined);
       }
 
-      // Persist tokens from credentials provider
+      // Persist tokens from credentials provider without clobbering OAuth tokens
       if (user) {
         console.log('[NextAuth JWT] User object received:', {
           hasAccessToken: !!(user as any).accessToken,
@@ -234,16 +234,18 @@ export const authOptions: NextAuthOptions = {
           userRole: (user as any).userRole,
           name: (user as any).name || (user as any).given_name,
         });
-        token.accessToken = (user as any).accessToken;
-        token.idToken = (user as any).idToken;
-        token.refreshToken = (user as any).refreshToken;
-        token.sub = user.id;
-        token.email = user.email;
-        token.userRole = (user as any).userRole;
-        token.poolType = (user as any).poolType;
-        token.name = (user as any).name;
-        token.given_name = (user as any).given_name;
-        token.family_name = (user as any).family_name;
+        if ((user as any).accessToken || (user as any).idToken) {
+          token.accessToken = (user as any).accessToken ?? token.accessToken;
+          token.idToken = (user as any).idToken ?? token.idToken;
+          token.refreshToken = (user as any).refreshToken ?? token.refreshToken;
+        }
+        token.sub = token.sub || user.id;
+        token.email = token.email || user.email;
+        token.userRole = token.userRole || (user as any).userRole;
+        token.poolType = token.poolType || (user as any).poolType;
+        token.name = token.name || (user as any).name;
+        token.given_name = token.given_name || (user as any).given_name;
+        token.family_name = token.family_name || (user as any).family_name;
       }
 
       if (!token.userRole && token.poolType === 'admin') {
