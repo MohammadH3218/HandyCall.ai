@@ -792,6 +792,8 @@ type CallContext = {
   to: string;
   company_id: string;
   startedAt: number;
+  transfer_enabled?: boolean;
+  transfer_number?: string;
 };
 
 type ActiveCallMeta = {
@@ -985,12 +987,12 @@ async function invokeTool(ctx: CallContext, name: string, args: any) {
   }
 
   if (name === 'transfer_call') {
-    if (!tenant?.transfer_enabled) {
+    if (!ctx.transfer_enabled) {
       return { ok: false, error: 'Transfer is disabled for this account.' };
     }
     const queue = typeof args?.queue === 'string' ? args.queue : '';
-    const tenantNumber = typeof tenant?.transfer_number === 'string' ? tenant.transfer_number.trim() : '';
-    const target = tenantNumber || resolveTransferTarget(queue);
+    const configuredNumber = typeof ctx.transfer_number === 'string' ? ctx.transfer_number.trim() : '';
+    const target = configuredNumber || resolveTransferTarget(queue);
     if (!target) {
       return { ok: false, error: 'No transfer target configured for this queue.' };
     }
@@ -3122,7 +3124,16 @@ wss.on('connection', (twilioWs: WebSocket) => {
         return;
       }
       const startedAt = Date.now();
-      ctx = { callSid, streamSid, from, to, company_id: tenant.company_id, startedAt };
+      ctx = {
+        callSid,
+        streamSid,
+        from,
+        to,
+        company_id: tenant.company_id,
+        startedAt,
+        transfer_enabled: tenant.transfer_enabled ?? false,
+        transfer_number: tenant.transfer_number ?? '',
+      };
       log('Media stream started', { to, from, company_id: tenant.company_id });
       intake.phone = from;
       intake.phone_number = from;
