@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { v4 as uuidv4 } from 'uuid';
 import { CompaniesService } from '../companies/companies.service';
+import { resolveServiceTemplateId } from '../companies/service-template-map';
 import { AgentConfigService } from '../agent-config/agent-config.service';
 import { CompanyNumbersService } from '../company-numbers/company-numbers.service';
 import { DynamoDBService } from '../../infrastructure/database/dynamodb.service';
@@ -324,12 +325,29 @@ export class RealtimeToolsService {
 
     const config = (await this.agentConfig.getConfig(company.company_id)) ?? undefined;
 
-    const service_template_id = (company as any).service_template_id || 'tmpl_handyman_v1';
+    let service_template_id =
+      (company as any).service_template_id || resolveServiceTemplateId(company.service_type);
+    if (!service_template_id) {
+      service_template_id = 'tmpl_general_v1';
+    }
     let service_template: any = null;
     try {
       service_template = await this.dynamodb.get('service_templates', { template_id: service_template_id });
     } catch {
       service_template = null;
+    }
+    if (!service_template && service_template_id !== 'tmpl_general_v1') {
+      try {
+        service_template_id = 'tmpl_general_v1';
+        service_template = await this.dynamodb.get('service_templates', { template_id: service_template_id });
+      } catch {
+        service_template = null;
+      }
+    }
+    if (!(company as any).service_template_id && service_template_id) {
+      this.dynamodb
+        .update('companies', { company_id: company.company_id }, { service_template_id })
+        .catch(() => null);
     }
 
     return {
@@ -842,6 +860,25 @@ export class RealtimeToolsService {
       const dt = parsed.start?.date?.() ?? chrono.parseDate(startRaw, referenceDate);
       if (dt) {
         dayAnchor = dt;
+      }
+    }
+    const weekdayOnly =
+      !!(
+        parsed?.start?.isCertain('weekday') &&
+        !parsed?.start?.isCertain('day') &&
+        !parsed?.start?.isCertain('month') &&
+        !parsed?.start?.isCertain('year')
+      );
+    if (weekdayOnly && dayAnchor) {
+      const dayKey = (d: Date) =>
+        new Intl.DateTimeFormat('en-CA', {
+          timeZone,
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+        }).format(d);
+      if (dayKey(dayAnchor) < dayKey(referenceDate)) {
+        dayAnchor = new Date(dayAnchor.getTime() + 7 * 24 * 60 * 60 * 1000);
       }
     }
     if (parsed && hasExplicitDate && !hasTime && dayAnchor) {

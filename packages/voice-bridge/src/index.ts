@@ -320,7 +320,29 @@ function formatServiceTypeLabel(serviceType?: string): string {
     PLUMBING: 'Plumbing',
     HVAC: 'HVAC',
     LANDSCAPING: 'Landscaping',
+    LAWN_CARE: 'Lawn Care',
     CLEANING: 'Cleaning',
+    CARPET_CLEANING: 'Carpet Cleaning',
+    WINDOW_CLEANING: 'Window Cleaning',
+    PRESSURE_WASHING: 'Pressure Washing',
+    POOL_SERVICE: 'Pool Service',
+    TREE_SERVICE: 'Tree Service',
+    ROOFING: 'Roofing',
+    GARAGE_DOOR: 'Garage Door',
+    APPLIANCE_REPAIR: 'Appliance Repair',
+    AUTO_MECHANIC: 'Auto Repair',
+    LOCKSMITH: 'Locksmith',
+    MOVING: 'Moving',
+    JUNK_REMOVAL: 'Junk Removal',
+    IRRIGATION: 'Irrigation',
+    SNOW_REMOVAL: 'Snow Removal',
+    FENCING: 'Fencing',
+    CONCRETE: 'Concrete',
+    SOLAR: 'Solar',
+    SECURITY: 'Security Systems',
+    PAINTING: 'Painting',
+    FLOORING: 'Flooring',
+    REMODELING: 'Remodeling',
     HANDYMAN: 'Handyman',
     OTHER: 'Service',
   };
@@ -370,15 +392,48 @@ function buildIntakeFieldOrder(template: any, requireZipCheck: boolean): string[
   return Array.from(new Set(ordered.filter((f) => Boolean(f))));
 }
 
-function fieldPrompt(key: string, serviceLabel: string): string {
+function fieldPrompt(key: string, serviceLabel: string, serviceType?: string): string {
   const k = normalizeFieldKey(key);
+  const type = String(serviceType || '').toUpperCase();
+  if (k === 'service_request_type' || k === 'service_type' || k === 'service_list') {
+    switch (type) {
+      case 'PEST_CONTROL':
+        return 'Are you dealing with a specific pest, or looking for general pest protection?';
+      case 'PLUMBING':
+        return 'What plumbing issue are you having? (leak, clog, install, etc.)';
+      case 'HVAC':
+        return 'Is this for heating or cooling, and what’s the issue?';
+      case 'ELECTRICIAN':
+        return 'What electrical issue are you having? (outlet, breaker, lighting, etc.)';
+      case 'LANDSCAPING':
+      case 'LAWN_CARE':
+        return 'What type of service do you need—mowing, cleanup, or landscaping work?';
+      case 'CLEANING':
+      case 'CARPET_CLEANING':
+      case 'WINDOW_CLEANING':
+      case 'PRESSURE_WASHING':
+      case 'POOL_SERVICE':
+        return 'What kind of cleaning service are you looking for?';
+      case 'AUTO_MECHANIC':
+        return 'What’s going on with the vehicle?';
+      case 'LOCKSMITH':
+        return 'Are you locked out, or do you need a lock change or rekey?';
+      case 'ROOFING':
+        return 'Is this a leak repair, inspection, or replacement?';
+      case 'GARAGE_DOOR':
+        return 'Is the garage door not opening, stuck, or needing a repair?';
+      case 'APPLIANCE_REPAIR':
+        return 'Which appliance needs repair and what’s the issue?';
+      default:
+        return `What service do you need from our ${serviceLabel.toLowerCase()} team?`;
+    }
+  }
   const prompts: Record<string, string> = {
     full_name: "What's your full name?",
     name: "What's your full name?",
-    service_request_type: `What service do you need from our ${serviceLabel.toLowerCase()} team?`,
     issue_summary: "Briefly, what's the issue?",
     issue_type: "What issue are you having?",
-    pest_type_or_symptoms: 'What pest issue are you seeing?',
+    pest_type_or_symptoms: 'What pest are you seeing, or is it general pest prevention?',
     where_seen: "Where have you seen it?",
     severity: 'How severe is it? Low, medium, or high?',
     service_address: "What's the service address?",
@@ -847,6 +902,9 @@ function buildInstructions(input: {
     `- Do not repeat the same sentence structure two turns in a row.`,
     `- Never "think out loud".`,
     ``,
+    ...(service_template?.base_system_prompt
+      ? [`[BUSINESS CONTEXT]`, String(service_template.base_system_prompt), ``]
+      : []),
     `[HARD CONVERSATION RULES]`,
     `- ONE question per turn, then STOP and wait. (Do not ask follow-ups until the caller answers.) <wait>`,
     `- Do not assume you heard correctly. If the caller is unclear, ask ONE clarifying question.`,
@@ -2288,6 +2346,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
 
   function askForNextField() {
     const serviceLabel = formatServiceTypeLabel(tenant?.service_type);
+    const serviceType = tenant?.service_type;
     const next = nextMissingField();
     if (!next) {
       sessionContext.state = 'ASK_TIME';
@@ -2301,7 +2360,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
     }
     activeIntakeField = next;
     sessionContext.state = 'COLLECTING';
-    sendPrompt(fieldPrompt(next, serviceLabel));
+    sendPrompt(fieldPrompt(next, serviceLabel, serviceType));
   }
 
   function buildBookingNotes(intakeData: Record<string, any>, fields: string[]): string | undefined {
@@ -2460,7 +2519,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
 
         if (isServiceField(fieldKey)) {
           if (!trimmed) {
-            sendPrompt(fieldPrompt(fieldKey, formatServiceTypeLabel(tenant?.service_type)));
+            sendPrompt(fieldPrompt(fieldKey, formatServiceTypeLabel(tenant?.service_type), tenant?.service_type));
             return true;
           }
           recordServiceNeed(trimmed);
@@ -2474,7 +2533,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
         }
 
         if (!trimmed) {
-          sendPrompt(fieldPrompt(fieldKey, formatServiceTypeLabel(tenant?.service_type)));
+          sendPrompt(fieldPrompt(fieldKey, formatServiceTypeLabel(tenant?.service_type), tenant?.service_type));
           return true;
         }
         setFieldValue(fieldKey, trimmed);
@@ -2731,8 +2790,15 @@ wss.on('connection', (twilioWs: WebSocket) => {
       const readable = Array.isArray(result?.readable_slots) ? result.readable_slots : [];
       const spokenAvailability =
         typeof result?.spoken_availability === 'string' ? result.spoken_availability.trim() : '';
+      const closedDay = result?.closed_day === true;
       if (!slots.length) {
-        sendPrompt("I don't see openings around that time. What day or time works instead?");
+        if (spokenAvailability) {
+          sendPrompt(spokenAvailability);
+        } else if (closedDay) {
+          sendPrompt("We're closed that day. What day works instead?");
+        } else {
+          sendPrompt("I don't see openings around that time. What day or time works instead?");
+        }
         sessionContext.state = 'ASK_TIME';
         return true;
       }
@@ -2744,6 +2810,11 @@ wss.on('connection', (twilioWs: WebSocket) => {
           sessionContext.proposedTime = match.label;
           sessionContext.state = 'CONFIRM_BOOKING';
           sendPrompt(`I can do ${match.label}. Want me to book that?`);
+          return true;
+        }
+        if (spokenAvailability) {
+          sendPrompt(spokenAvailability);
+          sessionContext.state = 'OFFER_SLOTS';
           return true;
         }
       }
@@ -4005,24 +4076,24 @@ wss.on('connection', (twilioWs: WebSocket) => {
 
     if (event?.event === 'stop') {
       if (ctx) log('Media stream stopped');
-      if (openaiWs) {
-        // Best-effort: persist if the model didn't already call save_call.
-        if (!callSaved) {
-          try {
-            const merged = mergedTranscriptText();
-            const duration_seconds = ctx?.startedAt ? Math.max(1, Math.ceil((Date.now() - ctx.startedAt) / 1000)) : undefined;
-            await invokeTool(ctx!, 'save_call', {
-              summary: 'Call ended.',
-              transcript: merged || undefined,
-              duration_seconds,
-              collected_info: intake,
-            });
-            callSaved = true;
-          } catch (e: any) {
-            log('save_call failed (non-fatal)', e?.message ?? String(e));
-          }
+      // Best-effort: persist if the model didn't already call save_call.
+      if (ctx && !callSaved) {
+        try {
+          const merged = mergedTranscriptText();
+          const duration_seconds = ctx?.startedAt ? Math.max(1, Math.ceil((Date.now() - ctx.startedAt) / 1000)) : undefined;
+          await invokeTool(ctx, 'save_call', {
+            summary: 'Call ended.',
+            transcript: merged || undefined,
+            duration_seconds,
+            collected_info: intake,
+          });
+          callSaved = true;
+        } catch (e: any) {
+          log('save_call failed (non-fatal)', e?.message ?? String(e));
         }
+      }
 
+      if (openaiWs) {
         openaiWs.close();
         openaiWs = null;
       }

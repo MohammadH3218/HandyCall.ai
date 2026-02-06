@@ -60,6 +60,7 @@ export interface Company {
   company_id: UUID;
   company_name: string;
   service_type: ServiceType;
+  service_template_id?: string;
   /**
    * Company’s primary contact number (not necessarily the inbound DID).
    * This can be unset at account creation time; inbound routing uses company_numbers mapping.

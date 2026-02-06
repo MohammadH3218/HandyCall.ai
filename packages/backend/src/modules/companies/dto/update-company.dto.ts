@@ -12,6 +12,10 @@ export class UpdateCompanyDto {
 
   @IsOptional()
   @IsString()
+  service_template_id?: string;
+
+  @IsOptional()
+  @IsString()
   phone_number?: string;
 
   @IsOptional()

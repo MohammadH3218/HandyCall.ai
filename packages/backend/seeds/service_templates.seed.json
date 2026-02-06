@@ -449,7 +449,9 @@
             "intake_schema": {
                 "required": [
                     "full_name",
-                    "reason_for_visit",
+                    "service_request_type",
+                    "issue_summary",
+                    "service_address",
                     "preferred_time"
                 ],
                 "optional": [

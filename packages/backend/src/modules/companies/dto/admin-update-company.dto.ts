@@ -11,6 +11,10 @@ export class AdminUpdateCompanyDto {
   service_type?: ServiceType;
 
   @IsOptional()
+  @IsString()
+  service_template_id?: string;
+
+  @IsOptional()
   @Matches(/^\+[1-9]\d{1,14}$/, { message: 'Phone number must be in E.164 format (+1234567890)' })
   phone_number?: string;
 

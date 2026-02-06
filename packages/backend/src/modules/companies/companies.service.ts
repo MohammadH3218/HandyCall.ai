@@ -9,6 +9,7 @@ import {
   SubscriptionStatus,
 } from '@handycall/shared';
 import { v4 as uuidv4 } from 'uuid';
+import { resolveServiceTemplateId } from './service-template-map';
 
 export interface CompanyStats {
   total_calls: number;
@@ -120,6 +121,7 @@ export class CompaniesService {
       company_id: companyId,
       company_name: companyName,
       service_type: serviceType,
+      service_template_id: resolveServiceTemplateId(serviceType),
       ...(phoneNumber ? { phone_number: phoneNumber } : {}),
       email,
       booking_from_email: this.buildBookingFromEmail(companyName, companyId),
@@ -217,6 +219,7 @@ export class CompaniesService {
       service_area_cities?: string[];
       company_profile_completed?: boolean;
       service_area_completed?: boolean;
+      service_template_id?: string;
     }
   ): Promise<Company> {
     const company = await this.findById(companyId);
@@ -224,10 +227,14 @@ export class CompaniesService {
       throw new NotFoundException('Company not found');
     }
 
-    const updatedData = {
+    const updatedData: Record<string, any> = {
       ...updates,
       updated_at: Date.now(),
     };
+
+    if (updates.service_type && !updates.service_template_id) {
+      updatedData.service_template_id = resolveServiceTemplateId(updates.service_type);
+    }
 
     const nextStatus = updates.status ?? company.status;
     if (nextStatus === CompanyStatus.INACTIVE || nextStatus === CompanyStatus.SUSPENDED) {
