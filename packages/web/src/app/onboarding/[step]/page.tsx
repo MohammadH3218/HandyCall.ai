@@ -1190,10 +1190,23 @@ function PhoneStep({ nextStep }: { nextStep?: OnboardingStepId }) {
   const [claiming, setClaiming] = useState<string | null>(null);
   const [demoClaiming, setDemoClaiming] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [transferEnabled, setTransferEnabled] = useState(company?.transfer_enabled ?? false);
+  const [transferNumber, setTransferNumber] = useState(company?.transfer_number ?? '');
+  const [transferMode, setTransferMode] = useState<'company' | 'custom'>(
+    company?.transfer_number && company?.transfer_number === company?.phone_number ? 'company' : 'custom'
+  );
+  const [transferSaving, setTransferSaving] = useState(false);
 
   useEffect(() => {
     if (company?.phone_number) {
       setCurrentNumber(company.phone_number);
+    }
+    if (company) {
+      setTransferEnabled(company.transfer_enabled ?? false);
+      setTransferNumber(company.transfer_number ?? '');
+      setTransferMode(
+        company.transfer_number && company.transfer_number === company.phone_number ? 'company' : 'custom'
+      );
     }
   }, [company]);
 
@@ -1293,6 +1306,47 @@ function PhoneStep({ nextStep }: { nextStep?: OnboardingStepId }) {
     }
   };
 
+  const handleSaveTransfer = async () => {
+    if (transferEnabled) {
+      const target =
+        transferMode === 'company' ? currentNumber.trim() : transferNumber.trim();
+      if (!target) {
+        toast({
+          title: 'Add a forwarding number',
+          description: 'Enter the number you want calls forwarded to.',
+          variant: 'destructive',
+        });
+        return;
+      }
+    }
+    setTransferSaving(true);
+    try {
+      const target =
+        transferEnabled
+          ? transferMode === 'company'
+            ? currentNumber.trim()
+            : transferNumber.trim()
+          : '';
+      const updated = await apiClient.updateMyCompany({
+        transfer_enabled: transferEnabled,
+        transfer_number: transferEnabled ? target : '',
+      });
+      setCompany(updated);
+      toast({
+        title: 'Transfer settings saved',
+        description: transferEnabled ? 'Calls can be forwarded to a human when needed.' : 'Transfer is disabled.',
+      });
+    } catch (err: any) {
+      toast({
+        title: 'Save failed',
+        description: err?.message || 'Unable to save transfer settings.',
+        variant: 'destructive',
+      });
+    } finally {
+      setTransferSaving(false);
+    }
+  };
+
   return (
     <div>
       <SectionHeading
@@ -1326,6 +1380,69 @@ function PhoneStep({ nextStep }: { nextStep?: OnboardingStepId }) {
                   Forward calls from your carrier to <strong>{companyNumber}</strong> to let HandyCall answer for you.
                 </div>
               )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Transfer to a human (optional)</CardTitle>
+              <CardDescription>Enable a fallback to forward callers to a live person.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <label className="flex items-center gap-3 text-sm text-slate-700">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 accent-emerald-600"
+                  checked={transferEnabled}
+                  onChange={(e) => setTransferEnabled(e.target.checked)}
+                />
+                Enable live transfer
+              </label>
+
+              {transferEnabled && (
+                <div className="space-y-3 rounded-xl border border-emerald-100 bg-white/70 p-4">
+                  <div className="space-y-2">
+                    <Label>Forwarding target</Label>
+                    <div className="flex flex-col gap-2 text-sm text-slate-700">
+                      <label className="flex items-center gap-2">
+                        <input
+                          type="radio"
+                          name="transferMode"
+                          checked={transferMode === 'company'}
+                          onChange={() => setTransferMode('company')}
+                        />
+                        Use my current business number
+                        {currentNumber ? ` (${currentNumber})` : ''}
+                      </label>
+                      <label className="flex items-center gap-2">
+                        <input
+                          type="radio"
+                          name="transferMode"
+                          checked={transferMode === 'custom'}
+                          onChange={() => setTransferMode('custom')}
+                        />
+                        Use a different number
+                      </label>
+                    </div>
+                  </div>
+
+                  {transferMode === 'custom' && (
+                    <div className="space-y-2">
+                      <Label htmlFor="transferNumber">Forwarding number</Label>
+                      <Input
+                        id="transferNumber"
+                        value={transferNumber}
+                        onChange={(e) => setTransferNumber(e.target.value)}
+                        placeholder="+15551234567"
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <Button onClick={handleSaveTransfer} disabled={transferSaving}>
+                {transferSaving ? 'Saving...' : 'Save transfer settings'}
+              </Button>
             </CardContent>
           </Card>
 

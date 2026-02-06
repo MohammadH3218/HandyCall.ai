@@ -784,10 +784,9 @@ wss.on('connection', (twilioWs: WebSocket) => {
           output_audio_format: 'g711_ulaw',
           input_audio_transcription: { model: 'gpt-4o-mini-transcribe' },
           turn_detection: {
-            type: 'server_vad',
-            threshold: Number(envFirst(['REALTIME_VAD_THRESHOLD']) || 0.75),
-            prefix_padding_ms: 300,
-            silence_duration_ms: Number(envFirst(['REALTIME_SILENCE_MS']) || 450),
+            type: 'semantic_vad',
+            create_response: true,
+            interrupt_response: true,
           },
         },
       });

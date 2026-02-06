@@ -152,8 +152,12 @@ export class KnowledgeService {
    */
   async deleteKnowledgeItem(companyId: string, knowledgeId: string): Promise<void> {
     try {
-      // Delete chunks first
-      await this.ragService.deleteKnowledgeChunks(companyId, knowledgeId);
+      // Delete chunks first (best-effort: knowledge items should be deletable even if RAG is unavailable)
+      try {
+        await this.ragService.deleteKnowledgeChunks(companyId, knowledgeId);
+      } catch (ragError: any) {
+        console.warn('[KnowledgeService] Failed to delete knowledge chunks; continuing delete.', ragError);
+      }
 
       // Delete knowledge item
       await this.dynamodb.delete(this.tableName, {

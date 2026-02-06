@@ -343,6 +343,8 @@ export class RealtimeToolsService {
       calls_enabled: company.calls_enabled !== (false as any),
       business_hours: company.business_hours,
       service_area_zipcodes: (company as any).service_area_zipcodes || [],
+      transfer_enabled: (company as any).transfer_enabled === true,
+      transfer_number: (company as any).transfer_number || undefined,
       agent_config: config ? {
         language: (config as any).language || 'en',
         voice: (config as any).voice || 'alloy',

@@ -159,7 +159,7 @@ export default function RegisterPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-white via-emerald-50/30 to-white text-foreground">
-      <SiteHeader ctaLabel="Login" ctaHref="/login" />
+      <SiteHeader ctaLabel="Login" ctaHref="/login" hideLoginLink />
       <main className="mx-auto max-w-6xl px-4 pb-16 pt-12">
         <div className="grid items-start gap-12 lg:grid-cols-[1.1fr_0.9fr]">
           <div className="space-y-6">

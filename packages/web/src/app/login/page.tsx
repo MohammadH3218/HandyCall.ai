@@ -289,7 +289,7 @@ function LoginPageInner() {
     setError('');
     setSocialLoading(provider);
     try {
-      const result = await signIn(provider, { callbackUrl: callbackUrl || '/onboarding/profile' });
+      const result = await signIn(provider, { callbackUrl: callbackUrl || '/dashboard' });
       if (result?.error) {
         setError(result.error);
         setSocialLoading(null);

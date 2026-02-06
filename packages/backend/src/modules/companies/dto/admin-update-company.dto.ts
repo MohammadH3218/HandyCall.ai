@@ -58,6 +58,14 @@ export class AdminUpdateCompanyDto {
   @IsBoolean()
   sms_enabled?: boolean;
 
+  @IsOptional()
+  @IsBoolean()
+  transfer_enabled?: boolean;
+
+  @IsOptional()
+  @IsString()
+  transfer_number?: string;
+
   // Calendar setup
   @IsOptional()
   @IsBoolean()

@@ -39,25 +39,36 @@ function buildInstructions(input: {
 }) {
   const { company_name, service_type, timezone, extra } = input;
   const lines = [
-    `You are a warm, natural-sounding human receptionist for ${company_name}.`,
-    `Your job: quickly understand the caller's need, capture details, and either schedule or create a lead.`,
-    `Style: 1–2 short sentences max per turn, then ONE question. No monologues. No "thinking out loud".`,
-    `WAIT FOR RESPONSE: Ask only ONE question per turn. You MUST wait for the caller to respond before asking another question.`,
-    `STOP AND LISTEN: After asking a question, STOP SPEAKING and wait for the caller's answer.`,
-    `Confirm critical fields (name, phone, address/zip, preferred time) before ending.`,
-    `If the caller talks over you, stop immediately and listen (barge-in).`,
-    `If you are unsure, ask a single clarifying question.`,
-    `Always be truthful; never invent availability.`,
+    `[IDENTITY]`,
+    `You are a real, warm, natural-sounding phone receptionist for ${company_name} (${service_type || 'Service'}).`,
+    `You help callers: (a) book/reschedule/cancel, (b) answer business questions, or (c) take a message for a callback.`,
+    ``,
+    `[VOICE & STYLE]`,
+    `- Sound human: contractions, short phrases, light fillers ("Got it...", "Okay - sure.").`,
+    `- Keep it brief: max 1-2 short sentences, then ONE question.`,
+    `- No monologues. No lists longer than 3 items.`,
+    `- Do not repeat the same sentence structure two turns in a row.`,
+    `- Never "think out loud".`,
+    ``,
+    `[HARD CONVERSATION RULES]`,
+    `- ONE question per turn, then STOP and wait. <wait>`,
+    `- Do not assume you heard correctly. If unclear, ask ONE clarifying question.`,
+    `- Never invent availability, pricing, policies, or services.`,
+    ``,
+    `[PRIMARY GOAL]`,
+    `1) Identify intent. 2) Collect required fields. 3) Use tools. 4) Confirm once. 5) Close politely.`,
+    ``,
+    `[TOOLS]`,
+    `- create_lead early once you have intent.`,
+    `- save_call near the end with summary + collected fields.`,
+    extra ? `[BUSINESS RULES]
+${extra}` : null,
     timezone ? `Timezone: ${timezone}.` : null,
-    service_type ? `Business type: ${service_type}.` : null,
-    '',
-    `Tools policy:`,
-    `- Call create_lead as soon as you have the caller's phone number and basic intent.`,
-    `- Call save_call at the end with a concise summary + collected fields.`,
-    extra ? `Extra instructions: ${extra}` : null,
   ].filter(Boolean) as string[];
-  return lines.join('\n');
+  return lines.join('
+');
 }
+
 
 function toolsSchema() {
   return [
@@ -87,6 +98,33 @@ function toolsSchema() {
           collected_info: { type: 'object', description: 'Final structured intake fields.' },
           transcript: { type: 'string', description: 'Full transcript text (if available).' },
           duration_seconds: { type: 'number', description: 'Call duration in seconds (if known).' },
+        },
+      },
+    },
+    {
+      type: 'function',
+      name: 'transfer_call',
+      description: 'Transfer the caller to a human or voicemail/queue.',
+      parameters: {
+        type: 'object',
+        properties: {
+          reason: { type: 'string' },
+          queue: { type: 'string', description: "e.g. 'sales', 'support', 'voicemail'" },
+        },
+        required: ['queue'],
+      },
+    },
+    {
+      type: 'function',
+      name: 'request_callback',
+      description: 'Capture a callback request when booking cannot be completed.',
+      parameters: {
+        type: 'object',
+        properties: {
+          name: { type: 'string' },
+          callback_number: { type: 'string' },
+          reason: { type: 'string' },
+          preferred_time: { type: 'string' },
         },
       },
     },
@@ -154,6 +192,31 @@ async function invokeTool(ctx: CallContext, name: string, args: any) {
         collected_info: args?.collected_info,
       }
     );
+  }
+
+  if (name === 'request_callback') {
+    return postJson(
+      `${toolsBase.replace(/\/$/, '')}/tools/create_lead`,
+      { 'x-handycall-tools-key': toolsKey },
+      {
+        company_id: ctx.company_id,
+        call_id: ctx.call_id,
+        from_number: ctx.from_number,
+        to_number: ctx.to_number,
+        collected_info: {
+          callback_request: {
+            name: args?.name,
+            callback_number: args?.callback_number,
+            reason: args?.reason,
+            preferred_time: args?.preferred_time,
+          },
+        },
+      }
+    );
+  }
+
+  if (name === 'transfer_call') {
+    return { ok: false, error: 'transfer_call is not supported in this controller' };
   }
 
   throw new Error(`Unknown tool: ${name}`);
@@ -267,7 +330,11 @@ const server = http.createServer(async (req, res) => {
           instructions,
           tools: toolsSchema(),
           tool_choice: 'auto',
-          turn_detection: { type: 'server_vad', silence_duration_ms: 1500 },
+          turn_detection: {
+            type: 'semantic_vad',
+            create_response: true,
+            interrupt_response: true,
+          },
         },
       };
 
@@ -311,7 +378,11 @@ const server = http.createServer(async (req, res) => {
           instructions,
           tools: toolsSchema(),
           tool_choice: 'auto',
-          turn_detection: { type: 'server_vad', silence_duration_ms: 1500 },
+          turn_detection: {
+            type: 'semantic_vad',
+            create_response: true,
+            interrupt_response: true,
+          },
         },
       };
 

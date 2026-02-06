@@ -113,6 +113,33 @@ export function toolsSchema() {
         },
         {
             type: 'function',
+            name: 'transfer_call',
+            description: 'Transfer the caller to a human or voicemail/queue.',
+            parameters: {
+                type: 'object',
+                properties: {
+                    reason: { type: 'string' },
+                    queue: { type: 'string', description: "e.g. 'sales', 'support', 'voicemail'" }
+                },
+                required: ['queue']
+            }
+        },
+        {
+            type: 'function',
+            name: 'request_callback',
+            description: 'Capture a callback request when booking cannot be completed.',
+            parameters: {
+                type: 'object',
+                properties: {
+                    name: { type: 'string' },
+                    callback_number: { type: 'string' },
+                    reason: { type: 'string' },
+                    preferred_time: { type: 'string' }
+                }
+            }
+        },
+        {
+            type: 'function',
             name: 'end_call',
             description: 'Politely end the call after the goodbye message.',
             parameters: {

@@ -80,6 +80,8 @@ export interface Company {
   sms_enabled?: boolean;
   booking_from_email?: string;
   email_from?: string;
+  transfer_enabled?: boolean;
+  transfer_number?: PhoneNumber;
 
   // AWS Connect integration
   connect_phone_number_id?: string; // Phone number ID from AWS Connect

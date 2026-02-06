@@ -99,6 +99,16 @@ function escapeXml(value: string) {
     .replace(/'/g, '&apos;');
 }
 
+function isLowSignalTranscript(input: string): boolean {
+  const text = (input || '').trim();
+  if (!text) return true;
+  if (text.length < 3) return true;
+  if (/^[\W_]+$/.test(text)) return true;
+  const nonLatin = (text.match(/[^\u0000-\u024F\s]/g) || []).length;
+  if (nonLatin / Math.max(1, text.length) > 0.25) return true;
+  return false;
+}
+
 function toWsBaseUrl(publicBaseUrl: string) {
   if (publicBaseUrl.startsWith('https://')) return `wss://${publicBaseUrl.slice('https://'.length)}`;
   if (publicBaseUrl.startsWith('http://')) return `ws://${publicBaseUrl.slice('http://'.length)}`;
@@ -436,6 +446,20 @@ function isFillerUtterance(text: string): boolean {
   if (!normalized) return true;
   const wordCount = normalized.split(/\s+/).filter(Boolean).length;
   return wordCount <= 2 && fillerTokens.has(normalized);
+}
+
+function resolveTransferTarget(queue?: string): string | null {
+  const raw = typeof queue === 'string' ? queue.trim() : '';
+  const key = raw ? raw.toUpperCase().replace(/[^A-Z0-9]/g, '_') : '';
+  const candidates = [
+    key ? `TRANSFER_${key}_NUMBER` : null,
+    key ? `TRANSFER_${key}` : null,
+    key ? `TRANSFER_QUEUE_${key}` : null,
+    raw ? `TRANSFER_${raw}` : null,
+    'TRANSFER_DEFAULT_NUMBER',
+    'TRANSFER_NUMBER',
+  ].filter(Boolean) as string[];
+  return envFirst(candidates) || null;
 }
 
 function isExplicitBargeIn(text: string): boolean {
@@ -789,91 +813,90 @@ function buildInstructions(input: {
   extra?: string;
 }) {
   const { company_name, service_type, timezone, service_template, extra } = input;
-
-  const isPestControl = (service_type || '').toUpperCase() === 'PEST_CONTROL';
   const serviceLabel = formatServiceTypeLabel(service_type);
-  const templatePrompt = typeof service_template?.base_system_prompt === 'string'
-    ? service_template.base_system_prompt
-    : null;
-  const renderedTemplatePrompt = templatePrompt
-    ? templatePrompt.replace(/\{company_name\}/g, company_name)
-    : null;
   const requireZipCheck = service_template?.tool_policy?.require_zip_check === true;
 
+  const businessRules: string[] = [];
+  if (requireZipCheck) {
+    businessRules.push('Service area check required: ask for ZIP and call check_service_area(zip) before booking.');
+  }
+  if (service_template?.intake_schema?.required?.length) {
+    businessRules.push(`Required intake fields: ${service_template.intake_schema.required.join(', ')}.`);
+  }
+  if (service_template?.intake_schema?.optional?.length) {
+    businessRules.push(`Optional intake fields: ${service_template.intake_schema.optional.join(', ')}.`);
+  }
+  if (timezone) {
+    businessRules.push(`Timezone: ${timezone}.`);
+  }
+  if (extra) {
+    businessRules.push(extra);
+  }
+
   const lines = [
-    renderedTemplatePrompt || `You are a friendly, natural-sounding receptionist for ${company_name}.`,
-    `Company type: ${serviceLabel}.`,
-    `Speak in English only.`,
-    `Tone: warm, friendly, and conversational.`,
-    `Your job: quickly understand the caller's need, capture details, and either schedule or create a lead.`,
-    requireZipCheck
-      ? `CRITICAL RULE: If the caller wants to book a service or appointment, ask for their 5-digit Zip Code FIRST, before asking for their name or address.`
-      : `If a service-area check is enabled, ask for the ZIP before name/address; otherwise, you may proceed without ZIP.`,
-    requireZipCheck
-      ? `Once you get the Zip Code, IMMEDIATELY call check_service_area(zip).`
-      : `Call check_service_area(zip) only if the service area check is enabled or a ZIP is explicitly provided.`,
-      requireZipCheck
-        ? `- If it returns false (not serviced): Apologize, explain you only serve specific areas, and politely end the call (do NOT ask for name).`
-        : null,
-      requireZipCheck
-        ? `- If it returns true (serviced): Confirm the zip code, then ask what service they need. If knowledge_search mentions a subscription/plan/price, briefly offer it and ask which plan or a one-time service. Then collect the remaining required details.`
-        : null,
-      requireZipCheck
-        ? (isPestControl
-          ? `Pest Control Flow: 1. Zip Code -> 2. Pest issue/service needed -> 3. Offer subscription if advertised -> 4. Collect required details (name, address, etc.) -> 5. Schedule -> 6. Send confirmation link after booking.`
-          : `General Flow: 1. Zip Code -> 2. Service needed -> 3. Offer subscription if advertised -> 4. Collect required details -> 5. Schedule -> 6. Send confirmation link after booking.`)
-        : null,
-    `Be conversational and adaptive while still collecting what is needed.`,
-    `WAIT FOR RESPONSE: Ask only ONE question per turn. You MUST wait for the caller to respond before asking another question. NEVER ask two questions in a row.`,
-    `STOP AND LISTEN: After asking a question, STOP SPEAKING and wait for the caller's answer. Do not continue talking.`,
-    `Sound like a real person on the phone: use contractions, vary phrasing, and avoid repeating a sentence in the same turn.`,
-    `Style: 1-2 short sentences max per turn, then ONE question. No monologues. No "thinking out loud". WAIT for their answer.`,
-    `Confirm critical fields (name, phone, address/zip, preferred time) ONLY at the end of the booking flow. Do NOT confirm each field one-by-one.`,
-    `When validating input, just acknowledge and move to the next question (e.g., "Thanks, what's your zip code?").`,
-    `Confirmation policy: Collect Name, Zip, Address, Service, and Preferred Time efficiently. Once you have identifying info and a valid time slot (after get_availability succeeds), perform a single SUMMARY confirmation relative to the booking.`,
-    `Example Summary: "Okay, I have [Name] at [Address], looking for [Service] on [Date/Time]. Is that correct?"`,
-    `If the user says yes, then call create_booking.`,
-    `After create_booking succeeds, send a confirmation link by email using send_booking_link. If you don't yet have an email, ask for it and confirm it.`,
-    `Do NOT ask about or send a booking link before the appointment is booked.`,
-    `Zip codes: Do not read back digits unless the user's input was unclear.`,
-    `Knowledge policy: use knowledge_search for business-specific facts (services, products/solutions used, pricing, plans, what's included, policies). Answer naturally in 1-2 sentences. Do NOT ask "Does that help?" or "Is that what you were looking for?" after every answer. Only ask a follow-up if it helps move the task forward.`,
-    `If you can't find it in knowledge_search or you're not sure, do NOT guess; say you'll note it and have the team follow up.`,
-    `If the caller asks about the business, use knowledge_search to answer accurately.`,
-    `Scheduling policy: the caller can request a specific date/time or ask what times are available on a day.`,
-    `- If they request a time (e.g. "tomorrow at 1pm"): call get_availability(start_time="tomorrow at 1pm"). If available, say "Yes, that time is available" and confirm the booking summary immediately. Do NOT list it as an option asking "which works best?".`,
-    `- If the requested time is NOT available, suggest the closest options returned.`,
-    `- If they ask "what times are available on Monday": call get_availability for that day and offer a small set of options (e.g., 3-5).`,
-    `If get_availability fails or returns error, apologize and ask for the time again or a different day.`,
-    `If get_availability returns no slots, expand the window once before telling the caller there are no openings.`,
-    `Always keep scheduling within the business hours. Never invent availability.`,
-    `If get_availability returns readable_slots, read those times exactly as written. Do NOT convert timezones or say "UTC".`,
-    `Do NOT confirm or announce a booking until after create_booking succeeds.`,
-    `If the caller talks over you, stop immediately and listen (barge-in).`,
-    `If you are unsure, ask one clarifying question.`,
-    `Always be truthful; never invent availability.`,
-    `Never invent caller details (name, address, zip, phone, appointment time). If you do not have it, ask.`,
-    `End-of-call policy: once the booking is created (or query answered), ask: "Is there anything else I can help with today?"`,
-    `If they say no, say one short friendly goodbye (e.g., "Thanks for calling - if you need anything else, just give us a call back."), then call save_call with a concise summary + collected fields, then call end_call.`,
-    `If they say yes, continue helping and do NOT end the call.`,
-    timezone ? `Timezone: ${timezone}.` : null,
-    '',
-    `Tools policy:`,
-    `- Call create_lead early, once you know the caller's phone number and intent.`,
-    `- Call save_call near the end with a concise summary + collected fields (not a verbatim transcript).`,
-    `- Use get_availability + create_booking for scheduling; never guess availability.`,
-    requireZipCheck ? `- Always call check_service_area(zip) as the FIRST step of booking.` : `- Call check_service_area(zip) only if required for this business.`,
-    requireZipCheck
-      ? `- Before calling get_availability, collect name and zip (or address) and verify service area.`
-      : `- Before calling get_availability, collect the caller's name and service needs; get ZIP/address if required.`,
-    `- Never present specific available times unless they came from get_availability in the current turn.`,
-    service_template?.intake_schema?.required?.length
-      ? `Required intake fields: ${service_template.intake_schema.required.join(', ')}.`
-      : null,
-    service_template?.intake_schema?.optional?.length
-      ? `Optional intake fields: ${service_template.intake_schema.optional.join(', ')}.`
-      : null,
-    extra ? `Extra instructions: ${extra}` : null,
+    `[IDENTITY]`,
+    `You are a real, warm, natural-sounding phone receptionist for ${company_name} (${serviceLabel}).`,
+    `You help callers: (a) book/reschedule/cancel, (b) answer business questions, or (c) take a message for a callback.`,
+    ``,
+    `[VOICE & STYLE]`,
+    `- Sound human: contractions, short phrases, light fillers ("Got it...", "Okay - sure.").`,
+    `- Keep it brief: max 1-2 short sentences, then ONE question.`,
+    `- No monologues. No lists longer than 3 items.`,
+    `- Do not repeat the same sentence structure two turns in a row.`,
+    `- Never "think out loud".`,
+    ``,
+    `[HARD CONVERSATION RULES]`,
+    `- ONE question per turn, then STOP and wait. (Do not ask follow-ups until the caller answers.) <wait>`,
+    `- Do not assume you heard correctly. If the caller is unclear, ask ONE clarifying question.`,
+    `- Never pretend the caller said something they did not say. Only use info explicitly provided by the caller or returned by tools.`,
+    `- Never invent availability, pricing, policies, or services. Use knowledge_search or say you will have the team follow up.`,
+    ``,
+    `[PRIMARY GOAL]`,
+    `Resolve the call quickly and correctly:`,
+    `1) Identify intent: book/reschedule/cancel vs question vs message.`,
+    `2) If booking-related, collect the minimum required fields efficiently.`,
+    `3) Use tools at the correct times (below).`,
+    `4) Confirm once (single summary confirmation) right before booking.`,
+    `5) Close the call politely and end.`,
+    ``,
+    `[FLOW - STATE MACHINE]`,
+    `You always operate in ONE of these states:`,
+    `A) GREETING -> B) INTENT -> C) INTAKE -> D) AVAILABILITY -> E) CONFIRM_SUMMARY -> F) BOOKED -> G) WRAP_UP`,
+    ``,
+    `State rules:`,
+    `- GREETING: greet + ask what they need. <wait>`,
+    `- INTENT: classify into (booking / reschedule / cancel / question / message). Ask ONE question to route. <wait>`,
+    `- INTAKE: collect required fields (name, zip/address if required, service, preferred time window, email if needed for link). Keep it moving.`,
+    `- AVAILABILITY: call get_availability based on what they requested. Offer 3 options max if needed.`,
+    `- CONFIRM_SUMMARY: do ONE summary confirmation ONLY:`,
+    `"Okay, I have {Name}, {Service}, at {Address/Zip if needed}, for {Date/Time}. Is that right?" <wait>`,
+    `- BOOKED: only after "yes" AND create_booking returns success, acknowledge booking and send link (send_booking_link).`,
+    `- WRAP_UP: "Anything else I can help with?" If no -> goodbye + save_call + end_call.`,
+    ``,
+    `[CONFIRMATION POLICY]`,
+    `- Do NOT confirm each field one-by-one.`,
+    `- Only do a single summary confirmation in CONFIRM_SUMMARY.`,
+    `- If caller corrects something, update and re-summarize once.`,
+    ``,
+    `[TOOLS - WHEN TO CALL WHAT]`,
+    `- create_lead: call early once you have intent + any basic contact detail (caller phone is known).`,
+    `- check_service_area(zip): if required, call as soon as you get zip; if out of area, apologize and take a message.`,
+    `- knowledge_search(query): for business questions (services, policies, pricing if documented). If not found, do not guess.`,
+    `- get_availability(start_time, end_time): before booking. Never invent times.`,
+    `- create_booking(confirmed=true, ...): ONLY after caller confirmed the summary.`,
+    `- send_booking_link(email): ONLY after booking succeeds.`,
+    `- save_call(summary, collected_info): near the end, concise.`,
+    `- transfer_call / end_call: if needed.`,
+    `IMPORTANT: If transferring, do NOT speak - silently call the transfer tool.`,
+    ``,
+    `[FALLBACKS / EDGE CASES]`,
+    `- If caller is unclear 2 times in a row: apologize and offer a callback message or transfer.`,
+    `- If tools fail: apologize once, ask for an alternative time/day, retry once.`,
+    `- If caller asks for unrelated topics: politely steer back to booking or message.`,
+    ``,
+    businessRules.length ? `[BUSINESS RULES]\n${businessRules.join('\n')}` : null,
   ].filter(Boolean) as string[];
+
   return lines.join('\n');
 }
 
@@ -938,6 +961,45 @@ async function invokeTool(ctx: CallContext, name: string, args: any) {
         duration_seconds: args?.duration_seconds,
       }
     );
+  }
+
+  if (name === 'request_callback') {
+    return postJson(
+      `${toolsBase}/tools/create_lead`,
+      { 'x-handycall-tools-key': toolsKey },
+      {
+        company_id: ctx.company_id,
+        call_id: ctx.callSid,
+        from_number: ctx.from,
+        to_number: ctx.to,
+        collected_info: {
+          callback_request: {
+            name: args?.name,
+            callback_number: args?.callback_number,
+            reason: args?.reason,
+            preferred_time: args?.preferred_time,
+          },
+        },
+      }
+    );
+  }
+
+  if (name === 'transfer_call') {
+    if (!tenant?.transfer_enabled) {
+      return { ok: false, error: 'Transfer is disabled for this account.' };
+    }
+    const queue = typeof args?.queue === 'string' ? args.queue : '';
+    const tenantNumber = typeof tenant?.transfer_number === 'string' ? tenant.transfer_number.trim() : '';
+    const target = tenantNumber || resolveTransferTarget(queue);
+    if (!target) {
+      return { ok: false, error: 'No transfer target configured for this queue.' };
+    }
+    const accountSid = await getSecret('TWILIO_ACCOUNT_SID');
+    const authToken = await getSecret('TWILIO_AUTH_TOKEN');
+    const client = twilio(accountSid, authToken);
+    const twiml = `<Response><Dial>${escapeXml(target)}</Dial></Response>`;
+    await client.calls(ctx.callSid).update({ twiml });
+    return { ok: true, target };
   }
 
   if (name === 'check_service_area') {
@@ -1298,9 +1360,10 @@ wss.on('connection', (twilioWs: WebSocket) => {
     let openaiSessionReady = false;
     let twilioStreamReady = false;
     let allowModelResponse = false;
-    let outboundAudioQueue: string[] = [];
+  let outboundAudioQueue: string[] = [];
   let outboundAudioTimer: NodeJS.Timeout | null = null;
   let outboundNextSendAt = 0;
+  let lowSignalCount = 0;
 
   function log(msg: string, extra?: any) {
     const prefix = ctx ? `[callSid=${ctx.callSid} streamSid=${ctx.streamSid}]` : '[twilio]';
@@ -1584,6 +1647,16 @@ wss.on('connection', (twilioWs: WebSocket) => {
     } else {
       sendPrompt(greetingText, { max_output_tokens: 80 });
     }
+    noResponseStage = 0;
+    armNoResponseTimer();
+  }
+
+  function repromptLowSignal(attempt: number) {
+    const msg =
+      attempt <= 1
+        ? "Sorry - I didn't catch that. Are you calling to book an appointment, or do you have a quick question?"
+        : "I'm still having trouble hearing you. If you'd like, I can take a message for a callback - what's your name?";
+    sendPrompt(msg, { max_output_tokens: 90 });
     noResponseStage = 0;
     armNoResponseTimer();
   }
@@ -3110,10 +3183,9 @@ wss.on('connection', (twilioWs: WebSocket) => {
             // Lower silence threshold reduces perceived latency between user stop -> assistant start.
             // Too low can cause interruptions; tune if you notice cutoffs.
             turn_detection: {
-              type: 'server_vad',
-              threshold: Number(envFirst(['REALTIME_VAD_THRESHOLD']) || 0.8),
-              prefix_padding_ms: 300,
-              silence_duration_ms: Number(envFirst(['REALTIME_SILENCE_MS']) || 1500),
+              type: 'semantic_vad',
+              create_response: true,
+              interrupt_response: true,
             },
           },
         });
@@ -3260,6 +3332,13 @@ wss.on('connection', (twilioWs: WebSocket) => {
             clearNoResponseTimer();
             lastUserTranscriptAt = Date.now();
             const text = t.trim();
+            if (isLowSignalTranscript(text)) {
+              lowSignalCount = Math.min(lowSignalCount + 1, 2);
+              log('Low-signal transcript gate', { text });
+              repromptLowSignal(lowSignalCount);
+              return;
+            }
+            lowSignalCount = 0;
             const normalizedText = text.toLowerCase();
             const wordCount = text.split(/\s+/).filter(Boolean).length;
             const speechDurationMs =
@@ -3496,6 +3575,16 @@ wss.on('connection', (twilioWs: WebSocket) => {
 
           try {
             isProcessingTool = true;
+            if (toolName === 'transfer_call') {
+              const result = await invokeTool(ctx, toolName, args);
+              sendToOpenAI(openaiWs, {
+                type: 'conversation.item.create',
+                item: { type: 'function_call_output', call_id: toolCallId, output: JSON.stringify(result) },
+              });
+              isProcessingTool = false;
+              allowModelResponse = false;
+              return;
+            }
             if (toolName === 'get_availability' || toolName === 'create_booking') {
               const calendarBlocked = tenant?.calendar_setup_completed === false;
               const scheduleBlocked = tenant?.schedule_setup_completed === false;

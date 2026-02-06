@@ -14,6 +14,8 @@ export default function SettingsPage() {
     company_name: '',
     phone_number: '',
     timezone: '',
+    transfer_enabled: false,
+    transfer_number: '',
   });
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState('');
@@ -31,6 +33,8 @@ export default function SettingsPage() {
       company_name: company.company_name,
       phone_number: company.phone_number ?? '',
       timezone: company.timezone,
+      transfer_enabled: company.transfer_enabled ?? false,
+      transfer_number: company.transfer_number ?? '',
     });
   }, [company]);
 
@@ -119,6 +123,51 @@ export default function SettingsPage() {
                   onChange={(e) => setFormData({ ...formData, timezone: e.target.value })}
                   disabled={isSaving}
                 />
+              </div>
+
+              <div className="space-y-3 rounded-xl border border-emerald-100 bg-emerald-50/40 p-4">
+                <div className="flex items-center gap-3">
+                  <input
+                    id="transfer_enabled"
+                    type="checkbox"
+                    className="h-4 w-4 accent-emerald-600"
+                    checked={formData.transfer_enabled}
+                    onChange={(e) => setFormData({ ...formData, transfer_enabled: e.target.checked })}
+                    disabled={isSaving}
+                  />
+                  <Label htmlFor="transfer_enabled">Enable call transfer to a human</Label>
+                </div>
+
+                {formData.transfer_enabled && (
+                  <div className="space-y-2">
+                    <Label htmlFor="transfer_number">Forwarding number</Label>
+                    <div className="flex flex-col gap-2">
+                      <Input
+                        id="transfer_number"
+                        value={formData.transfer_number}
+                        onChange={(e) => setFormData({ ...formData, transfer_number: e.target.value })}
+                        placeholder="+15551234567"
+                        disabled={isSaving}
+                      />
+                      {formData.phone_number && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() =>
+                            setFormData({
+                              ...formData,
+                              transfer_number: formData.phone_number,
+                            })
+                          }
+                          disabled={isSaving}
+                        >
+                          Use my business number
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
 
               <Button type="submit" disabled={isSaving}>

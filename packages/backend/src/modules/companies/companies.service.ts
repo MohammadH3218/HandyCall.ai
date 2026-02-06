@@ -194,6 +194,8 @@ export class CompaniesService {
       trial_used_at?: number | null;
       calls_enabled?: boolean;
       sms_enabled?: boolean;
+      transfer_enabled?: boolean;
+      transfer_number?: string;
       use_simple_scheduling?: boolean;
       // Billing fields
       stripe_customer_id?: string;

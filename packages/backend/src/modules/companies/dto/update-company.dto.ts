@@ -51,6 +51,14 @@ export class UpdateCompanyDto {
   @IsBoolean()
   sms_enabled?: boolean;
 
+  @IsOptional()
+  @IsBoolean()
+  transfer_enabled?: boolean;
+
+  @IsOptional()
+  @IsString()
+  transfer_number?: string;
+
   // AWS Connect fields
   @IsOptional()
   @IsString()
