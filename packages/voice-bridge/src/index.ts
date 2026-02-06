@@ -585,6 +585,12 @@ function formatSlotForPrompt(slotIso: string, timeZone: string): string {
   }
 }
 
+function formatSlotChoices(slots: BookingSlotOption[], limit = 3): string[] {
+  if (!slots.length) return [];
+  const subset = slots.slice(0, Math.max(1, limit));
+  return subset.map((slot) => slot.label);
+}
+
 type BookingStep =
   | 'idle'
   | 'ask_name'
@@ -2824,14 +2830,23 @@ wss.on('connection', (twilioWs: WebSocket) => {
           sendPrompt(`I can do ${match.label}. Want me to book that?`);
           return true;
         }
+        if (bookingSlots.length) {
+          const choices = formatSlotChoices(bookingSlots, 3);
+          const list = choices.join(', ');
+          sendPrompt(`That time isn't open. I do have ${list}. Which works best?`);
+          sessionContext.state = 'OFFER_SLOTS';
+          return true;
+        }
         if (spokenAvailability) {
           sendPrompt(spokenAvailability);
-          sessionContext.state = 'OFFER_SLOTS';
+          sessionContext.state = 'ASK_TIME';
           return true;
         }
       }
       if (bookingSlots.length > 12) {
-        sendPrompt(spokenAvailability || 'That day has wide availability. What time works best?');
+        const choices = formatSlotChoices(bookingSlots, 3);
+        const list = choices.join(', ');
+        sendPrompt(`I have ${list}. Which works best?`);
         sessionContext.state = 'OFFER_SLOTS';
         return true;
       }

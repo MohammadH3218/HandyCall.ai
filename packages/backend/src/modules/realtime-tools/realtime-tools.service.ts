@@ -955,22 +955,16 @@ export class RealtimeToolsService {
       if (requested_time_available === true) {
         spokenAvailability = `That time is available.`;
       } else if (requested_time_available === false) {
-        if (slots.length > 12) {
-          const first = timeOnlySlots[0];
-          const last = timeOnlySlots[timeOnlySlots.length - 1];
-          spokenAvailability = `That time isn't available. I have wide availability from ${first} to ${last}. What time works best?`;
-        } else if (slots.length) {
-          spokenAvailability = `That time isn't available. I have slots open at ${timeOnlySlots.join(', ')}. Which time works best?`;
+        if (slots.length) {
+          const sample = timeOnlySlots.slice(0, 3);
+          spokenAvailability = `That time isn't available. I have ${sample.join(', ')}. Which time works best?`;
         } else {
           spokenAvailability = `That time isn't available. What day or time works instead?`;
         }
       }
-    } else if (slots.length > 12) {
-      const first = timeOnlySlots[0];
-      const last = timeOnlySlots[timeOnlySlots.length - 1];
-      spokenAvailability = `I have wide availability from ${first} to ${last}. What time works best?`;
     } else if (slots.length) {
-      spokenAvailability = `I have slots open at ${timeOnlySlots.join(', ')}. Which time works best?`;
+      const sample = timeOnlySlots.slice(0, 3);
+      spokenAvailability = `I have ${sample.join(', ')}. Which time works best?`;
     }
 
     return {
