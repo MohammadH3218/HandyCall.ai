@@ -1,13 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { SiteHeader } from '@/components/marketing/site-header';
-import { Check, X } from 'lucide-react';
+import { Check, X, ArrowRight, Phone, MessageSquare, Users } from 'lucide-react';
 
 type PlanName = 'Starter' | 'Pro' | 'Max';
 
@@ -26,6 +26,7 @@ type Plan = {
   trialLabel?: string;
   highlight?: boolean;
   features: PlanFeature[];
+  limits: { minutes: number; sms: number; contacts: number };
 };
 
 const plans: Plan[] = [
@@ -36,6 +37,7 @@ const plans: Plan[] = [
     cadence: 'per week',
     bestFor: 'Solo operators getting started with AI answering.',
     badge: 'Limited-time offer',
+    limits: { minutes: 50, sms: 100, contacts: 200 },
     features: [
       { label: '50 minutes/week', available: true },
       { label: '100 SMS/week', available: true },
@@ -56,6 +58,7 @@ const plans: Plan[] = [
     bestFor: 'Growing teams that want consistent coverage and bookings.',
     badge: 'Most popular',
     trialLabel: 'Free trial - 14 days',
+    limits: { minutes: 120, sms: 250, contacts: 500 },
     features: [
       { label: '120 minutes/week', available: true },
       { label: '250 SMS/week', available: true },
@@ -76,6 +79,7 @@ const plans: Plan[] = [
     cadence: 'per week',
     bestFor: 'Busy crews that need higher weekly volume and follow-ups.',
     badge: 'Best value',
+    limits: { minutes: 250, sms: 500, contacts: 1000 },
     features: [
       { label: '250 minutes/week', available: true },
       { label: '500 SMS/week', available: true },
@@ -146,188 +150,354 @@ const featureComparisons: {
   },
 ];
 
+type SliderConfig = {
+  key: 'minutes' | 'sms' | 'contacts';
+  label: string;
+  icon: typeof Phone;
+  min: number;
+  max: number;
+  step: number;
+  unit: string;
+};
+
+const sliders: SliderConfig[] = [
+  { key: 'minutes', label: 'Call minutes / week', icon: Phone, min: 0, max: 300, step: 5, unit: 'min' },
+  { key: 'sms', label: 'SMS messages / week', icon: MessageSquare, min: 0, max: 600, step: 10, unit: 'SMS' },
+  { key: 'contacts', label: 'New contacts / week', icon: Users, min: 0, max: 1200, step: 25, unit: 'contacts' },
+];
+
+function getRecommendedPlan(values: { minutes: number; sms: number; contacts: number }): PlanName | 'custom' {
+  for (const plan of plans) {
+    if (
+      values.minutes <= plan.limits.minutes &&
+      values.sms <= plan.limits.sms &&
+      values.contacts <= plan.limits.contacts
+    ) {
+      return plan.name;
+    }
+  }
+  return 'custom';
+}
+
 export default function PricingPage() {
   const [compareOpen, setCompareOpen] = useState(false);
+  const [calc, setCalc] = useState({ minutes: 40, sms: 80, contacts: 150 });
+
+  const recommended = getRecommendedPlan(calc);
+
+  const updateCalc = useCallback((key: 'minutes' | 'sms' | 'contacts', value: number) => {
+    setCalc((prev) => ({ ...prev, [key]: value }));
+  }, []);
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-white via-emerald-50/20 to-white text-foreground">
-      <SiteHeader />
-      <main className="mx-auto max-w-6xl px-4 pb-20 pt-12">
-        <section className="grid gap-10 lg:grid-cols-[1.1fr_0.9fr]">
-          <div className="space-y-6">
-            <Badge className="bg-emerald-100 text-emerald-700">Weekly plans built for service teams</Badge>
-            <h1 className="text-4xl font-display text-slate-900 md:text-5xl">
-              Pricing that matches your call volume.
-            </h1>
-            <p className="text-lg text-slate-600">
-              Choose a weekly plan that fits how many calls and appointments you manage. Upgrade any time as demand
-              grows.
-            </p>
-            <div className="flex flex-wrap gap-3">
-              <Button asChild size="lg">
-                <Link href="/contact">Talk to sales</Link>
-              </Button>
-              <Button asChild size="lg" variant="outline">
-                <Link href="/login">Existing customer? Log in</Link>
-              </Button>
-              <Button size="lg" variant="ghost" onClick={() => setCompareOpen(true)}>
-                Compare plans
-              </Button>
-            </div>
-          </div>
+    <div className="relative min-h-screen bg-white text-foreground">
+      <div className="bg-grid bg-grid-fade pointer-events-none fixed inset-0 z-0" />
 
-          <Card className="border-emerald-100 bg-white/80 shadow-lg shadow-emerald-100">
-            <CardHeader>
-              <CardTitle>Every plan includes</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {inclusions.map((item) => (
-                <div key={item} className="flex items-start gap-2 text-sm text-slate-700">
-                  <span className="mt-1 h-2 w-2 rounded-full bg-emerald-600" />
-                  <span>{item}</span>
-                </div>
-              ))}
-              <div className="rounded-lg border border-emerald-100 bg-emerald-50/70 p-3 text-sm text-emerald-900">
-                Need a custom package? We can tune minutes and onboarding for larger teams.
+      <div className="relative z-10">
+        <SiteHeader />
+        <main className="mx-auto max-w-6xl px-4 pb-20 pt-12">
+          <section className="grid gap-10 lg:grid-cols-[1.1fr_0.9fr]">
+            <div className="space-y-6">
+              <Badge className="bg-emerald-100 text-emerald-700">Weekly plans built for service teams</Badge>
+              <h1 className="text-4xl font-display text-slate-900 md:text-5xl">
+                Pricing that matches your call volume.
+              </h1>
+              <p className="text-lg text-slate-600">
+                Choose a weekly plan that fits how many calls and appointments you manage. Upgrade any time as demand
+                grows.
+              </p>
+              <div className="flex flex-wrap gap-3">
+                <Button asChild size="lg">
+                  <Link href="/contact">Talk to sales</Link>
+                </Button>
+                <Button asChild size="lg" variant="outline">
+                  <Link href="/login">Existing customer? Log in</Link>
+                </Button>
+                <Button size="lg" variant="ghost" onClick={() => setCompareOpen(true)}>
+                  Compare plans
+                </Button>
               </div>
-            </CardContent>
-          </Card>
-        </section>
+            </div>
 
-        <section className="mt-14 grid gap-6 md:grid-cols-3">
-          {plans.map((plan) => (
-            <Card
-              key={plan.name}
-              className={`flex h-full flex-col border-emerald-100 shadow-sm transition hover:-translate-y-1 hover:shadow-md ${
-                plan.highlight ? 'bg-white shadow-lg shadow-emerald-100 ring-1 ring-emerald-200' : 'bg-white/90'
-              }`}
-            >
-              <CardHeader className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-2xl">{plan.name}</CardTitle>
-                  <div className="flex gap-2">
-                    {plan.trialLabel && <Badge className="bg-emerald-100 text-emerald-700">{plan.trialLabel}</Badge>}
-                    {plan.badge && <Badge className="bg-emerald-100 text-emerald-700">{plan.badge}</Badge>}
-                  </div>
-                </div>
-                <div className="flex flex-wrap items-baseline gap-2">
-                  <span className="text-sm text-slate-400 line-through">{plan.originalPrice}</span>
-                  <span className="text-4xl font-semibold text-slate-900">{plan.price}</span>
-                  <span className="text-sm text-slate-500">{plan.cadence}</span>
-                </div>
-                <p className="text-sm text-slate-600">{plan.bestFor}</p>
+            <Card className="border-emerald-100 bg-white/80 shadow-lg shadow-emerald-100">
+              <CardHeader>
+                <CardTitle>Every plan includes</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-2">
-                {plan.features.map((item) => (
-                  <div
-                    key={item.label}
-                    className={`flex items-center gap-2 text-sm ${
-                      item.available === false
-                        ? 'text-slate-400 line-through decoration-slate-300'
-                        : 'text-emerald-800'
-                    }`}
-                  >
-                    <span
-                      className={`h-1.5 w-1.5 rounded-full ${
-                        item.available === false ? 'bg-slate-300' : 'bg-emerald-500'
-                      }`}
-                    />
-                    {item.label}
+              <CardContent className="space-y-3">
+                {inclusions.map((item) => (
+                  <div key={item} className="flex items-start gap-2 text-sm text-slate-700">
+                    <span className="mt-1 h-2 w-2 rounded-full bg-emerald-600" />
+                    <span>{item}</span>
                   </div>
                 ))}
+                <div className="rounded-lg border border-emerald-100 bg-emerald-50/70 p-3 text-sm text-emerald-900">
+                  Need a custom package? We can tune minutes and onboarding for larger teams.
+                </div>
               </CardContent>
-              <CardFooter className="mt-auto">
-                <Button asChild className="w-full">
-                  <Link href="/contact">Contact to buy</Link>
-                </Button>
-              </CardFooter>
             </Card>
-          ))}
-        </section>
+          </section>
 
-        <section className="mt-16 rounded-2xl border border-emerald-100 bg-emerald-50/80 p-10 text-center shadow-lg shadow-emerald-50">
-          <h3 className="text-2xl font-display text-slate-900">Need a tailored rollout?</h3>
-          <p className="mt-2 text-slate-600">
-            Let us know your call volume and service mix. We will build a plan around your team.
-          </p>
-          <div className="mt-4 flex justify-center">
-            <Button asChild size="lg" variant="secondary" className="bg-white text-emerald-700 shadow">
-              <Link href="/contact">Start the conversation</Link>
-            </Button>
-          </div>
-        </section>
-
-        <Dialog open={compareOpen} onOpenChange={setCompareOpen}>
-          <DialogContent className="max-w-5xl">
-            <DialogHeader>
-              <DialogTitle>Compare plans side by side</DialogTitle>
-              <DialogDescription>
-                See exactly what is included at each tier. Grayed items are not available on that plan.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse text-sm">
-                <thead>
-                  <tr>
-                    <th className="p-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      Feature
-                    </th>
-                    {plans.map((plan) => (
-                      <th key={plan.name} className="p-3 text-left">
-                        <div className="flex flex-col gap-1">
-                          <span className="text-base font-semibold text-foreground">{plan.name}</span>
-                          <span className="text-xs text-muted-foreground">
-                            <span className="mr-1 line-through">{plan.originalPrice}</span>
-                            {plan.price} {plan.cadence}
-                          </span>
-                        </div>
-                      </th>
+          {/* ── Plan cards ── */}
+          <section className="mt-14 grid gap-6 md:grid-cols-3">
+            {plans.map((plan) => {
+              const isRecommended = recommended === plan.name;
+              return (
+                <Card
+                  key={plan.name}
+                  className={`relative flex h-full flex-col border-emerald-100 shadow-sm transition hover:-translate-y-1 hover:shadow-md ${
+                    plan.highlight ? 'bg-white shadow-lg shadow-emerald-100 ring-1 ring-emerald-200' : 'bg-white/90'
+                  } ${isRecommended ? 'ring-2 ring-emerald-500' : ''}`}
+                >
+                  {isRecommended && (
+                    <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+                      <span className="rounded-full bg-emerald-600 px-3 py-1 text-xs font-semibold text-white shadow-sm">
+                        Recommended for you
+                      </span>
+                    </div>
+                  )}
+                  <CardHeader className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-2xl">{plan.name}</CardTitle>
+                      <div className="flex gap-2">
+                        {plan.trialLabel && <Badge className="bg-emerald-100 text-emerald-700">{plan.trialLabel}</Badge>}
+                        {plan.badge && <Badge className="bg-emerald-100 text-emerald-700">{plan.badge}</Badge>}
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap items-baseline gap-2">
+                      <span className="text-sm text-slate-400 line-through">{plan.originalPrice}</span>
+                      <span className="text-4xl font-semibold text-slate-900">{plan.price}</span>
+                      <span className="text-sm text-slate-500">{plan.cadence}</span>
+                    </div>
+                    <p className="text-sm text-slate-600">{plan.bestFor}</p>
+                  </CardHeader>
+                  <CardContent className="space-y-2">
+                    {plan.features.map((item) => (
+                      <div
+                        key={item.label}
+                        className={`flex items-center gap-2 text-sm ${
+                          item.available === false
+                            ? 'text-slate-400 line-through decoration-slate-300'
+                            : 'text-emerald-800'
+                        }`}
+                      >
+                        <span
+                          className={`h-1.5 w-1.5 rounded-full ${
+                            item.available === false ? 'bg-slate-300' : 'bg-emerald-500'
+                          }`}
+                        />
+                        {item.label}
+                      </div>
                     ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {featureComparisons.map((feature) => (
-                    <tr key={feature.label} className="border-t border-border/60">
-                      <td className="p-3 font-medium text-foreground">{feature.label}</td>
-                      {plans.map((plan) => {
-                        const value = feature.values[plan.name];
-                        if (value === false) {
+                  </CardContent>
+                  <CardFooter className="mt-auto">
+                    <Button asChild className="group w-full gap-2">
+                      <Link href="/register">
+                        Get started
+                        <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+                      </Link>
+                    </Button>
+                  </CardFooter>
+                </Card>
+              );
+            })}
+          </section>
+
+          {/* ── Plan calculator ── */}
+          <section className="mt-16 overflow-hidden rounded-[28px] border border-emerald-100/60 bg-gradient-to-br from-white via-emerald-50/10 to-white p-8 shadow-lg shadow-emerald-50/50 md:p-12">
+            <div className="text-center">
+              <Badge className="bg-emerald-100/80 text-emerald-700">Plan calculator</Badge>
+              <h2 className="mt-3 text-3xl font-display text-slate-900 md:text-4xl">
+                Find the right plan for your volume
+              </h2>
+              <p className="mx-auto mt-2 max-w-lg text-slate-600">
+                Drag the sliders to match your weekly usage and we&apos;ll show which plan covers you.
+              </p>
+            </div>
+
+            <div className="mx-auto mt-10 max-w-2xl space-y-8">
+              {sliders.map((slider) => {
+                const Icon = slider.icon;
+                const value = calc[slider.key];
+                return (
+                  <div key={slider.key}>
+                    <div className="mb-3 flex items-center justify-between">
+                      <div className="flex items-center gap-2.5">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">
+                          <Icon className="h-4 w-4" />
+                        </div>
+                        <span className="text-sm font-semibold text-slate-800">{slider.label}</span>
+                      </div>
+                      <span className="rounded-lg bg-slate-100 px-3 py-1 text-sm font-semibold tabular-nums text-slate-900">
+                        {value} {slider.unit}
+                      </span>
+                    </div>
+
+                    {/* Slider track */}
+                    <div className="relative">
+                      <input
+                        type="range"
+                        min={slider.min}
+                        max={slider.max}
+                        step={slider.step}
+                        value={value}
+                        onChange={(e) => updateCalc(slider.key, Number(e.target.value))}
+                        className="calc-slider w-full"
+                      />
+                      {/* Plan tier markers */}
+                      <div className="pointer-events-none absolute inset-x-0 top-1/2 -translate-y-1/2">
+                        {plans.map((plan) => {
+                          const pct = (plan.limits[slider.key] / slider.max) * 100;
                           return (
-                            <td key={plan.name} className="p-3 text-muted-foreground">
-                              <div className="flex items-center gap-2">
-                                <X className="h-4 w-4 text-muted-foreground" />
-                                <span>Not included</span>
+                            <div
+                              key={plan.name}
+                              className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2"
+                              style={{ left: `${pct}%` }}
+                            >
+                              <div className="flex flex-col items-center">
+                                <div className="h-3 w-px bg-slate-300" />
+                                <span className="mt-1 text-[10px] font-medium text-slate-400">{plan.name}</span>
                               </div>
-                            </td>
+                            </div>
                           );
-                        }
-                        if (value === true) {
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Recommendation result */}
+            <div className="mx-auto mt-10 max-w-2xl">
+              <div
+                className={`rounded-2xl border p-6 text-center transition-all duration-300 ${
+                  recommended === 'custom'
+                    ? 'border-amber-200 bg-amber-50/60'
+                    : 'border-emerald-200 bg-emerald-50/60'
+                }`}
+              >
+                {recommended === 'custom' ? (
+                  <>
+                    <p className="text-lg font-semibold text-slate-900">
+                      Your usage exceeds our standard plans
+                    </p>
+                    <p className="mt-1 text-sm text-slate-600">
+                      We can build a custom package for high-volume teams. Let&apos;s talk.
+                    </p>
+                    <Button asChild size="lg" className="mt-4">
+                      <Link href="/contact">Contact sales</Link>
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-sm font-medium text-emerald-700">Based on your usage, we recommend</p>
+                    <p className="mt-1 text-3xl font-display font-semibold text-slate-900">
+                      {recommended}{' '}
+                      <span className="text-lg font-normal text-slate-500">
+                        {plans.find((p) => p.name === recommended)?.price}/week
+                      </span>
+                    </p>
+                    <p className="mt-1 text-sm text-slate-600">
+                      {plans.find((p) => p.name === recommended)?.bestFor}
+                    </p>
+                    <Button asChild size="lg" className="group mt-4 gap-2">
+                      <Link href="/register">
+                        Get started with {recommended}
+                        <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+                      </Link>
+                    </Button>
+                  </>
+                )}
+              </div>
+            </div>
+          </section>
+
+          {/* ── Tailored CTA ── */}
+          <section className="mt-16 rounded-2xl border border-emerald-100 bg-emerald-50/80 p-10 text-center shadow-lg shadow-emerald-50">
+            <h3 className="text-2xl font-display text-slate-900">Need a tailored rollout?</h3>
+            <p className="mt-2 text-slate-600">
+              Let us know your call volume and service mix. We will build a plan around your team.
+            </p>
+            <div className="mt-4 flex justify-center">
+              <Button asChild size="lg" variant="secondary" className="bg-white text-emerald-700 shadow">
+                <Link href="/contact">Start the conversation</Link>
+              </Button>
+            </div>
+          </section>
+
+          {/* ── Compare dialog ── */}
+          <Dialog open={compareOpen} onOpenChange={setCompareOpen}>
+            <DialogContent className="max-w-5xl">
+              <DialogHeader>
+                <DialogTitle>Compare plans side by side</DialogTitle>
+                <DialogDescription>
+                  See exactly what is included at each tier. Grayed items are not available on that plan.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse text-sm">
+                  <thead>
+                    <tr>
+                      <th className="p-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        Feature
+                      </th>
+                      {plans.map((plan) => (
+                        <th key={plan.name} className="p-3 text-left">
+                          <div className="flex flex-col gap-1">
+                            <span className="text-base font-semibold text-foreground">{plan.name}</span>
+                            <span className="text-xs text-muted-foreground">
+                              <span className="mr-1 line-through">{plan.originalPrice}</span>
+                              {plan.price} {plan.cadence}
+                            </span>
+                          </div>
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {featureComparisons.map((feature) => (
+                      <tr key={feature.label} className="border-t border-border/60">
+                        <td className="p-3 font-medium text-foreground">{feature.label}</td>
+                        {plans.map((plan) => {
+                          const value = feature.values[plan.name];
+                          if (value === false) {
+                            return (
+                              <td key={plan.name} className="p-3 text-muted-foreground">
+                                <div className="flex items-center gap-2">
+                                  <X className="h-4 w-4 text-muted-foreground" />
+                                  <span>Not included</span>
+                                </div>
+                              </td>
+                            );
+                          }
+                          if (value === true) {
+                            return (
+                              <td key={plan.name} className="p-3 text-emerald-700">
+                                <div className="flex items-center gap-2">
+                                  <Check className="h-4 w-4 text-emerald-600" />
+                                  <span>Included</span>
+                                </div>
+                              </td>
+                            );
+                          }
                           return (
-                            <td key={plan.name} className="p-3 text-emerald-700">
+                            <td key={plan.name} className="p-3 text-foreground">
                               <div className="flex items-center gap-2">
                                 <Check className="h-4 w-4 text-emerald-600" />
-                                <span>Included</span>
+                                <span>{value}</span>
                               </div>
                             </td>
                           );
-                        }
-                        return (
-                          <td key={plan.name} className="p-3 text-foreground">
-                            <div className="flex items-center gap-2">
-                              <Check className="h-4 w-4 text-emerald-600" />
-                              <span>{value}</span>
-                            </div>
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </DialogContent>
-        </Dialog>
-      </main>
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </main>
+      </div>
     </div>
   );
 }
