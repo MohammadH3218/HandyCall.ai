@@ -79,14 +79,71 @@ function ymd(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-function formatDateTime(ts?: number | string) {
-  if (!ts) return '-';
-  const date = typeof ts === 'number' ? new Date(ts) : new Date(ts);
-  return date.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+function getZonedParts(ts: number | string | Date, timeZone?: string) {
+  const date = ts instanceof Date ? ts : new Date(ts);
+  if (!timeZone) {
+    return {
+      year: date.getFullYear(),
+      month: date.getMonth() + 1,
+      day: date.getDate(),
+      hour: date.getHours(),
+      minute: date.getMinutes(),
+    };
+  }
+  try {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    }).formatToParts(date);
+    const value = (type: string) => Number(parts.find((p) => p.type === type)?.value);
+    return {
+      year: value('year'),
+      month: value('month'),
+      day: value('day'),
+      hour: value('hour'),
+      minute: value('minute'),
+    };
+  } catch {
+    return {
+      year: date.getFullYear(),
+      month: date.getMonth() + 1,
+      day: date.getDate(),
+      hour: date.getHours(),
+      minute: date.getMinutes(),
+    };
+  }
 }
 
-function formatShortDate(date: Date) {
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+function toZonedDate(ts: number | string | Date, timeZone?: string) {
+  const parts = getZonedParts(ts, timeZone);
+  return new Date(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, 0, 0);
+}
+
+function formatDateTime(ts?: number | string, timeZone?: string) {
+  if (!ts) return '-';
+  const date = typeof ts === 'number' ? new Date(ts) : new Date(ts);
+  return date.toLocaleString('en-US', {
+    timeZone,
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function formatTime(ts: number | string | Date, timeZone?: string) {
+  const date = ts instanceof Date ? ts : new Date(ts);
+  return date.toLocaleTimeString('en-US', { timeZone, hour: 'numeric', minute: '2-digit' });
+}
+
+function formatShortDate(date: Date, timeZone?: string) {
+  return date.toLocaleDateString('en-US', { timeZone, month: 'short', day: 'numeric' });
 }
 
 function formatHourLabel(hour: number) {
@@ -194,6 +251,9 @@ export default function AppointmentsPage() {
     recurrence_count: 4,
   });
 
+  const displayTimezone =
+    calendarTimezone || company?.calendar_connection?.timezone || company?.calendar_connection?.timeZone || company?.timezone || undefined;
+
   const monthLabel = useMemo(
     () => monthCursor.toLocaleString('en-US', { month: 'long', year: 'numeric' }),
     [monthCursor]
@@ -251,7 +311,7 @@ export default function AppointmentsPage() {
         if (startBoundary && ms < startBoundary) return false;
         if (endBoundary && ms > endBoundary) return false;
         if (timeStartMinutes !== null || timeEndMinutes !== null) {
-          const d = new Date(ms);
+          const d = toZonedDate(ms, displayTimezone);
           const minutes = d.getHours() * 60 + d.getMinutes();
           if (timeStartMinutes !== null && minutes < timeStartMinutes) return false;
           if (timeEndMinutes !== null && minutes > timeEndMinutes) return false;
@@ -277,20 +337,20 @@ export default function AppointmentsPage() {
         return text.includes(q);
       })
       .sort((a, b) => (a?.scheduled_start ?? 0) - (b?.scheduled_start ?? 0));
-  }, [appointments, searchQuery, statusFilter, rangeStart, rangeEnd, timeStart, timeEnd, serviceFilter]);
+  }, [appointments, searchQuery, statusFilter, rangeStart, rangeEnd, timeStart, timeEnd, serviceFilter, displayTimezone]);
 
   const apptsByDay = useMemo(() => {
     const map = new Map<string, any[]>();
     for (const a of filteredAppointments) {
       const ms = typeof a?.scheduled_start === 'number' ? a.scheduled_start : Date.parse(a?.scheduled_start);
       if (!Number.isFinite(ms)) continue;
-      const key = ymd(new Date(ms));
+      const key = ymd(toZonedDate(ms, displayTimezone));
       const arr = map.get(key) ?? [];
       arr.push(a);
       map.set(key, arr);
     }
     return map;
-  }, [filteredAppointments]);
+  }, [filteredAppointments, displayTimezone]);
 
   const serviceOptions = useMemo(() => {
     const set = new Set<string>();
@@ -300,7 +360,7 @@ export default function AppointmentsPage() {
     return Array.from(set.values());
   }, [appointments]);
 
-  const focusKey = useMemo(() => ymd(focusDate), [focusDate]);
+  const focusKey = useMemo(() => ymd(toZonedDate(focusDate, displayTimezone)), [focusDate, displayTimezone]);
   const focusAppointments = useMemo(() => apptsByDay.get(focusKey) ?? [], [apptsByDay, focusKey]);
 
   const listGroups = useMemo(() => {
@@ -308,13 +368,13 @@ export default function AppointmentsPage() {
     for (const apt of filteredAppointments) {
       const ms = typeof apt?.scheduled_start === 'number' ? apt.scheduled_start : Date.parse(apt?.scheduled_start);
       if (!Number.isFinite(ms)) continue;
-      const key = ymd(new Date(ms));
+      const key = ymd(toZonedDate(ms, displayTimezone));
       const current = groups.get(key) ?? [];
       current.push(apt);
       groups.set(key, current);
     }
     return Array.from(groups.entries()).sort((a, b) => a[0].localeCompare(b[0]));
-  }, [filteredAppointments]);
+  }, [filteredAppointments, displayTimezone]);
 
   const weekDays = useMemo(() => {
     const base = new Date(focusDate);
@@ -332,13 +392,18 @@ export default function AppointmentsPage() {
     if (calendarView === 'week') {
       const start = weekDays[0];
       const end = weekDays[6];
-      return `${formatShortDate(start)} - ${formatShortDate(end)}`;
+      return `${formatShortDate(start, displayTimezone)} - ${formatShortDate(end, displayTimezone)}`;
     }
     if (calendarView === 'day') {
-      return focusDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+      return focusDate.toLocaleDateString('en-US', {
+        timeZone: displayTimezone,
+        weekday: 'long',
+        month: 'long',
+        day: 'numeric',
+      });
     }
     return 'Agenda';
-  }, [calendarView, monthLabel, focusDate, weekDays]);
+  }, [calendarView, monthLabel, focusDate, weekDays, displayTimezone]);
 
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -377,7 +442,7 @@ export default function AppointmentsPage() {
 
   useEffect(() => {
     if (!pendingCalendarSettingsOpen || !company) return;
-    setCalendarTimezone(company?.timezone || '');
+    setCalendarTimezone(company?.calendar_connection?.timezone || company?.calendar_connection?.timeZone || company?.timezone || '');
     setBusinessHoursDraft(normalizeBusinessHours(company?.business_hours));
     setDateOverridesDraft(normalizeOverrides(company?.schedule_overrides));
     setIsCalendarSettingsOpen(true);
@@ -408,10 +473,10 @@ export default function AppointmentsPage() {
       ]);
       setCompany(c);
       setCompanyInStore(c);
-      setCalendarTimezone(c?.timezone || '');
+      setCalendarTimezone(c?.calendar_connection?.timezone || c?.calendar_connection?.timeZone || c?.timezone || '');
       setBusinessHoursDraft(normalizeBusinessHours(c?.business_hours));
       setDateOverridesDraft(normalizeOverrides(c?.schedule_overrides));
-      setSetupTimezone(c?.timezone || '');
+      setSetupTimezone(c?.calendar_connection?.timezone || c?.calendar_connection?.timeZone || c?.timezone || '');
       setAppointments(a.appointments || []);
     } catch (err: any) {
       console.error('Error loading appointments:', err);
@@ -422,7 +487,7 @@ export default function AppointmentsPage() {
   };
 
   const handleToday = () => {
-    const now = new Date();
+    const now = toZonedDate(new Date(), displayTimezone);
     setFocusDate(now);
     setMonthCursor(new Date(now.getFullYear(), now.getMonth(), 1));
   };
@@ -735,7 +800,7 @@ export default function AppointmentsPage() {
 
   // Handle opening calendar settings
   const handleOpenCalendarSettings = () => {
-    setCalendarTimezone(company?.timezone || '');
+    setCalendarTimezone(company?.calendar_connection?.timezone || company?.calendar_connection?.timeZone || company?.timezone || '');
     setBusinessHoursDraft(normalizeBusinessHours(company?.business_hours));
     setDateOverridesDraft(normalizeOverrides(company?.schedule_overrides));
     setIsCalendarSettingsOpen(true);
@@ -906,11 +971,11 @@ export default function AppointmentsPage() {
                     </div>
                     <div className="grid grid-cols-7 gap-1">
                       {monthDays.map((d) => {
-                        const key = ymd(d);
+                        const key = ymd(toZonedDate(d, displayTimezone));
                         const hasItems = (apptsByDay.get(key) ?? []).length > 0;
                         const isInMonth = d.getMonth() === monthCursor.getMonth();
                         const isSelected = key === focusKey;
-                        const isToday = key === ymd(new Date());
+                        const isToday = key === ymd(toZonedDate(new Date(), displayTimezone));
                         return (
                           <button
                             key={key}
@@ -924,7 +989,7 @@ export default function AppointmentsPage() {
                                     : 'text-gray-400 hover:bg-gray-100'
                             }`}
                             onClick={() => {
-                              setFocusDate(d);
+                              setFocusDate(toZonedDate(d, displayTimezone));
                               setMonthCursor(new Date(d.getFullYear(), d.getMonth(), 1));
                               setCalendarView('day');
                             }}
@@ -1065,10 +1130,10 @@ export default function AppointmentsPage() {
                       </div>
                       <div className="grid grid-cols-7 divide-x divide-y divide-gray-100">
                         {monthDays.map((d) => {
-                          const key = ymd(d);
+                          const key = ymd(toZonedDate(d, displayTimezone));
                           const items = apptsByDay.get(key) ?? [];
                           const inMonth = d.getMonth() === monthCursor.getMonth();
-                          const isToday = ymd(d) === ymd(new Date());
+                          const isToday = ymd(toZonedDate(d, displayTimezone)) === ymd(toZonedDate(new Date(), displayTimezone));
                           return (
                             <button
                               key={key}
@@ -1077,7 +1142,7 @@ export default function AppointmentsPage() {
                               } ${isToday ? 'ring-2 ring-inset ring-emerald-500' : ''}`}
                               onClick={() => {
                                 if (!isCalendarSetupComplete) return;
-                                setFocusDate(d);
+                                setFocusDate(toZonedDate(d, displayTimezone));
                                 setMonthCursor(new Date(d.getFullYear(), d.getMonth(), 1));
                                 setCalendarView('day');
                               }}
@@ -1118,10 +1183,17 @@ export default function AppointmentsPage() {
                         </div>
                       ) : (
                         listGroups.map(([key, items]) => {
-                          const headerDate = new Date(`${key}T00:00:00`);
+                          const headerDate = new Date(`${key}T12:00:00`);
                           return (
                             <div key={key} className="p-4">
-                              <div className="text-sm font-semibold text-gray-900">{headerDate.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}</div>
+                              <div className="text-sm font-semibold text-gray-900">
+                                {headerDate.toLocaleDateString('en-US', {
+                                  timeZone: displayTimezone,
+                                  weekday: 'long',
+                                  month: 'short',
+                                  day: 'numeric',
+                                })}
+                              </div>
                               <div className="mt-3 space-y-3">
                                 {items.map((apt) => {
                                   const s = statusBadge(apt.status);
@@ -1137,7 +1209,7 @@ export default function AppointmentsPage() {
                                             {apt.contact_name || apt.contact_email || apt.contact_phone || 'Appointment'}
                                           </div>
                                           <div className="text-sm text-gray-600 mt-1">
-                                            {formatDateTime(apt.scheduled_start)} - {apt.service_type || 'Service'}
+                                            {formatDateTime(apt.scheduled_start, displayTimezone)} - {apt.service_type || 'Service'}
                                           </div>
                                         </div>
                                         <Badge variant="outline" className={s.className}>{s.label}</Badge>
@@ -1166,13 +1238,18 @@ export default function AppointmentsPage() {
                       <div className="flex-1 overflow-x-auto">
                         <div className={`grid ${calendarView === 'week' ? 'grid-cols-7 min-w-[840px]' : 'grid-cols-1'} bg-white`}>
                           {(calendarView === 'week' ? weekDays : [focusDate]).map((day) => {
-                            const key = ymd(day);
+                            const zonedDay = toZonedDate(day, displayTimezone);
+                            const key = ymd(zonedDay);
                             const dayAppointments = apptsByDay.get(key) ?? [];
                             return (
                               <div key={key} className="border-r border-gray-100 last:border-r-0">
                                 <div className="sticky top-0 z-10 bg-white/90 backdrop-blur px-3 py-2 border-b border-gray-100">
-                                  <div className="text-xs text-gray-500">{day.toLocaleDateString('en-US', { weekday: 'short' })}</div>
-                                  <div className="text-sm font-medium text-gray-900">{day.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</div>
+                                  <div className="text-xs text-gray-500">
+                                    {zonedDay.toLocaleDateString('en-US', { timeZone: displayTimezone, weekday: 'short' })}
+                                  </div>
+                                  <div className="text-sm font-medium text-gray-900">
+                                    {zonedDay.toLocaleDateString('en-US', { timeZone: displayTimezone, month: 'short', day: 'numeric' })}
+                                  </div>
                                 </div>
                                 <div className="relative" style={{ height: `${dayHeight}px` }}>
                                   <div className="absolute inset-0">
@@ -1184,8 +1261,8 @@ export default function AppointmentsPage() {
                                     const startMs = typeof apt.scheduled_start === 'number' ? apt.scheduled_start : Date.parse(apt.scheduled_start);
                                     if (!Number.isFinite(startMs)) return null;
                                     const endMs = typeof apt.scheduled_end === 'number' ? apt.scheduled_end : Date.parse(apt.scheduled_end) || startMs + 60 * 60 * 1000;
-                                    const startDate = new Date(startMs);
-                                    const endDate = new Date(endMs);
+                                    const startDate = toZonedDate(startMs, displayTimezone);
+                                    const endDate = toZonedDate(endMs, displayTimezone);
                                     const startMinutes = startDate.getHours() * 60 + startDate.getMinutes();
                                     const endMinutes = endDate.getHours() * 60 + endDate.getMinutes();
                                     const clampStart = Math.max(startMinutes, hourStart * 60);
@@ -1203,7 +1280,7 @@ export default function AppointmentsPage() {
                                       >
                                         <div className="font-semibold truncate">{apt.contact_name || apt.service_type || 'Appointment'}</div>
                                         <div className="text-[11px] opacity-80">
-                                          {startDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                                          {formatTime(startMs, displayTimezone)}
                                         </div>
                                       </button>
                                     );
@@ -1252,11 +1329,11 @@ export default function AppointmentsPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <div className="text-xs text-gray-500 mb-1">Start</div>
-                  <div className="font-medium text-gray-900">{formatDateTime(selectedAppointment.scheduled_start)}</div>
+                  <div className="font-medium text-gray-900">{formatDateTime(selectedAppointment.scheduled_start, displayTimezone)}</div>
                 </div>
                 <div>
                   <div className="text-xs text-gray-500 mb-1">End</div>
-                  <div className="font-medium text-gray-900">{formatDateTime(selectedAppointment.scheduled_end)}</div>
+                  <div className="font-medium text-gray-900">{formatDateTime(selectedAppointment.scheduled_end, displayTimezone)}</div>
                 </div>
               </div>
 
@@ -1270,6 +1347,34 @@ export default function AppointmentsPage() {
                   </div>
                 </div>
               ) : null}
+
+              <div>
+                <div className="text-xs text-gray-500 mb-1">Confirmation link</div>
+                {selectedAppointment.booking_link ? (
+                  <div className="flex flex-wrap items-center gap-2 text-sm">
+                    <a
+                      className="text-emerald-700 hover:text-emerald-800 underline"
+                      href={selectedAppointment.booking_link}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Open link
+                    </a>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => navigator.clipboard?.writeText?.(selectedAppointment.booking_link)}
+                    >
+                      Copy
+                    </Button>
+                    {typeof selectedAppointment.booking_link_expires_at === 'number' && selectedAppointment.booking_link_expires_at < Date.now() ? (
+                      <span className="text-xs text-gray-400">Expired</span>
+                    ) : null}
+                  </div>
+                ) : (
+                  <div className="text-sm text-gray-500">Not sent yet</div>
+                )}
+              </div>
 
               {selectedAppointment.notes ? (
                 <div>
@@ -1626,7 +1731,7 @@ export default function AppointmentsPage() {
                   {appointmentToDelete.contact_name || appointmentToDelete.service_type || 'Appointment'}
                 </div>
                 <div className="text-sm text-gray-600 mt-1">
-                  {formatDateTime(appointmentToDelete.scheduled_start)}
+                  {formatDateTime(appointmentToDelete.scheduled_start, displayTimezone)}
                 </div>
               </div>
             )}

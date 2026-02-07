@@ -146,12 +146,14 @@ export class RealtimeToolsService {
     return { closed, dayLabel };
   }
 
-  private buildBookingLink(companyId: string, callId: string): string {
-    const expiresMs = Number(this.config.get<string>('BOOKING_LINK_EXPIRES_MS') || 7 * 24 * 60 * 60 * 1000);
-    const token = signBookingToken(
-      { company_id: companyId, call_id: callId, exp: Date.now() + expiresMs },
-      this.getBookingSecret()
-    );
+  private buildBookingLink(companyId: string, callId: string, expiresAtMs?: number): string {
+    const now = Date.now();
+    const fallbackMs = Number(this.config.get<string>('BOOKING_LINK_EXPIRES_MS') || 7 * 24 * 60 * 60 * 1000);
+    const exp =
+      typeof expiresAtMs === 'number' && Number.isFinite(expiresAtMs)
+        ? expiresAtMs
+        : now + fallbackMs;
+    const token = signBookingToken({ company_id: companyId, call_id: callId, exp }, this.getBookingSecret());
     return `${this.getFrontendBaseUrl()}/book/${token}`;
   }
 
@@ -197,6 +199,68 @@ export class RealtimeToolsService {
       return points;
     };
     return results.reduce((best, current) => (score(current) > score(best) ? current : best));
+  }
+
+  private getRequestedLocalParts(
+    parsed: chrono.ParsedResult | null,
+    dayAnchor: Date | null,
+    timeZone: string
+  ): { year: number; month: number; day: number; hour: number; minute: number } | null {
+    const start: any = parsed?.start;
+    if (!start) return null;
+    const hasHour = start.isCertain?.('hour') || start.isCertain?.('minute');
+    if (!hasHour) return null;
+    const hour = Number(start.get?.('hour'));
+    const minute = Number(start.get?.('minute') ?? 0);
+    if (!Number.isFinite(hour) || !Number.isFinite(minute)) return null;
+
+    let year = Number(start.get?.('year'));
+    let month = Number(start.get?.('month'));
+    let day = Number(start.get?.('day'));
+
+    if (!(year && month && day) && dayAnchor) {
+      const parts = getLocalDateParts(dayAnchor, timeZone);
+      year = parts.year;
+      month = parts.month;
+      day = parts.day;
+    }
+
+    if (!(year && month && day)) return null;
+    return { year, month, day, hour, minute };
+  }
+
+  private slotMatchesRequestedLocal(
+    slotIso: string,
+    timeZone: string,
+    requested: { year: number; month: number; day: number; hour: number; minute: number }
+  ): boolean {
+    const date = new Date(slotIso);
+    if (!Number.isFinite(date.getTime())) return false;
+    try {
+      const parts = new Intl.DateTimeFormat('en-US', {
+        timeZone,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+      }).formatToParts(date);
+      const year = Number(parts.find((p) => p.type === 'year')?.value);
+      const month = Number(parts.find((p) => p.type === 'month')?.value);
+      const day = Number(parts.find((p) => p.type === 'day')?.value);
+      const hour = Number(parts.find((p) => p.type === 'hour')?.value);
+      const minute = Number(parts.find((p) => p.type === 'minute')?.value);
+      return (
+        year === requested.year &&
+        month === requested.month &&
+        day === requested.day &&
+        hour === requested.hour &&
+        minute === requested.minute
+      );
+    } catch {
+      return false;
+    }
   }
 
   private bumpNextWeekIfNeeded(raw: string, parsedDate: Date, referenceDate: Date): Date {
@@ -330,30 +394,46 @@ export class RealtimeToolsService {
     if (!raw) throw new BadRequestException('start_time/end_time is required');
 
     const msIso = Date.parse(raw);
-    if (Number.isFinite(msIso)) {
+    const looksTzStamped = /Z$|[+-]\d{2}:?\d{2}$/.test(raw);
+    if (Number.isFinite(msIso) && looksTzStamped) {
       return new Date(msIso).toISOString();
     }
 
     const ref = referenceDate ?? new Date();
     const parsedRange = chrono.parse(raw, ref);
     const parsed = this.selectBestParsedResult(parsedRange);
-    let parsedDate = parsed?.start?.date?.();
-    if (!parsedDate) {
+    const start: any = parsed?.start;
+    if (!start) {
       throw new BadRequestException(`Unrecognized date/time: ${raw}`);
     }
-    parsedDate = this.bumpNextWeekIfNeeded(raw, parsedDate, ref);
 
-    // chrono assumes server timezone; reinterpret the parsed Y/M/D/H/M as the tenant timezone and convert to UTC.
-    const utcMs = zonedTimeToUtcMs(
-      {
-        year: parsedDate.getUTCFullYear(),
-        month: parsedDate.getUTCMonth() + 1,
-        day: parsedDate.getUTCDate(),
-        hour: parsedDate.getUTCHours(),
-        minute: parsedDate.getUTCMinutes(),
-      },
-      timeZone
-    );
+    let year = Number(start.get?.('year'));
+    let month = Number(start.get?.('month'));
+    let day = Number(start.get?.('day'));
+    if (!year || !month || !day) {
+      const fallback = start.date?.() ?? chrono.parseDate(raw, ref);
+      if (!fallback) {
+        throw new BadRequestException(`Unrecognized date/time: ${raw}`);
+      }
+      year = fallback.getFullYear();
+      month = fallback.getMonth() + 1;
+      day = fallback.getDate();
+    }
+
+    let hour = start.isCertain?.('hour') ? Number(start.get?.('hour')) : 9;
+    let minute = start.isCertain?.('minute') ? Number(start.get?.('minute')) : 0;
+    if (!Number.isFinite(hour)) hour = 9;
+    if (!Number.isFinite(minute)) minute = 0;
+
+    if (raw.toLowerCase().includes('next week')) {
+      const parsedDate = new Date(Date.UTC(year, month - 1, day, hour, minute, 0));
+      const bumped = this.bumpNextWeekIfNeeded(raw, parsedDate, ref);
+      year = bumped.getUTCFullYear();
+      month = bumped.getUTCMonth() + 1;
+      day = bumped.getUTCDate();
+    }
+
+    const utcMs = zonedTimeToUtcMs({ year, month, day, hour, minute }, timeZone);
     return new Date(utcMs).toISOString();
   }
 
@@ -1043,16 +1123,41 @@ export class RealtimeToolsService {
       endIso = new Date(startMs + extendMinutes * 60_000).toISOString();
       endMs = Date.parse(endIso);
     }
-    const closedCheckDate = dayAnchor ?? new Date(startMs);
+    const requestedLocal = hasTime ? this.getRequestedLocalParts(parsed, dayAnchor, timeZone) : null;
+    const closedCheckDate = requestedLocal
+      ? new Date(Date.UTC(requestedLocal.year, requestedLocal.month - 1, requestedLocal.day, 12, 0, 0))
+      : dayAnchor ?? new Date(startMs);
     const closedInfo = (dayOnly || hasTime) ? this.getClosedInfo(company, closedCheckDate, timeZone) : null;
     const closedDay = closedInfo?.closed === true;
+
+    console.log('[getAvailability]', {
+      company_id,
+      timeZone,
+      startRaw,
+      requestedIso,
+      startIso,
+      endIso,
+      hasTime,
+      hasExplicitDate,
+    });
 
     const slots = await this.scheduling.getAvailability(company, startIso, endIso);
     const readableSlots = slots.map((s) => this.formatSlotForCaller(s.start_time, timeZone));
     const timeOnlySlots = slots.map((s) => this.formatSlotTimeOnly(s.start_time, timeZone));
+    let suggestedSlots: string[] = [];
+    let suggestedTimeOnly: string[] = [];
     let requested_time_available: boolean | undefined;
     let requested_slot: string | undefined;
-    if (hasTime) {
+    if (hasTime && requestedLocal) {
+      const match = slots.find((s) => this.slotMatchesRequestedLocal(s.start_time, timeZone, requestedLocal));
+      if (match) {
+        requested_time_available = true;
+        requested_slot = match.start_time;
+      } else {
+        requested_time_available = false;
+      }
+    }
+    if (hasTime && requested_time_available === undefined) {
       const requestedMs = Date.parse(requestedIso);
       if (Number.isFinite(requestedMs)) {
         const match = slots.find((s) => {
@@ -1100,6 +1205,22 @@ export class RealtimeToolsService {
         }
       }
     }
+    if (hasTime && slots.length) {
+      const requestedMs = Date.parse(requestedIso);
+      if (Number.isFinite(requestedMs)) {
+        suggestedSlots = slots
+          .slice()
+          .sort(
+            (a, b) =>
+              Math.abs(Date.parse(a.start_time) - requestedMs) -
+              Math.abs(Date.parse(b.start_time) - requestedMs)
+          )
+          .slice(0, 3)
+          .map((s) => s.start_time);
+        suggestedTimeOnly = suggestedSlots.map((s) => this.formatSlotTimeOnly(s, timeZone));
+      }
+    }
+
     let spokenAvailability = '';
     if (closedDay && !slots.length) {
       const label = closedInfo?.dayLabel || 'that day';
@@ -1109,7 +1230,7 @@ export class RealtimeToolsService {
         spokenAvailability = `That time is available.`;
       } else if (requested_time_available === false) {
         if (slots.length) {
-          const sample = timeOnlySlots.slice(0, 3);
+          const sample = (suggestedTimeOnly.length ? suggestedTimeOnly : timeOnlySlots).slice(0, 3);
           spokenAvailability = `That time isn't available. I have ${sample.join(', ')}. Which time works best?`;
         } else {
           spokenAvailability = `That time isn't available. What day or time works instead?`;
@@ -1126,8 +1247,11 @@ export class RealtimeToolsService {
       timezone: timeZone,
       slots: slots.map((s) => s.start_time),
       readable_slots: readableSlots,
+      suggested_slots: suggestedSlots,
+      suggested_time_only: suggestedTimeOnly,
       spoken_availability: spokenAvailability,
-      instruction: 'Tell the caller the spoken_availability. When they pick a slot, use the matching ISO string from the slots array as start_time in create_booking.',
+      instruction:
+        'Tell the caller the spoken_availability. If suggested_time_only is present, offer those times. When they pick a slot, use the matching ISO string from the slots array as start_time in create_booking.',
       ...(closedInfo ? { closed_day: closedDay, closed_day_label: closedInfo.dayLabel } : {}),
       ...(typeof requested_time_available === 'boolean' ? { requested_time_available } : {}),
       ...(requested_slot ? { requested_slot } : {}),
@@ -1167,7 +1291,12 @@ export class RealtimeToolsService {
       endMs = Date.parse(endIso);
     }
 
-    const [slot] = await this.scheduling.getAvailability(company, startIso, endIso, { ignoreCallId: dto.call_id });
+    const slots = await this.scheduling.getAvailability(company, startIso, endIso, { ignoreCallId: dto.call_id });
+    const requestedMs = Date.parse(startIso);
+    const slot = slots.find((s) => {
+      const slotMs = Date.parse(s.start_time);
+      return Number.isFinite(slotMs) && Number.isFinite(requestedMs) && Math.abs(slotMs - requestedMs) <= 2 * 60_000;
+    });
     if (!slot) {
       throw new BadRequestException('Requested time is no longer available');
     }
@@ -1333,7 +1462,25 @@ export class RealtimeToolsService {
       throw new BadRequestException('Booking link can only be sent after the appointment is booked.');
     }
 
-    const bookingLink = this.buildBookingLink(company_id, call_id);
+    let appointment: any = null;
+    const appointmentId = existingCall?.appointment_id;
+    if (appointmentId) {
+      try {
+        appointment = await this.appointmentsService.getAppointment(company_id, appointmentId);
+      } catch {
+        appointment = null;
+      }
+    }
+    const appointmentEndRaw =
+      typeof appointment?.scheduled_end === 'number'
+        ? appointment.scheduled_end
+        : typeof appointment?.scheduled_end === 'string'
+          ? Date.parse(appointment.scheduled_end)
+          : undefined;
+    const appointmentEnd = typeof appointmentEndRaw === 'number' && Number.isFinite(appointmentEndRaw)
+      ? appointmentEndRaw
+      : undefined;
+    const bookingLink = this.buildBookingLink(company_id, call_id, appointmentEnd);
     const message = `Thanks for booking with ${company.company_name}. Manage or update your appointment here: ${bookingLink}`;
     console.log('[send_booking_link] preparing', {
       company_id,
@@ -1394,6 +1541,8 @@ export class RealtimeToolsService {
         booking_link_sent_at: now,
         booking_link_channel: 'EMAIL',
         lead_email: email,
+        booking_link: bookingLink,
+        ...(appointmentEnd ? { booking_link_expires_at: appointmentEnd } : {}),
         updated_at: now,
       };
       await this.dynamodb.update('calls', { company_id, call_id }, updates);
@@ -1413,8 +1562,19 @@ export class RealtimeToolsService {
         outcome: 'LEAD' as any,
         lead_email: email,
         booking_link_channel: 'EMAIL',
+        booking_link: bookingLink,
+        ...(appointmentEnd ? { booking_link_expires_at: appointmentEnd } : {}),
       } as any;
       await this.dynamodb.put('calls', call);
+    }
+
+    if (appointmentId) {
+      const apptUpdates: Record<string, any> = {
+        booking_link: bookingLink,
+        ...(appointmentEnd ? { booking_link_expires_at: appointmentEnd } : {}),
+        updated_at: now,
+      };
+      await this.dynamodb.update('appointments', { company_id, appointment_id: appointmentId }, apptUpdates);
     }
 
     return { ok: true, booking_link: bookingLink };

@@ -529,6 +529,7 @@ function buildInstructions(tenant: TenantInfo, options: { serviceAreaRequired: b
     `Ask for preferred day/time, call get_availability, then offer available slots.`,
     `Never claim a time is available unless get_availability returns it. If a requested time is unavailable, say so and offer available slots from get_availability.`,
     `If get_availability returns closed_day=true, tell the caller that day is closed and ask for another day.`,
+    `If get_availability includes suggested_time_only, ONLY offer those times (max 3). Do not invent times.`,
     `If a requested time is available, acknowledge it and continue (do not ask to confirm the time).`,
     `Before booking, summarize the details and ask for confirmation. Only then call create_booking with confirmed=true.`,
     `When calling create_booking, you MUST include ALL collected intake fields in the details object—not just the most recent ones. Include every field you gathered during the conversation (name, address, zip, service details, etc.).`,
@@ -1233,6 +1234,11 @@ wss.on('connection', (twilioWs: WebSocket) => {
           if (toolName === 'get_availability') {
             let startTime = args?.start_time ?? args?.preferred_time ?? args?.window_start;
             if (typeof startTime === 'string') {
+              const callerHasDate = Boolean(lastCallerUtterance && hasDateTokens(lastCallerUtterance));
+              const callerHasTime = Boolean(lastCallerUtterance && extractTimeNeedle(lastCallerUtterance));
+              if (callerHasDate && callerHasTime && (!hasDateTokens(startTime) || isTimeOnlyText(startTime))) {
+                startTime = lastCallerUtterance;
+              }
               if (isTimeOnlyText(startTime) && lastAvailabilityDateKey) {
                 startTime = `${lastAvailabilityDateKey} ${startTime}`;
               } else if (isTimeOnlyText(startTime) && lastCallerUtterance && hasDateTokens(lastCallerUtterance)) {
