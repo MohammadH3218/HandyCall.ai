@@ -181,6 +181,35 @@ export class RealtimeToolsService {
     return text || undefined;
   }
 
+  private selectBestParsedResult(results: chrono.ParsedResult[] | undefined | null): chrono.ParsedResult | null {
+    if (!results || results.length === 0) return null;
+    const score = (result: chrono.ParsedResult) => {
+      const start = result?.start;
+      if (!start) return 0;
+      let points = 0;
+      if (start.isCertain('hour') || start.isCertain('minute')) points += 4;
+      if (start.isCertain('weekday')) points += 3;
+      if (start.isCertain('day')) points += 2;
+      if (start.isCertain('month')) points += 1;
+      if (start.isCertain('year')) points += 1;
+      const textLen = String(result?.text || '').length;
+      points += Math.min(2, Math.floor(textLen / 12));
+      return points;
+    };
+    return results.reduce((best, current) => (score(current) > score(best) ? current : best));
+  }
+
+  private bumpNextWeekIfNeeded(raw: string, parsedDate: Date, referenceDate: Date): Date {
+    const lower = String(raw || '').toLowerCase();
+    if (!lower.includes('next week')) return parsedDate;
+    const diff = parsedDate.getTime() - referenceDate.getTime();
+    const oneWeekMs = 7 * 24 * 60 * 60 * 1000;
+    if (diff < oneWeekMs) {
+      return new Date(parsedDate.getTime() + oneWeekMs);
+    }
+    return parsedDate;
+  }
+
   private extractCollectedInfoFromTranscript(transcript: string): Record<string, any> {
     const out: Record<string, any> = {};
     const t = String(transcript || '');
@@ -223,19 +252,23 @@ export class RealtimeToolsService {
       return new Date(msIso).toISOString();
     }
 
-    const parsed = chrono.parseDate(raw, referenceDate ?? new Date());
-    if (!parsed) {
+    const ref = referenceDate ?? new Date();
+    const parsedRange = chrono.parse(raw, ref);
+    const parsed = this.selectBestParsedResult(parsedRange);
+    let parsedDate = parsed?.start?.date?.();
+    if (!parsedDate) {
       throw new BadRequestException(`Unrecognized date/time: ${raw}`);
     }
+    parsedDate = this.bumpNextWeekIfNeeded(raw, parsedDate, ref);
 
     // chrono assumes server timezone; reinterpret the parsed Y/M/D/H/M as the tenant timezone and convert to UTC.
     const utcMs = zonedTimeToUtcMs(
       {
-        year: parsed.getUTCFullYear(),
-        month: parsed.getUTCMonth() + 1,
-        day: parsed.getUTCDate(),
-        hour: parsed.getUTCHours(),
-        minute: parsed.getUTCMinutes(),
+        year: parsedDate.getUTCFullYear(),
+        month: parsedDate.getUTCMonth() + 1,
+        day: parsedDate.getUTCDate(),
+        hour: parsedDate.getUTCHours(),
+        minute: parsedDate.getUTCMinutes(),
       },
       timeZone
     );
@@ -846,7 +879,7 @@ export class RealtimeToolsService {
     let dayAnchor: Date | null = null;
     let dayOnly = false;
     const parsedRange = chrono.parse(startRaw, referenceDate);
-    const parsed = parsedRange?.[0];
+    const parsed = this.selectBestParsedResult(parsedRange);
     const hasTime = !!(parsed?.start?.isCertain('hour') || parsed?.start?.isCertain('minute'));
     const hasExplicitDate = !!(
       parsed?.start?.isCertain('day') ||
@@ -859,7 +892,7 @@ export class RealtimeToolsService {
     if (parsed && hasExplicitDate) {
       const dt = parsed.start?.date?.() ?? chrono.parseDate(startRaw, referenceDate);
       if (dt) {
-        dayAnchor = dt;
+        dayAnchor = this.bumpNextWeekIfNeeded(startRaw, dt, referenceDate);
       }
     }
     const weekdayOnly =
