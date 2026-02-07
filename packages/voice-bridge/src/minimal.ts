@@ -156,6 +156,24 @@ type ActiveCallState = {
 const activeCalls = new Map<string, ActiveCallState>();
 
 const fillerUtterances = new Set(['mhm', 'mm', 'uh', 'um', 'uh-huh', 'uh huh', 'hmm', 'hm', 'ok', 'okay', 'yeah', 'yep']);
+const shortIntentKeywords = new Set([
+  'yes',
+  'no',
+  'book',
+  'booking',
+  'appointment',
+  'schedule',
+  'reschedule',
+  'cancel',
+  'question',
+  'help',
+  'pricing',
+  'price',
+  'support',
+  'agent',
+  'human',
+  'operator',
+]);
 
 function isFillerUtterance(text: string) {
   const normalized = String(text || '')
@@ -358,6 +376,24 @@ function wordCount(text?: string) {
   return t.split(' ').length;
 }
 
+function isActionableShortUtterance(text?: string) {
+  const t = normalizeSpeech(text);
+  if (!t) return false;
+  const words = t.split(' ').filter(Boolean);
+  if (words.length > 3) return true;
+  if (shortIntentKeywords.has(t)) return true;
+  return words.some((w) => shortIntentKeywords.has(w));
+}
+
+function looksLikeFalseStart(text?: string) {
+  const t = normalizeSpeech(text);
+  if (!t) return false;
+  if (/^(i|im|i'm|i am|we|we're|we are|my|this|that|it)$/i.test(t)) return true;
+  if (/^(i|im|i'm|i am)\s+(a|an|the)$/i.test(t)) return true;
+  if (/^(i|im|i'm|i am)\s+(need|want|have)$/i.test(t)) return true;
+  return false;
+}
+
 function isLowSignalTranscript(text?: string) {
   const raw = String(text || '').trim();
   if (!raw) return true;
@@ -365,6 +401,8 @@ function isLowSignalTranscript(text?: string) {
   if (/^[\W_]+$/.test(raw)) return true;
   const nonLatin = (raw.match(/[^\u0000-\u024F\s]/g) || []).length;
   if (nonLatin / Math.max(1, raw.length) > 0.25) return true;
+  if (looksLikeFalseStart(raw)) return true;
+  if (wordCount(raw) <= 2 && !isActionableShortUtterance(raw)) return true;
   return false;
 }
 
@@ -1184,14 +1222,14 @@ wss.on('connection', (twilioWs: WebSocket) => {
           return;
         }
 
-        transcript.push(`Caller: ${trimmed}`);
-        lastCallerUtterance = trimmed;
         if (isLowSignalTranscript(trimmed) || isFillerUtterance(trimmed)) {
           lowSignalAttempts += 1;
           reprompt(lowSignalAttempts);
           return;
         }
 
+        transcript.push(`Caller: ${trimmed}`);
+        lastCallerUtterance = trimmed;
         lowSignalAttempts = 0;
         if (assistantSpeaking && Date.now() - lastAssistantAudioAt < 1500) {
           if (wordCount(trimmed) < 3 && !isExplicitBargeIn(trimmed)) {
