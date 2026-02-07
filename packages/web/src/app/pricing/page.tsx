@@ -314,26 +314,35 @@ export default function PricingPage() {
               </p>
             </div>
 
-            <div className="mx-auto mt-10 max-w-2xl space-y-8">
+            <div className="mx-auto mt-10 max-w-2xl space-y-10">
               {sliders.map((slider) => {
                 const Icon = slider.icon;
                 const value = calc[slider.key];
+                const pct = ((value - slider.min) / (slider.max - slider.min)) * 100;
+
                 return (
                   <div key={slider.key}>
-                    <div className="mb-3 flex items-center justify-between">
+                    {/* Label row */}
+                    <div className="mb-4 flex items-center justify-between">
                       <div className="flex items-center gap-2.5">
-                        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">
-                          <Icon className="h-4 w-4" />
+                        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
+                          <Icon className="h-[18px] w-[18px]" />
                         </div>
                         <span className="text-sm font-semibold text-slate-800">{slider.label}</span>
                       </div>
-                      <span className="rounded-lg bg-slate-100 px-3 py-1 text-sm font-semibold tabular-nums text-slate-900">
-                        {value} {slider.unit}
-                      </span>
+                      <div className="rounded-lg border border-slate-200 bg-white px-3.5 py-1.5 text-sm font-semibold tabular-nums text-slate-900 shadow-sm">
+                        {value} <span className="font-normal text-slate-500">{slider.unit}</span>
+                      </div>
                     </div>
 
-                    {/* Slider track */}
-                    <div className="relative">
+                    {/* Custom slider track with fill */}
+                    <div className="relative h-2 rounded-full bg-slate-100">
+                      {/* Filled portion */}
+                      <div
+                        className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-emerald-400 to-emerald-500 transition-all duration-75"
+                        style={{ width: `${pct}%` }}
+                      />
+                      {/* Native input (transparent, sits on top) */}
                       <input
                         type="range"
                         min={slider.min}
@@ -341,26 +350,70 @@ export default function PricingPage() {
                         step={slider.step}
                         value={value}
                         onChange={(e) => updateCalc(slider.key, Number(e.target.value))}
-                        className="calc-slider w-full"
+                        className="calc-slider absolute inset-0 h-full w-full"
                       />
-                      {/* Plan tier markers */}
-                      <div className="pointer-events-none absolute inset-x-0 top-1/2 -translate-y-1/2">
-                        {plans.map((plan) => {
-                          const pct = (plan.limits[slider.key] / slider.max) * 100;
-                          return (
+                    </div>
+
+                    {/* Plan tier segments below */}
+                    <div className="mt-3 flex gap-1.5">
+                      {plans.map((plan, i) => {
+                        const prevLimit = i === 0 ? 0 : plans[i - 1].limits[slider.key];
+                        const thisLimit = plan.limits[slider.key];
+                        const segmentWidth = ((thisLimit - prevLimit) / slider.max) * 100;
+                        const fitsInPlan = value <= thisLimit && (i === 0 || value > plans[i - 1].limits[slider.key]);
+                        const isUnder = value <= thisLimit;
+
+                        return (
+                          <div key={plan.name} style={{ width: `${segmentWidth}%` }}>
                             <div
-                              key={plan.name}
-                              className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2"
-                              style={{ left: `${pct}%` }}
-                            >
-                              <div className="flex flex-col items-center">
-                                <div className="h-3 w-px bg-slate-300" />
-                                <span className="mt-1 text-[10px] font-medium text-slate-400">{plan.name}</span>
-                              </div>
+                              className={`h-1.5 rounded-full transition-colors duration-200 ${
+                                fitsInPlan
+                                  ? 'bg-emerald-400'
+                                  : isUnder
+                                    ? 'bg-emerald-100'
+                                    : 'bg-slate-100'
+                              }`}
+                            />
+                            <div className="mt-1.5 flex items-center justify-between">
+                              <span
+                                className={`text-[11px] font-medium transition-colors duration-200 ${
+                                  fitsInPlan ? 'text-emerald-700' : 'text-slate-400'
+                                }`}
+                              >
+                                {plan.name}
+                              </span>
+                              <span className="text-[10px] tabular-nums text-slate-400">
+                                {thisLimit}
+                              </span>
                             </div>
-                          );
-                        })}
-                      </div>
+                          </div>
+                        );
+                      })}
+                      {/* Overflow segment beyond Max */}
+                      {(() => {
+                        const maxLimit = plans[plans.length - 1].limits[slider.key];
+                        const overflowWidth = ((slider.max - maxLimit) / slider.max) * 100;
+                        if (overflowWidth <= 0) return null;
+                        const isOverflow = value > maxLimit;
+                        return (
+                          <div style={{ width: `${overflowWidth}%` }}>
+                            <div
+                              className={`h-1.5 rounded-full transition-colors duration-200 ${
+                                isOverflow ? 'bg-amber-300' : 'bg-slate-50'
+                              }`}
+                            />
+                            <div className="mt-1.5">
+                              <span
+                                className={`text-[11px] font-medium transition-colors duration-200 ${
+                                  isOverflow ? 'text-amber-600' : 'text-slate-300'
+                                }`}
+                              >
+                                Custom
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })()}
                     </div>
                   </div>
                 );
@@ -368,7 +421,7 @@ export default function PricingPage() {
             </div>
 
             {/* Recommendation result */}
-            <div className="mx-auto mt-10 max-w-2xl">
+            <div className="mx-auto mt-12 max-w-2xl">
               <div
                 className={`rounded-2xl border p-6 text-center transition-all duration-300 ${
                   recommended === 'custom'

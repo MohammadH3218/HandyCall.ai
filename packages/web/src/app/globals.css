@@ -243,54 +243,64 @@
   .calc-slider {
     -webkit-appearance: none;
     appearance: none;
-    height: 6px;
+    height: 8px;
     border-radius: 9999px;
-    background: linear-gradient(to right, #d1fae5, #e2e8f0);
+    background: transparent;
     outline: none;
     cursor: pointer;
+    margin: 0;
+  }
+
+  .calc-slider::-webkit-slider-runnable-track {
+    height: 8px;
+    border-radius: 9999px;
+    background: transparent;
   }
 
   .calc-slider::-webkit-slider-thumb {
     -webkit-appearance: none;
     appearance: none;
-    width: 22px;
-    height: 22px;
+    width: 20px;
+    height: 20px;
     border-radius: 9999px;
-    background: #059669;
-    border: 3px solid white;
-    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(5, 150, 105, 0.2);
+    background: white;
+    border: 3px solid #059669;
+    box-shadow: 0 1px 6px rgba(0, 0, 0, 0.12);
     cursor: grab;
+    margin-top: -6px;
     transition: box-shadow 0.15s ease, transform 0.15s ease;
   }
 
   .calc-slider::-webkit-slider-thumb:hover {
-    box-shadow: 0 1px 6px rgba(0, 0, 0, 0.2), 0 0 0 3px rgba(5, 150, 105, 0.15);
-    transform: scale(1.1);
+    box-shadow: 0 1px 8px rgba(0, 0, 0, 0.18), 0 0 0 4px rgba(5, 150, 105, 0.1);
+    transform: scale(1.15);
   }
 
   .calc-slider::-webkit-slider-thumb:active {
     cursor: grabbing;
     transform: scale(1.05);
+    box-shadow: 0 1px 8px rgba(0, 0, 0, 0.18), 0 0 0 4px rgba(5, 150, 105, 0.15);
+  }
+
+  .calc-slider::-moz-range-track {
+    height: 8px;
+    border-radius: 9999px;
+    background: transparent;
+    border: none;
   }
 
   .calc-slider::-moz-range-thumb {
-    width: 22px;
-    height: 22px;
+    width: 20px;
+    height: 20px;
     border-radius: 9999px;
-    background: #059669;
-    border: 3px solid white;
-    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(5, 150, 105, 0.2);
+    background: white;
+    border: 3px solid #059669;
+    box-shadow: 0 1px 6px rgba(0, 0, 0, 0.12);
     cursor: grab;
     transition: box-shadow 0.15s ease, transform 0.15s ease;
   }
 
   .calc-slider::-moz-range-thumb:hover {
-    box-shadow: 0 1px 6px rgba(0, 0, 0, 0.2), 0 0 0 3px rgba(5, 150, 105, 0.15);
-  }
-
-  .calc-slider::-moz-range-track {
-    height: 6px;
-    border-radius: 9999px;
-    background: linear-gradient(to right, #d1fae5, #e2e8f0);
+    box-shadow: 0 1px 8px rgba(0, 0, 0, 0.18), 0 0 0 4px rgba(5, 150, 105, 0.1);
   }
 }

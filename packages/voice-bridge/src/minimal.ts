@@ -221,12 +221,31 @@ function extractTimeNeedle(text?: string): { hour: number; minute: number; merid
       : normalized.includes('pm') || normalized.includes('afternoon') || normalized.includes('evening') || normalized.includes('night')
         ? 'pm'
         : null;
-  const match = normalized.match(/\b(\d{1,2})(?::(\d{2}))?\b/);
-  if (!match || !meridiem) return null;
-  const hour = Number(match[1]);
-  if (!Number.isFinite(hour) || hour < 1 || hour > 12) return null;
-  const minute = match[2] ? Number(match[2]) : 0;
-  return { hour, minute, meridiem };
+  // Prefer HH:MM patterns (e.g. "10:30") over bare numbers (e.g. "10") to avoid
+  // matching day-of-month numbers like the "10" in "February 10 at 10:30 AM".
+  const colonMatch = normalized.match(/\b(\d{1,2}):(\d{2})\b/);
+  if (colonMatch && meridiem) {
+    const hour = Number(colonMatch[1]);
+    const minute = Number(colonMatch[2]);
+    if (Number.isFinite(hour) && hour >= 1 && hour <= 12) {
+      return { hour, minute, meridiem };
+    }
+  }
+  const bareMatch = normalized.match(/\b(\d{1,2})\b\s*(?:am|pm)/);
+  if (!bareMatch && !colonMatch) {
+    const fallback = normalized.match(/\b(\d{1,2})(?::(\d{2}))?\b/);
+    if (!fallback || !meridiem) return null;
+    const hour = Number(fallback[1]);
+    if (!Number.isFinite(hour) || hour < 1 || hour > 12) return null;
+    return { hour, minute: fallback[2] ? Number(fallback[2]) : 0, meridiem };
+  }
+  if (bareMatch && meridiem) {
+    const hour = Number(bareMatch[1]);
+    if (Number.isFinite(hour) && hour >= 1 && hour <= 12) {
+      return { hour, minute: 0, meridiem };
+    }
+  }
+  return null;
 }
 
 function slotMatchesNeedle(slotIso: string, timeZone: string, needle: { hour: number; minute: number; meridiem: 'am' | 'pm' }) {
@@ -406,13 +425,14 @@ function buildInstructions(tenant: TenantInfo, options: { serviceAreaRequired: b
     `If the ZIP is not serviced, apologize and end the call politely.`,
     requiredFields ? `Required intake fields to collect before booking: ${requiredFields}.` : null,
     optionalFields ? `Optional fields (collect only if relevant): ${optionalFields}.` : null,
-    `Collect required intake details first (based on the service template) before scheduling.`,
+    `You MUST collect EVERY required intake field before asking about scheduling. Do not skip any. Go through each required field one at a time. Do not move to preferred time until all other required fields have been collected.`,
     `Ask for preferred day/time, call get_availability, then offer available slots.`,
     `Never claim a time is available unless get_availability returns it. If a requested time is unavailable, say so and offer available slots from get_availability.`,
     `If get_availability returns closed_day=true, tell the caller that day is closed and ask for another day.`,
     `If a requested time is available, acknowledge it and continue (do not ask to confirm the time).`,
     `Before booking, summarize the details and ask for confirmation. Only then call create_booking with confirmed=true.`,
-    `When calling create_booking, include the collected intake fields in the details object.`,
+    `When calling create_booking, you MUST include ALL collected intake fields in the details object—not just the most recent ones. Include every field you gathered during the conversation (name, address, zip, service details, etc.).`,
+    `If create_booking returns a MissingRequiredFields error, ask ONLY for the specific fields listed in missing_fields. Do NOT re-ask for information you already collected. Then retry create_booking with ALL collected fields (old and new) in the details object.`,
     `After create_booking succeeds, ask for the best email to send the confirmation link.`,
     `Only send the confirmation link after the booking is created. The link is for managing the booking, not scheduling.`,
     `If the caller declines email, confirm the booking without a link.`,
@@ -1101,11 +1121,13 @@ wss.on('connection', (twilioWs: WebSocket) => {
                 : lastAvailabilityTimezone || ctx.timezone || 'UTC';
             const missingFields = findMissingRequired(requiredIntakeFields, args);
             if (missingFields.length) {
+              const presentFields = requiredIntakeFields.filter((f) => !missingFields.includes(f));
               result = {
                 ok: false,
                 error: 'MissingRequiredFields',
                 missing_fields: missingFields,
-                message: `Collect these fields before booking: ${missingFields.join(', ')}.`,
+                already_collected: presentFields,
+                message: `The details object is missing: ${missingFields.map((f) => titleizeField(f)).join(', ')}. Ask the caller ONLY for these missing fields. Do NOT re-ask for fields you already have (${presentFields.map((f) => titleizeField(f)).join(', ')}). When you retry create_booking, include ALL fields in the details object.`,
               };
             }
             let resolvedSlot: string | null = null;
