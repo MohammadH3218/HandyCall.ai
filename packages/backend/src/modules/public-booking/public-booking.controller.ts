@@ -3,6 +3,7 @@ import { Public } from '../../common/decorators/public.decorator';
 import { PublicBookingService } from './public-booking.service';
 import {
   PublicBookingCancelDto,
+  PublicBookingAvailabilityDto,
   PublicBookingRequestDto,
   PublicBookingRescheduleDto,
   PublicBookingUpdateDto,
@@ -31,6 +32,11 @@ export class PublicBookingController {
   @Post(':token/reschedule')
   rescheduleBooking(@Param('token') token: string, @Body() dto: PublicBookingRescheduleDto) {
     return this.bookings.rescheduleBooking(token, dto);
+  }
+
+  @Post(':token/availability')
+  getAvailability(@Param('token') token: string, @Body() dto: PublicBookingAvailabilityDto) {
+    return this.bookings.getBookingAvailability(token, dto);
   }
 
   @Post(':token/cancel')

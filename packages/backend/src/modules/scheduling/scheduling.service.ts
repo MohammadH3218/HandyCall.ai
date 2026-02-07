@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { DynamoDBService } from '../../infrastructure/database/dynamodb.service';
-import { Company, DaySchedule } from '@handycall/shared';
+import { AppointmentStatus, Company, DaySchedule } from '@handycall/shared';
 import {
   addUtcDays,
   getLocalDateParts,
@@ -182,7 +182,11 @@ export class SchedulingService {
 
     const appts = await this.listAppointmentsInRange(company.company_id, startMs - durationMs, endMs + durationMs);
     const busy = (appts || [])
-      .filter((a) => typeof a?.scheduled_start === 'number' && typeof a?.scheduled_end === 'number')
+      .filter((a) => {
+        if (typeof a?.scheduled_start !== 'number' || typeof a?.scheduled_end !== 'number') return false;
+        const status = typeof a?.status === 'string' ? a.status : '';
+        return status !== AppointmentStatus.CANCELLED && status !== AppointmentStatus.NO_SHOW;
+      })
       .map((a) => ({ start: a.scheduled_start as number, end: a.scheduled_end as number }));
     const holds = await this.listSlotHolds(company.company_id, startMs - durationMs, endMs + durationMs, options?.ignoreCallId);
     busy.push(...holds);

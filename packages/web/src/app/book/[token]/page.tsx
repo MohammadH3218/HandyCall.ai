@@ -156,6 +156,10 @@ export default function BookingPage() {
   const [time, setTime] = useState('');
   const [customFields, setCustomFields] = useState<Record<string, string>>({});
   const [cancelReason, setCancelReason] = useState('');
+  const [availabilityDays, setAvailabilityDays] = useState<Record<string, { slots: string[]; readable_slots: string[]; available: boolean }>>({});
+  const [availabilityLoading, setAvailabilityLoading] = useState(false);
+  const [calendarMonth, setCalendarMonth] = useState<Date>(new Date());
+  const [daySlots, setDaySlots] = useState<string[]>([]);
 
   const refreshInfo = useCallback(async () => {
     if (!token || !API_BASE) return;
@@ -192,6 +196,7 @@ export default function BookingPage() {
       if (appointment?.scheduled_start) {
         setDate(formatDateInputValue(appointment.scheduled_start, data?.timezone));
         setTime(formatTimeInputValue(appointment.scheduled_start, data?.timezone));
+        setCalendarMonth(new Date(appointment.scheduled_start));
       }
 
       const required = data?.intake_schema?.required || [];
@@ -217,6 +222,81 @@ export default function BookingPage() {
   useEffect(() => {
     void refreshInfo();
   }, [refreshInfo]);
+
+  const monthLabel = useMemo(() => {
+    return new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' }).format(calendarMonth);
+  }, [calendarMonth]);
+
+  const monthRange = useMemo(() => {
+    const start = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), 1);
+    const end = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 0);
+    return {
+      start,
+      end,
+      startKey: start.toISOString().slice(0, 10),
+      endKey: end.toISOString().slice(0, 10),
+    };
+  }, [calendarMonth]);
+
+  const calendarDays = useMemo(() => {
+    const year = calendarMonth.getFullYear();
+    const month = calendarMonth.getMonth();
+    const startDow = new Date(year, month, 1).getDay();
+    const totalDays = monthRange.end.getDate();
+    const days: Array<{ dateKey: string; day: number; muted: boolean }> = [];
+    for (let i = 0; i < startDow; i += 1) {
+      days.push({ dateKey: `blank-${i}`, day: 0, muted: true });
+    }
+    for (let day = 1; day <= totalDays; day += 1) {
+      const dateKey = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      days.push({ dateKey, day, muted: false });
+    }
+    return days;
+  }, [calendarMonth, monthRange.end]);
+
+  const loadAvailability = useCallback(async () => {
+    if (!token || !API_BASE) return;
+    try {
+      setAvailabilityLoading(true);
+      const res = await fetch(`${API_BASE}/public/booking/${token}/availability`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ start_date: monthRange.startKey, end_date: monthRange.endKey }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data?.message || data?.error?.message || 'Failed to load availability');
+      }
+      const next: Record<string, { slots: string[]; readable_slots: string[]; available: boolean }> = {};
+      for (const day of data?.days || []) {
+        if (day?.date) {
+          next[day.date] = {
+            slots: Array.isArray(day.slots) ? day.slots : [],
+            readable_slots: Array.isArray(day.readable_slots) ? day.readable_slots : [],
+            available: Boolean(day.available),
+          };
+        }
+      }
+      setAvailabilityDays(next);
+    } catch (err: any) {
+      console.error('[booking] availability load failed', err);
+    } finally {
+      setAvailabilityLoading(false);
+    }
+  }, [token, monthRange.startKey, monthRange.endKey]);
+
+  useEffect(() => {
+    void loadAvailability();
+  }, [loadAvailability]);
+
+  useEffect(() => {
+    if (!date) {
+      setDaySlots([]);
+      return;
+    }
+    const day = availabilityDays[date];
+    setDaySlots(day?.slots || []);
+  }, [date, availabilityDays]);
 
   const fields = useMemo(() => {
     const required = info?.intake_schema?.required || [];
@@ -324,6 +404,10 @@ export default function BookingPage() {
 
   const handleReschedule = async () => {
     try {
+      if (!date || !time) {
+        setError('Please select a new date and time.');
+        return;
+      }
       setRescheduling(true);
       setError(null);
       setNotice(null);
@@ -537,15 +621,89 @@ export default function BookingPage() {
                       <CardTitle>Reschedule</CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                      <div className="grid gap-4 md:grid-cols-2">
-                        <div className="space-y-2">
-                          <Label>New Date</Label>
-                          <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+                      <div className="flex items-center justify-between">
+                        <div className="text-sm font-semibold text-gray-700">{monthLabel}</div>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1, 1))}
+                          >
+                            Prev
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 1))}
+                          >
+                            Next
+                          </Button>
                         </div>
-                        <div className="space-y-2">
-                          <Label>New Time</Label>
-                          <Input type="time" value={time} onChange={(e) => setTime(e.target.value)} />
-                        </div>
+                      </div>
+                      <div className="grid grid-cols-7 gap-2 text-xs text-gray-500">
+                        {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
+                          <div key={day} className="text-center">{day}</div>
+                        ))}
+                      </div>
+                      <div className="grid grid-cols-7 gap-2">
+                        {calendarDays.map((day) => {
+                          if (day.muted) {
+                            return <div key={day.dateKey} className="h-9" />;
+                          }
+                          const availability = availabilityDays[day.dateKey];
+                          const isAvailable = availability?.available;
+                          const isSelected = date === day.dateKey;
+                          return (
+                            <button
+                              key={day.dateKey}
+                              type="button"
+                              className={`h-9 rounded-md text-sm font-semibold transition ${
+                                isSelected
+                                  ? 'bg-emerald-600 text-white'
+                                  : isAvailable
+                                    ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                                    : 'bg-gray-100 text-gray-300 cursor-not-allowed'
+                              }`}
+                              onClick={() => {
+                                if (!isAvailable) return;
+                                setDate(day.dateKey);
+                              }}
+                              disabled={!isAvailable}
+                            >
+                              {day.day}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Available times</Label>
+                        {availabilityLoading ? (
+                          <div className="text-sm text-gray-500">Loading availability…</div>
+                        ) : daySlots.length ? (
+                          <div className="flex flex-wrap gap-2">
+                            {daySlots.map((slot) => {
+                              const label = formatSlotLabel(slot, info?.timezone);
+                              const slotTime = formatTimeInputValue(new Date(slot).getTime(), info?.timezone);
+                              const isSelected = time === slotTime;
+                              return (
+                                <button
+                                  type="button"
+                                  key={slot}
+                                  className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
+                                    isSelected
+                                      ? 'border-emerald-600 bg-emerald-50 text-emerald-700'
+                                      : 'border-gray-200 text-gray-600 hover:border-emerald-300'
+                                  }`}
+                                  onClick={() => setTime(slotTime)}
+                                >
+                                  {label}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <div className="text-sm text-gray-500">Select a day to see available times.</div>
+                        )}
                       </div>
                       <Button onClick={handleReschedule} disabled={rescheduling}>
                         {rescheduling ? 'Rescheduling...' : 'Reschedule Appointment'}

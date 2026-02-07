@@ -55,6 +55,14 @@ function formatSlotLabel(slotIso: string, timeZone: string): string {
   }
 }
 
+function parseYmd(input: string): { year: number; month: number; day: number } | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(input || '').trim());
+  if (!match) return null;
+  const [year, month, day] = match.slice(1).map((n) => parseInt(n, 10));
+  if (!year || !month || !day) return null;
+  return { year, month, day };
+}
+
 @Injectable()
 export class PublicBookingService {
   constructor(
@@ -514,6 +522,67 @@ export class PublicBookingService {
       end_time: endIso,
       appointment: updated,
     };
+  }
+
+  async getBookingAvailability(token: string, dto: { start_date?: string; end_date?: string }) {
+    const payload = verifyBookingToken(token, this.getBookingSecret());
+    const company = await this.companies.findById(payload.company_id);
+    if (!company) throw new NotFoundException('Company not found');
+
+    const timeZone = this.resolveCompanyTimeZone(company);
+    const now = new Date();
+    const todayLocal = new Intl.DateTimeFormat('en-CA', {
+      timeZone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(now);
+    const startInput = dto.start_date?.trim() || todayLocal;
+    const endInput = dto.end_date?.trim();
+
+    const startParts = parseYmd(startInput);
+    if (!startParts) throw new BadRequestException('start_date must be YYYY-MM-DD');
+    const endParts = endInput ? parseYmd(endInput) : null;
+    if (endInput && !endParts) throw new BadRequestException('end_date must be YYYY-MM-DD');
+
+    const startMs = zonedTimeToUtcMs({ ...startParts, hour: 0, minute: 0 }, timeZone);
+    const endMs = endParts
+      ? zonedTimeToUtcMs({ ...endParts, hour: 23, minute: 59 }, timeZone)
+      : startMs + 30 * 24 * 60 * 60 * 1000;
+
+    const daysCount = Math.ceil((endMs - startMs) / (24 * 60 * 60 * 1000)) + 1;
+    if (daysCount > 31) {
+      throw new BadRequestException('Availability range is too large (max 31 days).');
+    }
+
+    const days: Array<{ date: string; available: boolean; slots: string[]; readable_slots: string[] }> = [];
+    for (let i = 0; i < daysCount; i++) {
+      const dayStartMs = startMs + i * 24 * 60 * 60 * 1000;
+      const dayKey = new Intl.DateTimeFormat('en-CA', {
+        timeZone,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      }).format(new Date(dayStartMs));
+      const parsed = parseYmd(dayKey);
+      if (!parsed) continue;
+      const windowStart = zonedTimeToUtcMs({ ...parsed, hour: 0, minute: 0 }, timeZone);
+      const windowEnd = zonedTimeToUtcMs({ ...parsed, hour: 23, minute: 59 }, timeZone);
+      const slots = await this.scheduling.getAvailability(
+        company,
+        new Date(windowStart).toISOString(),
+        new Date(windowEnd).toISOString()
+      );
+      const slotTimes = slots.map((s) => s.start_time);
+      days.push({
+        date: dayKey,
+        available: slotTimes.length > 0,
+        slots: slotTimes,
+        readable_slots: slotTimes.slice(0, 12).map((s) => formatSlotLabel(s, timeZone)),
+      });
+    }
+
+    return { ok: true, timezone: timeZone, days };
   }
 
   async cancelBooking(token: string, dto: PublicBookingCancelDto) {

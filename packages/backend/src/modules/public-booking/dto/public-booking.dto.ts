@@ -71,3 +71,13 @@ export class PublicBookingCancelDto {
   @IsOptional()
   reason?: string;
 }
+
+export class PublicBookingAvailabilityDto {
+  @IsString()
+  @IsOptional()
+  start_date?: string; // YYYY-MM-DD
+
+  @IsString()
+  @IsOptional()
+  end_date?: string; // YYYY-MM-DD
+}

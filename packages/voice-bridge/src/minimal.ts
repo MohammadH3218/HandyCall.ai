@@ -843,6 +843,16 @@ async function finalizeCallFromStatus(callSid: string, reason: string) {
   } catch (err: any) {
     console.warn('[bridge] save_call (stream status) failed', err?.message ?? String(err));
   }
+  if ((process.env.TWILIO_RECORD_CALLS ?? 'true') !== 'false') {
+    try {
+      const recordingSid = await fetchLatestRecordingSid(callSid);
+      if (recordingSid) {
+        await callTool(ctx, 'save_recording', { recording_sid: recordingSid });
+      }
+    } catch (err: any) {
+      console.warn('[bridge] save_recording (stream status) failed', err?.message ?? String(err));
+    }
+  }
 
   if (cached) {
     cached.ended = true;
@@ -982,6 +992,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
   let assistantSpeaking = false;
   let lastAssistantAudioAt = 0;
   let recordingSynced = false;
+  let recordingSyncScheduled = false;
   let serviceAreaRequired = false;
   let serviceAreaEligible: boolean | null = null;
   let lastAvailabilitySlots: string[] = [];
@@ -1051,8 +1062,30 @@ wss.on('connection', (twilioWs: WebSocket) => {
     openaiWs = null;
   }
 
+  function scheduleRecordingSync(reason: string) {
+    if (recordingSynced || recordingSyncScheduled) return;
+    if (!ctx || (process.env.TWILIO_RECORD_CALLS ?? 'true') === 'false') return;
+    recordingSyncScheduled = true;
+    const delays = [5000, 15000, 30000];
+    for (const delay of delays) {
+      setTimeout(async () => {
+        if (!ctx || recordingSynced) return;
+        try {
+          const recordingSid = await fetchLatestRecordingSid(ctx.callSid);
+          if (!recordingSid) return;
+          await callTool(ctx, 'save_recording', { recording_sid: recordingSid });
+          recordingSynced = true;
+          console.log('[bridge] recording synced', { reason, recordingSid });
+        } catch (err: any) {
+          console.warn('[bridge] recording sync failed', err?.message ?? String(err));
+        }
+      }, delay);
+    }
+  }
+
   function queueHangupMark() {
     if (!ctx?.streamSid || waitingForHangupMark) return;
+    scheduleRecordingSync('hangup_mark');
     sendToTwilio(twilioWs, { event: 'mark', streamSid: ctx.streamSid, mark: { name: 'hangup_now' } });
     waitingForHangupMark = true;
     if (hangupFallbackTimer) clearTimeout(hangupFallbackTimer);
@@ -1199,7 +1232,9 @@ wss.on('connection', (twilioWs: WebSocket) => {
         assistantSpeaking = false;
         openaiResponding = false;
         if (pendingHangup && !waitingForHangupMark) {
-          queueHangupMark();
+          setTimeout(() => {
+            if (pendingHangup && !waitingForHangupMark) queueHangupMark();
+          }, 700);
         }
         return;
       }
@@ -1594,22 +1629,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
           skip_contact_update: !merged && !collectedInfo,
         }).catch((err: any) => console.warn('[bridge] save_call failed', err?.message ?? String(err)));
 
-        if ((process.env.TWILIO_RECORD_CALLS ?? 'true') !== 'false') {
-          const delays = [5000, 15000, 30000];
-          for (const delay of delays) {
-            setTimeout(async () => {
-              if (!ctx || recordingSynced) return;
-              try {
-                const recordingSid = await fetchLatestRecordingSid(ctx.callSid);
-                if (!recordingSid) return;
-                await callTool(ctx, 'save_recording', { recording_sid: recordingSid });
-                recordingSynced = true;
-              } catch (err: any) {
-                console.warn('[bridge] recording sync failed', err?.message ?? String(err));
-              }
-            }, delay);
-          }
-        }
+        scheduleRecordingSync('twilio_stop');
       }
       const endedCallSid = ctx?.callSid;
       if (endedCallSid) {

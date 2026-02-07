@@ -5,6 +5,14 @@ import { BadRequestException } from '@nestjs/common';
 import { AppointmentStatus } from '@handycall/shared';
 import { CalendarIntegrationService } from '../calendar-integration/calendar-integration.service';
 
+function asE164(input: string): string {
+  const trimmed = (input || '').trim();
+  if (!trimmed) return '';
+  const digits = trimmed.replace(/\D/g, '');
+  if (!digits) return trimmed;
+  return `+${digits}`;
+}
+
 @Injectable()
 export class AppointmentsService {
   constructor(
@@ -17,7 +25,7 @@ export class AppointmentsService {
     companyId: string,
     input: { contact_name?: string; contact_email?: string; contact_phone?: string; notes?: string; address?: { street?: string; city?: string; state?: string; zip?: string } }
   ): Promise<string | undefined> {
-    const phone = input.contact_phone?.trim();
+    const phone = asE164(input.contact_phone || '');
     if (!phone) return undefined;
 
     const existing = await this.dynamodb.scan('contacts', {

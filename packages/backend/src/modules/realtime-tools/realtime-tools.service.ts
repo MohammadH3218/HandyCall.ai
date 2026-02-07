@@ -865,6 +865,17 @@ export class RealtimeToolsService {
         );
 
         let contact_id: string | undefined = existing?.contact_id;
+        if (!contact_id && existing?.appointment_id) {
+          try {
+            const appt = await this.appointmentsService.getAppointment(company_id, existing.appointment_id);
+            if (appt?.contact_id) {
+              contact_id = appt.contact_id;
+              updates.contact_id = contact_id as any;
+            }
+          } catch {
+            // non-fatal
+          }
+        }
         if (!contact_id && fromNumber) {
           // Best-effort find by phone; avoid requiring the phone-lookup index.
           const scan = await this.dynamodb.scan('contacts', {
@@ -1318,6 +1329,9 @@ export class RealtimeToolsService {
     if (detailPhone) {
       contact_phone = detailPhone;
     }
+    if (contact_phone) {
+      contact_phone = asE164(contact_phone);
+    }
 
     const customerName =
       (dto.customer_name && dto.customer_name.trim()) ||
@@ -1568,9 +1582,23 @@ export class RealtimeToolsService {
       await this.dynamodb.put('calls', call);
     }
 
+    const contactId = appointment?.contact_id || existingCall?.contact_id;
+    if (contactId) {
+      try {
+        await this.dynamodb.update(
+          'contacts',
+          { company_id, contact_id: contactId },
+          { email, updated_at: now, last_contact_at: now }
+        );
+      } catch (err) {
+        console.warn('[send_booking_link] contact email update failed', err);
+      }
+    }
+
     if (appointmentId) {
       const apptUpdates: Record<string, any> = {
         booking_link: bookingLink,
+        contact_email: email,
         ...(appointmentEnd ? { booking_link_expires_at: appointmentEnd } : {}),
         updated_at: now,
       };
