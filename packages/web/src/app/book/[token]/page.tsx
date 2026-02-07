@@ -13,6 +13,7 @@ type AppointmentInfo = {
   scheduled_start: number;
   scheduled_end: number;
   status: string;
+  service_type?: string;
   contact_name?: string;
   contact_email?: string;
   contact_phone?: string;
