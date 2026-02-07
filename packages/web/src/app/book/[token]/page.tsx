@@ -113,6 +113,23 @@ function formatTimeInputValue(timestamp: number, timeZone?: string) {
   }
 }
 
+function formatTimeRange(startMs: number, endMs: number, timeZone?: string) {
+  const start = new Date(startMs);
+  const end = new Date(endMs);
+  if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime())) return '';
+  try {
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: timeZone || 'UTC',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    });
+    return `${formatter.format(start)} - ${formatter.format(end)}`;
+  } catch {
+    return `${start.toLocaleTimeString()} - ${end.toLocaleTimeString()}`;
+  }
+}
+
 export default function BookingPage() {
   const params = useParams();
   const token = typeof params?.token === 'string' ? params.token : '';
@@ -404,14 +421,27 @@ export default function BookingPage() {
   const appointmentLabel = appointment
     ? formatSlotLabel(new Date(appointment.scheduled_start).toISOString(), info?.timezone)
     : '';
+  const appointmentStartMs = appointment?.scheduled_start;
+  const appointmentEndMs =
+    appointment?.scheduled_end ??
+    (appointmentStartMs ? appointmentStartMs + 60 * 60 * 1000 : undefined);
+  const appointmentTimeRange =
+    appointmentStartMs && appointmentEndMs
+      ? formatTimeRange(appointmentStartMs, appointmentEndMs, info?.timezone)
+      : '';
+  const addressLine = [street, city, state, zip].filter(Boolean).join(', ');
+  const mapQuery = addressLine ? encodeURIComponent(addressLine) : '';
+  const mapEmbedUrl = mapQuery ? `https://www.google.com/maps?q=${mapQuery}&output=embed` : '';
+  const mapLink = mapQuery ? `https://www.google.com/maps/search/?api=1&query=${mapQuery}` : '';
 
   if (mode === 'manage') {
     return (
-      <div className="min-h-screen bg-gray-50 p-6">
-        <div className="max-w-3xl mx-auto space-y-6">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">Manage your appointment</h1>
-            <p className="text-gray-600 mt-2">{info?.company_name}</p>
+      <div className="min-h-screen bg-slate-50">
+        <div className="mx-auto max-w-5xl px-4 py-10 space-y-6">
+          <div className="flex flex-col gap-2">
+            <span className="text-xs uppercase tracking-[0.2em] text-emerald-600 font-semibold">Appointment details</span>
+            <h1 className="text-3xl font-bold text-gray-900">{info?.company_name}</h1>
+            <p className="text-gray-600">Review or adjust your appointment with our team.</p>
           </div>
 
           {notice ? (
@@ -426,260 +456,369 @@ export default function BookingPage() {
             </div>
           ) : null}
 
-          {appointment ? (
-            <Card>
-              <CardHeader>
-                <CardTitle>Current Appointment</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2 text-gray-700">
-                <div>
-                  <span className="font-medium">Status:</span> {appointment.status}
-                </div>
-                <div>
-                  <span className="font-medium">Scheduled:</span> {appointmentLabel}
-                </div>
-                {appointment.contact_name ? (
-                  <div>
-                    <span className="font-medium">Name:</span> {appointment.contact_name}
-                  </div>
-                ) : null}
-                {appointment.contact_email ? (
-                  <div>
-                    <span className="font-medium">Email:</span> {appointment.contact_email}
-                  </div>
-                ) : null}
-                {appointment.contact_phone ? (
-                  <div>
-                    <span className="font-medium">Phone:</span> {appointment.contact_phone}
-                  </div>
-                ) : null}
-              </CardContent>
-            </Card>
-          ) : null}
-
-          {linkClosed ? (
-            <Card>
-              <CardHeader>
-                <CardTitle>Link Closed</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-gray-700">This booking link is no longer active.</p>
-              </CardContent>
-            </Card>
-          ) : (
-            <>
-              <Card>
-                <CardHeader>
-                  <CardTitle>Update Details</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label>Full Name</Label>
-                      <Input value={fullName} onChange={(e) => setFullName(e.target.value)} />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Email</Label>
-                      <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Phone</Label>
-                      <Input value={phone} onChange={(e) => setPhone(e.target.value)} />
-                    </div>
-                  </div>
-
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label>Street</Label>
-                      <Input value={street} onChange={(e) => setStreet(e.target.value)} />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>City</Label>
-                      <Input value={city} onChange={(e) => setCity(e.target.value)} />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>State</Label>
-                      <Input value={state} onChange={(e) => setState(e.target.value)} />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Zip</Label>
-                      <Input value={zip} onChange={(e) => setZip(e.target.value)} />
-                    </div>
-                  </div>
-
-                  {customKeys.length ? (
-                    <div className="grid gap-4 md:grid-cols-2">
-                      {customKeys.map((key) => (
-                        <div className="space-y-2" key={key}>
-                          <Label>
-                            {labelFor(key)}
-                            {isRequired(key) ? ' *' : ''}
-                          </Label>
-                          <Input
-                            value={customFields[key] || ''}
-                            onChange={(e) => handleCustomChange(key, e.target.value)}
-                          />
+          <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
+            <div className="space-y-6">
+              {linkClosed ? (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Link Closed</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-gray-700">This booking link is no longer active.</p>
+                  </CardContent>
+                </Card>
+              ) : (
+                <>
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Update your details</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="grid gap-4 md:grid-cols-2">
+                        <div className="space-y-2">
+                          <Label>Full Name</Label>
+                          <Input value={fullName} onChange={(e) => setFullName(e.target.value)} />
                         </div>
-                      ))}
-                    </div>
-                  ) : null}
+                        <div className="space-y-2">
+                          <Label>Email</Label>
+                          <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Phone</Label>
+                          <Input value={phone} onChange={(e) => setPhone(e.target.value)} />
+                        </div>
+                      </div>
 
-                  <Button onClick={handleUpdate} disabled={updating}>
-                    {updating ? 'Saving...' : 'Save Changes'}
+                      <div className="grid gap-4 md:grid-cols-2">
+                        <div className="space-y-2">
+                          <Label>Street</Label>
+                          <Input value={street} onChange={(e) => setStreet(e.target.value)} />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>City</Label>
+                          <Input value={city} onChange={(e) => setCity(e.target.value)} />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>State</Label>
+                          <Input value={state} onChange={(e) => setState(e.target.value)} />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Zip</Label>
+                          <Input value={zip} onChange={(e) => setZip(e.target.value)} />
+                        </div>
+                      </div>
+
+                      {customKeys.length ? (
+                        <div className="grid gap-4 md:grid-cols-2">
+                          {customKeys.map((key) => (
+                            <div className="space-y-2" key={key}>
+                              <Label>
+                                {labelFor(key)}
+                                {isRequired(key) ? ' *' : ''}
+                              </Label>
+                              <Input
+                                value={customFields[key] || ''}
+                                onChange={(e) => handleCustomChange(key, e.target.value)}
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
+
+                      <Button onClick={handleUpdate} disabled={updating}>
+                        {updating ? 'Saving...' : 'Save Changes'}
+                      </Button>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Reschedule</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="grid gap-4 md:grid-cols-2">
+                        <div className="space-y-2">
+                          <Label>New Date</Label>
+                          <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>New Time</Label>
+                          <Input type="time" value={time} onChange={(e) => setTime(e.target.value)} />
+                        </div>
+                      </div>
+                      <Button onClick={handleReschedule} disabled={rescheduling}>
+                        {rescheduling ? 'Rescheduling...' : 'Reschedule Appointment'}
+                      </Button>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Cancel Appointment</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="space-y-2">
+                        <Label>Reason (optional)</Label>
+                        <Textarea
+                          value={cancelReason}
+                          onChange={(e) => setCancelReason(e.target.value)}
+                          placeholder="Let us know why you're cancelling"
+                        />
+                      </div>
+                      <Button variant="destructive" onClick={handleCancel} disabled={cancelling}>
+                        {cancelling ? 'Cancelling...' : 'Cancel Appointment'}
+                      </Button>
+                    </CardContent>
+                  </Card>
+                </>
+              )}
+            </div>
+
+            <div className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>{appointment?.status === 'COMPLETED' ? 'Appointment passed' : 'Appointment confirmed'}</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div>
+                    <div className="text-sm text-gray-500">{appointmentLabel || 'Time to be confirmed'}</div>
+                    {appointmentTimeRange ? (
+                      <div className="text-sm text-gray-600 mt-1">{appointmentTimeRange}{info?.timezone ? ` (${info?.timezone})` : ''}</div>
+                    ) : null}
+                  </div>
+                  <div className="rounded-lg border border-gray-200 p-3">
+                    <div className="font-medium text-gray-900">
+                      {appointment?.service_type || info?.service_type || 'Service appointment'}
+                    </div>
+                    <div className="text-sm text-gray-500 mt-1">
+                      {appointment?.contact_name || fullName || 'Customer'}
+                    </div>
+                    {appointment?.status ? (
+                      <div className="mt-2 inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
+                        {appointment.status}
+                      </div>
+                    ) : null}
+                  </div>
+                  <Button variant="outline" onClick={() => window.location.assign('/register')}>
+                    Book next appointment
                   </Button>
                 </CardContent>
               </Card>
 
               <Card>
                 <CardHeader>
-                  <CardTitle>Reschedule</CardTitle>
+                  <CardTitle>Location</CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label>New Date</Label>
-                      <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>New Time</Label>
-                      <Input type="time" value={time} onChange={(e) => setTime(e.target.value)} />
-                    </div>
-                  </div>
-                  <Button onClick={handleReschedule} disabled={rescheduling}>
-                    {rescheduling ? 'Rescheduling...' : 'Reschedule Appointment'}
-                  </Button>
+                <CardContent className="space-y-3">
+                  {addressLine ? (
+                    <>
+                      <div className="overflow-hidden rounded-lg border border-gray-200">
+                        <iframe
+                          title="Service location"
+                          src={mapEmbedUrl}
+                          className="h-48 w-full"
+                          loading="lazy"
+                        />
+                      </div>
+                      <div className="text-sm text-gray-600">{addressLine}</div>
+                      <Button variant="outline" size="sm" onClick={() => window.open(mapLink, '_blank')}>Open in Maps</Button>
+                    </>
+                  ) : (
+                    <p className="text-sm text-gray-500">Location details will appear once the address is confirmed.</p>
+                  )}
                 </CardContent>
               </Card>
 
               <Card>
                 <CardHeader>
-                  <CardTitle>Cancel Appointment</CardTitle>
+                  <CardTitle>Payment</CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <Label>Reason (optional)</Label>
-                    <Textarea
-                      value={cancelReason}
-                      onChange={(e) => setCancelReason(e.target.value)}
-                      placeholder="Let us know why you're cancelling"
-                    />
-                  </div>
-                  <Button variant="destructive" onClick={handleCancel} disabled={cancelling}>
-                    {cancelling ? 'Cancelling...' : 'Cancel Appointment'}
-                  </Button>
+                <CardContent>
+                  <div className="text-sm text-gray-600">Payment is due at your appointment.</div>
                 </CardContent>
               </Card>
-            </>
-          )}
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Cancellation policy</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-sm text-gray-600">Need to make a change? Reschedule or cancel using this link before your appointment.</div>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      <div className="max-w-2xl mx-auto space-y-6">
-        <div>
+    <div className="min-h-screen bg-slate-50">
+      <div className="mx-auto max-w-5xl px-4 py-10 space-y-6">
+        <div className="flex flex-col gap-2">
+          <span className="text-xs uppercase tracking-[0.2em] text-emerald-600 font-semibold">Confirm your appointment</span>
           <h1 className="text-3xl font-bold text-gray-900">{info?.company_name}</h1>
-          <p className="text-gray-600 mt-2">Complete your booking to lock in a service time.</p>
+          <p className="text-gray-600">Complete your details to lock in a service time.</p>
         </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Booking Details</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {notice ? (
-              <div className="bg-emerald-50 border border-emerald-200 text-emerald-700 px-4 py-3 rounded">
-                {notice}
-              </div>
-            ) : null}
-            {error ? (
-              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
-                {error}
-              </div>
-            ) : null}
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
+          <Card>
+            <CardHeader>
+              <CardTitle>Booking details</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {notice ? (
+                <div className="bg-emerald-50 border border-emerald-200 text-emerald-700 px-4 py-3 rounded">
+                  {notice}
+                </div>
+              ) : null}
+              {error ? (
+                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+                  {error}
+                </div>
+              ) : null}
 
-            {requiresName || fields.required.length === 0 ? (
+              {requiresName || fields.required.length === 0 ? (
+                <div className="space-y-2">
+                  <Label>Full Name {requiresName ? '*' : ''}</Label>
+                  <Input value={fullName} onChange={(e) => setFullName(e.target.value)} />
+                </div>
+              ) : null}
+
+              {requiresEmail || fields.required.length === 0 ? (
+                <div className="space-y-2">
+                  <Label>Email {requiresEmail ? '*' : ''}</Label>
+                  <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+                </div>
+              ) : null}
+
               <div className="space-y-2">
-                <Label>Full Name {requiresName ? '*' : ''}</Label>
-                <Input value={fullName} onChange={(e) => setFullName(e.target.value)} />
+                <Label>Phone</Label>
+                <Input value={phone} onChange={(e) => setPhone(e.target.value)} />
               </div>
-            ) : null}
 
-            {requiresEmail || fields.required.length === 0 ? (
-              <div className="space-y-2">
-                <Label>Email {requiresEmail ? '*' : ''}</Label>
-                <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
-              </div>
-            ) : null}
-
-            <div className="space-y-2">
-              <Label>Phone</Label>
-              <Input value={phone} onChange={(e) => setPhone(e.target.value)} />
-            </div>
-
-            {requiresAddress ? (
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label>Street</Label>
-                  <Input value={street} onChange={(e) => setStreet(e.target.value)} />
+              {requiresAddress ? (
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label>Street</Label>
+                    <Input value={street} onChange={(e) => setStreet(e.target.value)} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>City</Label>
+                    <Input value={city} onChange={(e) => setCity(e.target.value)} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>State</Label>
+                    <Input value={state} onChange={(e) => setState(e.target.value)} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Zip</Label>
+                    <Input value={zip} onChange={(e) => setZip(e.target.value)} />
+                  </div>
                 </div>
+              ) : requiresZip ? (
                 <div className="space-y-2">
-                  <Label>City</Label>
-                  <Input value={city} onChange={(e) => setCity(e.target.value)} />
-                </div>
-                <div className="space-y-2">
-                  <Label>State</Label>
-                  <Input value={state} onChange={(e) => setState(e.target.value)} />
-                </div>
-                <div className="space-y-2">
-                  <Label>Zip</Label>
+                  <Label>Zip Code</Label>
                   <Input value={zip} onChange={(e) => setZip(e.target.value)} />
                 </div>
-              </div>
-            ) : requiresZip ? (
-              <div className="space-y-2">
-                <Label>Zip Code</Label>
-                <Input value={zip} onChange={(e) => setZip(e.target.value)} />
-              </div>
-            ) : null}
+              ) : null}
 
-            {customKeys.length ? (
-              <div className="grid gap-4 md:grid-cols-2">
-                {customKeys.map((key) => (
-                  <div className="space-y-2" key={key}>
-                    <Label>
-                      {labelFor(key)}
-                      {isRequired(key) ? ' *' : ''}
-                    </Label>
-                    <Input
-                      value={customFields[key] || ''}
-                      onChange={(e) => handleCustomChange(key, e.target.value)}
-                    />
+              {customKeys.length ? (
+                <div className="grid gap-4 md:grid-cols-2">
+                  {customKeys.map((key) => (
+                    <div className="space-y-2" key={key}>
+                      <Label>
+                        {labelFor(key)}
+                        {isRequired(key) ? ' *' : ''}
+                      </Label>
+                      <Input
+                        value={customFields[key] || ''}
+                        onChange={(e) => handleCustomChange(key, e.target.value)}
+                      />
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+
+              {requiresTime || fields.required.length === 0 ? (
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label>Date</Label>
+                    <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
                   </div>
-                ))}
-              </div>
-            ) : null}
-
-            {requiresTime || fields.required.length === 0 ? (
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label>Date</Label>
-                  <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+                  <div className="space-y-2">
+                    <Label>Time</Label>
+                    <Input type="time" value={time} onChange={(e) => setTime(e.target.value)} />
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label>Time</Label>
-                  <Input type="time" value={time} onChange={(e) => setTime(e.target.value)} />
-                </div>
-              </div>
-            ) : null}
+              ) : null}
 
-            <Button onClick={handleSubmit} disabled={submitting}>
-              {submitting ? 'Booking...' : 'Confirm Appointment'}
-            </Button>
-          </CardContent>
-        </Card>
+              <Button onClick={handleSubmit} disabled={submitting}>
+                {submitting ? 'Booking...' : 'Confirm Appointment'}
+              </Button>
+            </CardContent>
+          </Card>
+
+          <div className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Appointment summary</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="text-sm text-gray-600">{info?.service_type || 'Service appointment'}</div>
+                <div className="text-sm text-gray-500">
+                  {date && time ? `Preferred time: ${date} at ${time}` : 'Choose a date and time to reserve your slot.'}
+                </div>
+                {info?.timezone ? (
+                  <div className="text-xs text-gray-500">Timezone: {info.timezone}</div>
+                ) : null}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Location</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {addressLine ? (
+                  <>
+                    <div className="overflow-hidden rounded-lg border border-gray-200">
+                      <iframe
+                        title="Service location"
+                        src={mapEmbedUrl}
+                        className="h-48 w-full"
+                        loading="lazy"
+                      />
+                    </div>
+                    <div className="text-sm text-gray-600">{addressLine}</div>
+                    <Button variant="outline" size="sm" onClick={() => window.open(mapLink, '_blank')}>Open in Maps</Button>
+                  </>
+                ) : (
+                  <div className="text-sm text-gray-500">Location details will appear after the appointment is confirmed.</div>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Payment</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-sm text-gray-600">Payment is due at your appointment.</div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Cancellation policy</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-sm text-gray-600">Need to make a change? Contact the business to adjust or cancel.</div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
       </div>
     </div>
   );

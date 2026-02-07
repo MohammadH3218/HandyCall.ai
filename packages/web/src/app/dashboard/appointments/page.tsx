@@ -85,6 +85,23 @@ function formatDateTime(ts?: number | string) {
   return date.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
+function formatShortDate(date: Date) {
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+function formatHourLabel(hour: number) {
+  const date = new Date();
+  date.setHours(hour, 0, 0, 0);
+  return date.toLocaleTimeString('en-US', { hour: 'numeric' }).toLowerCase();
+}
+
+function timeToMinutes(value?: string) {
+  if (!value) return null;
+  const [h, m] = value.split(':').map((part) => Number(part));
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
+  return h * 60 + m;
+}
+
 function statusBadge(status?: string): { label: string; className: string } {
   const s = String(status || '').toUpperCase();
   if (s === 'SCHEDULED') return { label: 'Scheduled', className: 'bg-blue-50 text-blue-700 border-blue-200' };
@@ -92,6 +109,14 @@ function statusBadge(status?: string): { label: string; className: string } {
   if (s === 'CANCELLED') return { label: 'Cancelled', className: 'bg-gray-50 text-gray-700 border-gray-200' };
   if (s === 'COMPLETED') return { label: 'Completed', className: 'bg-gray-50 text-gray-700 border-gray-200' };
   return { label: status || 'Unknown', className: 'bg-gray-50 text-gray-700 border-gray-200' };
+}
+
+function eventTone(status?: string) {
+  const s = String(status || '').toUpperCase();
+  if (s === 'CANCELLED') return 'bg-gray-100 text-gray-500 border border-gray-200';
+  if (s === 'COMPLETED') return 'bg-slate-100 text-slate-600 border border-slate-200';
+  if (s === 'CONFIRMED') return 'bg-emerald-500/15 text-emerald-700 border border-emerald-200';
+  return 'bg-blue-500/15 text-blue-700 border border-blue-200';
 }
 
 export default function AppointmentsPage() {
@@ -103,18 +128,22 @@ export default function AppointmentsPage() {
 
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'SCHEDULED' | 'CONFIRMED' | 'CANCELLED' | 'COMPLETED'>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
+  const [rangeStart, setRangeStart] = useState('');
+  const [rangeEnd, setRangeEnd] = useState('');
+  const [timeStart, setTimeStart] = useState('');
+  const [timeEnd, setTimeEnd] = useState('');
+  const [serviceFilter, setServiceFilter] = useState('ALL');
 
   const [monthCursor, setMonthCursor] = useState(() => {
     const now = new Date();
     return new Date(now.getFullYear(), now.getMonth(), 1);
   });
 
+  const [calendarView, setCalendarView] = useState<'day' | 'week' | 'month' | 'list'>('week');
+  const [focusDate, setFocusDate] = useState(() => new Date());
+
   const [selectedAppointment, setSelectedAppointment] = useState<any | null>(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
-
-  // Day view state
-  const [selectedDate, setSelectedDate] = useState<string | null>(null);
-  const [isDayViewOpen, setIsDayViewOpen] = useState(false);
 
   // Edit appointment state
   const [isEditOpen, setIsEditOpen] = useState(false);
@@ -191,15 +220,43 @@ export default function AppointmentsPage() {
     return days;
   }, [monthCursor]);
 
+  const hourStart = 6;
+  const hourEnd = 20;
+  const hourSlots = useMemo(() => Array.from({ length: hourEnd - hourStart + 1 }, (_, idx) => hourStart + idx), []);
+  const hourRowHeight = 64;
+  const dayHeight = (hourEnd - hourStart) * hourRowHeight;
+
   const isCalendarSetupComplete = company?.calendar_setup_completed !== false;
 
   const filteredAppointments = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
+    const startBoundary = rangeStart ? new Date(`${rangeStart}T00:00:00`).getTime() : null;
+    const endBoundary = rangeEnd ? new Date(`${rangeEnd}T23:59:59`).getTime() : null;
+    const timeStartMinutes = timeToMinutes(timeStart);
+    const timeEndMinutes = timeToMinutes(timeEnd);
     return (appointments || [])
       .filter((a) => !a?.is_series_master)
       .filter((a) => {
         if (statusFilter === 'ALL') return true;
         return String(a?.status || '').toUpperCase() === statusFilter;
+      })
+      .filter((a) => {
+        if (serviceFilter === 'ALL') return true;
+        return String(a?.service_type || '').toLowerCase() === String(serviceFilter).toLowerCase();
+      })
+      .filter((a) => {
+        if (!startBoundary && !endBoundary && timeStartMinutes === null && timeEndMinutes === null) return true;
+        const ms = typeof a?.scheduled_start === 'number' ? a.scheduled_start : Date.parse(a?.scheduled_start);
+        if (!Number.isFinite(ms)) return false;
+        if (startBoundary && ms < startBoundary) return false;
+        if (endBoundary && ms > endBoundary) return false;
+        if (timeStartMinutes !== null || timeEndMinutes !== null) {
+          const d = new Date(ms);
+          const minutes = d.getHours() * 60 + d.getMinutes();
+          if (timeStartMinutes !== null && minutes < timeStartMinutes) return false;
+          if (timeEndMinutes !== null && minutes > timeEndMinutes) return false;
+        }
+        return true;
       })
       .filter((a) => {
         if (!q) return true;
@@ -220,7 +277,7 @@ export default function AppointmentsPage() {
         return text.includes(q);
       })
       .sort((a, b) => (a?.scheduled_start ?? 0) - (b?.scheduled_start ?? 0));
-  }, [appointments, searchQuery, statusFilter]);
+  }, [appointments, searchQuery, statusFilter, rangeStart, rangeEnd, timeStart, timeEnd, serviceFilter]);
 
   const apptsByDay = useMemo(() => {
     const map = new Map<string, any[]>();
@@ -234,6 +291,54 @@ export default function AppointmentsPage() {
     }
     return map;
   }, [filteredAppointments]);
+
+  const serviceOptions = useMemo(() => {
+    const set = new Set<string>();
+    for (const apt of appointments || []) {
+      if (apt?.service_type) set.add(String(apt.service_type));
+    }
+    return Array.from(set.values());
+  }, [appointments]);
+
+  const focusKey = useMemo(() => ymd(focusDate), [focusDate]);
+  const focusAppointments = useMemo(() => apptsByDay.get(focusKey) ?? [], [apptsByDay, focusKey]);
+
+  const listGroups = useMemo(() => {
+    const groups = new Map<string, any[]>();
+    for (const apt of filteredAppointments) {
+      const ms = typeof apt?.scheduled_start === 'number' ? apt.scheduled_start : Date.parse(apt?.scheduled_start);
+      if (!Number.isFinite(ms)) continue;
+      const key = ymd(new Date(ms));
+      const current = groups.get(key) ?? [];
+      current.push(apt);
+      groups.set(key, current);
+    }
+    return Array.from(groups.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+  }, [filteredAppointments]);
+
+  const weekDays = useMemo(() => {
+    const base = new Date(focusDate);
+    const start = new Date(base);
+    start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
+    return Array.from({ length: 7 }, (_, idx) => {
+      const d = new Date(start);
+      d.setDate(start.getDate() + idx);
+      return d;
+    });
+  }, [focusDate]);
+
+  const viewLabel = useMemo(() => {
+    if (calendarView === 'month') return monthLabel;
+    if (calendarView === 'week') {
+      const start = weekDays[0];
+      const end = weekDays[6];
+      return `${formatShortDate(start)} - ${formatShortDate(end)}`;
+    }
+    if (calendarView === 'day') {
+      return focusDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+    }
+    return 'Agenda';
+  }, [calendarView, monthLabel, focusDate, weekDays]);
 
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -314,6 +419,59 @@ export default function AppointmentsPage() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleToday = () => {
+    const now = new Date();
+    setFocusDate(now);
+    setMonthCursor(new Date(now.getFullYear(), now.getMonth(), 1));
+  };
+
+  const shiftFocusDays = (days: number) => {
+    setFocusDate((prev) => {
+      const next = new Date(prev);
+      next.setDate(prev.getDate() + days);
+      setMonthCursor(new Date(next.getFullYear(), next.getMonth(), 1));
+      return next;
+    });
+  };
+
+  const handlePrevRange = () => {
+    if (calendarView === 'month') {
+      setMonthCursor(new Date(monthCursor.getFullYear(), monthCursor.getMonth() - 1, 1));
+      return;
+    }
+    if (calendarView === 'week') {
+      shiftFocusDays(-7);
+      return;
+    }
+    if (calendarView === 'day') {
+      shiftFocusDays(-1);
+    }
+  };
+
+  const handleNextRange = () => {
+    if (calendarView === 'month') {
+      setMonthCursor(new Date(monthCursor.getFullYear(), monthCursor.getMonth() + 1, 1));
+      return;
+    }
+    if (calendarView === 'week') {
+      shiftFocusDays(7);
+      return;
+    }
+    if (calendarView === 'day') {
+      shiftFocusDays(1);
+    }
+  };
+
+  const handleClearFilters = () => {
+    setSearchQuery('');
+    setStatusFilter('ALL');
+    setServiceFilter('ALL');
+    setRangeStart('');
+    setRangeEnd('');
+    setTimeStart('');
+    setTimeEnd('');
   };
 
   const handleStartSetup = () => {
@@ -477,20 +635,6 @@ export default function AppointmentsPage() {
 
   // Check if external calendar is connected
   const isExternalCalendarConnected = company?.calendar_mode === 'EXTERNAL' && company?.calendar_provider && company?.calendar_provider !== 'NONE';
-
-  // Get appointments for selected day
-  const selectedDayAppointments = useMemo(() => {
-    if (!selectedDate) return [];
-    return apptsByDay.get(selectedDate) ?? [];
-  }, [selectedDate, apptsByDay]);
-
-  // Format selected date for display
-  const selectedDateFormatted = useMemo(() => {
-    if (!selectedDate) return '';
-    const [year, month, day] = selectedDate.split('-').map(Number);
-    const date = new Date(year, month - 1, day);
-    return date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
-  }, [selectedDate]);
 
   // Handle opening edit dialog
   const handleEditAppointment = (appointment: any) => {
@@ -676,222 +820,410 @@ export default function AppointmentsPage() {
   }
 
   return (
-    <div className="p-8 animate-fade-up">
-      <div className="mb-8 flex items-start justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="text-3xl font-display text-slate-900">Appointments</h1>
-          <p className="mt-2 text-slate-600">Manage bookings, calendars, and availability.</p>
+    <div className="p-6 lg:p-8 animate-fade-up">
+      <div className="flex flex-col gap-6">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <h1 className="text-3xl font-display text-slate-900">Appointments</h1>
+            <p className="mt-2 text-slate-600">Manage bookings, calendars, and availability in one place.</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {isExternalCalendarConnected ? (
+              <Button variant="outline" onClick={handleOpenCalendarSettings}>
+                <Settings className="h-4 w-4 mr-2" />
+                Calendar Settings
+              </Button>
+            ) : (
+              <Button variant="outline" onClick={() => setIsCalendarProviderDialogOpen(true)}>
+                <ExternalLink className="h-4 w-4 mr-2" />
+                Connect Calendar
+              </Button>
+            )}
+            <Button onClick={() => setIsCreateOpen(true)} disabled={!isCalendarSetupComplete}>
+              <Plus className="h-4 w-4 mr-2" />
+              New appointment
+            </Button>
+          </div>
         </div>
-        <Button onClick={() => setIsCreateOpen(true)} disabled={!isCalendarSetupComplete}>
-          <Plus className="h-4 w-4 mr-2" />
-          New appointment
-        </Button>
-      </div>
 
-      {!isCalendarSetupComplete ? (
-        <Card className="mb-6">
-          <CardContent className="p-6">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-              <div>
-                <div className="text-lg font-semibold text-gray-900">Set up your appointments calendar</div>
-                <div className="text-sm text-gray-600 mt-1">
-                  New accounts start here. Choose your timezone and how you want to manage scheduling.
+        {!isCalendarSetupComplete ? (
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div>
+                  <div className="text-lg font-semibold text-gray-900">Set up your appointments calendar</div>
+                  <div className="text-sm text-gray-600 mt-1">
+                    Choose your timezone and how you want to manage scheduling before taking bookings.
+                  </div>
                 </div>
+                <Button onClick={handleStartSetup}>Set up</Button>
               </div>
-              <Button onClick={handleStartSetup}>Set up</Button>
-            </div>
-          </CardContent>
-        </Card>
-      ) : null}
+            </CardContent>
+          </Card>
+        ) : null}
 
-      {isCalendarSetupComplete ? (
-        <>
-        {/* Search, Filters, and Connect Calendar */}
-        <Card className="mb-6">
-          <CardContent className="pt-6">
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-              <div className="flex flex-col sm:flex-row gap-3 sm:items-center flex-1">
-                <Input
-                  placeholder="Search appointments..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full sm:w-64"
-                />
-                <select
-                  className="h-10 rounded-md border border-gray-200 bg-white px-3 text-sm"
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value as any)}
-                >
-                  <option value="ALL">All statuses</option>
-                  <option value="SCHEDULED">Scheduled</option>
-                  <option value="CONFIRMED">Confirmed</option>
-                  <option value="COMPLETED">Completed</option>
-                  <option value="CANCELLED">Cancelled</option>
-                </select>
-                <div className="text-sm text-gray-500">
-                  {isLoading ? 'Loading...' : `${filteredAppointments.length} appointments`}
-                </div>
-              </div>
-              {isExternalCalendarConnected ? (
-                <Button variant="outline" onClick={handleOpenCalendarSettings}>
-                  <Settings className="h-4 w-4 mr-2" />
-                  Calendar Settings
-                </Button>
-              ) : (
-                <Button variant="outline" onClick={() => setIsCalendarProviderDialogOpen(true)}>
-                  <ExternalLink className="h-4 w-4 mr-2" />
-                  Connect Calendar
-                </Button>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Calendar - Full Width */}
-        <Card className="mb-6 overflow-hidden">
-          <CardHeader className="pb-4">
-            <div className="flex items-center justify-between">
-              <CardTitle className="flex items-center gap-2">
-                <Calendar className="h-5 w-5 text-emerald-600" />
-                {monthLabel}
-              </CardTitle>
-              <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" onClick={() => setMonthCursor(new Date(monthCursor.getFullYear(), monthCursor.getMonth() - 1, 1))}>
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
-                <Button variant="outline" size="sm" onClick={() => setMonthCursor(new Date())}>
-                  Today
-                </Button>
-                <Button variant="outline" size="sm" onClick={() => setMonthCursor(new Date(monthCursor.getFullYear(), monthCursor.getMonth() + 1, 1))}>
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="grid grid-cols-7 text-xs font-semibold text-gray-600 border-b border-gray-200 bg-gray-50">
-              {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((d) => (
-                <div key={d} className="px-3 py-3 text-center">
-                  {d}
-                </div>
-              ))}
-            </div>
-
-            <div className="grid grid-cols-7 divide-x divide-y divide-gray-100">
-              {monthDays.map((d) => {
-                const key = ymd(d);
-                const items = apptsByDay.get(key) ?? [];
-                const inMonth = d.getMonth() === monthCursor.getMonth();
-                const isToday = ymd(d) === ymd(new Date());
-
-                return (
-                  <button
-                    key={key}
-                    className={`min-h-[100px] p-2 text-left hover:bg-gray-50 transition relative ${
-                      inMonth ? 'bg-white' : 'bg-gray-50/50'
-                    } ${isToday ? 'ring-2 ring-inset ring-emerald-500' : ''}`}
-                    onClick={() => {
-                      if (!isCalendarSetupComplete) return;
-                      // Show day view with all appointments for this day
-                      setSelectedDate(key);
-                      setIsDayViewOpen(true);
-                    }}
-                    disabled={!isCalendarSetupComplete}
-                  >
-                    <div className={`text-sm font-medium mb-1 ${isToday ? 'text-emerald-600' : inMonth ? 'text-gray-900' : 'text-gray-400'}`}>
-                      {d.getDate()}
-                    </div>
-                    <div className="space-y-1">
-                      {items.slice(0, 3).map((a) => (
-                        <div
-                          key={a.appointment_id}
-                          className="text-xs truncate text-white bg-emerald-500 rounded px-1.5 py-0.5 cursor-pointer hover:bg-emerald-600"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleViewAppointment(a.appointment_id);
-                          }}
+        {isCalendarSetupComplete ? (
+          <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
+            <div className="space-y-6">
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base">Calendar</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex flex-wrap gap-2">
+                    <Button variant="outline" size="sm" onClick={handleToday}>
+                      Today
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => setIsCreateOpen(true)} disabled={!isCalendarSetupComplete}>
+                      <Plus className="h-4 w-4 mr-1" />
+                      New
+                    </Button>
+                  </div>
+                  <div className="rounded-lg border border-gray-200 bg-white p-3">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="text-sm font-semibold text-gray-900">{monthLabel}</div>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          onClick={() => setMonthCursor(new Date(monthCursor.getFullYear(), monthCursor.getMonth() - 1, 1))}
                         >
-                          {a.contact_name || a.service_type || 'Appointment'}
-                        </div>
-                      ))}
-                      {items.length > 3 && (
-                        <div className="text-xs text-gray-500 font-medium">+{items.length - 3} more</div>
-                      )}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Upcoming Appointments</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="space-y-3">
-              {[1, 2, 3, 4, 5].map((i) => (
-                <div key={i} className="animate-pulse border-b border-gray-200 pb-3">
-                  <div className="h-5 bg-gray-200 rounded w-1/3 mb-2"></div>
-                  <div className="h-4 bg-gray-200 rounded w-2/3"></div>
-                </div>
-              ))}
-            </div>
-          ) : filteredAppointments.length > 0 ? (
-            <div className="space-y-3">
-              {filteredAppointments.slice(0, showAllAppointments ? 50 : 3).map((apt) => {
-                const s = statusBadge(apt.status);
-                return (
-                  <div
-                    key={apt.appointment_id}
-                    className="border border-gray-200 rounded-xl p-4 hover:border-blue-500 hover:shadow-sm transition-all cursor-pointer"
-                    onClick={() => handleViewAppointment(apt.appointment_id)}
-                  >
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <div className="font-semibold text-gray-900 truncate">
-                            {apt.contact_name || apt.contact_email || apt.contact_phone || 'Appointment'}
-                          </div>
-                          <Badge variant="outline" className={s.className}>
-                            {s.label}
-                          </Badge>
-                        </div>
-                        <div className="text-sm text-gray-600 mt-1">
-                          {formatDateTime(apt.scheduled_start)} - {apt.service_type || 'Service'}
-                        </div>
+                          <ChevronLeft className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          onClick={() => setMonthCursor(new Date(monthCursor.getFullYear(), monthCursor.getMonth() + 1, 1))}
+                        >
+                          <ChevronRight className="h-4 w-4" />
+                        </Button>
                       </div>
-                      <ExternalLink className="h-4 w-4 text-gray-400 mt-1" />
+                    </div>
+                    <div className="grid grid-cols-7 text-[11px] text-gray-500 mb-2">
+                      {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d) => (
+                        <div key={d} className="text-center">{d}</div>
+                      ))}
+                    </div>
+                    <div className="grid grid-cols-7 gap-1">
+                      {monthDays.map((d) => {
+                        const key = ymd(d);
+                        const hasItems = (apptsByDay.get(key) ?? []).length > 0;
+                        const isInMonth = d.getMonth() === monthCursor.getMonth();
+                        const isSelected = key === focusKey;
+                        const isToday = key === ymd(new Date());
+                        return (
+                          <button
+                            key={key}
+                            className={`flex flex-col items-center justify-center rounded-md py-1 text-xs transition ${
+                              isSelected
+                                ? 'bg-emerald-600 text-white'
+                                : isToday
+                                  ? 'bg-emerald-50 text-emerald-700'
+                                  : isInMonth
+                                    ? 'text-gray-800 hover:bg-gray-100'
+                                    : 'text-gray-400 hover:bg-gray-100'
+                            }`}
+                            onClick={() => {
+                              setFocusDate(d);
+                              setMonthCursor(new Date(d.getFullYear(), d.getMonth(), 1));
+                              setCalendarView('day');
+                            }}
+                          >
+                            <span>{d.getDate()}</span>
+                            {hasItems ? <span className="mt-0.5 h-1 w-1 rounded-full bg-emerald-500" /> : null}
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
-                );
-              })}
-              {filteredAppointments.length > 3 && (
-                <div className="flex justify-center pt-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setShowAllAppointments(!showAllAppointments)}
-                  >
-                    {showAllAppointments ? `Show less` : `Show ${filteredAppointments.length - 3} more`}
-                  </Button>
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="text-center py-12">
-              <Calendar className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">No appointments scheduled</h3>
-              <p className="text-sm text-gray-500">Your AI receptionist can schedule appointments during calls.</p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-        </>
-      ) : null}
+                  <div className="text-xs text-gray-500">Timezone: {calendarTimezone || 'Not set'}</div>
+                </CardContent>
+              </Card>
 
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base">Filters</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <Label className="text-xs text-gray-500">Search</Label>
+                    <Input
+                      placeholder="Search appointments"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs text-gray-500">Status</Label>
+                    <select
+                      className="h-10 w-full rounded-md border border-gray-200 bg-white px-3 text-sm"
+                      value={statusFilter}
+                      onChange={(e) => setStatusFilter(e.target.value as any)}
+                    >
+                      <option value="ALL">All statuses</option>
+                      <option value="SCHEDULED">Scheduled</option>
+                      <option value="CONFIRMED">Confirmed</option>
+                      <option value="COMPLETED">Completed</option>
+                      <option value="CANCELLED">Cancelled</option>
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs text-gray-500">Service type</Label>
+                    <select
+                      className="h-10 w-full rounded-md border border-gray-200 bg-white px-3 text-sm"
+                      value={serviceFilter}
+                      onChange={(e) => setServiceFilter(e.target.value)}
+                    >
+                      <option value="ALL">All services</option>
+                      {serviceOptions.map((service) => (
+                        <option key={service} value={service}>{service}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs text-gray-500">Date range</Label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <Input type="date" value={rangeStart} onChange={(e) => setRangeStart(e.target.value)} />
+                      <Input type="date" value={rangeEnd} onChange={(e) => setRangeEnd(e.target.value)} />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs text-gray-500">Time range</Label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <Input type="time" value={timeStart} onChange={(e) => setTimeStart(e.target.value)} />
+                      <Input type="time" value={timeEnd} onChange={(e) => setTimeEnd(e.target.value)} />
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="text-xs text-gray-500">{isLoading ? 'Loading...' : `${filteredAppointments.length} appointments`}</div>
+                    <Button variant="outline" size="sm" onClick={handleClearFilters}>
+                      Clear
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            <div className="space-y-6">
+              <Card className="overflow-hidden">
+                <CardHeader className="pb-2">
+                  <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                    <div className="flex flex-wrap items-center gap-3">
+                      <div className="flex items-center gap-2">
+                        <Calendar className="h-5 w-5 text-emerald-600" />
+                        <CardTitle className="text-base">{viewLabel}</CardTitle>
+                      </div>
+                      <Badge variant="outline" className="border-emerald-100 text-emerald-700 bg-emerald-50">
+                        {filteredAppointments.length} total
+                      </Badge>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <div className="flex items-center gap-1 rounded-md border border-gray-200 bg-white p-1">
+                        <Button variant="ghost" size="icon" onClick={handlePrevRange}>
+                          <ChevronLeft className="h-4 w-4" />
+                        </Button>
+                        <Button variant="outline" size="sm" onClick={handleToday}>
+                          Today
+                        </Button>
+                        <Button variant="ghost" size="icon" onClick={handleNextRange}>
+                          <ChevronRight className="h-4 w-4" />
+                        </Button>
+                      </div>
+                      <div className="flex items-center gap-1 rounded-md border border-gray-200 bg-white p-1">
+                        <Button variant={calendarView === 'day' ? 'default' : 'ghost'} size="sm" onClick={() => setCalendarView('day')}>
+                          Day
+                        </Button>
+                        <Button variant={calendarView === 'week' ? 'default' : 'ghost'} size="sm" onClick={() => setCalendarView('week')}>
+                          Week
+                        </Button>
+                        <Button
+                          variant={calendarView === 'month' ? 'default' : 'ghost'}
+                          size="sm"
+                          onClick={() => {
+                            setCalendarView('month');
+                            setMonthCursor(new Date(focusDate.getFullYear(), focusDate.getMonth(), 1));
+                          }}
+                        >
+                          Month
+                        </Button>
+                        <Button variant={calendarView === 'list' ? 'default' : 'ghost'} size="sm" onClick={() => setCalendarView('list')}>
+                          List
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="p-0">
+                  {isLoading ? (
+                    <div className="p-8 text-sm text-gray-500">Loading appointments...</div>
+                  ) : calendarView === 'month' ? (
+                    <div>
+                      <div className="grid grid-cols-7 text-xs font-semibold text-gray-600 border-b border-gray-200 bg-gray-50">
+                        {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((d) => (
+                          <div key={d} className="px-3 py-3 text-center">{d}</div>
+                        ))}
+                      </div>
+                      <div className="grid grid-cols-7 divide-x divide-y divide-gray-100">
+                        {monthDays.map((d) => {
+                          const key = ymd(d);
+                          const items = apptsByDay.get(key) ?? [];
+                          const inMonth = d.getMonth() === monthCursor.getMonth();
+                          const isToday = ymd(d) === ymd(new Date());
+                          return (
+                            <button
+                              key={key}
+                              className={`min-h-[110px] p-2 text-left hover:bg-gray-50 transition relative ${
+                                inMonth ? 'bg-white' : 'bg-gray-50/50'
+                              } ${isToday ? 'ring-2 ring-inset ring-emerald-500' : ''}`}
+                              onClick={() => {
+                                if (!isCalendarSetupComplete) return;
+                                setFocusDate(d);
+                                setMonthCursor(new Date(d.getFullYear(), d.getMonth(), 1));
+                                setCalendarView('day');
+                              }}
+                              disabled={!isCalendarSetupComplete}
+                            >
+                              <div className={`text-sm font-medium mb-1 ${isToday ? 'text-emerald-600' : inMonth ? 'text-gray-900' : 'text-gray-400'}`}>
+                                {d.getDate()}
+                              </div>
+                              <div className="space-y-1">
+                                {items.slice(0, 2).map((a) => (
+                                  <div
+                                    key={a.appointment_id}
+                                    className={`text-xs truncate rounded px-1.5 py-0.5 ${eventTone(a.status)}`}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleViewAppointment(a.appointment_id);
+                                    }}
+                                  >
+                                    {a.contact_name || a.service_type || 'Appointment'}
+                                  </div>
+                                ))}
+                                {items.length > 2 && (
+                                  <div className="text-xs text-gray-500 font-medium">+{items.length - 2} more</div>
+                                )}
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : calendarView === 'list' ? (
+                    <div className="divide-y divide-gray-100">
+                      {listGroups.length === 0 ? (
+                        <div className="p-8 text-center">
+                          <Calendar className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                          <h3 className="text-lg font-semibold text-gray-900 mb-2">No appointments scheduled</h3>
+                          <p className="text-sm text-gray-500">New bookings will show up here as soon as they are confirmed.</p>
+                        </div>
+                      ) : (
+                        listGroups.map(([key, items]) => {
+                          const headerDate = new Date(`${key}T00:00:00`);
+                          return (
+                            <div key={key} className="p-4">
+                              <div className="text-sm font-semibold text-gray-900">{headerDate.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}</div>
+                              <div className="mt-3 space-y-3">
+                                {items.map((apt) => {
+                                  const s = statusBadge(apt.status);
+                                  return (
+                                    <button
+                                      key={apt.appointment_id}
+                                      className="w-full rounded-xl border border-gray-200 bg-white p-4 text-left hover:border-emerald-300 hover:shadow-sm transition"
+                                      onClick={() => handleViewAppointment(apt.appointment_id)}
+                                    >
+                                      <div className="flex flex-wrap items-center justify-between gap-3">
+                                        <div>
+                                          <div className="font-semibold text-gray-900">
+                                            {apt.contact_name || apt.contact_email || apt.contact_phone || 'Appointment'}
+                                          </div>
+                                          <div className="text-sm text-gray-600 mt-1">
+                                            {formatDateTime(apt.scheduled_start)} - {apt.service_type || 'Service'}
+                                          </div>
+                                        </div>
+                                        <Badge variant="outline" className={s.className}>{s.label}</Badge>
+                                      </div>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  ) : (
+                    <div className="flex">
+                      <div className="w-16 flex-shrink-0 border-r border-gray-200 bg-gray-50">
+                        {hourSlots.slice(0, -1).map((hour) => (
+                          <div
+                            key={hour}
+                            className="h-[64px] text-[11px] text-gray-400 flex items-start justify-end pr-2 pt-2"
+                          >
+                            {formatHourLabel(hour)}
+                          </div>
+                        ))}
+                      </div>
+                      <div className="flex-1 overflow-x-auto">
+                        <div className={`grid ${calendarView === 'week' ? 'grid-cols-7 min-w-[840px]' : 'grid-cols-1'} bg-white`}>
+                          {(calendarView === 'week' ? weekDays : [focusDate]).map((day) => {
+                            const key = ymd(day);
+                            const dayAppointments = apptsByDay.get(key) ?? [];
+                            return (
+                              <div key={key} className="border-r border-gray-100 last:border-r-0">
+                                <div className="sticky top-0 z-10 bg-white/90 backdrop-blur px-3 py-2 border-b border-gray-100">
+                                  <div className="text-xs text-gray-500">{day.toLocaleDateString('en-US', { weekday: 'short' })}</div>
+                                  <div className="text-sm font-medium text-gray-900">{day.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</div>
+                                </div>
+                                <div className="relative" style={{ height: `${dayHeight}px` }}>
+                                  <div className="absolute inset-0">
+                                    {hourSlots.slice(0, -1).map((hour) => (
+                                      <div key={hour} className="border-b border-gray-100" style={{ height: `${hourRowHeight}px` }} />
+                                    ))}
+                                  </div>
+                                  {dayAppointments.map((apt) => {
+                                    const startMs = typeof apt.scheduled_start === 'number' ? apt.scheduled_start : Date.parse(apt.scheduled_start);
+                                    if (!Number.isFinite(startMs)) return null;
+                                    const endMs = typeof apt.scheduled_end === 'number' ? apt.scheduled_end : Date.parse(apt.scheduled_end) || startMs + 60 * 60 * 1000;
+                                    const startDate = new Date(startMs);
+                                    const endDate = new Date(endMs);
+                                    const startMinutes = startDate.getHours() * 60 + startDate.getMinutes();
+                                    const endMinutes = endDate.getHours() * 60 + endDate.getMinutes();
+                                    const clampStart = Math.max(startMinutes, hourStart * 60);
+                                    const clampEnd = Math.min(endMinutes, hourEnd * 60);
+                                    if (clampEnd <= clampStart) return null;
+                                    const top = ((clampStart - hourStart * 60) / 60) * hourRowHeight;
+                                    const height = Math.max(26, ((clampEnd - clampStart) / 60) * hourRowHeight);
+                                    const tone = eventTone(apt.status);
+                                    return (
+                                      <button
+                                        key={apt.appointment_id}
+                                        className={`absolute left-2 right-2 rounded-lg px-2 py-1 text-xs text-left ${tone} hover:shadow-sm`}
+                                        style={{ top: `${top}px`, height: `${height}px` }}
+                                        onClick={() => handleViewAppointment(apt.appointment_id)}
+                                      >
+                                        <div className="font-semibold truncate">{apt.contact_name || apt.service_type || 'Appointment'}</div>
+                                        <div className="text-[11px] opacity-80">
+                                          {startDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                                        </div>
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        ) : null}
+      </div>
+
+      <Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
       <Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
         <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
@@ -1200,93 +1532,6 @@ export default function AppointmentsPage() {
                 Save
               </Button>
             </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Day View Dialog */}
-      <Dialog open={isDayViewOpen} onOpenChange={setIsDayViewOpen}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <div className="flex items-center justify-between">
-              <DialogTitle>{selectedDateFormatted}</DialogTitle>
-            </div>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="flex justify-end">
-              <Button
-                onClick={() => {
-                  setCreateDraft((p: any) => ({ ...p, date: selectedDate }));
-                  setIsDayViewOpen(false);
-                  setIsCreateOpen(true);
-                }}
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                New Appointment
-              </Button>
-            </div>
-            {selectedDayAppointments.length > 0 ? (
-              <div className="space-y-3">
-                {selectedDayAppointments.map((apt: any) => {
-                  const s = statusBadge(apt.status);
-                  const startTime = new Date(apt.scheduled_start).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-                  const endTime = new Date(apt.scheduled_end).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-                  return (
-                    <div
-                      key={apt.appointment_id}
-                      className="border border-gray-200 rounded-xl p-4 hover:border-blue-500 hover:shadow-sm transition-all"
-                    >
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2 mb-1">
-                            <div className="font-semibold text-gray-900 truncate">
-                              {apt.contact_name || apt.contact_email || apt.contact_phone || 'Appointment'}
-                            </div>
-                            <Badge variant="outline" className={s.className}>
-                              {s.label}
-                            </Badge>
-                          </div>
-                          <div className="text-sm text-gray-600">
-                            {startTime} - {endTime} - {apt.service_type || 'Service'}
-                          </div>
-                          {apt.notes && (
-                            <div className="text-sm text-gray-500 mt-1 truncate">{apt.notes}</div>
-                          )}
-                        </div>
-                        <div className="flex gap-1">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                              setIsDayViewOpen(false);
-                              handleEditAppointment(apt);
-                            }}
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                              setIsDayViewOpen(false);
-                              handleDeleteClick(apt);
-                            }}
-                          >
-                            <Trash2 className="h-4 w-4 text-red-500" />
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="text-center py-8">
-                <Calendar className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">No appointments</h3>
-                <p className="text-sm text-gray-500">Click the button above to add an appointment for this day.</p>
-              </div>
-            )}
           </div>
         </DialogContent>
       </Dialog>
