@@ -365,6 +365,7 @@ function formatFieldList(fields?: any[]): string | null {
 function normalizeSpeech(text?: string) {
   return String(text || '')
     .toLowerCase()
+    .replace(/[’‘]/g, "'")
     .replace(/[^a-z0-9\s']/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
@@ -391,6 +392,7 @@ function looksLikeFalseStart(text?: string) {
   if (/^(i|im|i'm|i am|we|we're|we are|my|this|that|it)$/i.test(t)) return true;
   if (/^(i|im|i'm|i am)\s+(a|an|the)$/i.test(t)) return true;
   if (/^(i|im|i'm|i am)\s+(need|want|have)$/i.test(t)) return true;
+  if (/^i m$/i.test(t) || /^i m a$/i.test(t)) return true;
   return false;
 }
 
@@ -402,7 +404,7 @@ function isLowSignalTranscript(text?: string) {
   const nonLatin = (raw.match(/[^\u0000-\u024F\s]/g) || []).length;
   if (nonLatin / Math.max(1, raw.length) > 0.25) return true;
   if (looksLikeFalseStart(raw)) return true;
-  if (wordCount(raw) <= 2 && !isActionableShortUtterance(raw)) return true;
+  if (wordCount(raw) <= 3 && !isActionableShortUtterance(raw)) return true;
   return false;
 }
 
