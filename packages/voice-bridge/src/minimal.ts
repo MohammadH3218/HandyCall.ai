@@ -772,15 +772,6 @@ async function startTwilioRecording(callSid: string) {
   }
 }
 
-async function fetchLatestRecordingSid(callSid: string): Promise<string | null> {
-  const accountSid = envFirst(['TWILIO_ACCOUNT_SID', 'TWILIO_SID']) || (await getSecret('TWILIO_ACCOUNT_SID'));
-  const authToken = await getSecret('TWILIO_AUTH_TOKEN');
-  const client = twilio(accountSid, authToken);
-  const recordings = await client.recordings.list({ callSid, limit: 1 });
-  if (!recordings.length) return null;
-  return recordings[0]?.sid || null;
-}
-
 async function fetchLatestCompletedRecordingSid(callSid: string): Promise<string | null> {
   const accountSid = envFirst(['TWILIO_ACCOUNT_SID', 'TWILIO_SID']) || (await getSecret('TWILIO_ACCOUNT_SID'));
   const authToken = await getSecret('TWILIO_AUTH_TOKEN');
