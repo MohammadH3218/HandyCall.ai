@@ -296,7 +296,13 @@ export default function BookingPage() {
     }
     const day = availabilityDays[date];
     setDaySlots(day?.slots || []);
+    setTime('');
   }, [date, availabilityDays]);
+
+  const slotsForSelectedDay = useMemo(() => {
+    if (!date) return [];
+    return daySlots.filter((slot) => formatDateInputValue(Date.parse(slot), info?.timezone) === date);
+  }, [daySlots, date, info?.timezone]);
 
   const fields = useMemo(() => {
     const required = info?.intake_schema?.required || [];
@@ -679,9 +685,9 @@ export default function BookingPage() {
                         <Label>Available times</Label>
                         {availabilityLoading ? (
                           <div className="text-sm text-gray-500">Loading availability…</div>
-                        ) : daySlots.length ? (
+                        ) : slotsForSelectedDay.length ? (
                           <div className="flex flex-wrap gap-2">
-                            {daySlots.map((slot) => {
+                            {slotsForSelectedDay.map((slot) => {
                               const label = formatSlotLabel(slot, info?.timezone);
                               const slotTime = formatTimeInputValue(new Date(slot).getTime(), info?.timezone);
                               const isSelected = time === slotTime;
@@ -758,9 +764,6 @@ export default function BookingPage() {
                       </div>
                     ) : null}
                   </div>
-                  <Button variant="outline" onClick={() => window.location.assign('/register')}>
-                    Book next appointment
-                  </Button>
                 </CardContent>
               </Card>
 

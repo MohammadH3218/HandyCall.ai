@@ -1605,7 +1605,7 @@ export class RealtimeToolsService {
       await this.dynamodb.update('appointments', { company_id, appointment_id: appointmentId }, apptUpdates);
     }
 
-    return { ok: true, booking_link: bookingLink };
+    return { ok: true, sent: true };
   }
 
   async checkServiceArea(company_id: string, zip: string) {

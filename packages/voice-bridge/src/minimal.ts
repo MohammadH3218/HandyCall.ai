@@ -537,7 +537,8 @@ function buildInstructions(tenant: TenantInfo, options: { serviceAreaRequired: b
     `After create_booking succeeds, ask for the best email to send the confirmation link.`,
     `Only send the confirmation link after the booking is created. The link is for managing the booking, not scheduling.`,
     `If the caller declines email, confirm the booking without a link.`,
-    `Do not repeat questions or confirm details except for the email address. Only repeat email by spelling it out.`,
+    `Do not repeat questions or confirm details except for the email address. Confirm the email once; do not spell it out unless the caller asks.`,
+    `Never read or say the booking link/URL aloud. After send_booking_link succeeds, just say the email was sent.`,
     `If the caller is an existing customer, ask if they want to manage an existing booking or create a new booking.`,
     `If they want to manage an existing booking: explain they can use the confirmation link, or you can help by phone. Ask if they want to reschedule or cancel, then use list_appointments_by_phone and reschedule_appointment/cancel_appointment.`,
     `If the caller asks about prior appointments, use list_appointments_by_phone.`,
@@ -1066,7 +1067,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
     if (recordingSynced || recordingSyncScheduled) return;
     if (!ctx || (process.env.TWILIO_RECORD_CALLS ?? 'true') === 'false') return;
     recordingSyncScheduled = true;
-    const delays = [5000, 15000, 30000];
+    const delays = [5000, 15000, 30000, 60000];
     for (const delay of delays) {
       setTimeout(async () => {
         if (!ctx || recordingSynced) return;
@@ -1234,7 +1235,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
         if (pendingHangup && !waitingForHangupMark) {
           setTimeout(() => {
             if (pendingHangup && !waitingForHangupMark) queueHangupMark();
-          }, 700);
+          }, 1500);
         }
         return;
       }
