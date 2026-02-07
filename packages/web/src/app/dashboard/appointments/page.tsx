@@ -201,6 +201,7 @@ export default function AppointmentsPage() {
 
   const [selectedAppointment, setSelectedAppointment] = useState<any | null>(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+  const [pendingAppointmentId, setPendingAppointmentId] = useState<string | null>(null);
 
   // Edit appointment state
   const [isEditOpen, setIsEditOpen] = useState(false);
@@ -254,10 +255,11 @@ export default function AppointmentsPage() {
   const displayTimezone =
     calendarTimezone || company?.calendar_connection?.timezone || company?.calendar_connection?.timeZone || company?.timezone || undefined;
 
-  const monthLabel = useMemo(
-    () => monthCursor.toLocaleString('en-US', { month: 'long', year: 'numeric' }),
-    [monthCursor]
-  );
+  const monthLabel = useMemo(() => {
+    const parts = getZonedParts(monthCursor, displayTimezone);
+    const anchor = new Date(Date.UTC(parts.year, parts.month - 1, 1, 12, 0, 0));
+    return anchor.toLocaleString('en-US', { month: 'long', year: 'numeric', timeZone: displayTimezone });
+  }, [monthCursor, displayTimezone]);
 
   const visibleRange = useMemo(() => {
     const start = new Date(monthCursor.getFullYear(), monthCursor.getMonth(), 1);
@@ -268,17 +270,20 @@ export default function AppointmentsPage() {
   }, [monthCursor]);
 
   const monthDays = useMemo(() => {
-    const start = new Date(monthCursor.getFullYear(), monthCursor.getMonth(), 1);
-    const gridStart = new Date(start);
-    gridStart.setDate(gridStart.getDate() - ((gridStart.getDay() + 6) % 7)); // Monday
+    const parts = getZonedParts(monthCursor, displayTimezone);
+    const firstUtc = new Date(Date.UTC(parts.year, parts.month - 1, 1, 12, 0, 0));
+    const firstZoned = toZonedDate(firstUtc, displayTimezone);
+    const shift = (firstZoned.getDay() + 6) % 7; // Monday
+    const gridStartUtc = new Date(firstUtc);
+    gridStartUtc.setUTCDate(gridStartUtc.getUTCDate() - shift);
     const days: Date[] = [];
     for (let i = 0; i < 42; i++) {
-      const d = new Date(gridStart);
-      d.setDate(gridStart.getDate() + i);
-      days.push(d);
+      const dUtc = new Date(gridStartUtc);
+      dUtc.setUTCDate(gridStartUtc.getUTCDate() + i);
+      days.push(toZonedDate(dUtc, displayTimezone));
     }
     return days;
-  }, [monthCursor]);
+  }, [monthCursor, displayTimezone]);
 
   const hourStart = 6;
   const hourEnd = 20;
@@ -407,6 +412,13 @@ export default function AppointmentsPage() {
 
   const router = useRouter();
   const searchParams = useSearchParams();
+  const shiftMonthCursor = (delta: number) => {
+    setMonthCursor((prev) => {
+      const year = prev.getUTCFullYear();
+      const month = prev.getUTCMonth();
+      return new Date(Date.UTC(year, month + delta, 1, 12, 0, 0));
+    });
+  };
 
   // Handle calendar connection redirect
   useEffect(() => {
@@ -414,6 +426,7 @@ export default function AppointmentsPage() {
     const provider = searchParams?.get('provider');
     const errorMessage = searchParams?.get('message');
     const openSettings = searchParams?.get('calendarSettings');
+    const appointmentId = searchParams?.get('appointmentId');
 
     if (calendarStatus === 'connected') {
       // Reload data to show synced calendar events
@@ -437,8 +450,22 @@ export default function AppointmentsPage() {
       setPendingCalendarSettingsOpen(true);
       router.replace('/dashboard/appointments');
     }
+    if (appointmentId) {
+      setPendingAppointmentId(appointmentId);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams, router]);
+
+  useEffect(() => {
+    if (!pendingAppointmentId) return;
+    if (!appointments || appointments.length === 0) return;
+    const match = appointments.find((a: any) => a?.appointment_id === pendingAppointmentId);
+    if (!match) return;
+    handleViewAppointment(pendingAppointmentId);
+    setPendingAppointmentId(null);
+    router.replace('/dashboard/appointments');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingAppointmentId, appointments]);
 
   useEffect(() => {
     if (!pendingCalendarSettingsOpen || !company) return;
@@ -489,21 +516,21 @@ export default function AppointmentsPage() {
   const handleToday = () => {
     const now = toZonedDate(new Date(), displayTimezone);
     setFocusDate(now);
-    setMonthCursor(new Date(now.getFullYear(), now.getMonth(), 1));
+    setMonthCursor(new Date(Date.UTC(now.getFullYear(), now.getMonth(), 1, 12, 0, 0)));
   };
 
   const shiftFocusDays = (days: number) => {
     setFocusDate((prev) => {
       const next = new Date(prev);
       next.setDate(prev.getDate() + days);
-      setMonthCursor(new Date(next.getFullYear(), next.getMonth(), 1));
+      setMonthCursor(new Date(Date.UTC(next.getFullYear(), next.getMonth(), 1, 12, 0, 0)));
       return next;
     });
   };
 
   const handlePrevRange = () => {
     if (calendarView === 'month') {
-      setMonthCursor(new Date(monthCursor.getFullYear(), monthCursor.getMonth() - 1, 1));
+      shiftMonthCursor(-1);
       return;
     }
     if (calendarView === 'week') {
@@ -517,7 +544,7 @@ export default function AppointmentsPage() {
 
   const handleNextRange = () => {
     if (calendarView === 'month') {
-      setMonthCursor(new Date(monthCursor.getFullYear(), monthCursor.getMonth() + 1, 1));
+      shiftMonthCursor(1);
       return;
     }
     if (calendarView === 'week') {
@@ -951,14 +978,14 @@ export default function AppointmentsPage() {
                         <Button
                           variant="outline"
                           size="icon"
-                          onClick={() => setMonthCursor(new Date(monthCursor.getFullYear(), monthCursor.getMonth() - 1, 1))}
+                          onClick={() => shiftMonthCursor(-1)}
                         >
                           <ChevronLeft className="h-4 w-4" />
                         </Button>
                         <Button
                           variant="outline"
                           size="icon"
-                          onClick={() => setMonthCursor(new Date(monthCursor.getFullYear(), monthCursor.getMonth() + 1, 1))}
+                          onClick={() => shiftMonthCursor(1)}
                         >
                           <ChevronRight className="h-4 w-4" />
                         </Button>
@@ -973,7 +1000,9 @@ export default function AppointmentsPage() {
                       {monthDays.map((d) => {
                         const key = ymd(toZonedDate(d, displayTimezone));
                         const hasItems = (apptsByDay.get(key) ?? []).length > 0;
-                        const isInMonth = d.getMonth() === monthCursor.getMonth();
+                        const dParts = getZonedParts(d, displayTimezone);
+                        const monthParts = getZonedParts(monthCursor, displayTimezone);
+                        const isInMonth = dParts.month === monthParts.month && dParts.year === monthParts.year;
                         const isSelected = key === focusKey;
                         const isToday = key === ymd(toZonedDate(new Date(), displayTimezone));
                         return (
@@ -990,7 +1019,8 @@ export default function AppointmentsPage() {
                             }`}
                             onClick={() => {
                               setFocusDate(toZonedDate(d, displayTimezone));
-                              setMonthCursor(new Date(d.getFullYear(), d.getMonth(), 1));
+                              const parts = getZonedParts(d, displayTimezone);
+                              setMonthCursor(new Date(Date.UTC(parts.year, parts.month - 1, 1, 12, 0, 0)));
                               setCalendarView('day');
                             }}
                           >
@@ -1340,11 +1370,17 @@ export default function AppointmentsPage() {
               {selectedAppointment.address?.street || selectedAppointment.address?.city ? (
                 <div>
                   <div className="text-xs text-gray-500 mb-1">Address</div>
-                  <div className="text-sm text-gray-700">
-                    {[selectedAppointment.address?.street, selectedAppointment.address?.city, selectedAppointment.address?.state, selectedAppointment.address?.zip]
+                  {(() => {
+                    const line = [selectedAppointment.address?.street, selectedAppointment.address?.city, selectedAppointment.address?.state, selectedAppointment.address?.zip]
                       .filter(Boolean)
-                      .join(', ')}
-                  </div>
+                      .join(', ');
+                    const mapUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(line)}`;
+                    return (
+                      <a className="text-sm text-emerald-700 hover:text-emerald-800 underline" href={mapUrl} target="_blank" rel="noreferrer">
+                        {line}
+                      </a>
+                    );
+                  })()}
                 </div>
               ) : null}
 

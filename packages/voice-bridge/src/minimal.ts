@@ -781,6 +781,16 @@ async function fetchLatestRecordingSid(callSid: string): Promise<string | null> 
   return recordings[0]?.sid || null;
 }
 
+async function fetchLatestCompletedRecordingSid(callSid: string): Promise<string | null> {
+  const accountSid = envFirst(['TWILIO_ACCOUNT_SID', 'TWILIO_SID']) || (await getSecret('TWILIO_ACCOUNT_SID'));
+  const authToken = await getSecret('TWILIO_AUTH_TOKEN');
+  const client = twilio(accountSid, authToken);
+  const recordings = await client.recordings.list({ callSid, limit: 20 });
+  if (!recordings.length) return null;
+  const completed = recordings.find((r) => String((r as any)?.status || '').toLowerCase() === 'completed');
+  return completed?.sid || null;
+}
+
 async function fetchTwilioCallDetails(callSid: string): Promise<{ to?: string; from?: string } | null> {
   try {
     const accountSid = envFirst(['TWILIO_ACCOUNT_SID', 'TWILIO_SID']) || (await getSecret('TWILIO_ACCOUNT_SID'));
@@ -846,7 +856,7 @@ async function finalizeCallFromStatus(callSid: string, reason: string) {
   }
   if ((process.env.TWILIO_RECORD_CALLS ?? 'true') !== 'false') {
     try {
-      const recordingSid = await fetchLatestRecordingSid(callSid);
+      const recordingSid = await fetchLatestCompletedRecordingSid(callSid);
       if (recordingSid) {
         await callTool(ctx, 'save_recording', { recording_sid: recordingSid });
       }
@@ -1067,12 +1077,12 @@ wss.on('connection', (twilioWs: WebSocket) => {
     if (recordingSynced || recordingSyncScheduled) return;
     if (!ctx || (process.env.TWILIO_RECORD_CALLS ?? 'true') === 'false') return;
     recordingSyncScheduled = true;
-    const delays = [5000, 15000, 30000, 60000];
+    const delays = [5000, 15000, 30000, 60000, 120000];
     for (const delay of delays) {
       setTimeout(async () => {
         if (!ctx || recordingSynced) return;
         try {
-          const recordingSid = await fetchLatestRecordingSid(ctx.callSid);
+          const recordingSid = await fetchLatestCompletedRecordingSid(ctx.callSid);
           if (!recordingSid) return;
           await callTool(ctx, 'save_recording', { recording_sid: recordingSid });
           recordingSynced = true;

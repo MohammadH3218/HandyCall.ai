@@ -449,6 +449,31 @@ export class PublicBookingService {
       notes: customNotes || undefined,
     });
 
+    if (appointment?.contact_id) {
+      try {
+        const addressLine = address.street || address.city || address.state || address.zip
+          ? [address.street, address.city, address.state, address.zip].filter(Boolean).join(', ')
+          : undefined;
+        await this.dynamodb.update(
+          'contacts',
+          { company_id: company.company_id, contact_id: appointment.contact_id },
+          {
+            ...(dto.full_name?.trim() ? { name: dto.full_name.trim() } : {}),
+            ...(dto.full_name?.trim() ? { first_name: dto.full_name.trim().split(/\s+/)[0] } : {}),
+            ...(dto.full_name?.trim() ? { last_name: dto.full_name.trim().split(/\s+/).slice(1).join(' ') } : {}),
+            ...(phone ? { phone_number: phone, phone } : {}),
+            ...(dto.email?.trim() ? { email: dto.email.trim() } : {}),
+            ...(addressLine ? { address: addressLine } : {}),
+            ...(address.zip ? { zipcode: address.zip } : {}),
+            last_contact_at: Date.now(),
+            updated_at: new Date().toISOString(),
+          }
+        );
+      } catch (err) {
+        console.warn('[public_booking] contact update failed', err);
+      }
+    }
+
     if (call?.call_id && dto.email?.trim()) {
       await this.dynamodb.update(
         'calls',
