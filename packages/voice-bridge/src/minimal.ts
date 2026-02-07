@@ -896,7 +896,9 @@ wss.on('connection', (twilioWs: WebSocket) => {
   let existingAppointmentsChecked = false;
   let lastAssistantAskedFollowUp = false;
   let lowSignalAttempts = 0;
+  let lastSpeechStartAt = 0;
   let requiredIntakeFields: string[] = [];
+  let collectedDetails: Record<string, any> = {};
 
   function tryGreet() {
     if (!openaiWs || !openaiReady || !twilioReady || greeted) return;
@@ -908,7 +910,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
       type: 'response.create',
       response: {
         modalities: ['audio', 'text'],
-        instructions: `Greet the caller now. Say: "${greeting}"`,
+        instructions: `Say exactly: "${greeting}" Then stop. Do not add any follow-up question.`,
       },
     });
     openaiResponding = true;
@@ -1035,35 +1037,46 @@ wss.on('connection', (twilioWs: WebSocket) => {
 
       if (msg?.type === 'conversation.item.input_audio_transcription.completed') {
         const text = msg?.transcript || msg?.text;
-        if (text) {
-          transcript.push(`Caller: ${text}`);
-          if (isLowSignalTranscript(text) || isFillerUtterance(text)) {
-            lowSignalAttempts += 1;
-            reprompt(lowSignalAttempts);
-            return;
-          }
-          lowSignalAttempts = 0;
-          if (assistantSpeaking && Date.now() - lastAssistantAudioAt < 1500) {
-            if (wordCount(text) < 3 && !isExplicitBargeIn(text)) {
-              sendToOpenAI(openaiWs, { type: 'response.cancel' });
-              return;
-            }
-          }
-          if (appointmentCreated && lastAssistantAskedFollowUp && isNegativeResponse(text) && ctx) {
-            lastAssistantAskedFollowUp = false;
-            pendingHangup = true;
-            const farewell = `Thanks for calling ${ctx.company_name || 'HandyCall'}. Have a great day.`;
-            sendToOpenAI(openaiWs, {
-              type: 'response.create',
-              response: {
-                modalities: ['audio', 'text'],
-                instructions: `Say: "${farewell}"`,
-              },
-            });
-            openaiResponding = true;
+        if (!text || !String(text).trim()) {
+          return;
+        }
+
+        const trimmed = String(text).trim();
+        const recentSpeech = lastSpeechStartAt && Date.now() - lastSpeechStartAt < 3500;
+        if (!recentSpeech && trimmed.length < 6) {
+          return;
+        }
+
+        transcript.push(`Caller: ${trimmed}`);
+        if (isLowSignalTranscript(trimmed) || isFillerUtterance(trimmed)) {
+          lowSignalAttempts += 1;
+          reprompt(lowSignalAttempts);
+          return;
+        }
+
+        lowSignalAttempts = 0;
+        if (assistantSpeaking && Date.now() - lastAssistantAudioAt < 1500) {
+          if (wordCount(trimmed) < 3 && !isExplicitBargeIn(trimmed)) {
+            sendToOpenAI(openaiWs, { type: 'response.cancel' });
             return;
           }
         }
+
+        if (appointmentCreated && lastAssistantAskedFollowUp && isNegativeResponse(trimmed) && ctx) {
+          lastAssistantAskedFollowUp = false;
+          pendingHangup = true;
+          const farewell = `Thanks for calling ${ctx.company_name || 'HandyCall'}. Have a great day.`;
+          sendToOpenAI(openaiWs, {
+            type: 'response.create',
+            response: {
+              modalities: ['audio', 'text'],
+              instructions: `Say: "${farewell}"`,
+            },
+          });
+          openaiResponding = true;
+          return;
+        }
+
         if (openaiWs && openaiReady) {
           if (openaiResponding) {
             sendToOpenAI(openaiWs, { type: 'response.cancel' });
@@ -1084,6 +1097,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
       }
 
       if (msg?.type === 'input_audio_buffer.speech_started') {
+        lastSpeechStartAt = Date.now();
         const now = Date.now();
         if (assistantSpeaking && now - lastAssistantAudioAt < 5000) {
           if (ctx?.streamSid) sendToTwilio(twilioWs, { event: 'clear', streamSid: ctx.streamSid });
@@ -1108,6 +1122,18 @@ wss.on('connection', (twilioWs: WebSocket) => {
         try {
           if (!ctx) throw new Error('Missing call context');
           if (toolName === 'create_booking') {
+            // Accumulate details across multiple create_booking attempts
+            if (args?.details && typeof args.details === 'object') {
+              collectedDetails = { ...collectedDetails, ...args.details };
+            }
+            // Also capture top-level fields the AI might pass outside details
+            if (args?.customer_name) collectedDetails.full_name = collectedDetails.full_name || args.customer_name;
+            if (args?.full_name) collectedDetails.full_name = args.full_name;
+            if (args?.zip) collectedDetails.zip = collectedDetails.zip || args.zip;
+
+            // Replace args.details with the accumulated state
+            args = { ...args, details: { ...collectedDetails } };
+
             const requestedText =
               typeof args?.start_time === 'string'
                 ? args.start_time
@@ -1205,6 +1231,10 @@ wss.on('connection', (twilioWs: WebSocket) => {
             if (toolName === 'check_service_area') {
               if (typeof (result as any)?.eligible === 'boolean') {
                 serviceAreaEligible = (result as any).eligible;
+              }
+              // Capture zip in collectedDetails so create_booking doesn't need to re-collect it
+              if (args?.zip) {
+                collectedDetails.zip = args.zip;
               }
             }
             if (toolName === 'get_availability') {
