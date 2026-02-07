@@ -342,6 +342,48 @@ function buildNotesFromDetails(details: any): string | undefined {
   return lines.length ? lines.join('\n') : undefined;
 }
 
+function normalizeFieldKey(field: string): string {
+  return String(field || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '_');
+}
+
+function isFieldPresent(field: string, args: any): boolean {
+  const details = args?.details && typeof args.details === 'object' ? args.details : {};
+  const key = normalizeFieldKey(field);
+  const read = (k: string) => {
+    const v = details?.[k];
+    return v !== undefined && v !== null && String(v).trim() !== '';
+  };
+
+  if (key === 'preferred_time') {
+    return !!(args?.start_time || args?.preferred_time || details?.preferred_time);
+  }
+  if (key === 'full_name') {
+    return !!(args?.customer_name || details?.full_name || details?.name || details?.customer_name);
+  }
+  if (key === 'address' || key === 'service_address' || key === 'location_address') {
+    return (
+      read('address') ||
+      read('service_address') ||
+      read('location_address') ||
+      read('street_address') ||
+      read('service_location')
+    );
+  }
+  if (key === 'zip' || key === 'zipcode') {
+    return !!(details?.zip || details?.zipcode || args?.zip);
+  }
+
+  return read(key);
+}
+
+function findMissingRequired(fields: string[], args: any): string[] {
+  if (!Array.isArray(fields) || fields.length === 0) return [];
+  return fields.filter((field) => !isFieldPresent(field, args));
+}
+
 function buildInstructions(tenant: TenantInfo, options: { serviceAreaRequired: boolean }) {
   const name = tenant.company_name || 'our company';
   const extra = tenant.agent_config?.realtime_instructions;
@@ -834,6 +876,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
   let existingAppointmentsChecked = false;
   let lastAssistantAskedFollowUp = false;
   let lowSignalAttempts = 0;
+  let requiredIntakeFields: string[] = [];
 
   function tryGreet() {
     if (!openaiWs || !openaiReady || !twilioReady || greeted) return;
@@ -1056,6 +1099,15 @@ wss.on('connection', (twilioWs: WebSocket) => {
               typeof args?.timezone === 'string'
                 ? args.timezone
                 : lastAvailabilityTimezone || ctx.timezone || 'UTC';
+            const missingFields = findMissingRequired(requiredIntakeFields, args);
+            if (missingFields.length) {
+              result = {
+                ok: false,
+                error: 'MissingRequiredFields',
+                missing_fields: missingFields,
+                message: `Collect these fields before booking: ${missingFields.join(', ')}.`,
+              };
+            }
             let resolvedSlot: string | null = null;
             if (requestedText && looksLikeIso(requestedText)) {
               resolvedSlot = requestedText;
@@ -1097,7 +1149,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
               message: 'Ask for the 5-digit ZIP code and call check_service_area before booking.',
             };
           } else {
-            if (toolName === 'create_booking') {
+            if (!result && toolName === 'create_booking') {
               const slot = typeof args?.start_time === 'string' ? args.start_time : '';
               const tz =
                 typeof args?.timezone === 'string'
@@ -1213,6 +1265,11 @@ wss.on('connection', (twilioWs: WebSocket) => {
         Array.isArray(resolvedTenant?.service_area_zipcodes) && resolvedTenant.service_area_zipcodes.length > 0;
       serviceAreaRequired = templateRequiresZip || hasServiceZips;
       serviceAreaEligible = null;
+      requiredIntakeFields = Array.isArray(resolvedTenant?.service_template?.intake_schema?.required)
+        ? resolvedTenant.service_template.intake_schema.required
+            .map((field: any) => String(field || '').trim())
+            .filter(Boolean)
+        : [];
 
       ctx = {
         callSid,

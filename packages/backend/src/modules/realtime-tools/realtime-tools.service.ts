@@ -1232,6 +1232,15 @@ export class RealtimeToolsService {
         email,
         from: fromMeta.from,
       });
+      const rawMessage = String(err?.message ?? '').toLowerCase();
+      if (rawMessage.includes('address is not verified') || rawMessage.includes('email address is not verified')) {
+        throw new BadRequestException(
+          'Email could not be sent because SES is in sandbox mode. The recipient email must be verified in SES.'
+        );
+      }
+      if (rawMessage.includes('message rejected')) {
+        throw new BadRequestException('Email could not be sent. SES rejected the message.');
+      }
       throw err;
     }
 
