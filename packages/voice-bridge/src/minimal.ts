@@ -323,35 +323,6 @@ function askedAnythingElse(text?: string) {
   );
 }
 
-function hasDayReference(text?: string) {
-  const t = normalizeSpeech(text);
-  if (!t) return false;
-  const days = [
-    'monday',
-    'tuesday',
-    'wednesday',
-    'thursday',
-    'friday',
-    'saturday',
-    'sunday',
-    'mon',
-    'tue',
-    'tues',
-    'wed',
-    'thu',
-    'thur',
-    'thurs',
-    'fri',
-    'sat',
-    'sun',
-  ];
-  if (days.some((day) => t.includes(day))) return true;
-  if (/\b(today|tomorrow|tonight|this week|next week|this weekend|next weekend)\b/.test(t)) return true;
-  if (/\b\d{1,2}[\/\-]\d{1,2}(?:[\/\-]\d{2,4})?\b/.test(t)) return true;
-  if (/\b(jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\b/.test(t)) return true;
-  return false;
-}
-
 function buildNotesFromDetails(details: any): string | undefined {
   if (!details || typeof details !== 'object') return undefined;
   const ignored = new Set(['name', 'full_name', 'zip', 'zipcode', 'preferred_time', 'email', 'phone', 'phone_number']);
@@ -1323,11 +1294,12 @@ wss.on('connection', (twilioWs: WebSocket) => {
           }
         }
       }
-      if (ctx?.callSid) {
-        const cached = activeCalls.get(ctx.callSid);
+      const endedCallSid = ctx?.callSid;
+      if (endedCallSid) {
+        const cached = activeCalls.get(endedCallSid);
         if (cached) {
           cached.ended = true;
-          setTimeout(() => activeCalls.delete(ctx.callSid), 10 * 60_000);
+          setTimeout(() => activeCalls.delete(endedCallSid), 10 * 60_000);
         }
       }
       return shutdown('twilio_stop');
