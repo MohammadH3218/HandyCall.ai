@@ -149,6 +149,7 @@ type TenantInfo = {
 type ActiveCallState = {
   ctx: CallContext;
   getTranscript: () => string;
+  getDetails?: () => Record<string, any>;
   ended: boolean;
 };
 
@@ -246,6 +247,28 @@ function extractTimeNeedle(text?: string): { hour: number; minute: number; merid
     }
   }
   return null;
+}
+
+function hasDateTokens(text?: string): boolean {
+  const t = String(text || '').toLowerCase();
+  if (!t) return false;
+  if (/(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/.test(t)) return true;
+  if (/(jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\b/.test(t)) return true;
+  if (/\b\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?\b/.test(t)) return true;
+  if (/\b\d{4}\b/.test(t)) return true;
+  if (/\b(today|tomorrow|tonight|next|this)\b/.test(t)) return true;
+  return false;
+}
+
+function isTimeOnlyText(text?: string): boolean {
+  if (!text) return false;
+  return !!extractTimeNeedle(text) && !hasDateTokens(text);
+}
+
+function isoToLocalNaive(value: string): string {
+  const match = value.match(/^(\d{4}-\d{2}-\d{2})[T ](\d{2}):(\d{2})/);
+  if (!match) return value;
+  return `${match[1]} ${match[2]}:${match[3]}`;
 }
 
 function slotMatchesNeedle(slotIso: string, timeZone: string, needle: { hour: number; minute: number; meridiem: 'am' | 'pm' }) {
@@ -354,6 +377,10 @@ function buildNotesFromDetails(details: any): string | undefined {
       const addrObj = value as { street?: string; city?: string; state?: string; zip?: string };
       const addr = [addrObj.street, addrObj.city, addrObj.state, addrObj.zip].filter(Boolean).join(', ');
       if (addr) lines.push(`Address: ${addr}`);
+      continue;
+    }
+    if (normalized === 'address' && typeof value === 'string') {
+      lines.push(`Address: ${value.trim()}`);
       continue;
     }
     lines.push(`${titleizeField(String(key))}: ${String(value).trim()}`);
@@ -534,7 +561,7 @@ async function callTool(ctx: CallContext, name: string, args: any) {
       company_id: ctx.company_id,
       start_time: startTime,
       end_time: endTime,
-      timezone: args?.timezone ?? ctx.timezone,
+      timezone: ctx.timezone ?? args?.timezone,
     });
   }
 
@@ -557,22 +584,15 @@ async function callTool(ctx: CallContext, name: string, args: any) {
         : typeof args?.full_name === 'string'
           ? args.full_name
           : undefined;
-    let endTime = args?.end_time;
-    if (startTime && !endTime) {
-      const parsed = Date.parse(startTime);
-      if (Number.isFinite(parsed)) {
-        const minutes = Number(envFirst(['DEFAULT_APPOINTMENT_MINUTES']) || 120);
-        endTime = new Date(parsed + minutes * 60_000).toISOString();
-      }
-    }
     return postJson(`${toolsBase}/tools/create_booking`, headers, {
       company_id: ctx.company_id,
       call_id: ctx.callSid,
+      ...args,
       ...(customerName ? { customer_name: customerName } : {}),
       start_time: startTime,
-      end_time: endTime,
+      end_time: args?.end_time,
+      timezone: ctx.timezone ?? args?.timezone,
       confirmed,
-      ...args,
     });
   }
 
@@ -581,7 +601,7 @@ async function callTool(ctx: CallContext, name: string, args: any) {
       company_id: ctx.company_id,
       call_id: ctx.callSid,
       slot: args?.slot ?? args?.start_time ?? '',
-      timezone: args?.timezone ?? ctx.timezone,
+      timezone: ctx.timezone ?? args?.timezone,
       hold_minutes: args?.hold_minutes,
     });
   }
@@ -607,7 +627,7 @@ async function callTool(ctx: CallContext, name: string, args: any) {
       company_id: ctx.company_id,
       appointment_id: args?.appointment_id,
       new_start_time: args?.new_start_time,
-      timezone: args?.timezone ?? ctx.timezone,
+      timezone: ctx.timezone ?? args?.timezone,
       duration_minutes: args?.duration_minutes,
     });
   }
@@ -781,13 +801,19 @@ async function finalizeCallFromStatus(callSid: string, reason: string) {
   if (!ctx) return;
 
   const transcriptText = cached?.getTranscript ? cached.getTranscript() : '';
+  const collectedInfoRaw = cached?.getDetails ? cached.getDetails() : {};
+  const collectedInfo =
+    collectedInfoRaw && Object.keys(collectedInfoRaw).some((key) => `${(collectedInfoRaw as any)[key] ?? ''}`.trim() !== '')
+      ? collectedInfoRaw
+      : undefined;
   const durationSeconds = Math.max(1, Math.ceil((Date.now() - ctx.startedAt) / 1000));
   try {
     await callTool(ctx, 'save_call', {
       transcript: transcriptText || undefined,
       summary: reason || 'Call ended.',
       duration_seconds: durationSeconds,
-      skip_contact_update: !transcriptText,
+      collected_info: collectedInfo,
+      skip_contact_update: !transcriptText && !collectedInfo,
     });
   } catch (err: any) {
     console.warn('[bridge] save_call (stream status) failed', err?.message ?? String(err));
@@ -948,6 +974,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
   let lastSpeechStartAt = 0;
   let requiredIntakeFields: string[] = [];
   let collectedDetails: Record<string, any> = {};
+  let lastCallerUtterance: string | null = null;
 
   function tryGreet() {
     if (!openaiWs || !openaiReady || !twilioReady || greeted) return;
@@ -1097,6 +1124,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
         }
 
         transcript.push(`Caller: ${trimmed}`);
+        lastCallerUtterance = trimmed;
         if (isLowSignalTranscript(trimmed) || isFillerUtterance(trimmed)) {
           lowSignalAttempts += 1;
           reprompt(lowSignalAttempts);
@@ -1170,6 +1198,21 @@ wss.on('connection', (twilioWs: WebSocket) => {
         let result: any;
         try {
           if (!ctx) throw new Error('Missing call context');
+          const normalizedTimezone = ctx.timezone || lastAvailabilityTimezone || 'UTC';
+
+          if (toolName === 'get_availability') {
+            let startTime = args?.start_time ?? args?.preferred_time ?? args?.window_start;
+            if (typeof startTime === 'string') {
+              if (isTimeOnlyText(startTime) && lastCallerUtterance && hasDateTokens(lastCallerUtterance)) {
+                startTime = lastCallerUtterance;
+              }
+              if (looksLikeIso(startTime) && !lastAvailabilitySlots.includes(startTime)) {
+                startTime = isoToLocalNaive(startTime);
+              }
+            }
+            args = { ...args, start_time: startTime, timezone: normalizedTimezone };
+          }
+
           if (toolName === 'create_booking') {
             // Accumulate details across multiple create_booking attempts
             if (args?.details && typeof args.details === 'object') {
@@ -1200,10 +1243,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
                   ? args.preferred_time
                   : '';
             const availabilityFresh = Date.now() - lastAvailabilityAt < 5 * 60_000;
-            const tz =
-              typeof args?.timezone === 'string'
-                ? args.timezone
-                : lastAvailabilityTimezone || ctx.timezone || 'UTC';
+            const tz = normalizedTimezone;
             const missingFields = findMissingRequired(requiredIntakeFields, args);
             if (missingFields.length) {
               const presentFields = requiredIntakeFields.filter((f) => !missingFields.includes(f));
@@ -1216,16 +1256,23 @@ wss.on('connection', (twilioWs: WebSocket) => {
               };
             }
             let resolvedSlot: string | null = null;
-            if (requestedText && looksLikeIso(requestedText)) {
-              resolvedSlot = requestedText;
-            } else if (availabilityFresh && lastRequestedSlot) {
-              resolvedSlot = lastRequestedSlot;
-            } else if (availabilityFresh && requestedText && Array.isArray(lastAvailabilitySlots) && lastAvailabilitySlots.length) {
-              const match = selectAvailabilitySlot(requestedText, lastAvailabilitySlots, tz);
-              if (match) resolvedSlot = match;
+            if (availabilityFresh && Array.isArray(lastAvailabilitySlots) && lastAvailabilitySlots.length) {
+              if (requestedText && looksLikeIso(requestedText) && lastAvailabilitySlots.includes(requestedText)) {
+                resolvedSlot = requestedText;
+              } else if (lastRequestedSlot) {
+                resolvedSlot = lastRequestedSlot;
+              } else if (requestedText) {
+                const needleText = looksLikeIso(requestedText) ? isoToLocalNaive(requestedText) : requestedText;
+                const match = selectAvailabilitySlot(needleText, lastAvailabilitySlots, tz);
+                if (match) resolvedSlot = match;
+              }
+            } else if (requestedText && looksLikeIso(requestedText)) {
+              resolvedSlot = isoToLocalNaive(requestedText);
             }
             if (resolvedSlot) {
               args = { ...args, start_time: resolvedSlot, timezone: tz };
+            } else {
+              args = { ...args, timezone: tz };
             }
             if (typeof args?.confirmed !== 'boolean') {
               args = { ...args, confirmed: true };
@@ -1398,6 +1445,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
       activeCalls.set(callSid, {
         ctx,
         getTranscript: () => transcript.join('\n'),
+        getDetails: () => ({ ...collectedDetails }),
         ended: false,
       });
 
@@ -1438,11 +1486,16 @@ wss.on('connection', (twilioWs: WebSocket) => {
       if (ctx) {
         const merged = transcript.join('\n');
         const durationSeconds = Math.max(1, Math.ceil((Date.now() - ctx.startedAt) / 1000));
+        const collectedInfo =
+          Object.keys(collectedDetails).some((key) => `${(collectedDetails as any)[key] ?? ''}`.trim() !== '')
+            ? { ...collectedDetails }
+            : undefined;
         callTool(ctx, 'save_call', {
           transcript: merged || undefined,
           summary: 'Call ended.',
           duration_seconds: durationSeconds,
-          skip_contact_update: true,
+          collected_info: collectedInfo,
+          skip_contact_update: !merged && !collectedInfo,
         }).catch((err: any) => console.warn('[bridge] save_call failed', err?.message ?? String(err)));
 
         if ((process.env.TWILIO_RECORD_CALLS ?? 'true') !== 'false') {

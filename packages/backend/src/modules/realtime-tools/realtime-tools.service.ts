@@ -243,6 +243,88 @@ export class RealtimeToolsService {
     return out;
   }
 
+  private pickDetail(details: Record<string, any>, keys: string[]): string | undefined {
+    for (const key of keys) {
+      const value = details?.[key];
+      if (typeof value === 'string' && value.trim()) return value.trim();
+    }
+    return undefined;
+  }
+
+  private parseAddressFromDetails(details: Record<string, any>): { street?: string; city?: string; state?: string; zip?: string } | undefined {
+    const addressValue =
+      details?.address ??
+      details?.service_address ??
+      details?.location_address ??
+      details?.street_address ??
+      details?.service_location ??
+      details?.home_address;
+
+    const zip = this.pickDetail(details, ['zip', 'zipcode', 'zip_code', 'postal_code']);
+    const city = this.pickDetail(details, ['city', 'town']);
+    const state = this.pickDetail(details, ['state', 'province']);
+
+    if (addressValue && typeof addressValue === 'object') {
+      const obj = addressValue as { street?: string; city?: string; state?: string; zip?: string };
+      const merged = {
+        street: obj.street,
+        city: obj.city ?? city,
+        state: obj.state ?? state,
+        zip: obj.zip ?? zip,
+      };
+      return Object.values(merged).some((v) => typeof v === 'string' && v.trim()) ? merged : undefined;
+    }
+
+    if (typeof addressValue === 'string' && addressValue.trim()) {
+      const parts = addressValue.split(',').map((p) => p.trim()).filter(Boolean);
+      const parsed: { street?: string; city?: string; state?: string; zip?: string } = {};
+      if (parts[0]) parsed.street = parts[0];
+      if (parts[1]) parsed.city = parts[1];
+      if (parts[2]) {
+        const stateZip = parts[2].split(/\s+/).filter(Boolean);
+        if (stateZip[0]) parsed.state = stateZip[0];
+        if (stateZip.length > 1) parsed.zip = stateZip.slice(1).join(' ');
+      }
+      if (city && !parsed.city) parsed.city = city;
+      if (state && !parsed.state) parsed.state = state;
+      if (zip && !parsed.zip) parsed.zip = zip;
+      return Object.values(parsed).some((v) => typeof v === 'string' && v.trim()) ? parsed : undefined;
+    }
+
+    if (zip || city || state) {
+      return {
+        ...(city ? { city } : {}),
+        ...(state ? { state } : {}),
+        ...(zip ? { zip } : {}),
+      };
+    }
+
+    return undefined;
+  }
+
+  private buildNotesFromDetails(details: Record<string, any>): string | undefined {
+    if (!details || typeof details !== 'object') return undefined;
+    const ignored = new Set(['name', 'full_name', 'zip', 'zipcode', 'preferred_time', 'email', 'phone', 'phone_number']);
+    const lines: string[] = [];
+    for (const [key, value] of Object.entries(details)) {
+      const normalized = String(key || '').toLowerCase();
+      if (!key || ignored.has(normalized)) continue;
+      if (value === undefined || value === null || String(value).trim() === '') continue;
+      if (normalized === 'address') {
+        if (typeof value === 'object') {
+          const addrObj = value as { street?: string; city?: string; state?: string; zip?: string };
+          const addr = [addrObj.street, addrObj.city, addrObj.state, addrObj.zip].filter(Boolean).join(', ');
+          if (addr) lines.push(`Address: ${addr}`);
+        } else if (typeof value === 'string') {
+          lines.push(`Address: ${value.trim()}`);
+        }
+        continue;
+      }
+      lines.push(`${String(key).replace(/[_-]+/g, ' ').trim()}: ${String(value).trim()}`);
+    }
+    return lines.length ? lines.join('\n') : undefined;
+  }
+
   private coerceToUtcIso(input: string, timeZone: string, referenceDate?: Date): string {
     const raw = String(input || '').trim();
     if (!raw) throw new BadRequestException('start_time/end_time is required');
@@ -1065,8 +1147,12 @@ export class RealtimeToolsService {
 
     const timeZone = this.normalizeTimeZone(dto.timezone, this.resolveCompanyTimeZone(company));
     const referenceDate = new Date(new Date().toLocaleString('en-US', { timeZone }));
+    const details = dto.details && typeof dto.details === 'object' ? (dto.details as Record<string, any>) : {};
+    const detailEmail =
+      this.pickDetail(details, ['email', 'customer_email', 'contact_email']) || undefined;
     const customerEmail =
       (dto.customer_email && dto.customer_email.trim()) ||
+      detailEmail ||
       `caller-${(dto.contact_id || dto.call_id || 'unknown').replace(/[^a-zA-Z0-9]/g, '')}@handycall.invalid`;
 
     const startIso = this.coerceToUtcIso(dto.start_time, timeZone, referenceDate);
@@ -1098,15 +1184,34 @@ export class RealtimeToolsService {
         // non-fatal
       }
     }
+    const detailPhone =
+      this.pickDetail(details, ['phone', 'phone_number', 'contact_phone']) || undefined;
+    if (detailPhone) {
+      contact_phone = detailPhone;
+    }
+
+    const customerName =
+      (dto.customer_name && dto.customer_name.trim()) ||
+      (dto.full_name && dto.full_name.trim()) ||
+      this.pickDetail(details, ['full_name', 'name', 'customer_name', 'caller_name']);
+
+    const address = this.parseAddressFromDetails(details);
+    const notes = (dto.notes && dto.notes.trim()) || this.buildNotesFromDetails(details);
+    const serviceType =
+      (dto.service_type && dto.service_type.trim()) ||
+      this.pickDetail(details, ['service_type', 'service']) ||
+      company.service_type ||
+      'General';
 
     const appointment: any = await this.appointmentsService.createAppointment(company_id, {
       scheduled_start: new Date(slot.start_time).getTime(),
       scheduled_end: new Date(slot.end_time).getTime(),
-      contact_name: dto.customer_name,
+      contact_name: customerName,
       contact_email: customerEmail,
       contact_phone,
-      service_type: company.service_type ?? 'General',
-      notes: dto.notes,
+      service_type: serviceType,
+      notes,
+      ...(address ? { address } : {}),
       created_by: 'AI',
     });
 
@@ -1116,7 +1221,12 @@ export class RealtimeToolsService {
       await this.dynamodb.update(
         'calls',
         { company_id, call_id: dto.call_id },
-        { appointment_created: true, appointment_id, updated_at: Date.now() }
+        {
+          appointment_created: true,
+          appointment_id,
+          updated_at: Date.now(),
+          ...(Object.keys(details).length ? { collected_info: details } : {}),
+        }
       );
     }
 
