@@ -1045,6 +1045,7 @@ export class RealtimeToolsService {
       slots: slots.map((s) => s.start_time),
       readable_slots: readableSlots,
       spoken_availability: spokenAvailability,
+      instruction: 'Tell the caller the spoken_availability. When they pick a slot, use the matching ISO string from the slots array as start_time in create_booking.',
       ...(closedInfo ? { closed_day: closedDay, closed_day_label: closedInfo.dayLabel } : {}),
       ...(typeof requested_time_available === 'boolean' ? { requested_time_available } : {}),
       ...(requested_slot ? { requested_slot } : {}),

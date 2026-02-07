@@ -368,6 +368,31 @@ function normalizeFieldKey(field: string): string {
     .replace(/\s+/g, '_');
 }
 
+// Universal aliases that apply across ALL company types
+const UNIVERSAL_ALIASES: Record<string, string[]> = {
+  full_name: ['name', 'customer_name', 'caller_name'],
+  address: ['service_address', 'location_address', 'street_address', 'service_location', 'home_address'],
+  zip: ['zipcode', 'zip_code', 'postal_code'],
+  preferred_time: ['time', 'appointment_time', 'schedule_time', 'preferred_date'],
+};
+
+// Split a snake_case key into meaningful words, dropping connectors like "or", "and", "of"
+const FILLER_WORDS = new Set(['or', 'and', 'of', 'the', 'a', 'an', 'is', 'in', 'for', 'to']);
+function keyWords(key: string): string[] {
+  return key.split('_').filter((w) => w.length > 0 && !FILLER_WORDS.has(w));
+}
+
+// Check if detailKey is a likely match for requiredKey using word overlap.
+// E.g. required="pest_type_or_symptoms", detail="pest_type" → words [pest,type] ⊆ [pest,type,symptoms] → match
+function fuzzyFieldMatch(requiredKey: string, detailKey: string): boolean {
+  const reqWords = keyWords(requiredKey);
+  const detWords = keyWords(detailKey);
+  if (reqWords.length === 0 || detWords.length === 0) return false;
+  // All words in the shorter key must appear in the longer key
+  const [shorter, longer] = detWords.length <= reqWords.length ? [detWords, reqWords] : [reqWords, detWords];
+  return shorter.length >= 1 && shorter.every((w) => longer.includes(w));
+}
+
 function isFieldPresent(field: string, args: any): boolean {
   const details = args?.details && typeof args.details === 'object' ? args.details : {};
   const key = normalizeFieldKey(field);
@@ -376,26 +401,50 @@ function isFieldPresent(field: string, args: any): boolean {
     return v !== undefined && v !== null && String(v).trim() !== '';
   };
 
+  // Universal special cases (apply to every company type)
   if (key === 'preferred_time') {
-    return !!(args?.start_time || args?.preferred_time || details?.preferred_time);
+    return !!(args?.start_time || args?.preferred_time || details?.preferred_time || details?.time);
   }
   if (key === 'full_name') {
     return !!(args?.customer_name || details?.full_name || details?.name || details?.customer_name);
   }
-  if (key === 'address' || key === 'service_address' || key === 'location_address') {
-    return (
-      read('address') ||
-      read('service_address') ||
-      read('location_address') ||
-      read('street_address') ||
-      read('service_location')
-    );
-  }
   if (key === 'zip' || key === 'zipcode') {
-    return !!(details?.zip || details?.zipcode || args?.zip);
+    return !!(details?.zip || details?.zipcode || details?.zip_code || args?.zip);
   }
 
-  return read(key);
+  // 1. Exact match
+  if (read(key)) return true;
+
+  // 2. Universal aliases
+  const aliases = UNIVERSAL_ALIASES[key];
+  if (aliases) {
+    for (const alias of aliases) {
+      if (read(alias)) return true;
+    }
+  }
+
+  // 3. Generic word-overlap: scan all detail keys for a fuzzy match
+  for (const detailKey of Object.keys(details)) {
+    if (read(detailKey) && fuzzyFieldMatch(key, detailKey)) return true;
+  }
+
+  return false;
+}
+
+// Find the best matching detail key for a required field, using the same logic as isFieldPresent
+function findMatchingDetailKey(requiredField: string, details: Record<string, any>): string | null {
+  const key = normalizeFieldKey(requiredField);
+  if (details[key] && String(details[key]).trim()) return key;
+  const aliases = UNIVERSAL_ALIASES[key];
+  if (aliases) {
+    for (const alias of aliases) {
+      if (details[alias] && String(details[alias]).trim()) return alias;
+    }
+  }
+  for (const detailKey of Object.keys(details)) {
+    if (details[detailKey] && String(details[detailKey]).trim() && fuzzyFieldMatch(key, detailKey)) return detailKey;
+  }
+  return null;
 }
 
 function findMissingRequired(fields: string[], args: any): string[] {
@@ -991,7 +1040,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
         session: {
           voice,
           instructions,
-          tools: toolsSchema(),
+          tools: toolsSchema({ intakeFields: requiredIntakeFields }),
           tool_choice: 'auto',
           input_audio_format: 'g711_ulaw',
           output_audio_format: 'g711_ulaw',
@@ -1130,6 +1179,16 @@ wss.on('connection', (twilioWs: WebSocket) => {
             if (args?.customer_name) collectedDetails.full_name = collectedDetails.full_name || args.customer_name;
             if (args?.full_name) collectedDetails.full_name = args.full_name;
             if (args?.zip) collectedDetails.zip = collectedDetails.zip || args.zip;
+
+            // Normalize aliased/fuzzy keys to canonical required field names
+            for (const reqField of requiredIntakeFields) {
+              const canonical = normalizeFieldKey(reqField);
+              if (collectedDetails[canonical] && String(collectedDetails[canonical]).trim()) continue;
+              const matchKey = findMatchingDetailKey(canonical, collectedDetails);
+              if (matchKey && matchKey !== canonical) {
+                collectedDetails[canonical] = collectedDetails[matchKey];
+              }
+            }
 
             // Replace args.details with the accumulated state
             args = { ...args, details: { ...collectedDetails } };

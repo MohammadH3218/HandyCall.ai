@@ -1,4 +1,17 @@
-export function toolsSchema() {
+export function toolsSchema(options?: { intakeFields?: string[] }) {
+    const intakeFields = options?.intakeFields;
+    const detailsDescription = intakeFields?.length
+        ? `Collected intake fields. You MUST use these exact keys: ${intakeFields.join(', ')}. Include ALL collected fields every time.`
+        : 'Collected intake fields. Include ALL collected fields every time.';
+    const detailsProperties: Record<string, { type: string }> = {};
+    if (intakeFields?.length) {
+        for (const field of intakeFields) {
+            detailsProperties[field] = { type: 'string' };
+        }
+    }
+    const detailsSchema: any = intakeFields?.length
+        ? { type: 'object', description: detailsDescription, properties: detailsProperties }
+        : { type: 'object', description: detailsDescription };
     return [
         {
             type: 'function',
@@ -52,7 +65,7 @@ export function toolsSchema() {
                     customer_name: { type: 'string', description: 'Customer full name.' },
                     customer_email: { type: 'string', description: 'Customer email (optional, can be collected after booking).' },
                     service_type: { type: 'string', description: 'Service type label.' },
-                    details: { type: 'object', description: 'Collected intake fields.' },
+                    details: detailsSchema,
                     notes: { type: 'string', description: 'Notes for the appointment.' },
                     confirmed: { type: 'boolean', description: 'Must be true once the caller confirms the booking.' }
                 },
