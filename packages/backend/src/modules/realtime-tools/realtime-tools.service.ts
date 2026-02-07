@@ -936,15 +936,53 @@ export class RealtimeToolsService {
     const readableSlots = slots.map((s) => this.formatSlotForCaller(s.start_time, timeZone));
     const timeOnlySlots = slots.map((s) => this.formatSlotTimeOnly(s.start_time, timeZone));
     let requested_time_available: boolean | undefined;
+    let requested_slot: string | undefined;
     if (hasTime) {
       const requestedMs = Date.parse(requestedIso);
       if (Number.isFinite(requestedMs)) {
-        requested_time_available = slots.some((s) => {
+        const match = slots.find((s) => {
           const slotMs = Date.parse(s.start_time);
           return Number.isFinite(slotMs) && Math.abs(slotMs - requestedMs) <= 5 * 60_000;
         });
+        if (match) {
+          requested_time_available = true;
+          requested_slot = match.start_time;
+        } else {
+          requested_time_available = false;
+        }
       } else {
         requested_time_available = false;
+      }
+      if (!requested_slot && slots.length) {
+        try {
+          const requestedParts = new Intl.DateTimeFormat('en-US', {
+            timeZone,
+            hour: 'numeric',
+            minute: '2-digit',
+            hour12: false,
+          }).formatToParts(new Date(requestedIso));
+          const reqHour = Number(requestedParts.find((p) => p.type === 'hour')?.value);
+          const reqMinute = Number(requestedParts.find((p) => p.type === 'minute')?.value);
+          if (Number.isFinite(reqHour) && Number.isFinite(reqMinute)) {
+            const match = slots.find((s) => {
+              const slotParts = new Intl.DateTimeFormat('en-US', {
+                timeZone,
+                hour: 'numeric',
+                minute: '2-digit',
+                hour12: false,
+              }).formatToParts(new Date(s.start_time));
+              const slotHour = Number(slotParts.find((p) => p.type === 'hour')?.value);
+              const slotMinute = Number(slotParts.find((p) => p.type === 'minute')?.value);
+              return Number.isFinite(slotHour) && Number.isFinite(slotMinute) && slotHour === reqHour && slotMinute === reqMinute;
+            });
+            if (match) {
+              requested_time_available = true;
+              requested_slot = match.start_time;
+            }
+          }
+        } catch {
+          // ignore formatting failures
+        }
       }
     }
     let spokenAvailability = '';
@@ -976,6 +1014,7 @@ export class RealtimeToolsService {
       spoken_availability: spokenAvailability,
       ...(closedInfo ? { closed_day: closedDay, closed_day_label: closedInfo.dayLabel } : {}),
       ...(typeof requested_time_available === 'boolean' ? { requested_time_available } : {}),
+      ...(requested_slot ? { requested_slot } : {}),
     };
   }
 

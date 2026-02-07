@@ -125,6 +125,8 @@ type CallContext = {
   company_id: string;
   company_name: string;
   timezone?: string;
+  transfer_enabled?: boolean;
+  transfer_number?: string;
   startedAt: number;
 };
 
@@ -140,7 +142,17 @@ type TenantInfo = {
   };
   service_template?: any;
   service_type?: string;
+  transfer_enabled?: boolean;
+  transfer_number?: string;
 };
+
+type ActiveCallState = {
+  ctx: CallContext;
+  getTranscript: () => string;
+  ended: boolean;
+};
+
+const activeCalls = new Map<string, ActiveCallState>();
 
 const fillerUtterances = new Set(['mhm', 'mm', 'uh', 'um', 'uh-huh', 'uh huh', 'hmm', 'hm', 'ok', 'okay', 'yeah', 'yep']);
 
@@ -168,6 +180,20 @@ function isExplicitBargeIn(text: string) {
     'pause',
     'actually',
   ].some((phrase) => t === phrase || t.startsWith(`${phrase} `) || t.includes(phrase));
+}
+
+function resolveTransferTarget(queue?: string): string | null {
+  const raw = typeof queue === 'string' ? queue.trim() : '';
+  const key = raw ? raw.toUpperCase().replace(/[^A-Z0-9]/g, '_') : '';
+  const candidates = [
+    key ? `TRANSFER_${key}_NUMBER` : null,
+    key ? `TRANSFER_${key}` : null,
+    key ? `TRANSFER_QUEUE_${key}` : null,
+    raw ? `TRANSFER_${raw}` : null,
+    'TRANSFER_DEFAULT_NUMBER',
+    'TRANSFER_NUMBER',
+  ].filter(Boolean) as string[];
+  return envFirst(candidates) || null;
 }
 
 function looksLikeIso(value?: string) {
@@ -264,6 +290,16 @@ function wordCount(text?: string) {
   const t = normalizeSpeech(text);
   if (!t) return 0;
   return t.split(' ').length;
+}
+
+function isLowSignalTranscript(text?: string) {
+  const raw = String(text || '').trim();
+  if (!raw) return true;
+  if (raw.length < 3) return true;
+  if (/^[\W_]+$/.test(raw)) return true;
+  const nonLatin = (raw.match(/[^\u0000-\u024F\s]/g) || []).length;
+  if (nonLatin / Math.max(1, raw.length) > 0.25) return true;
+  return false;
 }
 
 function isNegativeResponse(text?: string) {
@@ -458,6 +494,16 @@ async function callTool(ctx: CallContext, name: string, args: any) {
     });
   }
 
+  if (name === 'hold_slot') {
+    return postJson(`${toolsBase}/tools/hold_slot`, headers, {
+      company_id: ctx.company_id,
+      call_id: ctx.callSid,
+      slot: args?.slot ?? args?.start_time ?? '',
+      timezone: args?.timezone ?? ctx.timezone,
+      hold_minutes: args?.hold_minutes,
+    });
+  }
+
   if (name === 'list_appointments_by_phone') {
     return postJson(`${toolsBase}/tools/list_appointments_by_phone`, headers, {
       company_id: ctx.company_id,
@@ -492,6 +538,41 @@ async function callTool(ctx: CallContext, name: string, args: any) {
       call_id: ctx.callSid,
       collected_info: args?.collected_info ?? args ?? {},
     });
+  }
+
+  if (name === 'request_callback') {
+    return postJson(`${toolsBase}/tools/create_lead`, headers, {
+      company_id: ctx.company_id,
+      call_id: ctx.callSid,
+      from_number: ctx.from,
+      to_number: ctx.to,
+      collected_info: {
+        callback_request: {
+          name: args?.name,
+          callback_number: args?.callback_number,
+          reason: args?.reason,
+          preferred_time: args?.preferred_time,
+        },
+      },
+    });
+  }
+
+  if (name === 'transfer_call') {
+    if (!ctx.transfer_enabled) {
+      return { ok: false, error: 'Transfer is disabled for this account.' };
+    }
+    const queue = typeof args?.queue === 'string' ? args.queue : '';
+    const configuredNumber = typeof ctx.transfer_number === 'string' ? ctx.transfer_number.trim() : '';
+    const target = configuredNumber || resolveTransferTarget(queue);
+    if (!target) {
+      return { ok: false, error: 'No transfer target configured for this queue.' };
+    }
+    const accountSid = envFirst(['TWILIO_ACCOUNT_SID', 'TWILIO_SID']) || (await getSecret('TWILIO_ACCOUNT_SID'));
+    const authToken = await getSecret('TWILIO_AUTH_TOKEN');
+    const client = twilio(accountSid, authToken);
+    const twiml = `<Response><Dial>${escapeXml(target)}</Dial></Response>`;
+    await client.calls(ctx.callSid).update({ twiml });
+    return { ok: true, target };
   }
 
   if (name === 'start_call') {
@@ -572,6 +653,74 @@ async function fetchLatestRecordingSid(callSid: string): Promise<string | null> 
   return recordings[0]?.sid || null;
 }
 
+async function fetchTwilioCallDetails(callSid: string): Promise<{ to?: string; from?: string } | null> {
+  try {
+    const accountSid = envFirst(['TWILIO_ACCOUNT_SID', 'TWILIO_SID']) || (await getSecret('TWILIO_ACCOUNT_SID'));
+    const authToken = await getSecret('TWILIO_AUTH_TOKEN');
+    const client = twilio(accountSid, authToken);
+    const call = await client.calls(callSid).fetch();
+    return { to: call.to || undefined, from: call.from || undefined };
+  } catch (err: any) {
+    console.warn('[twilio] fetch call failed', err?.message ?? String(err));
+    return null;
+  }
+}
+
+async function finalizeCallFromStatus(callSid: string, reason: string) {
+  const cached = activeCalls.get(callSid);
+  if (cached?.ended) return;
+
+  let ctx = cached?.ctx;
+  if (!ctx) {
+    const details = await fetchTwilioCallDetails(callSid);
+    const to = details?.to || '';
+    const from = details?.from || '';
+    if (to) {
+      try {
+        const tenant: TenantInfo = await resolveTenant(to);
+        ctx = {
+          callSid,
+          streamSid: 'stream_status',
+          from,
+          to,
+          company_id: tenant.company_id,
+          company_name: tenant.company_name,
+          timezone: tenant.timezone,
+          transfer_enabled: tenant.transfer_enabled,
+          transfer_number: tenant.transfer_number,
+          startedAt: Date.now(),
+        };
+      } catch (err: any) {
+        console.warn('[bridge] resolveTenant failed in stream status', err?.message ?? String(err));
+      }
+    }
+  }
+
+  if (!ctx) return;
+
+  const transcriptText = cached?.getTranscript ? cached.getTranscript() : '';
+  const durationSeconds = Math.max(1, Math.ceil((Date.now() - ctx.startedAt) / 1000));
+  try {
+    await callTool(ctx, 'save_call', {
+      transcript: transcriptText || undefined,
+      summary: reason || 'Call ended.',
+      duration_seconds: durationSeconds,
+      skip_contact_update: !transcriptText,
+    });
+  } catch (err: any) {
+    console.warn('[bridge] save_call (stream status) failed', err?.message ?? String(err));
+  }
+
+  if (cached) {
+    cached.ended = true;
+  }
+  if (cached) {
+    setTimeout(() => activeCalls.delete(callSid), 10 * 60_000);
+  } else {
+    activeCalls.delete(callSid);
+  }
+}
+
 function sendToOpenAI(ws: WebSocket, msg: any) {
   if (ws.readyState !== ws.OPEN) return;
   ws.send(JSON.stringify(msg));
@@ -628,6 +777,13 @@ const server = http.createServer(async (req, res) => {
       const raw = await readBody(req);
       const form = parseFormUrlEncoded(raw);
       console.log('[twilio] stream status', form);
+      const event = String(form.StreamEvent || form.StreamStatus || '').toLowerCase();
+      const callSid = String(form.CallSid || '').trim();
+      if (callSid && (event === 'stream-stopped' || event === 'stream-ended' || event === 'ended' || event === 'stop')) {
+        finalizeCallFromStatus(callSid, 'Call ended (stream status)').catch((err: any) =>
+          console.warn('[bridge] finalizeCallFromStatus failed', err?.message ?? String(err))
+        );
+      }
       return json(res, 200, { ok: true });
     }
 
@@ -687,6 +843,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
   let ctx: CallContext | null = null;
   let transcript: string[] = [];
   let openaiReady = false;
+  let openaiResponding = false;
   let twilioReady = false;
   let greeted = false;
   let assistantSpeaking = false;
@@ -697,6 +854,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
   let lastAvailabilitySlots: string[] = [];
   let lastAvailabilityTimezone: string | null = null;
   let lastAvailabilityAt = 0;
+  let lastRequestedSlot: string | null = null;
   let pendingHangup = false;
   let waitingForHangupMark = false;
   let hangupFallbackTimer: ReturnType<typeof setTimeout> | null = null;
@@ -704,6 +862,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
   let hasExistingAppointments = false;
   let existingAppointmentsChecked = false;
   let lastAssistantAskedFollowUp = false;
+  let lowSignalAttempts = 0;
 
   function tryGreet() {
     if (!openaiWs || !openaiReady || !twilioReady || greeted) return;
@@ -718,7 +877,25 @@ wss.on('connection', (twilioWs: WebSocket) => {
         instructions: `Greet the caller now. Say: "${greeting}"`,
       },
     });
+    openaiResponding = true;
     greeted = true;
+  }
+
+  function reprompt(attempt: number) {
+    if (!openaiWs || !openaiReady) return;
+    const msg =
+      attempt <= 1
+        ? "Sorry—didn’t catch that. Are you calling to book an appointment, or do you have a quick question?"
+        : "I’m still having trouble hearing you. If you’d like, I can take a message for a callback—what’s your name?";
+    sendToOpenAI(openaiWs, { type: 'response.cancel' });
+    sendToOpenAI(openaiWs, {
+      type: 'response.create',
+      response: {
+        modalities: ['audio', 'text'],
+        instructions: `Say: "${msg}"`,
+      },
+    });
+    openaiResponding = true;
   }
 
   function shutdown(reason: string) {
@@ -785,7 +962,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
           input_audio_transcription: { model: 'gpt-4o-mini-transcribe' },
           turn_detection: {
             type: 'semantic_vad',
-            create_response: true,
+            create_response: false,
             interrupt_response: true,
           },
         },
@@ -826,10 +1003,12 @@ wss.on('connection', (twilioWs: WebSocket) => {
         const text = msg?.transcript || msg?.text;
         if (text) {
           transcript.push(`Caller: ${text}`);
-          if (isFillerUtterance(text)) {
-            sendToOpenAI(openaiWs, { type: 'response.cancel' });
+          if (isLowSignalTranscript(text) || isFillerUtterance(text)) {
+            lowSignalAttempts += 1;
+            reprompt(lowSignalAttempts);
             return;
           }
+          lowSignalAttempts = 0;
           if (assistantSpeaking && Date.now() - lastAssistantAudioAt < 1500) {
             if (wordCount(text) < 3 && !isExplicitBargeIn(text)) {
               sendToOpenAI(openaiWs, { type: 'response.cancel' });
@@ -847,14 +1026,23 @@ wss.on('connection', (twilioWs: WebSocket) => {
                 instructions: `Say: "${farewell}"`,
               },
             });
+            openaiResponding = true;
             return;
           }
+        }
+        if (openaiWs && openaiReady) {
+          if (openaiResponding) {
+            sendToOpenAI(openaiWs, { type: 'response.cancel' });
+          }
+          sendToOpenAI(openaiWs, { type: 'response.create' });
+          openaiResponding = true;
         }
         return;
       }
 
       if (msg?.type === 'response.done' || msg?.type === 'response.audio.done') {
         assistantSpeaking = false;
+        openaiResponding = false;
         if (pendingHangup && !waitingForHangupMark) {
           queueHangupMark();
         }
@@ -866,6 +1054,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
         if (assistantSpeaking && now - lastAssistantAudioAt < 5000) {
           if (ctx?.streamSid) sendToTwilio(twilioWs, { event: 'clear', streamSid: ctx.streamSid });
           sendToOpenAI(openaiWs, { type: 'response.cancel' });
+          openaiResponding = false;
         }
         return;
       }
@@ -880,6 +1069,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
           args = {};
         }
 
+        openaiResponding = false;
         let result: any;
         try {
           if (!ctx) throw new Error('Missing call context');
@@ -895,13 +1085,17 @@ wss.on('connection', (twilioWs: WebSocket) => {
               typeof args?.timezone === 'string'
                 ? args.timezone
                 : lastAvailabilityTimezone || ctx.timezone || 'UTC';
-            if (availabilityFresh && requestedText && Array.isArray(lastAvailabilitySlots) && lastAvailabilitySlots.length) {
-              if (!looksLikeIso(requestedText) && !hasDayReference(requestedText)) {
-                const match = selectAvailabilitySlot(requestedText, lastAvailabilitySlots, tz);
-                if (match) {
-                  args = { ...args, start_time: match, timezone: tz };
-                }
-              }
+            let resolvedSlot: string | null = null;
+            if (requestedText && looksLikeIso(requestedText)) {
+              resolvedSlot = requestedText;
+            } else if (availabilityFresh && lastRequestedSlot) {
+              resolvedSlot = lastRequestedSlot;
+            } else if (availabilityFresh && requestedText && Array.isArray(lastAvailabilitySlots) && lastAvailabilitySlots.length) {
+              const match = selectAvailabilitySlot(requestedText, lastAvailabilitySlots, tz);
+              if (match) resolvedSlot = match;
+            }
+            if (resolvedSlot) {
+              args = { ...args, start_time: resolvedSlot, timezone: tz };
             }
             if (typeof args?.confirmed !== 'boolean') {
               args = { ...args, confirmed: true };
@@ -932,7 +1126,26 @@ wss.on('connection', (twilioWs: WebSocket) => {
               message: 'Ask for the 5-digit ZIP code and call check_service_area before booking.',
             };
           } else {
-            result = await callTool(ctx, toolName, args);
+            if (toolName === 'create_booking') {
+              const slot = typeof args?.start_time === 'string' ? args.start_time : '';
+              const tz =
+                typeof args?.timezone === 'string'
+                  ? args.timezone
+                  : lastAvailabilityTimezone || ctx.timezone || 'UTC';
+              if (slot && looksLikeIso(slot)) {
+                try {
+                  const hold = await callTool(ctx, 'hold_slot', { slot, timezone: tz, hold_minutes: 5 });
+                  if ((hold as any)?.ok !== true) {
+                    result = hold;
+                  }
+                } catch (err: any) {
+                  result = { ok: false, error: err?.message ?? String(err) };
+                }
+              }
+            }
+            if (!result) {
+              result = await callTool(ctx, toolName, args);
+            }
             if (toolName === 'create_booking') {
               if ((result as any)?.ok === true || (result as any)?.appointment_id) {
                 appointmentCreated = true;
@@ -955,9 +1168,12 @@ wss.on('connection', (twilioWs: WebSocket) => {
                 lastAvailabilityTimezone =
                   typeof (result as any)?.timezone === 'string' ? (result as any).timezone : ctx.timezone || null;
                 lastAvailabilityAt = Date.now();
+                lastRequestedSlot =
+                  typeof (result as any)?.requested_slot === 'string' ? (result as any).requested_slot : null;
               } else {
                 lastAvailabilitySlots = [];
                 lastAvailabilityAt = Date.now();
+                lastRequestedSlot = null;
               }
             }
           }
@@ -975,6 +1191,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
         });
         if (toolName !== 'end_call') {
           sendToOpenAI(openaiWs, { type: 'response.create' });
+          openaiResponding = true;
         }
       }
 
@@ -1034,8 +1251,16 @@ wss.on('connection', (twilioWs: WebSocket) => {
         company_id: resolvedTenant.company_id,
         company_name: resolvedTenant.company_name,
         timezone: resolvedTenant.timezone,
+        transfer_enabled: resolvedTenant.transfer_enabled,
+        transfer_number: resolvedTenant.transfer_number,
         startedAt: Date.now(),
       };
+
+      activeCalls.set(callSid, {
+        ctx,
+        getTranscript: () => transcript.join('\n'),
+        ended: false,
+      });
 
       if (!existingAppointmentsChecked) {
         existingAppointmentsChecked = true;
@@ -1096,6 +1321,13 @@ wss.on('connection', (twilioWs: WebSocket) => {
               }
             }, delay);
           }
+        }
+      }
+      if (ctx?.callSid) {
+        const cached = activeCalls.get(ctx.callSid);
+        if (cached) {
+          cached.ended = true;
+          setTimeout(() => activeCalls.delete(ctx.callSid), 10 * 60_000);
         }
       }
       return shutdown('twilio_stop');
