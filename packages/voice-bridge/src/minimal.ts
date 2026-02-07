@@ -294,12 +294,36 @@ function slotMatchesNeedle(slotIso: string, timeZone: string, needle: { hour: nu
   }
 }
 
+function slotMatchesDate(slotIso: string, timeZone: string, dateKey: string): boolean {
+  try {
+    const date = new Date(slotIso);
+    if (!Number.isFinite(date.getTime())) return false;
+    const localDate = new Intl.DateTimeFormat('en-CA', {
+      timeZone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(date);
+    return localDate === dateKey;
+  } catch {
+    return false;
+  }
+}
+
+function extractDateKey(text?: string): string | null {
+  if (!text) return null;
+  const match = text.match(/\b(\d{4}-\d{2}-\d{2})\b/);
+  return match?.[1] ?? null;
+}
+
 function selectAvailabilitySlot(requestedText: string | undefined, slots: string[], timeZone: string): string | null {
   if (!requestedText || !Array.isArray(slots) || slots.length === 0) return null;
   if (slots.length === 1) return slots[0] || null;
+  const dateKey = extractDateKey(requestedText);
   const needle = extractTimeNeedle(requestedText);
   if (!needle) return null;
   for (const slot of slots) {
+    if (dateKey && !slotMatchesDate(slot, timeZone, dateKey)) continue;
     if (slotMatchesNeedle(slot, timeZone, needle)) return slot;
   }
   return null;
@@ -963,6 +987,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
   let lastAvailabilityTimezone: string | null = null;
   let lastAvailabilityAt = 0;
   let lastRequestedSlot: string | null = null;
+  let lastAvailabilityDateKey: string | null = null;
   let pendingHangup = false;
   let waitingForHangupMark = false;
   let hangupFallbackTimer: ReturnType<typeof setTimeout> | null = null;
@@ -1164,7 +1189,12 @@ wss.on('connection', (twilioWs: WebSocket) => {
         return;
       }
 
-      if (msg?.type === 'response.done' || msg?.type === 'response.audio.done') {
+      if (msg?.type === 'response.done') {
+        openaiResponding = false;
+        return;
+      }
+
+      if (msg?.type === 'response.audio.done') {
         assistantSpeaking = false;
         openaiResponding = false;
         if (pendingHangup && !waitingForHangupMark) {
@@ -1203,7 +1233,9 @@ wss.on('connection', (twilioWs: WebSocket) => {
           if (toolName === 'get_availability') {
             let startTime = args?.start_time ?? args?.preferred_time ?? args?.window_start;
             if (typeof startTime === 'string') {
-              if (isTimeOnlyText(startTime) && lastCallerUtterance && hasDateTokens(lastCallerUtterance)) {
+              if (isTimeOnlyText(startTime) && lastAvailabilityDateKey) {
+                startTime = `${lastAvailabilityDateKey} ${startTime}`;
+              } else if (isTimeOnlyText(startTime) && lastCallerUtterance && hasDateTokens(lastCallerUtterance)) {
                 startTime = lastCallerUtterance;
               }
               if (looksLikeIso(startTime) && !lastAvailabilitySlots.includes(startTime)) {
@@ -1262,12 +1294,55 @@ wss.on('connection', (twilioWs: WebSocket) => {
               } else if (lastRequestedSlot) {
                 resolvedSlot = lastRequestedSlot;
               } else if (requestedText) {
-                const needleText = looksLikeIso(requestedText) ? isoToLocalNaive(requestedText) : requestedText;
+                let needleText = looksLikeIso(requestedText) ? isoToLocalNaive(requestedText) : requestedText;
+                if (isTimeOnlyText(needleText) && lastAvailabilityDateKey) {
+                  needleText = `${lastAvailabilityDateKey} ${needleText}`;
+                }
                 const match = selectAvailabilitySlot(needleText, lastAvailabilitySlots, tz);
                 if (match) resolvedSlot = match;
               }
             } else if (requestedText && looksLikeIso(requestedText)) {
               resolvedSlot = isoToLocalNaive(requestedText);
+            }
+            if (!resolvedSlot && requestedText) {
+              try {
+                let lookupText = looksLikeIso(requestedText) ? isoToLocalNaive(requestedText) : requestedText;
+                if (isTimeOnlyText(lookupText) && lastAvailabilityDateKey) {
+                  lookupText = `${lastAvailabilityDateKey} ${lookupText}`;
+                }
+                const availability = await callTool(ctx, 'get_availability', {
+                  start_time: lookupText,
+                  timezone: tz,
+                });
+                if (Array.isArray((availability as any)?.slots)) {
+                  lastAvailabilitySlots = (availability as any).slots.filter((slot: any) => typeof slot === 'string');
+                  lastAvailabilityTimezone =
+                    typeof (availability as any)?.timezone === 'string' ? (availability as any).timezone : tz;
+                  lastAvailabilityAt = Date.now();
+                  lastRequestedSlot =
+                    typeof (availability as any)?.requested_slot === 'string' ? (availability as any).requested_slot : null;
+                  if (lastAvailabilitySlots.length && lastAvailabilityTimezone) {
+                    try {
+                      lastAvailabilityDateKey = new Intl.DateTimeFormat('en-CA', {
+                        timeZone: lastAvailabilityTimezone,
+                        year: 'numeric',
+                        month: '2-digit',
+                        day: '2-digit',
+                      }).format(new Date(lastAvailabilitySlots[0]));
+                    } catch {
+                      lastAvailabilityDateKey = null;
+                    }
+                  }
+                }
+                if ((availability as any)?.requested_slot) {
+                  resolvedSlot = (availability as any).requested_slot;
+                } else if (Array.isArray(lastAvailabilitySlots) && lastAvailabilitySlots.length) {
+                  const match = selectAvailabilitySlot(lookupText, lastAvailabilitySlots, tz);
+                  if (match) resolvedSlot = match;
+                }
+              } catch (err: any) {
+                result = { ok: false, error: err?.message ?? String(err) };
+              }
             }
             if (resolvedSlot) {
               args = { ...args, start_time: resolvedSlot, timezone: tz };
@@ -1351,10 +1426,25 @@ wss.on('connection', (twilioWs: WebSocket) => {
                 lastAvailabilityAt = Date.now();
                 lastRequestedSlot =
                   typeof (result as any)?.requested_slot === 'string' ? (result as any).requested_slot : null;
+                if (lastAvailabilitySlots.length && lastAvailabilityTimezone) {
+                  try {
+                    lastAvailabilityDateKey = new Intl.DateTimeFormat('en-CA', {
+                      timeZone: lastAvailabilityTimezone,
+                      year: 'numeric',
+                      month: '2-digit',
+                      day: '2-digit',
+                    }).format(new Date(lastAvailabilitySlots[0]));
+                  } catch {
+                    lastAvailabilityDateKey = null;
+                  }
+                } else {
+                  lastAvailabilityDateKey = null;
+                }
               } else {
                 lastAvailabilitySlots = [];
                 lastAvailabilityAt = Date.now();
                 lastRequestedSlot = null;
+                lastAvailabilityDateKey = null;
               }
             }
           }
