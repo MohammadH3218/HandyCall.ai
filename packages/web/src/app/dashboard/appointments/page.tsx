@@ -79,6 +79,10 @@ function ymd(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
+function ymdFromParts(parts: { year: number; month: number; day: number }) {
+  return `${parts.year}-${String(parts.month).padStart(2, '0')}-${String(parts.day).padStart(2, '0')}`;
+}
+
 function getZonedParts(ts: number | string | Date, timeZone?: string) {
   const date = ts instanceof Date ? ts : new Date(ts);
   if (!timeZone) {
@@ -998,13 +1002,14 @@ export default function AppointmentsPage() {
                     </div>
                     <div className="grid grid-cols-7 gap-1">
                       {monthDays.map((d) => {
-                        const key = ymd(toZonedDate(d, displayTimezone));
-                        const hasItems = (apptsByDay.get(key) ?? []).length > 0;
                         const dParts = getZonedParts(d, displayTimezone);
+                        const key = ymdFromParts(dParts);
+                        const hasItems = (apptsByDay.get(key) ?? []).length > 0;
                         const monthParts = getZonedParts(monthCursor, displayTimezone);
                         const isInMonth = dParts.month === monthParts.month && dParts.year === monthParts.year;
                         const isSelected = key === focusKey;
-                        const isToday = key === ymd(toZonedDate(new Date(), displayTimezone));
+                        const todayParts = getZonedParts(new Date(), displayTimezone);
+                        const isToday = key === ymdFromParts(todayParts);
                         return (
                           <button
                             key={key}
@@ -1018,13 +1023,13 @@ export default function AppointmentsPage() {
                                     : 'text-gray-400 hover:bg-gray-100'
                             }`}
                             onClick={() => {
-                              setFocusDate(toZonedDate(d, displayTimezone));
                               const parts = getZonedParts(d, displayTimezone);
+                              setFocusDate(new Date(Date.UTC(parts.year, parts.month - 1, parts.day, 12, 0, 0)));
                               setMonthCursor(new Date(Date.UTC(parts.year, parts.month - 1, 1, 12, 0, 0)));
                               setCalendarView('day');
                             }}
                           >
-                            <span>{d.getDate()}</span>
+                            <span>{dParts.day}</span>
                             {hasItems ? <span className="mt-0.5 h-1 w-1 rounded-full bg-emerald-500" /> : null}
                           </button>
                         );
@@ -1160,10 +1165,13 @@ export default function AppointmentsPage() {
                       </div>
                       <div className="grid grid-cols-7 divide-x divide-y divide-gray-100">
                         {monthDays.map((d) => {
-                          const key = ymd(toZonedDate(d, displayTimezone));
+                          const dayParts = getZonedParts(d, displayTimezone);
+                          const key = ymdFromParts(dayParts);
                           const items = apptsByDay.get(key) ?? [];
-                          const inMonth = d.getMonth() === monthCursor.getMonth();
-                          const isToday = ymd(toZonedDate(d, displayTimezone)) === ymd(toZonedDate(new Date(), displayTimezone));
+                          const monthParts = getZonedParts(monthCursor, displayTimezone);
+                          const inMonth = dayParts.month === monthParts.month && dayParts.year === monthParts.year;
+                          const todayParts = getZonedParts(new Date(), displayTimezone);
+                          const isToday = key === ymdFromParts(todayParts);
                           return (
                             <button
                               key={key}
@@ -1172,14 +1180,14 @@ export default function AppointmentsPage() {
                               } ${isToday ? 'ring-2 ring-inset ring-emerald-500' : ''}`}
                               onClick={() => {
                                 if (!isCalendarSetupComplete) return;
-                                setFocusDate(toZonedDate(d, displayTimezone));
-                                setMonthCursor(new Date(d.getFullYear(), d.getMonth(), 1));
+                                setFocusDate(new Date(Date.UTC(dayParts.year, dayParts.month - 1, dayParts.day, 12, 0, 0)));
+                                setMonthCursor(new Date(Date.UTC(dayParts.year, dayParts.month - 1, 1, 12, 0, 0)));
                                 setCalendarView('day');
                               }}
                               disabled={!isCalendarSetupComplete}
                             >
                               <div className={`text-sm font-medium mb-1 ${isToday ? 'text-emerald-600' : inMonth ? 'text-gray-900' : 'text-gray-400'}`}>
-                                {d.getDate()}
+                                {dayParts.day}
                               </div>
                               <div className="space-y-1">
                                 {items.slice(0, 2).map((a) => (

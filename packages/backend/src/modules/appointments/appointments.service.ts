@@ -4,6 +4,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { BadRequestException } from '@nestjs/common';
 import { AppointmentStatus } from '@handycall/shared';
 import { CalendarIntegrationService } from '../calendar-integration/calendar-integration.service';
+import { ConfigService } from '@nestjs/config';
 
 function asE164(input: string): string {
   const trimmed = (input || '').trim();
@@ -19,7 +20,147 @@ export class AppointmentsService {
     private dynamodb: DynamoDBService,
     @Inject(forwardRef(() => CalendarIntegrationService))
     private calendarIntegration: CalendarIntegrationService,
+    private configService: ConfigService,
   ) {}
+
+  private getAddressValidationKey(): string | null {
+    return (
+      this.configService.get<string>('GOOGLE_ADDRESS_VALIDATION_API_KEY') ||
+      this.configService.get<string>('GOOGLE_MAPS_API_KEY') ||
+      null
+    );
+  }
+
+  private normalizeAddressLine(address: { street?: string; street2?: string; city?: string; state?: string; zip?: string }) {
+    const line = [address.street, address.street2, address.city && address.state ? `${address.city}, ${address.state} ${address.zip || ''}` : undefined]
+      .filter(Boolean)
+      .join(', ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    return line;
+  }
+
+  private async verifyAndNormalizeAddress(address: { street?: string; street2?: string; city?: string; state?: string; zip?: string }) {
+    const apiKey = this.getAddressValidationKey();
+    if (!apiKey) return null;
+    if (!address?.street || !address?.city || !address?.state || !address?.zip) return null;
+
+    const line = this.normalizeAddressLine(address);
+    if (!line) return null;
+
+    const url = `https://addressvalidation.googleapis.com/v1:validateAddress?key=${apiKey}`;
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        address: {
+          regionCode: 'US',
+          addressLines: [line],
+        },
+        enableUspsCass: true,
+      }),
+    });
+
+    if (!res.ok) {
+      const text = await res.text();
+      console.warn('[address] validation failed', res.status, text);
+      return null;
+    }
+
+    const data: any = await res.json();
+    const result = data?.result;
+    const verdict = result?.verdict;
+    const postal = result?.address?.postalAddress;
+    if (!postal) return null;
+
+    let confidence = 0.5;
+    if (verdict?.addressComplete) confidence += 0.35;
+    if (verdict?.hasInferredComponents) confidence -= 0.1;
+    if (verdict?.hasUnconfirmedComponents) confidence -= 0.15;
+    confidence = Math.max(0, Math.min(1, confidence));
+
+    const normalized = {
+      street1: postal?.addressLines?.[0] ?? address.street,
+      street2: postal?.addressLines?.[1] ?? address.street2,
+      city: postal?.locality ?? address.city,
+      state: postal?.administrativeArea ?? address.state,
+      zip: postal?.postalCode ?? address.zip,
+    };
+
+    const formatted = [
+      [normalized.street1, normalized.street2].filter(Boolean).join(', '),
+      `${normalized.city}, ${normalized.state} ${normalized.zip}`.trim(),
+    ]
+      .filter(Boolean)
+      .join(', ');
+
+    const changes: string[] = [];
+    const raw = {
+      street1: address.street || '',
+      street2: address.street2 || '',
+      city: address.city || '',
+      state: address.state || '',
+      zip: address.zip || '',
+    };
+    (['street1', 'street2', 'city', 'state', 'zip'] as const).forEach((key) => {
+      const before = String(raw[key] || '').trim().toLowerCase();
+      const after = String((normalized as any)[key] || '').trim().toLowerCase();
+      if (before && after && before !== after) {
+        changes.push(`${key}: ${raw[key]} -> ${(normalized as any)[key]}`);
+      }
+    });
+
+    let status: 'verified' | 'corrected' | 'needs_review' = 'needs_review';
+    if (confidence >= 0.85) {
+      status = changes.length ? 'corrected' : 'verified';
+    }
+
+    const location = result?.geocode?.location;
+    const lat = typeof location?.latitude === 'number' ? location.latitude : undefined;
+    const lng = typeof location?.longitude === 'number' ? location.longitude : undefined;
+
+    return {
+      normalized,
+      formatted,
+      confidence,
+      status,
+      changes,
+      lat,
+      lng,
+    };
+  }
+
+  private async persistAddressNormalization(
+    companyId: string,
+    appointmentId: string,
+    address: { street?: string; city?: string; state?: string; zip?: string }
+  ) {
+    try {
+      const normalized = await this.verifyAndNormalizeAddress({
+        street: address?.street,
+        city: address?.city,
+        state: address?.state,
+        zip: address?.zip,
+      });
+      if (!normalized) return;
+      await this.dynamodb.update(
+        'appointments',
+        { company_id: companyId, appointment_id: appointmentId },
+        {
+          address_raw: address,
+          address_normalized: normalized.normalized,
+          address_formatted: normalized.formatted,
+          address_confidence: normalized.confidence,
+          address_status: normalized.status,
+          address_changes: normalized.changes,
+          ...(typeof normalized.lat === 'number' ? { address_lat: normalized.lat } : {}),
+          ...(typeof normalized.lng === 'number' ? { address_lng: normalized.lng } : {}),
+        }
+      );
+    } catch (err: any) {
+      console.warn('[address] normalization error', err?.message ?? String(err));
+    }
+  }
 
   private async findOrCreateContactId(
     companyId: string,
@@ -259,6 +400,7 @@ export class AppointmentsService {
       contact_email: input.contact_email,
       contact_phone: input.contact_phone,
       address: input.address,
+      ...(input.address ? { address_raw: input.address } : {}),
       notes: input.notes,
       price_cents: typeof input.price_cents === 'number' ? input.price_cents : undefined,
       currency: input.currency ?? undefined,
@@ -316,6 +458,10 @@ export class AppointmentsService {
 
     await this.dynamodb.put('appointments', appointment);
 
+    if (input.address) {
+      void this.persistAddressNormalization(companyId, appointment_id, input.address);
+    }
+
     // Sync to external calendar if connected
     try {
       await this.calendarIntegration.pushEventToExternalCalendar(companyId, appointment);
@@ -359,6 +505,7 @@ export class AppointmentsService {
     if (input.service_type !== undefined) updateFields.service_type = input.service_type;
     if (input.notes !== undefined) updateFields.notes = input.notes;
     if (input.address !== undefined) updateFields.address = input.address;
+    if (input.address !== undefined) updateFields.address_raw = input.address;
     if (input.price_cents !== undefined) updateFields.price_cents = input.price_cents;
     if (input.currency !== undefined) updateFields.currency = input.currency;
     if (input.status !== undefined) updateFields.status = input.status;
@@ -370,6 +517,10 @@ export class AppointmentsService {
     );
 
     const updatedAppointment = { ...appt, ...updateFields };
+
+    if (input.address) {
+      void this.persistAddressNormalization(companyId, appointmentId, input.address);
+    }
 
     // Sync to external calendar if connected
     try {

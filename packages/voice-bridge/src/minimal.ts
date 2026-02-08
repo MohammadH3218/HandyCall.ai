@@ -571,6 +571,7 @@ function buildInstructions(tenant: TenantInfo, options: { serviceAreaRequired: b
     `If get_availability returns closed_day=true, tell the caller that day is closed and ask for another day.`,
     `If get_availability includes suggested_time_only, ONLY offer those times (max 3). Do not invent times.`,
     `If a requested time is available, acknowledge it and continue (do not ask to confirm the time).`,
+    `Only provide ONE summary, after ALL required intake fields (including address if required) AND a specific time slot have been collected. Do not summarize early or multiple times.`,
     `Before booking, summarize the details and ask for confirmation. Only then call create_booking with confirmed=true.`,
     `When calling create_booking, you MUST include ALL collected intake fields in the details object—not just the most recent ones. Include every field you gathered during the conversation (name, address, zip, service details, etc.).`,
     `If create_booking returns a MissingRequiredFields error, ask ONLY for the specific fields listed in missing_fields. Do NOT re-ask for information you already collected. Then retry create_booking with ALL collected fields (old and new) in the details object.`,

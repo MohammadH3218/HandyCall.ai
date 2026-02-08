@@ -297,35 +297,36 @@ export default function DashboardPage() {
               </div>
             ) : recentPreview.length > 0 ? (
               <div className="space-y-2">
-                {recentPreview.map((call) => (
-                  <Link
-                    key={call.call_id}
-                    href={`/dashboard/calls/${call.call_id}`}
-                    className="group block rounded-2xl border border-border/60 bg-white/80 p-4 transition-all hover:-translate-y-0.5 hover:border-emerald-200 hover:shadow-md"
-                  >
-                    <div className="flex items-start justify-between gap-4">
-                      <div>
-                        <p className="text-sm font-semibold text-foreground">
-                          {call.caller_name || call.caller_phone || 'Unknown caller'}
-                        </p>
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          {(call.caller_phone && call.caller_name ? call.caller_phone : undefined) ||
-                            call.summary?.trim() ||
-                            `Status: ${formatStatus(call.status)}`}
-                        </p>
-                        {call.summary?.trim() && (
-                          <p className="mt-2 text-xs text-muted-foreground/80">
-                            {call.summary.length > 120 ? `${call.summary.slice(0, 120)}…` : call.summary}
-                          </p>
-                        )}
+                {recentPreview.map((call) => {
+                  const displayName = call.caller_name || call.caller_phone || 'Unknown caller';
+                  const secondary = call.caller_name && call.caller_phone ? call.caller_phone : undefined;
+                  const statusLabel = formatStatus(call.status);
+                  const meta = [formatDate(call.created_at), call.duration ? formatDuration(call.duration) : undefined]
+                    .filter(Boolean)
+                    .join(' · ');
+                  return (
+                    <Link
+                      key={call.call_id}
+                      href={`/dashboard/calls/${call.call_id}`}
+                      className="group block rounded-2xl border border-border/60 bg-white/80 p-4 transition-all hover:-translate-y-0.5 hover:border-emerald-200 hover:shadow-md"
+                    >
+                      <div className="flex items-start justify-between gap-4">
+                        <div>
+                          <p className="text-sm font-semibold text-foreground">{displayName}</p>
+                          {secondary ? (
+                            <p className="mt-1 text-xs text-muted-foreground">{secondary}</p>
+                          ) : null}
+                        </div>
+                        <div className="text-right text-xs text-muted-foreground">
+                          <p className="font-medium text-foreground">{meta || '-'}</p>
+                          {statusLabel && statusLabel !== 'completed' ? (
+                            <p className="mt-1 text-emerald-700 capitalize">{statusLabel}</p>
+                          ) : null}
+                        </div>
                       </div>
-                      <div className="text-right text-xs text-muted-foreground">
-                        <p className="font-medium text-foreground">{formatDuration(call.duration)}</p>
-                        <p className="mt-1">{formatDate(call.created_at)}</p>
-                      </div>
-                    </div>
-                  </Link>
-                ))}
+                    </Link>
+                  );
+                })}
               </div>
             ) : (
               <p className="text-sm text-muted-foreground text-center py-8">
@@ -362,6 +363,8 @@ export default function DashboardPage() {
               <div className="space-y-2">
                 {appointmentPreview.map((apt) => {
                   const scheduled = (apt as any)?.scheduled_start ?? apt.scheduled_time;
+                  const meta = formatDateTime(scheduled);
+                  const service = apt.service_type ? ` · ${apt.service_type}` : '';
                   return (
                     <Link
                       key={apt.appointment_id}
@@ -371,14 +374,11 @@ export default function DashboardPage() {
                       <div className="flex items-start justify-between gap-4">
                         <div>
                           <p className="text-sm font-semibold text-foreground">
-                            {apt.contact_name || 'Upcoming appointment'}
+                            {apt.contact_name || apt.service_type || 'Upcoming appointment'}
                           </p>
                           <p className="mt-1 text-xs text-muted-foreground">
-                            {formatDateTime(scheduled)}
+                            {meta}{service}
                           </p>
-                          {apt.contact_phone && (
-                            <p className="mt-2 text-xs text-muted-foreground/80">{apt.contact_phone}</p>
-                          )}
                         </div>
                         <span className="text-xs font-medium uppercase tracking-wide text-emerald-700">
                           {formatStatus(apt.status)}
