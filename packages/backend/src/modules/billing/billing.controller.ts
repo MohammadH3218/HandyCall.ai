@@ -339,7 +339,7 @@ export class BillingController {
    */
   @Post('admin/company/:companyId/usage/adjust')
   async adminAdjustUsage(
-    @UserRole() role: UserRoleEnum,
+    @UserRoleParam() role: UserRoleEnum,
     @Param('companyId') companyId: string,
     @Body() body: { minutes?: number; sms?: number; contacts?: number }
   ) {
