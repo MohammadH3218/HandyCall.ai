@@ -19,6 +19,10 @@ FROM public.ecr.aws/docker/library/node:20-bookworm-slim AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends ffmpeg \
+  && rm -rf /var/lib/apt/lists/*
+
 COPY --from=builder /app/packages/voice-bridge/package*.json ./
 RUN npm install --omit=dev
 

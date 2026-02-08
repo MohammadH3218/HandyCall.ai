@@ -4,6 +4,8 @@ import { WebSocketServer, WebSocket } from 'ws';
 import twilio from 'twilio';
 import { SSMClient, GetParameterCommand } from '@aws-sdk/client-ssm';
 import { toolsSchema } from './toolsSchema';
+import { Readable } from 'stream';
+import { spawn } from 'child_process';
 
 function env(name: string): string | undefined {
   return process.env[name];
@@ -115,6 +117,81 @@ async function postJson(url: string, headers: Record<string, string>, body: any)
   const text = await res.text();
   if (!res.ok) throw new Error(`POST ${url} failed (${res.status}): ${text}`);
   return text ? JSON.parse(text) : {};
+}
+
+function resolveElevenLabsConfig() {
+  const apiKey =
+    envFirst(['ELEVENLABS_API_KEY', 'ELEVENLABS_KEY', 'ELEVEN_LABS_API_KEY']) || '';
+  const voiceId = envFirst(['ELEVENLABS_VOICE_ID', 'ELEVEN_LABS_VOICE_ID']) || '';
+  const modelId = envFirst(['ELEVENLABS_MODEL_ID', 'ELEVEN_LABS_MODEL_ID']) || 'eleven_multilingual_v2';
+  if (!apiKey || !voiceId) return null;
+  return { apiKey, voiceId, modelId };
+}
+
+async function elevenLabsStreamTts(
+  params: { apiKey: string; voiceId: string; modelId: string; text: string }
+): Promise<Readable> {
+  const { apiKey, voiceId, modelId, text } = params;
+  const url = `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voiceId)}/stream`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'xi-api-key': apiKey,
+      'Content-Type': 'application/json',
+      Accept: 'audio/mpeg',
+    },
+    body: JSON.stringify({
+      text,
+      model_id: modelId,
+    }),
+  });
+  if (!res.ok || !res.body) {
+    const msg = await res.text();
+    throw new Error(`ElevenLabs TTS failed (${res.status}): ${msg}`);
+  }
+  return Readable.fromWeb(res.body as any);
+}
+
+function transcodeToMulaw8k(input: Readable, abortSignal?: AbortSignal) {
+  const ffmpeg = spawn('ffmpeg', [
+    '-hide_banner',
+    '-loglevel',
+    'error',
+    '-i',
+    'pipe:0',
+    '-ac',
+    '1',
+    '-ar',
+    '8000',
+    '-f',
+    'mulaw',
+    'pipe:1',
+  ]);
+
+  input.pipe(ffmpeg.stdin);
+
+  const onAbort = () => {
+    try {
+      ffmpeg.kill('SIGKILL');
+    } catch {
+      // ignore
+    }
+    try {
+      input.destroy();
+    } catch {
+      // ignore
+    }
+  };
+
+  if (abortSignal) {
+    abortSignal.addEventListener('abort', onAbort, { once: true });
+  }
+
+  ffmpeg.on('exit', () => {
+    if (abortSignal) abortSignal.removeEventListener('abort', onAbort);
+  });
+
+  return ffmpeg.stdout;
 }
 
 type CallContext = {
@@ -1028,12 +1105,16 @@ wss.on('connection', (twilioWs: WebSocket) => {
   let openaiWs: WebSocket | null = null;
   let ctx: CallContext | null = null;
   let transcript: string[] = [];
+  const elevenLabsConfig = resolveElevenLabsConfig();
+  const useElevenLabs = Boolean(elevenLabsConfig);
   let openaiReady = false;
   let openaiResponding = false;
   let twilioReady = false;
   let greeted = false;
   let assistantSpeaking = false;
   let lastAssistantAudioAt = 0;
+  let ttsAbort: AbortController | null = null;
+  let assistantTextBuffer = '';
   let recordingSynced = false;
   let recordingSyncScheduled = false;
   let serviceAreaRequired = false;
@@ -1062,14 +1143,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
     const greeting = hasExistingAppointments
       ? `Hi there, thanks for calling ${name}. Would you like to manage an existing booking, or book a new appointment?`
       : `Hi there, thanks for calling ${name}. How can I help you today?`;
-    sendToOpenAI(openaiWs, {
-      type: 'response.create',
-      response: {
-        modalities: ['audio', 'text'],
-        instructions: `Say exactly: "${greeting}" Then stop. Do not add any follow-up question.`,
-      },
-    });
-    openaiResponding = true;
+    createResponse(`Say exactly: "${greeting}" Then stop. Do not add any follow-up question.`);
     greeted = true;
   }
 
@@ -1077,17 +1151,105 @@ wss.on('connection', (twilioWs: WebSocket) => {
     if (!openaiWs || !openaiReady) return;
     const msg =
       attempt <= 1
-        ? "Sorry—didn’t catch that. Are you calling to book an appointment, or do you have a quick question?"
-        : "I’m still having trouble hearing you. If you’d like, I can take a message for a callback—what’s your name?";
+        ? "Sorry, didn't catch that. Are you calling to book an appointment, or do you have a quick question?"
+        : "I'm still having trouble hearing you. If you'd like, I can take a message for a callback - what's your name?";
     sendToOpenAI(openaiWs, { type: 'response.cancel' });
-    sendToOpenAI(openaiWs, {
-      type: 'response.create',
-      response: {
-        modalities: ['audio', 'text'],
-        instructions: `Say: "${msg}"`,
-      },
-    });
+    createResponse(`Say: "${msg}"`);
+  }
+
+  function buildModalities() {
+    return useElevenLabs ? ['text'] : ['audio', 'text'];
+  }
+
+  function createResponse(instructions?: string) {
+    if (!openaiWs) return;
+    assistantTextBuffer = '';
+    const response: any = { modalities: buildModalities() };
+    if (instructions) response.instructions = instructions;
+    sendToOpenAI(openaiWs, { type: 'response.create', response });
     openaiResponding = true;
+  }
+
+  async function speakWithElevenLabs(text: string) {
+    if (!ctx?.streamSid || !elevenLabsConfig) return;
+    const trimmed = String(text || '').trim();
+    if (!trimmed) return;
+    if (ttsAbort) {
+      try {
+        ttsAbort.abort();
+      } catch {
+        // ignore
+      }
+    }
+    const controller = new AbortController();
+    ttsAbort = controller;
+    assistantSpeaking = true;
+    lastAssistantAudioAt = Date.now();
+    try {
+      const ttsStream = await elevenLabsStreamTts({
+        apiKey: elevenLabsConfig.apiKey,
+        voiceId: elevenLabsConfig.voiceId,
+        modelId: elevenLabsConfig.modelId,
+        text: trimmed,
+      });
+      const mulaw = transcodeToMulaw8k(ttsStream, controller.signal);
+      await new Promise<void>((resolve, reject) => {
+        const onAbort = () => {
+          if (ctx?.streamSid) {
+            sendToTwilio(twilioWs, { event: 'clear', streamSid: ctx.streamSid });
+          }
+          try {
+            mulaw.destroy();
+          } catch {
+            // ignore
+          }
+        };
+        controller.signal.addEventListener('abort', onAbort, { once: true });
+        mulaw.on('data', (chunk: Buffer) => {
+          if (controller.signal.aborted || !ctx?.streamSid) return;
+          lastAssistantAudioAt = Date.now();
+          sendToTwilio(twilioWs, {
+            event: 'media',
+            streamSid: ctx.streamSid,
+            media: { payload: chunk.toString('base64') },
+          });
+        });
+        mulaw.on('end', () => {
+          controller.signal.removeEventListener('abort', onAbort);
+          resolve();
+        });
+        mulaw.on('error', (err) => {
+          controller.signal.removeEventListener('abort', onAbort);
+          reject(err);
+        });
+      });
+    } catch (err: any) {
+      console.warn('[elevenlabs] TTS failed', err?.message ?? String(err));
+    } finally {
+      if (ttsAbort === controller) {
+        ttsAbort = null;
+      }
+      assistantSpeaking = false;
+      if (pendingHangup && !waitingForHangupMark && !controller.signal.aborted) {
+        setTimeout(() => {
+          if (pendingHangup && !waitingForHangupMark) queueHangupMark();
+        }, 1500);
+      }
+    }
+  }
+
+  function appendAssistantText(delta: string) {
+    if (!delta) return;
+    assistantTextBuffer += delta;
+  }
+
+  function flushAssistantText(textOverride?: string) {
+    const text = String(textOverride ?? assistantTextBuffer).trim();
+    assistantTextBuffer = '';
+    if (!text) return;
+    transcript.push(`Assistant: ${text}`);
+    lastAssistantAskedFollowUp = askedAnythingElse(text);
+    void speakWithElevenLabs(text);
   }
 
   function shutdown(reason: string) {
@@ -1195,6 +1357,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
       }
 
       if (msg?.type === 'response.audio.delta') {
+        if (useElevenLabs) return;
         const payload = msg?.delta;
         if (payload && ctx?.streamSid) {
           sendToTwilio(twilioWs, { event: 'media', streamSid: ctx.streamSid, media: { payload } });
@@ -1205,11 +1368,30 @@ wss.on('connection', (twilioWs: WebSocket) => {
       }
 
       if (msg?.type === 'response.audio_transcript.done') {
+        if (useElevenLabs) return;
         const text = msg?.transcript;
         if (text) {
           transcript.push(`Assistant: ${text}`);
           lastAssistantAskedFollowUp = askedAnythingElse(text);
         }
+        return;
+      }
+
+      if (
+        useElevenLabs &&
+        (msg?.type === 'response.text.delta' || msg?.type === 'response.output_text.delta')
+      ) {
+        const delta = msg?.delta || msg?.text;
+        if (delta) appendAssistantText(String(delta));
+        return;
+      }
+
+      if (
+        useElevenLabs &&
+        (msg?.type === 'response.text.done' || msg?.type === 'response.output_text.done')
+      ) {
+        const text = msg?.text || msg?.output_text || assistantTextBuffer;
+        flushAssistantText(text);
         return;
       }
 
@@ -1245,14 +1427,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
           lastAssistantAskedFollowUp = false;
           pendingHangup = true;
           const farewell = `Thanks for calling ${ctx.company_name || 'HandyCall'}. Have a great day.`;
-          sendToOpenAI(openaiWs, {
-            type: 'response.create',
-            response: {
-              modalities: ['audio', 'text'],
-              instructions: `Say: "${farewell}"`,
-            },
-          });
-          openaiResponding = true;
+          createResponse(`Say: "${farewell}"`);
           return;
         }
 
@@ -1260,18 +1435,21 @@ wss.on('connection', (twilioWs: WebSocket) => {
           if (openaiResponding) {
             sendToOpenAI(openaiWs, { type: 'response.cancel' });
           }
-          sendToOpenAI(openaiWs, { type: 'response.create' });
-          openaiResponding = true;
+          createResponse();
         }
         return;
       }
 
       if (msg?.type === 'response.done') {
         openaiResponding = false;
+        if (useElevenLabs && assistantTextBuffer.trim()) {
+          flushAssistantText();
+        }
         return;
       }
 
       if (msg?.type === 'response.audio.done') {
+        if (useElevenLabs) return;
         assistantSpeaking = false;
         openaiResponding = false;
         if (pendingHangup && !waitingForHangupMark) {
@@ -1285,10 +1463,22 @@ wss.on('connection', (twilioWs: WebSocket) => {
       if (msg?.type === 'input_audio_buffer.speech_started') {
         lastSpeechStartAt = Date.now();
         const now = Date.now();
-        if (assistantSpeaking && now - lastAssistantAudioAt < 5000) {
+        const wasSpeaking = assistantSpeaking;
+        if (useElevenLabs && ttsAbort) {
+          try {
+            ttsAbort.abort();
+          } catch {
+            // ignore
+          }
+          if (ctx?.streamSid) sendToTwilio(twilioWs, { event: 'clear', streamSid: ctx.streamSid });
+        }
+        if (wasSpeaking && now - lastAssistantAudioAt < 5000) {
           if (ctx?.streamSid) sendToTwilio(twilioWs, { event: 'clear', streamSid: ctx.streamSid });
           sendToOpenAI(openaiWs, { type: 'response.cancel' });
           openaiResponding = false;
+        }
+        if (useElevenLabs && ttsAbort) {
+          assistantSpeaking = false;
         }
         return;
       }
@@ -1545,8 +1735,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
           },
         });
         if (toolName !== 'end_call') {
-          sendToOpenAI(openaiWs, { type: 'response.create' });
-          openaiResponding = true;
+          createResponse();
         }
       }
 
