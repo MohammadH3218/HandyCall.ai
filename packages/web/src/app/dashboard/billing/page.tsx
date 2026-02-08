@@ -166,7 +166,6 @@ export default function BillingPage() {
     try {
       setCancelling(true);
       await apiClient.cancelSubscription();
-      await checkAuth(); // Refresh company data
       await loadBillingData(); // Reload billing data
       setShowCancelDialog(false);
     } catch (error: any) {
