@@ -18,6 +18,7 @@ interface AuthState {
   passwordChangeSession: string | null;
   passwordChangePoolType: 'users' | 'admin' | null;
   _checkAuthInProgress: boolean;
+  _lastAuthCheckAt: number | null;
 
   // Actions
   login: (email: string, password: string) => Promise<{ requiresPasswordChange: boolean; userRole: UserRole | null }>;
@@ -43,6 +44,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   passwordChangeSession: null,
   passwordChangePoolType: null,
   _checkAuthInProgress: false,
+  _lastAuthCheckAt: null,
 
   login: async (email: string, password: string) => {
     // Login is handled by NextAuth credentials; this store just tracks derived state.
@@ -194,6 +196,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       return;
     }
 
+    const now = Date.now();
+    if (state.isAuthenticated && state._lastAuthCheckAt && now - state._lastAuthCheckAt < 10000) {
+      // Avoid rechecking auth too frequently during normal navigation
+      return;
+    }
+
     const shouldShowLoading = !state.isAuthenticated;
     set({
       _checkAuthInProgress: true,
@@ -262,7 +270,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           idToken: null,
           refreshToken: null,
           email: null,
-          _checkAuthInProgress: false
+          _checkAuthInProgress: false,
+          _lastAuthCheckAt: now,
         });
         return;
       }
@@ -291,6 +300,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           isAuthenticated: true,
           isLoading: false,
           _checkAuthInProgress: false,
+          _lastAuthCheckAt: now,
         });
         return;
       }
@@ -355,6 +365,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         isAuthenticated: true,
         isLoading: false,
         _checkAuthInProgress: false,
+        _lastAuthCheckAt: now,
       });
     } catch (error) {
       console.error('[Auth Store] checkAuth failed:', error);
@@ -379,6 +390,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         isAuthenticated: false,
         isLoading: false,
         _checkAuthInProgress: false,
+        _lastAuthCheckAt: now,
       });
     }
   },

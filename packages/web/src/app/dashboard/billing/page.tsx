@@ -116,10 +116,22 @@ export default function BillingPage() {
     try {
       setLoading(true);
 
+      const withTimeout = <T,>(promise: Promise<T>, ms = 12000) =>
+        Promise.race([
+          promise,
+          new Promise<T>((_, reject) =>
+            setTimeout(() => reject(new Error('Request timed out')), ms)
+          ),
+        ]);
+
       const [subData, usageData, paymentData] = await Promise.all([
-        apiClient.getMySubscription(),
-        apiClient.getUsageMetrics(),
-        apiClient.getPaymentMethods().catch(() => ({ payment_methods: [], default_payment_method_id: null })),
+        withTimeout(apiClient.getMySubscription()),
+        withTimeout(apiClient.getUsageMetrics()),
+        withTimeout(
+          apiClient
+            .getPaymentMethods()
+            .catch(() => ({ payment_methods: [], default_payment_method_id: null }))
+        ),
       ]);
       const plan =
         resolvePlan(company?.subscription_plan as SubscriptionPlan | undefined) ||
@@ -140,6 +152,11 @@ export default function BillingPage() {
       setDefaultPaymentMethodId(paymentData?.default_payment_method_id || null);
     } catch (error: any) {
       console.error('Failed to load billing data:', error);
+      toast({
+        title: 'Unable to load billing',
+        description: error.message || 'Please try again in a moment.',
+        variant: 'destructive',
+      });
     } finally {
       setLoading(false);
     }
