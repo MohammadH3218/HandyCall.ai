@@ -83,9 +83,9 @@ export default function AdminCompanyDetailPage() {
   const companyId = useMemo(() => String((params as any)?.id || ''), [params]);
   const { userRole, isAuthenticated, isLoading } = useAuthStore();
   const { toast } = useToast();
-  const { setCompany } = useAdminCompanyStore();
+  const { setCompany: setAdminCompany } = useAdminCompanyStore();
 
-  const [company, setCompany] = useState<Company | null>(null);
+  const [company, setCompanyData] = useState<Company | null>(null);
   const [isPageLoading, setIsPageLoading] = useState(true);
   const [isSavingCompany, setIsSavingCompany] = useState(false);
   const [editData, setEditData] = useState<Partial<Company>>({});
@@ -122,8 +122,8 @@ export default function AdminCompanyDetailPage() {
     setIsPageLoading(true);
     try {
       const data = await fetchJsonWithFallback(`/api/proxy/companies/${companyId}`);
-      setCompany(data);
-      setCompany(data.company_id, data.company_name);
+      setCompanyData(data);
+      setAdminCompany(data.company_id, data.company_name);
       setEditData({
         company_name: data.company_name,
         service_type: data.service_type,
@@ -170,7 +170,7 @@ export default function AdminCompanyDetailPage() {
         body: JSON.stringify(payload),
       });
 
-      setCompany(updated);
+      setCompanyData(updated);
       setShowSaveConfirm(false);
       toast({ title: 'Saved', description: 'Company details updated successfully.' });
     } catch (err: any) {

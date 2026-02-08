@@ -1,12 +1,9 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Check, ChevronsUpDown, Building2 } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { Button } from '@/components/ui/button';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from '@/components/ui/command';
+import { Building2 } from 'lucide-react';
 import { useAdminCompanyStore } from '@/stores/admin-company-store';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 type CompanyOption = {
   company_id: string;
@@ -32,7 +29,6 @@ async function fetchCompanies(): Promise<CompanyOption[]> {
 
 export function CompanySwitcher() {
   const { companyId, companyName, setCompany } = useAdminCompanyStore();
-  const [open, setOpen] = useState(false);
   const [options, setOptions] = useState<CompanyOption[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -67,46 +63,38 @@ export function CompanySwitcher() {
   const label = selected?.company_name || companyName || 'Select company';
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          variant="outline"
-          role="combobox"
-          aria-expanded={open}
-          className="w-[260px] justify-between bg-white"
-        >
-          <span className="inline-flex items-center gap-2 truncate">
-            <Building2 className="h-4 w-4 text-emerald-600" />
+    <div className="flex items-center gap-2">
+      <Building2 className="h-4 w-4 text-emerald-600" />
+      <Select
+        value={companyId || ''}
+        onValueChange={(value) => {
+          const next = options.find((opt) => opt.company_id === value);
+          if (next) {
+            setCompany(next.company_id, next.company_name);
+          }
+        }}
+      >
+        <SelectTrigger className="w-[260px] bg-white">
+          <SelectValue
+            placeholder={loading ? 'Loading companies...' : 'Select company'}
+          >
             {label}
-          </span>
-          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-60" />
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-[320px] p-0" align="start">
-        <Command>
-          <CommandInput placeholder="Search companies..." />
-          <CommandEmpty>{loading ? 'Loading companies...' : 'No companies found.'}</CommandEmpty>
-          <CommandGroup heading="Companies">
-            {options.map((opt) => {
-              const value = opt.company_id;
-              const isSelected = value === companyId;
-              return (
-                <CommandItem
-                  key={value}
-                  value={opt.company_name}
-                  onSelect={() => {
-                    setCompany(opt.company_id, opt.company_name);
-                    setOpen(false);
-                  }}
-                >
-                  <Check className={cn('mr-2 h-4 w-4', isSelected ? 'opacity-100' : 'opacity-0')} />
-                  <span className="truncate">{opt.company_name}</span>
-                </CommandItem>
-              );
-            })}
-          </CommandGroup>
-        </Command>
-      </PopoverContent>
-    </Popover>
+          </SelectValue>
+        </SelectTrigger>
+        <SelectContent>
+          {options.length === 0 ? (
+            <SelectItem value="__empty" disabled>
+              {loading ? 'Loading companies...' : 'No companies found'}
+            </SelectItem>
+          ) : (
+            options.map((opt) => (
+              <SelectItem key={opt.company_id} value={opt.company_id}>
+                {opt.company_name}
+              </SelectItem>
+            ))
+          )}
+        </SelectContent>
+      </Select>
+    </div>
   );
 }

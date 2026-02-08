@@ -1,1 +1,3 @@
-﻿export { default } from '@/app/login/page';\n
+'use client';
+
+export { default } from '@/app/login/page';
