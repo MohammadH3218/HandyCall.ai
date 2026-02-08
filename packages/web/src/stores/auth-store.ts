@@ -194,7 +194,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       return;
     }
 
-    set({ _checkAuthInProgress: true });
+    set({ _checkAuthInProgress: true, isLoading: true, isAuthenticated: false });
 
     try {
       // Get NextAuth session info to populate user/email/role
@@ -239,7 +239,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       if (refreshToken) localStorage.setItem('refresh_token', refreshToken);
 
       // If no session, user is not authenticated
-      if (!session) {
+      if (!session || (!accessToken && !idToken)) {
         console.log('[Auth Store] No authenticated user in session');
         // Clear any stale tokens
         if (typeof window !== 'undefined') {

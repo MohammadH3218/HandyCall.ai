@@ -180,7 +180,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     }
   }, [status, userRole, router]);
 
-  if (status === 'loading' || status === 'unauthenticated') {
+  if (status === 'loading' || isLoading || status === 'unauthenticated') {
     return (
       <div className="flex h-screen items-center justify-center bg-background">
         <div className="text-center">

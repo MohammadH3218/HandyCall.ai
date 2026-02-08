@@ -3,6 +3,7 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import CognitoProvider from "next-auth/providers/cognito";
 import { UserRole } from "@handycall/shared";
 import { decodeJWT, extractUserRole } from "@/lib/jwt";
+import type { JWT } from "next-auth/jwt";
 
 // Prefer injected env, but fall back to production defaults; avoid mutating env to keep
 // the bundle side-effect free.
@@ -45,6 +46,51 @@ const COGNITO_AUTH_BASE_URL = COGNITO_AUTH_DOMAIN
     ? COGNITO_AUTH_DOMAIN
     : `https://${COGNITO_AUTH_DOMAIN}.auth.${COGNITO_REGION}.amazoncognito.com`
   : undefined;
+
+const SESSION_MAX_AGE_SECONDS = 8 * 60 * 60;
+const TOKEN_REFRESH_BUFFER_MS = 5 * 60 * 1000;
+
+function getTokenExpiryMs(token?: string) {
+  if (!token) return null;
+  const decoded = decodeJWT(token);
+  const exp = decoded?.exp;
+  if (!exp) return null;
+  return exp * 1000;
+}
+
+async function refreshCognitoTokens(token: JWT): Promise<JWT> {
+  const refreshToken = token.refreshToken as string | undefined;
+  const email = (token.email as string | undefined) || (token.sub as string | undefined);
+  if (!refreshToken || !email) {
+    return token;
+  }
+
+  try {
+    const response = await fetch(`${API_URL}/auth/refresh`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refresh_token: refreshToken, email }),
+    });
+
+    if (!response.ok) {
+      return token;
+    }
+
+    const data = await response.json();
+    const accessToken = data.access_token || data.accessToken;
+    const idToken = data.id_token || data.idToken;
+    const nextRefreshToken = data.refresh_token || data.refreshToken || refreshToken;
+
+    return {
+      ...token,
+      accessToken: accessToken || token.accessToken,
+      idToken: idToken || token.idToken,
+      refreshToken: nextRefreshToken,
+    };
+  } catch {
+    return token;
+  }
+}
 
 const buildCognitoProvider = (options: {
   id: string;
@@ -258,6 +304,11 @@ export const authOptions: NextAuthOptions = {
         token.poolType = token.userRole === UserRole.ADMIN ? 'admin' : 'users';
       }
 
+      const expiryMs = getTokenExpiryMs(token.idToken as string | undefined);
+      if (expiryMs && Date.now() > expiryMs - TOKEN_REFRESH_BUFFER_MS) {
+        token = await refreshCognitoTokens(token);
+      }
+
       return token;
     },
     async session({ session, token }) {
@@ -301,6 +352,13 @@ export const authOptions: NextAuthOptions = {
       }
       return session;
     },
+  },
+  session: {
+    maxAge: SESSION_MAX_AGE_SECONDS,
+    updateAge: 60 * 10,
+  },
+  jwt: {
+    maxAge: SESSION_MAX_AGE_SECONDS,
   },
   secret: process.env.NEXTAUTH_SECRET || "your-secret-key-change-in-production",
   pages: {
