@@ -138,14 +138,26 @@ async function resolveElevenLabsConfig() {
   }
   const voiceId = envFirst(['ELEVENLABS_VOICE_ID', 'ELEVEN_LABS_VOICE_ID']) || '';
   const modelId = envFirst(['ELEVENLABS_MODEL_ID', 'ELEVEN_LABS_MODEL_ID']) || 'eleven_multilingual_v2';
+  const latencyRaw = envFirst([
+    'ELEVENLABS_OPTIMIZE_STREAMING_LATENCY',
+    'ELEVEN_LABS_OPTIMIZE_STREAMING_LATENCY',
+  ]);
+  let optimizeStreamingLatency = latencyRaw ? Number(latencyRaw) : 3;
+  if (!Number.isFinite(optimizeStreamingLatency)) optimizeStreamingLatency = 3;
   if (!apiKey || !voiceId) return null;
-  return { apiKey, voiceId, modelId };
+  return { apiKey, voiceId, modelId, optimizeStreamingLatency };
 }
 
 async function elevenLabsStreamTts(
-  params: { apiKey: string; voiceId: string; modelId: string; text: string }
+  params: {
+    apiKey: string;
+    voiceId: string;
+    modelId: string;
+    text: string;
+    optimizeStreamingLatency: number;
+  }
 ): Promise<Readable> {
-  const { apiKey, voiceId, modelId, text } = params;
+  const { apiKey, voiceId, modelId, text, optimizeStreamingLatency } = params;
   const url = `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voiceId)}/stream`;
   const res = await fetch(url, {
     method: 'POST',
@@ -157,6 +169,7 @@ async function elevenLabsStreamTts(
     body: JSON.stringify({
       text,
       model_id: modelId,
+      optimize_streaming_latency: optimizeStreamingLatency,
     }),
   });
   if (!res.ok || !res.body) {
@@ -656,13 +669,16 @@ function buildInstructions(tenant: TenantInfo, options: { serviceAreaRequired: b
     `If the ZIP is not serviced, apologize and end the call politely.`,
     requiredFields ? `Required intake fields to collect before booking: ${requiredFields}.` : null,
     optionalFields ? `Optional fields (collect only if relevant): ${optionalFields}.` : null,
-    `You MUST collect EVERY required intake field before asking about scheduling. Do not skip any. Go through each required field one at a time. Do not move to preferred time until all other required fields have been collected.`,
+    `You MUST collect EVERY required intake field before asking about scheduling. Do not skip any. Go through each required field one at a time. Do not move to preferred time until all other required fields (including address if required) have been collected.`,
     `Ask for preferred day/time, call get_availability, then offer available slots.`,
     `Never claim a time is available unless get_availability returns it. If a requested time is unavailable, say so and offer available slots from get_availability.`,
     `If get_availability returns closed_day=true, tell the caller that day is closed and ask for another day.`,
     `If get_availability includes suggested_time_only, ONLY offer those times (max 3). Do not invent times.`,
     `If a requested time is available, acknowledge it and continue (do not ask to confirm the time).`,
+    `If the caller shares a time early, acknowledge it and say you'll confirm after collecting the remaining required details.`,
     `Only provide ONE summary, after ALL required intake fields (including address if required) AND a specific time slot have been collected. Do not summarize early or multiple times.`,
+    `Never summarize immediately after the caller gives a time; finish collecting missing details first.`,
+    `Never provide more than one summary per call.`,
     `Before booking, summarize the details and ask for confirmation. Only then call create_booking with confirmed=true.`,
     `When calling create_booking, you MUST include ALL collected intake fields in the details object—not just the most recent ones. Include every field you gathered during the conversation (name, address, zip, service details, etc.).`,
     `If create_booking returns a MissingRequiredFields error, ask ONLY for the specific fields listed in missing_fields. Do NOT re-ask for information you already collected. Then retry create_booking with ALL collected fields (old and new) in the details object.`,
@@ -1119,7 +1135,9 @@ wss.on('connection', (twilioWs: WebSocket) => {
   let openaiWs: WebSocket | null = null;
   let ctx: CallContext | null = null;
   let transcript: string[] = [];
-  let elevenLabsConfig: { apiKey: string; voiceId: string; modelId: string } | null = null;
+  let elevenLabsConfig:
+    | { apiKey: string; voiceId: string; modelId: string; optimizeStreamingLatency: number }
+    | null = null;
   let useElevenLabs = false;
   let openaiReady = false;
   let openaiResponding = false;
@@ -1204,6 +1222,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
         apiKey: elevenLabsConfig.apiKey,
         voiceId: elevenLabsConfig.voiceId,
         modelId: elevenLabsConfig.modelId,
+        optimizeStreamingLatency: elevenLabsConfig.optimizeStreamingLatency,
         text: trimmed,
       });
       const mulaw = transcodeToMulaw8k(ttsStream, controller.signal);
