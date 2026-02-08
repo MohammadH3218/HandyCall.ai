@@ -298,8 +298,16 @@ export default function DashboardPage() {
             ) : recentPreview.length > 0 ? (
               <div className="space-y-2">
                 {recentPreview.map((call) => {
-                  const displayName = call.caller_name || call.caller_phone || 'Unknown caller';
-                  const secondary = call.caller_name && call.caller_phone ? call.caller_phone : undefined;
+                  const status = call.status?.toString().toLowerCase();
+                  const isInProgress = status === 'in_progress' || status === 'in progress';
+                  const hasName = Boolean(call.caller_name && call.caller_name.trim());
+                  const displayName = isInProgress
+                    ? 'In Progress'
+                    : hasName
+                      ? call.caller_name!.trim()
+                      : 'Unknown caller';
+                  const secondary =
+                    !isInProgress && hasName && call.caller_phone ? call.caller_phone : undefined;
                   const statusLabel = formatStatus(call.status);
                   const meta = [formatDate(call.created_at), call.duration ? formatDuration(call.duration) : undefined]
                     .filter(Boolean)
