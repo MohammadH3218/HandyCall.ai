@@ -17,7 +17,7 @@ function AuthInitializer({ children }: { children: React.ReactNode }) {
       pathname.startsWith('/admin') ||
       pathname.startsWith('/onboarding');
 
-    if (shouldCheck) {
+    if (shouldCheck && status === 'authenticated') {
       checkAuth();
     } else {
       useAuthStore.setState({ isLoading: false, _checkAuthInProgress: false });

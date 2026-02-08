@@ -194,7 +194,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       return;
     }
 
-    set({ _checkAuthInProgress: true, isLoading: true, isAuthenticated: false });
+    const shouldShowLoading = !state.isAuthenticated;
+    set({
+      _checkAuthInProgress: true,
+      isLoading: shouldShowLoading ? true : state.isLoading,
+      isAuthenticated: shouldShowLoading ? false : state.isAuthenticated,
+    });
 
     try {
       // Get NextAuth session info to populate user/email/role

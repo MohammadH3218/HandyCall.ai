@@ -32,7 +32,7 @@ type PaymentMethod = {
 export default function BillingPage() {
   const router = useRouter();
   const { toast } = useToast();
-  const { company, checkAuth } = useAuthStore();
+  const { company } = useAuthStore();
   const [subscription, setSubscription] = useState<any>(null);
   const [usage, setUsage] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -115,8 +115,6 @@ export default function BillingPage() {
   const loadBillingData = async () => {
     try {
       setLoading(true);
-      // Refresh company data first to get latest subscription status
-      await checkAuth();
 
       const [subData, usageData, paymentData] = await Promise.all([
         apiClient.getMySubscription(),
