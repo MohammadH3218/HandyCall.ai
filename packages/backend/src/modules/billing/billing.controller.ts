@@ -15,7 +15,7 @@ import { Request } from 'express';
 import { BillingService } from './billing.service';
 import { UsageService } from './usage.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { CompanyId, UserRole } from '../../common/decorators/auth.decorator';
+import { CompanyId, UserRoleParam } from '../../common/decorators/auth.decorator';
 import { Public } from '../../common/decorators/public.decorator';
 import { CreateSubscriptionDto } from './dto/create-subscription.dto';
 import { UpdateSubscriptionDto } from './dto/update-subscription.dto';
@@ -187,7 +187,7 @@ export class BillingController {
    */
   @Get('admin/subscriptions')
   async listAllSubscriptions(
-    @UserRole() role: UserRoleEnum,
+    @UserRoleParam() role: UserRoleEnum,
     @Query('status') status?: string,
     @Query('plan') plan?: string
   ) {
@@ -205,7 +205,7 @@ export class BillingController {
    * GET /billing/admin/revenue
    */
   @Get('admin/revenue')
-  async getRevenueMetrics(@UserRole() role: UserRoleEnum) {
+  async getRevenueMetrics(@UserRoleParam() role: UserRoleEnum) {
     if (role !== UserRoleEnum.ADMIN) {
       throw new NotFoundException('Not found');
     }
@@ -229,7 +229,7 @@ export class BillingController {
    */
   @Get('admin/company/:companyId')
   async getCompanyBilling(
-    @UserRole() role: UserRoleEnum,
+    @UserRoleParam() role: UserRoleEnum,
     @Param('companyId') companyId: string
   ) {
     if (role !== UserRoleEnum.ADMIN) {
@@ -244,7 +244,7 @@ export class BillingController {
    */
   @Get('admin/company/:companyId/invoices')
   async getCompanyInvoices(
-    @UserRole() role: UserRoleEnum,
+    @UserRoleParam() role: UserRoleEnum,
     @Param('companyId') companyId: string
   ) {
     if (role !== UserRoleEnum.ADMIN) {
@@ -259,7 +259,7 @@ export class BillingController {
    */
   @Post('admin/company/:companyId/subscription')
   async adminCreateSubscription(
-    @UserRole() role: UserRoleEnum,
+    @UserRoleParam() role: UserRoleEnum,
     @Param('companyId') companyId: string,
     @Body() dto: { plan: string }
   ) {
@@ -275,7 +275,7 @@ export class BillingController {
    */
   @Put('admin/company/:companyId/subscription')
   async adminUpdateSubscription(
-    @UserRole() role: UserRoleEnum,
+    @UserRoleParam() role: UserRoleEnum,
     @Param('companyId') companyId: string,
     @Body() dto: UpdateSubscriptionDto
   ) {
@@ -292,7 +292,7 @@ export class BillingController {
    */
   @Delete('admin/company/:companyId/subscription')
   async adminCancelSubscription(
-    @UserRole() role: UserRoleEnum,
+    @UserRoleParam() role: UserRoleEnum,
     @Param('companyId') companyId: string,
     @Query('immediate') immediate?: string
   ) {
@@ -308,7 +308,7 @@ export class BillingController {
    */
   @Post('admin/company/:companyId/subscription/reactivate')
   async adminReactivateSubscription(
-    @UserRole() role: UserRoleEnum,
+    @UserRoleParam() role: UserRoleEnum,
     @Param('companyId') companyId: string
   ) {
     if (role !== UserRoleEnum.ADMIN) {
@@ -323,7 +323,7 @@ export class BillingController {
    */
   @Post('admin/company/:companyId/usage/reset')
   async adminResetUsage(
-    @UserRole() role: UserRoleEnum,
+    @UserRoleParam() role: UserRoleEnum,
     @Param('companyId') companyId: string
   ) {
     if (role !== UserRoleEnum.ADMIN) {
