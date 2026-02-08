@@ -66,6 +66,23 @@ function LoginPageInner() {
   const [socialLoading, setSocialLoading] = useState<'cognito-google' | 'cognito-apple' | null>(null);
   const [showPasswordChangeModal, setShowPasswordChangeModal] = useState(false);
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (window.location.pathname !== '/login') return;
+    const userPortalUrl = process.env.NEXT_PUBLIC_USER_PORTAL_URL;
+    if (!userPortalUrl) return;
+    try {
+      const target = new URL(userPortalUrl);
+      if (window.location.host === target.host) return;
+      const nextUrl = new URL(window.location.href);
+      nextUrl.protocol = target.protocol;
+      nextUrl.host = target.host;
+      window.location.replace(nextUrl.toString());
+    } catch {
+      // ignore invalid portal URL
+    }
+  }, []);
+
   // Sync email from store if available (for password change flow)
   useEffect(() => {
     if (storeEmail) {

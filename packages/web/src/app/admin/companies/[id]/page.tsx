@@ -4,9 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { UserRole } from '@handycall/shared';
 import { useAuthStore } from '@/stores/auth-store';
-import { Logo } from '@/components/ui/logo';
-import { ProfileDropdown } from '@/components/profile-dropdown';
-import { AdminNav } from '@/components/admin/admin-nav';
+import { useAdminCompanyStore } from '@/stores/admin-company-store';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -85,6 +83,7 @@ export default function AdminCompanyDetailPage() {
   const companyId = useMemo(() => String((params as any)?.id || ''), [params]);
   const { userRole, isAuthenticated, isLoading } = useAuthStore();
   const { toast } = useToast();
+  const { setCompany } = useAdminCompanyStore();
 
   const [company, setCompany] = useState<Company | null>(null);
   const [isPageLoading, setIsPageLoading] = useState(true);
@@ -109,7 +108,7 @@ export default function AdminCompanyDetailPage() {
 
   useEffect(() => {
     if (!isLoading && (!isAuthenticated || userRole !== UserRole.ADMIN)) {
-      router.push('/login');
+      router.push('/admin/login');
       return;
     }
 
@@ -124,6 +123,7 @@ export default function AdminCompanyDetailPage() {
     try {
       const data = await fetchJsonWithFallback(`/api/proxy/companies/${companyId}`);
       setCompany(data);
+      setCompany(data.company_id, data.company_name);
       setEditData({
         company_name: data.company_name,
         service_type: data.service_type,
@@ -290,32 +290,12 @@ export default function AdminCompanyDetailPage() {
 
   if (!company) {
     return (
-      <div className="min-h-screen bg-background">
-        <header className="bg-card shadow-sm border-b border-border sticky top-0 z-10">
-          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-            <div className="flex h-16 items-center justify-between gap-4">
-              <div className="flex items-center space-x-4">
-                <div className="hidden sm:block cursor-pointer" onClick={() => router.push('/admin')}>
-                  <Logo variant="words" width={160} height={40} />
-                </div>
-                <div className="sm:hidden cursor-pointer" onClick={() => router.push('/admin')}>
-                  <Logo variant="icon" width={40} height={40} />
-                </div>
-              </div>
-              <ProfileDropdown />
-            </div>
-            <div className="py-3 border-t border-border">
-              <AdminNav />
-            </div>
-          </div>
-        </header>
-        <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-          <Button variant="outline" onClick={() => router.push('/admin/companies')}>
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Companies
-          </Button>
-          <div className="mt-6 text-sm text-muted-foreground">Company not found.</div>
-        </main>
+      <div className="space-y-6">
+        <Button variant="outline" onClick={() => router.push('/admin/companies')}>
+          <ArrowLeft className="h-4 w-4 mr-2" />
+          Back to Companies
+        </Button>
+        <div className="text-sm text-muted-foreground">Company not found.</div>
       </div>
     );
   }
@@ -327,38 +307,14 @@ export default function AdminCompanyDetailPage() {
   const isCancelScheduled = cancelAtPeriodEnd || subscriptionStatus === 'CANCELING';
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="bg-card shadow-sm border-b border-border sticky top-0 z-10">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="flex h-16 items-center justify-between gap-4">
-            <div className="flex items-center space-x-2 sm:space-x-4 flex-1 min-w-0">
-              <div className="hidden sm:block cursor-pointer" onClick={() => router.push('/admin')}>
-                <Logo variant="words" width={160} height={40} />
-              </div>
-              <div className="sm:hidden cursor-pointer" onClick={() => router.push('/admin')}>
-                <Logo variant="icon" width={40} height={40} />
-              </div>
-              <div className="border-l border-border pl-2 sm:pl-4 min-w-0 flex-1">
-                <h1 className="text-base sm:text-xl font-semibold text-foreground truncate">{company.company_name}</h1>
-                <p className="text-xs text-muted-foreground hidden sm:block">Company details</p>
-              </div>
-            </div>
-            <ProfileDropdown />
-          </div>
-          <div className="py-3 border-t border-border">
-            <AdminNav />
-          </div>
-        </div>
-      </header>
-
-      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 space-y-6">
-        <div className="flex items-center justify-between gap-4">
-          <Button variant="outline" onClick={() => router.push('/admin/companies')}>
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back
-          </Button>
-          <Badge variant="outline">{company.status}</Badge>
-        </div>
+    <div className="space-y-6">
+      <div className="flex items-center justify-between gap-4">
+        <Button variant="outline" onClick={() => router.push('/admin/companies')}>
+          <ArrowLeft className="h-4 w-4 mr-2" />
+          Back
+        </Button>
+        <Badge variant="outline">{company.status}</Badge>
+      </div>
 
         <Card>
           <CardHeader>
@@ -613,8 +569,7 @@ export default function AdminCompanyDetailPage() {
             </div>
           </CardContent>
         </Card>
-      </main>
-
+      
       <Dialog open={claimDialogOpen} onOpenChange={setClaimDialogOpen}>
         <DialogContent className="max-w-xl">
           <DialogHeader>

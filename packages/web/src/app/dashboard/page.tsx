@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useAuthStore } from '@/stores/auth-store';
 import { apiClient } from '@/lib/api-client';
+import { usePortalBasePath } from '@/lib/portal';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Phone, Users, Calendar, AlertCircle, ArrowUpRight } from 'lucide-react';
@@ -49,6 +50,7 @@ interface ChartPoint {
 
 export default function DashboardPage() {
   const { company } = useAuthStore();
+  const basePath = usePortalBasePath();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [recentCalls, setRecentCalls] = useState<RecentCall[]>([]);
   const [upcomingAppointments, setUpcomingAppointments] = useState<UpcomingAppointment[]>([]);
@@ -277,7 +279,7 @@ export default function DashboardPage() {
             <CardTitle>Recent Calls</CardTitle>
             {hasMoreCalls && (
               <Link
-                href="/dashboard/calls"
+                href={`${basePath}/calls`}
                 className="inline-flex items-center text-xs font-semibold text-emerald-700 hover:text-emerald-600"
               >
                 View all
@@ -315,7 +317,7 @@ export default function DashboardPage() {
                   return (
                     <Link
                       key={call.call_id}
-                      href={`/dashboard/calls/${call.call_id}`}
+                      href={`${basePath}/calls/${call.call_id}`}
                       className="group block rounded-2xl border border-border/60 bg-white/80 p-4 transition-all hover:-translate-y-0.5 hover:border-emerald-200 hover:shadow-md"
                     >
                       <div className="flex items-start justify-between gap-4">
@@ -349,7 +351,7 @@ export default function DashboardPage() {
             <CardTitle>Upcoming Appointments</CardTitle>
             {hasMoreAppointments && (
               <Link
-                href="/dashboard/appointments"
+                href={`${basePath}/appointments`}
                 className="inline-flex items-center text-xs font-semibold text-emerald-700 hover:text-emerald-600"
               >
                 View all
@@ -376,7 +378,7 @@ export default function DashboardPage() {
                   return (
                     <Link
                       key={apt.appointment_id}
-                      href="/dashboard/appointments"
+                      href={`${basePath}/appointments`}
                       className="group block rounded-2xl border border-border/60 bg-white/80 p-4 transition-all hover:-translate-y-0.5 hover:border-emerald-200 hover:shadow-md"
                     >
                       <div className="flex items-start justify-between gap-4">

@@ -1,5 +1,5 @@
 import { createParamDecorator, ExecutionContext } from '@nestjs/common';
-import { AuthContext } from '@handycall/shared';
+import { AuthContext, UserRole } from '@handycall/shared';
 
 /**
  * Extract auth context from request
@@ -19,7 +19,12 @@ export const Auth = createParamDecorator(
 export const CompanyId = createParamDecorator(
   (_data: unknown, ctx: ExecutionContext): string => {
     const request = ctx.switchToHttp().getRequest();
-    return request.user?.company_id;
+    const user = request.user as AuthContext | undefined;
+    const override = request.headers?.['x-company-id'] || request.headers?.['x-company-id'.toLowerCase()];
+    if (override && (user?.role === UserRole.ADMIN || user?.company_id === 'platform-admin')) {
+      return String(override);
+    }
+    return user?.company_id;
   }
 );
 

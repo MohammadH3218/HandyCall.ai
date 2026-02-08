@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiClient } from '@/lib/api-client';
+import { usePortalBasePath } from '@/lib/portal';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -47,6 +48,7 @@ function formatMoney(cents?: number) {
 
 export default function CustomersPage() {
   const router = useRouter();
+  const basePath = usePortalBasePath();
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -295,7 +297,7 @@ export default function CustomersPage() {
                         key={c.call_id}
                         type="button"
                         className="w-full text-left border border-gray-200 rounded-lg p-3 hover:border-blue-500 hover:shadow-sm transition-all"
-                        onClick={() => router.push(`/dashboard/calls/${c.call_id}`)}
+                        onClick={() => router.push(`${basePath}/calls/${c.call_id}`)}
                       >
                         <div className="flex items-center justify-between gap-3">
                           <div className="text-sm text-gray-900 truncate">{c.status || 'Call'}</div>
@@ -326,7 +328,7 @@ export default function CustomersPage() {
                           className="w-full text-left border border-gray-200 rounded-lg p-3 hover:border-emerald-500 hover:shadow-sm transition-all"
                           onClick={() => {
                             setDetailsOpen(false);
-                            router.push(`/dashboard/appointments?appointmentId=${a.appointment_id}`);
+                            router.push(`${basePath}/appointments?appointmentId=${a.appointment_id}`);
                           }}
                         >
                           <div className="flex items-center justify-between gap-3">

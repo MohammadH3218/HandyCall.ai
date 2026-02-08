@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { apiClient } from '@/lib/api-client';
 import { useAuthStore } from '@/stores/auth-store';
+import { usePortalBasePath } from '@/lib/portal';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -415,6 +416,7 @@ export default function AppointmentsPage() {
   }, [calendarView, monthLabel, focusDate, weekDays, displayTimezone]);
 
   const router = useRouter();
+  const basePath = usePortalBasePath();
   const searchParams = useSearchParams();
   const shiftMonthCursor = (delta: number) => {
     setMonthCursor((prev) => {
@@ -443,16 +445,16 @@ export default function AppointmentsPage() {
       setError(null);
       
       // Clear URL parameters
-      router.replace('/dashboard/appointments');
+      router.replace(`${basePath}/appointments`);
     } else if (calendarStatus === 'error') {
       setError(errorMessage || 'Failed to connect calendar');
       // Clear URL parameters
-      router.replace('/dashboard/appointments');
+      router.replace(`${basePath}/appointments`);
     }
 
     if (openSettings === '1') {
       setPendingCalendarSettingsOpen(true);
-      router.replace('/dashboard/appointments');
+      router.replace(`${basePath}/appointments`);
     }
     if (appointmentId) {
       setPendingAppointmentId(appointmentId);
@@ -467,7 +469,7 @@ export default function AppointmentsPage() {
     if (!match) return;
     handleViewAppointment(pendingAppointmentId);
     setPendingAppointmentId(null);
-    router.replace('/dashboard/appointments');
+    router.replace(`${basePath}/appointments`);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingAppointmentId, appointments]);
 

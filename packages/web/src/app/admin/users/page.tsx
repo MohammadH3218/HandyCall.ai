@@ -3,8 +3,6 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/stores/auth-store';
-import { Logo } from '@/components/ui/logo';
-import { ProfileDropdown } from '@/components/profile-dropdown';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,7 +12,6 @@ import { useToast } from '@/hooks/use-toast';
 import { Search, UserPlus } from 'lucide-react';
 import { UserRole } from '@handycall/shared';
 import { CreateUserDialog } from '@/components/admin/create-user-dialog';
-import { AdminNav } from '@/components/admin/admin-nav';
 
 interface User {
   user_id: string;
@@ -53,7 +50,7 @@ export default function UsersPage() {
 
   useEffect(() => {
     if (!isLoading && (!isAuthenticated || userRole !== UserRole.ADMIN)) {
-      router.push('/login');
+      router.push('/admin/login');
       return;
     }
 
@@ -187,31 +184,7 @@ export default function UsersPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="bg-card shadow-sm border-b border-border sticky top-0 z-10">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="flex h-16 items-center justify-between gap-4">
-            <div className="flex items-center space-x-2 sm:space-x-4 flex-1 min-w-0">
-              <div className="hidden sm:block cursor-pointer" onClick={() => router.push('/admin')}>
-                <Logo variant="words" width={160} height={40} />
-              </div>
-              <div className="sm:hidden cursor-pointer" onClick={() => router.push('/admin')}>
-                <Logo variant="icon" width={40} height={40} />
-              </div>
-              <div className="border-l border-border pl-2 sm:pl-4 min-w-0 flex-1">
-                <h1 className="text-base sm:text-xl font-semibold text-foreground truncate">Users</h1>
-                <p className="text-xs text-muted-foreground hidden sm:block">Manage all users</p>
-              </div>
-            </div>
-            <ProfileDropdown />
-          </div>
-          <div className="py-3 border-t border-border">
-            <AdminNav />
-          </div>
-        </div>
-      </header>
-
-      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+    <div className="space-y-6">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
           <div>
             <h2 className="text-2xl font-bold">All Users</h2>
@@ -323,7 +296,6 @@ export default function UsersPage() {
             loadData();
           }}
         />
-      </main>
     </div>
   );
 }

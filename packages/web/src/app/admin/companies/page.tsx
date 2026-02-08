@@ -3,8 +3,6 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/stores/auth-store';
-import { Logo } from '@/components/ui/logo';
-import { ProfileDropdown } from '@/components/profile-dropdown';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,7 +12,7 @@ import { DeleteConfirmDialog } from '@/components/admin/delete-confirm-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { Plus, Search, Building2, Trash2, Edit } from 'lucide-react';
 import { UserRole } from '@handycall/shared';
-import { AdminNav } from '@/components/admin/admin-nav';
+import { useAdminCompanyStore } from '@/stores/admin-company-store';
 
 interface Company {
   company_id: string;
@@ -35,6 +33,7 @@ export default function CompaniesPage() {
   const router = useRouter();
   const { userRole, isAuthenticated, isLoading } = useAuthStore();
   const { toast } = useToast();
+  const { setCompany } = useAdminCompanyStore();
 
   const [companies, setCompanies] = useState<Company[]>([]);
   const [filteredCompanies, setFilteredCompanies] = useState<Company[]>([]);
@@ -46,7 +45,7 @@ export default function CompaniesPage() {
 
   useEffect(() => {
     if (!isLoading && (!isAuthenticated || userRole !== UserRole.ADMIN)) {
-      router.push('/login');
+      router.push('/admin/login');
       return;
     }
 
@@ -183,31 +182,7 @@ export default function CompaniesPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="bg-card shadow-sm border-b border-border sticky top-0 z-10">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="flex h-16 items-center justify-between gap-4">
-            <div className="flex items-center space-x-2 sm:space-x-4 flex-1 min-w-0">
-              <div className="hidden sm:block cursor-pointer" onClick={() => router.push('/admin')}>
-                <Logo variant="words" width={160} height={40} />
-              </div>
-              <div className="sm:hidden cursor-pointer" onClick={() => router.push('/admin')}>
-                <Logo variant="icon" width={40} height={40} />
-              </div>
-              <div className="border-l border-border pl-2 sm:pl-4 min-w-0 flex-1">
-                <h1 className="text-base sm:text-xl font-semibold text-foreground truncate">Companies</h1>
-                <p className="text-xs text-muted-foreground hidden sm:block">Manage all companies</p>
-              </div>
-            </div>
-            <ProfileDropdown />
-          </div>
-          <div className="py-3 border-t border-border">
-            <AdminNav />
-          </div>
-        </div>
-      </header>
-
-      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+    <div className="space-y-6">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
           <div>
             <h2 className="text-2xl font-bold">All Companies</h2>
@@ -257,7 +232,10 @@ export default function CompaniesPage() {
               <Card
                 key={company.company_id}
                 className="hover:shadow-lg transition-shadow cursor-pointer"
-                onClick={() => router.push(`/admin/companies/${company.company_id}`)}
+                onClick={() => {
+                  setCompany(company.company_id, company.company_name);
+                  router.push(`/admin/companies/${company.company_id}`);
+                }}
               >
                 <CardHeader>
                   <div className="flex items-start justify-between">
@@ -304,6 +282,7 @@ export default function CompaniesPage() {
                       className="flex-1"
                       onClick={(e) => {
                         e.stopPropagation();
+                        setCompany(company.company_id, company.company_name);
                         router.push(`/admin/companies/${company.company_id}`);
                       }}
                     >
@@ -328,8 +307,7 @@ export default function CompaniesPage() {
             ))}
           </div>
         )}
-      </main>
-
+      
       <CreateCompanyDialog
         open={createDialogOpen}
         onOpenChange={setCreateDialogOpen}

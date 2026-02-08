@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiClient } from '@/lib/api-client';
+import { usePortalBasePath } from '@/lib/portal';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -35,6 +36,7 @@ interface Call {
 
 export default function CallsPage() {
   const router = useRouter();
+  const basePath = usePortalBasePath();
   const [calls, setCalls] = useState<Call[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -78,7 +80,7 @@ export default function CallsPage() {
   };
 
   const handleViewCall = (callId: string) => {
-    router.push(`/dashboard/calls/${callId}`);
+    router.push(`${basePath}/calls/${callId}`);
   };
 
   const formatDate = (dateString: string) => {

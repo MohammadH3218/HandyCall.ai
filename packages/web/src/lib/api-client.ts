@@ -4,6 +4,25 @@ import { ApiResponse, LoginRequest, LoginResponse, RegisterRequest, RegisterResp
 // The proxy handles authentication server-side using NextAuth cookies
 const API_URL = '/api/proxy';
 
+const ADMIN_PATH_PREFIX = '/admin';
+
+const getAdminCompanyId = () => {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = window.localStorage.getItem('handycall-admin-company');
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed?.state?.companyId || parsed?.companyId || null;
+  } catch {
+    return null;
+  }
+};
+
+const isAdminRoute = () => {
+  if (typeof window === 'undefined') return false;
+  return window.location.pathname.startsWith(ADMIN_PATH_PREFIX);
+};
+
 class ApiClient {
   private baseUrl: string;
 
@@ -28,6 +47,13 @@ class ApiClient {
       'Content-Type': 'application/json',
       ...(options.headers as Record<string, string>),
     };
+
+    if (isAdminRoute()) {
+      const adminCompanyId = getAdminCompanyId();
+      if (adminCompanyId) {
+        headers['x-company-id'] = adminCompanyId;
+      }
+    }
 
     // No need to add Authorization header here!
     // The Next.js proxy (/api/proxy/[...path]) handles authentication server-side
@@ -64,11 +90,12 @@ class ApiClient {
             // Only redirect if not already on login or register page
             // Use a timeout to prevent redirect loops during login flow
             const currentPath = window.location.pathname;
-            if (currentPath !== '/login' && currentPath !== '/register') {
+            const loginPath = currentPath.startsWith(ADMIN_PATH_PREFIX) ? '/admin/login' : '/login';
+            if (currentPath !== loginPath && currentPath !== '/register') {
               // Delay redirect slightly to allow any in-flight auth to complete
               setTimeout(() => {
-                if (window.location.pathname !== '/login' && window.location.pathname !== '/register') {
-                  window.location.href = '/login';
+                if (window.location.pathname !== loginPath && window.location.pathname !== '/register') {
+                  window.location.href = loginPath;
                 }
               }, 100);
             }

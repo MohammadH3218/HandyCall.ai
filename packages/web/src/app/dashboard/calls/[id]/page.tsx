@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { apiClient } from '@/lib/api-client';
+import { usePortalBasePath } from '@/lib/portal';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -35,6 +36,7 @@ interface Call {
 
 export default function CallDetailsPage() {
   const router = useRouter();
+  const basePath = usePortalBasePath();
   const params = useParams();
   const callId = params?.id as string;
 
@@ -137,7 +139,7 @@ export default function CallDetailsPage() {
     return (
       <div className="p-8 animate-fade-up">
         <div className="flex items-center gap-4 mb-8">
-          <Button variant="outline" onClick={() => router.push('/dashboard/calls')}>
+          <Button variant="outline" onClick={() => router.push(`${basePath}/calls`)}>
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back to Calls
           </Button>
@@ -154,7 +156,7 @@ export default function CallDetailsPage() {
     return (
       <div className="p-8 animate-fade-up">
         <div className="flex items-center gap-4 mb-8">
-          <Button variant="outline" onClick={() => router.push('/dashboard/calls')}>
+          <Button variant="outline" onClick={() => router.push(`${basePath}/calls`)}>
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back to Calls
           </Button>
@@ -182,7 +184,7 @@ export default function CallDetailsPage() {
     <div className="p-8 animate-fade-up">
       {/* Header */}
       <div className="mb-8">
-        <Button variant="outline" onClick={() => router.push('/dashboard/calls')} className="mb-4">
+        <Button variant="outline" onClick={() => router.push(`${basePath}/calls`)} className="mb-4">
           <ArrowLeft className="h-4 w-4 mr-2" />
           Back to Calls
         </Button>
@@ -216,7 +218,7 @@ export default function CallDetailsPage() {
           {call.contact_id && (
             <Card
               className="cursor-pointer hover:border-emerald-300 hover:shadow-md transition-all"
-              onClick={() => router.push(`/dashboard/customers?contact=${call.contact_id}`)}
+              onClick={() => router.push(`${basePath}/customers?contact=${call.contact_id}`)}
             >
               <CardContent className="flex items-center gap-3 py-4">
                 <div className="bg-emerald-50 p-3 rounded-full">
@@ -233,7 +235,7 @@ export default function CallDetailsPage() {
           {call.appointment_id && (
             <Card
               className="cursor-pointer hover:border-emerald-300 hover:shadow-md transition-all"
-              onClick={() => router.push(`/dashboard/appointments?appointment=${call.appointment_id}`)}
+              onClick={() => router.push(`${basePath}/appointments?appointment=${call.appointment_id}`)}
             >
               <CardContent className="flex items-center gap-3 py-4">
                 <div className="bg-emerald-50 p-3 rounded-full">

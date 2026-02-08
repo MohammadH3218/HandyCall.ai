@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiClient } from '@/lib/api-client';
+import { usePortalBasePath } from '@/lib/portal';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useAuthStore } from '@/stores/auth-store';
@@ -21,6 +22,12 @@ type UsageMetrics = {
 
 export default function UsagePage() {
   const router = useRouter();
+  const basePath = usePortalBasePath();
+  const isAdminPortal = basePath === '/admin';
+  const billingRoot = isAdminPortal ? '/admin/subscriptions' : `${basePath}/billing`;
+  const billingPlans = isAdminPortal ? '/admin/subscriptions' : `${billingRoot}/plans`;
+  const billingPayment = isAdminPortal ? '/admin/subscriptions' : `${billingRoot}/payment-method`;
+  const billingInvoices = isAdminPortal ? '/admin/subscriptions' : `${billingRoot}/invoices`;
   const { company } = useAuthStore();
   const [usage, setUsage] = useState<UsageMetrics | null>(null);
   const [subscriptionPlan, setSubscriptionPlan] = useState<SubscriptionPlan | undefined>(
@@ -154,10 +161,10 @@ export default function UsagePage() {
           </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={() => router.push('/dashboard/billing/invoices')}>
+          <Button variant="outline" onClick={() => router.push(billingInvoices)}>
             Invoices
           </Button>
-          <Button onClick={() => router.push('/dashboard/billing')}>Billing</Button>
+          <Button onClick={() => router.push(billingRoot)}>Billing</Button>
         </div>
       </div>
 
@@ -182,7 +189,7 @@ export default function UsagePage() {
               </p>
             </div>
           ) : (
-            <Button onClick={() => router.push('/dashboard/billing/plans')}>Choose a plan</Button>
+            <Button onClick={() => router.push(billingPlans)}>Choose a plan</Button>
           )}
         </CardHeader>
         <CardContent>
@@ -231,7 +238,7 @@ export default function UsagePage() {
               </div>
             ))}
             <div className="pt-2">
-              <Button variant="outline" onClick={() => router.push('/dashboard/billing/plans')}>
+              <Button variant="outline" onClick={() => router.push(billingPlans)}>
                 Review plans
               </Button>
             </div>
@@ -248,10 +255,10 @@ export default function UsagePage() {
             </CardDescription>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" onClick={() => router.push('/dashboard/billing/payment-method')}>
+            <Button variant="outline" onClick={() => router.push(billingPayment)}>
               Payment method
             </Button>
-            <Button onClick={() => router.push('/dashboard/billing')}>Open billing</Button>
+            <Button onClick={() => router.push(billingRoot)}>Open billing</Button>
           </div>
         </CardHeader>
         <CardContent className="grid gap-4 md:grid-cols-3">

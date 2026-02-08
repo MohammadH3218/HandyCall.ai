@@ -149,7 +149,7 @@ export default function AdminSubscriptionsPage() {
   }
 
   return (
-    <div className="p-8 max-w-7xl">
+    <div className="space-y-6">
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900">Subscription Management</h1>
         <p className="mt-2 text-gray-600">Monitor subscriptions, revenue, and customer metrics</p>
@@ -157,7 +157,7 @@ export default function AdminSubscriptionsPage() {
 
       {/* Stats Overview */}
       {stats && (
-        <div className="grid gap-6 md:grid-cols-4 mb-6">
+        <div className="grid gap-6 md:grid-cols-4">
           <Card>
             <CardHeader className="pb-2">
               <CardDescription>Total Subscriptions</CardDescription>
@@ -190,7 +190,7 @@ export default function AdminSubscriptionsPage() {
 
       {/* Revenue Metrics */}
       {metrics && (
-        <div className="grid gap-6 md:grid-cols-2 mb-6">
+        <div className="grid gap-6 md:grid-cols-2">
           <Card>
             <CardHeader>
               <CardTitle>Monthly Recurring Revenue</CardTitle>

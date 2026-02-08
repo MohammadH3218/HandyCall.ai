@@ -82,6 +82,11 @@ async function handleRequest(
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
     };
+
+    const companyOverride = req.headers.get('x-company-id');
+    if (companyOverride) {
+      headers['x-company-id'] = companyOverride;
+    }
     
     // Only add Authorization header if we have a session (not needed for public paths)
     if (bearerToken) {
