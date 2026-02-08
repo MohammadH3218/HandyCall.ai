@@ -1635,7 +1635,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
         recordingStatusCallback: `${publicBaseUrl}/twilio/recording-status`,
         recordingStatusCallbackMethod: 'POST',
         recordingStatusCallbackEvent: ['completed'],
-        recordingChannels: 'dual',
+        recordingChannels: 'mono',
       });
     } catch (e: any) {
       log('startTwilioRecording failed (non-fatal)', e?.message ?? String(e));

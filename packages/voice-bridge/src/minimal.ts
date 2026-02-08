@@ -805,7 +805,7 @@ async function startTwilioRecording(callSid: string) {
       recordingStatusCallback: `${publicBaseUrl}/twilio/recording-status`,
       recordingStatusCallbackMethod: 'POST',
       recordingStatusCallbackEvent: ['completed'],
-      recordingChannels: 'dual',
+      recordingChannels: 'mono',
     });
   } catch (err: any) {
     console.warn('[twilio] start recording failed', err?.message ?? String(err));
