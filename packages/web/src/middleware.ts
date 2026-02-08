@@ -19,6 +19,26 @@ import { UserRole } from '@handycall/shared';
  */
 export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
+  const hostHeader = request.headers.get('host') || '';
+  const host = hostHeader.split(':')[0]?.toLowerCase();
+  const adminHost =
+    (process.env.NEXT_PUBLIC_ADMIN_PORTAL_HOST || process.env.ADMIN_PORTAL_HOST || '').toLowerCase();
+  const userHost =
+    (process.env.NEXT_PUBLIC_USER_PORTAL_HOST || process.env.USER_PORTAL_HOST || '').toLowerCase();
+
+  // Host-based routing for user/admin portals.
+  if (adminHost && host === adminHost) {
+    if (!pathname.startsWith('/admin')) {
+      const redirectUrl = new URL(`/admin${pathname === '/' ? '' : pathname}`, request.url);
+      return NextResponse.redirect(redirectUrl);
+    }
+  }
+
+  if (userHost && host === userHost) {
+    if (pathname.startsWith('/admin')) {
+      return NextResponse.redirect(new URL('/dashboard', request.url));
+    }
+  }
 
   // Only guard dashboard/admin; everything else is public
   const isAdminRoute = pathname.startsWith('/admin');
@@ -66,4 +86,3 @@ export const config = {
     '/((?!api|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 };
-
