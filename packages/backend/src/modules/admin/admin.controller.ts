@@ -1,7 +1,7 @@
 import { Controller, Get, Post, Param, Query, UseGuards, NotFoundException } from '@nestjs/common';
 import { AdminService } from './admin.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { UserRole as UserRoleDecorator } from '../../common/decorators/auth.decorator';
+import { UserRoleParam } from '../../common/decorators/auth.decorator';
 import { UserRole } from '@handycall/shared';
 
 @Controller('admin')
@@ -13,7 +13,7 @@ export class AdminController {
    * Get system-wide statistics (admin only)
    */
   @Get('stats')
-  async getSystemStats(@UserRoleDecorator() role: UserRole) {
+  async getSystemStats(@UserRoleParam() role: UserRole) {
     if (role !== UserRole.ADMIN) {
       throw new NotFoundException('Not found');
     }
@@ -26,7 +26,7 @@ export class AdminController {
    */
   @Get('activity')
   async getRecentActivity(
-    @UserRoleDecorator() role: UserRole,
+    @UserRoleParam() role: UserRole,
     @Query('limit') limit?: string
   ) {
     if (role !== UserRole.ADMIN) {
@@ -42,7 +42,7 @@ export class AdminController {
    */
   @Get('top-companies')
   async getTopCompanies(
-    @UserRoleDecorator() role: UserRole,
+    @UserRoleParam() role: UserRole,
     @Query('limit') limit?: string
   ) {
     if (role !== UserRole.ADMIN) {
@@ -58,7 +58,7 @@ export class AdminController {
    */
   @Post('companies/:id/cancel-subscription')
   async cancelSubscription(
-    @UserRoleDecorator() role: UserRole,
+    @UserRoleParam() role: UserRole,
     @Param('id') companyId: string
   ) {
     if (role !== UserRole.ADMIN) {
@@ -73,7 +73,7 @@ export class AdminController {
    */
   @Post('companies/:id/suspend')
   async suspendCompany(
-    @UserRoleDecorator() role: UserRole,
+    @UserRoleParam() role: UserRole,
     @Param('id') companyId: string
   ) {
     if (role !== UserRole.ADMIN) {

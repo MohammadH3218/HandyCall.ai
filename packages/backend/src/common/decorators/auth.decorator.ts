@@ -24,7 +24,7 @@ export const CompanyId = createParamDecorator(
     if (override && (user?.role === UserRole.ADMIN || user?.company_id === 'platform-admin')) {
       return String(override);
     }
-    return user?.company_id;
+    return user?.company_id || '';
   }
 );
 
@@ -43,7 +43,7 @@ export const UserId = createParamDecorator(
  * Extract user role from auth context
  * Usage: @UserRole() role: UserRole
  */
-export const UserRole = createParamDecorator(
+export const UserRoleParam = createParamDecorator(
   (_data: unknown, ctx: ExecutionContext): string => {
     const request = ctx.switchToHttp().getRequest();
     return request.user?.role;

@@ -14,7 +14,7 @@ import {
 import { CompaniesService } from './companies.service';
 import { UsersService } from '../users/users.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { CompanyId, UserRole as UserRoleDecorator } from '../../common/decorators/auth.decorator';
+import { CompanyId, UserRoleParam } from '../../common/decorators/auth.decorator';
 import { UpdateCompanyDto } from './dto/update-company.dto';
 import { CreateCompanyDto } from './dto/create-company.dto';
 import { AdminUpdateCompanyDto } from './dto/admin-update-company.dto';
@@ -76,7 +76,7 @@ export class CompaniesController {
    */
   @Get()
   async listCompanies(
-    @UserRoleDecorator() role: UserRole,
+    @UserRoleParam() role: UserRole,
     @Query('limit') limit?: string,
     @Query('search') search?: string
   ): Promise<Company[]> {
@@ -97,7 +97,7 @@ export class CompaniesController {
    */
   @Get(':id')
   async getCompanyById(
-    @UserRoleDecorator() role: UserRole,
+    @UserRoleParam() role: UserRole,
     @Param('id') id: string
   ): Promise<Company> {
     if (role !== UserRole.ADMIN) {
@@ -116,7 +116,7 @@ export class CompaniesController {
    */
   @Get(':id/stats')
   async getCompanyStats(
-    @UserRoleDecorator() role: UserRole,
+    @UserRoleParam() role: UserRole,
     @Param('id') id: string
   ): Promise<CompanyStats> {
     if (role !== UserRole.ADMIN) {
@@ -131,7 +131,7 @@ export class CompaniesController {
    */
   @Post()
   async createCompany(
-    @UserRoleDecorator() role: UserRole,
+    @UserRoleParam() role: UserRole,
     @Body() dto: CreateCompanyDto
   ): Promise<Company> {
     if (role !== UserRole.ADMIN) {
@@ -171,7 +171,7 @@ export class CompaniesController {
    */
   @Put(':id')
   async updateCompanyById(
-    @UserRoleDecorator() role: UserRole,
+    @UserRoleParam() role: UserRole,
     @Param('id') id: string,
     @Body() dto: AdminUpdateCompanyDto
   ): Promise<Company> {
@@ -193,7 +193,7 @@ export class CompaniesController {
    */
   @Delete(':id')
   async deleteCompany(
-    @UserRoleDecorator() role: UserRole,
+    @UserRoleParam() role: UserRole,
     @Param('id') id: string
   ): Promise<{ message: string }> {
     if (role !== UserRole.ADMIN) {
@@ -209,7 +209,7 @@ export class CompaniesController {
    */
   @Get(':companyId/users')
   async getCompanyUsers(
-    @UserRoleDecorator() role: UserRole,
+    @UserRoleParam() role: UserRole,
     @Param('companyId') companyId: string
   ) {
     if (role !== UserRole.ADMIN) {

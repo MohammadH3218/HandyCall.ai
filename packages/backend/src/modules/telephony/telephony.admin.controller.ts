@@ -12,7 +12,7 @@ import {
 } from '@nestjs/common';
 import { UserRole } from '@handycall/shared';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { UserRole as UserRoleDecorator } from '../../common/decorators/auth.decorator';
+import { UserRoleParam } from '../../common/decorators/auth.decorator';
 import { TelephonyService } from './telephony.service';
 import { GetAvailableNumbersDto } from './dto/get-available-numbers.dto';
 import { ClaimPhoneNumberDto } from './dto/claim-phone-number.dto';
@@ -24,7 +24,7 @@ export class TelephonyAdminController {
 
   @Get('available-numbers')
   async getAvailableNumbers(
-    @UserRoleDecorator() role: UserRole,
+    @UserRoleParam() role: UserRole,
     @Query() query: GetAvailableNumbersDto,
   ) {
     if (role !== UserRole.ADMIN) {
@@ -54,7 +54,7 @@ export class TelephonyAdminController {
 
   @Get('companies/:companyId/number')
   async getCompanyNumber(
-    @UserRoleDecorator() role: UserRole,
+    @UserRoleParam() role: UserRole,
     @Param('companyId') companyId: string,
   ) {
     if (role !== UserRole.ADMIN) {
@@ -67,7 +67,7 @@ export class TelephonyAdminController {
 
   @Post('companies/:companyId/claim-number')
   async claimNumberForCompany(
-    @UserRoleDecorator() role: UserRole,
+    @UserRoleParam() role: UserRole,
     @Param('companyId') companyId: string,
     @Body() dto: ClaimPhoneNumberDto,
   ) {
@@ -94,4 +94,3 @@ export class TelephonyAdminController {
     }
   }
 }
-

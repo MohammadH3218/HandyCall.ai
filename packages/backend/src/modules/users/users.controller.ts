@@ -13,7 +13,7 @@ import {
 } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { CompanyId, UserId, UserRole as UserRoleDecorator } from '../../common/decorators/auth.decorator';
+import { CompanyId, UserId, UserRoleParam } from '../../common/decorators/auth.decorator';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
@@ -47,7 +47,7 @@ export class UsersController {
    */
   @Get()
   async listUsers(
-    @UserRoleDecorator() role: UserRole,
+    @UserRoleParam() role: UserRole,
     @Query('company_id') companyId?: string
   ): Promise<UserWithCompany[]> {
     if (role !== UserRole.ADMIN) {
@@ -66,7 +66,7 @@ export class UsersController {
    */
   @Get(':id')
   async getUserById(
-    @UserRoleDecorator() role: UserRole,
+    @UserRoleParam() role: UserRole,
     @Param('id') id: string,
     @Query('company_id') companyId?: string
   ): Promise<UserWithCompany> {
@@ -91,7 +91,7 @@ export class UsersController {
    */
   @Post()
   async createUser(
-    @UserRoleDecorator() role: UserRole,
+    @UserRoleParam() role: UserRole,
     @Body() dto: CreateUserDto
   ): Promise<{ user: User }> {
     if (role !== UserRole.ADMIN) {
@@ -119,7 +119,7 @@ export class UsersController {
    */
   @Put(':id')
   async updateUser(
-    @UserRoleDecorator() role: UserRole,
+    @UserRoleParam() role: UserRole,
     @Param('id') id: string,
     @Body() dto: UpdateUserDto,
     @Query('company_id') companyId?: string
@@ -140,7 +140,7 @@ export class UsersController {
    */
   @Delete(':id')
   async deleteUser(
-    @UserRoleDecorator() role: UserRole,
+    @UserRoleParam() role: UserRole,
     @Param('id') id: string,
     @Query('company_id') companyId?: string,
     @Query('email') email?: string
@@ -162,7 +162,7 @@ export class UsersController {
    */
   @Put(':id/disable')
   async disableUser(
-    @UserRoleDecorator() role: UserRole,
+    @UserRoleParam() role: UserRole,
     @Param('id') id: string,
     @Query('company_id') companyId?: string,
     @Query('email') email?: string
@@ -183,7 +183,7 @@ export class UsersController {
    */
   @Put(':id/enable')
   async enableUser(
-    @UserRoleDecorator() role: UserRole,
+    @UserRoleParam() role: UserRole,
     @Param('id') id: string,
     @Query('company_id') companyId?: string,
     @Query('email') email?: string
