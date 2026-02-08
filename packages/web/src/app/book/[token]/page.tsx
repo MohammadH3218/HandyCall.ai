@@ -270,10 +270,13 @@ export default function BookingPage() {
       const next: Record<string, { slots: string[]; readable_slots: string[]; available: boolean }> = {};
       for (const day of data?.days || []) {
         if (day?.date) {
+          const slots = Array.isArray(day.slots) ? day.slots : [];
+          const readableSlots = Array.isArray(day.readable_slots) ? day.readable_slots : [];
+          const hasSlots = slots.length > 0 || readableSlots.length > 0;
           next[day.date] = {
-            slots: Array.isArray(day.slots) ? day.slots : [],
-            readable_slots: Array.isArray(day.readable_slots) ? day.readable_slots : [],
-            available: Boolean(day.available),
+            slots,
+            readable_slots: readableSlots,
+            available: Boolean(day.available) && hasSlots,
           };
         }
       }

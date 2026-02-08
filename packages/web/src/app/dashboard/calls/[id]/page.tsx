@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { AudioPlayer } from '@/components/audio-player';
-import { ArrowLeft, Clock, PhoneCall, User, Calendar, FileText, ExternalLink, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Clock, PhoneCall, User, Calendar, ExternalLink, AlertCircle } from 'lucide-react';
 
 interface Call {
   call_id: string;
@@ -121,6 +121,18 @@ export default function CallDetailsPage() {
     return { label: (status || 'Unknown').replace('_', ' '), className: 'bg-gray-50 text-gray-700 border-gray-200' };
   };
 
+  const extractAddressLine = (info?: any): string => {
+    if (!info) return '';
+    const raw = info.address ?? info.service_address ?? info.location_address;
+    if (typeof raw === 'string') return raw.trim();
+    if (raw && typeof raw === 'object') {
+      const parts = [raw.street, raw.city, raw.state, raw.zip].filter(Boolean);
+      if (parts.length) return parts.join(', ');
+    }
+    const fallbackParts = [info.street, info.city, info.state, info.zip].filter(Boolean);
+    return fallbackParts.length ? fallbackParts.join(', ') : '';
+  };
+
   if (isLoading) {
     return (
       <div className="p-8 animate-fade-up">
@@ -161,6 +173,10 @@ export default function CallDetailsPage() {
 
   const outcome = getOutcome(call);
   const statusBadge = getStatusBadge(call.status);
+  const addressLine = extractAddressLine(call.collected_info);
+  const mapQuery = addressLine ? encodeURIComponent(addressLine) : '';
+  const mapEmbedUrl = mapQuery ? `https://www.google.com/maps?q=${mapQuery}&output=embed` : '';
+  const mapLink = mapQuery ? `https://www.google.com/maps/search/?api=1&query=${mapQuery}` : '';
 
   return (
     <div className="p-8 animate-fade-up">
@@ -234,24 +250,10 @@ export default function CallDetailsPage() {
         </div>
       )}
 
-      {/* Summary and Captured Info */}
-      <div className="grid gap-6 md:grid-cols-2 mb-6">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <FileText className="h-5 w-5" />
-              Call Summary
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="text-slate-700">
-            {call.summary ? (
-              <p className="leading-relaxed">{call.summary}</p>
-            ) : (
-              <p className="text-slate-500 italic">No summary available. Summary is generated after the call ends.</p>
-            )}
-          </CardContent>
-        </Card>
-
+      {/* Captured Info + Location */}
+      <div
+        className={`grid gap-6 mb-6 ${addressLine ? 'lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]' : ''}`}
+      >
         <Card>
           <CardHeader>
             <CardTitle>Captured Information</CardTitle>
@@ -262,7 +264,18 @@ export default function CallDetailsPage() {
                 {Object.entries(call.collected_info).map(([key, value]) => (
                   <div key={key} className="flex justify-between items-start gap-4 pb-3 border-b last:border-b-0">
                     <span className="text-sm text-slate-500 capitalize font-medium">{key.replace(/_/g, ' ')}</span>
-                    <span className="text-sm font-semibold text-slate-900 text-right">{String(value)}</span>
+                    {key.toLowerCase().includes('address') && mapLink ? (
+                      <a
+                        className="text-sm font-semibold text-emerald-700 text-right hover:underline"
+                        href={mapLink}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        {String(value)}
+                      </a>
+                    ) : (
+                      <span className="text-sm font-semibold text-slate-900 text-right">{String(value)}</span>
+                    )}
                   </div>
                 ))}
               </div>
@@ -271,6 +284,22 @@ export default function CallDetailsPage() {
             )}
           </CardContent>
         </Card>
+        {addressLine ? (
+          <Card>
+            <CardHeader>
+              <CardTitle>Location</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="overflow-hidden rounded-lg border border-slate-200">
+                <iframe title="Service location" src={mapEmbedUrl} className="h-48 w-full" loading="lazy" />
+              </div>
+              <div className="text-sm text-slate-600">{addressLine}</div>
+              <Button variant="outline" size="sm" onClick={() => window.open(mapLink, '_blank')}>
+                Open in Maps
+              </Button>
+            </CardContent>
+          </Card>
+        ) : null}
       </div>
 
       {/* Call Recording */}
