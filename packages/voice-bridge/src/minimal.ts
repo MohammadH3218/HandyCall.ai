@@ -28,12 +28,17 @@ function requireEnvFirst(names: string[]): string {
 const awsRegion = process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION || 'us-east-1';
 const ssm = new SSMClient({ region: awsRegion });
 
-type SecretName = 'OPENAI_API_KEY' | 'TWILIO_AUTH_TOKEN' | 'TWILIO_ACCOUNT_SID';
+type SecretName =
+  | 'OPENAI_API_KEY'
+  | 'TWILIO_AUTH_TOKEN'
+  | 'TWILIO_ACCOUNT_SID'
+  | 'ELEVENLABS_API_KEY';
 
 const ssmParamDefaults: Record<SecretName, string> = {
   OPENAI_API_KEY: '/handycall/prod/openai_api_key',
   TWILIO_AUTH_TOKEN: '/handycall/prod/twilio_auth_token',
   TWILIO_ACCOUNT_SID: '/handycall/prod/twilio_account_sid',
+  ELEVENLABS_API_KEY: '/handycall/prod/elevenlabs_api_key',
 };
 
 const secretCache = new Map<SecretName, string>();
@@ -119,9 +124,18 @@ async function postJson(url: string, headers: Record<string, string>, body: any)
   return text ? JSON.parse(text) : {};
 }
 
-function resolveElevenLabsConfig() {
-  const apiKey =
-    envFirst(['ELEVENLABS_API_KEY', 'ELEVENLABS_KEY', 'ELEVEN_LABS_API_KEY']) || '';
+async function resolveElevenLabsConfig() {
+  let apiKey = envFirst(['ELEVENLABS_API_KEY', 'ELEVENLABS_KEY', 'ELEVEN_LABS_API_KEY']) || '';
+  if (apiKey && isPlaceholderSecret(apiKey)) {
+    apiKey = '';
+  }
+  if (!apiKey) {
+    try {
+      apiKey = await getSecret('ELEVENLABS_API_KEY');
+    } catch (err: any) {
+      console.warn('[elevenlabs] secret lookup failed', err?.message ?? String(err));
+    }
+  }
   const voiceId = envFirst(['ELEVENLABS_VOICE_ID', 'ELEVEN_LABS_VOICE_ID']) || '';
   const modelId = envFirst(['ELEVENLABS_MODEL_ID', 'ELEVEN_LABS_MODEL_ID']) || 'eleven_multilingual_v2';
   if (!apiKey || !voiceId) return null;
@@ -1105,8 +1119,8 @@ wss.on('connection', (twilioWs: WebSocket) => {
   let openaiWs: WebSocket | null = null;
   let ctx: CallContext | null = null;
   let transcript: string[] = [];
-  const elevenLabsConfig = resolveElevenLabsConfig();
-  const useElevenLabs = Boolean(elevenLabsConfig);
+  let elevenLabsConfig: { apiKey: string; voiceId: string; modelId: string } | null = null;
+  let useElevenLabs = false;
   let openaiReady = false;
   let openaiResponding = false;
   let twilioReady = false;
@@ -1824,6 +1838,8 @@ wss.on('connection', (twilioWs: WebSocket) => {
       }
 
       twilioReady = true;
+      elevenLabsConfig = await resolveElevenLabsConfig();
+      useElevenLabs = Boolean(elevenLabsConfig);
       await connectOpenAI(resolvedTenant);
 
       callTool(ctx, 'start_call', {}).catch((err: any) =>
