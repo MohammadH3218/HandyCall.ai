@@ -85,21 +85,6 @@ const inclusions = [
   'Usage dashboard with call recordings',
 ];
 
-const roiHighlights = [
-  {
-    title: 'One booked job pays for the week',
-    detail: 'Plug in your average job value and compare to weekly pricing.',
-  },
-  {
-    title: 'Replace receptionist costs',
-    detail: 'Coverage without $3k+/mo wages, taxes, or missed after-hours calls.',
-  },
-  {
-    title: 'Capture missed calls fast',
-    detail: 'After-hours and overflow calls turn into booked jobs the next morning.',
-  },
-];
-
 const costComparison = [
   { label: 'Receptionist (20 hrs/week)', value: '$3,200/mo', detail: 'Wages + taxes + coverage gaps' },
   { label: 'HandyCall Pro', value: '~$40/mo', detail: '24/7 coverage + bookings' },
@@ -120,9 +105,6 @@ const pricingTrustBadges = [
   'Human fallback available',
   'TCPA-friendly scripts',
 ];
-
-const roiSourceNote =
-  'Industry data: Gartner (2025) reports 55% of service leaders kept staffing flat while handling higher volumes with AI.';
 
 const featureComparisons = [
   {
@@ -248,26 +230,7 @@ export default function PricingPage() {
               </CardContent>
             </Card>
           </section>
-          <section className="mt-12 grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
-            <div className="rounded-2xl border border-emerald-100 bg-white p-6 shadow-sm">
-              <p className="text-sm font-medium uppercase tracking-wide text-emerald-700">ROI framing</p>
-              <h2 className="mt-2 text-2xl font-semibold text-slate-900">
-                One booked job covers the week.
-              </h2>
-              <p className="mt-2 text-sm text-slate-600">
-                Use your average job value to see how quickly the plan pays for itself.
-              </p>
-              <div className="mt-5 grid gap-3 sm:grid-cols-2">
-                {roiHighlights.map((item) => (
-                  <div key={item.title} className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-                    <p className="text-sm font-semibold text-slate-900">{item.title}</p>
-                    <p className="mt-1 text-xs text-slate-500">{item.detail}</p>
-                  </div>
-                ))}
-              </div>
-              <p className="mt-4 text-xs text-slate-500">{roiSourceNote}</p>
-            </div>
-
+          <section className="mt-12">
             <div className="rounded-2xl border border-emerald-100 bg-white p-6 shadow-sm">
               <p className="text-sm font-medium uppercase tracking-wide text-emerald-700">
                 Example cost comparison
