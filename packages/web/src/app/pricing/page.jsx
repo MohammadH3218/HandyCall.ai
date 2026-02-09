@@ -9,27 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { SiteHeader } from '@/components/marketing/site-header';
 import { Check, X, ArrowRight, Phone, MessageSquare, Users } from 'lucide-react';
 
-type PlanName = 'Starter' | 'Pro' | 'Max';
-
-type PlanFeature = {
-  label: string;
-  available?: boolean;
-};
-
-type Plan = {
-  name: PlanName;
-  originalPrice: string;
-  price: string;
-  cadence: string;
-  bestFor: string;
-  badge?: string;
-  trialLabel?: string;
-  highlight?: boolean;
-  features: PlanFeature[];
-  limits: { minutes: number; sms: number; contacts: number };
-};
-
-const plans: Plan[] = [
+const plans = [
   {
     name: 'Starter',
     originalPrice: '$9.99',
@@ -144,10 +124,7 @@ const pricingTrustBadges = [
 const roiSourceNote =
   'Industry data: Gartner (2025) reports 55% of service leaders kept staffing flat while handling higher volumes with AI.';
 
-const featureComparisons: {
-  label: string;
-  values: Record<PlanName, string | boolean>;
-}[] = [
+const featureComparisons = [
   {
     label: 'Minutes / SMS / contacts per week',
     values: {
@@ -190,23 +167,13 @@ const featureComparisons: {
   },
 ];
 
-type SliderConfig = {
-  key: 'minutes' | 'sms' | 'contacts';
-  label: string;
-  icon: typeof Phone;
-  min: number;
-  max: number;
-  step: number;
-  unit: string;
-};
-
-const sliders: SliderConfig[] = [
+const sliders = [
   { key: 'minutes', label: 'Call minutes / week', icon: Phone, min: 0, max: 300, step: 5, unit: 'min' },
   { key: 'sms', label: 'SMS messages / week', icon: MessageSquare, min: 0, max: 600, step: 10, unit: 'SMS' },
   { key: 'contacts', label: 'New contacts / week', icon: Users, min: 0, max: 1200, step: 25, unit: 'contacts' },
 ];
 
-function getRecommendedPlan(values: { minutes: number; sms: number; contacts: number }): PlanName | 'custom' {
+function getRecommendedPlan(values) {
   for (const plan of plans) {
     if (
       values.minutes <= plan.limits.minutes &&
@@ -225,7 +192,7 @@ export default function PricingPage() {
 
   const recommended = getRecommendedPlan(calc);
 
-  const updateCalc = useCallback((key: 'minutes' | 'sms' | 'contacts', value: number) => {
+  const updateCalc = useCallback((key, value) => {
     setCalc((prev) => ({ ...prev, [key]: value }));
   }, []);
 
@@ -248,7 +215,7 @@ export default function PricingPage() {
                   <Link href="/contact">Book a demo</Link>
                 </Button>
                 <Button asChild size="lg" variant="outline">
-                  <Link href="/login">Existing customer| Log in</Link>
+                  <Link href="/login">Existing customer? Log in</Link>
                 </Button>
                 <Button size="lg" variant="ghost" onClick={() => setCompareOpen(true)}>
                   Compare all features
@@ -276,7 +243,7 @@ export default function PricingPage() {
                   </div>
                 ))}
                 <div className="rounded-lg border border-emerald-100 bg-emerald-50/70 p-3 text-sm text-emerald-900">
-                  Need a custom package| We can tune minutes and onboarding for larger teams.
+                  Need a custom package? We can tune minutes and onboarding for larger teams.
                 </div>
               </CardContent>
             </Card>
@@ -323,7 +290,7 @@ export default function PricingPage() {
           </section>
 
 
-          {/* ── Plan cards ── */}
+          {/* -- Plan cards -- */}
           <section className="mt-14 grid gap-6 md:grid-cols-3">
             {plans.map((plan) => {
               const isRecommended = recommended === plan.name;
@@ -331,8 +298,8 @@ export default function PricingPage() {
                 <Card
                   key={plan.name}
                   className={`relative flex h-full flex-col border-emerald-100 shadow-sm transition hover:-translate-y-1 hover:shadow-md ${
-                    plan.highlight | 'bg-white shadow-lg shadow-emerald-100 ring-1 ring-emerald-200' : 'bg-white/90'
-                  } ${isRecommended | 'ring-2 ring-emerald-500' : ''}`}
+                    plan.highlight ? 'bg-white shadow-lg shadow-emerald-100 ring-1 ring-emerald-200' : 'bg-white/90'
+                  } ${isRecommended ? 'ring-2 ring-emerald-500' : ''}`}
                 >
                   {isRecommended && (
                     <div className="absolute -top-3 left-1/2 -translate-x-1/2">
@@ -362,13 +329,13 @@ export default function PricingPage() {
                         key={item.label}
                         className={`flex items-center gap-2 text-sm ${
                           item.available === false
-                            | 'text-slate-400 line-through decoration-slate-300'
+                            ? 'text-slate-400 line-through decoration-slate-300'
                             : 'text-emerald-800'
                         }`}
                       >
                         <span
                           className={`h-1.5 w-1.5 rounded-full ${
-                            item.available === false | 'bg-slate-300' : 'bg-emerald-500'
+                            item.available === false ? 'bg-slate-300' : 'bg-emerald-500'
                           }`}
                         />
                         {item.label}
@@ -420,7 +387,7 @@ export default function PricingPage() {
           </section>
 
 
-          {/* ── Plan calculator ── */}
+          {/* -- Plan calculator -- */}
           <section className="mt-16 overflow-hidden rounded-[28px] border border-emerald-100/60 bg-gradient-to-br from-white via-emerald-50/10 to-white p-8 shadow-lg shadow-emerald-50/50 md:p-12">
             <div className="text-center">
               <Badge className="bg-emerald-100/80 text-emerald-700">Plan calculator</Badge>
@@ -478,7 +445,7 @@ export default function PricingPage() {
                     {/* Plan tier segments below */}
                     <div className="mt-3 flex gap-1.5">
                       {plans.map((plan, i) => {
-                        const prevLimit = i === 0 | 0 : plans[i - 1].limits[slider.key];
+                        const prevLimit = i === 0 ? 0 : plans[i - 1].limits[slider.key];
                         const thisLimit = plan.limits[slider.key];
                         const segmentWidth = ((thisLimit - prevLimit) / slider.max) * 100;
                         const fitsInPlan = value <= thisLimit && (i === 0 || value > plans[i - 1].limits[slider.key]);
@@ -489,16 +456,16 @@ export default function PricingPage() {
                             <div
                               className={`h-1.5 rounded-full transition-colors duration-200 ${
                                 fitsInPlan
-                                  | 'bg-emerald-400'
+                                  ? 'bg-emerald-400'
                                   : isUnder
-                                    | 'bg-emerald-100'
+                                    ? 'bg-emerald-100'
                                     : 'bg-slate-100'
                               }`}
                             />
                             <div className="mt-1.5 flex items-center justify-between">
                               <span
                                 className={`text-[11px] font-medium transition-colors duration-200 ${
-                                  fitsInPlan | 'text-emerald-700' : 'text-slate-400'
+                                  fitsInPlan ? 'text-emerald-700' : 'text-slate-400'
                                 }`}
                               >
                                 {plan.name}
@@ -520,13 +487,13 @@ export default function PricingPage() {
                           <div style={{ width: `${overflowWidth}%` }}>
                             <div
                               className={`h-1.5 rounded-full transition-colors duration-200 ${
-                                isOverflow | 'bg-amber-300' : 'bg-slate-50'
+                                isOverflow ? 'bg-amber-300' : 'bg-slate-50'
                               }`}
                             />
                             <div className="mt-1.5">
                               <span
                                 className={`text-[11px] font-medium transition-colors duration-200 ${
-                                  isOverflow | 'text-amber-600' : 'text-slate-300'
+                                  isOverflow ? 'text-amber-600' : 'text-slate-300'
                                 }`}
                               >
                                 Custom
@@ -546,11 +513,11 @@ export default function PricingPage() {
               <div
                 className={`rounded-2xl border p-6 text-center transition-all duration-300 ${
                   recommended === 'custom'
-                    | 'border-amber-200 bg-amber-50/60'
+                    ? 'border-amber-200 bg-amber-50/60'
                     : 'border-emerald-200 bg-emerald-50/60'
                 }`}
               >
-                {recommended === 'custom' | (
+                {recommended === 'custom' ? (
                   <>
                     <p className="text-lg font-semibold text-slate-900">
                       Your usage exceeds our standard plans
@@ -568,11 +535,11 @@ export default function PricingPage() {
                     <p className="mt-1 text-3xl font-display font-semibold text-slate-900">
                       {recommended}{' '}
                       <span className="text-lg font-normal text-slate-500">
-                        {plans.find((p) => p.name === recommended)|.price}/week
+                        {plans.find((p) => p.name === recommended)?.price}/week
                       </span>
                     </p>
                     <p className="mt-1 text-sm text-slate-600">
-                      {plans.find((p) => p.name === recommended)|.bestFor}
+                      {plans.find((p) => p.name === recommended)?.bestFor}
                     </p>
                     <Button asChild size="lg" className="group mt-4 gap-2">
                       <Link href="/register">
@@ -586,10 +553,10 @@ export default function PricingPage() {
             </div>
           </section>
 
-          {/* ── Tailored CTA ── */}
+          {/* -- Tailored CTA -- */}
           <section className="mt-16 rounded-2xl border border-emerald-100 bg-emerald-50/80 p-10 text-center shadow-lg shadow-emerald-50">
             <h3 className="text-2xl font-display text-slate-900">
-              Need coverage for a high call volume|
+              Need coverage for a high call volume?
             </h3>
             <p className="mt-2 text-slate-600">
               Share your call load and service mix. We will build a rollout that protects your bookings.
@@ -601,7 +568,7 @@ export default function PricingPage() {
             </div>
           </section>
 
-          {/* ── Compare dialog ── */}
+          {/* -- Compare dialog -- */}
           <Dialog open={compareOpen} onOpenChange={setCompareOpen}>
             <DialogContent className="max-w-5xl">
               <DialogHeader>
