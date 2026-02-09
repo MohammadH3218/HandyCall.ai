@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { SiteHeader } from '@/components/marketing/site-header';
+import { SiteFooter } from '@/components/marketing/site-footer';
 
 const points = [
   {
@@ -155,6 +156,7 @@ export default function ContactPage() {
           </Card>
         </section>
       </main>
+      <SiteFooter />
     </div>
   );
 }

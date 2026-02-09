@@ -1,9 +1,8 @@
-import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { SiteHeader } from '@/components/marketing/site-header';
 import { FadeIn } from '@/components/marketing/fade-in';
 import { AnimatedCounter } from '@/components/marketing/animated-counter';
-import { Logo } from '@/components/ui/logo';
+import { SiteFooter } from '@/components/marketing/site-footer';
 import { AudioPlayer } from '@/components/audio-player';
 import {
   ArrowRight,
@@ -970,28 +969,7 @@ export default function Home() {
       {/* ═══════════════════════════════════════════════════════
           FOOTER
       ═══════════════════════════════════════════════════════ */}
-      <footer className="border-t border-slate-200 bg-white px-4 py-8">
-        <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-6 sm:flex-row">
-          <div className="flex items-center gap-4">
-            <Logo width={120} height={30} />
-            <span className="text-xs text-slate-400">&copy; 2025 HandyCall. All rights reserved.</span>
-          </div>
-          <div className="flex items-center gap-6">
-            <Link href="/pricing" className="text-sm text-slate-500 transition-colors hover:text-slate-900">
-              Pricing
-            </Link>
-            <Link href="/contact" className="text-sm text-slate-500 transition-colors hover:text-slate-900">
-              Contact
-            </Link>
-            <Link
-              href="mailto:hello@handycall.org"
-              className="text-sm text-slate-500 transition-colors hover:text-slate-900"
-            >
-              hello@handycall.org
-            </Link>
-          </div>
-        </div>
-      </footer>
+      <SiteFooter />
     </div>
   );
 }

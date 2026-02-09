@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { SiteHeader } from '@/components/marketing/site-header';
+import { SiteFooter } from '@/components/marketing/site-footer';
 import { Check, X, ArrowRight, Phone, MessageSquare, Users } from 'lucide-react';
 
 const plans = [
@@ -181,7 +182,7 @@ export default function PricingPage() {
   return (
     <div className="min-h-screen bg-white text-foreground">
       <SiteHeader />
-        <main className="mx-auto max-w-6xl px-4 pb-20 pt-12">
+      <main className="mx-auto max-w-6xl px-4 pb-20 pt-12">
           <section className="grid gap-10 lg:grid-cols-[1.1fr_0.9fr]">
             <div className="space-y-6">
               <Badge className="bg-emerald-100 text-emerald-700">Weekly plans built for service teams</Badge>
@@ -602,7 +603,8 @@ export default function PricingPage() {
               </div>
             </DialogContent>
           </Dialog>
-        </main>
+      </main>
+      <SiteFooter />
     </div>
   );
 }
