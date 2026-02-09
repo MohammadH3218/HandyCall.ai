@@ -17,6 +17,7 @@ import {
   Settings,
   BookOpen,
   Bell,
+  ShieldCheck,
 } from 'lucide-react';
 
 /* ────────────────────────────────────────────────────────────
@@ -30,12 +31,28 @@ const pipeline = [
   { label: 'Confirm', detail: 'SMS confirmation + calendar sync' },
 ];
 
-const benchmarks = [
-  { value: '99.9%', label: 'Uptime target' },
-  { value: '<2s', label: 'Median pickup time' },
-  { value: '24/7', label: 'Call coverage' },
-  { value: '95%', label: 'Bookings completed' },
+const industryStatsHero = [
+  { value: '78%', label: 'of callers abandon a business after an unanswered call' },
+  { value: '41%', label: 'hang up after 1-2 minutes on hold' },
+  { value: '52.5B', label: 'robocalls placed in the U.S. in 2025' },
 ];
+
+const industryStatsHeroSource =
+  'Sources: CallRail survey of 1,000 U.S. consumers (2025); YouMail Robocall Index (2025).';
+
+const benchmarks = [
+  { value: '42%', label: 'leave a voicemail when they reach no one', source: 'CallRail 2025' },
+  { value: '24%', label: 'turn to online chat after a missed call', source: 'CallRail 2025' },
+  { value: '21%', label: 'call another business immediately', source: 'CallRail 2025' },
+  {
+    value: '55%',
+    label: 'report stable staffing while handling higher volumes with AI',
+    source: 'Gartner 2025',
+  },
+];
+
+const benchmarksSource =
+  'Sources: CallRail survey of 1,000 U.S. consumers (2025); Gartner customer service survey (2025).';
 
 const controls = [
   {
@@ -53,6 +70,11 @@ const controls = [
     title: 'Follow-up automation',
     desc: 'Booking links, reminders, and confirmations sent automatically after each call.',
   },
+  {
+    icon: ShieldCheck,
+    title: 'Spam call filtering',
+    desc: 'Block robocalls and junk callers before they reach your team.',
+  },
 ];
 
 const industries = [
@@ -66,68 +88,18 @@ const industries = [
   { name: 'Property Maintenance', example: 'Handyman, turnover prep' },
 ];
 
-const revenueProof = [
-  { value: '+27%', label: 'more booked jobs', detail: 'first 30 days on HandyCall' },
-  { value: '41', label: 'missed calls recovered', detail: 'week one average' },
-  { value: '$18K', label: 'pipeline captured', detail: 'month one average' },
-];
-
-const logoWall = [
-  'GreenShield Pest',
-  'PeakLine HVAC',
-  'FlowRight Plumbing',
-  'SparkGuard Electric',
-  'BlueSky Garage',
-  'BrightLine Cleaning',
-];
-
-const testimonials = [
-  {
-    name: 'Maria Lopez',
-    trade: 'Plumbing',
-    city: 'Mesa, AZ',
-    initials: 'ML',
-    quote: 'Booked 19 jobs our first week. Paid for itself immediately.',
-    metric: '19 bookings | $7.6k captured',
-  },
-  {
-    name: 'Jason Reed',
-    trade: 'HVAC',
-    city: 'Austin, TX',
-    initials: 'JR',
-    quote: 'We stopped losing after-hours calls. Friday nights now turn into Monday jobs.',
-    metric: '31 after-hours calls | 12 booked',
-  },
-  {
-    name: 'Tasha Nguyen',
-    trade: 'Pest Control',
-    city: 'Orlando, FL',
-    initials: 'TN',
-    quote: 'Customers think it is our dispatcher. It sounds natural and books fast.',
-    metric: '2m 12s average call-to-book',
-  },
-];
-
-const caseSnapshots = [
-  {
-    label: 'Week 1 snapshot',
-    business: 'Redwood Garage Doors',
-    detail: '42 inbound calls | 16 booked | $9.2k captured',
-  },
-];
-
 const callerExperience = [
   {
     label: 'Greeting',
-    script: 'Thanks for calling GreenShield Pest. Are you calling about ants, roaches, or termites?',
+    script: 'Thanks for calling GreenShield Pest. Are you calling about ants, roaches, or termites-',
   },
   {
     label: 'Qualification',
-    script: 'Got it. Is this an active infestation and what is the best address to send a tech?',
+    script: 'Got it. Is this an active infestation and what is the best address to send a tech-',
   },
   {
     label: 'Booking',
-    script: 'I can do Wednesday at 3:30 PM or Thursday at 10 AM. Which works best?',
+    script: 'I can do Wednesday at 3:30 PM or Thursday at 10 AM. Which works best-',
   },
 ];
 
@@ -166,6 +138,7 @@ const trustBadges = [
   'Human fallback available',
   'TCPA-friendly scripts',
   'CRM + calendar sync',
+  'Spam call filtering',
   'Uptime SLA target',
 ];
 
@@ -186,7 +159,7 @@ export default function Home() {
         ═══════════════════════════════════════════════════════ */}
         <section className="border-b border-slate-200 bg-white">
           <div className="mx-auto grid max-w-6xl items-center gap-12 px-4 pb-16 pt-12 lg:grid-cols-[1.1fr_0.9fr] lg:gap-16 lg:pb-20 lg:pt-16">
-            {/* Left — Copy */}
+            {/* Left - Copy */}
             <div>
               <FadeIn delay={0} duration={400} direction="none">
                 <p className="text-sm font-medium uppercase tracking-wide text-emerald-700">
@@ -204,24 +177,20 @@ export default function Home() {
               <FadeIn delay={160} duration={400}>
                 <p className="mt-5 max-w-lg text-lg leading-relaxed text-slate-600">
                   HandyCall picks up every call, captures the job details, and books appointments from
-                  your live availability. You stay on the job site — the line stays covered.
+                  your live availability. You stay on the job site - the line stays covered.
                 </p>
               </FadeIn>
 
               <FadeIn delay={240} duration={400}>
                 <div className="mt-6 grid gap-3 sm:grid-cols-3">
-                  {[
-                    { value: '+27%', label: 'more booked jobs in 30 days' },
-                    { value: '41', label: 'missed calls recovered in week 1' },
-                    { value: '$18K', label: 'pipeline captured in month 1' },
-                  ].map((item) => (
+                  {industryStatsHero.map((item) => (
                     <div key={item.label} className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
                       <p className="text-xl font-semibold text-slate-900">{item.value}</p>
                       <p className="text-sm text-slate-500">{item.label}</p>
                     </div>
                   ))}
                 </div>
-                <p className="mt-2 text-xs text-slate-400">Recent customer outcomes from first 30 days.</p>
+                <p className="mt-2 text-xs text-slate-400">{industryStatsHeroSource}</p>
               </FadeIn>
 
               <FadeIn delay={300} duration={400}>
@@ -241,6 +210,10 @@ export default function Home() {
                   <span className="inline-flex items-center gap-1.5">
                     <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
                     CRM + calendar sync
+                  </span>
+                  <span className="inline-flex items-center gap-1.5">
+                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                    Spam call filtering
                   </span>
                 </div>
               </FadeIn>
@@ -280,7 +253,7 @@ export default function Home() {
               </FadeIn>
             </div>
 
-            {/* Right — Call transcript (real product evidence) */}
+            {/* Right - Call transcript (real product evidence) */}
             <FadeIn delay={200} duration={500} direction="left">
               <div className="rounded-xl border border-slate-200 bg-white">
                 {/* Transcript header */}
@@ -303,14 +276,14 @@ export default function Home() {
                     <p className="text-xs font-medium text-slate-400">Caller</p>
                     <p className="mt-0.5 text-slate-700">
                       &ldquo;Hi, I need someone to look at a termite problem. Found damage near the
-                      garage. Can someone come out this week?&rdquo;
+                      garage. Can someone come out this week-&rdquo;
                     </p>
                   </div>
                   <div>
                     <p className="text-xs font-medium text-emerald-600">HandyCall</p>
                     <p className="mt-0.5 text-slate-700">
                       &ldquo;I can help with that. I have Thursday at 9 AM or Friday at 2 PM open.
-                      Which works better for you?&rdquo;
+                      Which works better for you-&rdquo;
                     </p>
                   </div>
                   <div>
@@ -355,56 +328,7 @@ export default function Home() {
           </div>
         </section>
 
-        {/* -----------------------------------------------------------------------------------------------
-            SOCIAL PROOF + REVENUE IMPACT
-        ----------------------------------------------------------------------------------------------- */}
-        <section className="border-b border-slate-200 bg-slate-50">
-          <div className="mx-auto max-w-6xl px-4 py-12">
-            <FadeIn duration={400}>
-              <p className="text-sm font-medium uppercase tracking-wide text-emerald-700">
-                Trusted by local service teams
-              </p>
-              <div className="mt-4 grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
-                {logoWall.map((logo) => (
-                  <div
-                    key={logo}
-                    className="rounded-md border border-slate-200 bg-white px-3 py-2 text-center text-xs font-semibold text-slate-500"
-                  >
-                    {logo}
-                  </div>
-                ))}
-              </div>
-            </FadeIn>
-
-            <FadeIn delay={150} duration={400}>
-              <div className="mt-10 rounded-xl border border-slate-200 bg-white p-6">
-                <div className="grid gap-6 lg:grid-cols-3">
-                  {revenueProof.map((item) => (
-                    <div key={item.label}>
-                      <p className="text-2xl font-semibold text-slate-900">{item.value}</p>
-                      <p className="text-sm font-medium text-slate-700">{item.label}</p>
-                      <p className="text-xs text-slate-500">{item.detail}</p>
-                    </div>
-                  ))}
-                </div>
-                <div className="mt-6 flex flex-wrap items-center gap-3">
-                  <Button asChild className="gap-2">
-                    <Link href="/register">
-                      Capture missed calls
-                      <ArrowRight className="h-4 w-4" />
-                    </Link>
-                  </Button>
-                  <Button asChild variant="outline">
-                    <Link href="/contact">Book a demo</Link>
-                  </Button>
-                </div>
-                <p className="mt-2 text-xs text-slate-400">
-                  Results vary by trade and season. Examples reflect first 30 days of use.
-                </p>
-              </div>
-            </FadeIn>
-          </div>
-        </section>
+        
 
         {/* ═══════════════════════════════════════════════════════
             PIPELINE STRIP
@@ -427,13 +351,25 @@ export default function Home() {
           </div>
         </section>
 
-        {/* ═══════════════════════════════════════════════════════
-            BENCHMARKS
-        ═══════════════════════════════════════════════════════ */}
+        {/* -----------------------------------------------------------------------------------------------
+            INDUSTRY DATA
+        ----------------------------------------------------------------------------------------------- */}
         <section className="border-b border-slate-200 bg-white">
           <div className="mx-auto max-w-6xl px-4 py-14">
             <FadeIn duration={400}>
-              <div className="grid grid-cols-2 gap-8 lg:grid-cols-4">
+              <p className="text-sm font-medium uppercase tracking-wide text-emerald-700">
+                Industry data
+              </p>
+              <h2 className="mt-2 max-w-2xl text-3xl font-bold text-slate-900 md:text-4xl">
+                What callers do when no one answers.
+              </h2>
+              <p className="mt-3 max-w-2xl text-slate-600">
+                These are benchmarks from consumer and service leader surveys - not HandyCall claims.
+              </p>
+            </FadeIn>
+
+            <FadeIn delay={150} duration={400}>
+              <div className="mt-10 grid grid-cols-2 gap-8 lg:grid-cols-4">
                 {benchmarks.map((stat) => (
                   <div key={stat.label}>
                     <AnimatedCounter
@@ -441,9 +377,11 @@ export default function Home() {
                       className="block text-3xl font-bold text-slate-900"
                     />
                     <p className="mt-1 text-sm text-slate-500">{stat.label}</p>
+                    <p className="mt-1 text-xs text-slate-400">{stat.source}</p>
                   </div>
                 ))}
               </div>
+              <p className="mt-6 text-xs text-slate-400">{benchmarksSource}</p>
             </FadeIn>
           </div>
         </section>
@@ -494,7 +432,7 @@ export default function Home() {
                           <p className="text-xs font-medium text-emerald-600">HandyCall</p>
                           <p className="text-slate-700">
                             &quot;Thanks for calling GreenShield Pest. Are you available Thursday at 9 AM or Friday at
-                            2 PM?&quot;
+                            2 PM-&quot;
                           </p>
                         </div>
                       </div>
@@ -590,14 +528,14 @@ export default function Home() {
                 Every call becomes a structured record.
               </h2>
               <p className="mt-3 max-w-xl text-slate-600">
-                HandyCall logs the conversation, extracts the job details, and creates the booking — all
+                HandyCall logs the conversation, extracts the job details, and creates the booking - all
                 before you check your phone.
               </p>
             </FadeIn>
 
             <FadeIn delay={150} duration={500}>
               <div className="mt-12 grid gap-6 lg:grid-cols-3">
-                {/* Card 1 — Call record */}
+                {/* Card 1 - Call record */}
                 <div className="rounded-lg border border-slate-200 bg-white p-6">
                   <div className="flex items-center gap-2 text-slate-400">
                     <FileText className="h-4 w-4" />
@@ -627,7 +565,7 @@ export default function Home() {
                   </div>
                 </div>
 
-                {/* Card 2 — Booking */}
+                {/* Card 2 - Booking */}
                 <div className="rounded-lg border border-slate-200 bg-white p-6">
                   <div className="flex items-center gap-2 text-slate-400">
                     <CalendarCheck className="h-4 w-4" />
@@ -657,7 +595,7 @@ export default function Home() {
                   </div>
                 </div>
 
-                {/* Card 3 — SMS confirmation */}
+                {/* Card 3 - SMS confirmation */}
                 <div className="rounded-lg border border-slate-200 bg-white p-6">
                   <div className="flex items-center gap-2 text-slate-400">
                     <Send className="h-4 w-4" />
@@ -667,7 +605,7 @@ export default function Home() {
                     <p className="text-sm leading-relaxed text-slate-700">
                       Hi Sarah, your termite inspection is confirmed for <strong>Thursday, Jan 16 at
                       9:00 AM</strong>. Our technician will arrive at 142 Oak St. Reply CHANGE to
-                      reschedule or CANCEL to cancel. — GreenShield Pest
+                      reschedule or CANCEL to cancel. - GreenShield Pest
                     </p>
                   </div>
                   <div className="mt-4 space-y-2 text-sm">
@@ -686,64 +624,7 @@ export default function Home() {
           </div>
         </section>
 
-        {/* -----------------------------------------------------------------------------------------------
-            CUSTOMER OUTCOMES
-        ----------------------------------------------------------------------------------------------- */}
-        <section className="border-b border-slate-200 bg-slate-50">
-          <div className="mx-auto max-w-6xl px-4 py-20">
-            <FadeIn duration={400}>
-              <p className="text-sm font-medium uppercase tracking-wide text-emerald-700">
-                Customer outcomes
-              </p>
-              <h2 className="mt-2 text-3xl font-bold text-slate-900 md:text-4xl">
-                Trades owners talk about booked jobs, not features.
-              </h2>
-              <p className="mt-3 max-w-xl text-slate-600">
-                Photos blurred for privacy. Results shown are real early outcomes from service businesses.
-              </p>
-            </FadeIn>
-
-            <FadeIn delay={150} duration={500}>
-              <div className="mt-10 grid gap-6 lg:grid-cols-3">
-                {testimonials.map((item) => (
-                  <div key={item.name} className="rounded-lg border border-slate-200 bg-white p-6">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-50 text-sm font-semibold text-emerald-700">
-                        {item.initials}
-                      </div>
-                      <div>
-                        <p className="text-sm font-semibold text-slate-900">{item.name}</p>
-                        <p className="text-xs text-slate-500">
-                          {item.trade} | {item.city}
-                        </p>
-                      </div>
-                    </div>
-                    <p className="mt-4 text-sm leading-relaxed text-slate-700">?{item.quote}?</p>
-                    <p className="mt-3 text-xs font-semibold text-emerald-700">{item.metric}</p>
-                  </div>
-                ))}
-              </div>
-            </FadeIn>
-
-            <FadeIn delay={220} duration={500}>
-              <div className="mt-10 rounded-xl border border-slate-200 bg-white p-6">
-                <div className="flex flex-wrap items-center justify-between gap-4">
-                  <div>
-                    <p className="text-xs font-medium uppercase tracking-wide text-slate-400">Case snapshot</p>
-                    <p className="mt-2 text-lg font-semibold text-slate-900">{caseSnapshots[0].business}</p>
-                    <p className="mt-1 text-sm text-slate-600">{caseSnapshots[0].detail}</p>
-                  </div>
-                  <Button asChild variant="outline" className="gap-2">
-                    <Link href="/contact">
-                      Get the walkthrough
-                      <ArrowRight className="h-4 w-4" />
-                    </Link>
-                  </Button>
-                </div>
-              </div>
-            </FadeIn>
-          </div>
-        </section>
+        
 
         {/* ═══════════════════════════════════════════════════════
             CONTROLS / CONFIGURATION
@@ -762,7 +643,7 @@ export default function Home() {
                   </h2>
                   <p className="mt-3 max-w-md text-slate-600">
                     Define your hours, services, and scripts. The AI handles calls exactly the way you
-                    would — or better, because it never gets distracted.
+                    would - or better, because it never gets distracted.
                   </p>
                 </FadeIn>
               </div>
@@ -928,9 +809,9 @@ export default function Home() {
           </div>
         </section>
 
-        {/* ═══════════════════════════════════════════════════════
-            TESTING BENCHMARKS (replaces dark gradient section)
-        ═══════════════════════════════════════════════════════ */}
+        {/* -----------------------------------------------------------------------------------------------
+            RELIABILITY & COMPLIANCE
+        ----------------------------------------------------------------------------------------------- */}
         <section className="border-b border-slate-200 bg-slate-900">
           <div className="mx-auto max-w-6xl px-4 py-16">
             <FadeIn duration={400}>
@@ -941,28 +822,18 @@ export default function Home() {
                 Operational safeguards that keep bookings accurate.
               </h2>
               <p className="mt-3 max-w-xl text-slate-400">
-                Targets and guardrails we monitor daily so calls are answered, scheduled, and confirmed
-                correctly.
+                Guardrails designed to keep calls routed, scheduled, and confirmed the right way.
               </p>
             </FadeIn>
 
-            <FadeIn delay={150} duration={500}>
-              <div className="mt-10 grid grid-cols-3 gap-8">
-                {[
-                  { value: '99.9%', label: 'Uptime target', detail: 'Service level objective' },
-                  { value: '<2s', label: 'Median pickup', detail: 'Across business hours' },
-                  { value: '24/7', label: 'Coverage', detail: 'After-hours included' },
-                ].map((item) => (
-                  <div key={item.label}>
-                    <AnimatedCounter
-                      value={item.value}
-                      className="block text-4xl font-bold text-white"
-                    />
-                    <p className="mt-2 text-sm font-medium text-slate-300">{item.label}</p>
-                    <p className="mt-0.5 text-xs text-slate-500">{item.detail}</p>
-                  </div>
-                ))}
-              </div>
+            <FadeIn delay={150} duration={400}>
+              <p className="mt-4 max-w-xl text-sm text-slate-400">
+                Spam filtering blocks robocalls before they reach your line. The U.S. saw 52.5B robocalls in 2025
+                (YouMail Robocall Index).
+              </p>
+              <p className="mt-2 max-w-xl text-sm text-slate-400">
+                Scripts stay TCPA-friendly and edge cases can hand off to a human fallback.
+              </p>
             </FadeIn>
 
             <div className="mt-8 flex flex-wrap items-center gap-3 text-xs text-slate-300">
@@ -1040,18 +911,9 @@ export default function Home() {
                 and sends confirmations while your crew stays on-site.
               </p>
 
-              <div className="mt-8 grid gap-4 text-left sm:grid-cols-3">
-                {revenueProof.map((item) => (
-                  <div
-                    key={item.label}
-                    className="rounded-lg border border-emerald-500/40 bg-emerald-600/40 px-4 py-3"
-                  >
-                    <p className="text-2xl font-semibold text-white">{item.value}</p>
-                    <p className="text-sm text-emerald-100">{item.label}</p>
-                    <p className="text-xs text-emerald-200">{item.detail}</p>
-                  </div>
-                ))}
-              </div>
+              <p className="mt-6 text-sm text-emerald-100">
+                Industry data shows 78% of callers abandon a business after an unanswered call (CallRail, 2025).
+              </p>
 
               <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
                 <Button

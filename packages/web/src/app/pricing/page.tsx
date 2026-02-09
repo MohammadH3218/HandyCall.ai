@@ -13,7 +13,7 @@ type PlanName = 'Starter' | 'Pro' | 'Max';
 
 type PlanFeature = {
   label: string;
-  available?: boolean;
+  available|: boolean;
 };
 
 type Plan = {
@@ -22,9 +22,9 @@ type Plan = {
   price: string;
   cadence: string;
   bestFor: string;
-  badge?: string;
-  trialLabel?: string;
-  highlight?: boolean;
+  badge|: string;
+  trialLabel|: string;
+  highlight|: boolean;
   features: PlanFeature[];
   limits: { minutes: number; sms: number; contacts: number };
 };
@@ -101,13 +101,14 @@ const inclusions = [
   'Lead capture and qualification',
   'Smart appointment booking',
   'Automated confirmations and reminders',
+  'Spam call filtering and robocall blocking',
   'Usage dashboard with call recordings',
 ];
 
 const roiHighlights = [
   {
     title: 'One booked job pays for the week',
-    detail: 'Most service calls are $250-$600+ in revenue.',
+    detail: 'Plug in your average job value and compare to weekly pricing.',
   },
   {
     title: 'Replace receptionist costs',
@@ -135,9 +136,13 @@ const pricingTrustBadges = [
   'No contracts',
   'Keep your number',
   'Setup in 10 minutes',
+  'Spam call filtering',
   'Human fallback available',
   'TCPA-friendly scripts',
 ];
+
+const roiSourceNote =
+  'Industry data: Gartner (2025) reports 55% of service leaders kept staffing flat while handling higher volumes with AI.';
 
 const featureComparisons: {
   label: string;
@@ -243,7 +248,7 @@ export default function PricingPage() {
                   <Link href="/contact">Book a demo</Link>
                 </Button>
                 <Button asChild size="lg" variant="outline">
-                  <Link href="/login">Existing customer? Log in</Link>
+                  <Link href="/login">Existing customer| Log in</Link>
                 </Button>
                 <Button size="lg" variant="ghost" onClick={() => setCompareOpen(true)}>
                   Compare all features
@@ -271,7 +276,7 @@ export default function PricingPage() {
                   </div>
                 ))}
                 <div className="rounded-lg border border-emerald-100 bg-emerald-50/70 p-3 text-sm text-emerald-900">
-                  Need a custom package? We can tune minutes and onboarding for larger teams.
+                  Need a custom package| We can tune minutes and onboarding for larger teams.
                 </div>
               </CardContent>
             </Card>
@@ -283,7 +288,7 @@ export default function PricingPage() {
                 One booked job covers the week.
               </h2>
               <p className="mt-2 text-sm text-slate-600">
-                Most service calls land between $250 and $600+. HandyCall is priced to be an easy yes.
+                Use your average job value to see how quickly the plan pays for itself.
               </p>
               <div className="mt-5 grid gap-3 sm:grid-cols-2">
                 {roiHighlights.map((item) => (
@@ -293,10 +298,13 @@ export default function PricingPage() {
                   </div>
                 ))}
               </div>
+              <p className="mt-4 text-xs text-slate-500">{roiSourceNote}</p>
             </div>
 
             <div className="rounded-2xl border border-emerald-100 bg-white p-6 shadow-sm">
-              <p className="text-sm font-medium uppercase tracking-wide text-emerald-700">Cost comparison</p>
+              <p className="text-sm font-medium uppercase tracking-wide text-emerald-700">
+                Example cost comparison
+              </p>
               <div className="mt-4 space-y-3">
                 {costComparison.map((row) => (
                   <div key={row.label} className="rounded-lg border border-slate-200 bg-white p-4">
@@ -309,7 +317,7 @@ export default function PricingPage() {
                 ))}
               </div>
               <p className="mt-4 text-xs text-slate-500">
-                Comparison assumes 4-week months. Receptionist cost varies by region and benefits.
+                Example only. Costs vary by region, benefits, and coverage needs.
               </p>
             </div>
           </section>
@@ -323,8 +331,8 @@ export default function PricingPage() {
                 <Card
                   key={plan.name}
                   className={`relative flex h-full flex-col border-emerald-100 shadow-sm transition hover:-translate-y-1 hover:shadow-md ${
-                    plan.highlight ? 'bg-white shadow-lg shadow-emerald-100 ring-1 ring-emerald-200' : 'bg-white/90'
-                  } ${isRecommended ? 'ring-2 ring-emerald-500' : ''}`}
+                    plan.highlight | 'bg-white shadow-lg shadow-emerald-100 ring-1 ring-emerald-200' : 'bg-white/90'
+                  } ${isRecommended | 'ring-2 ring-emerald-500' : ''}`}
                 >
                   {isRecommended && (
                     <div className="absolute -top-3 left-1/2 -translate-x-1/2">
@@ -354,13 +362,13 @@ export default function PricingPage() {
                         key={item.label}
                         className={`flex items-center gap-2 text-sm ${
                           item.available === false
-                            ? 'text-slate-400 line-through decoration-slate-300'
+                            | 'text-slate-400 line-through decoration-slate-300'
                             : 'text-emerald-800'
                         }`}
                       >
                         <span
                           className={`h-1.5 w-1.5 rounded-full ${
-                            item.available === false ? 'bg-slate-300' : 'bg-emerald-500'
+                            item.available === false | 'bg-slate-300' : 'bg-emerald-500'
                           }`}
                         />
                         {item.label}
@@ -375,7 +383,7 @@ export default function PricingPage() {
                       </Link>
                     </Button>
                     <p className="text-center text-xs text-slate-500">
-                      Setup in 10 minutes · Keep your number · Cancel anytime
+                      Setup in 10 minutes | Keep your number | Cancel anytime
                     </p>
                   </CardFooter>
                 </Card>
@@ -470,7 +478,7 @@ export default function PricingPage() {
                     {/* Plan tier segments below */}
                     <div className="mt-3 flex gap-1.5">
                       {plans.map((plan, i) => {
-                        const prevLimit = i === 0 ? 0 : plans[i - 1].limits[slider.key];
+                        const prevLimit = i === 0 | 0 : plans[i - 1].limits[slider.key];
                         const thisLimit = plan.limits[slider.key];
                         const segmentWidth = ((thisLimit - prevLimit) / slider.max) * 100;
                         const fitsInPlan = value <= thisLimit && (i === 0 || value > plans[i - 1].limits[slider.key]);
@@ -481,16 +489,16 @@ export default function PricingPage() {
                             <div
                               className={`h-1.5 rounded-full transition-colors duration-200 ${
                                 fitsInPlan
-                                  ? 'bg-emerald-400'
+                                  | 'bg-emerald-400'
                                   : isUnder
-                                    ? 'bg-emerald-100'
+                                    | 'bg-emerald-100'
                                     : 'bg-slate-100'
                               }`}
                             />
                             <div className="mt-1.5 flex items-center justify-between">
                               <span
                                 className={`text-[11px] font-medium transition-colors duration-200 ${
-                                  fitsInPlan ? 'text-emerald-700' : 'text-slate-400'
+                                  fitsInPlan | 'text-emerald-700' : 'text-slate-400'
                                 }`}
                               >
                                 {plan.name}
@@ -512,13 +520,13 @@ export default function PricingPage() {
                           <div style={{ width: `${overflowWidth}%` }}>
                             <div
                               className={`h-1.5 rounded-full transition-colors duration-200 ${
-                                isOverflow ? 'bg-amber-300' : 'bg-slate-50'
+                                isOverflow | 'bg-amber-300' : 'bg-slate-50'
                               }`}
                             />
                             <div className="mt-1.5">
                               <span
                                 className={`text-[11px] font-medium transition-colors duration-200 ${
-                                  isOverflow ? 'text-amber-600' : 'text-slate-300'
+                                  isOverflow | 'text-amber-600' : 'text-slate-300'
                                 }`}
                               >
                                 Custom
@@ -538,11 +546,11 @@ export default function PricingPage() {
               <div
                 className={`rounded-2xl border p-6 text-center transition-all duration-300 ${
                   recommended === 'custom'
-                    ? 'border-amber-200 bg-amber-50/60'
+                    | 'border-amber-200 bg-amber-50/60'
                     : 'border-emerald-200 bg-emerald-50/60'
                 }`}
               >
-                {recommended === 'custom' ? (
+                {recommended === 'custom' | (
                   <>
                     <p className="text-lg font-semibold text-slate-900">
                       Your usage exceeds our standard plans
@@ -560,11 +568,11 @@ export default function PricingPage() {
                     <p className="mt-1 text-3xl font-display font-semibold text-slate-900">
                       {recommended}{' '}
                       <span className="text-lg font-normal text-slate-500">
-                        {plans.find((p) => p.name === recommended)?.price}/week
+                        {plans.find((p) => p.name === recommended)|.price}/week
                       </span>
                     </p>
                     <p className="mt-1 text-sm text-slate-600">
-                      {plans.find((p) => p.name === recommended)?.bestFor}
+                      {plans.find((p) => p.name === recommended)|.bestFor}
                     </p>
                     <Button asChild size="lg" className="group mt-4 gap-2">
                       <Link href="/register">
@@ -581,7 +589,7 @@ export default function PricingPage() {
           {/* ── Tailored CTA ── */}
           <section className="mt-16 rounded-2xl border border-emerald-100 bg-emerald-50/80 p-10 text-center shadow-lg shadow-emerald-50">
             <h3 className="text-2xl font-display text-slate-900">
-              Need coverage for a high call volume?
+              Need coverage for a high call volume|
             </h3>
             <p className="mt-2 text-slate-600">
               Share your call load and service mix. We will build a rollout that protects your bookings.
