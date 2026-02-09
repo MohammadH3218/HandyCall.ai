@@ -6,6 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { PageHeader } from '@/components/portal/page-header';
+import { EmptyState } from '@/components/portal/empty-state';
 import { AlertCircle, CheckCircle, X } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
@@ -142,11 +144,12 @@ export default function FlaggedQuestionsPage() {
   }
 
   return (
-    <div className="p-8 animate-fade-up">
-      <div className="mb-8">
-        <h1 className="text-3xl font-display text-slate-900">Flagged Questions</h1>
-        <p className="mt-2 text-slate-600">Review and answer questions your AI was uncertain about.</p>
-      </div>
+    <div className="space-y-6 animate-fade-up">
+      <PageHeader
+        eyebrow="Review"
+        title="Flagged questions"
+        subtitle="Review and answer questions your AI was uncertain about."
+      />
 
       {/* Filter Tabs */}
       <div className="mb-6 flex gap-2">
@@ -232,17 +235,15 @@ export default function FlaggedQuestionsPage() {
               ))}
             </div>
           ) : (
-            <div className="text-center py-12">
-              <CheckCircle className="h-12 w-12 text-slate-400 mx-auto mb-4" />
-              <h3 className="text-lg font-semibold text-slate-900 mb-2">
-                {filter === 'OPEN' ? 'No pending questions' : 'No questions found'}
-              </h3>
-              <p className="text-sm text-slate-500">
-                {filter === 'OPEN'
-                  ? 'Your AI is handling all questions confidently!'
-                  : 'Try changing the filter to see more questions.'}
-              </p>
-            </div>
+            <EmptyState
+              icon={<CheckCircle className="h-10 w-10" />}
+              title={filter === 'OPEN' ? 'No pending questions' : 'No questions found'}
+              description={
+                filter === 'OPEN'
+                  ? 'Your AI is handling all questions confidently.'
+                  : 'Try changing the filter to see more questions.'
+              }
+            />
           )}
         </CardContent>
       </Card>

@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { SERVICE_TYPE_OPTIONS } from '@/constants/service-types';
+import { PageHeader } from '@/components/portal/page-header';
 import { ArrowLeft, Phone, Save, Search, AlertTriangle, XCircle, CheckCircle } from 'lucide-react';
 
 type Company = {
@@ -307,14 +308,21 @@ export default function AdminCompanyDetailPage() {
   const isCancelScheduled = cancelAtPeriodEnd || subscriptionStatus === 'CANCELING';
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between gap-4">
-        <Button variant="outline" onClick={() => router.push('/admin/companies')}>
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Back
-        </Button>
-        <Badge variant="outline">{company.status}</Badge>
-      </div>
+    <div className="space-y-6 animate-fade-up">
+      <PageHeader
+        eyebrow="Company"
+        title={company.company_name}
+        subtitle="Update company details, subscription status, and phone routing."
+        actions={
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={() => router.push('/admin/companies')}>
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back
+            </Button>
+            <Badge variant="outline">{company.status}</Badge>
+          </div>
+        }
+      />
 
         <Card>
           <CardHeader>

@@ -10,6 +10,7 @@ import { useAuthStore } from '@/stores/auth-store';
 import { SubscriptionPlan } from '@handycall/shared';
 import { PLAN_CATALOG, getPlanPriceDisplay } from '@/constants/plans';
 import { normalizeUsageResponse, resolvePlan, resolvePlanLimits } from '@/lib/billing-utils';
+import { PageHeader } from '@/components/portal/page-header';
 import { AlertTriangle, BarChart3, Clock3, MessageSquare, Users } from 'lucide-react';
 
 type UsageMetrics = {
@@ -152,21 +153,20 @@ export default function UsagePage() {
   }
 
   return (
-    <div className="p-8 max-w-7xl space-y-8 animate-fade-up">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-3xl font-display text-slate-900">Usage</h1>
-          <p className="text-slate-600">
-            Monitor your call, SMS, and contact usage for the current billing period.
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={() => router.push(billingInvoices)}>
-            Invoices
-          </Button>
-          <Button onClick={() => router.push(billingRoot)}>Billing</Button>
-        </div>
-      </div>
+    <div className="space-y-8 animate-fade-up max-w-7xl mx-auto">
+      <PageHeader
+        eyebrow="Usage"
+        title="Usage and limits"
+        subtitle="Monitor your call, SMS, and contact usage for the current billing period."
+        actions={
+          <>
+            <Button variant="outline" onClick={() => router.push(billingInvoices)}>
+              Invoices
+            </Button>
+            <Button onClick={() => router.push(billingRoot)}>Billing</Button>
+          </>
+        }
+      />
 
       <Card>
         <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">

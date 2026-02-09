@@ -7,6 +7,7 @@ import { apiClient } from '@/lib/api-client';
 import { usePortalBasePath } from '@/lib/portal';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { PageHeader } from '@/components/portal/page-header';
 import { Phone, Users, Calendar, AlertCircle, ArrowUpRight } from 'lucide-react';
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 
@@ -231,14 +232,11 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6 animate-fade-up">
-      <div className="flex flex-col gap-2">
-        <div className="space-y-1">
-          <p className="text-xs uppercase tracking-[0.22em] text-muted-foreground">Overview</p>
-          <h1 className="text-3xl font-semibold text-foreground">
-            Welcome back, {company?.company_name || 'HandyCall'}
-          </h1>
-        </div>
-      </div>
+      <PageHeader
+        eyebrow="Overview"
+        title={`Welcome back, ${company?.company_name || 'HandyCall'}`}
+        subtitle="See today's call activity, new leads, and upcoming appointments at a glance."
+      />
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">

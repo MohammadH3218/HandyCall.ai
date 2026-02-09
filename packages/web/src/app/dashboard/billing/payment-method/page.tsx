@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { useAuthStore } from '@/stores/auth-store';
 import { SubscriptionPlan } from '@handycall/shared';
 import { PLAN_CATALOG, getPlanPriceDisplay } from '@/constants/plans';
+import { PageHeader } from '@/components/portal/page-header';
 
 const CARD_ELEMENT_OPTIONS = {
   style: {
@@ -182,15 +183,16 @@ export default function PaymentMethodPage() {
   const selectedPlanPrice = selectedPlan ? getPlanPriceDisplay(selectedPlan) : undefined;
 
   return (
-    <div className="p-8 max-w-2xl mx-auto">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">Payment Method</h1>
-        <p className="mt-2 text-gray-600">
-          {selectedPlan
-            ? `Add your payment information to start your ${planLabels[selectedPlan]} subscription`
-            : 'Update your payment information'}
-        </p>
-      </div>
+    <div className="space-y-6 max-w-2xl mx-auto animate-fade-up">
+      <PageHeader
+        eyebrow="Billing"
+        title="Payment method"
+        subtitle={
+          selectedPlan
+            ? `Add your payment information to start your ${planLabels[selectedPlan]} subscription.`
+            : 'Update your payment information.'
+        }
+      />
 
       {selectedPlan && (
         <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">

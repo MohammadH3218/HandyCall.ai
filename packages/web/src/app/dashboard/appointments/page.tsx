@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Calendar, ChevronLeft, ChevronRight, ExternalLink, Plus, Pencil, Trash2, Settings, X } from 'lucide-react';
+import { PageHeader } from '@/components/portal/page-header';
 
 type TimeSegment = { open: string; close: string };
 type DayScheduleDraft = { closed?: boolean; open?: string; close?: string; segments?: TimeSegment[] };
@@ -918,14 +919,13 @@ export default function AppointmentsPage() {
   }
 
   return (
-    <div className="p-6 lg:p-8 animate-fade-up">
-      <div className="flex flex-col gap-6">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <h1 className="text-3xl font-display text-slate-900">Appointments</h1>
-            <p className="mt-2 text-slate-600">Manage bookings, calendars, and availability in one place.</p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
+    <div className="space-y-6 animate-fade-up">
+      <PageHeader
+        eyebrow="Appointments"
+        title="Appointments and availability"
+        subtitle="Manage bookings, calendars, and availability in one place."
+        actions={
+          <>
             {isExternalCalendarConnected ? (
               <Button variant="outline" onClick={handleOpenCalendarSettings}>
                 <Settings className="h-4 w-4 mr-2" />
@@ -941,8 +941,9 @@ export default function AppointmentsPage() {
               <Plus className="h-4 w-4 mr-2" />
               New appointment
             </Button>
-          </div>
-        </div>
+          </>
+        }
+      />
 
         {!isCalendarSetupComplete ? (
           <Card>
@@ -1338,7 +1339,6 @@ export default function AppointmentsPage() {
             </div>
           </div>
         ) : null}
-      </div>
 
       <Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
         <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">

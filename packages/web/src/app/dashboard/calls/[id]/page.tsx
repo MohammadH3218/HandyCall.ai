@@ -8,7 +8,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { AudioPlayer } from '@/components/audio-player';
-import { ArrowLeft, Clock, PhoneCall, User, Calendar, ExternalLink, AlertCircle } from 'lucide-react';
+import { PageHeader } from '@/components/portal/page-header';
+import { ArrowLeft, User, Calendar, ExternalLink, AlertCircle } from 'lucide-react';
 
 interface Call {
   call_id: string;
@@ -181,36 +182,28 @@ export default function CallDetailsPage() {
   const mapLink = mapQuery ? `https://www.google.com/maps/search/?api=1&query=${mapQuery}` : '';
 
   return (
-    <div className="p-8 animate-fade-up">
-      {/* Header */}
-      <div className="mb-8">
-        <Button variant="outline" onClick={() => router.push(`${basePath}/calls`)} className="mb-4">
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Back to Calls
-        </Button>
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div className="min-w-0">
-            <h1 className="text-3xl font-display text-slate-900 flex items-center gap-3 flex-wrap">
-              <PhoneCall className="h-8 w-8 text-emerald-600" />
-              {call.caller_name ? `${call.caller_name} - ${call.caller_phone}` : call.caller_phone}
-            </h1>
-            <div className="text-sm text-slate-600 flex items-center gap-2 mt-2">
-              <Clock className="h-4 w-4" />
-              <span>{formatDate(call.created_at)}</span>
-              <span className="text-slate-300">-</span>
-              <span>{formatDuration(call.duration)}</span>
-            </div>
-          </div>
-          <div className="flex gap-2">
+    <div className="space-y-6 animate-fade-up">
+      <PageHeader
+        eyebrow="Call details"
+        title={call.caller_name ? `${call.caller_name} - ${call.caller_phone}` : call.caller_phone}
+        subtitle={`${formatDate(call.created_at)} · ${formatDuration(call.duration)}`}
+        actions={
+          <Button variant="outline" onClick={() => router.push(`${basePath}/calls`)}>
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back to Calls
+          </Button>
+        }
+        meta={
+          <>
             <Badge variant="outline" className={outcome.className}>
               {outcome.label}
             </Badge>
             <Badge variant="outline" className={statusBadge.className}>
               {statusBadge.label}
             </Badge>
-          </div>
-        </div>
-      </div>
+          </>
+        }
+      />
 
       {/* Associations - Contact & Appointment */}
       {(call.contact_id || call.appointment_id) && (

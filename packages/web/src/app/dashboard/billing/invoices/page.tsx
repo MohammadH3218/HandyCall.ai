@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import { apiClient } from '@/lib/api-client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { PageHeader } from '@/components/portal/page-header';
+import { EmptyState } from '@/components/portal/empty-state';
 
 interface Invoice {
   id: string;
@@ -88,37 +90,23 @@ export default function InvoicesPage() {
   }
 
   return (
-    <div className="p-8 max-w-7xl">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">Invoice History</h1>
-        <p className="mt-2 text-gray-600">View and download your past invoices</p>
-      </div>
+    <div className="space-y-6 max-w-7xl mx-auto animate-fade-up">
+      <PageHeader
+        eyebrow="Billing"
+        title="Invoice history"
+        subtitle="View and download your past invoices."
+      />
 
       {invoices.length === 0 ? (
-        <Card>
-          <CardContent className="py-12">
-            <div className="text-center">
-              <svg
-                className="w-16 h-16 mx-auto text-gray-400 mb-4"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                />
-              </svg>
-              <h3 className="text-lg font-medium text-gray-900 mb-1">No invoices yet</h3>
-              <p className="text-gray-600 mb-4">Your invoice history will appear here once you have a subscription</p>
-              <Button onClick={() => router.push('/dashboard/billing/plans')}>
-                Choose a Plan
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+        <EmptyState
+          title="No invoices yet"
+          description="Your invoice history will appear here once you have a subscription."
+          action={
+            <Button onClick={() => router.push('/dashboard/billing/plans')}>
+              Choose a plan
+            </Button>
+          }
+        />
       ) : (
         <div className="space-y-4">
           {invoices.map((invoice) => (

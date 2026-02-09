@@ -6,6 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { PageHeader } from '@/components/portal/page-header';
+import { EmptyState } from '@/components/portal/empty-state';
 import {
   Select,
   SelectContent,
@@ -163,19 +165,20 @@ export default function KnowledgePage() {
   };
 
   return (
-    <div className="p-8 animate-fade-up max-w-5xl mx-auto">
-      <div className="mb-8 flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-display text-slate-900">Knowledge Base</h1>
-          <p className="mt-2 text-slate-600">Teach your AI about services, policies, and service areas.</p>
-        </div>
-        {activeTab === 'knowledge' && (
-          <Button onClick={handleCreate}>
-            <Plus className="h-4 w-4 mr-2" />
-            Add Knowledge
-          </Button>
-        )}
-      </div>
+    <div className="space-y-6 animate-fade-up max-w-5xl mx-auto">
+      <PageHeader
+        eyebrow="Knowledge"
+        title="Knowledge base"
+        subtitle="Teach your AI about services, policies, and service areas."
+        actions={
+          activeTab === 'knowledge' ? (
+            <Button onClick={handleCreate}>
+              <Plus className="h-4 w-4 mr-2" />
+              Add Knowledge
+            </Button>
+          ) : null
+        }
+      />
 
       {/* Tabs */}
       <div className="flex flex-wrap gap-2 mb-8">
@@ -267,17 +270,17 @@ export default function KnowledgePage() {
                   ))}
                 </div>
               ) : (
-                <div className="text-center py-12">
-                  <MessageSquare className="h-12 w-12 text-slate-400 mx-auto mb-4" />
-                  <h3 className="text-lg font-semibold text-slate-900 mb-2">No knowledge items yet</h3>
-                  <p className="text-sm text-slate-500 mb-6">
-                    Add FAQs, service information, and policies to help your AI answer customer questions.
-                  </p>
-                  <Button onClick={handleCreate}>
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add Your First Item
-                  </Button>
-                </div>
+                <EmptyState
+                  icon={<MessageSquare className="h-10 w-10" />}
+                  title="No knowledge items yet"
+                  description="Add FAQs, service information, and policies to help your AI answer customer questions."
+                  action={
+                    <Button onClick={handleCreate}>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add Your First Item
+                    </Button>
+                  }
+                />
               )}
             </CardContent>
           </Card>

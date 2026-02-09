@@ -10,6 +10,8 @@ import { Badge } from '@/components/ui/badge';
 import { CreateCompanyDialog } from '@/components/admin/create-company-dialog';
 import { DeleteConfirmDialog } from '@/components/admin/delete-confirm-dialog';
 import { useToast } from '@/hooks/use-toast';
+import { PageHeader } from '@/components/portal/page-header';
+import { EmptyState } from '@/components/portal/empty-state';
 import { Plus, Search, Building2, Trash2, Edit } from 'lucide-react';
 import { UserRole } from '@handycall/shared';
 import { useAdminCompanyStore } from '@/stores/admin-company-store';
@@ -182,19 +184,18 @@ export default function CompaniesPage() {
   }
 
   return (
-    <div className="space-y-6">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-          <div>
-            <h2 className="text-2xl font-bold">All Companies</h2>
-            <p className="text-muted-foreground">
-              {filteredCompanies.length} {filteredCompanies.length === 1 ? 'company' : 'companies'}
-            </p>
-          </div>
-          <Button onClick={() => setCreateDialogOpen(true)} className="w-full sm:w-auto">
+    <div className="space-y-6 animate-fade-up">
+      <PageHeader
+        eyebrow="Admin"
+        title="All companies"
+        subtitle={`${filteredCompanies.length} ${filteredCompanies.length === 1 ? 'company' : 'companies'}`}
+        actions={
+          <Button onClick={() => setCreateDialogOpen(true)}>
             <Plus className="h-4 w-4 mr-2" />
             Add Company
           </Button>
-        </div>
+        }
+      />
 
         <Card className="mb-6">
           <CardContent className="pt-6">
@@ -211,21 +212,19 @@ export default function CompaniesPage() {
         </Card>
 
         {filteredCompanies.length === 0 ? (
-          <Card>
-            <CardContent className="py-16 text-center">
-              <Building2 className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-              <h3 className="text-lg font-semibold mb-2">No companies found</h3>
-              <p className="text-muted-foreground mb-4">
-                {searchTerm ? 'Try a different search term' : 'Get started by creating your first company'}
-              </p>
-              {!searchTerm && (
+          <EmptyState
+            icon={<Building2 className="h-10 w-10" />}
+            title="No companies found"
+            description={searchTerm ? 'Try a different search term.' : 'Get started by creating your first company.'}
+            action={
+              !searchTerm ? (
                 <Button onClick={() => setCreateDialogOpen(true)}>
                   <Plus className="h-4 w-4 mr-2" />
                   Create Company
                 </Button>
-              )}
-            </CardContent>
-          </Card>
+              ) : null
+            }
+          />
         ) : (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {filteredCompanies.map((company) => (

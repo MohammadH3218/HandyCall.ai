@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
+import { PageHeader } from '@/components/portal/page-header';
 import { Search, UserPlus } from 'lucide-react';
 import { UserRole } from '@handycall/shared';
 import { CreateUserDialog } from '@/components/admin/create-user-dialog';
@@ -184,19 +185,18 @@ export default function UsersPage() {
   }
 
   return (
-    <div className="space-y-6">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-          <div>
-            <h2 className="text-2xl font-bold">All Users</h2>
-            <p className="text-muted-foreground">
-              {filteredUsers.length} {filteredUsers.length === 1 ? 'user' : 'users'}
-            </p>
-          </div>
+    <div className="space-y-6 animate-fade-up">
+      <PageHeader
+        eyebrow="Admin"
+        title="All users"
+        subtitle={`${filteredUsers.length} ${filteredUsers.length === 1 ? 'user' : 'users'}`}
+        actions={
           <Button onClick={() => setCreateOpen(true)}>
             <UserPlus className="h-4 w-4 mr-2" />
             Create User
           </Button>
-        </div>
+        }
+      />
 
         <Card className="mb-6">
           <CardContent className="pt-6">

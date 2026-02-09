@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import { apiClient } from '@/lib/api-client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { SubscriptionPlan, SubscriptionStatus } from '@handycall/shared';
+import { PageHeader } from '@/components/portal/page-header';
+import { EmptyState } from '@/components/portal/empty-state';
 import {
   LineChart,
   Line,
@@ -149,11 +151,12 @@ export default function AdminSubscriptionsPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">Subscription Management</h1>
-        <p className="mt-2 text-gray-600">Monitor subscriptions, revenue, and customer metrics</p>
-      </div>
+    <div className="space-y-6 animate-fade-up">
+      <PageHeader
+        eyebrow="Admin"
+        title="Subscription management"
+        subtitle="Monitor subscriptions, revenue, and customer metrics."
+      />
 
       {/* Stats Overview */}
       {stats && (
@@ -264,7 +267,10 @@ export default function AdminSubscriptionsPage() {
         </CardHeader>
         <CardContent>
           {subscriptions.length === 0 ? (
-            <div className="text-center py-12 text-gray-500">No subscriptions found</div>
+            <EmptyState
+              title="No subscriptions found"
+              description="Subscription activity will appear here once customers start plans."
+            />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full">

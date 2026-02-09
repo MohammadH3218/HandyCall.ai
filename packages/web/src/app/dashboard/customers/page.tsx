@@ -9,6 +9,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { PageHeader } from '@/components/portal/page-header';
+import { EmptyState } from '@/components/portal/empty-state';
 import { ExternalLink, Search, Users } from 'lucide-react';
 
 type Contact = {
@@ -171,16 +173,17 @@ export default function CustomersPage() {
   }
 
   return (
-    <div className="p-8 animate-fade-up">
-      <div className="mb-8 flex items-center justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="text-3xl font-display text-slate-900">Customers</h1>
-          <p className="mt-2 text-slate-600">Manage customers, upcoming jobs, and recurring service.</p>
-        </div>
-        <Button variant="outline" onClick={load}>
-          Refresh
-        </Button>
-      </div>
+    <div className="space-y-6 animate-fade-up">
+      <PageHeader
+        eyebrow="Customers"
+        title="Your booked customers"
+        subtitle="Manage customers, upcoming jobs, and recurring service."
+        actions={
+          <Button variant="outline" onClick={load}>
+            Refresh
+          </Button>
+        }
+      />
 
       <div className="mb-6 flex gap-2 flex-wrap">
         <Input
@@ -253,11 +256,11 @@ export default function CustomersPage() {
               ))}
             </div>
           ) : (
-            <div className="text-center py-12">
-              <Users className="h-12 w-12 text-slate-400 mx-auto mb-4" />
-              <h3 className="text-lg font-semibold text-slate-900 mb-2">No customers yet</h3>
-              <p className="text-sm text-slate-500">Customers appear after a confirmed booking.</p>
-            </div>
+            <EmptyState
+              icon={<Users className="h-10 w-10" />}
+              title="No customers yet"
+              description="Customers appear after a confirmed booking."
+            />
           )}
         </CardContent>
       </Card>

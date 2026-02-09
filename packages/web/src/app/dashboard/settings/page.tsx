@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { CALL_HANDLING_OPTIONS } from '@/constants/call-handling';
 import { CallHandlingMode } from '@handycall/shared';
 import { CallForwardingGuide } from '@/components/telephony/call-forwarding-guide';
+import { PageHeader } from '@/components/portal/page-header';
 
 export default function SettingsPage() {
   const { company } = useAuthStore();
@@ -75,11 +76,12 @@ export default function SettingsPage() {
 
 
   return (
-    <div className="p-8 max-w-4xl animate-fade-up">
-      <div className="mb-8">
-        <h1 className="text-3xl font-display text-slate-900">Settings</h1>
-        <p className="mt-2 text-slate-600">Manage your business information and preferences.</p>
-      </div>
+    <div className="space-y-6 animate-fade-up max-w-4xl mx-auto">
+      <PageHeader
+        eyebrow="Settings"
+        title="Business settings"
+        subtitle="Manage your business information and preferences."
+      />
 
       <div className="space-y-6">
         <Card>

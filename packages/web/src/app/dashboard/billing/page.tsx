@@ -10,6 +10,7 @@ import { SubscriptionPlan, SubscriptionStatus } from '@handycall/shared';
 import { PLAN_CATALOG, getPlanPriceDisplay } from '@/constants/plans';
 import { normalizeUsageResponse, resolvePlan, resolvePlanLimits } from '@/lib/billing-utils';
 import { useToast } from '@/hooks/use-toast';
+import { PageHeader } from '@/components/portal/page-header';
 import {
   Dialog,
   DialogContent,
@@ -293,13 +294,12 @@ export default function BillingPage() {
   }
 
   return (
-    <div className="p-8 max-w-7xl animate-fade-up">
-      <div className="mb-8 flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-display text-slate-900">Billing & Subscription</h1>
-          <p className="mt-2 text-slate-600">Manage your subscription, usage, and billing information.</p>
-        </div>
-      </div>
+    <div className="space-y-6 animate-fade-up max-w-7xl mx-auto">
+      <PageHeader
+        eyebrow="Billing"
+        title="Billing and subscription"
+        subtitle="Manage your subscription, usage, and billing information."
+      />
 
       <div className="grid gap-6 md:grid-cols-2 mb-6">
         {/* Current Plan */}

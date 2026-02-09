@@ -8,6 +8,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { PageHeader } from '@/components/portal/page-header';
+import { EmptyState } from '@/components/portal/empty-state';
 import { Phone, Search, ChevronRight, Clock, PhoneCall } from 'lucide-react';
 
 interface Call {
@@ -152,11 +154,12 @@ export default function CallsPage() {
   }
 
   return (
-    <div className="p-8 animate-fade-up">
-      <div className="mb-8">
-        <h1 className="text-3xl font-display text-slate-900">Calls</h1>
-        <p className="mt-2 text-slate-600">Review conversations, outcomes, and follow-ups.</p>
-      </div>
+    <div className="space-y-6 animate-fade-up">
+      <PageHeader
+        eyebrow="Calls"
+        title="Every conversation in one place."
+        subtitle="Search recent calls, review outcomes, and follow up on leads without digging through your phone."
+      />
 
       <Card className="mb-6">
         <CardContent className="pt-6">
@@ -251,13 +254,11 @@ export default function CallsPage() {
               ))}
             </div>
           ) : (
-            <div className="text-center py-12">
-              <Phone className="h-12 w-12 text-slate-400 mx-auto mb-4" />
-              <h3 className="text-lg font-semibold text-slate-900 mb-2">No calls yet</h3>
-              <p className="text-sm text-slate-500">
-                Your AI receptionist will handle calls automatically when your business is unavailable.
-              </p>
-            </div>
+            <EmptyState
+              icon={<Phone className="h-10 w-10" />}
+              title="No calls yet"
+              description="Your AI receptionist will handle calls automatically when your business is unavailable."
+            />
           )}
         </CardContent>
       </Card>

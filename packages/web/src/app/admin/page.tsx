@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/stores/auth-store';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { PageHeader } from '@/components/portal/page-header';
 import { Building2, Users, BarChart3 } from 'lucide-react';
 import { UserRole } from '@handycall/shared';
 
@@ -141,7 +142,13 @@ export default function AdminDashboardPage() {
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 animate-fade-up">
+      <PageHeader
+        eyebrow="Admin"
+        title="Overview"
+        subtitle="Monitor platform activity, companies, and user growth."
+      />
+
       {/* Quick Actions */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           <Card

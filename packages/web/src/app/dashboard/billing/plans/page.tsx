@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { useAuthStore } from '@/stores/auth-store';
 import { SubscriptionPlan } from '@handycall/shared';
 import { PLAN_CATALOG, getPlanPriceDisplay } from '@/constants/plans';
+import { PageHeader } from '@/components/portal/page-header';
 
 const PLANS = Object.entries(PLAN_CATALOG).map(([plan, details]) => ({
   plan: plan as SubscriptionPlan,
@@ -124,13 +125,12 @@ export default function BillingPlansPage() {
   }
 
   return (
-    <div className="p-8 max-w-7xl">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">Choose Your Plan</h1>
-        <p className="mt-2 text-gray-600">
-          Select the plan that best fits your business needs. The Pro plan includes a 14-day free trial.
-        </p>
-      </div>
+    <div className="space-y-6 max-w-7xl mx-auto animate-fade-up">
+      <PageHeader
+        eyebrow="Billing"
+        title="Choose your plan"
+        subtitle="Select the plan that best fits your business needs. The Pro plan includes a 14-day free trial."
+      />
 
       <div className="grid gap-6 md:grid-cols-3 mb-8">
         {PLANS.map((planInfo) => {

@@ -7,6 +7,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import { PageHeader } from '@/components/portal/page-header';
+import { EmptyState } from '@/components/portal/empty-state';
 import { Users, Plus, Edit2, Trash2, Search, Phone as PhoneIcon, Mail } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
@@ -189,17 +191,18 @@ export default function ContactsPage() {
   }
 
   return (
-    <div className="p-8 animate-fade-up">
-      <div className="mb-8 flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-display text-slate-900">Contacts</h1>
-          <p className="mt-2 text-slate-600">Keep your customers organized and reachable.</p>
-        </div>
-        <Button onClick={handleCreate}>
-          <Plus className="h-4 w-4 mr-2" />
-          Add Contact
-        </Button>
-      </div>
+    <div className="space-y-6 animate-fade-up">
+      <PageHeader
+        eyebrow="Contacts"
+        title="Contacts and follow-ups"
+        subtitle="Keep your customers organized and reachable."
+        actions={
+          <Button onClick={handleCreate}>
+            <Plus className="h-4 w-4 mr-2" />
+            Add Contact
+          </Button>
+        }
+      />
 
       {/* Search Bar */}
       <div className="mb-6 flex flex-wrap gap-2">
@@ -298,17 +301,17 @@ export default function ContactsPage() {
               ))}
             </div>
           ) : (
-            <div className="text-center py-12">
-              <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">No contacts yet</h3>
-              <p className="text-sm text-gray-500 mb-6">
-                Contacts will be automatically created from calls, or you can add them manually.
-              </p>
-              <Button onClick={handleCreate}>
-                <Plus className="h-4 w-4 mr-2" />
-                Add Your First Contact
-              </Button>
-            </div>
+            <EmptyState
+              icon={<Users className="h-10 w-10" />}
+              title="No contacts yet"
+              description="Contacts will be created from calls, or you can add them manually."
+              action={
+                <Button onClick={handleCreate}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Your First Contact
+                </Button>
+              }
+            />
           )}
         </CardContent>
       </Card>
