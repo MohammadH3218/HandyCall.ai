@@ -13,7 +13,7 @@ type PlanName = 'Starter' | 'Pro' | 'Max';
 
 type PlanFeature = {
   label: string;
-  available|: boolean;
+  available?: boolean;
 };
 
 type Plan = {
@@ -22,9 +22,9 @@ type Plan = {
   price: string;
   cadence: string;
   bestFor: string;
-  badge|: string;
-  trialLabel|: string;
-  highlight|: boolean;
+  badge?: string;
+  trialLabel?: string;
+  highlight?: boolean;
   features: PlanFeature[];
   limits: { minutes: number; sms: number; contacts: number };
 };
