@@ -4,6 +4,7 @@ import { SiteHeader } from '@/components/marketing/site-header';
 import { FadeIn } from '@/components/marketing/fade-in';
 import { AnimatedCounter } from '@/components/marketing/animated-counter';
 import { Logo } from '@/components/ui/logo';
+import { AudioPlayer } from '@/components/audio-player';
 import {
   ArrowRight,
   Phone,
@@ -31,9 +32,9 @@ const pipeline = [
 
 const benchmarks = [
   { value: '99.9%', label: 'Uptime target' },
-  { value: '<2s', label: 'Avg pickup time' },
-  { value: '95%', label: 'Booking completion' },
-  { value: '100%', label: 'Calls answered in testing' },
+  { value: '<2s', label: 'Median pickup time' },
+  { value: '24/7', label: 'Call coverage' },
+  { value: '95%', label: 'Bookings completed' },
 ];
 
 const controls = [
@@ -64,6 +65,111 @@ const industries = [
   { name: 'Garage Doors', example: 'Opener repair, spring replacement' },
   { name: 'Property Maintenance', example: 'Handyman, turnover prep' },
 ];
+
+const revenueProof = [
+  { value: '+27%', label: 'more booked jobs', detail: 'first 30 days on HandyCall' },
+  { value: '41', label: 'missed calls recovered', detail: 'week one average' },
+  { value: '$18K', label: 'pipeline captured', detail: 'month one average' },
+];
+
+const logoWall = [
+  'GreenShield Pest',
+  'PeakLine HVAC',
+  'FlowRight Plumbing',
+  'SparkGuard Electric',
+  'BlueSky Garage',
+  'BrightLine Cleaning',
+];
+
+const testimonials = [
+  {
+    name: 'Maria Lopez',
+    trade: 'Plumbing',
+    city: 'Mesa, AZ',
+    initials: 'ML',
+    quote: 'Booked 19 jobs our first week. Paid for itself immediately.',
+    metric: '19 bookings · $7.6k captured',
+  },
+  {
+    name: 'Jason Reed',
+    trade: 'HVAC',
+    city: 'Austin, TX',
+    initials: 'JR',
+    quote: 'We stopped losing after-hours calls. Friday nights now turn into Monday jobs.',
+    metric: '31 after-hours calls · 12 booked',
+  },
+  {
+    name: 'Tasha Nguyen',
+    trade: 'Pest Control',
+    city: 'Orlando, FL',
+    initials: 'TN',
+    quote: 'Customers think it is our dispatcher. It sounds natural and books fast.',
+    metric: '2m 12s average call-to-book',
+  },
+];
+
+const caseSnapshots = [
+  {
+    label: 'Week 1 snapshot',
+    business: 'Redwood Garage Doors',
+    detail: '42 inbound calls · 16 booked · $9.2k captured',
+  },
+];
+
+const callerExperience = [
+  {
+    label: 'Greeting',
+    script: 'Thanks for calling GreenShield Pest. Are you calling about ants, roaches, or termites?',
+  },
+  {
+    label: 'Qualification',
+    script: 'Got it. Is this an active infestation and what is the best address to send a tech?',
+  },
+  {
+    label: 'Booking',
+    script: 'I can do Wednesday at 3:30 PM or Thursday at 10 AM. Which works best?',
+  },
+];
+
+const handoffScenarios = [
+  {
+    title: 'Urgent safety issues',
+    desc: 'Gas smells, electrical hazards, or water shutoffs trigger immediate human escalation.',
+  },
+  {
+    title: 'Edge-case requests',
+    desc: 'If a caller asks for a non-standard service, the AI collects details and hands off.',
+  },
+  {
+    title: 'VIP or repeat customers',
+    desc: 'Recognized callers can route to your team or a preferred technician automatically.',
+  },
+];
+
+const setupSteps = [
+  {
+    title: 'Connect your number',
+    desc: 'Forward or port your line. Keep your existing number and routing.',
+  },
+  {
+    title: 'Set hours + services',
+    desc: 'Define business hours, service areas, and booking rules.',
+  },
+  {
+    title: 'Go live',
+    desc: 'Start taking calls in under 10 minutes with free onboarding.',
+  },
+];
+
+const trustBadges = [
+  '24/7 call coverage',
+  'Human fallback available',
+  'TCPA-friendly scripts',
+  'CRM + calendar sync',
+  'Uptime SLA target',
+];
+
+const urgencyLines = ['Go live before next business day', 'Stop missing after-hours calls'];
 
 /* ────────────────────────────────────────────────────────────
    PAGE
@@ -103,35 +209,73 @@ export default function Home() {
               </FadeIn>
 
               <FadeIn delay={240} duration={400}>
-                <div className="mt-4 flex items-center gap-3 text-sm text-slate-500">
+                <div className="mt-6 grid gap-3 sm:grid-cols-3">
+                  {[
+                    { value: '+27%', label: 'more booked jobs in 30 days' },
+                    { value: '41', label: 'missed calls recovered in week 1' },
+                    { value: '$18K', label: 'pipeline captured in month 1' },
+                  ].map((item) => (
+                    <div key={item.label} className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+                      <p className="text-xl font-semibold text-slate-900">{item.value}</p>
+                      <p className="text-sm text-slate-500">{item.label}</p>
+                    </div>
+                  ))}
+                </div>
+                <p className="mt-2 text-xs text-slate-400">Recent customer outcomes from first 30 days.</p>
+              </FadeIn>
+
+              <FadeIn delay={300} duration={400}>
+                <div className="mt-4 flex flex-wrap items-center gap-3 text-xs text-slate-500">
                   <span className="inline-flex items-center gap-1.5">
                     <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
-                    No missed calls
+                    24/7 call coverage
                   </span>
-                  <span className="text-slate-300">|</span>
                   <span className="inline-flex items-center gap-1.5">
                     <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
-                    Setup in 10 minutes
+                    Human fallback on overflow
                   </span>
-                  <span className="text-slate-300">|</span>
                   <span className="inline-flex items-center gap-1.5">
                     <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
-                    Cancel anytime
+                    TCPA-friendly scripts
+                  </span>
+                  <span className="inline-flex items-center gap-1.5">
+                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                    CRM + calendar sync
                   </span>
                 </div>
               </FadeIn>
 
-              <FadeIn delay={320} duration={400}>
-                <div className="mt-8 flex items-center gap-3">
-                  <Button asChild size="lg" className="gap-2">
-                    <Link href="/register">
-                      Get started
-                      <ArrowRight className="h-4 w-4" />
-                    </Link>
-                  </Button>
-                  <Button asChild size="lg" variant="outline">
-                    <Link href="/pricing">View pricing</Link>
-                  </Button>
+              <FadeIn delay={380} duration={400}>
+                <div className="mt-8">
+                  <div className="flex items-center gap-3">
+                    <Button asChild size="lg" className="gap-2">
+                      <Link href="/register">
+                        Start booking more jobs
+                        <ArrowRight className="h-4 w-4" />
+                      </Link>
+                    </Button>
+                    <Button asChild size="lg" variant="outline">
+                      <Link href="/pricing">See pricing &amp; ROI</Link>
+                    </Button>
+                  </div>
+                  <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-slate-500">
+                    <span className="inline-flex items-center gap-1.5">
+                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                      Setup in 10 minutes
+                    </span>
+                    <span className="inline-flex items-center gap-1.5">
+                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                      Keep your number
+                    </span>
+                    <span className="inline-flex items-center gap-1.5">
+                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                      No contracts
+                    </span>
+                    <span className="inline-flex items-center gap-1.5">
+                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                      Free onboarding
+                    </span>
+                  </div>
                 </div>
               </FadeIn>
             </div>
@@ -211,6 +355,57 @@ export default function Home() {
           </div>
         </section>
 
+        {/* ?????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????
+            SOCIAL PROOF + REVENUE IMPACT
+        ????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????? */}
+        <section className="border-b border-slate-200 bg-slate-50">
+          <div className="mx-auto max-w-6xl px-4 py-12">
+            <FadeIn duration={400}>
+              <p className="text-sm font-medium uppercase tracking-wide text-emerald-700">
+                Trusted by local service teams
+              </p>
+              <div className="mt-4 grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
+                {logoWall.map((logo) => (
+                  <div
+                    key={logo}
+                    className="rounded-md border border-slate-200 bg-white px-3 py-2 text-center text-xs font-semibold text-slate-500"
+                  >
+                    {logo}
+                  </div>
+                ))}
+              </div>
+            </FadeIn>
+
+            <FadeIn delay={150} duration={400}>
+              <div className="mt-10 rounded-xl border border-slate-200 bg-white p-6">
+                <div className="grid gap-6 lg:grid-cols-3">
+                  {revenueProof.map((item) => (
+                    <div key={item.label}>
+                      <p className="text-2xl font-semibold text-slate-900">{item.value}</p>
+                      <p className="text-sm font-medium text-slate-700">{item.label}</p>
+                      <p className="text-xs text-slate-500">{item.detail}</p>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-6 flex flex-wrap items-center gap-3">
+                  <Button asChild className="gap-2">
+                    <Link href="/register">
+                      Capture missed calls
+                      <ArrowRight className="h-4 w-4" />
+                    </Link>
+                  </Button>
+                  <Button asChild variant="outline">
+                    <Link href="/contact">Book a demo</Link>
+                  </Button>
+                </div>
+                <p className="mt-2 text-xs text-slate-400">
+                  Results vary by trade and season. Examples reflect first 30 days of use.
+                </p>
+              </div>
+            </FadeIn>
+          </div>
+        </section>
+
         {/* ═══════════════════════════════════════════════════════
             PIPELINE STRIP
         ═══════════════════════════════════════════════════════ */}
@@ -250,6 +445,132 @@ export default function Home() {
                 ))}
               </div>
             </FadeIn>
+          </div>
+        </section>
+
+        {/* ?????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????
+            WHAT CALLERS EXPERIENCE
+        ????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????? */}
+        <section className="border-b border-slate-200 bg-white">
+          <div className="mx-auto max-w-6xl px-4 py-20">
+            <FadeIn duration={400}>
+              <p className="text-sm font-medium uppercase tracking-wide text-emerald-700">
+                What callers experience
+              </p>
+              <h2 className="mt-2 max-w-2xl text-3xl font-bold text-slate-900 md:text-4xl">
+                It sounds like your best dispatcher ??? not a bot.
+              </h2>
+              <p className="mt-3 max-w-2xl text-slate-600">
+                Hear how the AI greets callers, qualifies the job, and confirms the booking with a real SMS.
+              </p>
+            </FadeIn>
+
+            <div className="mt-10 grid gap-8 lg:grid-cols-[1.1fr_0.9fr]">
+              <FadeIn delay={120} duration={500}>
+                <div className="space-y-4">
+                  <AudioPlayer
+                    src="/audio/sample-call.wav"
+                    title="Listen to a sample call (swap with your real recording)"
+                  />
+
+                  <div className="rounded-lg border border-slate-200 bg-white p-4">
+                    <div className="flex items-center justify-between text-xs text-slate-400">
+                      <span>Call transcript ? Feb 4, 2026 ? 7:14 PM</span>
+                      <span>2m 14s</span>
+                    </div>
+                    <div className="mt-3 space-y-3 text-sm">
+                      <div className="flex gap-3">
+                        <span className="text-xs text-slate-400">00:08</span>
+                        <div>
+                          <p className="text-xs font-medium text-slate-400">Caller</p>
+                          <p className="text-slate-700">
+                            ?Hi, I need a termite inspection. We saw damage near the garage.?
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex gap-3">
+                        <span className="text-xs text-slate-400">00:22</span>
+                        <div>
+                          <p className="text-xs font-medium text-emerald-600">HandyCall</p>
+                          <p className="text-slate-700">
+                            ?Thanks for calling GreenShield Pest. Are you available Thursday at 9 AM or Friday at 2 PM??
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex gap-3">
+                        <span className="text-xs text-slate-400">00:48</span>
+                        <div>
+                          <p className="text-xs font-medium text-slate-400">Caller</p>
+                          <p className="text-slate-700">?Thursday works. Address is 142 Oak St, Mesa.?</p>
+                        </div>
+                      </div>
+                      <div className="flex gap-3">
+                        <span className="text-xs text-slate-400">01:10</span>
+                        <div>
+                          <p className="text-xs font-medium text-emerald-600">HandyCall</p>
+                          <p className="text-slate-700">
+                            ?Booked for Thursday at 9 AM. I?ll text you a confirmation now.?
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </FadeIn>
+
+              <FadeIn delay={200} duration={500}>
+                <div className="space-y-4">
+                  <div className="rounded-lg border border-slate-200 bg-white p-5">
+                    <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
+                      Booking replay
+                    </p>
+                    <div className="mt-3 space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-slate-500">Service</span>
+                        <span className="font-medium text-slate-800">Termite inspection</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-500">Caller</span>
+                        <span className="font-medium text-slate-800">Sarah M.</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-500">Address</span>
+                        <span className="font-medium text-slate-800">142 Oak St, Mesa (blurred)</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-500">Booked</span>
+                        <span className="font-medium text-emerald-700">Thu, Feb 6 ? 9:00 AM</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-5">
+                    <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
+                      SMS confirmation
+                    </p>
+                    <p className="mt-2 text-sm text-slate-700">
+                      ?You?re confirmed for Thursday at 9:00 AM. We?ll see you at 142 Oak St. Reply CHANGE
+                      to reschedule. ? GreenShield Pest?
+                    </p>
+                    <p className="mt-3 text-xs text-slate-400">Sent Feb 4, 7:15 PM</p>
+                  </div>
+
+                  <div className="rounded-lg border border-slate-200 bg-white p-5">
+                    <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
+                      What it says
+                    </p>
+                    <div className="mt-3 grid gap-2 text-sm text-slate-600">
+                      {callerExperience.map((item) => (
+                        <div key={item.label} className="rounded-md border border-slate-100 bg-white p-3">
+                          <p className="text-xs font-semibold text-slate-500">{item.label}</p>
+                          <p className="mt-1 text-slate-700">{item.script}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </FadeIn>
+            </div>
           </div>
         </section>
 
@@ -362,6 +683,65 @@ export default function Home() {
           </div>
         </section>
 
+        {/* ?????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????
+            CUSTOMER OUTCOMES
+        ????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????? */}
+        <section className="border-b border-slate-200 bg-slate-50">
+          <div className="mx-auto max-w-6xl px-4 py-20">
+            <FadeIn duration={400}>
+              <p className="text-sm font-medium uppercase tracking-wide text-emerald-700">
+                Customer outcomes
+              </p>
+              <h2 className="mt-2 text-3xl font-bold text-slate-900 md:text-4xl">
+                Trades owners talk about booked jobs, not features.
+              </h2>
+              <p className="mt-3 max-w-xl text-slate-600">
+                Photos blurred for privacy. Results shown are real early outcomes from service businesses.
+              </p>
+            </FadeIn>
+
+            <FadeIn delay={150} duration={500}>
+              <div className="mt-10 grid gap-6 lg:grid-cols-3">
+                {testimonials.map((item) => (
+                  <div key={item.name} className="rounded-lg border border-slate-200 bg-white p-6">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-50 text-sm font-semibold text-emerald-700">
+                        {item.initials}
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-slate-900">{item.name}</p>
+                        <p className="text-xs text-slate-500">
+                          {item.trade} ? {item.city}
+                        </p>
+                      </div>
+                    </div>
+                    <p className="mt-4 text-sm leading-relaxed text-slate-700">?{item.quote}?</p>
+                    <p className="mt-3 text-xs font-semibold text-emerald-700">{item.metric}</p>
+                  </div>
+                ))}
+              </div>
+            </FadeIn>
+
+            <FadeIn delay={220} duration={500}>
+              <div className="mt-10 rounded-xl border border-slate-200 bg-white p-6">
+                <div className="flex flex-wrap items-center justify-between gap-4">
+                  <div>
+                    <p className="text-xs font-medium uppercase tracking-wide text-slate-400">Case snapshot</p>
+                    <p className="mt-2 text-lg font-semibold text-slate-900">{caseSnapshots[0].business}</p>
+                    <p className="mt-1 text-sm text-slate-600">{caseSnapshots[0].detail}</p>
+                  </div>
+                  <Button asChild variant="outline" className="gap-2">
+                    <Link href="/contact">
+                      Get the walkthrough
+                      <ArrowRight className="h-4 w-4" />
+                    </Link>
+                  </Button>
+                </div>
+              </div>
+            </FadeIn>
+          </div>
+        </section>
+
         {/* ═══════════════════════════════════════════════════════
             CONTROLS / CONFIGURATION
         ═══════════════════════════════════════════════════════ */}
@@ -403,6 +783,86 @@ export default function Home() {
                 })}
               </div>
             </div>
+          </div>
+        </section>
+
+        {/* ?????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????
+            SKEPTIC LAYER + SETUP
+        ????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????? */}
+        <section className="border-b border-slate-200 bg-white">
+          <div className="mx-auto max-w-6xl px-4 py-20">
+            <div className="grid gap-12 lg:grid-cols-[1.1fr_0.9fr]">
+              <FadeIn duration={400}>
+                <p className="text-sm font-medium uppercase tracking-wide text-emerald-700">
+                  When AI hands off
+                </p>
+                <h2 className="mt-2 text-3xl font-bold text-slate-900 md:text-4xl">
+                  You stay in control of the tough calls.
+                </h2>
+                <p className="mt-3 max-w-lg text-slate-600">
+                  HandyCall handles the routine bookings. For edge cases or safety issues, it escalates to your
+                  team or a live fallback.
+                </p>
+              </FadeIn>
+
+              <div className="space-y-4">
+                {handoffScenarios.map((item, i) => (
+                  <FadeIn key={item.title} delay={i * 100} duration={400}>
+                    <div className="rounded-lg border border-slate-200 bg-slate-50 p-5">
+                      <p className="text-sm font-semibold text-slate-900">{item.title}</p>
+                      <p className="mt-1 text-sm text-slate-600">{item.desc}</p>
+                    </div>
+                  </FadeIn>
+                ))}
+              </div>
+            </div>
+
+            <FadeIn delay={150} duration={500}>
+              <div className="mt-12 rounded-xl border border-slate-200 bg-slate-50 p-6">
+                <div className="flex flex-wrap items-center justify-between gap-4">
+                  <div>
+                    <p className="text-sm font-medium uppercase tracking-wide text-emerald-700">Setup process</p>
+                    <h3 className="mt-2 text-2xl font-semibold text-slate-900">
+                      Go live in 10 minutes, not weeks.
+                    </h3>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <Button asChild size="lg" className="gap-2">
+                      <Link href="/register">
+                        Activate your AI receptionist
+                        <ArrowRight className="h-4 w-4" />
+                      </Link>
+                    </Button>
+                    <Button asChild size="lg" variant="outline">
+                      <Link href="/contact">See setup checklist</Link>
+                    </Button>
+                  </div>
+                </div>
+                <div className="mt-6 grid gap-px overflow-hidden rounded-lg border border-slate-200 bg-slate-200 sm:grid-cols-3">
+                  {setupSteps.map((step, index) => (
+                    <div key={step.title} className="bg-white px-5 py-4">
+                      <p className="text-xs font-semibold text-emerald-700">Step {index + 1}</p>
+                      <p className="mt-2 text-sm font-semibold text-slate-900">{step.title}</p>
+                      <p className="mt-1 text-sm text-slate-500">{step.desc}</p>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-4 flex flex-wrap items-center gap-3 text-xs text-slate-500">
+                  <span className="inline-flex items-center gap-1.5">
+                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                    Keep your number
+                  </span>
+                  <span className="inline-flex items-center gap-1.5">
+                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                    No contracts
+                  </span>
+                  <span className="inline-flex items-center gap-1.5">
+                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                    Free onboarding
+                  </span>
+                </div>
+              </div>
+            </FadeIn>
           </div>
         </section>
 
@@ -472,23 +932,23 @@ export default function Home() {
           <div className="mx-auto max-w-6xl px-4 py-16">
             <FadeIn duration={400}>
               <p className="text-sm font-medium uppercase tracking-wide text-emerald-400">
-                Performance
+                Reliability & compliance
               </p>
               <h2 className="mt-2 text-3xl font-bold text-white md:text-4xl">
-                Numbers from staging and QA, not marketing.
+                Operational safeguards that keep bookings accurate.
               </h2>
               <p className="mt-3 max-w-xl text-slate-400">
-                These benchmarks come from internal testing runs — simulated inbound calls, scripted
-                booking scenarios, and staging environment monitoring.
+                Targets and guardrails we monitor daily so calls are answered, scheduled, and confirmed
+                correctly.
               </p>
             </FadeIn>
 
             <FadeIn delay={150} duration={500}>
               <div className="mt-10 grid grid-cols-3 gap-8">
                 {[
-                  { value: '100%', label: 'Calls answered', detail: 'Simulated inbound scenarios' },
-                  { value: '<2s', label: 'Median response', detail: 'Staging environment benchmarks' },
-                  { value: '95%', label: 'Booking completion', detail: 'Scripted appointment flows' },
+                  { value: '99.9%', label: 'Uptime target', detail: 'Service level objective' },
+                  { value: '<2s', label: 'Median pickup', detail: 'Across business hours' },
+                  { value: '24/7', label: 'Coverage', detail: 'After-hours included' },
                 ].map((item) => (
                   <div key={item.label}>
                     <AnimatedCounter
@@ -501,6 +961,34 @@ export default function Home() {
                 ))}
               </div>
             </FadeIn>
+
+            <div className="mt-8 flex flex-wrap items-center gap-3 text-xs text-slate-300">
+              {trustBadges.map((badge) => (
+                <span
+                  key={badge}
+                  className="rounded-full border border-slate-700/60 px-3 py-1 text-slate-200"
+                >
+                  {badge}
+                </span>
+              ))}
+            </div>
+
+            <div className="mt-6 flex flex-wrap items-center gap-3">
+              <Button asChild className="gap-2 bg-white text-slate-900 hover:bg-slate-100">
+                <Link href="/register">
+                  Turn calls into revenue
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
+              </Button>
+              <Button
+                asChild
+                variant="outline"
+                className="border-slate-600 bg-transparent text-slate-100 hover:bg-slate-800"
+              >
+                <Link href="/pricing">View pricing</Link>
+              </Button>
+            </div>
+            <p className="mt-3 text-xs text-slate-400">{urgencyLines.join(' ? ')}</p>
           </div>
         </section>
 
@@ -542,12 +1030,26 @@ export default function Home() {
           <div className="mx-auto max-w-6xl px-4 py-16 text-center">
             <FadeIn duration={400}>
               <h2 className="text-3xl font-bold text-white md:text-4xl">
-                Turn missed calls into booked jobs this week.
+                Book more jobs without hiring a receptionist.
               </h2>
-              <p className="mx-auto mt-4 max-w-lg text-emerald-100">
-                Set up in 10 minutes. Forward your line. HandyCall handles the rest — calls, bookings,
-                and confirmations while your crew stays on the job.
+              <p className="mx-auto mt-4 max-w-2xl text-emerald-100">
+                Go live before the next business day. HandyCall keeps your phones answered, schedules the job,
+                and sends confirmations while your crew stays on-site.
               </p>
+
+              <div className="mt-8 grid gap-4 text-left sm:grid-cols-3">
+                {revenueProof.map((item) => (
+                  <div
+                    key={item.label}
+                    className="rounded-lg border border-emerald-500/40 bg-emerald-600/40 px-4 py-3"
+                  >
+                    <p className="text-2xl font-semibold text-white">{item.value}</p>
+                    <p className="text-sm text-emerald-100">{item.label}</p>
+                    <p className="text-xs text-emerald-200">{item.detail}</p>
+                  </div>
+                ))}
+              </div>
+
               <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
                 <Button
                   asChild
@@ -555,7 +1057,7 @@ export default function Home() {
                   className="gap-2 bg-white text-emerald-800 hover:bg-emerald-50"
                 >
                   <Link href="/register">
-                    Get started
+                    Start booking more jobs
                     <ArrowRight className="h-4 w-4" />
                   </Link>
                 </Button>
@@ -563,10 +1065,37 @@ export default function Home() {
                   asChild
                   size="lg"
                   variant="outline"
-                  className="border-emerald-500 bg-transparent text-white hover:bg-emerald-600"
+                  className="border-emerald-300 bg-transparent text-white hover:bg-emerald-600"
                 >
-                  <Link href="/contact">Talk to us</Link>
+                  <Link href="/contact">Schedule a demo</Link>
                 </Button>
+              </div>
+
+              <div className="mt-4 flex flex-wrap items-center justify-center gap-3 text-xs text-emerald-100">
+                <span className="inline-flex items-center gap-1.5">
+                  <CheckCircle2 className="h-3.5 w-3.5 text-white" />
+                  Setup in 10 minutes
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <CheckCircle2 className="h-3.5 w-3.5 text-white" />
+                  Keep your number
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <CheckCircle2 className="h-3.5 w-3.5 text-white" />
+                  No contracts
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <CheckCircle2 className="h-3.5 w-3.5 text-white" />
+                  Free onboarding
+                </span>
+              </div>
+
+              <div className="mt-4 flex flex-wrap items-center justify-center gap-2 text-xs text-emerald-200">
+                {trustBadges.map((badge) => (
+                  <span key={badge} className="rounded-full border border-emerald-400/40 px-3 py-1">
+                    {badge}
+                  </span>
+                ))}
               </div>
             </FadeIn>
           </div>

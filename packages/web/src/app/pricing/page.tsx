@@ -104,6 +104,41 @@ const inclusions = [
   'Usage dashboard with call recordings',
 ];
 
+const roiHighlights = [
+  {
+    title: 'One booked job pays for the week',
+    detail: 'Most service calls are $250-$600+ in revenue.',
+  },
+  {
+    title: 'Replace receptionist costs',
+    detail: 'Coverage without $3k+/mo wages, taxes, or missed after-hours calls.',
+  },
+  {
+    title: 'Capture missed calls fast',
+    detail: 'After-hours and overflow calls turn into booked jobs the next morning.',
+  },
+];
+
+const costComparison = [
+  { label: 'Receptionist (20 hrs/week)', value: '$3,200/mo', detail: 'Wages + taxes + coverage gaps' },
+  { label: 'HandyCall Pro', value: '~$40/mo', detail: '24/7 coverage + bookings' },
+  { label: 'HandyCall Max', value: '~$80/mo', detail: 'Higher volume + priority support' },
+];
+
+const volumeExamples = [
+  { trade: 'HVAC', calls: '35-50 calls/week', minutes: '60-90 min', plan: 'Pro' },
+  { trade: 'Plumbing', calls: '20-35 calls/week', minutes: '40-60 min', plan: 'Starter' },
+  { trade: 'Pest Control', calls: '45-70 calls/week', minutes: '80-120 min', plan: 'Pro' },
+];
+
+const pricingTrustBadges = [
+  'No contracts',
+  'Keep your number',
+  'Setup in 10 minutes',
+  'Human fallback available',
+  'TCPA-friendly scripts',
+];
+
 const featureComparisons: {
   label: string;
   values: Record<PlanName, string | boolean>;
@@ -197,22 +232,30 @@ export default function PricingPage() {
             <div className="space-y-6">
               <Badge className="bg-emerald-100 text-emerald-700">Weekly plans built for service teams</Badge>
               <h1 className="text-4xl font-display text-slate-900 md:text-5xl">
-                Pricing that matches your call volume.
+                Pricing that pays for itself with one booked job.
               </h1>
               <p className="text-lg text-slate-600">
-                Choose a weekly plan that fits how many calls and appointments you manage. Upgrade any time as demand
-                grows.
+                Choose a weekly plan that fits your call volume, then compare it to receptionist costs. Most service
+                jobs cover the week.
               </p>
               <div className="flex flex-wrap gap-3">
                 <Button asChild size="lg">
-                  <Link href="/contact">Talk to sales</Link>
+                  <Link href="/contact">Book a demo</Link>
                 </Button>
                 <Button asChild size="lg" variant="outline">
                   <Link href="/login">Existing customer? Log in</Link>
                 </Button>
                 <Button size="lg" variant="ghost" onClick={() => setCompareOpen(true)}>
-                  Compare plans
+                  Compare all features
                 </Button>
+              </div>
+              <div className="flex flex-wrap gap-3 text-xs text-slate-500">
+                {pricingTrustBadges.map((badge) => (
+                  <span key={badge} className="inline-flex items-center gap-1.5">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                    {badge}
+                  </span>
+                ))}
               </div>
             </div>
 
@@ -233,6 +276,44 @@ export default function PricingPage() {
               </CardContent>
             </Card>
           </section>
+          <section className="mt-12 grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+            <div className="rounded-2xl border border-emerald-100 bg-white p-6 shadow-sm">
+              <p className="text-sm font-medium uppercase tracking-wide text-emerald-700">ROI framing</p>
+              <h2 className="mt-2 text-2xl font-semibold text-slate-900">
+                One booked job covers the week.
+              </h2>
+              <p className="mt-2 text-sm text-slate-600">
+                Most service calls land between $250 and $600+. HandyCall is priced to be an easy yes.
+              </p>
+              <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                {roiHighlights.map((item) => (
+                  <div key={item.title} className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                    <p className="text-sm font-semibold text-slate-900">{item.title}</p>
+                    <p className="mt-1 text-xs text-slate-500">{item.detail}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-emerald-100 bg-white p-6 shadow-sm">
+              <p className="text-sm font-medium uppercase tracking-wide text-emerald-700">Cost comparison</p>
+              <div className="mt-4 space-y-3">
+                {costComparison.map((row) => (
+                  <div key={row.label} className="rounded-lg border border-slate-200 bg-white p-4">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-semibold text-slate-900">{row.label}</span>
+                      <span className="text-sm font-semibold text-emerald-700">{row.value}</span>
+                    </div>
+                    <p className="mt-1 text-xs text-slate-500">{row.detail}</p>
+                  </div>
+                ))}
+              </div>
+              <p className="mt-4 text-xs text-slate-500">
+                Comparison assumes 4-week months. Receptionist cost varies by region and benefits.
+              </p>
+            </div>
+          </section>
+
 
           {/* ── Plan cards ── */}
           <section className="mt-14 grid gap-6 md:grid-cols-3">
@@ -286,18 +367,50 @@ export default function PricingPage() {
                       </div>
                     ))}
                   </CardContent>
-                  <CardFooter className="mt-auto">
+                  <CardFooter className="mt-auto flex flex-col gap-3">
                     <Button asChild className="group w-full gap-2">
                       <Link href="/register">
-                        Get started
+                        Start booking more jobs
                         <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
                       </Link>
                     </Button>
+                    <p className="text-center text-xs text-slate-500">
+                      Setup in 10 minutes · Keep your number · Cancel anytime
+                    </p>
                   </CardFooter>
                 </Card>
               );
             })}
           </section>
+          <section className="mt-10 rounded-2xl border border-emerald-100 bg-white p-6 shadow-sm">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <p className="text-sm font-medium uppercase tracking-wide text-emerald-700">
+                  Call volume examples
+                </p>
+                <h3 className="mt-2 text-2xl font-semibold text-slate-900">Typical weeks by trade</h3>
+                <p className="mt-1 text-sm text-slate-600">
+                  Use these as a starting point, then dial in your exact volume in the calculator.
+                </p>
+              </div>
+              <Button asChild variant="outline">
+                <Link href="/contact">Talk through your volume</Link>
+              </Button>
+            </div>
+            <div className="mt-6 grid gap-4 sm:grid-cols-3">
+              {volumeExamples.map((example) => (
+                <div key={example.trade} className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                  <p className="text-sm font-semibold text-slate-900">{example.trade}</p>
+                  <p className="mt-1 text-xs text-slate-500">{example.calls}</p>
+                  <p className="text-xs text-slate-500">{example.minutes}</p>
+                  <p className="mt-2 text-xs font-semibold text-emerald-700">
+                    Suggested: {example.plan}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </section>
+
 
           {/* ── Plan calculator ── */}
           <section className="mt-16 overflow-hidden rounded-[28px] border border-emerald-100/60 bg-gradient-to-br from-white via-emerald-50/10 to-white p-8 shadow-lg shadow-emerald-50/50 md:p-12">
@@ -308,6 +421,9 @@ export default function PricingPage() {
               </h2>
               <p className="mx-auto mt-2 max-w-lg text-slate-600">
                 Drag the sliders to match your weekly usage and we&apos;ll show which plan covers you.
+              </p>
+              <p className="mx-auto mt-2 max-w-lg text-sm text-slate-500">
+                If your average job is $350, one booking covers the week.
               </p>
             </div>
 
@@ -452,7 +568,7 @@ export default function PricingPage() {
                     </p>
                     <Button asChild size="lg" className="group mt-4 gap-2">
                       <Link href="/register">
-                        Get started with {recommended}
+                        Start booking more jobs with {recommended}
                         <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
                       </Link>
                     </Button>
@@ -464,13 +580,15 @@ export default function PricingPage() {
 
           {/* ── Tailored CTA ── */}
           <section className="mt-16 rounded-2xl border border-emerald-100 bg-emerald-50/80 p-10 text-center shadow-lg shadow-emerald-50">
-            <h3 className="text-2xl font-display text-slate-900">Need a tailored rollout?</h3>
+            <h3 className="text-2xl font-display text-slate-900">
+              Need coverage for a high call volume?
+            </h3>
             <p className="mt-2 text-slate-600">
-              Let us know your call volume and service mix. We will build a plan around your team.
+              Share your call load and service mix. We will build a rollout that protects your bookings.
             </p>
             <div className="mt-4 flex justify-center">
               <Button asChild size="lg" variant="secondary" className="bg-white text-emerald-700 shadow">
-                <Link href="/contact">Start the conversation</Link>
+                <Link href="/contact">Plan your rollout</Link>
               </Button>
             </div>
           </section>
