@@ -8,6 +8,7 @@ import { apiClient } from '@/lib/api-client';
 import { useOnboarding } from '@/components/onboarding/onboarding-context';
 import { ONBOARDING_STEPS, OnboardingStepId } from '@/constants/onboarding';
 import { SERVICE_TYPE_OPTIONS } from '@/constants/service-types';
+import { CALL_HANDLING_OPTIONS, formatCallHandlingLabel } from '@/constants/call-handling';
 import { PLAN_CATALOG, getPlanPriceDisplay } from '@/constants/plans';
 import { useAuthStore } from '@/stores/auth-store';
 import { Badge } from '@/components/ui/badge';
@@ -19,6 +20,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
+import { CallForwardingGuide } from '@/components/telephony/call-forwarding-guide';
 import {
   Calendar,
   CheckCircle2,
@@ -30,7 +32,7 @@ import {
   Phone,
   Sparkles,
 } from 'lucide-react';
-import { SubscriptionPlan } from '@handycall/shared';
+import { CallHandlingMode, SubscriptionPlan } from '@handycall/shared';
 
 const TIMEZONES = [
   { value: 'America/New_York', label: 'Eastern Time (ET)' },
@@ -1196,6 +1198,10 @@ function PhoneStep({ nextStep }: { nextStep?: OnboardingStepId }) {
     company?.transfer_number && company?.transfer_number === company?.phone_number ? 'company' : 'custom'
   );
   const [transferSaving, setTransferSaving] = useState(false);
+  const [callHandlingMode, setCallHandlingMode] = useState<CallHandlingMode>(
+    (company?.call_handling_mode as CallHandlingMode) || CallHandlingMode.ALWAYS
+  );
+  const [callHandlingSaving, setCallHandlingSaving] = useState(false);
 
   useEffect(() => {
     if (company?.phone_number) {
@@ -1207,6 +1213,7 @@ function PhoneStep({ nextStep }: { nextStep?: OnboardingStepId }) {
       setTransferMode(
         company.transfer_number && company.transfer_number === company.phone_number ? 'company' : 'custom'
       );
+      setCallHandlingMode((company.call_handling_mode as CallHandlingMode) || CallHandlingMode.ALWAYS);
     }
   }, [company]);
 
@@ -1347,20 +1354,96 @@ function PhoneStep({ nextStep }: { nextStep?: OnboardingStepId }) {
     }
   };
 
+  const handleSaveCallHandling = async () => {
+    setCallHandlingSaving(true);
+    try {
+      const updated = await apiClient.updateMyCompany({
+        call_handling_mode: callHandlingMode,
+      });
+      setCompany(updated);
+      toast({
+        title: 'Call handling saved',
+        description: `HandyCall will follow: ${formatCallHandlingLabel(callHandlingMode)}.`,
+      });
+    } catch (err: any) {
+      toast({
+        title: 'Save failed',
+        description: err?.message || 'Unable to save call handling preferences.',
+        variant: 'destructive',
+      });
+    } finally {
+      setCallHandlingSaving(false);
+    }
+  };
+
   return (
     <div>
       <SectionHeading
         icon={<Phone className="h-4 w-4" />}
-        title="Connect your phone line"
-        subtitle="Forward your existing number or claim a new HandyCall line."
+        title="Go live with HandyCall"
+        subtitle="Forward your existing number or use your HandyCall line directly."
       />
 
       <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
         <div className="space-y-6">
+          <div className="rounded-2xl border border-emerald-100 bg-emerald-50/60 p-4 text-sm text-emerald-900">
+            <p className="font-semibold">Once you are happy with setup, it is time to go live.</p>
+            <p className="mt-1">
+              Forward calls from your current business line to your HandyCall number, or start using the HandyCall line
+              directly. Choose whether we answer every call, only missed calls, or after-hours. Within minutes, every
+              ring gets a response.
+            </p>
+          </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Call handling preference</CardTitle>
+              <CardDescription>Tell HandyCall when to answer. You can change this later in Settings.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-3 md:grid-cols-3">
+                {CALL_HANDLING_OPTIONS.map((option) => {
+                  const selected = callHandlingMode === option.value;
+                  return (
+                    <label
+                      key={option.value}
+                      className={`cursor-pointer rounded-xl border p-3 text-left transition ${
+                        selected ? 'border-emerald-400 bg-emerald-50/70' : 'border-slate-200 bg-white/80'
+                      }`}
+                    >
+                      <div className="flex items-start gap-2">
+                        <input
+                          type="radio"
+                          name="callHandlingMode"
+                          className="mt-1 h-4 w-4 accent-emerald-600"
+                          checked={selected}
+                          onChange={() => setCallHandlingMode(option.value)}
+                        />
+                        <div>
+                          <div className="text-sm font-semibold text-slate-900">{option.label}</div>
+                          <div className="text-xs text-slate-600">{option.description}</div>
+                        </div>
+                      </div>
+                    </label>
+                  );
+                })}
+              </div>
+
+              <div className="rounded-xl border border-emerald-100 bg-emerald-50/60 p-3 text-xs text-emerald-900">
+                This setting tells us how you want calls handled. Use the carrier forwarding steps below to put it into
+                effect.
+              </div>
+
+              <Button onClick={handleSaveCallHandling} disabled={callHandlingSaving}>
+                {callHandlingSaving ? 'Saving...' : 'Save call handling'}
+              </Button>
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader>
               <CardTitle>Use your current number</CardTitle>
-              <CardDescription>We’ll route calls to the HandyCall AI line.</CardDescription>
+              <CardDescription>Keep your existing line and forward calls to HandyCall.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
@@ -1383,10 +1466,12 @@ function PhoneStep({ nextStep }: { nextStep?: OnboardingStepId }) {
             </CardContent>
           </Card>
 
+          <CallForwardingGuide forwardToNumber={companyNumber} callHandlingMode={callHandlingMode} />
+
           <Card>
             <CardHeader>
               <CardTitle>Transfer to a human (optional)</CardTitle>
-              <CardDescription>Enable a fallback to forward callers to a live person.</CardDescription>
+              <CardDescription>Let HandyCall transfer callers to a live person when they ask.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <label className="flex items-center gap-3 text-sm text-slate-700">
@@ -1532,6 +1617,10 @@ function PhoneStep({ nextStep }: { nextStep?: OnboardingStepId }) {
             <div className="flex items-center gap-2">
               <CheckCircle2 className={`h-4 w-4 ${companyNumber ? 'text-emerald-600' : 'text-emerald-300'}`} />
               <span>HandyCall number: {companyNumber || 'Not assigned'}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+              <span>Call handling: {formatCallHandlingLabel(callHandlingMode)}</span>
             </div>
             <p>
               After you claim a number, you can forward calls or use it as your main business line.

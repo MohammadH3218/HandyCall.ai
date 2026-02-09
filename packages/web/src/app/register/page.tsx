@@ -32,7 +32,7 @@ const SETUP_STEPS = [
   },
   {
     title: 'Calendar + phone',
-    description: 'Connect scheduling and claim your line.',
+    description: 'Connect scheduling, claim your line, and set call handling.',
   },
 ];
 

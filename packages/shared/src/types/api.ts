@@ -14,6 +14,7 @@ import type {
   FlaggedQuestion,
   AgentConfig,
   PricingRule,
+  CallHandlingMode,
   UUID,
   Timestamp,
 } from './domain';
@@ -128,6 +129,9 @@ export interface UpdateCompanyRequest {
   service_area_cities?: string[];
   company_profile_completed?: boolean;
   service_area_completed?: boolean;
+  transfer_enabled?: boolean;
+  transfer_number?: string;
+  call_handling_mode?: CallHandlingMode;
 }
 
 export type GetCompanyResponse = Company;

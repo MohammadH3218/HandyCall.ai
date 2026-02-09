@@ -23,6 +23,12 @@ export enum CompanyStatus {
   CANCELLED = 'CANCELLED',
 }
 
+export enum CallHandlingMode {
+  ALWAYS = 'ALWAYS',
+  MISSED = 'MISSED',
+  AFTER_HOURS = 'AFTER_HOURS',
+}
+
 export enum ServiceType {
   HANDYMAN = 'HANDYMAN',
   PEST_CONTROL = 'PEST_CONTROL',
@@ -83,6 +89,7 @@ export interface Company {
   email_from?: string;
   transfer_enabled?: boolean;
   transfer_number?: PhoneNumber;
+  call_handling_mode?: CallHandlingMode;
 
   // AWS Connect integration
   connect_phone_number_id?: string; // Phone number ID from AWS Connect

@@ -1,5 +1,5 @@
 import { IsArray, IsBoolean, IsEmail, IsEnum, IsIn, IsObject, IsOptional, IsString, Matches, IsNumber } from 'class-validator';
-import { CompanyStatus, ServiceType, BusinessHours } from '@handycall/shared';
+import { CompanyStatus, ServiceType, BusinessHours, CallHandlingMode } from '@handycall/shared';
 
 export class AdminUpdateCompanyDto {
   @IsOptional()
@@ -69,6 +69,10 @@ export class AdminUpdateCompanyDto {
   @IsOptional()
   @IsString()
   transfer_number?: string;
+
+  @IsOptional()
+  @IsEnum(CallHandlingMode)
+  call_handling_mode?: CallHandlingMode;
 
   // Calendar setup
   @IsOptional()

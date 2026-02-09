@@ -99,6 +99,100 @@ function escapeXml(value: string) {
     .replace(/'/g, '&apos;');
 }
 
+type DaySchedule = {
+  open?: string;
+  close?: string;
+  closed?: boolean;
+  segments?: Array<{ open: string; close: string }>;
+};
+
+type BusinessHours = Record<string, DaySchedule | undefined>;
+
+function parseTimeToMinutes(value?: string): number | null {
+  const raw = String(value || '').trim();
+  if (!raw) return null;
+  const match = raw.match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return null;
+  const hour = Number(match[1]);
+  const minute = Number(match[2]);
+  if (!Number.isFinite(hour) || !Number.isFinite(minute)) return null;
+  if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return null;
+  return hour * 60 + minute;
+}
+
+function getLocalParts(date: Date, timeZone: string): { weekday: string; minutes: number } | null {
+  try {
+    const fmt = new Intl.DateTimeFormat('en-US', {
+      timeZone,
+      weekday: 'long',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    });
+    const parts = fmt.formatToParts(date);
+    const weekday = parts.find((p) => p.type === 'weekday')?.value.toLowerCase();
+    const hour = Number(parts.find((p) => p.type === 'hour')?.value);
+    const minute = Number(parts.find((p) => p.type === 'minute')?.value);
+    if (!weekday || !Number.isFinite(hour) || !Number.isFinite(minute)) return null;
+    return { weekday, minutes: hour * 60 + minute };
+  } catch {
+    return null;
+  }
+}
+
+function resolveScheduleForDay(hours: BusinessHours | undefined, weekday: string): DaySchedule | null {
+  if (!hours || typeof hours !== 'object') return null;
+  const direct = hours[weekday];
+  if (direct) return direct;
+  const shortMap: Record<string, string> = {
+    monday: 'mon',
+    tuesday: 'tue',
+    wednesday: 'wed',
+    thursday: 'thu',
+    friday: 'fri',
+    saturday: 'sat',
+    sunday: 'sun',
+  };
+  const shortKey = shortMap[weekday];
+  return shortKey ? hours[shortKey] ?? null : null;
+}
+
+function isWithinBusinessHours(
+  hours: BusinessHours | undefined,
+  timeZone: string | undefined,
+  now: Date = new Date()
+): boolean | null {
+  if (!hours) return null;
+  const tz = normalizeTimeZone(timeZone || '', 'UTC');
+  const parts = getLocalParts(now, tz);
+  if (!parts) return null;
+  const schedule = resolveScheduleForDay(hours, parts.weekday);
+  if (!schedule) return null;
+  if (schedule.closed) return false;
+
+  const segments = Array.isArray(schedule.segments) && schedule.segments.length
+    ? schedule.segments
+    : schedule.open && schedule.close
+      ? [{ open: schedule.open, close: schedule.close }]
+      : [];
+
+  let hasValidSegment = false;
+  for (const segment of segments) {
+    const open = parseTimeToMinutes(segment.open);
+    const close = parseTimeToMinutes(segment.close);
+    if (open === null || close === null) continue;
+    hasValidSegment = true;
+    if (open <= close) {
+      if (parts.minutes >= open && parts.minutes < close) return true;
+    } else {
+      if (parts.minutes >= open || parts.minutes < close) return true;
+    }
+  }
+
+  if (!hasValidSegment) return null;
+  return false;
+}
+
 function isLowSignalTranscript(input: string): boolean {
   const text = (input || '').trim();
   if (!text) return true;
@@ -1350,6 +1444,33 @@ const server = http.createServer(async (req, res) => {
       const trackAttr = streamTrack ? ` track="${escapeXml(streamTrack)}"` : '';
 
       console.log('[twilio] voice webhook', { callSid, from, to, mediaWsUrl, streamTrack: streamTrack || 'default' });
+
+      let tenant: any = null;
+      if (to) {
+        try {
+          tenant = await resolveTenant(to);
+        } catch (err: any) {
+          console.warn('[twilio] resolveTenant failed for call handling check', err?.message ?? String(err));
+        }
+      }
+
+      if (tenant?.call_handling_mode === 'AFTER_HOURS') {
+        const isOpen = isWithinBusinessHours(tenant?.business_hours, tenant?.timezone, new Date());
+        if (isOpen === true) {
+          const transferEnabled = tenant?.transfer_enabled === true;
+          const configuredNumber = typeof tenant?.transfer_number === 'string' ? tenant.transfer_number.trim() : '';
+          const fallbackTarget = transferEnabled ? resolveTransferTarget() : '';
+          const target = transferEnabled ? configuredNumber || fallbackTarget : '';
+          if (target) {
+            const twiml = `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Dial>${escapeXml(target)}</Dial>
+</Response>`;
+            return xml(res, 200, twiml);
+          }
+          console.warn('[twilio] after-hours mode active but no transfer target configured; continuing to AI');
+        }
+      }
 
       const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>

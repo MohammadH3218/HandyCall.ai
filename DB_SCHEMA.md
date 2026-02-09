@@ -55,6 +55,7 @@
   trial_used_at?: number;      // first Pro trial start timestamp (ms)
   timezone: string;            // IANA timezone
   business_hours: object;      // BusinessHours type
+  call_handling_mode?: string; // ALWAYS, MISSED, AFTER_HOURS
   created_at: number;          // Unix timestamp (ms)
   updated_at: number;
   subscription_tier?: string;

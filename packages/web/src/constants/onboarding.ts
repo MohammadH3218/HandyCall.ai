@@ -45,6 +45,6 @@ export const ONBOARDING_STEPS: Array<{
   {
     id: 'phone',
     label: 'Phone number',
-    description: 'Forward your line or claim a new number.',
+    description: 'Choose call handling and forward your line.',
   },
 ];

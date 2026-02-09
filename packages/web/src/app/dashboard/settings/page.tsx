@@ -7,6 +7,9 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { CALL_HANDLING_OPTIONS } from '@/constants/call-handling';
+import { CallHandlingMode } from '@handycall/shared';
+import { CallForwardingGuide } from '@/components/telephony/call-forwarding-guide';
 
 export default function SettingsPage() {
   const { company } = useAuthStore();
@@ -16,6 +19,7 @@ export default function SettingsPage() {
     timezone: '',
     transfer_enabled: false,
     transfer_number: '',
+    call_handling_mode: CallHandlingMode.ALWAYS,
   });
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState('');
@@ -35,6 +39,7 @@ export default function SettingsPage() {
       timezone: company.timezone,
       transfer_enabled: company.transfer_enabled ?? false,
       transfer_number: company.transfer_number ?? '',
+      call_handling_mode: (company.call_handling_mode as CallHandlingMode) || CallHandlingMode.ALWAYS,
     });
   }, [company]);
 
@@ -123,6 +128,46 @@ export default function SettingsPage() {
                   onChange={(e) => setFormData({ ...formData, timezone: e.target.value })}
                   disabled={isSaving}
                 />
+              </div>
+
+              <div className="space-y-3 rounded-xl border border-emerald-100 bg-emerald-50/40 p-4">
+                <Label>Call handling</Label>
+                <div className="grid gap-3 md:grid-cols-3">
+                  {CALL_HANDLING_OPTIONS.map((option) => {
+                    const selected = formData.call_handling_mode === option.value;
+                    return (
+                      <label
+                        key={option.value}
+                        className={`cursor-pointer rounded-xl border p-3 text-left text-sm transition ${
+                          selected ? 'border-emerald-400 bg-emerald-50/70' : 'border-slate-200 bg-white/80'
+                        }`}
+                      >
+                        <div className="flex items-start gap-2">
+                          <input
+                            type="radio"
+                            name="callHandlingMode"
+                            className="mt-1 h-4 w-4 accent-emerald-600"
+                            checked={selected}
+                            onChange={() =>
+                              setFormData({
+                                ...formData,
+                                call_handling_mode: option.value,
+                              })
+                            }
+                            disabled={isSaving}
+                          />
+                          <div>
+                            <div className="font-semibold text-slate-900">{option.label}</div>
+                            <div className="text-xs text-slate-600">{option.description}</div>
+                          </div>
+                        </div>
+                      </label>
+                    );
+                  })}
+                </div>
+                <p className="text-xs text-slate-600">
+                  Use your carrier forwarding settings to match this choice.
+                </p>
               </div>
 
               <div className="space-y-3 rounded-xl border border-emerald-100 bg-emerald-50/40 p-4">
@@ -221,6 +266,8 @@ export default function SettingsPage() {
             )}
           </CardContent>
         </Card>
+
+        <CallForwardingGuide forwardToNumber={myNumber} callHandlingMode={formData.call_handling_mode} />
 
       </div>
     </div>

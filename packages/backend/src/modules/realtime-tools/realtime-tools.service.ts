@@ -21,6 +21,7 @@ import {
   LeadStatus,
   AppointmentStatus,
   CompanyStatus,
+  CallHandlingMode,
 } from '@handycall/shared';
 import { CreateLeadDto } from './dto/create-lead.dto';
 import { CreateBookingDto } from './dto/create-booking.dto';
@@ -558,6 +559,7 @@ export class RealtimeToolsService {
       service_area_zipcodes: (company as any).service_area_zipcodes || [],
       transfer_enabled: (company as any).transfer_enabled === true,
       transfer_number: (company as any).transfer_number || undefined,
+      call_handling_mode: (company as any).call_handling_mode || CallHandlingMode.ALWAYS,
       agent_config: config ? {
         language: (config as any).language || 'en',
         voice: (config as any).voice || 'alloy',

@@ -16,7 +16,7 @@ export function SiteHeader({
   hideLoginLink = false,
 }: SiteHeaderProps) {
   return (
-    <header className="sticky top-0 z-20 border-b border-slate-100 bg-white/95 backdrop-blur-sm">
+    <header className="sticky top-0 z-20 border-b border-slate-200 bg-white">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3.5">
         <Link href="/" className="flex items-center">
           <Logo width={148} height={36} />

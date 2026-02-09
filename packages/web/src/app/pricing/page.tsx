@@ -190,11 +190,8 @@ export default function PricingPage() {
   }, []);
 
   return (
-    <div className="relative min-h-screen bg-white text-foreground">
-      <div className="bg-grid bg-grid-fade pointer-events-none fixed inset-0 z-0" />
-
-      <div className="relative z-10">
-        <SiteHeader />
+    <div className="min-h-screen bg-white text-foreground">
+      <SiteHeader />
         <main className="mx-auto max-w-6xl px-4 pb-20 pt-12">
           <section className="grid gap-10 lg:grid-cols-[1.1fr_0.9fr]">
             <div className="space-y-6">
@@ -550,7 +547,6 @@ export default function PricingPage() {
             </DialogContent>
           </Dialog>
         </main>
-      </div>
     </div>
   );
 }

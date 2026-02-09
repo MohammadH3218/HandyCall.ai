@@ -7,6 +7,7 @@ import {
   BusinessHours,
   SubscriptionPlan,
   SubscriptionStatus,
+  CallHandlingMode,
 } from '@handycall/shared';
 import { v4 as uuidv4 } from 'uuid';
 import { resolveServiceTemplateId } from './service-template-map';
@@ -128,6 +129,7 @@ export class CompaniesService {
       status: CompanyStatus.INACTIVE,
       timezone,
       business_hours: defaultBusinessHours,
+      call_handling_mode: CallHandlingMode.ALWAYS,
       service_area_zipcodes: options?.serviceAreaZipcodes ?? [],
       service_area_cities: options?.serviceAreaCities ?? [],
       company_profile_completed: options?.companyProfileCompleted ?? false,
@@ -198,6 +200,7 @@ export class CompaniesService {
       sms_enabled?: boolean;
       transfer_enabled?: boolean;
       transfer_number?: string;
+      call_handling_mode?: CallHandlingMode;
       use_simple_scheduling?: boolean;
       // Billing fields
       stripe_customer_id?: string;

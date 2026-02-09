@@ -1,5 +1,5 @@
 import { IsString, IsOptional, IsObject, IsBoolean, IsNumber, IsIn, IsArray, IsEnum } from 'class-validator';
-import { BusinessHours, ServiceType } from '@handycall/shared';
+import { BusinessHours, ServiceType, CallHandlingMode } from '@handycall/shared';
 
 export class UpdateCompanyDto {
   @IsOptional()
@@ -62,6 +62,10 @@ export class UpdateCompanyDto {
   @IsOptional()
   @IsString()
   transfer_number?: string;
+
+  @IsOptional()
+  @IsEnum(CallHandlingMode)
+  call_handling_mode?: CallHandlingMode;
 
   // AWS Connect fields
   @IsOptional()
