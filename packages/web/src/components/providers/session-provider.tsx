@@ -7,6 +7,8 @@ import { useAuthStore } from '@/stores/auth-store';
 
 function AuthInitializer({ children }: { children: React.ReactNode }) {
   const checkAuth = useAuthStore((state) => state.checkAuth);
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const lastAuthCheckAt = useAuthStore((state) => state._lastAuthCheckAt);
   const { status } = useSession();
   const pathname = usePathname();
 
@@ -18,11 +20,17 @@ function AuthInitializer({ children }: { children: React.ReactNode }) {
       pathname.startsWith('/onboarding');
 
     if (shouldCheck && status === 'authenticated') {
-      checkAuth();
+      if (!isAuthenticated) {
+        checkAuth();
+        return;
+      }
+      if (!lastAuthCheckAt) {
+        checkAuth();
+      }
     } else {
       useAuthStore.setState({ isLoading: false, _checkAuthInProgress: false });
     }
-  }, [checkAuth, pathname, status]);
+  }, [checkAuth, pathname, status, isAuthenticated, lastAuthCheckAt]);
 
   return <>{children}</>;
 }

@@ -305,47 +305,27 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         return;
       }
 
-      // Customer flow: fetch company data via proxy to confirm auth and hydrate the store
-      let company = null;
-      try {
-        company = await apiClient.getMyCompany();
-      } catch (error: any) {
-        // If user doesn't have a company yet (404), that's okay - they might be a new user
-        // or an admin that doesn't need a company
-        if (error.message?.includes('Company not found') || error.message?.includes('not completed company setup')) {
-          console.log('[Auth Store] User has no company yet - allowing authentication without company');
-          company = null;
-        } else {
-          // For other errors (network, auth, etc), rethrow
-          throw error;
-        }
-      }
-
+      // Customer flow: hydrate auth immediately, then fetch company in background
       const email =
         sessionEmail ||
-        company?.email ||
         localStorage.getItem('email') ||
         null;
 
       const userRole =
-        (company as any)?.userRole ||
         (localStorage.getItem('user_role') as UserRole | null) ||
         derivedRole;
       const firstName =
         firstNameFromSession ||
         firstNameFromToken ||
-        (session?.user as any)?.name?.split(' ')?.[0] ||
-        (company as any)?.first_name;
+        (session?.user as any)?.name?.split(' ')?.[0];
       const lastName =
         lastNameFromSession ||
         lastNameFromToken ||
-        (session?.user as any)?.name?.split(' ')?.slice(1).join(' ') ||
-        (company as any)?.last_name;
+        (session?.user as any)?.name?.split(' ')?.slice(1).join(' ');
 
       if (email) localStorage.setItem('email', email);
       if (userRole) localStorage.setItem('user_role', userRole);
 
-      // Build a minimal user object from session/company to drive the UI
       const user: Partial<User> | null = session?.user
         ? {
             email: session.user.email || undefined,
@@ -355,7 +335,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         : null;
 
       set({
-        company,
+        company: null,
         user: (user as User) || null,
         email,
         userRole,
@@ -367,6 +347,25 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         _checkAuthInProgress: false,
         _lastAuthCheckAt: now,
       });
+
+      const hydrateCompany = async () => {
+        try {
+          const company = await apiClient.getMyCompany();
+          set({ company });
+        } catch (error: any) {
+          if (
+            error?.message?.includes('Company not found') ||
+            error?.message?.includes('not completed company setup')
+          ) {
+            set({ company: null });
+            return;
+          }
+          console.warn('[Auth Store] Background company fetch failed:', error?.message || error);
+        }
+      };
+      void hydrateCompany();
+
+      return;
     } catch (error) {
       console.error('[Auth Store] checkAuth failed:', error);
 
