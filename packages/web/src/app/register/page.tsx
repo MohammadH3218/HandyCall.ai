@@ -12,6 +12,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { SiteHeader } from '@/components/marketing/site-header';
+import { SiteFooter } from '@/components/marketing/site-footer';
 
 const SETUP_STEPS = [
   {
@@ -305,6 +306,7 @@ export default function RegisterPage() {
           </div>
         </div>
       </main>
+      <SiteFooter />
     </div>
   );
 }

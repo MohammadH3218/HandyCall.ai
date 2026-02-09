@@ -16,6 +16,7 @@ import { UserRole } from '@handycall/shared';
 import { apiClient } from '@/lib/api-client';
 import { Badge } from '@/components/ui/badge';
 import { SiteHeader } from '@/components/marketing/site-header';
+import { SiteFooter } from '@/components/marketing/site-footer';
 
 const GoogleIcon = ({ className }: { className?: string }) => (
   <svg viewBox="0 0 48 48" className={className} aria-hidden="true">
@@ -515,6 +516,7 @@ function LoginPageInner() {
           </form>
         </DialogContent>
       </Dialog>
+      <SiteFooter />
     </div>
   );
 }

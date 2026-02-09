@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { SiteHeader } from '@/components/marketing/site-header';
 import { FadeIn } from '@/components/marketing/fade-in';
