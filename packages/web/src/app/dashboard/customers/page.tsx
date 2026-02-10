@@ -69,6 +69,8 @@ const leadBadge = (status: 'Scheduled' | 'Lead' | 'No Lead') => {
   return { label: 'No Lead', className: 'bg-gray-50 text-gray-700 border-gray-200' };
 };
 
+type LeadStatusLabel = 'Scheduled' | 'Lead' | 'No Lead';
+
 const contactDisplayName = (contact?: Contact | null) => {
   if (!contact) return 'Unknown';
   return (
@@ -202,7 +204,7 @@ export default function CustomersPage() {
           leadStatusRaw === 'CONTACTED' ||
           leadStatusRaw === 'QUALIFIED' ||
           leadStatusRaw === 'CONVERTED';
-        const leadStatus = upcoming.length > 0 ? 'Scheduled' : isLead ? 'Lead' : 'No Lead';
+        const leadStatus: LeadStatusLabel = upcoming.length > 0 ? 'Scheduled' : isLead ? 'Lead' : 'No Lead';
         const messageCount = buildMockMessages(c).length;
         const lastActivity = Number(c.last_contact_at ?? c.updated_at ?? c.created_at ?? 0);
         return {
@@ -226,7 +228,7 @@ export default function CustomersPage() {
     return buildMockMessages(selectedContact);
   }, [selectedContact, buildMockMessages]);
 
-  const selectedLeadStatus = useMemo(() => {
+  const selectedLeadStatus = useMemo<LeadStatusLabel>(() => {
     if (!selectedContact) return 'No Lead' as const;
     const appts = (selectedContactAppointments || []).filter((a) => !a?.is_series_master);
     const hasScheduled = appts.some((a) => String(a?.status || '').toUpperCase() !== 'CANCELLED');
