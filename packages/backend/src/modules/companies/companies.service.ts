@@ -345,6 +345,7 @@ export class CompaniesService {
       this.deleteRelatedData('flagged_questions', companyId),
       this.deleteRelatedData('agent_config', companyId),
       this.deleteRelatedData('pricing_rules', companyId),
+      this.deleteRelatedData('webhook_configs', companyId),
     ]);
   }
 
@@ -386,6 +387,7 @@ export class CompaniesService {
       flagged_questions: ['flagged_id'],
       agent_config: ['config_id'],
       pricing_rules: ['pricing_id'],
+      webhook_configs: ['company_id'],
     };
 
     const keyNames = keyMap[tableName];

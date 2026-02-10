@@ -259,6 +259,15 @@ These endpoints are used by the OpenAI Realtime SIP controller (not the web dash
 - `POST /tools/create_lead` - Create/update contact + call record for an inbound call
 - `POST /tools/save_call` - Persist transcript/summary + collected fields for a completed call
 
+### Webhooks (CRM/Automation)
+Generic outbound webhooks for CRM sync (Zapier/Make/n8n/custom).
+
+- `GET /webhooks/events` - List supported webhook event types
+- `GET /webhooks/config` - Get current webhook configuration
+- `PUT /webhooks/config` - Create/update webhook configuration
+- `POST /webhooks/test` - Send a test webhook delivery
+- `POST /webhooks/rotate-secret` - Rotate signing secret
+
 ---
 
 ## 📐 STANDARD RESPONSE FORMAT

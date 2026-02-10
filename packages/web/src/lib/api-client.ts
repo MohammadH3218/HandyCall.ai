@@ -608,6 +608,47 @@ class ApiClient {
     return response.data ?? response;
   }
 
+  // Webhooks endpoints
+  async getWebhookEvents(): Promise<any> {
+    const response = await this.request<any>('/webhooks/events', {
+      method: 'GET',
+    });
+    return response.data ?? response;
+  }
+
+  async getWebhookConfig(): Promise<any> {
+    const response = await this.request<any>('/webhooks/config', {
+      method: 'GET',
+    });
+    return response.data ?? response;
+  }
+
+  async updateWebhookConfig(data: {
+    webhook_url?: string;
+    enabled_events?: string[];
+    is_enabled?: boolean;
+  }): Promise<any> {
+    const response = await this.request<any>('/webhooks/config', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+    return response.data ?? response;
+  }
+
+  async testWebhook(): Promise<any> {
+    const response = await this.request<any>('/webhooks/test', {
+      method: 'POST',
+    });
+    return response.data ?? response;
+  }
+
+  async rotateWebhookSecret(): Promise<any> {
+    const response = await this.request<any>('/webhooks/rotate-secret', {
+      method: 'POST',
+    });
+    return response.data ?? response;
+  }
+
   // Admin billing endpoints
   async getAdminSubscriptions(): Promise<any[]> {
     const response = await this.request<any[]>('/billing/admin/subscriptions', {

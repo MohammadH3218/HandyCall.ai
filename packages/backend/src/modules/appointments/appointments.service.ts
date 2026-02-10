@@ -5,6 +5,7 @@ import { BadRequestException } from '@nestjs/common';
 import { AppointmentStatus } from '@handycall/shared';
 import { CalendarIntegrationService } from '../calendar-integration/calendar-integration.service';
 import { ConfigService } from '@nestjs/config';
+import { WebhooksService } from '../webhooks/webhooks.service';
 
 function asE164(input: string): string {
   const trimmed = (input || '').trim();
@@ -21,6 +22,7 @@ export class AppointmentsService {
     @Inject(forwardRef(() => CalendarIntegrationService))
     private calendarIntegration: CalendarIntegrationService,
     private configService: ConfigService,
+    private webhooks: WebhooksService,
   ) {}
 
   private getAddressValidationKey(): string | null {
@@ -445,6 +447,11 @@ export class AppointmentsService {
         await this.dynamodb.put('appointments', occ);
       }
 
+      void this.webhooks.emitEvent(companyId, 'appointment.created', {
+        appointment: master,
+        occurrences: occurrences.length,
+      });
+
       return { ...master, created_occurrences: occurrences.length };
     }
 
@@ -457,6 +464,8 @@ export class AppointmentsService {
     };
 
     await this.dynamodb.put('appointments', appointment);
+
+    void this.webhooks.emitEvent(companyId, 'appointment.created', { appointment });
 
     if (input.address) {
       void this.persistAddressNormalization(companyId, appointment_id, input.address);
@@ -518,6 +527,8 @@ export class AppointmentsService {
 
     const updatedAppointment = { ...appt, ...updateFields };
 
+    void this.webhooks.emitEvent(companyId, 'appointment.updated', { appointment: updatedAppointment });
+
     if (input.address) {
       void this.persistAddressNormalization(companyId, appointmentId, input.address);
     }
@@ -541,7 +552,9 @@ export class AppointmentsService {
       { company_id: companyId, appointment_id: appointmentId },
       { status: AppointmentStatus.CANCELLED, updated_at: now }
     );
-    return updated ?? { ...appt, status: AppointmentStatus.CANCELLED, updated_at: now };
+    const cancelled = updated ?? { ...appt, status: AppointmentStatus.CANCELLED, updated_at: now };
+    void this.webhooks.emitEvent(companyId, 'appointment.cancelled', { appointment: cancelled });
+    return cancelled;
   }
 
   async deleteAppointment(companyId: string, appointmentId: string) {

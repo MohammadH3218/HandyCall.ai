@@ -478,7 +478,27 @@ else
     --tags Key=Environment,Value="$ENV" Key=Project,Value=HandyCall
   wait_for_table "$TABLE_NAME"
 # =============================================================================
-# 13. SERVICE TEMPLATES TABLE
+# 13. WEBHOOK CONFIGS TABLE
+# =============================================================================
+TABLE_NAME="${TABLE_PREFIX}webhook_configs"
+if [ -n "$(table_exists $TABLE_NAME)" ]; then
+  echo "âš ï¸  Table $TABLE_NAME already exists, skipping..."
+else
+  echo "ðŸ“¦ Creating table: $TABLE_NAME"
+  aws dynamodb create-table \
+    --table-name "$TABLE_NAME" \
+    --region "$REGION" \
+    --billing-mode "$BILLING_MODE" \
+    --attribute-definitions \
+      AttributeName=company_id,AttributeType=S \
+    --key-schema \
+      AttributeName=company_id,KeyType=HASH \
+    --tags Key=Environment,Value="$ENV" Key=Project,Value=HandyCall
+  wait_for_table "$TABLE_NAME"
+fi
+
+# =============================================================================
+# 14. SERVICE TEMPLATES TABLE
 # =============================================================================
 TABLE_NAME="${TABLE_PREFIX}service_templates"
 if [ -n "$(table_exists $TABLE_NAME)" ]; then

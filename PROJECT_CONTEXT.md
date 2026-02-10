@@ -359,6 +359,10 @@ DYNAMODB_TABLE_PREFIX=handycall_dev_
 S3_BUCKET_RECORDINGS=handycall-recordings-dev
 S3_BUCKET_TRANSCRIPTS=handycall-transcripts-dev
 
+# Webhook delivery (optional)
+WEBHOOK_SQS_URL=
+WEBHOOK_TIMEOUT_MS=6000
+
 BEDROCK_MODEL_ID=anthropic.claude-3-sonnet-20240229-v1:0
 BEDROCK_EMBEDDING_MODEL_ID=amazon.titan-embed-text-v1
 

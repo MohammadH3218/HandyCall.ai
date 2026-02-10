@@ -13,7 +13,7 @@ import { CallForwardingGuide } from '@/components/telephony/call-forwarding-guid
 import { PageHeader } from '@/components/portal/page-header';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
-import { Phone, Settings2, ShieldCheck } from 'lucide-react';
+import { Copy, Phone, RefreshCw, Settings2, ShieldCheck, Webhook } from 'lucide-react';
 
 export default function SettingsPage() {
   const { toast } = useToast();
@@ -29,13 +29,25 @@ export default function SettingsPage() {
   const [isSavingBusiness, setIsSavingBusiness] = useState(false);
   const [isSavingCall, setIsSavingCall] = useState(false);
   const [myNumber, setMyNumber] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'business' | 'call' | 'account'>('business');
+  const [activeTab, setActiveTab] = useState<'business' | 'call' | 'integrations' | 'account'>('business');
   const [editOpen, setEditOpen] = useState(false);
   const [editDraft, setEditDraft] = useState({
     company_name: '',
     phone_number: '',
     timezone: '',
   });
+  const [webhookLoading, setWebhookLoading] = useState(false);
+  const [webhookSaving, setWebhookSaving] = useState(false);
+  const [webhookTesting, setWebhookTesting] = useState(false);
+  const [webhookRotating, setWebhookRotating] = useState(false);
+  const [webhookEvents, setWebhookEvents] = useState<string[]>([]);
+  const [webhookConfig, setWebhookConfig] = useState<any | null>(null);
+  const [webhookDraft, setWebhookDraft] = useState({
+    webhook_url: '',
+    enabled_events: [] as string[],
+    is_enabled: true,
+  });
+  const [showSecret, setShowSecret] = useState(false);
 
   const statusLabel = company?.cancel_at_period_end
     ? 'Cancelled'
@@ -74,6 +86,40 @@ export default function SettingsPage() {
       })
       .catch(() => setMyNumber(null));
   }, []);
+
+  useEffect(() => {
+    if (activeTab !== 'integrations') return;
+    let isMounted = true;
+    setWebhookLoading(true);
+    Promise.all([apiClient.getWebhookEvents(), apiClient.getWebhookConfig()])
+      .then(([events, config]) => {
+        if (!isMounted) return;
+        const eventList = events?.events || events || [];
+        setWebhookEvents(eventList);
+        const cfg = config?.config ?? config ?? null;
+        setWebhookConfig(cfg);
+        setWebhookDraft({
+          webhook_url: cfg?.webhook_url || '',
+          enabled_events: cfg?.enabled_events?.length ? cfg.enabled_events : eventList,
+          is_enabled: cfg?.is_enabled ?? true,
+        });
+      })
+      .catch((error: any) => {
+        if (!isMounted) return;
+        toast({
+          title: 'Failed to load webhooks',
+          description: error?.message || 'Could not load webhook configuration.',
+          variant: 'destructive',
+        });
+      })
+      .finally(() => {
+        if (isMounted) setWebhookLoading(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [activeTab, toast]);
 
   const inboundSummary = useMemo(
     () => myNumber ?? 'Not assigned yet',
@@ -133,6 +179,97 @@ export default function SettingsPage() {
     }
   };
 
+  const handleSaveWebhook = async () => {
+    setWebhookSaving(true);
+    try {
+      const result = await apiClient.updateWebhookConfig({
+        webhook_url: webhookDraft.webhook_url,
+        enabled_events: webhookDraft.enabled_events,
+        is_enabled: webhookDraft.is_enabled,
+      });
+      const cfg = result?.config ?? result;
+      setWebhookConfig(cfg);
+      setWebhookDraft({
+        webhook_url: cfg?.webhook_url || '',
+        enabled_events: cfg?.enabled_events?.length ? cfg.enabled_events : webhookEvents,
+        is_enabled: cfg?.is_enabled ?? true,
+      });
+      toast({
+        title: 'Webhook saved',
+        description: 'Your CRM webhook settings are up to date.',
+      });
+    } catch (error: any) {
+      toast({
+        title: 'Save failed',
+        description: error?.message || 'Could not save webhook settings.',
+        variant: 'destructive',
+      });
+    } finally {
+      setWebhookSaving(false);
+    }
+  };
+
+  const handleTestWebhook = async () => {
+    setWebhookTesting(true);
+    try {
+      const result = await apiClient.testWebhook();
+      const payload = result?.result ?? result;
+      toast({
+        title: payload?.ok ? 'Webhook delivered' : 'Webhook failed',
+        description: payload?.ok
+          ? `Status ${payload?.status ?? 'OK'} · ${payload?.response_time_ms ?? 0}ms`
+          : payload?.error || 'Delivery failed.',
+        variant: payload?.ok ? 'default' : 'destructive',
+      });
+    } catch (error: any) {
+      toast({
+        title: 'Test failed',
+        description: error?.message || 'Could not send test webhook.',
+        variant: 'destructive',
+      });
+    } finally {
+      setWebhookTesting(false);
+    }
+  };
+
+  const handleRotateSecret = async () => {
+    setWebhookRotating(true);
+    try {
+      const result = await apiClient.rotateWebhookSecret();
+      const cfg = result?.config ?? result;
+      setWebhookConfig(cfg);
+      toast({
+        title: 'Secret rotated',
+        description: 'Share the new secret with your CRM workflow.',
+      });
+    } catch (error: any) {
+      toast({
+        title: 'Rotation failed',
+        description: error?.message || 'Could not rotate secret.',
+        variant: 'destructive',
+      });
+    } finally {
+      setWebhookRotating(false);
+    }
+  };
+
+  const toggleWebhookEvent = (event: string) => {
+    setWebhookDraft((prev) => {
+      const hasEvent = prev.enabled_events.includes(event);
+      const next = hasEvent
+        ? prev.enabled_events.filter((item) => item !== event)
+        : [...prev.enabled_events, event];
+      return { ...prev, enabled_events: next };
+    });
+  };
+
+  const formatTimestamp = (value?: number) => {
+    if (!value) return 'Never';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return 'Never';
+    return date.toLocaleString();
+  };
+
 
   return (
     <div className="space-y-6 animate-fade-up max-w-4xl mx-auto">
@@ -146,6 +283,7 @@ export default function SettingsPage() {
         {[
           { key: 'business', label: 'Business info' },
           { key: 'call', label: 'Call handling' },
+          { key: 'integrations', label: 'CRM integrations' },
           { key: 'account', label: 'Account' },
         ].map((tab) => (
           <button
@@ -359,6 +497,217 @@ export default function SettingsPage() {
                   </span>
                 </div>
               )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {activeTab === 'integrations' && (
+        <div className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Connect your CRM</CardTitle>
+              <CardDescription>
+                Send HandyCall events to Zapier, Make, n8n, or any CRM that accepts webhooks.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-5">
+              <div className="grid gap-4 md:grid-cols-3">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+                  <p className="text-xs uppercase tracking-wide text-slate-500">Step 1</p>
+                  <p className="mt-2 text-sm font-semibold text-slate-900">Create a webhook</p>
+                  <p className="mt-2 text-xs text-slate-600">
+                    In Zapier, choose Webhooks → Catch Hook. In Make or n8n, choose Custom Webhook.
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+                  <p className="text-xs uppercase tracking-wide text-slate-500">Step 2</p>
+                  <p className="mt-2 text-sm font-semibold text-slate-900">Paste the URL</p>
+                  <p className="mt-2 text-xs text-slate-600">
+                    Drop your webhook URL below and choose which events to send.
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-emerald-100 bg-emerald-50/70 p-4">
+                  <p className="text-xs uppercase tracking-wide text-emerald-700">Step 3</p>
+                  <p className="mt-2 text-sm font-semibold text-slate-900">Test & map fields</p>
+                  <p className="mt-2 text-xs text-slate-600">
+                    Use “Test webhook” to send a payload, then map fields to your CRM.
+                  </p>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-900">Webhook URL</p>
+                    <p className="text-xs text-slate-600">We’ll POST JSON payloads to this URL.</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      aria-pressed={webhookDraft.is_enabled}
+                      onClick={() =>
+                        setWebhookDraft((prev) => ({ ...prev, is_enabled: !prev.is_enabled }))
+                      }
+                      className={`relative h-7 w-12 rounded-full transition ${
+                        webhookDraft.is_enabled ? 'bg-emerald-600' : 'bg-slate-300'
+                      }`}
+                    >
+                      <span
+                        className={`absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow transition ${
+                          webhookDraft.is_enabled ? 'translate-x-5' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                    <span className="text-xs text-slate-600">
+                      {webhookDraft.is_enabled ? 'Enabled' : 'Disabled'}
+                    </span>
+                  </div>
+                </div>
+                <div className="mt-4">
+                  <Input
+                    value={webhookDraft.webhook_url}
+                    onChange={(e) =>
+                      setWebhookDraft((prev) => ({ ...prev, webhook_url: e.target.value }))
+                    }
+                    placeholder="https://hooks.zapier.com/..."
+                  />
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                <div className="flex items-center gap-2">
+                  <Webhook className="h-4 w-4 text-emerald-600" />
+                  <p className="text-sm font-semibold text-slate-900">Events to send</p>
+                </div>
+                <p className="mt-1 text-xs text-slate-600">Select which CRM events you want delivered.</p>
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  {webhookEvents.map((event) => (
+                    <label
+                      key={event}
+                      className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50/60 px-3 py-2 text-xs font-medium text-slate-700"
+                    >
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4"
+                        checked={webhookDraft.enabled_events.includes(event)}
+                        onChange={() => toggleWebhookEvent(event)}
+                      />
+                      <span>{event}</span>
+                    </label>
+                  ))}
+                  {!webhookEvents.length && (
+                    <div className="text-xs text-slate-500">No events available yet.</div>
+                  )}
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                <p className="text-sm font-semibold text-slate-900">Signing secret</p>
+                <p className="mt-1 text-xs text-slate-600">
+                  Use this secret to verify payload signatures. Keep it private.
+                </p>
+                <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center">
+                  <Input
+                    readOnly
+                    value={
+                      webhookConfig?.signing_secret
+                        ? showSecret
+                          ? webhookConfig.signing_secret
+                          : '*'.repeat(24)
+                        : 'Save your webhook to generate a secret'
+                    }
+                  />
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setShowSecret((prev) => !prev)}
+                      disabled={!webhookConfig?.signing_secret}
+                    >
+                      {showSecret ? 'Hide' : 'Reveal'}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() =>
+                        navigator.clipboard.writeText(webhookConfig?.signing_secret || '')
+                      }
+                      disabled={!webhookConfig?.signing_secret}
+                    >
+                      <Copy className="mr-2 h-4 w-4" /> Copy
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={handleRotateSecret}
+                      disabled={!webhookConfig?.signing_secret || webhookRotating}
+                    >
+                      <RefreshCw className="mr-2 h-4 w-4" />
+                      {webhookRotating ? 'Rotating...' : 'Rotate'}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                <p className="text-sm font-semibold text-slate-900">Delivery status</p>
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3">
+                    <p className="text-xs uppercase tracking-wide text-slate-500">Last delivery</p>
+                    <p className="mt-1 text-sm font-semibold text-slate-900">
+                      {formatTimestamp(webhookConfig?.last_delivery_at)}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-600">
+                      Event: {webhookConfig?.last_event || 'None'}
+                    </p>
+                  </div>
+                  <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3">
+                    <p className="text-xs uppercase tracking-wide text-slate-500">Last status</p>
+                    <p className="mt-1 text-sm font-semibold text-slate-900">
+                      {webhookConfig?.last_status_code || '—'}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-600">
+                      {webhookConfig?.last_error ? webhookConfig.last_error : 'Delivered successfully'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap justify-end gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleTestWebhook}
+                  disabled={!webhookDraft.webhook_url || webhookTesting || webhookLoading}
+                >
+                  {webhookTesting ? 'Testing...' : 'Test webhook'}
+                </Button>
+                <Button
+                  type="button"
+                  onClick={handleSaveWebhook}
+                  disabled={webhookSaving || webhookLoading || !webhookDraft.webhook_url}
+                >
+                  {webhookSaving ? 'Saving...' : 'Save changes'}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Zapier, Make, n8n guidance</CardTitle>
+              <CardDescription>Fastest setup for non-technical users.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm text-slate-700">
+              <p>
+                Recommended: Zapier Webhooks → Catch Hook. Paste your URL above and click Test webhook, then map fields
+                into your CRM action (HubSpot, Pipedrive, Zoho, Google Sheets, Airtable, etc).
+              </p>
+              <p>
+                Power users can use Make or n8n with the same webhook URL. HandyCall sends JSON with a top-level event
+                name plus object payloads for contacts, appointments, and calls.
+              </p>
             </CardContent>
           </Card>
         </div>

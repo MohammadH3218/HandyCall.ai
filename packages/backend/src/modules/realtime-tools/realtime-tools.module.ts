@@ -9,6 +9,7 @@ import { RealtimeToolsService } from './realtime-tools.service';
 import { ToolsAuthGuard } from '../../common/guards/tools-auth.guard';
 import { SchedulingModule } from '../scheduling/scheduling.module';
 import { AppointmentsModule } from '../appointments/appointments.module';
+import { WebhooksModule } from '../webhooks/webhooks.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { AppointmentsModule } from '../appointments/appointments.module';
     SchedulingModule,
     BillingModule,
     AppointmentsModule,
+    WebhooksModule,
   ],
   controllers: [RealtimeToolsController],
   providers: [RealtimeToolsService, ToolsAuthGuard],

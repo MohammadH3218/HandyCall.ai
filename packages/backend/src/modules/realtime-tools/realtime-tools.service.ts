@@ -34,6 +34,7 @@ import { signBookingToken } from '../public-booking/booking-link.util';
 import { sendSesEmail } from '../public-booking/email.util';
 import { renderHandycallEmail } from '../../common/email-templates';
 import { isValidEmail } from '@handycall/shared';
+import { WebhooksService } from '../webhooks/webhooks.service';
 
 function asE164(input: string): string {
   const trimmed = (input || '').trim();
@@ -56,6 +57,7 @@ export class RealtimeToolsService {
     private readonly scheduling: SchedulingService,
     private readonly usageService: UsageService,
     private readonly appointmentsService: AppointmentsService,
+    private readonly webhooks: WebhooksService,
   ) { }
 
   private twilioAuthHeader(): string {
@@ -668,21 +670,20 @@ export class RealtimeToolsService {
     if (existing.items.length > 0) {
       const contact = existing.items[0] as Contact;
       contact_id = contact.contact_id;
-      await this.dynamodb.update(
-        'contacts',
-        { company_id, contact_id },
-        {
-          ...(legacyName && { name: legacyName }),
-          ...(from_number && { phone: from_number }),
-          ...(first_name && { first_name }),
-          ...(last_name && { last_name }),
-          ...(email && { email }),
-          ...(zipcode && { zipcode }),
-          ...(address && { address }),
-          updated_at: now,
-          last_contact_at: now,
-        }
-      );
+      const contactUpdates = {
+        ...(legacyName && { name: legacyName }),
+        ...(from_number && { phone: from_number }),
+        ...(first_name && { first_name }),
+        ...(last_name && { last_name }),
+        ...(email && { email }),
+        ...(zipcode && { zipcode }),
+        ...(address && { address }),
+        updated_at: now,
+        last_contact_at: now,
+      };
+      await this.dynamodb.update('contacts', { company_id, contact_id }, contactUpdates);
+      const updatedContact = { ...contact, ...contactUpdates };
+      void this.webhooks.emitEvent(company_id, 'contact.updated', { contact: updatedContact });
     } else {
       contact_id = uuidv4();
       const contact: Contact = {
@@ -704,6 +705,7 @@ export class RealtimeToolsService {
         last_contact_at: now,
       };
       await this.dynamodb.put('contacts', contact);
+      void this.webhooks.emitEvent(company_id, 'contact.created', { contact });
     }
 
     const call: Call = {
@@ -753,6 +755,8 @@ export class RealtimeToolsService {
       await this.dynamodb.put('calls', call);
       existing = call;
     }
+
+    const wasCompleted = existing?.status === CallStatus.COMPLETED;
 
     const transcriptText = dto.transcript && dto.transcript.trim() ? dto.transcript.trim() : undefined;
 
@@ -908,6 +912,7 @@ export class RealtimeToolsService {
             last_contact_at: now,
           };
           await this.dynamodb.put('contacts', contact);
+          void this.webhooks.emitEvent(company_id, 'contact.created', { contact });
         }
 
         if (contact_id) {
@@ -967,6 +972,28 @@ export class RealtimeToolsService {
     }
 
     await this.dynamodb.update('calls', { company_id, call_id }, updates);
+
+    if (!wasCompleted) {
+      const callPayload = {
+        call_id,
+        company_id,
+        contact_id: updates.contact_id ?? existing?.contact_id,
+        from_number: existing?.from_number,
+        to_number: existing?.to_number,
+        status: CallStatus.COMPLETED,
+        summary: updates.summary ?? existing?.summary,
+        duration_seconds: updates.duration_seconds ?? existing?.duration_seconds,
+        started_at: existing?.started_at,
+        ended_at: updates.ended_at ?? existing?.ended_at ?? now,
+        appointment_id: updates.appointment_id ?? existing?.appointment_id,
+        lead_captured: existing?.lead_captured,
+        ai_handled: existing?.ai_handled,
+        transcript_url: updates.transcript_url ?? existing?.transcript_url,
+        recording_url: existing?.recording_url,
+        collected_info: updates.collected_info ?? existing?.collected_info,
+      };
+      void this.webhooks.emitEvent(company_id, 'call.completed', { call: callPayload });
+    }
 
     return { ok: true, call_id, transcript_url };
   }

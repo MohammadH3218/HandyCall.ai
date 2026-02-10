@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { DynamoDBService } from '../../infrastructure/database/dynamodb.service';
 import { v4 as uuidv4 } from 'uuid';
 import { Contact, ContactSource, LeadStatus } from '@handycall/shared';
+import { WebhooksService } from '../webhooks/webhooks.service';
 
 type ContactUi = Contact & { name: string; phone: string };
 
@@ -48,7 +49,10 @@ export interface UpdateContactDto {
 
 @Injectable()
 export class ContactsService {
-  constructor(private dynamodb: DynamoDBService) {}
+  constructor(
+    private dynamodb: DynamoDBService,
+    private webhooks: WebhooksService,
+  ) {}
 
   private toUiContact(raw: any): ContactUi {
     const first = (raw?.first_name ?? '').toString().trim();
@@ -165,7 +169,10 @@ export class ContactsService {
 
     await this.dynamodb.put('contacts', contact);
 
-    return this.toUiContact(contact);
+    const created = this.toUiContact(contact);
+    void this.webhooks.emitEvent(companyId, 'contact.created', { contact: created });
+
+    return created;
   }
 
   async updateContact(
@@ -203,8 +210,10 @@ export class ContactsService {
       { company_id: companyId, contact_id: contactId },
       updates
     );
+    const updated = this.toUiContact({ ...existing, ...updates });
+    void this.webhooks.emitEvent(companyId, 'contact.updated', { contact: updated });
 
-    return this.toUiContact({ ...existing, ...updates });
+    return updated;
   }
 
   async deleteContact(companyId: string, contactId: string): Promise<void> {

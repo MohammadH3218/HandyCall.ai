@@ -39,10 +39,6 @@
 
 **Table Name**: `handycall_{env}_companies`
 
-### Primary Key
-- **PK**: `company_id` (String) - UUID
-- **SK**: Not used (single item per company)
-
 ### Attributes
 ```typescript
 {
@@ -86,9 +82,6 @@
 
 Use this table to map an inbound phone number (DID) to a tenant (`company_id`) for telephony providers (Connect, Twilio SIP trunking, etc.).
 
-### Primary Key
-- **PK**: `did_e164` (String) - E.164 phone number
-
 ### Attributes
 ```typescript
 {
@@ -115,10 +108,6 @@ Use this table to map an inbound phone number (DID) to a tenant (`company_id`) f
 ## 2. Users Table
 
 **Table Name**: `handycall_{env}_users`
-
-### Primary Key
-- **PK**: `company_id` (String)
-- **SK**: `user_id` (String) - UUID
 
 ### Attributes
 ```typescript
@@ -570,6 +559,36 @@ Use this table to map an inbound phone number (DID) to a tenant (`company_id`) f
 
 ---
 
+## 13. WebhookConfigs Table
+
+**Table Name**: `handycall_{env}_webhook_configs`
+
+### Primary Key
+- **PK**: `company_id` (String)
+
+### Attributes
+```typescript
+{
+  company_id: string;         // UUID (PK)
+  webhook_url: string;        // HTTPS endpoint provided by customer
+  enabled_events: string[];   // contact.created, call.completed, etc.
+  signing_secret: string;     // HMAC secret for signature verification
+  is_enabled: boolean;
+  created_at: number;
+  updated_at: number;
+  last_delivery_at?: number;
+  last_success_at?: number;
+  last_status_code?: number;
+  last_error?: string;
+  last_event?: string;
+}
+```
+
+### Access Patterns
+1. Get webhook config -> `GetItem(company_id)`
+2. Update webhook config -> `UpdateItem(company_id)`
+
+---
 ## 🔧 CAPACITY PLANNING
 
 ### Provisioned vs On-Demand
@@ -585,6 +604,7 @@ Use this table to map an inbound phone number (DID) to a tenant (`company_id`) f
 - KnowledgeItems: ~5 KB
 - KnowledgeChunks: ~10 KB (due to embeddings)
 - FlaggedQuestions: ~3 KB
+- WebhookConfigs: ~1 KB
 
 ### GSI Costs
 - Each GSI doubles storage costs for projected items
@@ -625,6 +645,7 @@ Use this table to map an inbound phone number (DID) to a tenant (`company_id`) f
 10. AgentConfigs (depends on Companies)
 11. PricingRules (independent)
 12. SMS (independent)
+13. WebhookConfigs (depends on Companies)
 
 ### Seed Data Requirements
 - At least 1 test company
@@ -636,3 +657,8 @@ Use this table to map an inbound phone number (DID) to a tenant (`company_id`) f
 ---
 
 **End of DB_SCHEMA.md**
+
+
+
+
+
