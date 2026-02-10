@@ -1,14 +1,13 @@
 'use client';
 
-import { useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useMemo } from 'react';
+import { useParams, useRouter } from 'next/navigation';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
+import { Card, CardContent } from '@/components/ui/card';
 import { PageHeader } from '@/components/portal/page-header';
 import { usePortalBasePath } from '@/lib/portal';
-import { Clock, MessageCircle, Search } from 'lucide-react';
+import { ArrowLeft, Clock, MessageCircle, Sparkles } from 'lucide-react';
 
 type MessageItem = {
   id: string;
@@ -49,8 +48,13 @@ const formatDateTime = (timestamp: number) =>
     minute: '2-digit',
   });
 
-export default function MessagesPage() {
-  const threads = useMemo(() => {
+export default function MessageThreadPage() {
+  const params = useParams();
+  const router = useRouter();
+  const basePath = usePortalBasePath();
+  const threadId = String(params?.id || '');
+
+  const threads = useMemo<MessageThread[]>(() => {
     const now = Date.now();
     return [
       {
@@ -59,7 +63,7 @@ export default function MessagesPage() {
         contact_phone: '+1 (832) 404-1336',
         last_message: 'Perfect, Tuesday at 10:30am works. See you then.',
         last_at: now - 1000 * 60 * 12,
-        lead_status: 'Scheduled' as const,
+        lead_status: 'Scheduled',
         intent: 'Booking',
         messages: [
           {
@@ -100,7 +104,7 @@ export default function MessagesPage() {
         contact_phone: '+1 (832) 555-0182',
         last_message: 'Thanks, I will confirm with my landlord.',
         last_at: now - 1000 * 60 * 95,
-        lead_status: 'Lead' as const,
+        lead_status: 'Lead',
         intent: 'Estimate',
         messages: [
           {
@@ -133,7 +137,7 @@ export default function MessagesPage() {
         contact_phone: '+1 (281) 555-0119',
         last_message: 'No thanks.',
         last_at: now - 1000 * 60 * 210,
-        lead_status: 'No Lead' as const,
+        lead_status: 'No Lead',
         intent: 'Pricing',
         messages: [
           {
@@ -163,88 +167,72 @@ export default function MessagesPage() {
     ];
   }, []);
 
-  const [searchQuery, setSearchQuery] = useState('');
-  const router = useRouter();
-  const basePath = usePortalBasePath();
+  const thread = threads.find((item) => item.id === threadId) ?? threads[0];
 
-  const filteredThreads = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
-    if (!q) return threads;
-    return threads.filter((thread) => {
-      const text = `${thread.contact_name} ${thread.contact_phone} ${thread.last_message}`.toLowerCase();
-      return text.includes(q);
-    });
-  }, [threads, searchQuery]);
-
-  const handleSearch = () => {
-    if (!filteredThreads.length) return;
-    router.push(`${basePath}/messages/${filteredThreads[0].id}`);
-  };
+  if (!thread) {
+    return (
+      <div className="space-y-6 animate-fade-up">
+        <PageHeader eyebrow="Messages" title="Conversation not found" subtitle="Try another thread from Messages." />
+        <Button onClick={() => router.push(`${basePath}/messages`)}>Back to Messages</Button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 animate-fade-up">
       <PageHeader
         eyebrow="Messages"
-        title="AI SMS conversations"
-        subtitle="Your AI handles text conversations, checks availability, and books jobs automatically."
+        title={thread.contact_name}
+        subtitle={thread.contact_phone}
+        actions={
+          <Button variant="outline" onClick={() => router.push(`${basePath}/messages`)}>
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back to Messages
+          </Button>
+        }
       />
 
-      <Card className="mb-6">
-        <CardContent className="pt-6">
-          <div className="flex flex-col sm:flex-row gap-3">
-            <div className="flex-1">
-              <Input
-                type="text"
-                placeholder="Search conversations by name, phone, or message..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                className="flex-1"
-              />
-            </div>
-            <Button onClick={handleSearch}>
-              <Search className="h-4 w-4 mr-2" />
-              Search
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
       <Card>
-        <CardHeader>
-          <CardTitle>Message inbox</CardTitle>
-        </CardHeader>
-        <CardContent>
+        <CardContent className="pt-6 space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2 text-sm text-slate-600">
+              <MessageCircle className="h-4 w-4 text-emerald-600" />
+              <span>{thread.intent || 'Conversation'}</span>
+              <span className="text-slate-300">-</span>
+              <Clock className="h-4 w-4" />
+              <span>{formatDateTime(thread.last_at)}</span>
+            </div>
+            <Badge variant="outline" className={leadBadge(thread.lead_status).className}>
+              {leadBadge(thread.lead_status).label}
+            </Badge>
+          </div>
+
           <div className="space-y-3">
-            {filteredThreads.map((thread) => {
-              const lead = leadBadge(thread.lead_status);
-              return (
-                <button
-                  key={thread.id}
-                  type="button"
-                  onClick={() => router.push(`${basePath}/messages/${thread.id}`)}
-                  className="w-full text-left rounded-xl border border-emerald-100/70 bg-white/85 p-4 hover:-translate-y-[1px] hover:shadow-md transition-all"
+            {thread.messages.map((msg) => (
+              <div
+                key={msg.id}
+                className={`flex ${msg.direction === 'OUTBOUND' ? 'justify-end' : 'justify-start'}`}
+              >
+                <div
+                  className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm shadow-sm ${
+                    msg.direction === 'OUTBOUND'
+                      ? 'bg-emerald-600 text-white'
+                      : 'bg-slate-100 text-slate-900'
+                  }`}
                 >
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <div className="font-semibold text-slate-900 truncate">{thread.contact_name}</div>
-                        <Badge variant="outline" className={lead.className}>
-                          {lead.label}
-                        </Badge>
-                      </div>
-                      <div className="text-xs text-slate-500 mt-1">{thread.contact_phone}</div>
-                      <div className="text-sm text-slate-700 mt-3 line-clamp-2">{thread.last_message}</div>
-                      <div className="text-xs text-slate-500 mt-2 flex items-center gap-2">
-                        <Clock className="h-3.5 w-3.5" />
-                        {formatDateTime(thread.last_at)}
-                      </div>
-                    </div>
-                    <MessageCircle className="h-5 w-5 text-emerald-600 mt-1" />
+                  <p>{msg.body}</p>
+                  <div className="mt-2 flex items-center gap-2 text-xs opacity-80">
+                    <span>{formatDateTime(msg.created_at)}</span>
+                    {msg.ai_handled ? (
+                      <span className="inline-flex items-center gap-1">
+                        <Sparkles className="h-3 w-3" /> AI
+                      </span>
+                    ) : null}
+                    {msg.status ? <span> - {msg.status}</span> : null}
                   </div>
-                </button>
-              );
-            })}
+                </div>
+              </div>
+            ))}
           </div>
         </CardContent>
       </Card>
