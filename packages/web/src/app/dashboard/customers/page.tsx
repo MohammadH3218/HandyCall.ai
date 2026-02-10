@@ -27,6 +27,7 @@ type Contact = {
   email?: string;
   source?: string;
   lead_status?: string;
+  updated_at?: number | string;
   created_at?: number | string;
   last_contact_at?: number | string;
 };
