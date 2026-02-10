@@ -9,7 +9,7 @@ import { apiClient } from '@/lib/api-client';
 import { Logo } from '@/components/ui/logo';
 import { ProfileDropdown } from '@/components/profile-dropdown';
 import { Button } from '@/components/ui/button';
-import { BarChart3, Calendar, CreditCard, Home, Menu, MessageSquare, Phone, Settings, Users, X } from 'lucide-react';
+import { BarChart3, Calendar, CreditCard, Home, Menu, MessageCircle, MessageSquare, Phone, Settings, Users, X } from 'lucide-react';
 import { UserRole } from '@handycall/shared';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -248,6 +248,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               onClick={() => setSidebarOpen(false)}
             >
               Calls
+            </NavLink>
+            <NavLink
+              href="/dashboard/messages"
+              icon={<MessageCircle className="h-5 w-5" />}
+              active={pathname?.startsWith('/dashboard/messages')}
+              onClick={() => setSidebarOpen(false)}
+            >
+              Messages
             </NavLink>
             <NavLink
               href="/dashboard/customers"

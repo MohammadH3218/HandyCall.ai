@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiClient } from '@/lib/api-client';
 import { usePortalBasePath } from '@/lib/portal';
@@ -11,7 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { PageHeader } from '@/components/portal/page-header';
 import { EmptyState } from '@/components/portal/empty-state';
-import { ExternalLink, Search, Users } from 'lucide-react';
+import { CalendarCheck, ExternalLink, MessageCircle, PhoneCall, Search, Sparkles, Users } from 'lucide-react';
 
 type Contact = {
   contact_id: string;
@@ -26,8 +26,18 @@ type Contact = {
   phone?: string;
   email?: string;
   source?: string;
+  lead_status?: string;
   created_at?: number | string;
   last_contact_at?: number | string;
+};
+
+type CustomerMessage = {
+  id: string;
+  direction: 'INBOUND' | 'OUTBOUND';
+  body: string;
+  created_at: number;
+  status?: string;
+  ai_handled?: boolean;
 };
 
 function formatDate(ts?: number | string) {
@@ -48,6 +58,28 @@ function formatMoney(cents?: number) {
   return `$${(cents / 100).toFixed(2)}`;
 }
 
+const leadBadge = (status: 'Scheduled' | 'Lead' | 'No Lead') => {
+  if (status === 'Scheduled') {
+    return { label: 'Scheduled', className: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
+  }
+  if (status === 'Lead') {
+    return { label: 'Lead', className: 'bg-amber-50 text-amber-800 border-amber-200' };
+  }
+  return { label: 'No Lead', className: 'bg-gray-50 text-gray-700 border-gray-200' };
+};
+
+const contactDisplayName = (contact?: Contact | null) => {
+  if (!contact) return 'Unknown';
+  return (
+    String(
+      contact.name ||
+        `${contact.first_name || ''} ${contact.last_name || ''}`.trim()
+    ).trim() ||
+    String(contact.phone_number || contact.phone || '').trim() ||
+    'Unknown'
+  );
+};
+
 export default function CustomersPage() {
   const router = useRouter();
   const basePath = usePortalBasePath();
@@ -62,6 +94,46 @@ export default function CustomersPage() {
   const [selectedContactAppointments, setSelectedContactAppointments] = useState<any[]>([]);
   const [selectedContactCalls, setSelectedContactCalls] = useState<any[]>([]);
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const mockBaseTime = useMemo(() => Date.now(), []);
+
+  const buildMockMessages = useCallback((contact: Contact): CustomerMessage[] => {
+    const name = contactDisplayName(contact).toLowerCase();
+    if (!name.includes('mohammad') || !name.includes('hamdallah')) {
+      return [];
+    }
+    return [
+      {
+        id: 'mock-1',
+        direction: 'INBOUND',
+        body: 'Hey, can you come out this week for pest control? Seeing ants in the kitchen.',
+        created_at: mockBaseTime - 1000 * 60 * 45,
+        status: 'RECEIVED',
+      },
+      {
+        id: 'mock-2',
+        direction: 'OUTBOUND',
+        body: "Hi Mohammad! We can help. Are you available Tuesday 10-12 or Wednesday 2-4? Also, what's the address?",
+        created_at: mockBaseTime - 1000 * 60 * 43,
+        status: 'SENT',
+        ai_handled: true,
+      },
+      {
+        id: 'mock-3',
+        direction: 'INBOUND',
+        body: 'Tuesday morning works. 418 W 5th St, Houston.',
+        created_at: mockBaseTime - 1000 * 60 * 18,
+        status: 'RECEIVED',
+      },
+      {
+        id: 'mock-4',
+        direction: 'OUTBOUND',
+        body: "Perfect, Tuesday at 10:30am is booked. You'll get a reminder before we arrive.",
+        created_at: mockBaseTime - 1000 * 60 * 12,
+        status: 'DELIVERED',
+        ai_handled: true,
+      },
+    ];
+  }, [mockBaseTime]);
 
   useEffect(() => {
     void load();
@@ -112,16 +184,9 @@ export default function CustomersPage() {
       .filter((c) => {
         if (!q) return true;
         const phone = String(c.phone_number || c.phone || '').trim();
-        const name = String(c.name || `${c.first_name || ''} ${c.last_name || ''}`.trim()).trim();
+        const name = contactDisplayName(c);
         const text = [name, phone, c.email].filter(Boolean).join(' ').toLowerCase();
         return text.includes(q);
-      })
-      .filter((c) => {
-        const phone = String(c.phone_number || c.phone || '').trim();
-        const hasBooking = phone && byPhone.has(phone);
-        const hasName = String(c.name || `${c.first_name || ''} ${c.last_name || ''}`.trim()).trim().length > 0;
-        const hasAddress = Boolean((c.address || '').trim()) || Boolean((c.zipcode || '').trim());
-        return hasBooking && hasName && phone && hasAddress;
       })
       .map((c) => {
         const phone = String(c.phone_number || c.phone || '').trim();
@@ -129,7 +194,16 @@ export default function CustomersPage() {
         const next = upcoming[0];
         const totalSpend = upcoming.reduce((sum, a) => sum + (typeof a?.price_cents === 'number' ? a.price_cents : 0), 0);
         const recurring = upcoming.some((a) => !!a?.series_id);
-        const displayName = String(c.name || `${c.first_name || ''} ${c.last_name || ''}`.trim()).trim() || phone || 'Unknown';
+        const displayName = contactDisplayName(c);
+        const leadStatusRaw = String(c.lead_status || '').toUpperCase();
+        const isLead =
+          leadStatusRaw === 'NEW' ||
+          leadStatusRaw === 'CONTACTED' ||
+          leadStatusRaw === 'QUALIFIED' ||
+          leadStatusRaw === 'CONVERTED';
+        const leadStatus = upcoming.length > 0 ? 'Scheduled' : isLead ? 'Lead' : 'No Lead';
+        const messageCount = buildMockMessages(c).length;
+        const lastActivity = Number(c.last_contact_at ?? c.updated_at ?? c.created_at ?? 0);
         return {
           contact: c,
           displayName,
@@ -138,10 +212,33 @@ export default function CustomersPage() {
           nextStart: next?.scheduled_start,
           recurring,
           totalSpend,
+          leadStatus,
+          messageCount,
+          lastActivity,
         };
       })
-      .sort((a, b) => (b.upcomingCount || 0) - (a.upcomingCount || 0));
-  }, [contacts, upcomingAppointments, searchQuery]);
+      .sort((a, b) => (b.lastActivity || 0) - (a.lastActivity || 0));
+  }, [contacts, upcomingAppointments, searchQuery, buildMockMessages]);
+
+  const selectedContactMessages = useMemo(() => {
+    if (!selectedContact) return [];
+    return buildMockMessages(selectedContact);
+  }, [selectedContact, buildMockMessages]);
+
+  const selectedLeadStatus = useMemo(() => {
+    if (!selectedContact) return 'No Lead' as const;
+    const appts = (selectedContactAppointments || []).filter((a) => !a?.is_series_master);
+    const hasScheduled = appts.some((a) => String(a?.status || '').toUpperCase() !== 'CANCELLED');
+    if (hasScheduled) return 'Scheduled' as const;
+    const leadStatusRaw = String(selectedContact.lead_status || '').toUpperCase();
+    const hasLeadStatus =
+      leadStatusRaw === 'NEW' ||
+      leadStatusRaw === 'CONTACTED' ||
+      leadStatusRaw === 'QUALIFIED' ||
+      leadStatusRaw === 'CONVERTED';
+    const hasActivity = selectedContactCalls.length > 0 || selectedContactMessages.length > 0;
+    return hasLeadStatus || hasActivity ? ('Lead' as const) : ('No Lead' as const);
+  }, [selectedContact, selectedContactAppointments, selectedContactCalls, selectedContactMessages]);
 
   const openDetails = async (contact: Contact) => {
     try {
@@ -176,8 +273,8 @@ export default function CustomersPage() {
     <div className="space-y-6 animate-fade-up">
       <PageHeader
         eyebrow="Customers"
-        title="Your booked customers"
-        subtitle="Manage customers, upcoming jobs, and recurring service."
+        title="Customers and leads"
+        subtitle="Track every lead, booking, and conversation in one place."
         actions={
           <Button variant="outline" onClick={load}>
             Refresh
@@ -228,6 +325,9 @@ export default function CustomersPage() {
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
                         <div className="font-semibold text-slate-900 truncate">{row.displayName}</div>
+                        <Badge variant="outline" className={leadBadge(row.leadStatus).className}>
+                          {leadBadge(row.leadStatus).label}
+                        </Badge>
                         {row.recurring ? (
                           <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">
                             Recurring
@@ -242,12 +342,18 @@ export default function CustomersPage() {
                             No upcoming
                           </Badge>
                         )}
+                        {row.messageCount > 0 ? (
+                          <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200">
+                            {row.messageCount} SMS
+                          </Badge>
+                        ) : null}
                       </div>
                       <div className="text-sm text-slate-600 mt-1 truncate">{row.displayPhone}</div>
                       {row.contact.email ? <div className="text-sm text-slate-600 truncate">{row.contact.email}</div> : null}
                       <div className="text-xs text-slate-500 mt-2 flex gap-4 flex-wrap">
                         <span>Next: {row.nextStart ? formatDate(row.nextStart) : '-'}</span>
                         <span>Upcoming value: {row.upcomingCount ? formatMoney(row.totalSpend) : '-'}</span>
+                        <span>Last activity: {row.lastActivity ? formatDate(row.lastActivity) : '-'}</span>
                       </div>
                     </div>
                     <ExternalLink className="h-4 w-4 text-slate-400 mt-1" />
@@ -258,8 +364,8 @@ export default function CustomersPage() {
           ) : (
             <EmptyState
               icon={<Users className="h-10 w-10" />}
-              title="No customers yet"
-              description="Customers appear after a confirmed booking."
+              title="No contacts yet"
+              description="Contacts appear after a call, SMS, or booking."
             />
           )}
         </CardContent>
@@ -273,13 +379,10 @@ export default function CustomersPage() {
           {selectedContact ? (
             <div className="space-y-4">
               <div className="border border-gray-200 rounded-lg p-4">
-                <div className="font-semibold text-gray-900">
-                  {String(
-                    selectedContact.name ||
-                      `${selectedContact.first_name || ''} ${selectedContact.last_name || ''}`.trim()
-                  ).trim() || String(selectedContact.phone_number || selectedContact.phone || '').trim() || 'Unknown'}
+                <div className="font-semibold text-gray-900">{contactDisplayName(selectedContact)}</div>
+                <div className="text-sm text-gray-600">
+                  {String(selectedContact.phone_number || selectedContact.phone || '').trim()}
                 </div>
-                <div className="text-sm text-gray-600">{String(selectedContact.phone_number || selectedContact.phone || '').trim()}</div>
                 {selectedContact.email ? <div className="text-sm text-gray-600">{selectedContact.email}</div> : null}
                 {selectedContact.address ? (
                   <div className="text-sm text-gray-600">{selectedContact.address}</div>
@@ -289,6 +392,72 @@ export default function CustomersPage() {
                 <div className="text-xs text-gray-500 mt-2">
                   Added: {formatDate(selectedContact.created_at)} - Last contact: {formatDate(selectedContact.last_contact_at)}
                 </div>
+                {selectedContact.source ? (
+                  <div className="text-xs text-gray-500 mt-1">Source: {selectedContact.source}</div>
+                ) : null}
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3">
+                  <p className="text-xs uppercase tracking-wide text-slate-500">Lead status</p>
+                  <div className="mt-2">
+                    <Badge variant="outline" className={leadBadge(selectedLeadStatus).className}>
+                      {leadBadge(selectedLeadStatus).label}
+                    </Badge>
+                  </div>
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3">
+                  <p className="text-xs uppercase tracking-wide text-slate-500">Calls</p>
+                  <div className="mt-2 flex items-center gap-2 text-sm text-slate-900">
+                    <PhoneCall className="h-4 w-4 text-emerald-600" />
+                    {selectedContactCalls.length} total
+                  </div>
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3">
+                  <p className="text-xs uppercase tracking-wide text-slate-500">Messages</p>
+                  <div className="mt-2 flex items-center gap-2 text-sm text-slate-900">
+                    <MessageCircle className="h-4 w-4 text-emerald-600" />
+                    {selectedContactMessages.length} total
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <div className="font-semibold text-gray-900 mb-2 flex items-center gap-2">
+                  <MessageCircle className="h-4 w-4 text-emerald-600" />
+                  Messages
+                </div>
+                {selectedContactMessages.length ? (
+                  <div className="space-y-3">
+                    {selectedContactMessages.map((msg) => (
+                      <div
+                        key={msg.id}
+                        className={`flex ${msg.direction === 'OUTBOUND' ? 'justify-end' : 'justify-start'}`}
+                      >
+                        <div
+                          className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm shadow-sm ${
+                            msg.direction === 'OUTBOUND'
+                              ? 'bg-emerald-600 text-white'
+                              : 'bg-slate-100 text-slate-900'
+                          }`}
+                        >
+                          <p>{msg.body}</p>
+                          <div className="mt-2 flex items-center gap-2 text-xs opacity-80">
+                            <span>{formatDate(msg.created_at)}</span>
+                            {msg.ai_handled ? (
+                              <span className="inline-flex items-center gap-1">
+                                <Sparkles className="h-3 w-3" /> AI
+                              </span>
+                            ) : null}
+                            {msg.status ? <span> - {msg.status}</span> : null}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-sm text-gray-600">No messages found.</div>
+                )}
               </div>
 
               <div>
@@ -319,7 +488,10 @@ export default function CustomersPage() {
               </div>
 
               <div>
-                <div className="font-semibold text-gray-900 mb-2">Appointments</div>
+                <div className="font-semibold text-gray-900 mb-2 flex items-center gap-2">
+                  <CalendarCheck className="h-4 w-4 text-emerald-600" />
+                  Appointments
+                </div>
                 {selectedContactAppointments.length ? (
                   <div className="space-y-2">
                     {selectedContactAppointments
