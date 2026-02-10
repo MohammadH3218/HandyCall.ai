@@ -2,10 +2,12 @@ const AWS = require('aws-sdk');
 const crypto = require('crypto');
 
 const ddb = new AWS.DynamoDB.DocumentClient();
+const kms = new AWS.KMS();
 
 const TABLE = process.env.WEBHOOK_CONFIG_TABLE;
 const TIMEOUT_MS = Number(process.env.WEBHOOK_TIMEOUT_MS || 6000);
 const USER_AGENT = process.env.WEBHOOK_USER_AGENT || 'HandyCall-Webhooks/1.0';
+const KMS_PREFIX = 'kms:';
 
 exports.handler = async (event) => {
   const failures = [];
@@ -56,7 +58,29 @@ async function loadConfig(companyId) {
       Key: { company_id: companyId },
     })
     .promise();
-  return res.Item || null;
+  const item = res.Item || null;
+  if (!item) return null;
+  return await decryptConfig(item);
+}
+
+async function decryptConfig(item) {
+  const output = { ...item };
+  if (typeof output.webhook_url === 'string') {
+    output.webhook_url = await decryptString(output.webhook_url);
+  }
+  if (typeof output.signing_secret === 'string') {
+    output.signing_secret = await decryptString(output.signing_secret);
+  }
+  return output;
+}
+
+async function decryptString(value) {
+  if (!value || typeof value !== 'string') return value;
+  if (!value.startsWith(KMS_PREFIX)) return value;
+  const encoded = value.slice(KMS_PREFIX.length);
+  const res = await kms.decrypt({ CiphertextBlob: Buffer.from(encoded, 'base64') }).promise();
+  if (!res.Plaintext) return value;
+  return Buffer.from(res.Plaintext).toString('utf8');
 }
 
 function buildSignature(secret, timestamp, body) {

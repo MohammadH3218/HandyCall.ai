@@ -361,6 +361,7 @@ S3_BUCKET_TRANSCRIPTS=handycall-transcripts-dev
 
 # Webhook delivery (optional)
 WEBHOOK_SQS_URL=
+WEBHOOK_KMS_KEY_ID=
 WEBHOOK_TIMEOUT_MS=6000
 
 BEDROCK_MODEL_ID=anthropic.claude-3-sonnet-20240229-v1:0

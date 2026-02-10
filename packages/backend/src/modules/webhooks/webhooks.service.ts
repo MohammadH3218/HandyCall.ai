@@ -5,6 +5,7 @@ import axios from 'axios';
 import * as crypto from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
 import { WEBHOOK_PUBLIC_EVENTS, PublicWebhookEventType, WebhookEventType } from './webhooks.types';
+import { KMSClient, DecryptCommand, EncryptCommand } from '@aws-sdk/client-kms';
 import { SQSClient, SendMessageCommand } from '@aws-sdk/client-sqs';
 
 export interface WebhookConfig {
@@ -42,6 +43,9 @@ export class WebhooksService {
   private readonly defaultTimeoutMs = 6000;
   private sqs?: SQSClient;
   private sqsUrl?: string;
+  private kms?: KMSClient;
+  private kmsKeyId?: string;
+  private readonly kmsPrefix = 'kms:';
 
   constructor(
     private readonly dynamodb: DynamoDBService,
@@ -52,6 +56,11 @@ export class WebhooksService {
       const region = this.config.get<string>('AWS_REGION') || 'us-east-1';
       this.sqs = new SQSClient({ region });
     }
+    this.kmsKeyId = this.config.get<string>('WEBHOOK_KMS_KEY_ID') || undefined;
+    if (this.kmsKeyId) {
+      const region = this.config.get<string>('AWS_REGION') || 'us-east-1';
+      this.kms = new KMSClient({ region });
+    }
   }
 
   listEvents(): WebhookEventType[] {
@@ -60,7 +69,9 @@ export class WebhooksService {
 
   async getConfig(companyId: string): Promise<WebhookConfig | null> {
     const config = await this.dynamodb.get('webhook_configs', { company_id: companyId });
-    return (config as WebhookConfig) || null;
+    if (!config) return null;
+    const decrypted = await this.decryptConfig(config as WebhookConfig);
+    return decrypted;
   }
 
   async upsertConfig(
@@ -68,7 +79,8 @@ export class WebhooksService {
     input: { webhook_url?: string; enabled_events?: string[]; is_enabled?: boolean },
   ): Promise<WebhookConfig> {
     const now = Date.now();
-    const existing = await this.getConfig(companyId);
+    const existing = await this.dynamodb.get('webhook_configs', { company_id: companyId });
+    const existingConfig = existing ? await this.decryptConfig(existing as WebhookConfig) : null;
 
     const updates: Partial<WebhookConfig> = {
       updated_at: now,
@@ -86,7 +98,7 @@ export class WebhooksService {
       updates.is_enabled = Boolean(input.is_enabled);
     }
 
-    if (!existing) {
+    if (!existingConfig) {
       if (!updates.webhook_url) {
         throw new BadRequestException('webhook_url is required');
       }
@@ -101,35 +113,35 @@ export class WebhooksService {
         created_at: now,
         updated_at: now,
       };
-      await this.dynamodb.put('webhook_configs', created);
+      const encrypted = await this.encryptConfig(created);
+      await this.dynamodb.put('webhook_configs', encrypted);
       return created;
     }
 
     if (Object.keys(updates).length === 1) {
-      return existing;
+      return existingConfig;
     }
 
     const merged: WebhookConfig = {
-      ...existing,
+      ...existingConfig,
       ...updates,
     };
 
-    await this.dynamodb.update('webhook_configs', { company_id: companyId }, updates);
+    const encryptedUpdates = await this.encryptConfigFields(updates);
+    await this.dynamodb.update('webhook_configs', { company_id: companyId }, encryptedUpdates);
     return merged;
   }
 
   async rotateSecret(companyId: string): Promise<WebhookConfig> {
-    const existing = await this.getConfig(companyId);
-    if (!existing) {
+    const existingEncrypted = await this.dynamodb.get('webhook_configs', { company_id: companyId });
+    if (!existingEncrypted) {
       throw new BadRequestException('Webhook config not found');
     }
+    const existing = await this.decryptConfig(existingEncrypted as WebhookConfig);
     const secret = this.generateSecret();
     const updated_at = Date.now();
-    await this.dynamodb.update(
-      'webhook_configs',
-      { company_id: companyId },
-      { signing_secret: secret, updated_at }
-    );
+    const encryptedUpdates = await this.encryptConfigFields({ signing_secret: secret, updated_at });
+    await this.dynamodb.update('webhook_configs', { company_id: companyId }, encryptedUpdates);
     return { ...existing, signing_secret: secret, updated_at };
   }
 
@@ -236,6 +248,65 @@ export class WebhooksService {
 
   private generateSecret(): string {
     return crypto.randomBytes(24).toString('hex');
+  }
+
+  private async encryptConfig(config: WebhookConfig): Promise<WebhookConfig> {
+    const encrypted = await this.encryptConfigFields(config);
+    return encrypted as WebhookConfig;
+  }
+
+  private async decryptConfig(config: WebhookConfig): Promise<WebhookConfig> {
+    const decrypted = await this.decryptConfigFields(config);
+    return decrypted as WebhookConfig;
+  }
+
+  private async encryptConfigFields(input: Partial<WebhookConfig>): Promise<Partial<WebhookConfig>> {
+    if (!this.kms || !this.kmsKeyId) return input;
+    const output: Partial<WebhookConfig> = { ...input };
+    if (typeof input.webhook_url === 'string') {
+      output.webhook_url = await this.encryptString(input.webhook_url);
+    }
+    if (typeof input.signing_secret === 'string') {
+      output.signing_secret = await this.encryptString(input.signing_secret);
+    }
+    return output;
+  }
+
+  private async decryptConfigFields(input: Partial<WebhookConfig>): Promise<Partial<WebhookConfig>> {
+    if (!this.kms) return input;
+    const output: Partial<WebhookConfig> = { ...input };
+    if (typeof input.webhook_url === 'string') {
+      output.webhook_url = await this.decryptString(input.webhook_url);
+    }
+    if (typeof input.signing_secret === 'string') {
+      output.signing_secret = await this.decryptString(input.signing_secret);
+    }
+    return output;
+  }
+
+  private async encryptString(raw: string): Promise<string> {
+    if (!this.kms || !this.kmsKeyId) return raw;
+    if (raw.startsWith(this.kmsPrefix)) return raw;
+    const command = new EncryptCommand({
+      KeyId: this.kmsKeyId,
+      Plaintext: Buffer.from(raw, 'utf8'),
+    });
+    const response = await this.kms.send(command);
+    if (!response.CiphertextBlob) return raw;
+    const encoded = Buffer.from(response.CiphertextBlob).toString('base64');
+    return `${this.kmsPrefix}${encoded}`;
+  }
+
+  private async decryptString(raw: string): Promise<string> {
+    if (!this.kms) return raw;
+    if (!raw.startsWith(this.kmsPrefix)) return raw;
+    const encoded = raw.slice(this.kmsPrefix.length);
+    const command = new DecryptCommand({
+      CiphertextBlob: Buffer.from(encoded, 'base64'),
+    });
+    const response = await this.kms.send(command);
+    if (!response.Plaintext) return raw;
+    return Buffer.from(response.Plaintext).toString('utf8');
   }
 
   private buildSignature(secret: string, timestamp: string, body: string): string {
