@@ -492,7 +492,7 @@ export class CognitoService {
       UserAttributes: [{ Name: 'phone_number', Value: phoneNumber }],
     });
     const response = await this.cognitoClient.send(command);
-    return response?.CodeDeliveryDetails;
+    return response?.CodeDeliveryDetailsList?.[0];
   }
 
   async verifyUserAttribute(accessToken: string, attributeName: string, code: string) {
