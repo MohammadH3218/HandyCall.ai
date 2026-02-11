@@ -184,6 +184,7 @@ export class DynamoDBService implements OnModuleInit {
       limit?: number;
       scanIndexForward?: boolean;
       exclusiveStartKey?: Record<string, any>;
+      select?: 'COUNT' | 'ALL_ATTRIBUTES';
     }
   ) {
     let keyConditionExpression = '#company_id = :company_id';
