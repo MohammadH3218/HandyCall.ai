@@ -66,10 +66,6 @@ function LoginPageInner() {
   const [isLoading, setIsLoading] = useState(false);
   const [socialLoading, setSocialLoading] = useState<'cognito-google' | 'cognito-apple' | null>(null);
   const [showPasswordChangeModal, setShowPasswordChangeModal] = useState(false);
-  const [smsRequired, setSmsRequired] = useState(false);
-  const [smsVerificationId, setSmsVerificationId] = useState<string | null>(null);
-  const [smsCode, setSmsCode] = useState('');
-  const [smsMessage, setSmsMessage] = useState('');
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -102,52 +98,6 @@ function LoginPageInner() {
     }
   }, [requiresPasswordChange]);
 
-  const finalizeLogin = async (overrideEmail?: string) => {
-    // Successful login - wait for session to be established before checking auth
-    let session = null;
-    let attempts = 0;
-    const maxAttempts = 5;
-
-    while (!session && attempts < maxAttempts) {
-      await new Promise(resolve => setTimeout(resolve, 200 * (attempts + 1)));
-      session = await getSession();
-      attempts++;
-    }
-
-    if (!session) {
-      setError('Login successful but session could not be established. Please try again.');
-      setIsLoading(false);
-      return;
-    }
-
-    await new Promise(resolve => setTimeout(resolve, 300));
-    await checkAuth();
-
-    const state = useAuthStore.getState();
-    if (!state.isAuthenticated) {
-      await new Promise(resolve => setTimeout(resolve, 300));
-      await checkAuth();
-    }
-
-    const role =
-      (session as any)?.user?.role as UserRole | undefined ||
-      (session as any)?.userRole as UserRole | undefined;
-    const poolType = (session as any)?.poolType as string | undefined;
-    const derivedRole =
-      role ||
-      (poolType === 'admin' ? UserRole.ADMIN : undefined);
-
-    if (overrideEmail) {
-      useAuthStore.setState({ email: overrideEmail });
-    }
-
-    if (derivedRole === UserRole.ADMIN) {
-      router.push('/admin');
-    } else {
-      router.push('/dashboard');
-    }
-  };
-
   // Clear any invalid/stale sessions when landing on login page
   useEffect(() => {
     const clearStaleSession = async () => {
@@ -177,17 +127,11 @@ function LoginPageInner() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    setSmsMessage('');
-
-    if (smsRequired) {
-      await handleVerifySms();
-      return;
-    }
-
     setIsLoading(true);
 
     try {
-      const prelogin = await apiClient.requestLoginSms(email, password);
+      // First, hit backend directly to detect password challenge and pool type
+      const prelogin = await apiClient.login({ email, password } as any);
 
       if (prelogin?.requiresPasswordChange && prelogin.session) {
         useAuthStore.setState({
@@ -204,102 +148,64 @@ function LoginPageInner() {
         return;
       }
 
-      if (prelogin?.skipSms) {
-        const result = await signIn('credentials', {
-          email,
-          password,
-          redirect: false,
-        });
-
-        if (result?.error) {
-          setError(result.error || 'Invalid email or password');
-          setIsLoading(false);
-          return;
-        }
-
-        await finalizeLogin(email);
-        return;
-      }
-
-      if (prelogin?.session) {
-        setSmsRequired(true);
-        setSmsVerificationId(prelogin.session);
-        setSmsCode('');
-        setSmsMessage(
-          'Verification code sent to your phone.'
-        );
-        setIsLoading(false);
-        return;
-      }
-
-      setError('Unable to start SMS verification. Please try again.');
-    } catch (err: any) {
-      setError(err.message || 'Invalid email or password');
-    }
-
-    setIsLoading(false);
-  };
-
-  const handleVerifySms = async () => {
-    setError('');
-    if (!smsVerificationId) {
-      setError('Send an SMS code to continue.');
-      return;
-    }
-    if (!smsCode.trim()) {
-      setError('Enter the verification code.');
-      return;
-    }
-
-    setIsLoading(true);
-
-    try {
+      // Use NextAuth credentials with manual navigation to avoid callback loops
       const result = await signIn('credentials', {
         email,
         password,
-        sms_code: smsCode.trim(),
-        verification_id: smsVerificationId,
         redirect: false,
       });
 
       if (result?.error) {
-        setError(result.error || 'Verification failed.');
-        setIsLoading(false);
-        return;
-      }
-
-      await finalizeLogin(email);
-    } catch (err: any) {
-      setError(err?.message || 'Verification failed.');
-      setIsLoading(false);
-    }
-  };
-
-  const handleResendSms = async () => {
-    setError('');
-    setSmsMessage('');
-    setIsLoading(true);
-    try {
-      const prelogin = await apiClient.requestLoginSms(email, password);
-      if (prelogin?.session) {
-        setSmsVerificationId(prelogin.session);
-        setSmsCode('');
-        setSmsMessage(
-          'Verification code sent to your phone.'
-        );
-      } else if (prelogin?.skipSms) {
-        const result = await signIn('credentials', { email, password, redirect: false });
-        if (result?.error) {
-          setError(result.error || 'Invalid email or password');
+        setError(result.error || 'Invalid email or password');
+      } else {
+        // Successful login - wait for session to be established before checking auth
+        // Retry up to 5 times with delay to allow NextAuth session to be fully established
+        let session = null;
+        let attempts = 0;
+        const maxAttempts = 5;
+        
+        while (!session && attempts < maxAttempts) {
+          await new Promise(resolve => setTimeout(resolve, 200 * (attempts + 1))); // Increasing delay
+          session = await getSession();
+          attempts++;
+        }
+        
+        if (!session) {
+          setError('Login successful but session could not be established. Please try again.');
           setIsLoading(false);
           return;
         }
-        await finalizeLogin(email);
-        return;
+
+        // Wait a bit more and then check auth
+        await new Promise(resolve => setTimeout(resolve, 300));
+        await checkAuth();
+        
+        // Verify auth was successful
+        const state = useAuthStore.getState();
+        if (!state.isAuthenticated) {
+          // Retry checkAuth once more
+          await new Promise(resolve => setTimeout(resolve, 300));
+          await checkAuth();
+        }
+
+        const role =
+          (session as any)?.user?.role as UserRole | undefined ||
+          (session as any)?.userRole as UserRole | undefined;
+        const poolType = (session as any)?.poolType as string | undefined;
+        const derivedRole =
+          role ||
+          (poolType === 'admin' ? UserRole.ADMIN : undefined);
+
+        if (derivedRole === UserRole.ADMIN) {
+          router.push('/admin');
+        } else {
+          router.push('/dashboard');
+        }
       }
     } catch (err: any) {
-      setError(err?.message || 'Unable to resend code.');
+      setError(err.message || 'Invalid email or password');
     }
+    // Loading ends on navigation or after error above
     setIsLoading(false);
   };
 
@@ -326,41 +232,70 @@ function LoginPageInner() {
 
     try {
       await changePassword(email, newPassword, passwordChangeSession!, passwordChangePoolType || undefined);
-      setPassword(newPassword);
-      const prelogin = await apiClient.requestLoginSms(email, newPassword);
+      // After password change, log in to establish NextAuth session
+      const loginResult = await signIn('credentials', {
+        email,
+        password: newPassword,
+        redirect: false,
+        callbackUrl: callbackUrl || '/dashboard',
+      });
 
-      if (prelogin?.skipSms) {
-        const loginResult = await signIn('credentials', {
-          email,
-          password: newPassword,
-          redirect: false,
-        });
-
-        if (loginResult?.error) {
-          setError(loginResult.error);
-          setIsLoading(false);
-          return;
-        }
-
-        setShowPasswordChangeModal(false);
-        setNewPassword('');
-        setConfirmPassword('');
-        await finalizeLogin(email);
+      if (loginResult?.error) {
+        setError(loginResult.error);
         return;
       }
 
-      if (prelogin?.session) {
-        setShowPasswordChangeModal(false);
-        setNewPassword('');
-        setConfirmPassword('');
-        setSmsRequired(true);
-        setSmsVerificationId(prelogin.session);
-        setSmsMessage('Verification code sent to your phone.');
+      // Wait for session to be established
+      let postSession = null;
+      let attempts = 0;
+      const maxAttempts = 5;
+      
+      while (!postSession && attempts < maxAttempts) {
+        await new Promise(resolve => setTimeout(resolve, 200 * (attempts + 1)));
+        postSession = await getSession();
+        attempts++;
+      }
+      
+      if (!postSession) {
+        setError('Password changed but session could not be established. Please try logging in again.');
         setIsLoading(false);
         return;
       }
+      
+      // Wait a bit more and then check auth
+      await new Promise(resolve => setTimeout(resolve, 300));
+      await checkAuth();
+      
+      // Verify auth was successful
+      const state = useAuthStore.getState();
+      if (!state.isAuthenticated) {
+        // Retry checkAuth once more
+        await new Promise(resolve => setTimeout(resolve, 300));
+        await checkAuth();
+      }
+      
+      const role =
+        (postSession as any)?.user?.role as UserRole | undefined ||
+        (postSession as any)?.userRole as UserRole | undefined;
+      const poolType = (postSession as any)?.poolType as string | undefined;
+      const derivedRole =
+        role ||
+        (poolType === 'admin' ? UserRole.ADMIN : undefined);
 
-      setError('Unable to start SMS verification. Please try again.');
+      // Close modal and reset form
+      setShowPasswordChangeModal(false);
+      setNewPassword('');
+      setConfirmPassword('');
+      if (loginResult?.url) {
+        router.push(loginResult.url);
+        return;
+      }
+
+      if (derivedRole === UserRole.ADMIN) {
+        router.push(callbackUrl || '/admin');
+      } else {
+        router.push(callbackUrl || '/dashboard');
+      }
     } catch (err: any) {
       setError(err.message || 'Failed to change password');
     } finally {
@@ -487,7 +422,7 @@ function LoginPageInner() {
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         required
-                        disabled={isLoading || smsRequired}
+                        disabled={isLoading}
                       />
                     </div>
 
@@ -499,7 +434,7 @@ function LoginPageInner() {
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         required
-                        disabled={isLoading || smsRequired}
+                        disabled={isLoading}
                       />
                       <div className="text-right">
                         <Link href="/forgot-password" className="text-xs text-primary hover:underline">
@@ -507,55 +442,10 @@ function LoginPageInner() {
                         </Link>
                       </div>
                     </div>
-
-                    {smsRequired && (
-                      <div className="space-y-2">
-                        <Label htmlFor="sms-code">SMS verification code</Label>
-                        <Input
-                          id="sms-code"
-                          value={smsCode}
-                          onChange={(e) => setSmsCode(e.target.value)}
-                          placeholder="Enter code"
-                          disabled={isLoading}
-                        />
-                        <div className="flex items-center justify-between text-xs text-muted-foreground">
-                          <button
-                            type="button"
-                            onClick={handleResendSms}
-                            className="text-primary hover:underline"
-                            disabled={isLoading}
-                          >
-                            Resend code
-                          </button>
-                          {smsMessage && <span>{smsMessage}</span>}
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setSmsRequired(false);
-                              setSmsVerificationId(null);
-                              setSmsCode('');
-                              setSmsMessage('');
-                            }}
-                            className="text-primary hover:underline"
-                            disabled={isLoading}
-                          >
-                            Use a different email or password
-                          </button>
-                        </div>
-                      </div>
-                    )}
                   </CardContent>
                   <CardFooter className="flex flex-col gap-3">
                     <Button type="submit" className="w-full" disabled={isLoading}>
-                      {isLoading
-                        ? smsRequired
-                          ? 'Verifying...'
-                          : 'Signing in...'
-                        : smsRequired
-                          ? 'Verify & sign in'
-                          : 'Sign In'}
+                      {isLoading ? 'Signing in...' : 'Sign In'}
                     </Button>
                     <p className="text-center text-sm text-muted-foreground">
                       New to HandyCall?{' '}

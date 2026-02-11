@@ -18,9 +18,9 @@ export class RegisterDto {
   @MinLength(8)
   password!: string;
 
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  phone_number!: string;
+  phone_number?: string;
 
   @IsOptional()
   @IsString()

@@ -37,9 +37,7 @@ export class UsersService {
     companyServiceType?: ServiceType,
     companyEmail?: string,
     companyPhone?: string,
-    companyTimezone?: string,
-    userPhone?: string,
-    skipCognitoCreate: boolean = false
+    companyTimezone?: string
   ): Promise<{ user: User }> {
     const isAdminPool = poolType === 'admin';
 
@@ -47,20 +45,11 @@ export class UsersService {
     const existingUser = await this.findByEmail(email);
     const cognitoUserExists = await this.cognitoService.userExists(email, poolType).catch(() => false);
 
-    console.log('[DEBUG] Duplicate check for email:', email);
-    console.log('[DEBUG] Existing user in DB:', existingUser);
-    console.log('[DEBUG] User exists in Cognito:', cognitoUserExists);
-    console.log('[DEBUG] Pool type:', poolType);
-
-    if (existingUser || (cognitoUserExists && !skipCognitoCreate)) {
-      console.log('[DEBUG] DUPLICATE DETECTED - Throwing 409 error');
+    if (existingUser || cognitoUserExists) {
       throw new ConflictException({
         message: 'User with this email already exists',
         fields: { email: 'User with this email already exists' },
       });
-    }
-    if (skipCognitoCreate && !cognitoUserExists) {
-      throw new BadRequestException('Cognito user not found for this email. Verify SMS code first.');
     }
 
     // If company_name is provided but no company_id, create a new company
@@ -103,14 +92,10 @@ export class UsersService {
     const userId = uuidv4();
     const timestamp = Date.now();
 
-    const normalizedUserPhone =
-      userPhone && isValidPhoneNumber(userPhone) ? formatPhoneNumber(userPhone) : undefined;
-
     const user: User = {
       company_id: resolvedCompanyId,
       user_id: userId,
       email,
-      phone_number: normalizedUserPhone,
       first_name: firstName,
       last_name: lastName,
       role: resolvedRole,
@@ -122,26 +107,16 @@ export class UsersService {
     // Always set password as permanent - users can change later in settings
     const makePasswordPermanent = true;
 
-    console.log('[UsersService] Creating user:', {
+    // Create user in Cognito with proper attributes
+    const fullName = `${firstName} ${lastName}`;
+    await this.cognitoService.createUser(
       email,
+      password,
+      isAdminPool ? undefined : resolvedCompanyId,
+      fullName,
       poolType,
-      companyId: resolvedCompanyId,
-      makePasswordPermanent,
-      skipCognitoCreate,
-    });
-
-    if (!skipCognitoCreate) {
-      // Create user in Cognito with proper attributes
-      const fullName = `${firstName} ${lastName}`;
-      await this.cognitoService.createUser(
-        email,
-        password,
-        isAdminPool ? undefined : resolvedCompanyId,
-        fullName,
-        poolType,
-        { makePasswordPermanent }
-      );
-    }
+      { makePasswordPermanent }
+    );
 
     // Update Cognito custom attributes with company name if provided
     if (!isAdminPool && companyName) {

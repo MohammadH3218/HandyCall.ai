@@ -10,10 +10,6 @@ const PUBLIC_PATHS = [
   "auth/register",
   "auth/refresh",
   "auth/change-password", // Allow password changes without auth
-  "auth/login/sms",
-  "auth/login/verify-sms",
-  "auth/sms/send",
-  "auth/sms/verify",
 ];
 
 export async function GET(

@@ -11,17 +11,10 @@ import {
   AdminDisableUserCommand,
   AdminEnableUserCommand,
   AdminSetUserPasswordCommand,
-  SignUpCommand,
-  ConfirmSignUpCommand,
-  ResendConfirmationCodeCommand,
-  UpdateUserAttributesCommand,
-  VerifyUserAttributeCommand,
-  GetUserCommand,
   ListUsersCommand,
   AuthFlowType,
   ChallengeNameType,
   MessageActionType,
-  AdminSetUserMFAPreferenceCommand,
 } from '@aws-sdk/client-cognito-identity-provider';
 import { createHmac } from 'crypto';
 
@@ -140,17 +133,6 @@ export class CognitoService {
       };
     }
 
-    if (response.ChallengeName === ChallengeNameType.SMS_MFA) {
-      return {
-        accessToken: '',
-        idToken: '',
-        challengeName: 'SMS_MFA',
-        session: response.Session,
-        userAttributes: {},
-        poolType,
-      };
-    }
-
     if (!response.AuthenticationResult) {
       throw new UnauthorizedException('Authentication failed');
     }
@@ -228,72 +210,6 @@ export class CognitoService {
       
       throw new BadRequestException(error.message || 'Failed to set new password');
     }
-  }
-
-  async respondToSmsMfa(
-    email: string,
-    session: string,
-    code: string,
-    poolType: 'users' | 'admin' = 'users'
-  ): Promise<CognitoLoginResult> {
-    const poolId = poolType === 'admin' ? this.adminPoolId : this.usersPoolId;
-    const clientId = poolType === 'admin' ? this.adminClientId : this.usersClientId;
-    const clientSecret = poolType === 'admin' ? this.adminClientSecret : this.usersClientSecret;
-
-    if (!poolId || !clientId || !clientSecret) {
-      throw new BadRequestException(`Pool ${poolType} not configured`);
-    }
-
-    const secretHash = this.calculateSecretHash(email, clientId, clientSecret);
-
-    const command = new AdminRespondToAuthChallengeCommand({
-      UserPoolId: poolId,
-      ClientId: clientId,
-      ChallengeName: ChallengeNameType.SMS_MFA,
-      ChallengeResponses: {
-        USERNAME: email,
-        SMS_MFA_CODE: code,
-        SECRET_HASH: secretHash,
-      },
-      Session: session,
-    });
-
-    const response = await this.cognitoClient.send(command);
-    if (!response.AuthenticationResult) {
-      throw new UnauthorizedException('SMS verification failed');
-    }
-
-    const userAttributes = await this.getUserAttributes(email, poolType);
-
-    return {
-      accessToken: response.AuthenticationResult.AccessToken!,
-      idToken: response.AuthenticationResult.IdToken!,
-      refreshToken: response.AuthenticationResult.RefreshToken,
-      userAttributes,
-      poolType,
-    };
-  }
-
-  async setSmsMfaPreference(
-    email: string,
-    enabled: boolean,
-    poolType: 'users' | 'admin' = 'users'
-  ): Promise<void> {
-    const poolId = poolType === 'admin' ? this.adminPoolId : this.usersPoolId;
-    if (!poolId) {
-      throw new BadRequestException(`Pool ${poolType} not configured`);
-    }
-
-    const command = new AdminSetUserMFAPreferenceCommand({
-      UserPoolId: poolId,
-      Username: email,
-      SMSMfaSettings: {
-        Enabled: enabled,
-        PreferredMfa: enabled,
-      },
-    });
-
-    await this.cognitoClient.send(command);
   }
 
   async userExists(email: string, poolType: 'users' | 'admin' = 'users'): Promise<boolean> {
@@ -404,140 +320,6 @@ export class CognitoService {
     } catch (error) {
       throw new UnauthorizedException('Invalid refresh token');
     }
-  }
-
-  async signUpUser(
-    email: string,
-    password: string,
-    phoneNumber: string,
-    firstName?: string,
-    lastName?: string
-  ) {
-    if (!this.usersClientId || !this.usersClientSecret) {
-      throw new BadRequestException('User pool client not configured');
-    }
-
-    const secretHash = this.calculateSecretHash(email, this.usersClientId, this.usersClientSecret);
-    const attributes = [
-      { Name: 'email', Value: email },
-      { Name: 'phone_number', Value: phoneNumber },
-    ];
-
-    if (firstName) attributes.push({ Name: 'given_name', Value: firstName });
-    if (lastName) attributes.push({ Name: 'family_name', Value: lastName });
-    if (firstName || lastName) {
-      attributes.push({ Name: 'name', Value: [firstName, lastName].filter(Boolean).join(' ') });
-    }
-
-    try {
-      const command = new SignUpCommand({
-        ClientId: this.usersClientId,
-        SecretHash: secretHash,
-        Username: email,
-        Password: password,
-        UserAttributes: attributes,
-      });
-      const response = await this.cognitoClient.send(command);
-      return {
-        user_sub: response.UserSub,
-        user_confirmed: response.UserConfirmed,
-        code_delivery_details: response.CodeDeliveryDetails,
-      };
-    } catch (error: any) {
-      if (error?.name === 'UsernameExistsException') {
-        try {
-          return await this.resendSignUp(email);
-        } catch (resendError: any) {
-          if (resendError?.name === 'InvalidParameterException' || resendError?.name === 'NotAuthorizedException') {
-            throw new BadRequestException('Account already exists. Please sign in instead.');
-          }
-          throw resendError;
-        }
-      }
-      throw error;
-    }
-  }
-
-  async resendSignUp(email: string) {
-    if (!this.usersClientId || !this.usersClientSecret) {
-      throw new BadRequestException('User pool client not configured');
-    }
-
-    const secretHash = this.calculateSecretHash(email, this.usersClientId, this.usersClientSecret);
-    const command = new ResendConfirmationCodeCommand({
-      ClientId: this.usersClientId,
-      SecretHash: secretHash,
-      Username: email,
-    });
-    const response = await this.cognitoClient.send(command);
-    return {
-      code_delivery_details: response.CodeDeliveryDetails,
-      resent: true,
-    };
-  }
-
-  async confirmSignUp(email: string, code: string) {
-    if (!this.usersClientId || !this.usersClientSecret) {
-      throw new BadRequestException('User pool client not configured');
-    }
-
-    const secretHash = this.calculateSecretHash(email, this.usersClientId, this.usersClientSecret);
-    const command = new ConfirmSignUpCommand({
-      ClientId: this.usersClientId,
-      SecretHash: secretHash,
-      Username: email,
-      ConfirmationCode: code,
-    });
-    await this.cognitoClient.send(command);
-    return { ok: true };
-  }
-
-  async getUserStatus(email: string): Promise<string | null> {
-    if (!this.usersPoolId) return null;
-    try {
-      const command = new AdminGetUserCommand({
-        UserPoolId: this.usersPoolId,
-        Username: email,
-      });
-      const response = await this.cognitoClient.send(command);
-      return response.UserStatus || null;
-    } catch (error: any) {
-      if (error?.name === 'UserNotFoundException') {
-        return null;
-      }
-      throw error;
-    }
-  }
-
-  async updateUserPhone(accessToken: string, phoneNumber: string) {
-    const command = new UpdateUserAttributesCommand({
-      AccessToken: accessToken,
-      UserAttributes: [{ Name: 'phone_number', Value: phoneNumber }],
-    });
-    const response = await this.cognitoClient.send(command);
-    return response?.CodeDeliveryDetailsList?.[0];
-  }
-
-  async verifyUserAttribute(accessToken: string, attributeName: string, code: string) {
-    const command = new VerifyUserAttributeCommand({
-      AccessToken: accessToken,
-      AttributeName: attributeName,
-      Code: code,
-    });
-    await this.cognitoClient.send(command);
-    return { ok: true };
-  }
-
-  async getUserAttributesByAccessToken(accessToken: string): Promise<Record<string, string>> {
-    const command = new GetUserCommand({ AccessToken: accessToken });
-    const response = await this.cognitoClient.send(command);
-    const attributes: Record<string, string> = {};
-    response.UserAttributes?.forEach((attr) => {
-      if (attr.Name && attr.Value) {
-        attributes[attr.Name] = attr.Value;
-      }
-    });
-    return attributes;
   }
 
   /**

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { signOut } from 'next-auth/react';
 import { apiClient } from '@/lib/api-client';
 import { useAuthStore } from '@/stores/auth-store';
@@ -21,19 +21,14 @@ export default function AccountSettingsPage() {
     last_name: '',
     email: '',
     contact_email: '',
+    phone_number: '',
   });
   const [companyDraft, setCompanyDraft] = useState({
     company_name: '',
     email: '',
   });
-  const [phoneDraft, setPhoneDraft] = useState('');
-  const [phoneCode, setPhoneCode] = useState('');
-  const [phoneVerifiedAt, setPhoneVerifiedAt] = useState<number | null>(null);
-  const [phoneMessage, setPhoneMessage] = useState('');
   const [profileSaving, setProfileSaving] = useState(false);
   const [companySaving, setCompanySaving] = useState(false);
-  const [phoneSending, setPhoneSending] = useState(false);
-  const [phoneVerifying, setPhoneVerifying] = useState(false);
   const [passwordSaving, setPasswordSaving] = useState(false);
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -69,9 +64,8 @@ export default function AccountSettingsPage() {
       last_name: lastName,
       email,
       contact_email: contactEmail,
+      phone_number: normalizeUsPhone(user?.phone_number || ''),
     });
-    setPhoneDraft(normalizeUsPhone(user?.phone_number || ''));
-    setPhoneVerifiedAt((user as any)?.phone_verified_at || null);
   }, [user, storeUser, storeEmail]);
 
   useEffect(() => {
@@ -82,19 +76,25 @@ export default function AccountSettingsPage() {
     });
   }, [company]);
 
-  const phoneStatus = useMemo(() => {
-    if (!phoneVerifiedAt) return 'Not verified';
-    return `Verified on ${new Date(phoneVerifiedAt).toLocaleDateString()}`;
-  }, [phoneVerifiedAt]);
-
   const handleSaveProfile = async () => {
     setProfileSaving(true);
     try {
+      const phoneDigits = normalizeUsPhone(profileDraft.phone_number);
+      if (phoneDigits && phoneDigits.length !== 10) {
+        toast({
+          title: 'Invalid phone number',
+          description: 'Enter a 10-digit US phone number.',
+          variant: 'destructive',
+        });
+        setProfileSaving(false);
+        return;
+      }
       const updated = await apiClient.updateMyProfile({
         first_name: profileDraft.first_name.trim() || undefined,
         last_name: profileDraft.last_name.trim() || undefined,
         email: profileDraft.email.trim() || undefined,
         contact_email: profileDraft.contact_email.trim() || undefined,
+        phone_number: phoneDigits.length === 10 ? formatUsE164(phoneDigits) : undefined,
       });
 
       setUser(updated);
@@ -150,52 +150,6 @@ export default function AccountSettingsPage() {
       });
     } finally {
       setCompanySaving(false);
-    }
-  };
-
-  const handleSendPhoneCode = async () => {
-    setPhoneMessage('');
-    const phoneDigits = normalizeUsPhone(phoneDraft);
-    if (!phoneDigits) {
-      setPhoneMessage('Enter a phone number first.');
-      return;
-    }
-    if (phoneDigits.length !== 10) {
-      setPhoneMessage('Enter a 10-digit US phone number.');
-      return;
-    }
-    setPhoneSending(true);
-    try {
-      const response = await apiClient.sendPhoneUpdateCode(formatUsE164(phoneDigits));
-      setPhoneCode('');
-      const delivery = response?.code_delivery_details || response?.CodeDeliveryDetails;
-      const destination = delivery?.Destination || delivery?.destination;
-      setPhoneMessage(destination ? `Verification code sent to ${destination}.` : 'Verification code sent.');
-    } catch (error: any) {
-      setPhoneMessage(error?.message || 'Unable to send verification code.');
-    } finally {
-      setPhoneSending(false);
-    }
-  };
-
-  const handleVerifyPhone = async () => {
-    setPhoneMessage('');
-    if (!phoneCode.trim()) {
-      setPhoneMessage('Enter the verification code.');
-      return;
-    }
-    setPhoneVerifying(true);
-    try {
-      const updated = await apiClient.verifyPhoneUpdateCode(phoneCode.trim());
-      setUser(updated);
-      useAuthStore.setState({ user: updated });
-      setPhoneVerifiedAt((updated as any)?.phone_verified_at || Date.now());
-      setPhoneMessage('Phone number verified and updated.');
-      setPhoneCode('');
-    } catch (error: any) {
-      setPhoneMessage(error?.message || 'Verification failed.');
-    } finally {
-      setPhoneVerifying(false);
     }
   };
 
@@ -279,6 +233,22 @@ export default function AccountSettingsPage() {
             />
           </div>
           <div className="space-y-2">
+            <Label htmlFor="phone_number">Phone number (US)</Label>
+            <Input
+              id="phone_number"
+              value={profileDraft.phone_number}
+              onChange={(e) =>
+                setProfileDraft((prev) => ({
+                  ...prev,
+                  phone_number: normalizeUsPhone(e.target.value),
+                }))
+              }
+              placeholder="5551234567"
+              inputMode="numeric"
+              maxLength={10}
+            />
+          </div>
+          <div className="space-y-2">
             <Label htmlFor="contact_email">Contact email (optional)</Label>
             <Input
               id="contact_email"
@@ -292,59 +262,6 @@ export default function AccountSettingsPage() {
               {profileSaving ? 'Saving...' : 'Save profile'}
             </Button>
           </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Phone verification</CardTitle>
-          <CardDescription>SMS verification protects your login.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="phone_number">Phone number</Label>
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <Input
-                id="phone_number"
-                value={phoneDraft}
-                onChange={(e) => {
-                  setPhoneDraft(normalizeUsPhone(e.target.value));
-                  setPhoneCode('');
-                }}
-                placeholder="5551234567"
-                inputMode="numeric"
-                maxLength={10}
-              />
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handleSendPhoneCode}
-                disabled={phoneSending || normalizeUsPhone(phoneDraft).length !== 10}
-              >
-                {phoneSending ? 'Sending...' : 'Send code'}
-              </Button>
-            </div>
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="phone_code">Verification code</Label>
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <Input
-                id="phone_code"
-                value={phoneCode}
-                onChange={(e) => setPhoneCode(e.target.value)}
-                placeholder="Enter code"
-              />
-              <Button
-                type="button"
-                onClick={handleVerifyPhone}
-                disabled={phoneVerifying}
-              >
-                {phoneVerifying ? 'Verifying...' : 'Verify & save'}
-              </Button>
-            </div>
-          </div>
-          <p className="text-xs text-slate-500">Status: {phoneStatus}</p>
-          {phoneMessage && <p className="text-xs text-slate-500">{phoneMessage}</p>}
         </CardContent>
       </Card>
 
