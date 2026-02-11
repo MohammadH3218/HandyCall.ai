@@ -443,6 +443,20 @@ export class AuthService {
       };
     }
 
+    // If MFA isn't enabled yet, enable SMS MFA preference and retry to force SMS challenge.
+    try {
+      await this.cognitoService.setSmsMfaPreference(trimmedEmail, true, 'users');
+      const retry = await this.cognitoService.login(trimmedEmail, password, 'users');
+      if (retry.challengeName === 'SMS_MFA') {
+        return {
+          sms_required: true,
+          session: retry.session,
+        };
+      }
+    } catch (error) {
+      console.warn('[AuthService] Unable to enable SMS MFA preference', error);
+    }
+
     return { skipSms: true };
   }
 
@@ -735,7 +749,13 @@ export class AuthService {
   }
 
   async verifyRegisterSms(email: string, code: string) {
-    return this.cognitoService.confirmSignUp(email, code);
+    const result = await this.cognitoService.confirmSignUp(email, code);
+    try {
+      await this.cognitoService.setSmsMfaPreference(email, true, 'users');
+    } catch (error) {
+      console.warn('[AuthService] Failed to enable SMS MFA after sign-up confirmation', error);
+    }
+    return result;
   }
 
   async updatePassword(

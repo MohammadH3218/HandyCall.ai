@@ -21,6 +21,7 @@ import {
   AuthFlowType,
   ChallengeNameType,
   MessageActionType,
+  AdminSetUserMFAPreferenceCommand,
 } from '@aws-sdk/client-cognito-identity-provider';
 import { createHmac } from 'crypto';
 
@@ -271,6 +272,28 @@ export class CognitoService {
       userAttributes,
       poolType,
     };
+  }
+
+  async setSmsMfaPreference(
+    email: string,
+    enabled: boolean,
+    poolType: 'users' | 'admin' = 'users'
+  ): Promise<void> {
+    const poolId = poolType === 'admin' ? this.adminPoolId : this.usersPoolId;
+    if (!poolId) {
+      throw new BadRequestException(`Pool ${poolType} not configured`);
+    }
+
+    const command = new AdminSetUserMFAPreferenceCommand({
+      UserPoolId: poolId,
+      Username: email,
+      SMSMfaSettings: {
+        Enabled: enabled,
+        PreferredMfa: enabled,
+      },
+    });
+
+    await this.cognitoClient.send(command);
   }
 
   async userExists(email: string, poolType: 'users' | 'admin' = 'users'): Promise<boolean> {
