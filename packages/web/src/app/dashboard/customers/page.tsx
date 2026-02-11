@@ -44,17 +44,21 @@ function formatMoney(cents?: number) {
   return `$${(cents / 100).toFixed(2)}`;
 }
 
-const leadBadge = (status: 'Scheduled' | 'Lead' | 'No Lead') => {
-  if (status === 'Scheduled') {
-    return { label: 'Scheduled', className: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
-  }
-  if (status === 'Lead') {
-    return { label: 'Lead', className: 'bg-amber-50 text-amber-800 border-amber-200' };
-  }
-  return { label: 'No Lead', className: 'bg-gray-50 text-gray-700 border-gray-200' };
-};
-
 type LeadStatusLabel = 'Scheduled' | 'Lead' | 'No Lead';
+type AppointmentStatusLabel = 'Upcoming' | 'Ongoing' | 'Completed' | 'Scheduled';
+
+const appointmentBadge = (status: AppointmentStatusLabel) => {
+  if (status === 'Upcoming') {
+    return { label: 'Upcoming', className: 'bg-blue-50 text-blue-700 border-blue-200' };
+  }
+  if (status === 'Ongoing') {
+    return { label: 'Ongoing', className: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
+  }
+  if (status === 'Completed') {
+    return { label: 'Completed', className: 'bg-slate-50 text-slate-700 border-slate-200' };
+  }
+  return { label: 'Scheduled', className: 'bg-amber-50 text-amber-800 border-amber-200' };
+};
 
 const contactDisplayName = (contact?: Contact | null) => {
   if (!contact) return 'Unknown';
@@ -139,10 +143,36 @@ export default function CustomersPage() {
       })
       .map((c) => {
         const phone = String(c.phone_number || c.phone || '').trim();
-        const upcoming = byPhone.get(phone) ?? [];
+        const upcoming = (byPhone.get(phone) ?? []).filter(
+          (a) => String(a?.status || '').toUpperCase() !== 'CANCELLED'
+        );
         const next = upcoming[0];
         const totalSpend = upcoming.reduce((sum, a) => sum + (typeof a?.price_cents === 'number' ? a.price_cents : 0), 0);
         const recurring = upcoming.some((a) => !!a?.series_id);
+        const now = Date.now();
+        let appointmentStatus: AppointmentStatusLabel | null = null;
+        if (upcoming.length > 0) {
+          const ongoing = upcoming.find((a) => {
+            const start = Number(a?.scheduled_start || 0);
+            const end = Number(a?.scheduled_end || 0);
+            return start && end && start <= now && end >= now;
+          });
+          if (ongoing) {
+            appointmentStatus = 'Ongoing';
+          } else {
+            const future = upcoming.find((a) => Number(a?.scheduled_start || 0) > now);
+            if (future) {
+              const start = Number(future.scheduled_start || 0);
+              const within24h = start - now <= 24 * 60 * 60 * 1000;
+              appointmentStatus = within24h ? 'Upcoming' : 'Scheduled';
+            } else {
+              const past = upcoming.find((a) => Number(a?.scheduled_end || a?.scheduled_start || 0) < now);
+              if (past) {
+                appointmentStatus = 'Completed';
+              }
+            }
+          }
+        }
         const displayName = contactDisplayName(c);
         const leadStatusRaw = String(c.lead_status || '').toUpperCase();
         const isLead =
@@ -161,6 +191,7 @@ export default function CustomersPage() {
           recurring,
           totalSpend,
           leadStatus,
+          appointmentStatus,
           lastActivity,
         };
       })
@@ -274,23 +305,16 @@ export default function CustomersPage() {
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
                         <div className="font-semibold text-slate-900 truncate">{row.displayName}</div>
-                        <Badge variant="outline" className={leadBadge(row.leadStatus).className}>
-                          {leadBadge(row.leadStatus).label}
-                        </Badge>
+                        {row.appointmentStatus ? (
+                          <Badge variant="outline" className={appointmentBadge(row.appointmentStatus).className}>
+                            {appointmentBadge(row.appointmentStatus).label}
+                          </Badge>
+                        ) : null}
                         {row.recurring ? (
                           <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">
                             Recurring
                           </Badge>
                         ) : null}
-                        {row.upcomingCount > 0 ? (
-                          <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
-                            {row.upcomingCount} upcoming
-                          </Badge>
-                        ) : (
-                          <Badge variant="outline" className="bg-gray-50 text-gray-700 border-gray-200">
-                            No upcoming
-                          </Badge>
-                        )}
                       </div>
                       <div className="text-sm text-slate-600 mt-1 truncate">{row.displayPhone}</div>
                       {row.contact.email ? <div className="text-sm text-slate-600 truncate">{row.contact.email}</div> : null}
