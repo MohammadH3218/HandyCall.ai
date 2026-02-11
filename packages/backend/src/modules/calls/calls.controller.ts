@@ -18,6 +18,12 @@ export class CallsController {
     });
   }
 
+  @Get('count')
+  async getCallsCount(@CompanyId() companyId: string) {
+    const total = await this.callsService.getCallsCount(companyId);
+    return { total };
+  }
+
   @Get('search')
   async searchCalls(
     @CompanyId() companyId: string,

@@ -278,6 +278,11 @@ class ApiClient {
     return payload || { calls: [], lastEvaluatedKey: undefined };
   }
 
+  async getCallsCount(): Promise<{ total: number }> {
+    const response = await this.request<{ total: number }>('/calls/count', { method: 'GET' });
+    return response.data ?? response;
+  }
+
   async getCallById(callId: string): Promise<any> {
     const response = await this.request<any>(`/calls/${callId}`, {
       method: 'GET',
@@ -455,12 +460,17 @@ class ApiClient {
     return (response.data ?? response) as { appointments: any[] };
   }
 
-  async getContactCalls(contactId: string, limit?: number): Promise<{ calls: any[] }> {
+  async getContactCalls(
+    contactId: string,
+    limit?: number,
+    lastEvaluatedKey?: string
+  ): Promise<{ calls: any[]; lastEvaluatedKey?: any; total?: number }> {
     const params = new URLSearchParams();
     if (typeof limit === 'number') params.append('limit', limit.toString());
+    if (lastEvaluatedKey) params.append('lastEvaluatedKey', lastEvaluatedKey);
     const suffix = params.toString() ? `?${params.toString()}` : '';
     const response = await this.request<any>(`/contacts/${contactId}/calls${suffix}`, { method: 'GET' });
-    return (response.data ?? response) as { calls: any[] };
+    return (response.data ?? response) as { calls: any[]; lastEvaluatedKey?: any; total?: number };
   }
 
   async createContact(data: any): Promise<any> {

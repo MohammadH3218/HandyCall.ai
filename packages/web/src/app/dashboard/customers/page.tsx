@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiClient } from '@/lib/api-client';
 import { usePortalBasePath } from '@/lib/portal';
@@ -11,7 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { PageHeader } from '@/components/portal/page-header';
 import { EmptyState } from '@/components/portal/empty-state';
-import { CalendarCheck, ExternalLink, MessageCircle, PhoneCall, Search, Sparkles, Users } from 'lucide-react';
+import { CalendarCheck, ExternalLink, MessageCircle, PhoneCall, Search, Users } from 'lucide-react';
 
 type Contact = {
   contact_id: string;
@@ -32,26 +32,11 @@ type Contact = {
   last_contact_at?: number | string;
 };
 
-type CustomerMessage = {
-  id: string;
-  direction: 'INBOUND' | 'OUTBOUND';
-  body: string;
-  created_at: number;
-  status?: string;
-  ai_handled?: boolean;
-};
 
 function formatDate(ts?: number | string) {
   if (!ts) return '-';
   const date = typeof ts === 'number' ? new Date(ts) : new Date(ts);
   return date.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-}
-
-function formatDuration(seconds?: number) {
-  if (!seconds || seconds <= 0) return 'N/A';
-  const mins = Math.floor(seconds / 60);
-  const secs = Math.floor(seconds % 60);
-  return `${mins}:${secs.toString().padStart(2, '0')}`;
 }
 
 function formatMoney(cents?: number) {
@@ -95,48 +80,9 @@ export default function CustomersPage() {
 
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
   const [selectedContactAppointments, setSelectedContactAppointments] = useState<any[]>([]);
-  const [selectedContactCalls, setSelectedContactCalls] = useState<any[]>([]);
+  const [selectedContactCallsTotal, setSelectedContactCallsTotal] = useState<number | null>(null);
+  const [selectedContactCallsLoading, setSelectedContactCallsLoading] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
-  const mockBaseTime = useMemo(() => Date.now(), []);
-
-  const buildMockMessages = useCallback((contact: Contact): CustomerMessage[] => {
-    const name = contactDisplayName(contact).toLowerCase();
-    if (!name.includes('mohammad') || !name.includes('hamdallah')) {
-      return [];
-    }
-    return [
-      {
-        id: 'mock-1',
-        direction: 'INBOUND',
-        body: 'Hey, can you come out this week for pest control? Seeing ants in the kitchen.',
-        created_at: mockBaseTime - 1000 * 60 * 45,
-        status: 'RECEIVED',
-      },
-      {
-        id: 'mock-2',
-        direction: 'OUTBOUND',
-        body: "Hi Mohammad! We can help. Are you available Tuesday 10-12 or Wednesday 2-4? Also, what's the address?",
-        created_at: mockBaseTime - 1000 * 60 * 43,
-        status: 'SENT',
-        ai_handled: true,
-      },
-      {
-        id: 'mock-3',
-        direction: 'INBOUND',
-        body: 'Tuesday morning works. 418 W 5th St, Houston.',
-        created_at: mockBaseTime - 1000 * 60 * 18,
-        status: 'RECEIVED',
-      },
-      {
-        id: 'mock-4',
-        direction: 'OUTBOUND',
-        body: "Perfect, Tuesday at 10:30am is booked. You'll get a reminder before we arrive.",
-        created_at: mockBaseTime - 1000 * 60 * 12,
-        status: 'DELIVERED',
-        ai_handled: true,
-      },
-    ];
-  }, [mockBaseTime]);
 
   useEffect(() => {
     void load();
@@ -205,7 +151,6 @@ export default function CustomersPage() {
           leadStatusRaw === 'QUALIFIED' ||
           leadStatusRaw === 'CONVERTED';
         const leadStatus: LeadStatusLabel = upcoming.length > 0 ? 'Scheduled' : isLead ? 'Lead' : 'No Lead';
-        const messageCount = buildMockMessages(c).length;
         const lastActivity = Number(c.last_contact_at ?? c.updated_at ?? c.created_at ?? 0);
         return {
           contact: c,
@@ -216,17 +161,11 @@ export default function CustomersPage() {
           recurring,
           totalSpend,
           leadStatus,
-          messageCount,
           lastActivity,
         };
       })
       .sort((a, b) => (b.lastActivity || 0) - (a.lastActivity || 0));
-  }, [contacts, upcomingAppointments, searchQuery, buildMockMessages]);
-
-  const selectedContactMessages = useMemo(() => {
-    if (!selectedContact) return [];
-    return buildMockMessages(selectedContact);
-  }, [selectedContact, buildMockMessages]);
+  }, [contacts, upcomingAppointments, searchQuery]);
 
   const selectedLeadStatus = useMemo<LeadStatusLabel>(() => {
     if (!selectedContact) return 'No Lead' as const;
@@ -239,23 +178,30 @@ export default function CustomersPage() {
       leadStatusRaw === 'CONTACTED' ||
       leadStatusRaw === 'QUALIFIED' ||
       leadStatusRaw === 'CONVERTED';
-    const hasActivity = selectedContactCalls.length > 0 || selectedContactMessages.length > 0;
+    const hasActivity = (selectedContactCallsTotal || 0) > 0;
     return hasLeadStatus || hasActivity ? ('Lead' as const) : ('No Lead' as const);
-  }, [selectedContact, selectedContactAppointments, selectedContactCalls, selectedContactMessages]);
+  }, [selectedContact, selectedContactAppointments, selectedContactCallsTotal]);
 
   const openDetails = async (contact: Contact) => {
     try {
       setSelectedContact(contact);
       setDetailsOpen(true);
-      const [apptsResp, callsResp] = await Promise.all([
-        apiClient.getContactAppointments(contact.contact_id),
-        apiClient.getContactCalls(contact.contact_id, 25),
-      ]);
+      setSelectedContactCallsTotal(null);
+      setSelectedContactCallsLoading(true);
+      const apptsResp = await apiClient.getContactAppointments(contact.contact_id);
       setSelectedContactAppointments(apptsResp.appointments || []);
-      setSelectedContactCalls(callsResp.calls || []);
+
+      const callsResp = await apiClient.getContactCalls(contact.contact_id, 1);
+      if (typeof callsResp.total === 'number') {
+        setSelectedContactCallsTotal(callsResp.total);
+      } else {
+        setSelectedContactCallsTotal((callsResp.calls || []).length);
+      }
+      setSelectedContactCallsLoading(false);
     } catch (err: any) {
       console.error('Error loading customer details:', err);
       setError(err?.message || 'Failed to load customer details');
+      setSelectedContactCallsLoading(false);
     }
   };
 
@@ -345,11 +291,6 @@ export default function CustomersPage() {
                             No upcoming
                           </Badge>
                         )}
-                        {row.messageCount > 0 ? (
-                          <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200">
-                            {row.messageCount} SMS
-                          </Badge>
-                        ) : null}
                       </div>
                       <div className="text-sm text-slate-600 mt-1 truncate">{row.displayPhone}</div>
                       {row.contact.email ? <div className="text-sm text-slate-600 truncate">{row.contact.email}</div> : null}
@@ -409,85 +350,34 @@ export default function CustomersPage() {
                     </Badge>
                   </div>
                 </div>
-                <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3">
+                <button
+                  type="button"
+                  className="rounded-xl border border-slate-200 bg-slate-50/70 p-3 text-left transition hover:border-emerald-200 hover:bg-emerald-50/40"
+                  onClick={() => {
+                    setDetailsOpen(false);
+                    router.push(`${basePath}/calls?contact=${selectedContact.contact_id}`);
+                  }}
+                >
                   <p className="text-xs uppercase tracking-wide text-slate-500">Calls</p>
                   <div className="mt-2 flex items-center gap-2 text-sm text-slate-900">
                     <PhoneCall className="h-4 w-4 text-emerald-600" />
-                    {selectedContactCalls.length} total
+                    {selectedContactCallsLoading ? 'Loading...' : `${selectedContactCallsTotal ?? 0} total`}
                   </div>
-                </div>
-                <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3">
+                </button>
+                <button
+                  type="button"
+                  className="rounded-xl border border-slate-200 bg-slate-50/70 p-3 text-left transition hover:border-emerald-200 hover:bg-emerald-50/40"
+                  onClick={() => {
+                    setDetailsOpen(false);
+                    router.push(`${basePath}/messages?contact=${selectedContact.contact_id}`);
+                  }}
+                >
                   <p className="text-xs uppercase tracking-wide text-slate-500">Messages</p>
                   <div className="mt-2 flex items-center gap-2 text-sm text-slate-900">
                     <MessageCircle className="h-4 w-4 text-emerald-600" />
-                    {selectedContactMessages.length} total
+                    View messages
                   </div>
-                </div>
-              </div>
-
-              <div>
-                <div className="font-semibold text-gray-900 mb-2 flex items-center gap-2">
-                  <MessageCircle className="h-4 w-4 text-emerald-600" />
-                  Messages
-                </div>
-                {selectedContactMessages.length ? (
-                  <div className="space-y-3">
-                    {selectedContactMessages.map((msg) => (
-                      <div
-                        key={msg.id}
-                        className={`flex ${msg.direction === 'OUTBOUND' ? 'justify-end' : 'justify-start'}`}
-                      >
-                        <div
-                          className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm shadow-sm ${
-                            msg.direction === 'OUTBOUND'
-                              ? 'bg-emerald-600 text-white'
-                              : 'bg-slate-100 text-slate-900'
-                          }`}
-                        >
-                          <p>{msg.body}</p>
-                          <div className="mt-2 flex items-center gap-2 text-xs opacity-80">
-                            <span>{formatDate(msg.created_at)}</span>
-                            {msg.ai_handled ? (
-                              <span className="inline-flex items-center gap-1">
-                                <Sparkles className="h-3 w-3" /> AI
-                              </span>
-                            ) : null}
-                            {msg.status ? <span> - {msg.status}</span> : null}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-sm text-gray-600">No messages found.</div>
-                )}
-              </div>
-
-              <div>
-                <div className="font-semibold text-gray-900 mb-2">Previous calls</div>
-                {selectedContactCalls.length ? (
-                  <div className="space-y-2">
-                    {selectedContactCalls.map((c) => (
-                      <button
-                        key={c.call_id}
-                        type="button"
-                        className="w-full text-left border border-gray-200 rounded-lg p-3 hover:border-blue-500 hover:shadow-sm transition-all"
-                        onClick={() => router.push(`${basePath}/calls/${c.call_id}`)}
-                      >
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="text-sm text-gray-900 truncate">{c.status || 'Call'}</div>
-                          <div className="text-xs text-gray-500">{formatDate(c.started_at)}</div>
-                        </div>
-                        <div className="text-xs text-gray-500 mt-1">
-                          Duration: {formatDuration(c.duration_seconds)}
-                          {c.summary ? ` - ${c.summary}` : ''}
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-sm text-gray-600">No calls found.</div>
-                )}
+                </button>
               </div>
 
               <div>

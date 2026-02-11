@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiClient } from '@/lib/api-client';
 import { usePortalBasePath } from '@/lib/portal';
@@ -43,36 +43,92 @@ export default function CallsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [contactFilter, setContactFilter] = useState<string | null>(null);
+  const [pageSize] = useState(25);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageKeys, setPageKeys] = useState<(string | null)[]>([null]);
+  const [totalPages, setTotalPages] = useState<number | null>(null);
+  const [isPaging, setIsPaging] = useState(false);
 
   useEffect(() => {
-    loadCalls();
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const contact = params.get('contact');
+    setContactFilter(contact);
   }, []);
 
-  const loadCalls = async () => {
+  useEffect(() => {
+    void loadCallsPage(1, true);
+    void loadTotalCount();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [contactFilter]);
+
+  const loadTotalCount = async () => {
+    if (contactFilter) {
+      // Count is returned by contact call endpoint when needed.
+      return;
+    }
     try {
-      setIsLoading(true);
+      const res = await apiClient.getCallsCount();
+      const total = Number(res?.total || 0);
+      setTotalPages(Math.max(1, Math.ceil(total / pageSize)));
+    } catch {
+      setTotalPages(null);
+    }
+  };
+
+  const loadCallsPage = async (page: number, reset = false) => {
+    try {
+      if (reset) {
+        setIsLoading(true);
+        setCalls([]);
+        setCurrentPage(1);
+        setPageKeys([null]);
+        setTotalPages(null);
+      } else {
+        setIsPaging(true);
+      }
       setError(null);
 
-      const response = await apiClient.getCalls(50);
+      const previousKey = pageKeys[page - 1] ?? null;
+      const response = contactFilter
+        ? await apiClient.getContactCalls(contactFilter, pageSize, previousKey || undefined)
+        : await apiClient.getCalls(pageSize, previousKey || undefined);
+
       setCalls(response.calls || []);
+      const nextKey = response.lastEvaluatedKey ? JSON.stringify(response.lastEvaluatedKey) : null;
+      setPageKeys((prev) => {
+        const next = [...prev];
+        next[page] = nextKey;
+        return next;
+      });
+
+      if (contactFilter && typeof response.total === 'number') {
+        setTotalPages(Math.max(1, Math.ceil(response.total / pageSize)));
+      }
+
+      setCurrentPage(page);
     } catch (err: any) {
       console.error('Error loading calls:', err);
       setError(err.message || 'Failed to load calls');
     } finally {
       setIsLoading(false);
+      setIsPaging(false);
     }
   };
 
   const handleSearch = async () => {
     if (!searchQuery.trim()) {
-      loadCalls();
+      void loadCallsPage(1, true);
       return;
     }
 
     try {
       setIsLoading(true);
-      const results = await apiClient.searchCalls(searchQuery);
+      const results = await apiClient.searchCalls(searchQuery, pageSize);
       setCalls(results || []);
+      setTotalPages(1);
+      setCurrentPage(1);
     } catch (err: any) {
       console.error('Error searching calls:', err);
       setError(err.message || 'Search failed');
@@ -137,13 +193,89 @@ export default function CallsPage() {
     }
   };
 
+  const paginationOptions = useMemo(() => {
+    const pages = totalPages ? Array.from({ length: totalPages }, (_, idx) => idx + 1) : [1];
+    return pages;
+  }, [totalPages]);
+
+  const canGoPrev = currentPage > 1;
+  const canGoNext = totalPages ? currentPage < totalPages : Boolean(pageKeys[currentPage]);
+
+  const handlePageChange = async (page: number) => {
+    if (page === currentPage) return;
+    // Ensure we have the cursor for the requested page (cursor = previous page key)
+    if (!pageKeys[page - 1] && page > 1) {
+      // Load sequentially until we reach the desired page
+      let nextPage = currentPage;
+      while (nextPage < page && pageKeys[nextPage]) {
+        nextPage += 1;
+        await loadCallsPage(nextPage);
+      }
+      return;
+    }
+    await loadCallsPage(page);
+  };
+
+  const handleNext = async () => {
+    if (!canGoNext) return;
+    await handlePageChange(currentPage + 1);
+  };
+
+  const handlePrev = async () => {
+    if (!canGoPrev) return;
+    await handlePageChange(currentPage - 1);
+  };
+
+  const handleFirst = async () => {
+    await handlePageChange(1);
+  };
+
+  const handleLast = async () => {
+    if (!totalPages) return;
+    await handlePageChange(totalPages);
+  };
+
+  const PaginationControls = (
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="text-sm text-muted-foreground">
+        Page {currentPage} {totalPages ? `of ${totalPages}` : ''}
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <Button variant="outline" onClick={handleFirst} disabled={!canGoPrev || isPaging}>
+          First
+        </Button>
+        <Button variant="outline" onClick={handlePrev} disabled={!canGoPrev || isPaging}>
+          Previous
+        </Button>
+        <select
+          className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+          value={currentPage}
+          onChange={(e) => void handlePageChange(Number(e.target.value))}
+          disabled={isPaging}
+        >
+          {paginationOptions.map((page) => (
+            <option key={page} value={page}>
+              Page {page}
+            </option>
+          ))}
+        </select>
+        <Button variant="outline" onClick={handleNext} disabled={!canGoNext || isPaging}>
+          Next
+        </Button>
+        <Button variant="outline" onClick={handleLast} disabled={!totalPages || !canGoNext || isPaging}>
+          Last
+        </Button>
+      </div>
+    </div>
+  );
+
   if (error) {
     return (
       <div className="p-8">
         <div className="bg-red-50 border border-red-200 rounded-lg p-4">
           <p className="text-red-800">{error}</p>
           <button
-            onClick={loadCalls}
+            onClick={() => void loadCallsPage(1, true)}
             className="mt-2 text-sm text-red-600 hover:text-red-800 underline"
           >
             Try again
@@ -188,6 +320,7 @@ export default function CallsPage() {
           <CardTitle>Call History</CardTitle>
         </CardHeader>
         <CardContent>
+          <div className="mb-4">{PaginationControls}</div>
           {isLoading ? (
             <div className="space-y-3">
               {[1, 2, 3, 4, 5].map((i) => (
@@ -260,6 +393,7 @@ export default function CallsPage() {
               description="Your AI receptionist will handle calls automatically when your business is unavailable."
             />
           )}
+          <div className="mt-4">{PaginationControls}</div>
         </CardContent>
       </Card>
     </div>

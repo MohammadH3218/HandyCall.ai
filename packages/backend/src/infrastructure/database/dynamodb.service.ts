@@ -110,6 +110,7 @@ export class DynamoDBService implements OnModuleInit {
       scanIndexForward?: boolean;
       exclusiveStartKey?: Record<string, any>;
       filterExpression?: string;
+      select?: 'COUNT' | 'ALL_ATTRIBUTES';
     }
   ) {
     // Convert camelCase options to the AWS SDK v3 expected names.
@@ -125,6 +126,7 @@ export class DynamoDBService implements OnModuleInit {
       }),
       ...(options?.exclusiveStartKey && { ExclusiveStartKey: options.exclusiveStartKey }),
       ...(options?.filterExpression && { FilterExpression: options.filterExpression }),
+      ...(options?.select && { Select: options.select }),
     });
 
     const result = await this.docClient.send(command);
@@ -143,6 +145,7 @@ export class DynamoDBService implements OnModuleInit {
       expressionAttributeValues?: Record<string, any>;
       limit?: number;
       exclusiveStartKey?: Record<string, any>;
+      select?: 'COUNT' | 'ALL_ATTRIBUTES';
     }
   ) {
     // Convert camelCase to PascalCase for AWS SDK v3
@@ -153,6 +156,7 @@ export class DynamoDBService implements OnModuleInit {
       ...(options?.expressionAttributeValues && { ExpressionAttributeValues: options.expressionAttributeValues }),
       ...(options?.limit && { Limit: options.limit }),
       ...(options?.exclusiveStartKey && { ExclusiveStartKey: options.exclusiveStartKey }),
+      ...(options?.select && { Select: options.select }),
     });
 
     const result = await this.docClient.send(command);

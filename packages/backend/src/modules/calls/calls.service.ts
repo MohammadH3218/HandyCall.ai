@@ -63,6 +63,26 @@ export class CallsService {
     };
   }
 
+  async getCallsCount(companyId: string): Promise<number> {
+    let total = 0;
+    let lastKey: Record<string, any> | undefined;
+    do {
+      const result = await this.dynamodb.queryByCompany(
+        'calls',
+        companyId,
+        {},
+        {
+          indexName: 'date-index',
+          select: 'COUNT',
+          exclusiveStartKey: lastKey,
+        }
+      );
+      total += result.count || 0;
+      lastKey = result.lastEvaluatedKey as any;
+    } while (lastKey);
+    return total;
+  }
+
   async getCallById(companyId: string, callId: string): Promise<Call> {
     const raw = await this.dynamodb.get('calls', {
       company_id: companyId,

@@ -164,6 +164,8 @@ export default function MessagesPage() {
   }, []);
 
   const [searchQuery, setSearchQuery] = useState('');
+  const [pageSize] = useState(10);
+  const [currentPage, setCurrentPage] = useState(1);
   const router = useRouter();
   const basePath = usePortalBasePath();
 
@@ -176,10 +178,51 @@ export default function MessagesPage() {
     });
   }, [threads, searchQuery]);
 
+  const totalPages = Math.max(1, Math.ceil(filteredThreads.length / pageSize));
+  const pageStart = (currentPage - 1) * pageSize;
+  const pageThreads = filteredThreads.slice(pageStart, pageStart + pageSize);
+
   const handleSearch = () => {
     if (!filteredThreads.length) return;
+    setCurrentPage(1);
     router.push(`${basePath}/messages/${filteredThreads[0].id}`);
   };
+
+  const canGoPrev = currentPage > 1;
+  const canGoNext = currentPage < totalPages;
+
+  const PaginationControls = (
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="text-sm text-muted-foreground">
+        Page {currentPage} of {totalPages}
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <Button variant="outline" onClick={() => setCurrentPage(1)} disabled={!canGoPrev}>
+          First
+        </Button>
+        <Button variant="outline" onClick={() => setCurrentPage((p) => Math.max(1, p - 1))} disabled={!canGoPrev}>
+          Previous
+        </Button>
+        <select
+          className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+          value={currentPage}
+          onChange={(e) => setCurrentPage(Number(e.target.value))}
+        >
+          {Array.from({ length: totalPages }, (_, idx) => idx + 1).map((page) => (
+            <option key={page} value={page}>
+              Page {page}
+            </option>
+          ))}
+        </select>
+        <Button variant="outline" onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))} disabled={!canGoNext}>
+          Next
+        </Button>
+        <Button variant="outline" onClick={() => setCurrentPage(totalPages)} disabled={!canGoNext}>
+          Last
+        </Button>
+      </div>
+    </div>
+  );
 
   return (
     <div className="space-y-6 animate-fade-up">
@@ -215,8 +258,9 @@ export default function MessagesPage() {
           <CardTitle>Message inbox</CardTitle>
         </CardHeader>
         <CardContent>
+          <div className="mb-4">{PaginationControls}</div>
           <div className="space-y-3">
-            {filteredThreads.map((thread) => {
+            {pageThreads.map((thread) => {
               const lead = leadBadge(thread.lead_status);
               return (
                 <button
@@ -246,6 +290,7 @@ export default function MessagesPage() {
               );
             })}
           </div>
+          <div className="mt-4">{PaginationControls}</div>
         </CardContent>
       </Card>
     </div>

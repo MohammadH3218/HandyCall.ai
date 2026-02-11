@@ -51,11 +51,13 @@ export class ContactsController {
     @CompanyId() companyId: string,
     @Param('contactId') contactId: string,
     @Query('limit') limit?: string,
+    @Query('lastEvaluatedKey') lastEvaluatedKey?: string,
   ) {
-    const calls = await this.contactsService.getContactCalls(companyId, contactId, {
+    const result = await this.contactsService.getContactCalls(companyId, contactId, {
       limit: limit ? parseInt(limit, 10) : undefined,
+      lastEvaluatedKey: lastEvaluatedKey ? JSON.parse(lastEvaluatedKey) : undefined,
     });
-    return { calls };
+    return result;
   }
 
   @Post()

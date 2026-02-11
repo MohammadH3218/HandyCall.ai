@@ -14,6 +14,25 @@ function normalizePhone(input: string): string {
   return trimmed.startsWith('+') ? `+${digits}` : digits;
 }
 
+function buildPhoneVariants(input: string): string[] {
+  const trimmed = (input || '').trim();
+  if (!trimmed) return [];
+  const digits = trimmed.replace(/\D/g, '');
+  const variants = new Set<string>();
+  if (digits) {
+    variants.add(digits);
+    if (digits.length === 10) {
+      variants.add(`+1${digits}`);
+    } else if (digits.length === 11 && digits.startsWith('1')) {
+      variants.add(`+${digits}`);
+    }
+  }
+  if (trimmed.startsWith('+') && digits) {
+    variants.add(`+${digits}`);
+  }
+  return Array.from(variants).filter(Boolean);
+}
+
 export interface CreateContactDto {
   // Back-compat fields (older UI)
   name?: string;
@@ -275,20 +294,26 @@ export class ContactsService {
   async getContactAppointments(companyId: string, contactId: string): Promise<any[]> {
     const contact = await this.getContactById(companyId, contactId);
     const phone = normalizePhone(contact.phone_number || (contact as any).phone || '');
+    const phoneVariants = buildPhoneVariants(phone);
 
+    const phoneFilters = phoneVariants.map((_, idx) => `#contact_phone = :contact_phone_${idx}`);
     const scan = await this.dynamodb.scan('appointments', {
-      filterExpression: phone
-        ? '#company_id = :company_id AND ( #contact_id = :contact_id OR #contact_phone = :contact_phone )'
-        : '#company_id = :company_id AND #contact_id = :contact_id',
+      filterExpression:
+        phoneFilters.length > 0
+          ? `#company_id = :company_id AND ( #contact_id = :contact_id OR ${phoneFilters.join(' OR ')} )`
+          : '#company_id = :company_id AND #contact_id = :contact_id',
       expressionAttributeNames: {
         '#company_id': 'company_id',
         '#contact_id': 'contact_id',
-        ...(phone ? { '#contact_phone': 'contact_phone' } : {}),
+        ...(phoneFilters.length > 0 ? { '#contact_phone': 'contact_phone' } : {}),
       },
       expressionAttributeValues: {
         ':company_id': companyId,
         ':contact_id': contactId,
-        ...(phone ? { ':contact_phone': phone } : {}),
+        ...phoneVariants.reduce<Record<string, string>>((acc, val, idx) => {
+          acc[`:contact_phone_${idx}`] = val;
+          return acc;
+        }, {}),
       },
       limit: 500,
     });
@@ -299,30 +324,62 @@ export class ContactsService {
   async getContactCalls(
     companyId: string,
     contactId: string,
-    options?: { limit?: number }
-  ): Promise<any[]> {
+    options?: { limit?: number; lastEvaluatedKey?: any }
+  ): Promise<{ calls: any[]; lastEvaluatedKey?: any; total?: number }> {
     const contact = await this.getContactById(companyId, contactId);
     const phone = normalizePhone(contact.phone_number || (contact as any).phone || '');
+    const phoneVariants = buildPhoneVariants(phone);
 
     const limit = Math.min(Math.max(options?.limit ?? 50, 1), 200);
+    const phoneFilters = phoneVariants.map((_, idx) => `#from_number = :phone_${idx}`);
+    const expressionAttributeNames: Record<string, string> = {
+      '#company_id': 'company_id',
+      '#contact_id': 'contact_id',
+      ...(phoneFilters.length > 0 ? { '#from_number': 'from_number' } : {}),
+    };
+    const expressionAttributeValues: Record<string, any> = {
+      ':company_id': companyId,
+      ':contact_id': contactId,
+      ...phoneVariants.reduce<Record<string, string>>((acc, val, idx) => {
+        acc[`:phone_${idx}`] = val;
+        return acc;
+      }, {}),
+    };
+    const filterExpression =
+      phoneFilters.length > 0
+        ? `#company_id = :company_id AND (#contact_id = :contact_id OR ${phoneFilters.join(' OR ')})`
+        : '#company_id = :company_id AND #contact_id = :contact_id';
+
     const scan = await this.dynamodb.scan('calls', {
-      filterExpression: phone
-        ? '#company_id = :company_id AND (#contact_id = :contact_id OR #from_number = :phone)'
-        : '#company_id = :company_id AND #contact_id = :contact_id',
-      expressionAttributeNames: {
-        '#company_id': 'company_id',
-        '#contact_id': 'contact_id',
-        ...(phone ? { '#from_number': 'from_number' } : {}),
-      },
-      expressionAttributeValues: {
-        ':company_id': companyId,
-        ':contact_id': contactId,
-        ...(phone ? { ':phone': phone } : {}),
-      },
+      filterExpression,
+      expressionAttributeNames,
+      expressionAttributeValues,
       limit,
+      exclusiveStartKey: options?.lastEvaluatedKey,
     });
 
-    return (scan.items || [])
+    let total: number | undefined;
+    try {
+      let count = 0;
+      let lastKey: Record<string, any> | undefined;
+      do {
+        const res = await this.dynamodb.scan('calls', {
+          filterExpression,
+          expressionAttributeNames,
+          expressionAttributeValues,
+          limit: 1000,
+          exclusiveStartKey: lastKey,
+          select: 'COUNT',
+        });
+        count += res.count || 0;
+        lastKey = res.lastEvaluatedKey as any;
+      } while (lastKey);
+      total = count;
+    } catch {
+      total = undefined;
+    }
+
+    const calls = (scan.items || [])
       .sort((a: any, b: any) => (b?.started_at ?? b?.created_at ?? 0) - (a?.started_at ?? a?.created_at ?? 0))
       .slice(0, limit)
       .map((c: any) => ({
@@ -332,5 +389,6 @@ export class ContactsService {
         status: c.status,
         summary: c.summary,
       }));
+    return { calls, lastEvaluatedKey: scan.lastEvaluatedKey, total };
   }
 }
