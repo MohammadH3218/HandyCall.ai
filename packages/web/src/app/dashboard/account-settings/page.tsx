@@ -39,6 +39,9 @@ export default function AccountSettingsPage() {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
+  const normalizeUsPhone = (value: string) => value.replace(/\D/g, '').slice(0, 10);
+  const formatUsE164 = (digits: string) => (digits.length === 10 ? `+1${digits}` : digits);
+
   useEffect(() => {
     let mounted = true;
     apiClient
@@ -67,7 +70,7 @@ export default function AccountSettingsPage() {
       email,
       contact_email: contactEmail,
     });
-    setPhoneDraft(user?.phone_number || '');
+    setPhoneDraft(normalizeUsPhone(user?.phone_number || ''));
     setPhoneVerifiedAt((user as any)?.phone_verified_at || null);
   }, [user, storeUser, storeEmail]);
 
@@ -152,13 +155,18 @@ export default function AccountSettingsPage() {
 
   const handleSendPhoneCode = async () => {
     setPhoneMessage('');
-    if (!phoneDraft.trim()) {
+    const phoneDigits = normalizeUsPhone(phoneDraft);
+    if (!phoneDigits) {
       setPhoneMessage('Enter a phone number first.');
+      return;
+    }
+    if (phoneDigits.length !== 10) {
+      setPhoneMessage('Enter a 10-digit US phone number.');
       return;
     }
     setPhoneSending(true);
     try {
-      const response = await apiClient.sendPhoneUpdateCode(phoneDraft.trim());
+      const response = await apiClient.sendPhoneUpdateCode(formatUsE164(phoneDigits));
       setPhoneCode('');
       const delivery = response?.code_delivery_details || response?.CodeDeliveryDetails;
       const destination = delivery?.Destination || delivery?.destination;
@@ -300,16 +308,18 @@ export default function AccountSettingsPage() {
                 id="phone_number"
                 value={phoneDraft}
                 onChange={(e) => {
-                  setPhoneDraft(e.target.value);
+                  setPhoneDraft(normalizeUsPhone(e.target.value));
                   setPhoneCode('');
                 }}
-                placeholder="+15551234567"
+                placeholder="5551234567"
+                inputMode="numeric"
+                maxLength={10}
               />
               <Button
                 type="button"
                 variant="outline"
                 onClick={handleSendPhoneCode}
-                disabled={phoneSending}
+                disabled={phoneSending || normalizeUsPhone(phoneDraft).length !== 10}
               >
                 {phoneSending ? 'Sending...' : 'Send code'}
               </Button>

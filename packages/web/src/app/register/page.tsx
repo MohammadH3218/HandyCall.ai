@@ -86,6 +86,9 @@ export default function RegisterPage() {
   const [smsVerifying, setSmsVerifying] = useState(false);
   const [smsMessage, setSmsMessage] = useState('');
 
+  const normalizeUsPhone = (value: string) => value.replace(/\D/g, '').slice(0, 10);
+  const formatUsE164 = (digits: string) => (digits.length === 10 ? `+1${digits}` : digits);
+
   const handleSocialSignUp = async (provider: 'cognito-google' | 'cognito-apple') => {
     setError('');
     setSocialLoading(provider);
@@ -117,8 +120,13 @@ export default function RegisterPage() {
       setError('Password is required.');
       return;
     }
-    if (!phoneNumber.trim()) {
+    const phoneDigits = normalizeUsPhone(phoneNumber);
+    if (!phoneDigits) {
       setError('Phone number is required.');
+      return;
+    }
+    if (phoneDigits.length !== 10) {
+      setError('Enter a 10-digit US phone number.');
       return;
     }
     setSmsSending(true);
@@ -129,7 +137,7 @@ export default function RegisterPage() {
       const response = await apiClient.sendRegisterSms({
         email: email.trim(),
         password,
-        phone_number: phoneNumber.trim(),
+        phone_number: formatUsE164(phoneDigits),
         first_name: firstName || undefined,
         last_name: lastName || undefined,
       });
@@ -192,10 +200,11 @@ export default function RegisterPage() {
       const firstName = nameParts[0];
       const lastName = nameParts.slice(1).join(' ');
 
+      const phoneDigits = normalizeUsPhone(phoneNumber);
       await apiClient.register({
         email: email.trim(),
         password,
-        phone_number: phoneNumber.trim(),
+        phone_number: formatUsE164(phoneDigits),
         first_name: firstName || undefined,
         last_name: lastName || undefined,
       });
@@ -314,18 +323,20 @@ export default function RegisterPage() {
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="phone">Phone number</Label>
+                      <Label htmlFor="phone">Phone number (US)</Label>
                       <div className="flex flex-col gap-2 sm:flex-row">
                         <Input
                           id="phone"
                           type="tel"
                           value={phoneNumber}
                           onChange={(e) => {
-                            setPhoneNumber(e.target.value);
+                            setPhoneNumber(normalizeUsPhone(e.target.value));
                             setSmsVerified(false);
                             setSmsCode('');
                           }}
-                          placeholder="+15551234567"
+                          placeholder="5551234567"
+                          inputMode="numeric"
+                          maxLength={10}
                           required
                           disabled={isSubmitting || smsSending}
                         />
@@ -333,7 +344,7 @@ export default function RegisterPage() {
                           type="button"
                           variant="outline"
                           onClick={handleSendSms}
-                          disabled={isSubmitting || smsSending || !phoneNumber.trim()}
+                          disabled={isSubmitting || smsSending || normalizeUsPhone(phoneNumber).length !== 10}
                         >
                           {smsSending ? 'Sending...' : 'Send SMS code'}
                         </Button>
