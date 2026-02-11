@@ -50,7 +50,7 @@ interface ChartPoint {
 }
 
 export default function DashboardPage() {
-  const { company } = useAuthStore();
+  const { company, isAuthenticated, isLoading: authLoading } = useAuthStore();
   const basePath = usePortalBasePath();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [recentCalls, setRecentCalls] = useState<RecentCall[]>([]);
@@ -69,12 +69,15 @@ export default function DashboardPage() {
     year: false,
   });
   const [chartError, setChartError] = useState<string | null>(null);
+  const [hasLoaded, setHasLoaded] = useState(false);
 
   useEffect(() => {
+    if (authLoading || !isAuthenticated || hasLoaded) return;
+    setHasLoaded(true);
     loadDashboardData();
     void loadChartData('week');
     void loadChartData('month');
-  }, []);
+  }, [authLoading, isAuthenticated, hasLoaded]);
 
   const loadDashboardData = async () => {
     try {
@@ -92,6 +95,9 @@ export default function DashboardPage() {
       setUpcomingAppointments(appointmentsData || []);
     } catch (err: any) {
       console.error('Error loading dashboard:', err);
+      if (!isAuthenticated || authLoading) {
+        return;
+      }
       setError(err.message || 'Failed to load dashboard data');
     } finally {
       setIsLoading(false);
@@ -125,6 +131,7 @@ export default function DashboardPage() {
   };
 
   const loadChartData = async (range: ChartRange) => {
+    if (!isAuthenticated || authLoading) return;
     if (chartLoading[range]) return;
     if (chartSeries[range]?.length) return;
 
