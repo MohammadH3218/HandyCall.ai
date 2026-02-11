@@ -556,7 +556,9 @@ export class AuthService {
     )}&token=${encodeURIComponent(token)}`;
 
     const fromAddress =
-      this.configService.get<string>('NO_CONTACT_EMAIL') || 'no-contact@handycall.org';
+      this.configService.get<string>('NO_REPLY_EMAIL') ||
+      this.configService.get<string>('NO_CONTACT_EMAIL') ||
+      'no-reply@handycall.org';
     const region = this.configService.get<string>('SES_REGION') || this.configService.get<string>('AWS_REGION') || 'us-east-1';
     const subject = 'Reset your HandyCall password';
     const text =
