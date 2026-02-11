@@ -16,7 +16,7 @@ type HandycallEmailInput = {
 
 export function renderHandycallEmail(input: HandycallEmailInput): string {
   const brand = input.brandName || 'HandyCall';
-  const logoUrl = input.logoUrl || 'https://handycall.org/images/logo-words.svg';
+  const logoUrl = input.logoUrl || 'https://handycall.org/images/logo-words.png';
   const preheader = input.preheader || '';
   const greeting = input.greeting ? `<p style="margin:0 0 16px;font-size:16px;line-height:24px;color:#0f172a;">${input.greeting}</p>` : '';
   const footer = input.footer
@@ -56,7 +56,7 @@ export function renderHandycallEmail(input: HandycallEmailInput): string {
               </td>
             </tr>
           </table>
-          <p style="margin:16px 0 0;font-size:12px;color:#94a3b8;">${brand} · Automated email from HandyCall</p>
+          <p style="margin:16px 0 0;font-size:12px;color:#94a3b8;">${brand} - Automated email from HandyCall</p>
         </td>
       </tr>
     </table>
