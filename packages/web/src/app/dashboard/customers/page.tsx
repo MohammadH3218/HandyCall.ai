@@ -47,6 +47,16 @@ function formatMoney(cents?: number) {
 type LeadStatusLabel = 'Scheduled' | 'Lead' | 'No Lead';
 type AppointmentStatusLabel = 'Upcoming' | 'Ongoing' | 'Completed' | 'Scheduled';
 
+const leadBadge = (status: LeadStatusLabel) => {
+  if (status === 'Scheduled') {
+    return { label: 'Scheduled', className: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
+  }
+  if (status === 'Lead') {
+    return { label: 'Lead', className: 'bg-amber-50 text-amber-800 border-amber-200' };
+  }
+  return { label: 'No Lead', className: 'bg-gray-50 text-gray-700 border-gray-200' };
+};
+
 const appointmentBadge = (status: AppointmentStatusLabel) => {
   if (status === 'Upcoming') {
     return { label: 'Upcoming', className: 'bg-blue-50 text-blue-700 border-blue-200' };
