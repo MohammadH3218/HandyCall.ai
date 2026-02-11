@@ -12,8 +12,6 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Logo } from '@/components/ui/logo';
 import { useAuthStore } from '@/stores/auth-store';
-import { UserRole } from '@handycall/shared';
-import { apiClient } from '@/lib/api-client';
 import { Badge } from '@/components/ui/badge';
 import { SiteHeader } from '@/components/marketing/site-header';
 import { SiteFooter } from '@/components/marketing/site-footer';
@@ -56,16 +54,32 @@ function LoginPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const callbackUrl = searchParams?.get('callbackUrl') || undefined;
-  const { status, data: session } = useSession();
-  const { login, changePassword, requiresPasswordChange, passwordChangeSession, passwordChangePoolType, email: storeEmail, isAuthenticated, userRole, checkAuth } = useAuthStore();
+  const { status } = useSession();
+  const { changePassword, requiresPasswordChange, passwordChangeSession, passwordChangePoolType, email: storeEmail } = useAuthStore();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
+  const [needsVerification, setNeedsVerification] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [socialLoading, setSocialLoading] = useState<'cognito-google' | 'cognito-apple' | null>(null);
   const [showPasswordChangeModal, setShowPasswordChangeModal] = useState(false);
+  const isAdminLogin = typeof window !== 'undefined' && window.location.pathname.startsWith('/admin');
+
+  const parsePasswordChangeError = (message: string) => {
+    if (!message?.startsWith('NEW_PASSWORD_REQUIRED:')) return null;
+    const encoded = message.split('NEW_PASSWORD_REQUIRED:')[1];
+    if (!encoded) return null;
+    try {
+      const decoded = typeof window !== 'undefined' && typeof window.atob === 'function'
+        ? window.atob(encoded)
+        : Buffer.from(encoded, 'base64').toString('utf-8');
+      return JSON.parse(decoded);
+    } catch {
+      return null;
+    }
+  };
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -127,81 +141,52 @@ function LoginPageInner() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setNeedsVerification(false);
     setIsLoading(true);
 
     try {
-      // First, hit backend directly to detect password challenge and pool type
-      const prelogin = await apiClient.login({ email, password } as any);
-
-      if (prelogin?.requiresPasswordChange && prelogin.session) {
-        useAuthStore.setState({
-          requiresPasswordChange: true,
-          passwordChangeSession: prelogin.session,
-          passwordChangePoolType: (prelogin.poolType as any) || 'users',
-          email,
-          userRole: prelogin.userRole || null,
-          isAuthenticated: false,
-          isLoading: false,
-        });
-        setShowPasswordChangeModal(true);
-        setIsLoading(false);
-        return;
-      }
-
-      // Use NextAuth credentials with manual navigation to avoid callback loops
       const result = await signIn('credentials', {
         email,
         password,
         redirect: false,
+        callbackUrl: callbackUrl || (isAdminLogin ? '/admin' : '/dashboard'),
       });
 
       if (result?.error) {
-        setError(result.error || 'Invalid email or password');
-      } else {
-        // Successful login - wait for session to be established before checking auth
-        // Retry up to 5 times with delay to allow NextAuth session to be fully established
-        let session = null;
-        let attempts = 0;
-        const maxAttempts = 5;
-        
-        while (!session && attempts < maxAttempts) {
-          await new Promise(resolve => setTimeout(resolve, 200 * (attempts + 1))); // Increasing delay
-          session = await getSession();
-          attempts++;
-        }
-        
-        if (!session) {
-          setError('Login successful but session could not be established. Please try again.');
+        const parsed = parsePasswordChangeError(result.error);
+        if (parsed?.code === 'NEW_PASSWORD_REQUIRED' && parsed?.session) {
+          useAuthStore.setState({
+            requiresPasswordChange: true,
+            passwordChangeSession: parsed.session,
+            passwordChangePoolType: parsed.poolType || 'users',
+            email: parsed.email || email,
+            userRole: parsed.userRole || null,
+            isAuthenticated: false,
+            isLoading: false,
+          });
+          setShowPasswordChangeModal(true);
           setIsLoading(false);
           return;
         }
 
-        // Wait a bit more and then check auth
-        await new Promise(resolve => setTimeout(resolve, 300));
-        await checkAuth();
-        
-        // Verify auth was successful
-        const state = useAuthStore.getState();
-        if (!state.isAuthenticated) {
-          // Retry checkAuth once more
-          await new Promise(resolve => setTimeout(resolve, 300));
-          await checkAuth();
-        }
-
-        const role =
-          (session as any)?.user?.role as UserRole | undefined ||
-          (session as any)?.userRole as UserRole | undefined;
-        const poolType = (session as any)?.poolType as string | undefined;
-        const derivedRole =
-          role ||
-          (poolType === 'admin' ? UserRole.ADMIN : undefined);
-
-        if (derivedRole === UserRole.ADMIN) {
-          router.push('/admin');
-        } else {
-          router.push('/dashboard');
-        }
+        const requiresVerification =
+          result.error?.includes('verify your email') || result.error?.includes('Email not verified');
+        const message = requiresVerification
+          ? 'Please verify your email before signing in.'
+          : result.error || 'Invalid email or password';
+        setError(message);
+        setNeedsVerification(requiresVerification);
+        setIsLoading(false);
+        return;
       }
+
+      // Successful login - redirect immediately and let the destination handle session hydration.
+      if (result?.url) {
+        router.replace(result.url);
+        return;
+      }
+
+      router.replace(callbackUrl || (isAdminLogin ? '/admin' : '/dashboard'));
     } catch (err: any) {
       setError(err.message || 'Invalid email or password');
     }
@@ -245,57 +230,16 @@ function LoginPageInner() {
         return;
       }
 
-      // Wait for session to be established
-      let postSession = null;
-      let attempts = 0;
-      const maxAttempts = 5;
-      
-      while (!postSession && attempts < maxAttempts) {
-        await new Promise(resolve => setTimeout(resolve, 200 * (attempts + 1)));
-        postSession = await getSession();
-        attempts++;
-      }
-      
-      if (!postSession) {
-        setError('Password changed but session could not be established. Please try logging in again.');
-        setIsLoading(false);
-        return;
-      }
-      
-      // Wait a bit more and then check auth
-      await new Promise(resolve => setTimeout(resolve, 300));
-      await checkAuth();
-      
-      // Verify auth was successful
-      const state = useAuthStore.getState();
-      if (!state.isAuthenticated) {
-        // Retry checkAuth once more
-        await new Promise(resolve => setTimeout(resolve, 300));
-        await checkAuth();
-      }
-      
-      const role =
-        (postSession as any)?.user?.role as UserRole | undefined ||
-        (postSession as any)?.userRole as UserRole | undefined;
-      const poolType = (postSession as any)?.poolType as string | undefined;
-      const derivedRole =
-        role ||
-        (poolType === 'admin' ? UserRole.ADMIN : undefined);
-
       // Close modal and reset form
       setShowPasswordChangeModal(false);
       setNewPassword('');
       setConfirmPassword('');
       if (loginResult?.url) {
-        router.push(loginResult.url);
+        router.replace(loginResult.url);
         return;
       }
 
-      if (derivedRole === UserRole.ADMIN) {
-        router.push(callbackUrl || '/admin');
-      } else {
-        router.push(callbackUrl || '/dashboard');
-      }
+      router.replace(callbackUrl || (isAdminLogin ? '/admin' : '/dashboard'));
     } catch (err: any) {
       setError(err.message || 'Failed to change password');
     } finally {
@@ -381,7 +325,14 @@ function LoginPageInner() {
                   <CardContent className="space-y-4">
                     {error && (
                       <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
-                        {error}
+                    {error}
+                    {needsVerification && (
+                      <span className="mt-2 block text-sm text-primary">
+                        <Link href={`/verify-email?email=${encodeURIComponent(email)}`} className="font-semibold hover:underline">
+                          Verify your email
+                        </Link>
+                      </span>
+                    )}
                       </div>
                     )}
 

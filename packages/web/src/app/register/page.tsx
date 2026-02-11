@@ -3,9 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { getSession, signIn } from 'next-auth/react';
 import { apiClient } from '@/lib/api-client';
-import { useAuthStore } from '@/stores/auth-store';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -73,7 +71,6 @@ const AppleIcon = ({ className }: { className?: string }) => (
 
 export default function RegisterPage() {
   const router = useRouter();
-  const { checkAuth } = useAuthStore();
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -127,30 +124,7 @@ export default function RegisterPage() {
         last_name: lastName || undefined,
       });
 
-      const result = await signIn('credentials', {
-        email: email.trim(),
-        password,
-        redirect: false,
-      });
-
-      if (result?.error) {
-        setError(result.error || 'Unable to sign in after registration.');
-        return;
-      }
-
-      let session = null;
-      for (let attempt = 0; attempt < 5 && !session; attempt += 1) {
-        await new Promise((resolve) => setTimeout(resolve, 200 * (attempt + 1)));
-        session = await getSession();
-      }
-
-      if (!session) {
-        setError('Account created, but the session could not be established. Please sign in.');
-        return;
-      }
-
-      await checkAuth();
-      router.push('/onboarding');
+      router.push(`/verify-email?email=${encodeURIComponent(email.trim())}`);
     } catch (err: any) {
       setError(err?.message || 'Registration failed');
     } finally {
@@ -197,7 +171,7 @@ export default function RegisterPage() {
               <Card className="shadow-xl shadow-emerald-100">
                 <CardHeader>
                   <CardTitle>Create account</CardTitle>
-                  <CardDescription>Start with email and password. You will finish setup next.</CardDescription>
+                  <CardDescription>Start with email and password. We will email you a verification code next.</CardDescription>
                 </CardHeader>
                 <form onSubmit={handleSubmit}>
                   <CardContent className="space-y-4">

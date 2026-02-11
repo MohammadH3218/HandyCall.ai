@@ -37,13 +37,18 @@ export class UsersService {
     companyServiceType?: ServiceType,
     companyEmail?: string,
     companyPhone?: string,
-    companyTimezone?: string
+    companyTimezone?: string,
+    options?: { skipCognitoCreate?: boolean; skipCognitoCheck?: boolean }
   ): Promise<{ user: User }> {
     const isAdminPool = poolType === 'admin';
+    const skipCognitoCreate = options?.skipCognitoCreate === true;
+    const skipCognitoCheck = options?.skipCognitoCheck === true;
 
     // Early duplicate check across DynamoDB and Cognito
     const existingUser = await this.findByEmail(email);
-    const cognitoUserExists = await this.cognitoService.userExists(email, poolType).catch(() => false);
+    const cognitoUserExists = skipCognitoCheck
+      ? false
+      : await this.cognitoService.userExists(email, poolType).catch(() => false);
 
     if (existingUser || cognitoUserExists) {
       throw new ConflictException({
@@ -107,32 +112,34 @@ export class UsersService {
     // Always set password as permanent - users can change later in settings
     const makePasswordPermanent = true;
 
-    // Create user in Cognito with proper attributes
-    const fullName = `${firstName} ${lastName}`;
-    await this.cognitoService.createUser(
-      email,
-      password,
-      isAdminPool ? undefined : resolvedCompanyId,
-      fullName,
-      poolType,
-      { makePasswordPermanent }
-    );
-
-    // Update Cognito custom attributes with company name if provided
-    if (!isAdminPool && companyName) {
-      await this.cognitoService.updateUserAttributes(
+    if (!skipCognitoCreate) {
+      // Create user in Cognito with proper attributes
+      const fullName = `${firstName} ${lastName}`;
+      await this.cognitoService.createUser(
         email,
-        { 'custom:company_name': companyName },
-        poolType
+        password,
+        isAdminPool ? undefined : resolvedCompanyId,
+        fullName,
+        poolType,
+        { makePasswordPermanent }
       );
-    }
 
-    if (!isAdminPool && resolvedCompanyId) {
-      await this.cognitoService.updateUserAttributes(
-        email,
-        { 'custom:company_id': resolvedCompanyId },
-        poolType
-      );
+      // Update Cognito custom attributes with company name if provided
+      if (!isAdminPool && companyName) {
+        await this.cognitoService.updateUserAttributes(
+          email,
+          { 'custom:company_name': companyName },
+          poolType
+        );
+      }
+
+      if (!isAdminPool && resolvedCompanyId) {
+        await this.cognitoService.updateUserAttributes(
+          email,
+          { 'custom:company_id': resolvedCompanyId },
+          poolType
+        );
+      }
     }
 
     // Store user data. No password hash stored.
@@ -144,11 +151,13 @@ export class UsersService {
     try {
       await this.dynamodb.put(this.tableName, dbUser);
     } catch (dbErr) {
-      // Roll back Cognito user to avoid orphaned identities
-      try {
-        await this.cognitoService.deleteUser(email, poolType);
-      } catch (rollbackErr) {
-        console.error('[UsersService] Failed to rollback Cognito user after DB error:', rollbackErr);
+      if (!skipCognitoCreate) {
+        // Roll back Cognito user to avoid orphaned identities
+        try {
+          await this.cognitoService.deleteUser(email, poolType);
+        } catch (rollbackErr) {
+          console.error('[UsersService] Failed to rollback Cognito user after DB error:', rollbackErr);
+        }
       }
       throw dbErr;
     }

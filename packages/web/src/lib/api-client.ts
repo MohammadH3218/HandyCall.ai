@@ -1,4 +1,13 @@
-import { ApiResponse, LoginRequest, LoginResponse, RegisterRequest, RegisterResponse } from '@handycall/shared';
+import {
+  ApiResponse,
+  LoginRequest,
+  RegisterRequest,
+  RegisterResponse,
+  ConfirmSignUpRequest,
+  ConfirmSignUpResponse,
+  ResendConfirmationRequest,
+  ResendConfirmationResponse,
+} from '@handycall/shared';
 
 // BFF Pattern: Point to Next.js internal API proxy instead of external NestJS
 // The proxy handles authentication server-side using NextAuth cookies
@@ -75,33 +84,6 @@ class ApiClient {
       }
 
       if (!response.ok) {
-        // Handle 401 Unauthorized - user needs to log in again
-        if (response.status === 401 || response.status === 403) {
-          console.warn('[API Client] Authentication failed - clearing tokens');
-
-          // Clear all auth data from localStorage
-          if (typeof window !== 'undefined') {
-            localStorage.removeItem('access_token');
-            localStorage.removeItem('id_token');
-            localStorage.removeItem('refresh_token');
-            localStorage.removeItem('email');
-            localStorage.removeItem('user_role');
-
-            // Only redirect if not already on login or register page
-            // Use a timeout to prevent redirect loops during login flow
-            const currentPath = window.location.pathname;
-            const loginPath = currentPath.startsWith(ADMIN_PATH_PREFIX) ? '/admin/login' : '/login';
-            if (currentPath !== loginPath && currentPath !== '/register') {
-              // Delay redirect slightly to allow any in-flight auth to complete
-              setTimeout(() => {
-                if (window.location.pathname !== loginPath && window.location.pathname !== '/register') {
-                  window.location.href = loginPath;
-                }
-              }, 100);
-            }
-          }
-        }
-
         const errorMessage = data?.error?.message || data?.message || `Request failed with status ${response.status}`;
         throw new Error(errorMessage);
       }
@@ -119,6 +101,22 @@ class ApiClient {
   // Auth endpoints
   async register(data: RegisterRequest): Promise<RegisterResponse> {
     const response = await this.request<RegisterResponse>('/auth/register', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    return response.data!;
+  }
+
+  async confirmSignUp(data: ConfirmSignUpRequest): Promise<ConfirmSignUpResponse> {
+    const response = await this.request<ConfirmSignUpResponse>('/auth/confirm-signup', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    return response.data!;
+  }
+
+  async resendConfirmation(data: ResendConfirmationRequest): Promise<ResendConfirmationResponse> {
+    const response = await this.request<ResendConfirmationResponse>('/auth/resend-confirmation', {
       method: 'POST',
       body: JSON.stringify(data),
     });

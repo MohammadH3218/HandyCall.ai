@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException, BadRequestException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, BadRequestException, ConflictException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { UsersService } from '../users/users.service';
@@ -87,10 +87,42 @@ export class AuthService {
       createdCompany = true;
     }
 
-    // Create owner user (or attach if company already existed but user didn't)
-    let user;
+    // Ensure user doesn't already exist
+    const existingUser = await this.usersService.findByEmail(email);
+    const cognitoUserExists = await this.cognitoService.userExists(email, 'users').catch(() => false);
+    if (existingUser || cognitoUserExists) {
+      throw new ConflictException({
+        message: 'User with this email already exists',
+        fields: { email: 'User with this email already exists' },
+      });
+    }
+
+    // Sign up user in Cognito (email verification required)
     try {
-      const created = await this.usersService.createUser(
+      const name = `${derivedFirstName} ${derivedLastName}`.trim();
+      const attributes: Record<string, string> = {
+        name,
+        given_name: derivedFirstName,
+        family_name: derivedLastName,
+        'custom:company_id': company.company_id,
+        'custom:company_name': company.company_name,
+      };
+      await this.cognitoService.signUpUser(email, password, attributes);
+    } catch (error) {
+      // Roll back orphaned company if Cognito signup failed
+      if (createdCompany && company?.company_id) {
+        try {
+          await this.companiesService.deleteCompany(company.company_id);
+        } catch (rollbackError) {
+          console.error('[AuthService] Failed to rollback company after Cognito signup error:', rollbackError);
+        }
+      }
+      throw error;
+    }
+
+    // Create owner user record in DynamoDB (skip Cognito create)
+    try {
+      await this.usersService.createUser(
         company.company_id,
         undefined, // companyName - already have company_id
         email,
@@ -98,11 +130,20 @@ export class AuthService {
         derivedFirstName,
         derivedLastName,
         UserRole.OWNER,
-        'users'
+        'users',
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        { skipCognitoCreate: true, skipCognitoCheck: true }
       );
-      user = created.user;
     } catch (error) {
-      // Roll back orphaned company if user creation failed
+      // Roll back Cognito user + company if DB user creation failed
+      try {
+        await this.cognitoService.deleteUser(email, 'users');
+      } catch (rollbackError) {
+        console.error('[AuthService] Failed to rollback Cognito user after DB error:', rollbackError);
+      }
       if (createdCompany && company?.company_id) {
         try {
           await this.companiesService.deleteCompany(company.company_id);
@@ -116,15 +157,35 @@ export class AuthService {
     // Create default agent config
     await this.agentConfigService.createDefaultConfig(company.company_id);
 
-    // Generate tokens
-    const tokens = this.generateTokens(user.user_id, company.company_id, email, user.role);
-
     return {
-      user,
-      company,
-      access_token: tokens.access_token,
-      refresh_token: tokens.refresh_token,
+      ok: true,
+      email,
+      requires_email_verification: true,
     };
+  }
+
+  async confirmSignUp(email: string, code: string) {
+    const trimmedEmail = String(email || '').trim();
+    const trimmedCode = String(code || '').trim();
+    if (!isValidEmail(trimmedEmail)) {
+      throw new BadRequestException('Invalid email format');
+    }
+    if (!trimmedCode) {
+      throw new BadRequestException('Verification code is required');
+    }
+
+    await this.cognitoService.confirmSignUp(trimmedEmail, trimmedCode);
+    return { ok: true };
+  }
+
+  async resendSignUpCode(email: string) {
+    const trimmedEmail = String(email || '').trim();
+    if (!isValidEmail(trimmedEmail)) {
+      throw new BadRequestException('Invalid email format');
+    }
+
+    await this.cognitoService.resendConfirmationCode(trimmedEmail);
+    return { ok: true };
   }
 
 

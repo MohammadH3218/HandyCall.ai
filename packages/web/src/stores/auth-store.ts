@@ -115,20 +115,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       const response = await apiClient.register(data);
 
-      // Set tokens
-      apiClient.setAccessToken(response.access_token);
-
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('access_token', response.access_token);
-        localStorage.setItem('refresh_token', response.refresh_token);
-      }
-
       set({
-        user: response.user,
-        company: response.company,
-        accessToken: response.access_token,
-        refreshToken: response.refresh_token,
-        isAuthenticated: true,
+        email: response.email || data?.email || null,
+        isAuthenticated: false,
         isLoading: false,
       });
     } catch (error) {

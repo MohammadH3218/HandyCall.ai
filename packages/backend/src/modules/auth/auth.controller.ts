@@ -2,6 +2,8 @@ import { Controller, Post, Body, HttpCode, HttpStatus, UseGuards } from '@nestjs
 import { AuthService } from './auth.service';
 import { Public } from '../../common/decorators/public.decorator';
 import { RegisterDto } from './dto/register.dto';
+import { ConfirmSignUpDto } from './dto/confirm-signup.dto';
+import { ResendConfirmationDto } from './dto/resend-confirmation.dto';
 import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
@@ -71,6 +73,20 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   async confirmForgotPassword(@Body() dto: ConfirmForgotPasswordDto) {
     return this.authService.confirmPasswordReset(dto.email, dto.token, dto.new_password);
+  }
+
+  @Public()
+  @Post('confirm-signup')
+  @HttpCode(HttpStatus.OK)
+  async confirmSignUp(@Body() dto: ConfirmSignUpDto) {
+    return this.authService.confirmSignUp(dto.email, dto.code);
+  }
+
+  @Public()
+  @Post('resend-confirmation')
+  @HttpCode(HttpStatus.OK)
+  async resendConfirmation(@Body() dto: ResendConfirmationDto) {
+    return this.authService.resendSignUpCode(dto.email);
   }
 
   @UseGuards(JwtAuthGuard)

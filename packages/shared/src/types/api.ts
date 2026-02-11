@@ -99,10 +99,26 @@ export interface RegisterRequest {
 }
 
 export interface RegisterResponse {
-  user: User;
-  company: Company;
-  access_token: string;
-  refresh_token: string;
+  ok: true;
+  email: string;
+  requires_email_verification: true;
+}
+
+export interface ConfirmSignUpRequest {
+  email: string;
+  code: string;
+}
+
+export interface ConfirmSignUpResponse {
+  ok: true;
+}
+
+export interface ResendConfirmationRequest {
+  email: string;
+}
+
+export interface ResendConfirmationResponse {
+  ok: true;
 }
 
 export interface RefreshTokenRequest {

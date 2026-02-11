@@ -177,6 +177,18 @@ export const authOptions: NextAuthOptions = {
 
           const data = await response.json();
 
+          if (data?.requiresPasswordChange && data?.session) {
+            const payload = {
+              code: 'NEW_PASSWORD_REQUIRED',
+              session: data.session,
+              poolType: data.poolType || data.pool_type || 'users',
+              email: credentials.email,
+              userRole: data.userRole,
+            };
+            const encoded = Buffer.from(JSON.stringify(payload), 'utf-8').toString('base64');
+            throw new Error(`NEW_PASSWORD_REQUIRED:${encoded}`);
+          }
+
           // Backend returns Cognito tokens via loginWithCognito
           // Extract tokens from response
           const idToken = data.id_token || data.idToken;

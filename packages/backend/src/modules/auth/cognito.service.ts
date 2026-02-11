@@ -11,6 +11,9 @@ import {
   AdminDisableUserCommand,
   AdminEnableUserCommand,
   AdminSetUserPasswordCommand,
+  SignUpCommand,
+  ConfirmSignUpCommand,
+  ResendConfirmationCodeCommand,
   ListUsersCommand,
   AuthFlowType,
   ChallengeNameType,
@@ -78,6 +81,10 @@ export class CognitoService {
         
         // If this is NotAuthorizedException and we have more pools to try, continue
         // Otherwise, let it fall through to handle after the loop
+        if (error.name === 'UserNotConfirmedException') {
+          throw new BadRequestException('Email not verified. Please verify your email before signing in.');
+        }
+
         if (error.name === 'NotAuthorizedException' && !isLastPool) {
           continue;
         }
@@ -91,6 +98,10 @@ export class CognitoService {
     }
 
     // If we get here, all pools failed
+    if (lastError?.name === 'UserNotConfirmedException') {
+      throw new BadRequestException('Email not verified. Please verify your email before signing in.');
+    }
+
     if (lastError?.name === 'NotAuthorizedException' || lastError?.name === 'UserNotFoundException') {
       throw new UnauthorizedException('Invalid email or password');
     }
@@ -398,6 +409,96 @@ export class CognitoService {
     } catch (error: any) {
       console.error('[CognitoService] Failed to create user:', error);
       throw new BadRequestException(`Failed to create user: ${error.message}`);
+    }
+  }
+
+  /**
+   * Sign up a user in the users pool (email verification required).
+   */
+  async signUpUser(
+    email: string,
+    password: string,
+    attributes?: Record<string, string>
+  ): Promise<void> {
+    if (!this.usersClientId || !this.usersClientSecret) {
+      throw new BadRequestException('Users pool client not configured');
+    }
+
+    const secretHash = this.calculateSecretHash(email, this.usersClientId, this.usersClientSecret);
+
+    const userAttributes = [
+      { Name: 'email', Value: email },
+    ];
+
+    if (attributes) {
+      for (const [key, value] of Object.entries(attributes)) {
+        if (value === undefined || value === null || value === '') continue;
+        userAttributes.push({ Name: key, Value: value });
+      }
+    }
+
+    try {
+      const command = new SignUpCommand({
+        ClientId: this.usersClientId,
+        Username: email,
+        Password: password,
+        SecretHash: secretHash,
+        UserAttributes: userAttributes,
+      });
+
+      await this.cognitoClient.send(command);
+    } catch (error: any) {
+      console.error('[CognitoService] Failed to sign up user:', error);
+      throw new BadRequestException(error?.message || 'Failed to sign up user');
+    }
+  }
+
+  /**
+   * Confirm a user's sign-up using the emailed code.
+   */
+  async confirmSignUp(email: string, code: string): Promise<void> {
+    if (!this.usersClientId || !this.usersClientSecret) {
+      throw new BadRequestException('Users pool client not configured');
+    }
+
+    const secretHash = this.calculateSecretHash(email, this.usersClientId, this.usersClientSecret);
+
+    try {
+      const command = new ConfirmSignUpCommand({
+        ClientId: this.usersClientId,
+        Username: email,
+        ConfirmationCode: code,
+        SecretHash: secretHash,
+      });
+
+      await this.cognitoClient.send(command);
+    } catch (error: any) {
+      console.error('[CognitoService] Failed to confirm sign up:', error);
+      throw new BadRequestException(error?.message || 'Failed to confirm sign up');
+    }
+  }
+
+  /**
+   * Resend the confirmation code email for sign-up.
+   */
+  async resendConfirmationCode(email: string): Promise<void> {
+    if (!this.usersClientId || !this.usersClientSecret) {
+      throw new BadRequestException('Users pool client not configured');
+    }
+
+    const secretHash = this.calculateSecretHash(email, this.usersClientId, this.usersClientSecret);
+
+    try {
+      const command = new ResendConfirmationCodeCommand({
+        ClientId: this.usersClientId,
+        Username: email,
+        SecretHash: secretHash,
+      });
+
+      await this.cognitoClient.send(command);
+    } catch (error: any) {
+      console.error('[CognitoService] Failed to resend confirmation code:', error);
+      throw new BadRequestException(error?.message || 'Failed to resend confirmation code');
     }
   }
 

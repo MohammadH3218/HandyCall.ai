@@ -8,6 +8,8 @@ const NEST_API_URL = process.env.NEXT_PUBLIC_API_URL || "https://api.handycall.o
 const PUBLIC_PATHS = [
   "auth/login",
   "auth/register",
+  "auth/confirm-signup",
+  "auth/resend-confirmation",
   "auth/refresh",
   "auth/change-password", // Allow password changes without auth
 ];
