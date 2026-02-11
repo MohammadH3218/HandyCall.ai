@@ -29,13 +29,31 @@ export default function AccountSettingsPage() {
   });
   const [profileSaving, setProfileSaving] = useState(false);
   const [companySaving, setCompanySaving] = useState(false);
-  const [passwordSaving, setPasswordSaving] = useState(false);
-  const [currentPassword, setCurrentPassword] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordSending, setPasswordSending] = useState(false);
+  const [profileEditing, setProfileEditing] = useState(false);
+  const [companyEditing, setCompanyEditing] = useState(false);
 
-  const normalizeUsPhone = (value: string) => value.replace(/\D/g, '').slice(0, 10);
+  const normalizeUsPhone = (value: string) => {
+    const digits = value.replace(/\D/g, '');
+    if (digits.length === 11 && digits.startsWith('1')) {
+      return digits.slice(1);
+    }
+    return digits.slice(0, 10);
+  };
   const formatUsE164 = (digits: string) => (digits.length === 10 ? `+1${digits}` : digits);
+  const resetProfileDraft = () => {
+    const firstName = user?.first_name || storeUser?.first_name || '';
+    const lastName = user?.last_name || storeUser?.last_name || '';
+    const email = user?.email || storeEmail || '';
+    const contactEmail = (user as any)?.contact_email || '';
+    setProfileDraft({
+      first_name: firstName,
+      last_name: lastName,
+      email,
+      contact_email: contactEmail,
+      phone_number: normalizeUsPhone(user?.phone_number || ''),
+    });
+  };
 
   useEffect(() => {
     let mounted = true;
@@ -55,17 +73,8 @@ export default function AccountSettingsPage() {
   }, [storeUser]);
 
   useEffect(() => {
-    const firstName = user?.first_name || storeUser?.first_name || '';
-    const lastName = user?.last_name || storeUser?.last_name || '';
-    const email = user?.email || storeEmail || '';
-    const contactEmail = (user as any)?.contact_email || '';
-    setProfileDraft({
-      first_name: firstName,
-      last_name: lastName,
-      email,
-      contact_email: contactEmail,
-      phone_number: normalizeUsPhone(user?.phone_number || ''),
-    });
+    resetProfileDraft();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, storeUser, storeEmail]);
 
   useEffect(() => {
@@ -118,6 +127,7 @@ export default function AccountSettingsPage() {
       if (emailChanged) {
         await signOut({ callbackUrl: '/login' });
       }
+      setProfileEditing(false);
     } catch (error: any) {
       toast({
         title: 'Update failed',
@@ -142,6 +152,7 @@ export default function AccountSettingsPage() {
         title: 'Company updated',
         description: 'Company details saved successfully.',
       });
+      setCompanyEditing(false);
     } catch (error: any) {
       toast({
         title: 'Update failed',
@@ -153,41 +164,31 @@ export default function AccountSettingsPage() {
     }
   };
 
-  const handleUpdatePassword = async () => {
-    if (!currentPassword || !newPassword || !confirmPassword) {
+  const handleSendPasswordReset = async () => {
+    const email = storeEmail || user?.email;
+    if (!email) {
       toast({
-        title: 'Missing fields',
-        description: 'Please fill out all password fields.',
+        title: 'Missing email',
+        description: 'We could not find your email address for a password reset.',
         variant: 'destructive',
       });
       return;
     }
-    if (newPassword !== confirmPassword) {
-      toast({
-        title: 'Password mismatch',
-        description: 'New password and confirmation do not match.',
-        variant: 'destructive',
-      });
-      return;
-    }
-    setPasswordSaving(true);
+    setPasswordSending(true);
     try {
-      await apiClient.updatePassword(currentPassword, newPassword);
-      setCurrentPassword('');
-      setNewPassword('');
-      setConfirmPassword('');
+      await apiClient.requestPasswordReset(email);
       toast({
-        title: 'Password updated',
-        description: 'Your password has been changed successfully.',
+        title: 'Password reset sent',
+        description: 'Check your email for a reset link.',
       });
     } catch (error: any) {
       toast({
-        title: 'Update failed',
-        description: error?.message || 'Could not update password.',
+        title: 'Request failed',
+        description: error?.message || 'Could not send password reset email.',
         variant: 'destructive',
       });
     } finally {
-      setPasswordSaving(false);
+      setPasswordSending(false);
     }
   };
 
@@ -200,9 +201,25 @@ export default function AccountSettingsPage() {
       />
 
       <Card>
-        <CardHeader>
-          <CardTitle>Profile</CardTitle>
-          <CardDescription>Keep your name and email up to date.</CardDescription>
+        <CardHeader className="flex flex-row items-start justify-between gap-4">
+          <div>
+            <CardTitle>Profile</CardTitle>
+            <CardDescription>Keep your name and email up to date.</CardDescription>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => {
+              if (profileEditing) {
+                resetProfileDraft();
+                setProfileEditing(false);
+              } else {
+                setProfileEditing(true);
+              }
+            }}
+          >
+            {profileEditing ? 'Cancel' : 'Edit'}
+          </Button>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-4 md:grid-cols-2">
@@ -212,6 +229,7 @@ export default function AccountSettingsPage() {
                 id="first_name"
                 value={profileDraft.first_name}
                 onChange={(e) => setProfileDraft((prev) => ({ ...prev, first_name: e.target.value }))}
+                disabled={!profileEditing}
               />
             </div>
             <div className="space-y-2">
@@ -220,6 +238,7 @@ export default function AccountSettingsPage() {
                 id="last_name"
                 value={profileDraft.last_name}
                 onChange={(e) => setProfileDraft((prev) => ({ ...prev, last_name: e.target.value }))}
+                disabled={!profileEditing}
               />
             </div>
           </div>
@@ -230,6 +249,7 @@ export default function AccountSettingsPage() {
               type="email"
               value={profileDraft.email}
               onChange={(e) => setProfileDraft((prev) => ({ ...prev, email: e.target.value }))}
+              disabled={!profileEditing}
             />
           </div>
           <div className="space-y-2">
@@ -245,7 +265,9 @@ export default function AccountSettingsPage() {
               }
               placeholder="5551234567"
               inputMode="numeric"
+              type="tel"
               maxLength={10}
+              disabled={!profileEditing}
             />
           </div>
           <div className="space-y-2">
@@ -255,61 +277,62 @@ export default function AccountSettingsPage() {
               type="email"
               value={profileDraft.contact_email}
               onChange={(e) => setProfileDraft((prev) => ({ ...prev, contact_email: e.target.value }))}
+              disabled={!profileEditing}
             />
           </div>
-          <div className="flex justify-end">
-            <Button onClick={handleSaveProfile} disabled={profileSaving}>
-              {profileSaving ? 'Saving...' : 'Save profile'}
-            </Button>
-          </div>
+          {profileEditing && (
+            <div className="flex justify-end">
+              <Button onClick={handleSaveProfile} disabled={profileSaving}>
+                {profileSaving ? 'Saving...' : 'Save profile'}
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader>
           <CardTitle>Password</CardTitle>
-          <CardDescription>Change your password to keep your account secure.</CardDescription>
+          <CardDescription>Send a password reset email to update your password.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="current_password">Current password</Label>
-            <Input
-              id="current_password"
-              type="password"
-              value={currentPassword}
-              onChange={(e) => setCurrentPassword(e.target.value)}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="new_password">New password</Label>
-            <Input
-              id="new_password"
-              type="password"
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="confirm_password">Confirm new password</Label>
-            <Input
-              id="confirm_password"
-              type="password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-            />
+          <div className="rounded-lg border border-emerald-100 bg-emerald-50/40 p-4 text-sm text-emerald-800">
+            We will email you a secure link to reset your password.
           </div>
           <div className="flex justify-end">
-            <Button onClick={handleUpdatePassword} disabled={passwordSaving}>
-              {passwordSaving ? 'Saving...' : 'Update password'}
+            <Button onClick={handleSendPasswordReset} disabled={passwordSending}>
+              {passwordSending ? 'Sending...' : 'Send password reset email'}
             </Button>
           </div>
         </CardContent>
       </Card>
 
       <Card>
-        <CardHeader>
-          <CardTitle>Company</CardTitle>
-          <CardDescription>Update company name and contact email.</CardDescription>
+        <CardHeader className="flex flex-row items-start justify-between gap-4">
+          <div>
+            <CardTitle>Company</CardTitle>
+            <CardDescription>Update company name and contact email.</CardDescription>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => {
+              if (companyEditing) {
+                if (company) {
+                  setCompanyDraft({
+                    company_name: company.company_name || '',
+                    email: company.email || '',
+                  });
+                }
+                setCompanyEditing(false);
+              } else {
+                setCompanyEditing(true);
+              }
+            }}
+            disabled={!company}
+          >
+            {companyEditing ? 'Cancel' : 'Edit'}
+          </Button>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
@@ -318,7 +341,7 @@ export default function AccountSettingsPage() {
               id="company_name"
               value={companyDraft.company_name}
               onChange={(e) => setCompanyDraft((prev) => ({ ...prev, company_name: e.target.value }))}
-              disabled={!company}
+              disabled={!company || !companyEditing}
             />
           </div>
           <div className="space-y-2">
@@ -328,14 +351,16 @@ export default function AccountSettingsPage() {
               type="email"
               value={companyDraft.email}
               onChange={(e) => setCompanyDraft((prev) => ({ ...prev, email: e.target.value }))}
-              disabled={!company}
+              disabled={!company || !companyEditing}
             />
           </div>
-          <div className="flex justify-end">
-            <Button onClick={handleSaveCompany} disabled={companySaving || !company}>
-              {companySaving ? 'Saving...' : 'Save company'}
-            </Button>
-          </div>
+          {companyEditing && (
+            <div className="flex justify-end">
+              <Button onClick={handleSaveCompany} disabled={companySaving || !company}>
+                {companySaving ? 'Saving...' : 'Save company'}
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

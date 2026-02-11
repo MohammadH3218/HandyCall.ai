@@ -165,6 +165,14 @@ class ApiClient {
     return response.data!;
   }
 
+  async requestPasswordReset(email: string): Promise<any> {
+    const response = await this.request<any>('/auth/forgot-password', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    });
+    return response.data ?? response;
+  }
+
   // Company endpoints
   async getMyCompany(): Promise<any> {
     const response = await this.request<any>('/companies/me', {

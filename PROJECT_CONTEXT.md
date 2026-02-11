@@ -228,6 +228,7 @@ HandyCall/
 - Mobile-first design patterns
 - Subtle animations (Framer Motion allowed)
 - Accessibility (WCAG 2.1 AA minimum)
+- **Account/settings forms**: avoid always-editable text fields; require an explicit **Edit** action to enable changes
 
 ### Dashboard Home (Owner View)
 - Today's schedule
