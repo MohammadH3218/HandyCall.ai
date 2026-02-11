@@ -1,12 +1,21 @@
 'use client';
 
-import { Suspense, useState } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { SiteHeader } from '@/components/marketing/site-header';
+
+const maskEmail = (value: string) => {
+  const trimmed = value.trim();
+  if (!trimmed.includes('@')) return trimmed;
+  const [local, domain] = trimmed.split('@');
+  if (!local || !domain) return trimmed;
+  const maskedLocal = local.length <= 2 ? `${local[0] || ''}*` : `${local.slice(0, 2)}***`;
+  return `${maskedLocal}@${domain}`;
+};
 
 function ResetPasswordForm() {
   const searchParams = useSearchParams();
@@ -20,10 +29,24 @@ function ResetPasswordForm() {
   const [confirm, setConfirm] = useState('');
   const [status, setStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
+  const maskedEmail = useMemo(() => maskEmail(email), [email]);
+
+  useEffect(() => {
+    if (!emailParam && !tokenParam) return;
+    const url = new URL(window.location.href);
+    url.searchParams.delete('email');
+    url.searchParams.delete('token');
+    window.history.replaceState({}, document.title, url.toString());
+  }, [emailParam, tokenParam]);
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     setErrorMessage('');
+    if (!email || !token) {
+      setStatus('error');
+      setErrorMessage('Reset link is missing or expired. Please request a new one.');
+      return;
+    }
     if (password !== confirm) {
       setStatus('error');
       setErrorMessage('Passwords do not match.');
@@ -59,12 +82,8 @@ function ResetPasswordForm() {
           <CardContent>
             <form className="space-y-4" onSubmit={handleSubmit}>
               <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="token">Reset token</Label>
-                <Input id="token" value={token} onChange={(e) => setToken(e.target.value)} required />
+                <Label>Email</Label>
+                <Input value={maskedEmail || 'Unknown'} readOnly />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="password">New password</Label>
