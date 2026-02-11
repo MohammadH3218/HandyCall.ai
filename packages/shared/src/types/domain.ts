@@ -221,6 +221,8 @@ export interface User {
   company_id: UUID;
   email: string;
   phone_number?: PhoneNumber;
+  phone_verified_at?: Timestamp;
+  contact_email?: string;
   first_name: string;
   last_name: string;
   role: UserRole;

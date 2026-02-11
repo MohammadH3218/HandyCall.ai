@@ -149,6 +149,8 @@ export const authOptions: NextAuthOptions = {
       credentials: {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
+        sms_code: { label: "SMS Code", type: "text" },
+        verification_id: { label: "Verification ID", type: "text" },
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) {
@@ -156,17 +158,31 @@ export const authOptions: NextAuthOptions = {
         }
 
         try {
+          const smsCode = (credentials as any)?.sms_code;
+          const verificationId = (credentials as any)?.verification_id;
+          const endpoint =
+            smsCode && verificationId ? "auth/login/verify-sms" : "auth/login";
+          const payload =
+            smsCode && verificationId
+              ? {
+                  email: credentials.email,
+                  password: credentials.password,
+                  session: verificationId,
+                  code: smsCode,
+                }
+              : {
+                  email: credentials.email,
+                  password: credentials.password,
+                };
+
           // Use backend's login endpoint which handles Cognito authentication
           // This avoids needing client secret in Next.js and reuses existing backend logic
-          const response = await fetch(`${API_URL}/auth/login`, {
+          const response = await fetch(`${API_URL}/${endpoint}`, {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
             },
-            body: JSON.stringify({
-              email: credentials.email,
-              password: credentials.password,
-            }),
+            body: JSON.stringify(payload),
           });
 
           if (!response.ok) {

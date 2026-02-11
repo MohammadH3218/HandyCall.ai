@@ -3,9 +3,8 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { getSession, signIn } from 'next-auth/react';
+import { signIn } from 'next-auth/react';
 import { apiClient } from '@/lib/api-client';
-import { useAuthStore } from '@/stores/auth-store';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -73,14 +72,19 @@ const AppleIcon = ({ className }: { className?: string }) => (
 
 export default function RegisterPage() {
   const router = useRouter();
-  const { checkAuth } = useAuthStore();
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [socialLoading, setSocialLoading] = useState<'cognito-google' | 'cognito-apple' | null>(null);
+  const [smsCode, setSmsCode] = useState('');
+  const [smsVerified, setSmsVerified] = useState(false);
+  const [smsSending, setSmsSending] = useState(false);
+  const [smsVerifying, setSmsVerifying] = useState(false);
+  const [smsMessage, setSmsMessage] = useState('');
 
   const handleSocialSignUp = async (provider: 'cognito-google' | 'cognito-apple') => {
     setError('');
@@ -94,6 +98,69 @@ export default function RegisterPage() {
     } catch (err: any) {
       setError(err?.message || 'Unable to start social sign up.');
       setSocialLoading(null);
+    }
+  };
+
+  const handleSendSms = async () => {
+    setError('');
+    setSmsMessage('');
+    const trimmedName = fullName.trim();
+    if (!trimmedName) {
+      setError('Full name is required.');
+      return;
+    }
+    if (!email.trim()) {
+      setError('Email is required.');
+      return;
+    }
+    if (!password) {
+      setError('Password is required.');
+      return;
+    }
+    if (!phoneNumber.trim()) {
+      setError('Phone number is required.');
+      return;
+    }
+    setSmsSending(true);
+    try {
+      const nameParts = trimmedName.split(' ').filter(Boolean);
+      const firstName = nameParts[0];
+      const lastName = nameParts.slice(1).join(' ');
+      const response = await apiClient.sendRegisterSms({
+        email: email.trim(),
+        password,
+        phone_number: phoneNumber.trim(),
+        first_name: firstName || undefined,
+        last_name: lastName || undefined,
+      });
+      setSmsVerified(false);
+      setSmsCode('');
+      const delivery = response?.code_delivery_details || response?.CodeDeliveryDetails;
+      const destination = delivery?.Destination || delivery?.destination;
+      setSmsMessage(destination ? `Verification code sent to ${destination}.` : 'Verification code sent.');
+    } catch (err: any) {
+      setError(err?.message || 'Unable to send SMS code.');
+    } finally {
+      setSmsSending(false);
+    }
+  };
+
+  const handleVerifySms = async () => {
+    setError('');
+    setSmsMessage('');
+    if (!smsCode.trim()) {
+      setError('Enter the verification code.');
+      return;
+    }
+    setSmsVerifying(true);
+    try {
+      await apiClient.verifyRegisterSms(email.trim(), smsCode.trim());
+      setSmsVerified(true);
+      setSmsMessage('Phone number verified.');
+    } catch (err: any) {
+      setError(err?.message || 'Verification failed.');
+    } finally {
+      setSmsVerifying(false);
     }
   };
 
@@ -115,6 +182,11 @@ export default function RegisterPage() {
         setIsSubmitting(false);
         return;
       }
+      if (!smsVerified) {
+        setError('Verify your phone number before creating the account.');
+        setIsSubmitting(false);
+        return;
+      }
 
       const nameParts = trimmedName ? trimmedName.split(' ').filter(Boolean) : [];
       const firstName = nameParts[0];
@@ -123,34 +195,11 @@ export default function RegisterPage() {
       await apiClient.register({
         email: email.trim(),
         password,
+        phone_number: phoneNumber.trim(),
         first_name: firstName || undefined,
         last_name: lastName || undefined,
       });
-
-      const result = await signIn('credentials', {
-        email: email.trim(),
-        password,
-        redirect: false,
-      });
-
-      if (result?.error) {
-        setError(result.error || 'Unable to sign in after registration.');
-        return;
-      }
-
-      let session = null;
-      for (let attempt = 0; attempt < 5 && !session; attempt += 1) {
-        await new Promise((resolve) => setTimeout(resolve, 200 * (attempt + 1)));
-        session = await getSession();
-      }
-
-      if (!session) {
-        setError('Account created, but the session could not be established. Please sign in.');
-        return;
-      }
-
-      await checkAuth();
-      router.push('/onboarding');
+      router.push('/login?registered=1');
     } catch (err: any) {
       setError(err?.message || 'Registration failed');
     } finally {
@@ -253,11 +302,66 @@ export default function RegisterPage() {
                         id="email"
                         type="email"
                         value={email}
-                        onChange={(e) => setEmail(e.target.value)}
+                        onChange={(e) => {
+                          setEmail(e.target.value);
+                          setSmsVerified(false);
+                          setSmsCode('');
+                        }}
                         placeholder="you@business.com"
                         required
                         disabled={isSubmitting}
                       />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="phone">Phone number</Label>
+                      <div className="flex flex-col gap-2 sm:flex-row">
+                        <Input
+                          id="phone"
+                          type="tel"
+                          value={phoneNumber}
+                          onChange={(e) => {
+                            setPhoneNumber(e.target.value);
+                            setSmsVerified(false);
+                            setSmsCode('');
+                          }}
+                          placeholder="+15551234567"
+                          required
+                          disabled={isSubmitting || smsSending}
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={handleSendSms}
+                          disabled={isSubmitting || smsSending || !phoneNumber.trim()}
+                        >
+                          {smsSending ? 'Sending...' : 'Send SMS code'}
+                        </Button>
+                      </div>
+                      {smsMessage && (
+                        <div className="flex flex-col gap-2 sm:flex-row">
+                          <Input
+                            id="sms-code"
+                            value={smsCode}
+                            onChange={(e) => setSmsCode(e.target.value)}
+                            placeholder="Enter code"
+                            disabled={isSubmitting || smsVerifying}
+                          />
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={handleVerifySms}
+                            disabled={isSubmitting || smsVerifying || !smsCode.trim()}
+                          >
+                            {smsVerifying ? 'Verifying...' : smsVerified ? 'Verified' : 'Verify'}
+                          </Button>
+                        </div>
+                      )}
+                      {smsMessage && (
+                        <p className={`text-xs ${smsVerified ? 'text-emerald-600' : 'text-slate-500'}`}>
+                          {smsMessage}
+                        </p>
+                      )}
                     </div>
 
                     <div className="space-y-2">
@@ -266,7 +370,11 @@ export default function RegisterPage() {
                         id="password"
                         type="password"
                         value={password}
-                        onChange={(e) => setPassword(e.target.value)}
+                        onChange={(e) => {
+                          setPassword(e.target.value);
+                          setSmsVerified(false);
+                          setSmsCode('');
+                        }}
                         placeholder="Minimum 8 characters"
                         required
                         disabled={isSubmitting}
@@ -287,7 +395,7 @@ export default function RegisterPage() {
                     </div>
                   </CardContent>
                   <CardFooter className="flex flex-col gap-3">
-                    <Button type="submit" className="w-full" disabled={isSubmitting}>
+                    <Button type="submit" className="w-full" disabled={isSubmitting || !smsVerified}>
                       {isSubmitting ? 'Creating account...' : 'Create account'}
                     </Button>
                     <p className="text-center text-xs text-muted-foreground">

@@ -37,7 +37,9 @@ export class UsersService {
     companyServiceType?: ServiceType,
     companyEmail?: string,
     companyPhone?: string,
-    companyTimezone?: string
+    companyTimezone?: string,
+    userPhone?: string,
+    skipCognitoCreate: boolean = false
   ): Promise<{ user: User }> {
     const isAdminPool = poolType === 'admin';
 
@@ -50,12 +52,15 @@ export class UsersService {
     console.log('[DEBUG] User exists in Cognito:', cognitoUserExists);
     console.log('[DEBUG] Pool type:', poolType);
 
-    if (existingUser || cognitoUserExists) {
+    if (existingUser || (cognitoUserExists && !skipCognitoCreate)) {
       console.log('[DEBUG] DUPLICATE DETECTED - Throwing 409 error');
       throw new ConflictException({
         message: 'User with this email already exists',
         fields: { email: 'User with this email already exists' },
       });
+    }
+    if (skipCognitoCreate && !cognitoUserExists) {
+      throw new BadRequestException('Cognito user not found for this email. Verify SMS code first.');
     }
 
     // If company_name is provided but no company_id, create a new company
@@ -98,11 +103,14 @@ export class UsersService {
     const userId = uuidv4();
     const timestamp = Date.now();
 
+    const normalizedUserPhone =
+      userPhone && isValidPhoneNumber(userPhone) ? formatPhoneNumber(userPhone) : undefined;
+
     const user: User = {
       company_id: resolvedCompanyId,
       user_id: userId,
       email,
-      phone_number: undefined,
+      phone_number: normalizedUserPhone,
       first_name: firstName,
       last_name: lastName,
       role: resolvedRole,
@@ -119,24 +127,35 @@ export class UsersService {
       poolType,
       companyId: resolvedCompanyId,
       makePasswordPermanent,
+      skipCognitoCreate,
     });
 
-    // Create user in Cognito with proper attributes
-    const fullName = `${firstName} ${lastName}`;
-    await this.cognitoService.createUser(
-      email,
-      password,
-      isAdminPool ? undefined : resolvedCompanyId,
-      fullName,
-      poolType,
-      { makePasswordPermanent }
-    );
+    if (!skipCognitoCreate) {
+      // Create user in Cognito with proper attributes
+      const fullName = `${firstName} ${lastName}`;
+      await this.cognitoService.createUser(
+        email,
+        password,
+        isAdminPool ? undefined : resolvedCompanyId,
+        fullName,
+        poolType,
+        { makePasswordPermanent }
+      );
+    }
 
     // Update Cognito custom attributes with company name if provided
     if (!isAdminPool && companyName) {
       await this.cognitoService.updateUserAttributes(
         email,
         { 'custom:company_name': companyName },
+        poolType
+      );
+    }
+
+    if (!isAdminPool && resolvedCompanyId) {
+      await this.cognitoService.updateUserAttributes(
+        email,
+        { 'custom:company_id': resolvedCompanyId },
         poolType
       );
     }
@@ -338,6 +357,9 @@ export class UsersService {
       first_name?: string;
       last_name?: string;
       contact_email?: string;
+      email?: string;
+      phone_number?: string;
+      phone_verified_at?: number;
     }
   ): Promise<User> {
     const user = await this.findById(companyId, userId);
@@ -348,9 +370,17 @@ export class UsersService {
     const firstName = updates.first_name?.trim();
     const lastName = updates.last_name?.trim();
     const contactEmail = updates.contact_email?.trim();
+    const nextEmail = updates.email?.trim();
+    const nextPhone = updates.phone_number?.trim();
 
     if (contactEmail && !isValidEmail(contactEmail)) {
       throw new BadRequestException('Invalid contact email');
+    }
+    if (nextEmail && !isValidEmail(nextEmail)) {
+      throw new BadRequestException('Invalid email');
+    }
+    if (nextPhone && !isValidPhoneNumber(nextPhone)) {
+      throw new BadRequestException('Invalid phone number format (use E.164: +1234567890)');
     }
 
     const updatedData: Record<string, any> = {
@@ -360,6 +390,9 @@ export class UsersService {
     if (firstName) updatedData.first_name = firstName;
     if (lastName) updatedData.last_name = lastName;
     if (contactEmail) updatedData.contact_email = contactEmail;
+    if (nextEmail) updatedData.email = nextEmail;
+    if (nextPhone) updatedData.phone_number = formatPhoneNumber(nextPhone);
+    if (updates.phone_verified_at) updatedData.phone_verified_at = updates.phone_verified_at;
 
     const result = await this.dynamodb.update(
       this.tableName,
@@ -378,6 +411,14 @@ export class UsersService {
     if (firstName || lastName) {
       attributesToUpdate['name'] = [firstName || user.first_name, lastName || user.last_name].filter(Boolean).join(' ');
     }
+    if (nextEmail && nextEmail !== user.email) {
+      attributesToUpdate['email'] = nextEmail;
+      attributesToUpdate['email_verified'] = 'true';
+    }
+    if (nextPhone) {
+      attributesToUpdate['phone_number'] = formatPhoneNumber(nextPhone);
+      attributesToUpdate['phone_number_verified'] = 'true';
+    }
 
     if (Object.keys(attributesToUpdate).length > 0) {
       try {
@@ -386,6 +427,28 @@ export class UsersService {
         console.warn('[UsersService] Failed to update Cognito name attributes for profile update', err);
       }
     }
+
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { password_hash, ...userWithoutPassword } = result as any;
+    return userWithoutPassword as User;
+  }
+
+  async markPhoneVerified(companyId: string, userId: string, phoneNumber: string): Promise<User> {
+    const user = await this.findById(companyId, userId);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    const formatted = formatPhoneNumber(phoneNumber);
+    const result = await this.dynamodb.update(
+      this.tableName,
+      { company_id: companyId, user_id: userId },
+      {
+        phone_number: formatted,
+        phone_verified_at: Date.now(),
+        updated_at: Date.now(),
+      }
+    );
 
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { password_hash, ...userWithoutPassword } = result as any;

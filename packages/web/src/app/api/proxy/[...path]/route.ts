@@ -10,6 +10,10 @@ const PUBLIC_PATHS = [
   "auth/register",
   "auth/refresh",
   "auth/change-password", // Allow password changes without auth
+  "auth/login/sms",
+  "auth/login/verify-sms",
+  "auth/sms/send",
+  "auth/sms/verify",
 ];
 
 export async function GET(
@@ -56,7 +60,7 @@ async function handleRequest(
 
   // 1. Check if user is authenticated (SKIP check if path is public)
   // This fixes the "chicken and egg" problem - users need to login before having a session
-  const bearerToken = (session as any)?.idToken || (session as any)?.accessToken;
+  const bearerToken = (session as any)?.accessToken || (session as any)?.idToken;
   
   // For non-public paths, require both session and bearer token
   if (!isPublicPath && (!session || !bearerToken)) {

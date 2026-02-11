@@ -125,6 +125,30 @@ class ApiClient {
     return response.data!;
   }
 
+  async sendRegisterSms(input: { email: string; password: string; phone_number: string; first_name?: string; last_name?: string }): Promise<any> {
+    const response = await this.request<any>('/auth/sms/send', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+    return response.data ?? response;
+  }
+
+  async verifyRegisterSms(email: string, code: string): Promise<any> {
+    const response = await this.request<any>('/auth/sms/verify', {
+      method: 'POST',
+      body: JSON.stringify({ email, code }),
+    });
+    return response.data ?? response;
+  }
+
+  async requestLoginSms(email: string, password: string): Promise<any> {
+    const response = await this.request<any>('/auth/login/sms', {
+      method: 'POST',
+      body: JSON.stringify({ email, password }),
+    });
+    return response.data ?? response;
+  }
+
   async login(data: LoginRequest): Promise<any> {
     const response = await this.request<any>('/auth/login', {
       method: 'POST',
@@ -151,6 +175,14 @@ class ApiClient {
     return response.data ?? response;
   }
 
+  async updatePassword(currentPassword: string, newPassword: string): Promise<any> {
+    const response = await this.request<any>('/auth/update-password', {
+      method: 'POST',
+      body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+    });
+    return response.data ?? response;
+  }
+
   async refreshToken(refreshToken: string, email: string): Promise<{ access_token: string; id_token: string }> {
     const response = await this.request<{ access_token: string; id_token: string }>('/auth/refresh', {
       method: 'POST',
@@ -172,6 +204,11 @@ class ApiClient {
       method: 'PUT',
       body: JSON.stringify(updates),
     });
+    return response.data ?? response;
+  }
+
+  async getMyUser(): Promise<any> {
+    const response = await this.request<any>('/users/me', { method: 'GET' });
     return response.data ?? response;
   }
 
@@ -664,10 +701,26 @@ class ApiClient {
     return response.data ?? response;
   }
 
-  async updateMyProfile(data: { first_name?: string; last_name?: string; contact_email?: string }): Promise<any> {
+  async updateMyProfile(data: { first_name?: string; last_name?: string; contact_email?: string; email?: string; phone_number?: string; phone_verified_at?: number }): Promise<any> {
     const response = await this.request<any>('/users/me', {
       method: 'PUT',
       body: JSON.stringify(data),
+    });
+    return response.data ?? response;
+  }
+
+  async sendPhoneUpdateCode(phoneNumber: string): Promise<any> {
+    const response = await this.request<any>('/users/me/phone/send', {
+      method: 'POST',
+      body: JSON.stringify({ phone_number: phoneNumber }),
+    });
+    return response.data ?? response;
+  }
+
+  async verifyPhoneUpdateCode(code: string): Promise<any> {
+    const response = await this.request<any>('/users/me/phone/verify', {
+      method: 'POST',
+      body: JSON.stringify({ code }),
     });
     return response.data ?? response;
   }

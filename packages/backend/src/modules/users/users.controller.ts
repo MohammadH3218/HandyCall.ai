@@ -9,22 +9,27 @@ import {
   Query,
   UseGuards,
   NotFoundException,
-  BadRequestException
+  BadRequestException,
+  Req
 } from '@nestjs/common';
 import { UsersService } from './users.service';
+import { CognitoService } from '../auth/cognito.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CompanyId, UserId, UserRoleParam } from '../../common/decorators/auth.decorator';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
-import { User, UserRole } from '@handycall/shared';
+import { User, UserRole, isValidPhoneNumber, formatPhoneNumber } from '@handycall/shared';
 
 type UserWithCompany = User & { company_name?: string };
 
 @Controller('users')
 @UseGuards(JwtAuthGuard)
 export class UsersController {
-  constructor(private usersService: UsersService) {}
+  constructor(
+    private usersService: UsersService,
+    private cognitoService: CognitoService
+  ) {}
 
   /**
    * Update the current user's profile
@@ -40,6 +45,101 @@ export class UsersController {
     }
 
     return this.usersService.updateMyProfile(companyId, userId, dto);
+  }
+
+  /**
+   * Get the current user's profile
+   */
+  @Get('me')
+  async getMyProfile(
+    @CompanyId() companyId: string,
+    @UserId() userId: string
+  ): Promise<User> {
+    if (!companyId || !userId) {
+      throw new BadRequestException('Invalid user context');
+    }
+
+    const user = await this.usersService.findById(companyId, userId);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+    return user;
+  }
+
+  /**
+   * Send verification code for updating phone number
+   */
+  @Post('me/phone/send')
+  async sendPhoneVerification(
+    @CompanyId() companyId: string,
+    @UserId() userId: string,
+    @Body() body: { phone_number: string },
+    @Req() req: any
+  ) {
+    if (!companyId || !userId) {
+      throw new BadRequestException('Invalid user context');
+    }
+    if (!body?.phone_number) {
+      throw new BadRequestException('Phone number is required');
+    }
+    if (!isValidPhoneNumber(body.phone_number)) {
+      throw new BadRequestException('Invalid phone number format (use E.164: +1234567890)');
+    }
+    const user = await this.usersService.findById(companyId, userId);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    const authHeader = String(req?.headers?.authorization || '');
+    const accessToken = authHeader.startsWith('Bearer ')
+      ? authHeader.slice('Bearer '.length)
+      : authHeader;
+    if (!accessToken) {
+      throw new BadRequestException('Missing access token');
+    }
+
+    const delivery = await this.cognitoService.updateUserPhone(accessToken, formatPhoneNumber(body.phone_number));
+    return { code_delivery_details: delivery };
+  }
+
+  /**
+   * Verify code and update phone number
+   */
+  @Post('me/phone/verify')
+  async verifyPhoneVerification(
+    @CompanyId() companyId: string,
+    @UserId() userId: string,
+    @Body() body: { code: string },
+    @Req() req: any
+  ): Promise<User> {
+    if (!companyId || !userId) {
+      throw new BadRequestException('Invalid user context');
+    }
+    if (!body?.code) {
+      throw new BadRequestException('Verification code is required');
+    }
+
+    const user = await this.usersService.findById(companyId, userId);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    const authHeader = String(req?.headers?.authorization || '');
+    const accessToken = authHeader.startsWith('Bearer ')
+      ? authHeader.slice('Bearer '.length)
+      : authHeader;
+    if (!accessToken) {
+      throw new BadRequestException('Missing access token');
+    }
+
+    await this.cognitoService.verifyUserAttribute(accessToken, 'phone_number', body.code);
+    const attributes = await this.cognitoService.getUserAttributesByAccessToken(accessToken);
+    const phoneNumber = attributes?.phone_number;
+    if (!phoneNumber) {
+      throw new BadRequestException('Phone number not found in Cognito');
+    }
+
+    return this.usersService.markPhoneVerified(companyId, userId, phoneNumber);
   }
 
   /**

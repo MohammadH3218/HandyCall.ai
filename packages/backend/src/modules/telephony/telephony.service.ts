@@ -41,6 +41,15 @@ export class TelephonyService {
     );
   }
 
+  private getSmsSender(): { from?: string; messagingServiceSid?: string } {
+    const messagingServiceSid = this.config.get<string>('TWILIO_MESSAGING_SERVICE_SID');
+    const from = this.config.get<string>('TWILIO_SMS_FROM');
+    if (!messagingServiceSid && !from) {
+      throw new Error('Missing TWILIO_MESSAGING_SERVICE_SID or TWILIO_SMS_FROM');
+    }
+    return { from, messagingServiceSid };
+  }
+
   private twilioAuthHeader(): string {
     const sid = this.getTwilioAccountSid();
     const token = this.getTwilioAuthToken();
@@ -55,6 +64,36 @@ export class TelephonyService {
       throw new Error(`Twilio API ${res.status}: ${text}`);
     }
     return text ? (JSON.parse(text) as T) : ({} as T);
+  }
+
+  async sendSms(toNumber: string, message: string) {
+    const accountSid = this.getTwilioAccountSid();
+    const sender = this.getSmsSender();
+
+    const form = new URLSearchParams();
+    form.set('To', toNumber);
+    form.set('Body', message);
+    if (sender.messagingServiceSid) {
+      form.set('MessagingServiceSid', sender.messagingServiceSid);
+    } else if (sender.from) {
+      form.set('From', sender.from);
+    }
+
+    const url = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;
+    const data = await this.twilioJson<any>(url, {
+      method: 'POST',
+      headers: {
+        Authorization: this.twilioAuthHeader(),
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: form.toString(),
+    });
+
+    return {
+      sid: data?.sid,
+      status: data?.status,
+      to: data?.to,
+    };
   }
 
   /**

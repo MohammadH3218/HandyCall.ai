@@ -589,6 +589,7 @@ Use this table to map an inbound phone number (DID) to a tenant (`company_id`) f
 2. Update webhook config -> `UpdateItem(company_id)`
 
 ---
+
 ## 🔧 CAPACITY PLANNING
 
 ### Provisioned vs On-Demand

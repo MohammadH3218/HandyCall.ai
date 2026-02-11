@@ -46,6 +46,9 @@ export class AuthService {
     }
 
     const resolvedPhone = phoneNumber?.trim() || undefined;
+    if (!resolvedPhone) {
+      throw new BadRequestException('Phone number is required to create an account.');
+    }
     if (resolvedPhone && !isValidPhoneNumber(resolvedPhone)) {
       throw new BadRequestException('Invalid phone number format (use E.164: +1234567890)');
     }
@@ -69,6 +72,11 @@ export class AuthService {
 
     // Format phone number when provided
     const formattedPhone = resolvedPhone ? formatPhoneNumber(resolvedPhone) : undefined;
+
+    const status = await this.cognitoService.getUserStatus(email);
+    if (!status || status !== 'CONFIRMED') {
+      throw new BadRequestException('Phone number must be verified before creating the account.');
+    }
 
     let company = await this.companiesService.findByEmail(email);
     let createdCompany = false;
@@ -98,9 +106,18 @@ export class AuthService {
         derivedFirstName,
         derivedLastName,
         UserRole.OWNER,
-        'users'
+        'users',
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        formattedPhone,
+        true
       );
       user = created.user;
+      if (formattedPhone) {
+        user = await this.usersService.markPhoneVerified(company.company_id, user.user_id, formattedPhone);
+      }
     } catch (error) {
       // Roll back orphaned company if user creation failed
       if (createdCompany && company?.company_id) {
@@ -262,43 +279,7 @@ export class AuthService {
   // COGNITO-BASED AUTHENTICATION
   // ========================================================================
 
-  async loginWithCognito(email: string, password: string) {
-    let result;
-
-    try {
-      result = await this.cognitoService.login(email, password, 'auto');
-
-      // Check if user needs to change password
-      if (result.challengeName === 'NEW_PASSWORD_REQUIRED') {
-        // Determine if this is an admin user based on pool type only
-        const poolType = result.poolType || 'users';
-        const isAdmin = poolType === 'admin';
-
-        return {
-          requiresPasswordChange: true,
-          session: result.session,
-          email,
-          userRole: isAdmin ? UserRole.ADMIN : UserRole.OWNER,
-          poolType: poolType, // Include pool type so we can use it for password change
-        };
-      }
-    } catch (error: any) {
-      console.error('[AuthService] loginWithCognito error:', {
-        name: error.name,
-        message: error.message,
-        email: email,
-        stack: error.stack
-      });
-
-      // Re-throw known errors
-      if (error instanceof UnauthorizedException || error instanceof BadRequestException) {
-        throw error;
-      }
-
-      // For unknown errors, throw a generic error with logging
-      throw new UnauthorizedException('Authentication failed. Please try again later.');
-    }
-
+  private async buildLoginResponseFromCognitoResult(result: any, email: string) {
     // Get company and user info from DynamoDB using custom attributes
     const companyId = result.userAttributes?.['custom:company_id'];
     const poolType = result.poolType || 'users';
@@ -367,6 +348,116 @@ export class AuthService {
       email,
       userRole: UserRole.OWNER,
     };
+  }
+
+  async loginWithCognito(email: string, password: string) {
+    let result;
+
+    try {
+      result = await this.cognitoService.login(email, password, 'auto');
+
+      // Check if user needs to change password
+      if (result.challengeName === 'NEW_PASSWORD_REQUIRED') {
+        // Determine if this is an admin user based on pool type only
+        const poolType = result.poolType || 'users';
+        const isAdmin = poolType === 'admin';
+
+        return {
+          requiresPasswordChange: true,
+          session: result.session,
+          email,
+          userRole: isAdmin ? UserRole.ADMIN : UserRole.OWNER,
+          poolType: poolType, // Include pool type so we can use it for password change
+        };
+      }
+    } catch (error: any) {
+      console.error('[AuthService] loginWithCognito error:', {
+        name: error.name,
+        message: error.message,
+        email: email,
+        stack: error.stack
+      });
+
+      // Re-throw known errors
+      if (error instanceof UnauthorizedException || error instanceof BadRequestException) {
+        throw error;
+      }
+
+      // For unknown errors, throw a generic error with logging
+      throw new UnauthorizedException('Authentication failed. Please try again later.');
+    }
+
+    return this.buildLoginResponseFromCognitoResult(result, email);
+  }
+
+  async loginWithSmsRequirement(email: string, password: string) {
+    const result: any = await this.cognitoService.login(email, password, 'auto');
+    if (result.challengeName === 'NEW_PASSWORD_REQUIRED') {
+      const poolType = result.poolType || 'users';
+      const isAdmin = poolType === 'admin';
+      return {
+        requiresPasswordChange: true,
+        session: result.session,
+        email,
+        userRole: isAdmin ? UserRole.ADMIN : UserRole.OWNER,
+        poolType: poolType,
+      };
+    }
+
+    if (result.challengeName === 'SMS_MFA') {
+      throw new UnauthorizedException('SMS verification required. Please complete SMS verification to log in.');
+    }
+
+    // If no MFA challenge, return tokens directly
+    return this.buildLoginResponseFromCognitoResult(result, email);
+  }
+
+  async requestLoginSms(email: string, password: string) {
+    const trimmedEmail = String(email || '').trim();
+    if (!isValidEmail(trimmedEmail)) {
+      throw new BadRequestException('Invalid email format');
+    }
+
+    const result = await this.cognitoService.login(trimmedEmail, password, 'auto');
+    if (result.challengeName === 'NEW_PASSWORD_REQUIRED') {
+      const poolType = result.poolType || 'users';
+      const isAdmin = poolType === 'admin';
+      return {
+        requiresPasswordChange: true,
+        session: result.session,
+        email: trimmedEmail,
+        userRole: isAdmin ? UserRole.ADMIN : UserRole.OWNER,
+        poolType,
+      };
+    }
+
+    const poolType = result.poolType || 'users';
+    if (poolType === 'admin') {
+      return { skipSms: true };
+    }
+
+    if (result.challengeName === 'SMS_MFA') {
+      return {
+        sms_required: true,
+        session: result.session,
+      };
+    }
+
+    return { skipSms: true };
+  }
+
+  async verifyLoginSms(email: string, password: string, session: string, code: string) {
+    const trimmedEmail = String(email || '').trim();
+    if (!isValidEmail(trimmedEmail)) {
+      throw new BadRequestException('Invalid email format');
+    }
+
+    const result = await this.cognitoService.respondToSmsMfa(trimmedEmail, session, code);
+    if (!result?.accessToken || !result?.idToken) {
+      throw new UnauthorizedException('SMS verification failed');
+    }
+
+    return this.buildLoginResponseFromCognitoResult(result, trimmedEmail);
   }
 
   async changePassword(
@@ -619,6 +710,55 @@ export class AuthService {
 
     await this.cognitoService.setUserPassword(trimmedEmail, newPassword, 'auto');
     await this.usersService.clearPasswordResetToken(trimmedEmail);
+
+    return { ok: true };
+  }
+
+  async sendRegisterSms(
+    email: string,
+    password: string,
+    phoneNumber: string,
+    firstName?: string,
+    lastName?: string
+  ) {
+    if (!isValidEmail(email)) {
+      throw new BadRequestException('Invalid email format');
+    }
+    if (!password || password.length < 8) {
+      throw new BadRequestException('Password must be at least 8 characters.');
+    }
+    if (!isValidPhoneNumber(phoneNumber)) {
+      throw new BadRequestException('Invalid phone number format (use E.164: +1234567890)');
+    }
+    const formattedPhone = formatPhoneNumber(phoneNumber);
+    return this.cognitoService.signUpUser(email, password, formattedPhone, firstName, lastName);
+  }
+
+  async verifyRegisterSms(email: string, code: string) {
+    return this.cognitoService.confirmSignUp(email, code);
+  }
+
+  async updatePassword(
+    companyId: string,
+    userId: string,
+    currentPassword: string,
+    newPassword: string
+  ) {
+    if (!companyId || !userId) {
+      throw new BadRequestException('Invalid user context');
+    }
+
+    if (!newPassword || newPassword.length < 8) {
+      throw new BadRequestException('Password must be at least 8 characters.');
+    }
+
+    const user = await this.usersService.findById(companyId, userId);
+    if (!user) {
+      throw new BadRequestException('User not found.');
+    }
+
+    await this.cognitoService.login(user.email, currentPassword, 'auto');
+    await this.cognitoService.setUserPassword(user.email, newPassword, 'auto');
 
     return { ok: true };
   }
