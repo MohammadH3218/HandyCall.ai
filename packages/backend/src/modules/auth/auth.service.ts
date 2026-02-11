@@ -546,7 +546,7 @@ export class AuthService {
 
     const token = randomBytes(32).toString('hex');
     const tokenHash = createHash('sha256').update(token).digest('hex');
-    const ttlMinutes = Number(this.configService.get<string>('RESET_TOKEN_TTL_MINUTES') || '30');
+    const ttlMinutes = Number(this.configService.get<string>('RESET_TOKEN_TTL_MINUTES') || '5');
     const expiresAt = Date.now() + ttlMinutes * 60_000;
 
     await this.usersService.setPasswordResetToken(trimmed, tokenHash, expiresAt);
