@@ -138,8 +138,21 @@ export class UsersController {
     if (!phoneNumber) {
       throw new BadRequestException('Phone number not found in Cognito');
     }
+    const updatedUser = await this.usersService.markPhoneVerified(companyId, userId, phoneNumber);
 
-    return this.usersService.markPhoneVerified(companyId, userId, phoneNumber);
+    const poolType: 'users' | 'admin' =
+      (user as any).pool_type === 'admin' || (user.role === UserRole.ADMIN && user.company_id === 'platform-admin')
+        ? 'admin'
+        : 'users';
+    if (poolType === 'users') {
+      try {
+        await this.cognitoService.setSmsMfaPreference(user.email, true, poolType);
+      } catch (error) {
+        console.warn('[UsersController] Failed to enable SMS MFA after phone verification', error);
+      }
+    }
+
+    return updatedUser;
   }
 
   /**
