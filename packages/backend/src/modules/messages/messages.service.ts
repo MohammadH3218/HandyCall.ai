@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { DynamoDBService } from '../../infrastructure/database/dynamodb.service';
 
-interface MessageItem {
+export interface MessageItem {
   id: string;
   direction: 'INBOUND' | 'OUTBOUND';
   body: string;
@@ -10,7 +10,7 @@ interface MessageItem {
   ai_handled?: boolean;
 }
 
-interface MessageThread {
+export interface MessageThread {
   id: string;
   contact_name: string;
   contact_phone: string;
