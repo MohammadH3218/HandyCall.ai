@@ -280,7 +280,8 @@ class ApiClient {
 
   async getCallsCount(): Promise<{ total: number }> {
     const response = await this.request<{ total: number }>('/calls/count', { method: 'GET' });
-    return response.data ?? response;
+    const payload: any = response.data ?? response;
+    return payload as { total: number };
   }
 
   async getCallById(callId: string): Promise<any> {
