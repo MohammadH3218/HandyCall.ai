@@ -403,7 +403,7 @@ export default function CustomersPage() {
                   className="rounded-xl border border-slate-200 bg-slate-50/70 p-3 text-left transition hover:border-emerald-200 hover:bg-emerald-50/40"
                   onClick={() => {
                     setDetailsOpen(false);
-                    router.push(`${basePath}/messages?contact=${selectedContact.contact_id}`);
+                    router.push(`${basePath}/messages/${selectedContact.contact_id}`);
                   }}
                 >
                   <p className="text-xs uppercase tracking-wide text-slate-500">Messages</p>

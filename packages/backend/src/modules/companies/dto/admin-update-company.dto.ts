@@ -1,5 +1,49 @@
 import { IsArray, IsBoolean, IsEmail, IsEnum, IsIn, IsObject, IsOptional, IsString, Matches, IsNumber } from 'class-validator';
+import { Transform } from 'class-transformer';
 import { CompanyStatus, ServiceType, BusinessHours, CallHandlingMode } from '@handycall/shared';
+
+const normalizeScheduleOverrides = (value: any) => {
+  if (!value) return value;
+  if (Array.isArray(value)) {
+    return value
+      .map((entry) => {
+        if (!entry) return null;
+        if (typeof entry === 'string') {
+          return { date: entry, closed: true, segments: [] };
+        }
+        if (entry instanceof Date) {
+          return { date: entry.toISOString().slice(0, 10), closed: true, segments: [] };
+        }
+        if (typeof entry === 'object') {
+          const date = typeof entry.date === 'string' ? entry.date : '';
+          if (!date) return null;
+          const segments = Array.isArray(entry.segments)
+            ? entry.segments.filter((s: any) => s?.open && s?.close)
+            : [];
+          const closed = typeof entry.closed === 'boolean' ? entry.closed : segments.length === 0;
+          return { date, closed, segments };
+        }
+        return null;
+      })
+      .filter(Boolean);
+  }
+  if (typeof value === 'object') {
+    return Object.entries(value)
+      .map(([date, entry]: any) => {
+        if (!date) return null;
+        if (entry && typeof entry === 'object') {
+          const segments = Array.isArray(entry.segments)
+            ? entry.segments.filter((s: any) => s?.open && s?.close)
+            : [];
+          const closed = typeof entry.closed === 'boolean' ? entry.closed : segments.length === 0;
+          return { date, closed, segments };
+        }
+        return { date, closed: true, segments: [] };
+      })
+      .filter(Boolean);
+  }
+  return value;
+};
 
 export class AdminUpdateCompanyDto {
   @IsOptional()
@@ -36,6 +80,7 @@ export class AdminUpdateCompanyDto {
   @IsOptional()
   @IsArray()
   @IsObject({ each: true })
+  @Transform(({ value }) => normalizeScheduleOverrides(value))
   schedule_overrides?: Array<{
     date: string; // YYYY-MM-DD
     closed?: boolean;

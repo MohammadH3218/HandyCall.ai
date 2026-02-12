@@ -298,6 +298,25 @@ class ApiClient {
     return response.data ?? response;
   }
 
+  // Messages endpoints
+  async getMessageThreads(limit?: number, lastEvaluatedKey?: string): Promise<{ threads: any[]; lastEvaluatedKey?: any }> {
+    const params = new URLSearchParams();
+    if (typeof limit === 'number') params.append('limit', limit.toString());
+    if (lastEvaluatedKey) params.append('lastEvaluatedKey', lastEvaluatedKey);
+    const suffix = params.toString() ? `?${params.toString()}` : '';
+    const response = await this.request<any>(`/messages/threads${suffix}`, { method: 'GET' });
+    return (response.data ?? response) as { threads: any[]; lastEvaluatedKey?: any };
+  }
+
+  async getMessageThread(contactId: string, limit?: number, lastEvaluatedKey?: string): Promise<{ thread: any; messages: any[]; lastEvaluatedKey?: any }> {
+    const params = new URLSearchParams();
+    if (typeof limit === 'number') params.append('limit', limit.toString());
+    if (lastEvaluatedKey) params.append('lastEvaluatedKey', lastEvaluatedKey);
+    const suffix = params.toString() ? `?${params.toString()}` : '';
+    const response = await this.request<any>(`/messages/threads/${contactId}${suffix}`, { method: 'GET' });
+    return (response.data ?? response) as { thread: any; messages: any[]; lastEvaluatedKey?: any };
+  }
+
   async searchCalls(query: string, limit?: number): Promise<any[]> {
     const params = new URLSearchParams({ q: query });
     if (limit) params.append('limit', limit.toString());

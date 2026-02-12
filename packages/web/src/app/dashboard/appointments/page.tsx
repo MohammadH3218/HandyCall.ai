@@ -855,12 +855,19 @@ export default function AppointmentsPage() {
       }
 
       const cleanedOverrides = (dateOverridesDraft || [])
-        .map((o) => ({
-          date: o.date,
-          closed: !!o.closed,
-          segments: Array.isArray(o.segments) ? o.segments.filter((s) => s?.open && s?.close) : [],
-        }))
-        .filter((o) => !!o.date)
+        .map((o: any) => {
+          if (typeof o === 'string') {
+            return { date: o, closed: true, segments: [] as TimeSegment[] };
+          }
+          if (o instanceof Date) {
+            return { date: ymd(o), closed: true, segments: [] as TimeSegment[] };
+          }
+          const date = typeof o?.date === 'string' ? o.date : '';
+          const segments = Array.isArray(o?.segments) ? o.segments.filter((s: any) => s?.open && s?.close) : [];
+          const closed = typeof o?.closed === 'boolean' ? o.closed : segments.length === 0;
+          return { date, closed, segments };
+        })
+        .filter((o) => o && typeof o === 'object' && typeof o.date === 'string' && o.date)
         .sort((a, b) => String(a.date).localeCompare(String(b.date)));
 
       const hasHours = Object.values(cleanedHours).some((day: any) => {
