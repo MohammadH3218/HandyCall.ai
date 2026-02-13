@@ -241,7 +241,6 @@ export const authOptions: NextAuthOptions = {
             family_name: resolvedFamilyName,
           };
         } catch (error: any) {
-          console.error("Auth error:", error);
           // Return user-friendly error messages
           if (error.message) {
             throw error;
@@ -285,13 +284,6 @@ export const authOptions: NextAuthOptions = {
 
       // Persist tokens from credentials provider without clobbering OAuth tokens
       if (user) {
-        console.log('[NextAuth JWT] User object received:', {
-          hasAccessToken: !!(user as any).accessToken,
-          hasIdToken: !!(user as any).idToken,
-          hasRefreshToken: !!(user as any).refreshToken,
-          userRole: (user as any).userRole,
-          name: (user as any).name || (user as any).given_name,
-        });
         if ((user as any).accessToken || (user as any).idToken) {
           token.accessToken = (user as any).accessToken ?? token.accessToken;
           token.idToken = (user as any).idToken ?? token.idToken;
@@ -325,13 +317,6 @@ export const authOptions: NextAuthOptions = {
     },
     async session({ session, token }) {
       // Store tokens and role in session for server-side proxy to use
-      console.log('[NextAuth Session] Token object:', {
-        hasAccessToken: !!token.accessToken,
-        hasIdToken: !!token.idToken,
-        hasRefreshToken: !!token.refreshToken,
-        userRole: token.userRole,
-        name: token.name || token.given_name,
-      });
       if (token) {
         (session as any).accessToken = token.accessToken as string;
         (session as any).idToken = token.idToken as string;
@@ -372,7 +357,7 @@ export const authOptions: NextAuthOptions = {
   jwt: {
     maxAge: SESSION_MAX_AGE_SECONDS,
   },
-  secret: process.env.NEXTAUTH_SECRET || "your-secret-key-change-in-production",
+  secret: process.env.NEXTAUTH_SECRET,
   pages: {
     signIn: '/login',
   },

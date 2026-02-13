@@ -72,18 +72,9 @@ export default function CompaniesPage() {
   const loadCompanies = async () => {
     setLoading(true);
     try {
-      let response = await fetch(`/api/proxy/companies`, {
+      const response = await fetch(`/api/proxy/companies`, {
         credentials: 'include',
       });
-
-      if (response.status === 401) {
-        const token = localStorage.getItem('access_token');
-        if (token) {
-          response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/companies`, {
-            headers: { Authorization: `Bearer ${token}` },
-          });
-        }
-      }
 
       if (!response.ok) {
         throw new Error('Failed to load companies');

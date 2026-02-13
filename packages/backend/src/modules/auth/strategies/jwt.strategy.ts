@@ -67,7 +67,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
           firstName: givenName,
           lastName: familyName,
         });
-      } catch (err) {
+      } catch (err: any) {
         this.logger.error(`Failed to auto-provision user for ${email}: ${err?.message || err}`);
         throw new UnauthorizedException('User not found in system');
       }

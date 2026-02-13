@@ -49,7 +49,7 @@ export async function middleware(request: NextRequest) {
 
   const token = await getToken({
     req: request,
-    secret: process.env.NEXTAUTH_SECRET || "your-secret-key-change-in-production"
+    secret: process.env.NEXTAUTH_SECRET,
   });
   const userRole = (token as any)?.userRole as string | undefined;
 

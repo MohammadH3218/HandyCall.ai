@@ -4,9 +4,16 @@ import { AppointmentsService } from '../appointments/appointments.service';
 import { GoogleCalendarService } from './providers/google-calendar.service';
 import { MicrosoftCalendarService } from './providers/microsoft-calendar.service';
 import { AppleCalendarService } from './providers/apple-calendar.service';
+import { ConfigService } from '@nestjs/config';
+import { KMSClient, EncryptCommand, DecryptCommand } from '@aws-sdk/client-kms';
 
 @Injectable()
 export class CalendarIntegrationService {
+  private readonly kmsPrefix = 'kms:';
+  private readonly sensitiveCalendarFields = ['access_token', 'refresh_token', 'app_specific_password'] as const;
+  private readonly kms?: KMSClient;
+  private readonly kmsKeyId?: string;
+
   constructor(
     private companiesService: CompaniesService,
     @Inject(forwardRef(() => AppointmentsService))
@@ -14,7 +21,17 @@ export class CalendarIntegrationService {
     private googleCalendar: GoogleCalendarService,
     private microsoftCalendar: MicrosoftCalendarService,
     private appleCalendar: AppleCalendarService,
-  ) {}
+    private configService: ConfigService,
+  ) {
+    this.kmsKeyId =
+      this.configService.get<string>('CALENDAR_KMS_KEY_ID') ||
+      this.configService.get<string>('WEBHOOK_KMS_KEY_ID') ||
+      undefined;
+    if (this.kmsKeyId) {
+      const region = this.configService.get<string>('AWS_REGION') || 'us-east-1';
+      this.kms = new KMSClient({ region });
+    }
+  }
 
   async getGoogleAuthUrl(companyId: string): Promise<string> {
     try {
@@ -48,14 +65,14 @@ export class CalendarIntegrationService {
     await this.companiesService.updateCompany(companyId, {
       calendar_provider: 'GOOGLE',
       calendar_mode: 'EXTERNAL',
-      calendar_connection: {
+      calendar_connection: await this.encryptCalendarConnection({
         provider: 'GOOGLE',
         access_token: tokens.access_token,
         refresh_token: tokens.refresh_token,
         expiry_date: tokens.expiry_date,
         ...(calendarTimezone ? { timezone: calendarTimezone } : {}),
         connected_at: Date.now(),
-      },
+      }),
       calendar_setup_completed: true,
     });
 
@@ -107,14 +124,14 @@ export class CalendarIntegrationService {
       await this.companiesService.updateCompany(companyId, {
         calendar_provider: 'MICROSOFT',
         calendar_mode: 'EXTERNAL',
-        calendar_connection: {
+        calendar_connection: await this.encryptCalendarConnection({
           provider: 'MICROSOFT',
           access_token: tokens.access_token,
           refresh_token: tokens.refresh_token,
           expiry_date: tokens.expiry_date,
           ...(calendarTimezone ? { timezone: calendarTimezone } : {}),
           connected_at: Date.now(),
-        },
+        }),
         calendar_setup_completed: true,
       });
       console.log(`[CalendarIntegrationService] Company calendar connection updated successfully`);
@@ -159,13 +176,13 @@ export class CalendarIntegrationService {
   }
 
   private async syncGoogleCalendar(companyId: string, company: any): Promise<void> {
-    const tokens = company.calendar_connection;
+    const tokens = await this.decryptCalendarConnection(company.calendar_connection);
 
     // Refresh token if needed
     const validTokens = await this.googleCalendar.ensureValidTokens(tokens);
     if (validTokens !== tokens) {
       await this.companiesService.updateCompany(companyId, {
-        calendar_connection: { ...company.calendar_connection, ...validTokens },
+        calendar_connection: await this.encryptCalendarConnection({ ...tokens, ...validTokens }),
       });
     }
 
@@ -198,13 +215,13 @@ export class CalendarIntegrationService {
   }
 
   private async syncMicrosoftCalendar(companyId: string, company: any): Promise<void> {
-    const tokens = company.calendar_connection;
+    const tokens = await this.decryptCalendarConnection(company.calendar_connection);
 
     // Refresh token if needed
     const validTokens = await this.microsoftCalendar.ensureValidTokens(tokens);
     if (validTokens !== tokens) {
       await this.companiesService.updateCompany(companyId, {
-        calendar_connection: { ...company.calendar_connection, ...validTokens },
+        calendar_connection: await this.encryptCalendarConnection({ ...tokens, ...validTokens }),
       });
     }
 
@@ -278,7 +295,7 @@ export class CalendarIntegrationService {
 
   private async verifyConnection(companyId: string, company: any): Promise<void> {
     const provider = company.calendar_provider;
-    const tokens = company.calendar_connection;
+    const tokens = await this.decryptCalendarConnection(company.calendar_connection);
 
     if (!tokens || !provider) {
       throw new Error('No calendar connection to verify');
@@ -401,7 +418,7 @@ export class CalendarIntegrationService {
     }
 
     const provider = company.calendar_provider;
-    const tokens = company.calendar_connection;
+    const tokens = await this.decryptCalendarConnection(company.calendar_connection);
 
     try {
       let externalEventId: string | null = null;
@@ -455,7 +472,7 @@ export class CalendarIntegrationService {
     }
 
     const provider = company.calendar_provider;
-    const tokens = company.calendar_connection;
+    const tokens = await this.decryptCalendarConnection(company.calendar_connection);
     const externalEventId = appointment.external_event_id;
 
     // If no external event ID, try to create instead
@@ -508,7 +525,7 @@ export class CalendarIntegrationService {
     }
 
     const provider = company.calendar_provider;
-    const tokens = company.calendar_connection;
+    const tokens = await this.decryptCalendarConnection(company.calendar_connection);
     const externalEventId = appointment.external_event_id;
 
     // If no external event ID, nothing to delete
@@ -559,13 +576,13 @@ export class CalendarIntegrationService {
       await this.companiesService.updateCompany(companyId, {
         calendar_provider: 'APPLE',
         calendar_mode: 'EXTERNAL',
-        calendar_connection: {
+        calendar_connection: await this.encryptCalendarConnection({
           provider: 'APPLE',
           email: email,
           app_specific_password: appSpecificPassword, // Store user's password securely
           calendar_path: calendarPath,
           connected_at: Date.now(),
-        },
+        }),
         calendar_setup_completed: true,
       });
 
@@ -588,7 +605,7 @@ export class CalendarIntegrationService {
   }
 
   private async syncAppleCalendar(companyId: string, company: any): Promise<void> {
-    const connection = company.calendar_connection;
+    const connection = await this.decryptCalendarConnection(company.calendar_connection);
     const email = connection.email;
     const appSpecificPassword = connection.app_specific_password;
     const calendarPath = connection.calendar_path || '/calendars/';
@@ -625,5 +642,55 @@ export class CalendarIntegrationService {
         console.error('Error importing event:', err);
       }
     }
+  }
+
+  private async encryptCalendarConnection(connection: any): Promise<any> {
+    if (!connection || typeof connection !== 'object') return connection;
+    const output = { ...connection };
+    for (const field of this.sensitiveCalendarFields) {
+      if (typeof output[field] === 'string') {
+        output[field] = await this.encryptString(output[field]);
+      }
+    }
+    return output;
+  }
+
+  private async decryptCalendarConnection(connection: any): Promise<any> {
+    if (!connection || typeof connection !== 'object') return connection;
+    const output = { ...connection };
+    for (const field of this.sensitiveCalendarFields) {
+      if (typeof output[field] === 'string') {
+        output[field] = await this.decryptString(output[field]);
+      }
+    }
+    return output;
+  }
+
+  private async encryptString(value: string): Promise<string> {
+    if (!value || !this.kms || !this.kmsKeyId) return value;
+    if (value.startsWith(this.kmsPrefix)) return value;
+
+    const response = await this.kms.send(
+      new EncryptCommand({
+        KeyId: this.kmsKeyId,
+        Plaintext: Buffer.from(value, 'utf8'),
+      })
+    );
+    if (!response.CiphertextBlob) return value;
+    return `${this.kmsPrefix}${Buffer.from(response.CiphertextBlob).toString('base64')}`;
+  }
+
+  private async decryptString(value: string): Promise<string> {
+    if (!value || !this.kms) return value;
+    if (!value.startsWith(this.kmsPrefix)) return value;
+
+    const encoded = value.slice(this.kmsPrefix.length);
+    const response = await this.kms.send(
+      new DecryptCommand({
+        CiphertextBlob: Buffer.from(encoded, 'base64'),
+      })
+    );
+    if (!response.Plaintext) return value;
+    return Buffer.from(response.Plaintext).toString('utf8');
   }
 }

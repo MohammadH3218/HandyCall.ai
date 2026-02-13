@@ -39,7 +39,6 @@ export default function UsersPage() {
   const router = useRouter();
   const { userRole, isAuthenticated, isLoading } = useAuthStore();
   const { toast } = useToast();
-  const apiBase = process.env.NEXT_PUBLIC_API_URL || '';
 
   const [users, setUsers] = useState<User[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
@@ -79,18 +78,8 @@ export default function UsersPage() {
     setFilteredUsers(filtered);
   }, [searchTerm, selectedCompany, users]);
 
-  const fetchWithFallback = async <T,>(proxyPath: string, directPath: string): Promise<T> => {
-    let response = await fetch(proxyPath, { credentials: 'include' });
-
-    if (response.status === 401) {
-      const token = localStorage.getItem('access_token');
-      if (!token) {
-        throw new Error('Unauthorized. Please re-login as admin.');
-      }
-      response = await fetch(directPath, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-    }
+  const fetchFromProxy = async <T,>(proxyPath: string): Promise<T> => {
+    const response = await fetch(proxyPath, { credentials: 'include' });
 
     if (!response.ok) {
       throw new Error(`Failed to fetch ${proxyPath}`);
@@ -102,7 +91,7 @@ export default function UsersPage() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const usersData = await fetchWithFallback<User[]>('/api/proxy/users', `${apiBase}/users`);
+      const usersData = await fetchFromProxy<User[]>('/api/proxy/users');
       setUsers(usersData);
       setFilteredUsers(usersData);
     } catch (error) {
@@ -115,7 +104,7 @@ export default function UsersPage() {
     }
 
     try {
-      const companiesData = await fetchWithFallback<Company[]>('/api/proxy/companies', `${apiBase}/companies`);
+      const companiesData = await fetchFromProxy<Company[]>('/api/proxy/companies');
       setCompanies(companiesData);
     } catch (error) {
       console.error('Failed to load companies:', error);

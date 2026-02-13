@@ -6,6 +6,15 @@ import { ConfigService } from '@nestjs/config';
 import { sendSesEmail } from './modules/public-booking/email.util';
 import { renderHandycallEmail } from './common/email-templates';
 
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 @Controller()
 export class AppController {
   constructor(
@@ -49,6 +58,16 @@ export class AppController {
       'hello@handycall.org';
     const region = this.config.get<string>('SES_REGION') || this.config.get<string>('AWS_REGION') || 'us-east-1';
 
+    const ip = String(req?.ip || 'unknown');
+    const userAgent = String(req?.headers?.['user-agent'] || 'unknown');
+    const safeName = escapeHtml(name);
+    const safeCompany = escapeHtml(company);
+    const safeEmail = escapeHtml(email);
+    const safePhone = escapeHtml(phone || 'Not provided');
+    const safeMessage = escapeHtml(message || 'No message provided.');
+    const safeIp = escapeHtml(ip);
+    const safeUserAgent = escapeHtml(userAgent);
+
     const subject = `New HandyCall inquiry from ${name}`;
     const text =
       `New contact request\n\n` +
@@ -57,20 +76,20 @@ export class AppController {
       `Email: ${email}\n` +
       `Phone: ${phone || 'Not provided'}\n` +
       `Message:\n${message || 'No message provided.'}\n\n` +
-      `IP: ${req?.ip || 'unknown'}\n` +
-      `User Agent: ${req?.headers?.['user-agent'] || 'unknown'}`;
+      `IP: ${ip}\n` +
+      `User Agent: ${userAgent}`;
 
     const html = renderHandycallEmail({
       title: 'New contact request',
       preheader: `New inquiry from ${name}`,
       greeting: 'Hello HandyCall team,',
-      body: `<p style="margin:0 0 12px;"><strong>Name:</strong> ${name}</p>
-             <p style="margin:0 0 12px;"><strong>Company:</strong> ${company}</p>
-             <p style="margin:0 0 12px;"><strong>Email:</strong> ${email}</p>
-             <p style="margin:0 0 12px;"><strong>Phone:</strong> ${phone || 'Not provided'}</p>
+      body: `<p style="margin:0 0 12px;"><strong>Name:</strong> ${safeName}</p>
+             <p style="margin:0 0 12px;"><strong>Company:</strong> ${safeCompany}</p>
+             <p style="margin:0 0 12px;"><strong>Email:</strong> ${safeEmail}</p>
+             <p style="margin:0 0 12px;"><strong>Phone:</strong> ${safePhone}</p>
              <p style="margin:16px 0 12px;"><strong>Message:</strong></p>
-             <p style="margin:0 0 12px;white-space:pre-line;">${message || 'No message provided.'}</p>
-             <p style="margin:16px 0 0;color:#64748b;font-size:12px;">IP: ${req?.ip || 'unknown'} · UA: ${req?.headers?.['user-agent'] || 'unknown'}</p>`,
+             <p style="margin:0 0 12px;white-space:pre-line;">${safeMessage}</p>
+             <p style="margin:16px 0 0;color:#64748b;font-size:12px;">IP: ${safeIp} - UA: ${safeUserAgent}</p>`,
     });
 
     await sendSesEmail({

@@ -61,12 +61,10 @@ function buildInstructions(input: {
     `[TOOLS]`,
     `- create_lead early once you have intent.`,
     `- save_call near the end with summary + collected fields.`,
-    extra ? `[BUSINESS RULES]
-${extra}` : null,
+    extra ? `[BUSINESS RULES]\n${extra}` : null,
     timezone ? `Timezone: ${timezone}.` : null,
   ].filter(Boolean) as string[];
-  return lines.join('
-');
+  return lines.join('\n');
 }
 
 

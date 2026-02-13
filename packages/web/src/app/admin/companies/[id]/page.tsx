@@ -54,21 +54,8 @@ const COMPANY_STATUSES: Array<{ value: string; label: string }> = [
   { value: 'SUSPENDED', label: 'Suspended' },
 ];
 
-async function fetchJsonWithFallback(url: string, init?: RequestInit) {
-  let res = await fetch(url, { ...(init || {}), credentials: 'include' });
-
-  if (res.status === 401) {
-    const token = localStorage.getItem('access_token');
-    if (token) {
-      res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}${url.replace('/api/proxy', '')}`, {
-        ...(init || {}),
-        headers: {
-          ...(init?.headers || {}),
-          Authorization: `Bearer ${token}`,
-        },
-      });
-    }
-  }
+async function fetchJsonFromProxy(url: string, init?: RequestInit) {
+  const res = await fetch(url, { ...(init || {}), credentials: 'include' });
 
   if (!res.ok) {
     const text = await res.text().catch(() => '');
@@ -122,7 +109,7 @@ export default function AdminCompanyDetailPage() {
   const loadCompany = async () => {
     setIsPageLoading(true);
     try {
-      const data = await fetchJsonWithFallback(`/api/proxy/companies/${companyId}`);
+      const data = await fetchJsonFromProxy(`/api/proxy/companies/${companyId}`);
       setCompanyData(data);
       setAdminCompany(data.company_id, data.company_name);
       setEditData({
@@ -137,7 +124,7 @@ export default function AdminCompanyDetailPage() {
         sms_enabled: Boolean((data as any).sms_enabled),
       });
 
-      const numberRes = await fetchJsonWithFallback(`/api/proxy/admin/telephony/companies/${companyId}/number`);
+      const numberRes = await fetchJsonFromProxy(`/api/proxy/admin/telephony/companies/${companyId}/number`);
       setAssignedNumber(numberRes?.data ?? null);
     } catch (err: any) {
       toast({
@@ -165,7 +152,7 @@ export default function AdminCompanyDetailPage() {
         sms_enabled: Boolean(editData.sms_enabled),
       };
 
-      const updated = await fetchJsonWithFallback(`/api/proxy/companies/${companyId}`, {
+      const updated = await fetchJsonFromProxy(`/api/proxy/companies/${companyId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -190,7 +177,7 @@ export default function AdminCompanyDetailPage() {
       qs.set('maxResults', '10');
       if (areaCode.trim()) qs.set('areaCode', areaCode.trim());
 
-      const res = await fetchJsonWithFallback(`/api/proxy/admin/telephony/available-numbers?${qs.toString()}`);
+      const res = await fetchJsonFromProxy(`/api/proxy/admin/telephony/available-numbers?${qs.toString()}`);
       const list = Array.isArray(res?.data) ? res.data : [];
       setAvailableNumbers(list);
     } catch (err: any) {
@@ -206,7 +193,7 @@ export default function AdminCompanyDetailPage() {
       setNumbersLoading(true);
       setNumbersError(null);
 
-      const res = await fetchJsonWithFallback(`/api/proxy/admin/telephony/companies/${companyId}/claim-number`, {
+      const res = await fetchJsonFromProxy(`/api/proxy/admin/telephony/companies/${companyId}/claim-number`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phoneNumber }),
@@ -227,7 +214,7 @@ export default function AdminCompanyDetailPage() {
   const handleCancelSubscription = async () => {
     try {
       setIsCanceling(true);
-      await fetchJsonWithFallback(`/api/proxy/admin/companies/${companyId}/cancel-subscription`, {
+      await fetchJsonFromProxy(`/api/proxy/admin/companies/${companyId}/cancel-subscription`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       });
@@ -245,7 +232,7 @@ export default function AdminCompanyDetailPage() {
   const handleSuspendSubscription = async () => {
     try {
       setIsSuspending(true);
-      await fetchJsonWithFallback(`/api/proxy/admin/companies/${companyId}/suspend`, {
+      await fetchJsonFromProxy(`/api/proxy/admin/companies/${companyId}/suspend`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       });
@@ -263,7 +250,7 @@ export default function AdminCompanyDetailPage() {
   const handleReactivateAccount = async () => {
     try {
       setIsReactivating(true);
-      await fetchJsonWithFallback(`/api/proxy/companies/${companyId}`, {
+      await fetchJsonFromProxy(`/api/proxy/companies/${companyId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 'ACTIVE' }),

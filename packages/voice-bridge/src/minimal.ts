@@ -142,8 +142,8 @@ async function resolveElevenLabsConfig() {
     'ELEVENLABS_OPTIMIZE_STREAMING_LATENCY',
     'ELEVEN_LABS_OPTIMIZE_STREAMING_LATENCY',
   ]);
-  let optimizeStreamingLatency = latencyRaw ? Number(latencyRaw) : 3;
-  if (!Number.isFinite(optimizeStreamingLatency)) optimizeStreamingLatency = 3;
+  let optimizeStreamingLatency = latencyRaw ? Number(latencyRaw) : 4;
+  if (!Number.isFinite(optimizeStreamingLatency)) optimizeStreamingLatency = 4;
   if (!apiKey || !voiceId) return null;
   return { apiKey, voiceId, modelId, optimizeStreamingLatency };
 }
@@ -259,10 +259,41 @@ type ActiveCallState = {
 
 const activeCalls = new Map<string, ActiveCallState>();
 
-const fillerUtterances = new Set(['mhm', 'mm', 'uh', 'um', 'uh-huh', 'uh huh', 'hmm', 'hm', 'ok', 'okay', 'yeah', 'yep']);
+const fillerUtterances = new Set([
+  'mhm',
+  'mm',
+  'uh',
+  'um',
+  'uh-huh',
+  'uh huh',
+  'hmm',
+  'hm',
+  'ok',
+  'okay',
+  'yeah',
+  'yep',
+  'yup',
+  'mm-hmm',
+  'mm hmm',
+]);
 const shortIntentKeywords = new Set([
   'yes',
   'no',
+  'yeah',
+  'yep',
+  'yup',
+  'ok',
+  'okay',
+  'sure',
+  'correct',
+  'right',
+  'affirmative',
+  'hello',
+  'hi',
+  'hey',
+  'uh huh',
+  'mm hmm',
+  'mhm',
   'book',
   'booking',
   'appointment',
@@ -661,6 +692,9 @@ function buildInstructions(tenant: TenantInfo, options: { serviceAreaRequired: b
     renderedTemplatePrompt || `You are the phone receptionist for ${name}.`,
     `Greet the caller immediately and include the company name in the first sentence.`,
     `Be friendly, concise, and phone-like. Ask one question at a time.`,
+    `Keep responses short and direct (1-2 short sentences). Avoid unnecessary filler or repeated pleasantries.`,
+    `Skip extra acknowledgements like "Of course" or "I'd be happy to" - go straight to the next question.`,
+    `When you need to check availability or perform a task, a brief one-liner like "One moment" is enough.`,
     `You can answer FAQs and help callers book appointments directly.`,
     `Never ask for the caller's phone number. Use the caller ID.`,
     serviceAreaRequired
@@ -677,6 +711,7 @@ function buildInstructions(tenant: TenantInfo, options: { serviceAreaRequired: b
     `If a requested time is available, acknowledge it and continue (do not ask to confirm the time).`,
     `If the caller shares a time early, acknowledge it and say you'll confirm after collecting the remaining required details.`,
     `Only provide ONE summary, after ALL required intake fields (including address if required) AND a specific time slot have been collected. Do not summarize early or multiple times.`,
+    `When you summarize, keep it to one short sentence.`,
     `Never summarize immediately after the caller gives a time; finish collecting missing details first.`,
     `Never provide more than one summary per call.`,
     `Before booking, summarize the details and ask for confirmation. Only then call create_booking with confirmed=true.`,
@@ -1143,6 +1178,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
   let openaiResponding = false;
   let twilioReady = false;
   let greeted = false;
+  let greetingStartedAt = 0;
   let assistantSpeaking = false;
   let lastAssistantAudioAt = 0;
   let ttsAbort: AbortController | null = null;
@@ -1164,7 +1200,9 @@ wss.on('connection', (twilioWs: WebSocket) => {
   let existingAppointmentsChecked = false;
   let lastAssistantAskedFollowUp = false;
   let lowSignalAttempts = 0;
+  let lastRepromptAt = 0;
   let lastSpeechStartAt = 0;
+  let lastMeaningfulCallerAt = 0;
   let requiredIntakeFields: string[] = [];
   let collectedDetails: Record<string, any> = {};
   let lastCallerUtterance: string | null = null;
@@ -1177,13 +1215,15 @@ wss.on('connection', (twilioWs: WebSocket) => {
       : `Hi there, thanks for calling ${name}. How can I help you today?`;
     createResponse(`Say exactly: "${greeting}" Then stop. Do not add any follow-up question.`);
     greeted = true;
+    greetingStartedAt = Date.now();
+    lastRepromptAt = 0;
   }
 
   function reprompt(attempt: number) {
     if (!openaiWs || !openaiReady) return;
     const msg =
       attempt <= 1
-        ? "Sorry, didn't catch that. Are you calling to book an appointment, or do you have a quick question?"
+        ? "Sorry, I didn't catch that. Are you booking an appointment, or do you have a question?"
         : "I'm still having trouble hearing you. If you'd like, I can take a message for a callback - what's your name?";
     sendToOpenAI(openaiWs, { type: 'response.cancel' });
     createResponse(`Say: "${msg}"`);
@@ -1200,6 +1240,57 @@ wss.on('connection', (twilioWs: WebSocket) => {
     if (instructions) response.instructions = instructions;
     sendToOpenAI(openaiWs, { type: 'response.create', response });
     openaiResponding = true;
+  }
+
+  const fillerPhrases = [
+    'One moment while I check that.',
+    'Give me just a second.',
+    'Let me check that.',
+  ];
+  const fillerToolNames = new Set([
+    'get_availability',
+    'create_booking',
+    'list_appointments_by_phone',
+    'reschedule_appointment',
+    'cancel_appointment',
+    'knowledge_search',
+    'hold_slot',
+    'send_booking_link',
+  ]);
+
+  function scheduleToolFiller(toolName?: string) {
+    if (!useElevenLabs || !toolName || !fillerToolNames.has(toolName)) {
+      return { wait: async () => {} };
+    }
+    if (assistantSpeaking) {
+      return { wait: async () => {} };
+    }
+    const delayMs = 650;
+    let started = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let promise: Promise<void> | null = null;
+
+    const start = () => {
+      if (started) return;
+      started = true;
+      const phrase = fillerPhrases[Math.floor(Math.random() * fillerPhrases.length)];
+      promise = speakWithElevenLabs(phrase);
+    };
+
+    timer = setTimeout(start, delayMs);
+
+    return {
+      wait: async () => {
+        if (timer) clearTimeout(timer);
+        if (started && promise) {
+          try {
+            await promise;
+          } catch {
+            // ignore filler errors
+          }
+        }
+      },
+    };
   }
 
   async function speakWithElevenLabs(text: string) {
@@ -1435,19 +1526,37 @@ wss.on('connection', (twilioWs: WebSocket) => {
         }
 
         const trimmed = String(text).trim();
-        const recentSpeech = lastSpeechStartAt && Date.now() - lastSpeechStartAt < 3500;
-        if (!recentSpeech && trimmed.length < 6) {
+        const now = Date.now();
+        const recentSpeech = lastSpeechStartAt && now - lastSpeechStartAt < 3500;
+        const actionableShort = isActionableShortUtterance(trimmed);
+        const fillerOnly = isFillerUtterance(trimmed) && !actionableShort;
+        const lowSignal = isLowSignalTranscript(trimmed) || fillerOnly;
+        const inGreetingGrace = greetingStartedAt && now - greetingStartedAt < 4000;
+
+        if (inGreetingGrace && lowSignal && !actionableShort) {
           return;
         }
 
-        if (isLowSignalTranscript(trimmed) || isFillerUtterance(trimmed)) {
+        if (!recentSpeech && !actionableShort && trimmed.length < 6) {
+          return;
+        }
+
+        if (lowSignal) {
+          if (!recentSpeech && !lastMeaningfulCallerAt) {
+            return;
+          }
+          if (lastRepromptAt && now - lastRepromptAt < 3500) {
+            return;
+          }
           lowSignalAttempts += 1;
+          lastRepromptAt = now;
           reprompt(lowSignalAttempts);
           return;
         }
 
         transcript.push(`Caller: ${trimmed}`);
         lastCallerUtterance = trimmed;
+        lastMeaningfulCallerAt = now;
         lowSignalAttempts = 0;
         if (assistantSpeaking && Date.now() - lastAssistantAudioAt < 1500) {
           if (wordCount(trimmed) < 3 && !isExplicitBargeIn(trimmed)) {
@@ -1527,6 +1636,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
         }
 
         openaiResponding = false;
+        const filler = scheduleToolFiller(toolName);
         let result: any;
         try {
           if (!ctx) throw new Error('Missing call context');
@@ -1759,6 +1869,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
           result = { ok: false, error: err?.message ?? String(err) };
         }
 
+        await filler.wait();
         sendToOpenAI(openaiWs, {
           type: 'conversation.item.create',
           item: {

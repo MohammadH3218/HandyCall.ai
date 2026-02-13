@@ -407,7 +407,7 @@ export class WebhooksService {
 
     try {
       await this.dynamodb.update('webhook_configs', { company_id: companyId }, updates);
-    } catch (err) {
+    } catch (err: any) {
       console.warn('[WebhooksService] Failed to persist webhook status:', err?.message ?? err);
     }
   }

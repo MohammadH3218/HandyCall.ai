@@ -14,14 +14,6 @@ type CompanyOption = {
 async function fetchCompanies(): Promise<CompanyOption[]> {
   const res = await fetch('/api/proxy/companies', { credentials: 'include' });
   if (!res.ok) {
-    const token = localStorage.getItem('access_token');
-    if (token) {
-      const fallback = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/companies`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!fallback.ok) throw new Error('Failed to load companies');
-      return fallback.json();
-    }
     throw new Error('Failed to load companies');
   }
   return res.json();

@@ -77,16 +77,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // Set tokens after password change
       apiClient.setAccessToken(response.access_token);
 
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('access_token', response.access_token);
-        localStorage.setItem('id_token', response.id_token);
-        localStorage.setItem('refresh_token', response.refresh_token);
-        localStorage.setItem('email', email);
-        if (userRole) {
-          localStorage.setItem('user_role', userRole);
-        }
-      }
-
       set({
         user: response.user || null,
         company: response.company || null,
@@ -131,6 +121,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     apiClient.setAccessToken(null);
 
     if (typeof window !== 'undefined') {
+      // Cleanup legacy auth keys that may still exist from previous builds.
       localStorage.removeItem('access_token');
       localStorage.removeItem('id_token');
       localStorage.removeItem('refresh_token');
@@ -159,12 +150,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   setTokens: (accessToken: string, idToken: string, refreshToken: string) => {
     apiClient.setAccessToken(accessToken);
 
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('access_token', accessToken);
-      localStorage.setItem('id_token', idToken);
-      localStorage.setItem('refresh_token', refreshToken);
-    }
-
     set({
       accessToken,
       idToken,
@@ -181,7 +166,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     // Prevent multiple simultaneous checkAuth calls
     const state = get();
     if (state._checkAuthInProgress) {
-      console.log('[Auth Store] checkAuth already in progress, skipping');
       return;
     }
 
@@ -203,13 +187,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const sessionResponse = await fetch('/api/auth/session', { cache: 'no-store' });
       let session = sessionResponse.ok ? await sessionResponse.json() : null;
 
-      console.log('[Auth Store] Session fetched:', {
-        hasSession: !!session,
-        userRole: (session as any)?.user?.role,
-        sessionRole: (session as any)?.userRole,
-        email: (session as any)?.user?.email,
-      });
-
       const sessionRole =
         ((session as any)?.user?.role as UserRole | undefined) ||
         ((session as any)?.userRole as UserRole | undefined);
@@ -218,10 +195,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         sessionRole ||
         (sessionPoolType === 'admin' ? UserRole.ADMIN : undefined) ||
         UserRole.OWNER;
-      const sessionEmail =
-        ((session as any)?.user?.email as string | undefined) ||
-        localStorage.getItem('email') ||
-        undefined;
+      const sessionEmail = (session as any)?.user?.email as string | undefined;
       const accessToken = (session as any)?.accessToken as string | undefined;
       const idToken = (session as any)?.idToken as string | undefined;
       const refreshToken = (session as any)?.refreshToken as string | undefined;
@@ -236,18 +210,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         decoded?.family_name ||
         decoded?.name?.split(' ')?.slice(1).join(' ');
 
-      if (accessToken) localStorage.setItem('access_token', accessToken);
-      if (idToken) localStorage.setItem('id_token', idToken);
-      if (refreshToken) localStorage.setItem('refresh_token', refreshToken);
-
       // If no session, user is not authenticated
       if (!session || (!accessToken && !idToken)) {
-        console.log('[Auth Store] No authenticated user in session');
         // Clear any stale tokens
         if (typeof window !== 'undefined') {
           localStorage.removeItem('access_token');
           localStorage.removeItem('id_token');
           localStorage.removeItem('refresh_token');
+          localStorage.removeItem('email');
+          localStorage.removeItem('user_role');
         }
         set({
           isLoading: false,
@@ -267,8 +238,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       if (derivedRole === UserRole.ADMIN) {
         const email = sessionEmail || null;
-        if (email) localStorage.setItem('email', email);
-        localStorage.setItem('user_role', UserRole.ADMIN);
 
         const userObj = session?.user
           ? ({
@@ -295,14 +264,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
 
       // Customer flow: hydrate auth immediately, then fetch company in background
-      const email =
-        sessionEmail ||
-        localStorage.getItem('email') ||
-        null;
-
-      const userRole =
-        (localStorage.getItem('user_role') as UserRole | null) ||
-        derivedRole;
+      const email = sessionEmail || null;
+      const userRole = derivedRole;
       const firstName =
         firstNameFromSession ||
         firstNameFromToken ||
@@ -311,9 +274,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         lastNameFromSession ||
         lastNameFromToken ||
         (session?.user as any)?.name?.split(' ')?.slice(1).join(' ');
-
-      if (email) localStorage.setItem('email', email);
-      if (userRole) localStorage.setItem('user_role', userRole);
 
       const user: Partial<User> | null = session?.user
         ? {
@@ -349,15 +309,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             set({ company: null });
             return;
           }
-          console.warn('[Auth Store] Background company fetch failed:', error?.message || error);
         }
       };
       void hydrateCompany();
 
       return;
     } catch (error) {
-      console.error('[Auth Store] checkAuth failed:', error);
-
       // Clear auth state and localStorage on authentication failure
       if (typeof window !== 'undefined') {
         localStorage.removeItem('access_token');

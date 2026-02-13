@@ -157,6 +157,18 @@ function resolveScheduleForDay(hours: BusinessHours | undefined, weekday: string
   return shortKey ? hours[shortKey] ?? null : null;
 }
 
+function normalizeTimeZone(input: string | undefined, fallback: string): string {
+  const candidate = String(input || '').trim();
+  const safeFallback = String(fallback || 'UTC').trim() || 'UTC';
+  if (!candidate) return safeFallback;
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: candidate }).format(new Date());
+    return candidate;
+  } catch {
+    return safeFallback;
+  }
+}
+
 function isWithinBusinessHours(
   hours: BusinessHours | undefined,
   timeZone: string | undefined,
