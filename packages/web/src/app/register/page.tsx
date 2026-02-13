@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useState } from 'react';
 import Link from 'next/link';
@@ -14,64 +14,31 @@ import { SiteHeader } from '@/components/marketing/site-header';
 import { SiteFooter } from '@/components/marketing/site-footer';
 
 const SETUP_STEPS = [
-  {
-    title: 'Activate subscription',
-    description: 'Choose a plan and add a payment method.',
-  },
-  {
-    title: 'Company profile',
-    description: 'Company name, service type, and timezone.',
-  },
-  {
-    title: 'Service area',
-    description: 'Cities and zip codes you cover.',
-  },
-  {
-    title: 'Knowledge base',
-    description: 'Pricing, FAQs, and service details.',
-  },
-  {
-    title: 'Calendar + phone',
-    description: 'Connect scheduling, claim your line, and set call handling.',
-  },
+  'Choose a plan and payment method',
+  'Configure business profile + hours',
+  'Set service area and knowledge base',
+  'Connect calendar and phone routing',
 ];
 
 const GoogleIcon = ({ className }: { className?: string }) => (
   <svg viewBox="0 0 48 48" className={className} aria-hidden="true">
-    <path
-      fill="#EA4335"
-      d="M24 9.5c3.54 0 6.72 1.22 9.22 3.6l6.9-6.9C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l8.04 6.24C12.6 13.09 17.86 9.5 24 9.5z"
-    />
-    <path
-      fill="#4285F4"
-      d="M46.5 24c0-1.64-.15-3.22-.43-4.74H24v9h12.7c-.55 3-2.2 5.55-4.7 7.27l7.2 5.6C43.94 36.5 46.5 30.8 46.5 24z"
-    />
-    <path
-      fill="#FBBC05"
-      d="M10.6 28.46c-.48-1.44-.76-2.98-.76-4.46s.27-3.02.76-4.46l-8.04-6.24C.92 16.16 0 19.97 0 24c0 4.03.92 7.84 2.56 11.2l8.04-6.24z"
-    />
-    <path
-      fill="#34A853"
-      d="M24 48c6.48 0 11.93-2.13 15.9-5.77l-7.2-5.6c-2 1.35-4.56 2.13-8.7 2.13-6.14 0-11.4-3.59-13.4-8.72l-8.04 6.24C6.51 42.62 14.62 48 24 48z"
-    />
+    <path fill="#EA4335" d="M24 9.5c3.54 0 6.72 1.22 9.22 3.6l6.9-6.9C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l8.04 6.24C12.6 13.09 17.86 9.5 24 9.5z" />
+    <path fill="#4285F4" d="M46.5 24c0-1.64-.15-3.22-.43-4.74H24v9h12.7c-.55 3-2.2 5.55-4.7 7.27l7.2 5.6C43.94 36.5 46.5 30.8 46.5 24z" />
+    <path fill="#FBBC05" d="M10.6 28.46c-.48-1.44-.76-2.98-.76-4.46s.27-3.02.76-4.46l-8.04-6.24C.92 16.16 0 19.97 0 24c0 4.03.92 7.84 2.56 11.2l8.04-6.24z" />
+    <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.9-5.77l-7.2-5.6c-2 1.35-4.56 2.13-8.7 2.13-6.14 0-11.4-3.59-13.4-8.72l-8.04 6.24C6.51 42.62 14.62 48 24 48z" />
   </svg>
 );
 
 const AppleIcon = ({ className }: { className?: string }) => (
   <svg viewBox="0 0 24 24" className={className} aria-hidden="true">
-    <path
-      fill="currentColor"
-      d="M16.7 12.3c0-2.1 1.7-3.1 1.7-3.1-1-1.5-2.6-1.7-3.1-1.7-1.3-.1-2.6.8-3.3.8-.7 0-1.8-.8-3-.8-1.5 0-2.9.9-3.7 2.2-1.6 2.7-.4 6.7 1.1 8.9.7 1.1 1.6 2.4 2.8 2.3 1.1 0 1.6-.7 2.9-.7 1.3 0 1.7.7 3 .7 1.2 0 2-.9 2.7-2 .9-1.3 1.2-2.6 1.2-2.7-.1 0-2.3-.9-2.3-3.9z"
-    />
-    <path
-      fill="currentColor"
-      d="M14.9 4.2c.6-.7 1-1.7.9-2.7-.9.1-1.9.6-2.5 1.3-.6.7-1.1 1.7-.9 2.7 1 .1 2-.5 2.5-1.3z"
-    />
+    <path fill="currentColor" d="M16.7 12.3c0-2.1 1.7-3.1 1.7-3.1-1-1.5-2.6-1.7-3.1-1.7-1.3-.1-2.6.8-3.3.8-.7 0-1.8-.8-3-.8-1.5 0-2.9.9-3.7 2.2-1.6 2.7-.4 6.7 1.1 8.9.7 1.1 1.6 2.4 2.8 2.3 1.1 0 1.6-.7 2.9-.7 1.3 0 1.7.7 3 .7 1.2 0 2-.9 2.7-2 .9-1.3 1.2-2.6 1.2-2.7-.1 0-2.3-.9-2.3-3.9z" />
+    <path fill="currentColor" d="M14.9 4.2c.6-.7 1-1.7.9-2.7-.9.1-1.9.6-2.5 1.3-.6.7-1.1 1.7-.9 2.7 1 .1 2-.5 2.5-1.3z" />
   </svg>
 );
 
 export default function RegisterPage() {
   const router = useRouter();
+
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -83,6 +50,7 @@ export default function RegisterPage() {
   const handleSocialSignUp = async (provider: 'cognito-google' | 'cognito-apple') => {
     setError('');
     setSocialLoading(provider);
+
     try {
       const result = await signIn(provider, { callbackUrl: '/onboarding/profile' });
       if (result?.error) {
@@ -95,8 +63,8 @@ export default function RegisterPage() {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
     setError('');
     setIsSubmitting(true);
 
@@ -114,7 +82,7 @@ export default function RegisterPage() {
         return;
       }
 
-      const nameParts = trimmedName ? trimmedName.split(' ').filter(Boolean) : [];
+      const nameParts = trimmedName.split(' ').filter(Boolean);
       const firstName = nameParts[0];
       const lastName = nameParts.slice(1).join(' ');
 
@@ -127,161 +95,142 @@ export default function RegisterPage() {
 
       router.push(`/verify-email?email=${encodeURIComponent(email.trim())}`);
     } catch (err: any) {
-      setError(err?.message || 'Registration failed');
+      setError(err?.message || 'Registration failed.');
     } finally {
       setIsSubmitting(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-white via-emerald-50/30 to-white text-foreground">
+    <div className="min-h-screen bg-background text-foreground">
       <SiteHeader ctaLabel="Login" ctaHref="/login" hideLoginLink />
-      <main className="mx-auto max-w-6xl px-4 pb-16 pt-12">
-        <div className="grid items-start gap-12 lg:grid-cols-[1.1fr_0.9fr]">
-          <div className="space-y-6">
-            <div className="space-y-3">
-              <Badge className="bg-emerald-100 text-emerald-700">Start your HandyCall setup</Badge>
-              <h1 className="text-4xl font-bold leading-tight text-slate-900 md:text-5xl">
-                Create your account and get ready to launch.
-              </h1>
-              <p className="text-lg text-slate-600">
-                We will guide you through subscription, company details, service area, knowledge base, calendar, and phone setup.
+
+      <main className="mx-auto grid min-h-[calc(100vh-128px)] w-full max-w-[980px] items-center gap-8 px-6 py-10 lg:grid-cols-[1fr_420px]">
+        <section className="space-y-4">
+          <Badge variant="secondary" className="w-fit">Start onboarding</Badge>
+          <h1 className="text-3xl font-semibold text-foreground">Create your workspace</h1>
+          <p className="max-w-lg text-sm text-muted-foreground">
+            Setup is focused and fast. You can launch with core routing and booking rules in one session.
+          </p>
+
+          <div className="space-y-2">
+            {SETUP_STEPS.map((step, index) => (
+              <div key={step} className="flex items-center gap-3 rounded-md border border-border bg-[#0f1115] px-3 py-2 text-sm text-muted-foreground">
+                <span className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-border bg-[#13161b] text-xs text-foreground">
+                  {index + 1}
+                </span>
+                {step}
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Create account</CardTitle>
+            <CardDescription>Use email and password. We will send a verification code next.</CardDescription>
+          </CardHeader>
+
+          <form onSubmit={handleSubmit}>
+            <CardContent className="space-y-4">
+              {error ? (
+                <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                  {error}
+                </div>
+              ) : null}
+
+              <div className="grid gap-2">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => void handleSocialSignUp('cognito-google')}
+                  disabled={isSubmitting || Boolean(socialLoading)}
+                >
+                  <GoogleIcon className="h-4 w-4" />
+                  {socialLoading === 'cognito-google' ? 'Connecting...' : 'Continue with Google'}
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => void handleSocialSignUp('cognito-apple')}
+                  disabled={isSubmitting || Boolean(socialLoading)}
+                >
+                  <AppleIcon className="h-4 w-4" />
+                  {socialLoading === 'cognito-apple' ? 'Connecting...' : 'Continue with Apple'}
+                </Button>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="full_name">Full name</Label>
+                <Input
+                  id="full_name"
+                  value={fullName}
+                  onChange={(event) => setFullName(event.target.value)}
+                  placeholder="Jordan Rivera"
+                  required
+                  disabled={isSubmitting}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  placeholder="you@company.com"
+                  required
+                  disabled={isSubmitting}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="password">Password</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  placeholder="Minimum 8 characters"
+                  required
+                  disabled={isSubmitting}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="confirm_password">Confirm password</Label>
+                <Input
+                  id="confirm_password"
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(event) => setConfirmPassword(event.target.value)}
+                  required
+                  disabled={isSubmitting}
+                />
+              </div>
+            </CardContent>
+
+            <CardFooter className="flex flex-col gap-3">
+              <Button type="submit" className="w-full" disabled={isSubmitting}>
+                {isSubmitting ? 'Creating account...' : 'Create account'}
+              </Button>
+              <p className="text-center text-xs text-muted-foreground">
+                By continuing, you agree to our terms and privacy policy.
               </p>
-            </div>
-
-            <div className="grid gap-3">
-              {SETUP_STEPS.map((step, index) => (
-                <Card key={step.title} className="border-emerald-100 bg-white/80 shadow-sm">
-                  <CardContent className="flex gap-4 p-4">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-50 text-sm font-semibold text-emerald-700">
-                      {index + 1}
-                    </div>
-                    <div>
-                      <p className="text-sm font-semibold text-slate-900">{step.title}</p>
-                      <p className="text-sm text-slate-600">{step.description}</p>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </div>
-
-          <div className="relative">
-            <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-emerald-100/60 via-white to-emerald-50 blur-2xl" />
-            <div className="relative">
-              <Card className="shadow-xl shadow-emerald-100">
-                <CardHeader>
-                  <CardTitle>Create account</CardTitle>
-                  <CardDescription>Start with email and password. We will email you a verification code next.</CardDescription>
-                </CardHeader>
-                <form onSubmit={handleSubmit}>
-                  <CardContent className="space-y-4">
-                    {error && (
-                      <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
-                        {error}
-                      </div>
-                    )}
-
-                    <div className="grid gap-2">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => handleSocialSignUp('cognito-google')}
-                        disabled={isSubmitting || Boolean(socialLoading)}
-                        className="flex items-center justify-center gap-2"
-                      >
-                        <GoogleIcon className="h-4 w-4" />
-                        {socialLoading === 'cognito-google' ? 'Connecting to Google...' : 'Continue with Google'}
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => handleSocialSignUp('cognito-apple')}
-                        disabled={isSubmitting || Boolean(socialLoading)}
-                        className="flex items-center justify-center gap-2"
-                      >
-                        <AppleIcon className="h-4 w-4" />
-                        {socialLoading === 'cognito-apple' ? 'Connecting to Apple...' : 'Continue with Apple'}
-                      </Button>
-                      <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                        <span className="h-px flex-1 bg-border" />
-                        <span>or sign up with email</span>
-                        <span className="h-px flex-1 bg-border" />
-                      </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="full-name">Full name</Label>
-                      <Input
-                        id="full-name"
-                        value={fullName}
-                        onChange={(e) => setFullName(e.target.value)}
-                        placeholder="Jane Owner"
-                        disabled={isSubmitting}
-                        required
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="email">Email</Label>
-                      <Input
-                        id="email"
-                        type="email"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        placeholder="you@business.com"
-                        required
-                        disabled={isSubmitting}
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="password">Password</Label>
-                      <Input
-                        id="password"
-                        type="password"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        placeholder="Minimum 8 characters"
-                        required
-                        disabled={isSubmitting}
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="confirm-password">Confirm password</Label>
-                      <Input
-                        id="confirm-password"
-                        type="password"
-                        value={confirmPassword}
-                        onChange={(e) => setConfirmPassword(e.target.value)}
-                        placeholder="Re-enter your password"
-                        required
-                        disabled={isSubmitting}
-                      />
-                    </div>
-                  </CardContent>
-                  <CardFooter className="flex flex-col gap-3">
-                    <Button type="submit" className="w-full" disabled={isSubmitting}>
-                      {isSubmitting ? 'Creating account...' : 'Create account'}
-                    </Button>
-                    <p className="text-center text-xs text-muted-foreground">
-                      By creating an account, you agree to our terms and privacy policy.
-                    </p>
-                    <p className="text-center text-sm text-muted-foreground">
-                      Already have an account?{' '}
-                      <Link href="/login" className="font-semibold text-primary hover:underline">
-                        Sign in
-                      </Link>
-                    </p>
-                  </CardFooter>
-                </form>
-              </Card>
-            </div>
-          </div>
-        </div>
+              <p className="text-sm text-muted-foreground">
+                Already have an account?{' '}
+                <Link href="/login" className="font-semibold text-primary hover:underline">
+                  Sign in
+                </Link>
+              </p>
+            </CardFooter>
+          </form>
+        </Card>
       </main>
+
       <SiteFooter />
     </div>
   );
 }
+

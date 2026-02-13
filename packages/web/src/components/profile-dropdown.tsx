@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import React, { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
@@ -103,8 +103,8 @@ export function ProfileDropdown() {
     const canceling = company?.cancel_at_period_end || fallbackCancelAtPeriodEnd;
 
     if (!planValue) {
-      if (status === SubscriptionStatus.TRIALING) return { text: 'Trialing', color: 'text-blue-600' };
-      if (status === SubscriptionStatus.ACTIVE) return { text: 'Active', color: 'text-green-600' };
+      if (status === SubscriptionStatus.TRIALING) return { text: 'Trialing', color: 'text-primary' };
+      if (status === SubscriptionStatus.ACTIVE) return { text: 'Active', color: 'text-success' };
       return { text: 'No Plan', color: 'text-muted-foreground' };
     }
 
@@ -115,19 +115,19 @@ export function ProfileDropdown() {
 
     if (canceling) {
       statusText = ' (Cancelled)';
-      color = 'text-red-600';
+      color = 'text-destructive';
     } else if (status === SubscriptionStatus.TRIALING) {
       statusText = ' (Trial)';
-      color = 'text-blue-600';
+      color = 'text-primary';
     } else if (status === SubscriptionStatus.ACTIVE) {
       statusText = ' (Active)';
-      color = 'text-green-600';
+      color = 'text-success';
     } else if (status === SubscriptionStatus.PAST_DUE) {
       statusText = ' (Past Due)';
-      color = 'text-yellow-600';
+      color = 'text-warning';
     } else if (status === SubscriptionStatus.CANCELED) {
       statusText = ' (Canceled)';
-      color = 'text-red-600';
+      color = 'text-destructive';
     }
 
     return { text: `${planName}${statusText}`, color };
@@ -138,9 +138,9 @@ export function ProfileDropdown() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <button className="flex items-center space-x-3 rounded-lg px-3 py-2 transition-colors duration-200 hover:bg-secondary focus:outline-none focus:ring-2 focus:ring-ring">
-          <Avatar className="h-9 w-9 transition-transform duration-200 hover:scale-105">
-            <AvatarFallback className="bg-primary text-primary-foreground">
+        <button className="flex items-center space-x-3 rounded-md border border-transparent px-2 py-2 transition-colors duration-standard ease-standard hover:border-border hover:bg-[#13161b] focus-visible:ring-2 focus-visible:ring-ring">
+          <Avatar className="h-8 w-8">
+            <AvatarFallback>
               {getInitials()}
             </AvatarFallback>
           </Avatar>
@@ -152,7 +152,7 @@ export function ProfileDropdown() {
           </div>
         </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-56">
+      <DropdownMenuContent align="end" className="w-60">
         <DropdownMenuLabel className="font-normal">
           <div className="flex flex-col space-y-1">
             <p className="text-sm font-medium leading-none">{getDisplayName()}</p>
@@ -182,3 +182,4 @@ export function ProfileDropdown() {
     </DropdownMenu>
   );
 }
+

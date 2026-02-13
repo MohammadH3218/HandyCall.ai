@@ -1,15 +1,17 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { Calendar, MessageSquareText, PhoneCall, TrendingUp } from 'lucide-react';
 import { useAuthStore } from '@/stores/auth-store';
 import { apiClient } from '@/lib/api-client';
 import { usePortalBasePath } from '@/lib/portal';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { PageHeader } from '@/components/portal/page-header';
-import { Phone, Users, Calendar, AlertCircle, ArrowUpRight } from 'lucide-react';
-import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { Skeleton } from '@/components/ui/skeleton';
 
 interface DashboardStats {
   todayCalls: number;
@@ -49,14 +51,51 @@ interface ChartPoint {
   value: number;
 }
 
+function toISODate(date: Date) {
+  return date.toISOString().split('T')[0];
+}
+
+function addDays(date: Date, days: number) {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
+function formatDate(value?: string | number) {
+  if (!value) return '-';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '-';
+  return date.toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function formatDuration(seconds?: number) {
+  if (!seconds) return '0:00';
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  return `${mins}:${secs.toString().padStart(2, '0')}`;
+}
+
+function statusLabel(status?: string) {
+  if (!status) return 'Unknown';
+  return status.replace(/_/g, ' ').toLowerCase();
+}
+
 export default function DashboardPage() {
   const { company, isAuthenticated, isLoading: authLoading } = useAuthStore();
   const basePath = usePortalBasePath();
+
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [recentCalls, setRecentCalls] = useState<RecentCall[]>([]);
   const [upcomingAppointments, setUpcomingAppointments] = useState<UpcomingAppointment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [hasLoaded, setHasLoaded] = useState(false);
+
   const [chartRange, setChartRange] = useState<ChartRange>('week');
   const [chartSeries, setChartSeries] = useState<Record<ChartRange, ChartPoint[]>>({
     week: [],
@@ -68,16 +107,14 @@ export default function DashboardPage() {
     month: false,
     year: false,
   });
-  const [chartError, setChartError] = useState<string | null>(null);
-  const [hasLoaded, setHasLoaded] = useState(false);
 
   useEffect(() => {
     if (authLoading || !isAuthenticated || hasLoaded) return;
     setHasLoaded(true);
-    loadDashboardData();
+    void loadDashboardData();
     void loadChartData('week');
     void loadChartData('month');
-  }, [authLoading, isAuthenticated, hasLoaded]);
+  }, [authLoading, hasLoaded, isAuthenticated]);
 
   const loadDashboardData = async () => {
     try {
@@ -94,25 +131,18 @@ export default function DashboardPage() {
       setRecentCalls(callsData || []);
       setUpcomingAppointments(appointmentsData || []);
     } catch (err: any) {
-      console.error('Error loading dashboard:', err);
-      if (!isAuthenticated || authLoading) {
-        return;
-      }
       setError(err.message || 'Failed to load dashboard data');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const toISODate = (date: Date) => date.toISOString().split('T')[0];
-
-  const addDays = (date: Date, days: number) => {
-    const next = new Date(date);
-    next.setDate(next.getDate() + days);
-    return next;
-  };
-
-  const buildDailySeries = (start: Date, end: Date, history: UsageMetric[], labelFormat: Intl.DateTimeFormatOptions) => {
+  const buildDailySeries = (
+    start: Date,
+    end: Date,
+    history: UsageMetric[],
+    labelFormat: Intl.DateTimeFormatOptions
+  ) => {
     const map = new Map<string, number>();
     history.forEach((item) => {
       if (!item?.date) return;
@@ -127,35 +157,31 @@ export default function DashboardPage() {
       series.push({ label, value: map.get(key) ?? 0 });
       cursor = addDays(cursor, 1);
     }
+
     return series;
   };
 
   const loadChartData = async (range: ChartRange) => {
-    if (!isAuthenticated || authLoading) return;
-    if (chartLoading[range]) return;
-    if (chartSeries[range]?.length) return;
-
+    if (!isAuthenticated || authLoading || chartLoading[range] || chartSeries[range].length > 0) return;
     setChartLoading((prev) => ({ ...prev, [range]: true }));
-    setChartError(null);
 
     try {
       if (range === 'year') {
         const end = new Date();
         const points: ChartPoint[] = [];
+
         for (let i = 11; i >= 0; i -= 1) {
           const monthStart = new Date(end.getFullYear(), end.getMonth() - i, 1);
           const monthEnd = new Date(end.getFullYear(), end.getMonth() - i + 1, 0);
           const res = await apiClient.getUsageMetrics(toISODate(monthStart), toISODate(monthEnd));
           const history = (res as any)?.history || [];
-          const total = (history as UsageMetric[]).reduce(
-            (acc, item) => acc + Number(item?.calls_count || 0),
-            0
-          );
+          const total = (history as UsageMetric[]).reduce((acc, item) => acc + Number(item?.calls_count || 0), 0);
           points.push({
             label: monthStart.toLocaleDateString('en-US', { month: 'short' }),
             value: total,
           });
         }
+
         setChartSeries((prev) => ({ ...prev, year: points }));
         return;
       }
@@ -166,265 +192,178 @@ export default function DashboardPage() {
       const history = (res as any)?.history || [];
       const format: Intl.DateTimeFormatOptions =
         range === 'week' ? { weekday: 'short' } : { month: 'short', day: 'numeric' };
+
       const series = buildDailySeries(start, end, history, format);
       setChartSeries((prev) => ({ ...prev, [range]: series }));
-    } catch (err: any) {
-      setChartError(err?.message || 'Unable to load call activity.');
     } finally {
       setChartLoading((prev) => ({ ...prev, [range]: false }));
     }
   };
 
-  const formatDate = (dateValue?: string | number) => {
-    if (!dateValue) return '-';
-    const date = new Date(dateValue);
-    if (Number.isNaN(date.getTime())) return '-';
-    return date.toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  };
+  const bookingRate = useMemo(() => {
+    if (!stats?.todayCalls || !stats.appointments) return 0;
+    return Math.round((stats.appointments / stats.todayCalls) * 100);
+  }, [stats]);
 
-  const formatDateTime = (dateValue?: string | number) => {
-    if (!dateValue) return '-';
-    const date = new Date(dateValue);
-    if (Number.isNaN(date.getTime())) return '-';
-    return date.toLocaleString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  };
-
-  const formatDuration = (seconds?: number) => {
-    if (!seconds) return '-';
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  const formatStatus = (status?: string) => {
-    if (!status) return 'Unknown';
-    return status.replace(/_/g, ' ').toLowerCase();
-  };
-
-  const recentLimit = 2;
-  const appointmentLimit = 2;
-  const recentPreview = useMemo(() => recentCalls.slice(0, recentLimit), [recentCalls]);
-  const appointmentPreview = useMemo(
-    () => upcomingAppointments.slice(0, appointmentLimit),
-    [upcomingAppointments]
-  );
-  const hasMoreCalls = recentCalls.length > recentLimit;
-  const hasMoreAppointments = upcomingAppointments.length > appointmentLimit;
+  const todayStats = [
+    {
+      label: 'Missed calls',
+      value: stats?.pendingQuestions || 0,
+      hint: 'Needs follow-up',
+      icon: <PhoneCall className="h-4 w-4" />,
+    },
+    {
+      label: 'New messages',
+      value: stats?.newLeads || 0,
+      hint: 'Inbound conversations',
+      icon: <MessageSquareText className="h-4 w-4" />,
+    },
+    {
+      label: 'Upcoming appointments',
+      value: stats?.appointments || 0,
+      hint: 'Scheduled today',
+      icon: <Calendar className="h-4 w-4" />,
+    },
+    {
+      label: 'Booking rate',
+      value: `${bookingRate}%`,
+      hint: 'Calls to bookings',
+      icon: <TrendingUp className="h-4 w-4" />,
+    },
+  ];
 
   if (error) {
     return (
-      <div className="p-8">
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-          <p className="text-red-800">{error}</p>
-          <button
-            onClick={loadDashboardData}
-            className="mt-2 text-sm text-red-600 hover:text-red-800 underline"
-          >
-            Try again
-          </button>
-        </div>
+      <div className="space-y-4">
+        <PageHeader title="Dashboard" subtitle="We could not load your dashboard right now." />
+        <Card>
+          <CardContent className="p-5">
+            <p className="text-sm text-destructive">{error}</p>
+            <Button className="mt-3" onClick={() => void loadDashboardData()}>
+              Retry
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6 animate-fade-up">
+    <div className="space-y-6">
       <PageHeader
         eyebrow="Overview"
-        title={`Welcome back, ${company?.company_name || 'HandyCall'}`}
-        subtitle="See today's call activity, new leads, and upcoming appointments at a glance."
+        title={`${company?.company_name || 'HandyCall'}  -  Today`}
+        subtitle="A quick snapshot of calls, messages, and booking performance."
       />
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        <StatCard
-          title="Today's Calls"
-          value={isLoading ? '-' : stats?.todayCalls.toString() || '0'}
-          icon={<Phone className="h-8 w-8 text-emerald-600" />}
-          description={stats?.todayCalls ? 'calls received today' : 'No calls yet today'}
-          isLoading={isLoading}
-        />
-        <StatCard
-          title="New Leads"
-          value={isLoading ? '-' : stats?.newLeads.toString() || '0'}
-          icon={<Users className="h-8 w-8 text-emerald-500" />}
-          description={stats?.newLeads ? 'new contacts added' : 'Waiting for first lead'}
-          isLoading={isLoading}
-        />
-        <StatCard
-          title="Appointments"
-          value={isLoading ? '-' : stats?.appointments.toString() || '0'}
-          icon={<Calendar className="h-8 w-8 text-emerald-600" />}
-          description={stats?.appointments ? 'upcoming appointments' : 'No scheduled appointments'}
-          isLoading={isLoading}
-        />
-        <StatCard
-          title="Pending Questions"
-          value={isLoading ? '-' : stats?.pendingQuestions.toString() || '0'}
-          icon={<AlertCircle className="h-8 w-8 text-amber-600" />}
-          description={stats?.pendingQuestions ? 'need your attention' : 'No flagged questions'}
-          isLoading={isLoading}
-        />
-      </div>
+      <section className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+        {todayStats.map((item) => (
+          <Card key={item.label}>
+            <CardContent className="p-4">
+              {isLoading ? (
+                <div className="space-y-2">
+                  <Skeleton className="h-4 w-1/2" />
+                  <Skeleton className="h-8 w-1/3" />
+                  <Skeleton className="h-3 w-2/3" />
+                </div>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-semibold uppercase tracking-[0.06em] text-text-faint">{item.label}</p>
+                    <span className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border bg-[#13161b] text-text-muted">
+                      {item.icon}
+                    </span>
+                  </div>
+                  <p className="mt-3 text-3xl font-semibold text-foreground">{item.value}</p>
+                  <p className="text-xs text-muted-foreground">{item.hint}</p>
+                </>
+              )}
+            </CardContent>
+          </Card>
+        ))}
+      </section>
 
-      {/* Recent Activity */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <section className="grid grid-cols-1 gap-4 xl:grid-cols-[1.2fr_0.8fr]">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle>Recent Calls</CardTitle>
-            {hasMoreCalls && (
-              <Link
-                href={`${basePath}/calls`}
-                className="inline-flex items-center text-xs font-semibold text-emerald-700 hover:text-emerald-600"
-              >
-                View all
-                <ArrowUpRight className="ml-1 h-3.5 w-3.5" />
-              </Link>
-            )}
+            <CardTitle>Recent activity</CardTitle>
+            <Button asChild variant="ghost" size="sm">
+              <Link href={`${basePath}/calls`}>View all calls</Link>
+            </Button>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-2">
             {isLoading ? (
-              <div className="space-y-3">
-                {[1, 2, 3].map((i) => (
-                  <div key={i} className="animate-pulse">
-                    <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
-                    <div className="h-3 bg-gray-200 rounded w-1/2"></div>
-                  </div>
+              <div className="space-y-2">
+                {Array.from({ length: 4 }).map((_, index) => (
+                  <Skeleton key={index} className="h-14 w-full" />
                 ))}
               </div>
-            ) : recentPreview.length > 0 ? (
-              <div className="space-y-2">
-                {recentPreview.map((call) => {
-                  const status = call.status?.toString().toLowerCase();
-                  const isInProgress = status === 'in_progress' || status === 'in progress';
-                  const hasName = Boolean(call.caller_name && call.caller_name.trim());
-                  const displayName = isInProgress
-                    ? 'In Progress'
-                    : hasName
-                      ? call.caller_name!.trim()
-                      : 'Unknown caller';
-                  const secondary =
-                    !isInProgress && hasName && call.caller_phone ? call.caller_phone : undefined;
-                  const statusLabel = formatStatus(call.status);
-                  const meta = [formatDate(call.created_at), call.duration ? formatDuration(call.duration) : undefined]
-                    .filter(Boolean)
-                    .join(' · ');
-                  return (
-                    <Link
-                      key={call.call_id}
-                      href={`${basePath}/calls/${call.call_id}`}
-                      className="group block rounded-2xl border border-border/60 bg-white/80 p-4 transition-all hover:-translate-y-0.5 hover:border-emerald-200 hover:shadow-md"
-                    >
-                      <div className="flex items-start justify-between gap-4">
-                        <div>
-                          <p className="text-sm font-semibold text-foreground">{displayName}</p>
-                          {secondary ? (
-                            <p className="mt-1 text-xs text-muted-foreground">{secondary}</p>
-                          ) : null}
-                        </div>
-                        <div className="text-right text-xs text-muted-foreground">
-                          <p className="font-medium text-foreground">{meta || '-'}</p>
-                          {statusLabel && statusLabel !== 'completed' ? (
-                            <p className="mt-1 text-emerald-700 capitalize">{statusLabel}</p>
-                          ) : null}
-                        </div>
-                      </div>
-                    </Link>
-                  );
-                })}
-              </div>
+            ) : recentCalls.length ? (
+              recentCalls.slice(0, 6).map((call) => (
+                <Link
+                  key={call.call_id}
+                  href={`${basePath}/calls/${call.call_id}`}
+                  className="flex items-center justify-between rounded-md border border-border bg-[#0f1115] px-3 py-2 transition-colors duration-standard ease-standard hover:border-[#313538]"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-foreground">
+                      {call.caller_name || call.caller_phone || 'Unknown caller'}
+                    </p>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {formatDate(call.created_at)}  -  {formatDuration(call.duration)}
+                    </p>
+                  </div>
+                  <Badge variant="secondary" className="capitalize">
+                    {statusLabel(call.status)}
+                  </Badge>
+                </Link>
+              ))
             ) : (
-              <p className="text-sm text-muted-foreground text-center py-8">
-                No calls yet. Your AI receptionist is ready to answer!
-              </p>
+              <p className="text-sm text-muted-foreground">No recent calls yet.</p>
             )}
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle>Upcoming Appointments</CardTitle>
-            {hasMoreAppointments && (
-              <Link
-                href={`${basePath}/appointments`}
-                className="inline-flex items-center text-xs font-semibold text-emerald-700 hover:text-emerald-600"
-              >
-                View all
-                <ArrowUpRight className="ml-1 h-3.5 w-3.5" />
-              </Link>
-            )}
+            <CardTitle>Upcoming schedule</CardTitle>
+            <Button asChild variant="ghost" size="sm">
+              <Link href={`${basePath}/appointments`}>Open calendar</Link>
+            </Button>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-2">
             {isLoading ? (
-              <div className="space-y-3">
-                {[1, 2, 3].map((i) => (
-                  <div key={i} className="animate-pulse">
-                    <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
-                    <div className="h-3 bg-gray-200 rounded w-1/2"></div>
-                  </div>
+              <div className="space-y-2">
+                {Array.from({ length: 4 }).map((_, index) => (
+                  <Skeleton key={index} className="h-16 w-full" />
                 ))}
               </div>
-            ) : appointmentPreview.length > 0 ? (
-              <div className="space-y-2">
-                {appointmentPreview.map((apt) => {
-                  const scheduled = (apt as any)?.scheduled_start ?? apt.scheduled_time;
-                  const meta = formatDateTime(scheduled);
-                  const service = apt.service_type ? ` · ${apt.service_type}` : '';
-                  return (
-                    <Link
-                      key={apt.appointment_id}
-                      href={`${basePath}/appointments`}
-                      className="group block rounded-2xl border border-border/60 bg-white/80 p-4 transition-all hover:-translate-y-0.5 hover:border-emerald-200 hover:shadow-md"
-                    >
-                      <div className="flex items-start justify-between gap-4">
-                        <div>
-                          <p className="text-sm font-semibold text-foreground">
-                            {apt.contact_name || apt.service_type || 'Upcoming appointment'}
-                          </p>
-                          <p className="mt-1 text-xs text-muted-foreground">
-                            {meta}{service}
-                          </p>
-                        </div>
-                        <span className="text-xs font-medium uppercase tracking-wide text-emerald-700">
-                          {formatStatus(apt.status)}
-                        </span>
-                      </div>
-                    </Link>
-                  );
-                })}
-              </div>
+            ) : upcomingAppointments.length ? (
+              upcomingAppointments.slice(0, 5).map((apt) => (
+                <div key={apt.appointment_id} className="rounded-md border border-border bg-[#0f1115] px-3 py-3">
+                  <p className="text-sm font-medium text-foreground">{apt.contact_name || 'Appointment'}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {formatDate(apt.scheduled_time)}
+                    {apt.service_type ? `  -  ${apt.service_type}` : ''}
+                  </p>
+                </div>
+              ))
             ) : (
-              <p className="text-sm text-muted-foreground text-center py-8">
-                No appointments scheduled
-              </p>
+              <p className="text-sm text-muted-foreground">No upcoming appointments.</p>
             )}
           </CardContent>
         </Card>
-      </div>
+      </section>
 
-      {/* Call Activity Chart */}
       <Card>
         <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <CardTitle>Call activity</CardTitle>
-            <p className="text-sm text-muted-foreground">Total calls over time by period.</p>
-          </div>
-          <div className="flex flex-wrap gap-2">
+          <CardTitle>Call activity</CardTitle>
+          <div className="flex gap-2">
             {(['week', 'month', 'year'] as ChartRange[]).map((range) => (
               <Button
                 key={range}
                 size="sm"
-                variant={chartRange === range ? 'default' : 'outline'}
+                variant={chartRange === range ? 'primary' : 'secondary'}
                 onClick={() => {
                   setChartRange(range);
                   void loadChartData(range);
@@ -436,95 +375,50 @@ export default function DashboardPage() {
           </div>
         </CardHeader>
         <CardContent>
-          {chartError ? (
-            <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
-              {chartError}
-            </div>
-          ) : chartLoading[chartRange] ? (
-            <div className="h-[260px] animate-pulse rounded-2xl bg-emerald-50/60" />
-          ) : chartSeries[chartRange].length === 0 ? (
-            <div className="flex h-[260px] items-center justify-center rounded-2xl border border-dashed border-emerald-100 bg-emerald-50/40 text-sm text-muted-foreground">
-              No call activity yet for this period.
-            </div>
-          ) : (
+          {chartLoading[chartRange] ? (
+            <Skeleton className="h-[260px] w-full" />
+          ) : chartSeries[chartRange].length ? (
             <div className="h-[260px] w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={chartSeries[chartRange]}>
                   <defs>
-                    <linearGradient id="callsGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#10b981" stopOpacity={0.35} />
-                      <stop offset="100%" stopColor="#10b981" stopOpacity={0.05} />
+                    <linearGradient id="callTrendGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#0090ff" stopOpacity={0.35} />
+                      <stop offset="100%" stopColor="#0090ff" stopOpacity={0.02} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="4 4" stroke="#e5e7eb" />
-                  <XAxis dataKey="label" tick={{ fontSize: 12 }} stroke="#94a3b8" />
-                  <YAxis tick={{ fontSize: 12 }} stroke="#94a3b8" allowDecimals={false} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(120,127,133,0.22)" />
+                  <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#787f85' }} stroke="rgba(120,127,133,0.34)" />
+                  <YAxis tick={{ fontSize: 11, fill: '#787f85' }} stroke="rgba(120,127,133,0.34)" allowDecimals={false} />
                   <Tooltip
-                    cursor={{ stroke: '#10b981', strokeWidth: 1, strokeDasharray: '4 4' }}
+                    cursor={{ stroke: '#369eff', strokeWidth: 1 }}
                     contentStyle={{
-                      borderRadius: '12px',
-                      border: '1px solid #e2e8f0',
-                      boxShadow: '0 10px 30px rgba(15, 23, 42, 0.08)',
+                      borderRadius: 10,
+                      border: '1px solid #313538',
+                      background: '#13161b',
+                      color: '#ecedee',
                     }}
-                    labelStyle={{ fontSize: 12, color: '#64748b' }}
                   />
                   <Area
                     type="monotone"
                     dataKey="value"
-                    stroke="#10b981"
+                    stroke="#0090ff"
                     strokeWidth={2}
-                    fill="url(#callsGradient)"
-                    name="Calls"
+                    fill="url(#callTrendGradient)"
                     dot={false}
-                    activeDot={{ r: 5, strokeWidth: 2 }}
+                    activeDot={{ r: 4, strokeWidth: 2, stroke: '#0090ff', fill: '#0b0c0e' }}
                   />
                 </AreaChart>
               </ResponsiveContainer>
+            </div>
+          ) : (
+            <div className="flex h-[260px] items-center justify-center rounded-md border border-dashed border-border bg-[#0f1115] text-sm text-muted-foreground">
+              No call activity yet for this period.
             </div>
           )}
         </CardContent>
       </Card>
     </div>
-  );
-}
-
-function StatCard({
-  title,
-  value,
-  icon,
-  description,
-  isLoading,
-}: {
-  title: string;
-  value: string;
-  icon: React.ReactNode;
-  description: string;
-  isLoading?: boolean;
-}) {
-  return (
-    <Card className="group">
-      <CardContent className="pt-6">
-        <div className="flex items-center justify-between">
-          <div className="flex-1">
-            <p className="text-sm font-medium text-muted-foreground">{title}</p>
-            {isLoading ? (
-              <div className="animate-pulse">
-                <div className="h-9 bg-gray-200 rounded w-16 mt-2"></div>
-                <div className="h-3 bg-gray-200 rounded w-24 mt-1"></div>
-              </div>
-            ) : (
-              <>
-                <p className="text-3xl font-semibold text-foreground mt-2">{value}</p>
-                <p className="text-xs text-muted-foreground mt-1">{description}</p>
-              </>
-            )}
-          </div>
-          <div className="flex-shrink-0 rounded-2xl bg-emerald-50/70 p-3 shadow-sm transition-transform duration-200 group-hover:-translate-y-0.5">
-            {icon}
-          </div>
-        </div>
-      </CardContent>
-    </Card>
   );
 }
 

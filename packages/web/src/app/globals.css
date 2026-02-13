@@ -1,122 +1,288 @@
-@tailwind base;
+﻿@tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-@layer base {
-  :root {
-    --background: 150 40% 98%;
-    --foreground: 160 18% 12%;
+:root {
+  --gray-dark-1: #161616;
+  --gray-dark-2: #1c1c1c;
+  --gray-dark-3: #232323;
+  --gray-dark-4: #282828;
+  --gray-dark-5: #2e2e2e;
+  --gray-dark-6: #343434;
+  --gray-dark-7: #3e3e3e;
+  --gray-dark-8: #505050;
+  --gray-dark-9: #707070;
+  --gray-dark-10: #7e7e7e;
+  --gray-dark-11: #a0a0a0;
+  --gray-dark-12: #ededed;
 
-    --card: 0 0% 100%;
-    --card-foreground: 160 18% 12%;
+  --slate-dark-1: #151718;
+  --slate-dark-2: #1a1d1e;
+  --slate-dark-3: #202425;
+  --slate-dark-4: #26292b;
+  --slate-dark-5: #2b2f31;
+  --slate-dark-6: #313538;
+  --slate-dark-7: #3a3f42;
+  --slate-dark-8: #4c5155;
+  --slate-dark-9: #697177;
+  --slate-dark-10: #787f85;
+  --slate-dark-11: #9ba1a6;
+  --slate-dark-12: #ecedee;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 160 18% 12%;
+  --bg: #0b0c0e;
+  --bg-rgb: 11 12 14;
+  --bg-elev-1: #0f1115;
+  --bg-elev-1-rgb: 15 17 21;
+  --bg-elev-2: #13161b;
+  --bg-elev-2-rgb: 19 22 27;
+  --stroke-subtle: #202425;
+  --stroke-subtle-rgb: 32 36 37;
+  --stroke-strong: #313538;
+  --stroke-strong-rgb: 49 53 56;
+  --text: #ecedee;
+  --text-rgb: 236 237 238;
+  --text-muted: #9ba1a6;
+  --text-muted-rgb: 155 161 166;
+  --text-faint: #787f85;
+  --text-faint-rgb: 120 127 133;
+  --icon: #a0a0a0;
+  --focus: #0090ff;
+  --focus-rgb: 0 144 255;
+  --danger: #ff4d4f;
+  --danger-rgb: 255 77 79;
+  --success: #30a46c;
+  --success-rgb: 48 164 108;
+  --warning: #ffb224;
+  --warning-rgb: 255 178 36;
 
-    --primary: 160 84% 34%;
-    --primary-foreground: 0 0% 100%;
+  --accent: #0090ff;
+  --accent-hover: #369eff;
+  --accent-subtle: rgba(0, 144, 255, 0.12);
 
-    --secondary: 160 20% 96%;
-    --secondary-foreground: 160 18% 15%;
+  --r-sm: 10px;
+  --r-md: 14px;
+  --r-lg: 18px;
+  --r-xl: 22px;
 
-    --muted: 160 22% 94%;
-    --muted-foreground: 160 10% 40%;
+  --shadow-1: 0 1px 0 rgba(255, 255, 255, 0.04), 0 8px 24px rgba(0, 0, 0, 0.35);
+  --shadow-2: 0 1px 0 rgba(255, 255, 255, 0.06), 0 16px 48px rgba(0, 0, 0, 0.45);
 
-    --accent: 160 60% 90%;
-    --accent-foreground: 160 35% 18%;
+  --background: var(--bg);
+  --foreground: var(--text);
+  --card: var(--bg-elev-1);
+  --card-foreground: var(--text);
+  --popover: var(--bg-elev-2);
+  --popover-foreground: var(--text);
+  --primary: var(--accent);
+  --primary-foreground: #f5f9ff;
+  --secondary: var(--slate-dark-2);
+  --secondary-foreground: var(--text);
+  --muted: var(--slate-dark-2);
+  --muted-foreground: var(--text-muted);
+  --accent-foreground: #d7ebff;
+  --destructive: var(--danger);
+  --destructive-foreground: #ffe8e8;
+  --border: var(--stroke-subtle);
+  --input: var(--stroke-subtle);
+  --ring: var(--focus);
 
-    --destructive: 0 84% 60%;
-    --destructive-foreground: 0 0% 100%;
-
-    --border: 160 16% 86%;
-    --input: 160 20% 90%;
-
-    --ring: 160 84% 34%;
-
-    --radius: 0.75rem;
-  }
+  --radius: var(--r-md);
+  --transition-standard: 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  --font-display: var(--font-sans);
 }
 
 @layer base {
   * {
     @apply border-border;
+    box-sizing: border-box;
   }
+
+  html,
   body {
-    @apply bg-white text-foreground;
+    min-height: 100%;
+  }
+
+  body {
+    margin: 0;
+    background: radial-gradient(circle at 15% -10%, rgba(54, 158, 255, 0.11), transparent 28%),
+      radial-gradient(circle at 85% 0%, rgba(255, 255, 255, 0.02), transparent 22%), var(--bg);
+    color: var(--text);
+    font-size: 15px;
+    line-height: 1.5;
+    text-rendering: geometricPrecision;
   }
 
   h1,
   h2,
   h3,
-  h4 {
+  h4,
+  h5,
+  h6 {
+    color: var(--text);
     font-family: var(--font-display);
+    line-height: 1.35;
+  }
+
+  h1,
+  h2 {
     letter-spacing: -0.02em;
+    font-weight: 620;
+  }
+
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-weight: 580;
+  }
+
+  p,
+  li,
+  label,
+  input,
+  textarea,
+  button,
+  select {
+    font-family: var(--font-sans);
+  }
+
+  input,
+  textarea,
+  select,
+  button {
+    color: inherit;
+  }
+
+  ::selection {
+    background: rgba(0, 144, 255, 0.26);
+    color: #f7fbff;
+  }
+
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  :focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(0, 144, 255, 0.25);
+  }
+
+  .tabular,
+  table,
+  td,
+  th {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+@layer components {
+  .hc-panel {
+    border: 1px solid var(--stroke-subtle);
+    border-radius: var(--r-lg);
+    background: var(--bg-elev-1);
+    box-shadow: var(--shadow-1);
+  }
+
+  .hc-elevated {
+    border: 1px solid var(--stroke-strong);
+    border-radius: var(--r-xl);
+    background: var(--bg-elev-2);
+    box-shadow: var(--shadow-2);
+  }
+
+  .hc-focus {
+    transition: border-color var(--transition-standard), box-shadow var(--transition-standard);
+  }
+
+  .hc-focus:focus-visible {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(0, 144, 255, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  }
+
+  .hc-skeleton {
+    border-radius: var(--r-sm);
+    background: linear-gradient(
+      90deg,
+      rgba(236, 237, 238, 0.04) 0%,
+      rgba(236, 237, 238, 0.08) 38%,
+      rgba(236, 237, 238, 0.04) 100%
+    );
+    background-size: 200% 100%;
+    animation: skeleton-shimmer 1.6s linear infinite;
   }
 }
 
 @layer utilities {
-  /* ── Range slider (pricing calculator) ── */
   .calc-slider {
     -webkit-appearance: none;
     appearance: none;
     height: 8px;
-    border-radius: 9999px;
+    border-radius: 999px;
     background: transparent;
-    outline: none;
     cursor: pointer;
     margin: 0;
   }
 
   .calc-slider::-webkit-slider-runnable-track {
     height: 8px;
-    border-radius: 9999px;
+    border-radius: 999px;
     background: transparent;
   }
 
   .calc-slider::-webkit-slider-thumb {
     -webkit-appearance: none;
     appearance: none;
-    width: 20px;
-    height: 20px;
-    border-radius: 9999px;
-    background: white;
-    border: 3px solid #059669;
-    box-shadow: 0 1px 6px rgba(0, 0, 0, 0.12);
-    cursor: grab;
-    margin-top: -6px;
-    transition: box-shadow 0.15s ease, transform 0.15s ease;
+    width: 18px;
+    height: 18px;
+    border-radius: 999px;
+    background: var(--bg);
+    border: 2px solid var(--accent);
+    box-shadow: 0 1px 6px rgba(0, 0, 0, 0.35);
+    margin-top: -5px;
+    transition: transform var(--transition-standard), box-shadow var(--transition-standard);
   }
 
   .calc-slider::-webkit-slider-thumb:hover {
-    box-shadow: 0 1px 8px rgba(0, 0, 0, 0.18), 0 0 0 4px rgba(5, 150, 105, 0.1);
-    transform: scale(1.15);
-  }
-
-  .calc-slider::-webkit-slider-thumb:active {
-    cursor: grabbing;
-    transform: scale(1.05);
-    box-shadow: 0 1px 8px rgba(0, 0, 0, 0.18), 0 0 0 4px rgba(5, 150, 105, 0.15);
+    transform: scale(1.06);
+    box-shadow: 0 0 0 6px rgba(0, 144, 255, 0.14), 0 1px 8px rgba(0, 0, 0, 0.42);
   }
 
   .calc-slider::-moz-range-track {
     height: 8px;
-    border-radius: 9999px;
+    border-radius: 999px;
     background: transparent;
     border: none;
   }
 
   .calc-slider::-moz-range-thumb {
-    width: 20px;
-    height: 20px;
-    border-radius: 9999px;
-    background: white;
-    border: 3px solid #059669;
-    box-shadow: 0 1px 6px rgba(0, 0, 0, 0.12);
-    cursor: grab;
-    transition: box-shadow 0.15s ease, transform 0.15s ease;
-  }
-
-  .calc-slider::-moz-range-thumb:hover {
-    box-shadow: 0 1px 8px rgba(0, 0, 0, 0.18), 0 0 0 4px rgba(5, 150, 105, 0.1);
+    width: 18px;
+    height: 18px;
+    border-radius: 999px;
+    background: var(--bg);
+    border: 2px solid var(--accent);
+    box-shadow: 0 1px 6px rgba(0, 0, 0, 0.35);
   }
 }
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+@keyframes skeleton-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+

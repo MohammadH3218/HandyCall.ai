@@ -1,18 +1,22 @@
-import type { Config } from 'tailwindcss'
+﻿import type { Config } from 'tailwindcss'
 
 const config = {
   darkMode: ['class'],
   content: [
-    './pages/**/*.{ts,tsx}',
-    './components/**/*.{ts,tsx}',
-    './app/**/*.{ts,tsx}',
-    './src/**/*.{ts,tsx}',
+    './pages/**/*.{ts,tsx,js,jsx}',
+    './components/**/*.{ts,tsx,js,jsx}',
+    './app/**/*.{ts,tsx,js,jsx}',
+    './src/**/*.{ts,tsx,js,jsx}',
   ],
   prefix: '',
   theme: {
     container: {
       center: true,
-      padding: '2rem',
+      padding: {
+        DEFAULT: '24px',
+        md: '32px',
+        xl: '40px',
+      },
       screens: {
         '2xl': '1400px',
       },
@@ -23,44 +27,66 @@ const config = {
         display: ['var(--font-display)', 'ui-sans-serif', 'system-ui', 'sans-serif'],
       },
       colors: {
-        border: 'hsl(var(--border))',
-        input: 'hsl(var(--input))',
-        ring: 'hsl(var(--ring))',
-        background: 'hsl(var(--background))',
-        foreground: 'hsl(var(--foreground))',
+        border: 'rgb(var(--stroke-subtle-rgb) / <alpha-value>)',
+        input: 'rgb(var(--stroke-subtle-rgb) / <alpha-value>)',
+        ring: 'rgb(var(--focus-rgb) / <alpha-value>)',
+        background: 'rgb(var(--bg-rgb) / <alpha-value>)',
+        foreground: 'rgb(var(--text-rgb) / <alpha-value>)',
         primary: {
-          DEFAULT: 'hsl(var(--primary))',
-          foreground: 'hsl(var(--primary-foreground))',
+          DEFAULT: 'rgb(var(--accent-rgb) / <alpha-value>)',
+          foreground: 'rgb(var(--bg-rgb) / <alpha-value>)',
         },
         secondary: {
-          DEFAULT: 'hsl(var(--secondary))',
-          foreground: 'hsl(var(--secondary-foreground))',
+          DEFAULT: 'rgb(var(--bg-elev-1-rgb) / <alpha-value>)',
+          foreground: 'rgb(var(--text-rgb) / <alpha-value>)',
         },
         destructive: {
-          DEFAULT: 'hsl(var(--destructive))',
-          foreground: 'hsl(var(--destructive-foreground))',
+          DEFAULT: 'rgb(var(--danger-rgb) / <alpha-value>)',
+          foreground: 'rgb(var(--text-rgb) / <alpha-value>)',
         },
         muted: {
-          DEFAULT: 'hsl(var(--muted))',
-          foreground: 'hsl(var(--muted-foreground))',
+          DEFAULT: 'rgb(var(--bg-elev-2-rgb) / <alpha-value>)',
+          foreground: 'rgb(var(--text-muted-rgb) / <alpha-value>)',
         },
         accent: {
-          DEFAULT: 'hsl(var(--accent))',
-          foreground: 'hsl(var(--accent-foreground))',
+          DEFAULT: 'rgb(var(--accent-rgb) / <alpha-value>)',
+          foreground: 'rgb(var(--text-rgb) / <alpha-value>)',
         },
         popover: {
-          DEFAULT: 'hsl(var(--popover))',
-          foreground: 'hsl(var(--popover-foreground))',
+          DEFAULT: 'rgb(var(--bg-elev-2-rgb) / <alpha-value>)',
+          foreground: 'rgb(var(--text-rgb) / <alpha-value>)',
         },
         card: {
-          DEFAULT: 'hsl(var(--card))',
-          foreground: 'hsl(var(--card-foreground))',
+          DEFAULT: 'rgb(var(--bg-elev-1-rgb) / <alpha-value>)',
+          foreground: 'rgb(var(--text-rgb) / <alpha-value>)',
         },
+        surface: {
+          1: 'rgb(var(--bg-elev-1-rgb) / <alpha-value>)',
+          2: 'rgb(var(--bg-elev-2-rgb) / <alpha-value>)',
+        },
+        text: {
+          DEFAULT: 'rgb(var(--text-rgb) / <alpha-value>)',
+          muted: 'rgb(var(--text-muted-rgb) / <alpha-value>)',
+          faint: 'rgb(var(--text-faint-rgb) / <alpha-value>)',
+        },
+        success: 'rgb(var(--success-rgb) / <alpha-value>)',
+        warning: 'rgb(var(--warning-rgb) / <alpha-value>)',
       },
       borderRadius: {
-        lg: 'var(--radius)',
-        md: 'calc(var(--radius) - 2px)',
-        sm: 'calc(var(--radius) - 4px)',
+        sm: 'var(--r-sm)',
+        md: 'var(--r-md)',
+        lg: 'var(--r-lg)',
+        xl: 'var(--r-xl)',
+      },
+      boxShadow: {
+        1: 'var(--shadow-1)',
+        2: 'var(--shadow-2)',
+      },
+      transitionTimingFunction: {
+        standard: 'cubic-bezier(0.2, 0.8, 0.2, 1)',
+      },
+      transitionDuration: {
+        standard: '180ms',
       },
       keyframes: {
         'accordion-down': {
@@ -82,3 +108,5 @@ const config = {
 } satisfies Config
 
 export default config
+
+

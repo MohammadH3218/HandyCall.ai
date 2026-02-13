@@ -1,17 +1,39 @@
-'use client';
+﻿'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { apiClient } from '@/lib/api-client';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { useToast } from '@/hooks/use-toast';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { EmptyState } from '@/components/portal/empty-state';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { PageHeader } from '@/components/portal/page-header';
-import { EmptyState } from '@/components/portal/empty-state';
-import { Users, Plus, Edit2, Trash2, Search, Phone as PhoneIcon, Mail } from 'lucide-react';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { useToast } from '@/hooks/use-toast';
+import { Skeleton } from '@/components/ui/skeleton';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { Textarea } from '@/components/ui/textarea';
+import {
+  ArrowUpRight,
+  CalendarDays,
+  Download,
+  Mail,
+  Phone,
+  Plus,
+  Search,
+  Tag,
+  Trash2,
+  Upload,
+  User,
+} from 'lucide-react';
 
 interface Contact {
   contact_id: string;
@@ -24,19 +46,41 @@ interface Contact {
   created_at: string;
   total_calls?: number;
   last_contact_at?: string;
+  sms_opt_in?: boolean;
+}
+
+function formatDate(dateString?: string) {
+  if (!dateString) return '-';
+  return new Date(dateString).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+}
+
+function sourceVariant(source: Contact['source']) {
+  if (source === 'CALL') return 'info' as const;
+  if (source === 'IMPORT') return 'success' as const;
+  return 'secondary' as const;
 }
 
 export default function ContactsPage() {
   const { toast } = useToast();
+
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
+  const [historyCalls, setHistoryCalls] = useState<any[]>([]);
+  const [historyAppointments, setHistoryAppointments] = useState<any[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingContact, setEditingContact] = useState<Contact | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Contact | null>(null);
-  const [deleteOpen, setDeleteOpen] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
+
   const [formData, setFormData] = useState({
     name: '',
     phone: '',
@@ -46,41 +90,73 @@ export default function ContactsPage() {
   });
 
   useEffect(() => {
-    loadContacts();
+    void loadContacts();
   }, []);
+
+  useEffect(() => {
+    if (!selectedContact?.contact_id) {
+      setHistoryCalls([]);
+      setHistoryAppointments([]);
+      return;
+    }
+
+    let isActive = true;
+    const loadHistory = async () => {
+      try {
+        setHistoryLoading(true);
+        const [callsResult, appointmentsResult] = await Promise.all([
+          apiClient.getContactCalls(selectedContact.contact_id, 20),
+          apiClient.getContactAppointments(selectedContact.contact_id),
+        ]);
+
+        if (!isActive) return;
+        setHistoryCalls(callsResult?.calls || []);
+        setHistoryAppointments(appointmentsResult?.appointments || []);
+      } catch {
+        if (!isActive) return;
+        setHistoryCalls([]);
+        setHistoryAppointments([]);
+      } finally {
+        if (isActive) setHistoryLoading(false);
+      }
+    };
+
+    void loadHistory();
+
+    return () => {
+      isActive = false;
+    };
+  }, [selectedContact?.contact_id]);
 
   const loadContacts = async () => {
     try {
       setIsLoading(true);
       setError(null);
+      const response = await apiClient.getContacts(200);
+      const next = response.contacts || [];
+      setContacts(next);
 
-      const response = await apiClient.getContacts(100);
-      setContacts(response.contacts || []);
+      if (next.length > 0) {
+        setSelectedContact((prev) => prev && next.find((c: Contact) => c.contact_id === prev.contact_id) || next[0]);
+      } else {
+        setSelectedContact(null);
+      }
     } catch (err: any) {
-      console.error('Error loading contacts:', err);
       setError(err.message || 'Failed to load contacts');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleSearch = async () => {
-    if (!searchQuery.trim()) {
-      loadContacts();
-      return;
-    }
+  const filteredContacts = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) return contacts;
 
-    try {
-      setIsLoading(true);
-      const results = await apiClient.searchContacts(searchQuery);
-      setContacts(results || []);
-    } catch (err: any) {
-      console.error('Error searching contacts:', err);
-      setError(err.message || 'Search failed');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    return contacts.filter((contact) => {
+      const text = `${contact.name} ${contact.phone} ${contact.email || ''} ${(contact.tags || []).join(' ')}`.toLowerCase();
+      return text.includes(query);
+    });
+  }, [contacts, searchQuery]);
 
   const handleCreate = () => {
     setEditingContact(null);
@@ -95,15 +171,15 @@ export default function ContactsPage() {
       phone: contact.phone,
       email: contact.email || '',
       notes: contact.notes || '',
-      tags: contact.tags?.join(', ') || '',
+      tags: (contact.tags || []).join(', '),
     });
     setIsDialogOpen(true);
   };
 
   const handleSave = async () => {
     try {
-      const tags = formData.tags.split(',').map((t) => t.trim()).filter(Boolean);
-      const data = {
+      const tags = formData.tags.split(',').map((item) => item.trim()).filter(Boolean);
+      const payload = {
         name: formData.name,
         phone: formData.phone,
         email: formData.email || undefined,
@@ -112,289 +188,316 @@ export default function ContactsPage() {
       };
 
       if (editingContact) {
-        await apiClient.updateContact(editingContact.contact_id, data);
+        await apiClient.updateContact(editingContact.contact_id, payload);
       } else {
-        await apiClient.createContact(data);
+        await apiClient.createContact(payload);
       }
 
       setIsDialogOpen(false);
-      loadContacts();
+      await loadContacts();
       toast({
         title: editingContact ? 'Contact updated' : 'Contact added',
-        description: 'Your contact list is up to date.',
+        description: 'Contact records are up to date.',
       });
     } catch (err: any) {
-      console.error('Error saving contact:', err);
       toast({
         title: 'Save failed',
-        description: err.message || 'Failed to save contact',
+        description: err.message || 'Unable to save contact.',
         variant: 'destructive',
       });
     }
   };
 
-  const handleDeleteClick = (contact: Contact) => {
-    setDeleteTarget(contact);
-    setDeleteOpen(true);
-  };
-
-  const confirmDelete = async () => {
+  const handleDelete = async () => {
     if (!deleteTarget) return;
-    setIsDeleting(true);
+
     try {
       await apiClient.deleteContact(deleteTarget.contact_id);
-      setDeleteOpen(false);
       setDeleteTarget(null);
-      loadContacts();
-      toast({ title: 'Contact deleted', description: 'The contact has been removed.' });
+      await loadContacts();
+      toast({ title: 'Contact deleted', description: 'The contact was removed.' });
     } catch (err: any) {
-      console.error('Error deleting contact:', err);
       toast({
         title: 'Delete failed',
-        description: err.message || 'Failed to delete contact',
+        description: err.message || 'Unable to delete contact.',
         variant: 'destructive',
       });
-    } finally {
-      setIsDeleting(false);
-    }
-  };
-
-  const formatDate = (dateString?: string) => {
-    if (!dateString) return 'Never';
-    return new Date(dateString).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    });
-  };
-
-  const getSourceColor = (source: string) => {
-    switch (source) {
-      case 'CALL': return 'bg-blue-100 text-blue-700';
-      case 'MANUAL': return 'bg-purple-100 text-purple-700';
-      case 'IMPORT': return 'bg-green-100 text-green-700';
-      default: return 'bg-gray-100 text-gray-700';
     }
   };
 
   if (error) {
     return (
-      <div className="p-8">
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-          <p className="text-red-800">{error}</p>
-          <button onClick={loadContacts} className="mt-2 text-sm text-red-600 hover:text-red-800 underline">
-            Try again
-          </button>
-        </div>
+      <div className="space-y-4">
+        <PageHeader title="Contacts" subtitle="There was a problem loading contacts." />
+        <Card>
+          <CardContent className="p-5">
+            <p className="text-sm text-destructive">{error}</p>
+            <Button className="mt-3" onClick={() => void loadContacts()}>
+              Retry
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6 animate-fade-up">
+    <div className="space-y-5">
       <PageHeader
         eyebrow="Contacts"
-        title="Contacts and follow-ups"
-        subtitle="Keep your customers organized and reachable."
+        title="Customer directory"
+        subtitle="Search contacts, manage tags, and inspect call/message/appointment history from one workspace."
         actions={
-          <Button onClick={handleCreate}>
-            <Plus className="h-4 w-4 mr-2" />
-            Add Contact
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="ghost" size="sm">
+              <Upload className="h-4 w-4" />
+              Import
+            </Button>
+            <Button variant="ghost" size="sm">
+              <Download className="h-4 w-4" />
+              Export
+            </Button>
+            <Button variant="primary" size="sm" onClick={handleCreate}>
+              <Plus className="h-4 w-4" />
+              New contact
+            </Button>
+          </div>
         }
       />
 
-      {/* Search Bar */}
-      <div className="mb-6 flex flex-wrap gap-2">
-        <Input
-          type="text"
-          placeholder="Search by name, phone, or email..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-          className="flex-1 min-w-[220px]"
-        />
-        <Button onClick={handleSearch}>
-          <Search className="h-4 w-4 mr-2" />
-          Search
-        </Button>
-      </div>
-
       <Card>
-        <CardHeader>
-          <CardTitle>Contacts ({contacts.length})</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="space-y-3">
-              {[1, 2, 3, 4, 5].map((i) => (
-                <div key={i} className="animate-pulse">
-                  <div className="h-6 bg-gray-200 rounded w-1/3 mb-2"></div>
-                  <div className="h-4 bg-gray-200 rounded w-2/3"></div>
-                </div>
-              ))}
-            </div>
-          ) : contacts.length > 0 ? (
-            <div className="space-y-4">
-              {contacts.map((contact) => (
-                <div
-                  key={contact.contact_id}
-                  className="border border-emerald-100/70 bg-white/80 rounded-xl p-4 shadow-sm hover:-translate-y-[1px] hover:shadow-md transition-all"
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-2">
-                        <h3 className="font-semibold text-slate-900">{contact.name}</h3>
-                        <span className={`text-xs px-2 py-1 rounded-full ${getSourceColor(contact.source)}`}>
-                          {contact.source}
-                        </span>
-                      </div>
+        <CardContent className="p-0">
+          <div className="grid min-h-[640px] grid-cols-1 divide-y divide-border xl:grid-cols-[1fr_360px] xl:divide-x xl:divide-y-0">
+            <div className="min-h-0">
+              <div className="border-b border-border p-3">
+                <Input
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  placeholder="Search name, phone, email, tags"
+                  leadingIcon={<Search className="h-4 w-4" />}
+                />
+              </div>
 
-                      <div className="space-y-1 mb-2">
-                        <div className="flex items-center gap-2 text-sm text-slate-600">
-                          <PhoneIcon className="h-4 w-4" />
-                          <span>{contact.phone}</span>
-                        </div>
-                        {contact.email && (
-                          <div className="flex items-center gap-2 text-sm text-slate-600">
-                            <Mail className="h-4 w-4" />
-                            <span>{contact.email}</span>
-                          </div>
-                        )}
-                      </div>
-
-                      {contact.notes && (
-                        <p className="text-sm text-slate-600 mb-2">{contact.notes}</p>
-                      )}
-
-                      {contact.tags && contact.tags.length > 0 && (
-                        <div className="flex gap-2 mb-2">
-                          {contact.tags.map((tag, idx) => (
-                            <span key={idx} className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded">
-                              {tag}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-
-                      <div className="flex items-center gap-4 text-xs text-slate-500">
-                        <span>Added: {formatDate(contact.created_at)}</span>
-                        {contact.total_calls !== undefined && (
-                          <span>{contact.total_calls} calls</span>
-                        )}
-                        {contact.last_contact_at && (
-                          <span>Last contact: {formatDate(contact.last_contact_at)}</span>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="flex gap-2 ml-4">
-                      <Button variant="ghost" size="sm" onClick={() => handleEdit(contact)}>
-                        <Edit2 className="h-4 w-4" />
-                      </Button>
-                      <Button variant="ghost" size="sm" onClick={() => handleDeleteClick(contact)}>
-                        <Trash2 className="h-4 w-4 text-red-600" />
-                      </Button>
-                    </div>
+              <div className="max-h-[580px] overflow-auto">
+                {isLoading ? (
+                  <div className="space-y-2 p-3">
+                    {Array.from({ length: 8 }).map((_, index) => (
+                      <Skeleton key={index} className="h-12 w-full" />
+                    ))}
                   </div>
-                </div>
-              ))}
+                ) : filteredContacts.length ? (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Name</TableHead>
+                        <TableHead>Phone</TableHead>
+                        <TableHead>Source</TableHead>
+                        <TableHead>Last contact</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredContacts.map((contact) => (
+                        <TableRow
+                          key={contact.contact_id}
+                          data-state={selectedContact?.contact_id === contact.contact_id ? 'selected' : undefined}
+                          onClick={() => setSelectedContact(contact)}
+                          className="cursor-pointer"
+                        >
+                          <TableCell>
+                            <div>
+                              <p className="font-medium text-foreground">{contact.name}</p>
+                              <p className="text-xs text-muted-foreground">{contact.email || 'No email'}</p>
+                            </div>
+                          </TableCell>
+                          <TableCell>{contact.phone}</TableCell>
+                          <TableCell>
+                            <Badge variant={sourceVariant(contact.source)}>{contact.source}</Badge>
+                          </TableCell>
+                          <TableCell>{formatDate(contact.last_contact_at || contact.created_at)}</TableCell>
+                          <TableCell className="text-right">
+                            <div className="inline-flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  handleEdit(contact);
+                                }}
+                              >
+                                Edit
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  setDeleteTarget(contact);
+                                }}
+                              >
+                                Delete
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                ) : (
+                  <div className="p-3">
+                    <EmptyState
+                      icon={<User className="h-6 w-6" />}
+                      title="No contacts"
+                      description="Create a contact manually or wait for new calls and messages."
+                      action={
+                        <Button onClick={handleCreate}>
+                          <Plus className="mr-2 h-4 w-4" />
+                          Add contact
+                        </Button>
+                      }
+                    />
+                  </div>
+                )}
+              </div>
             </div>
-          ) : (
-            <EmptyState
-              icon={<Users className="h-10 w-10" />}
-              title="No contacts yet"
-              description="Contacts will be created from calls, or you can add them manually."
-              action={
-                <Button onClick={handleCreate}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add Your First Contact
-                </Button>
-              }
-            />
-          )}
+
+            <aside className="bg-[#0f1115] p-4">
+              {selectedContact ? (
+                <div className="space-y-4">
+                  <div className="rounded-lg border border-border bg-[#13161b] p-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <p className="text-sm font-semibold text-foreground">{selectedContact.name}</p>
+                        <p className="text-xs text-muted-foreground">Created {formatDate(selectedContact.created_at)}</p>
+                      </div>
+                      <Button variant="ghost" size="sm" onClick={() => handleEdit(selectedContact)}>
+                        <ArrowUpRight className="h-4 w-4" />
+                      </Button>
+                    </div>
+
+                    <div className="mt-3 space-y-2 text-xs text-muted-foreground">
+                      <p className="flex items-center gap-2"><Phone className="h-3.5 w-3.5" /> {selectedContact.phone}</p>
+                      <p className="flex items-center gap-2"><Mail className="h-3.5 w-3.5" /> {selectedContact.email || 'No email'}</p>
+                      <p className="flex items-center gap-2"><Tag className="h-3.5 w-3.5" /> {(selectedContact.tags || []).join(', ') || 'No tags'}</p>
+                      <p className="flex items-center gap-2"><User className="h-3.5 w-3.5" /> SMS opt-in: {selectedContact.sms_opt_in ? 'Yes' : 'Unknown'}</p>
+                    </div>
+
+                    {selectedContact.notes ? (
+                      <p className="mt-3 rounded-md border border-border bg-[#0f1115] p-2 text-xs text-muted-foreground">
+                        {selectedContact.notes}
+                      </p>
+                    ) : null}
+                  </div>
+
+                  <div className="space-y-3 rounded-lg border border-border bg-[#13161b] p-3">
+                    <p className="text-xs font-semibold uppercase tracking-[0.06em] text-text-faint">History</p>
+                    {historyLoading ? (
+                      <div className="space-y-2">
+                        <Skeleton className="h-12 w-full" />
+                        <Skeleton className="h-12 w-full" />
+                        <Skeleton className="h-12 w-full" />
+                      </div>
+                    ) : (
+                      <>
+                        <div>
+                          <p className="text-xs font-medium text-foreground">Calls ({historyCalls.length})</p>
+                          <div className="mt-2 space-y-1">
+                            {historyCalls.slice(0, 3).map((call) => (
+                              <div key={call.call_id} className="rounded-md border border-border bg-[#0f1115] px-2 py-2 text-xs text-muted-foreground">
+                                {formatDate(call.created_at)}  -  {call.caller_phone}
+                              </div>
+                            ))}
+                            {!historyCalls.length ? <p className="text-xs text-text-faint">No recent calls.</p> : null}
+                          </div>
+                        </div>
+
+                        <div>
+                          <p className="text-xs font-medium text-foreground">Appointments ({historyAppointments.length})</p>
+                          <div className="mt-2 space-y-1">
+                            {historyAppointments.slice(0, 3).map((apt) => (
+                              <div key={apt.appointment_id} className="rounded-md border border-border bg-[#0f1115] px-2 py-2 text-xs text-muted-foreground">
+                                <p className="flex items-center gap-1"><CalendarDays className="h-3.5 w-3.5" /> {formatDate(apt.scheduled_start || apt.scheduled_time)}</p>
+                              </div>
+                            ))}
+                            {!historyAppointments.length ? <p className="text-xs text-text-faint">No appointments.</p> : null}
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
+
+                  <Button variant="danger" size="sm" onClick={() => setDeleteTarget(selectedContact)}>
+                    <Trash2 className="h-4 w-4" />
+                    Delete contact
+                  </Button>
+                </div>
+              ) : (
+                <EmptyState
+                  icon={<User className="h-6 w-6" />}
+                  title="No contact selected"
+                  description="Select a row to view full contact history and notes."
+                />
+              )}
+            </aside>
+          </div>
         </CardContent>
       </Card>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>{editingContact ? 'Edit Contact' : 'Create Contact'}</DialogTitle>
+            <DialogTitle>{editingContact ? 'Edit contact' : 'Create contact'}</DialogTitle>
+            <DialogDescription>Store contact details for follow-ups and bookings.</DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
+
+          <div className="space-y-3">
             <div>
-              <Label htmlFor="name">Name *</Label>
-              <Input
-                id="name"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                placeholder="John Doe"
-              />
+              <Label htmlFor="name">Name</Label>
+              <Input id="name" value={formData.name} onChange={(event) => setFormData((prev) => ({ ...prev, name: event.target.value }))} />
             </div>
             <div>
-              <Label htmlFor="phone">Phone *</Label>
-              <Input
-                id="phone"
-                value={formData.phone}
-                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                placeholder="+1 (555) 123-4567"
-              />
+              <Label htmlFor="phone">Phone</Label>
+              <Input id="phone" value={formData.phone} onChange={(event) => setFormData((prev) => ({ ...prev, phone: event.target.value }))} />
             </div>
             <div>
               <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                placeholder="john@example.com"
-              />
+              <Input id="email" type="email" value={formData.email} onChange={(event) => setFormData((prev) => ({ ...prev, email: event.target.value }))} />
+            </div>
+            <div>
+              <Label htmlFor="tags">Tags</Label>
+              <Input id="tags" value={formData.tags} placeholder="vip, install, follow-up" onChange={(event) => setFormData((prev) => ({ ...prev, tags: event.target.value }))} />
             </div>
             <div>
               <Label htmlFor="notes">Notes</Label>
-              <Textarea
-                id="notes"
-                value={formData.notes}
-                onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                rows={3}
-                placeholder="Additional information..."
-              />
-            </div>
-            <div>
-              <Label htmlFor="tags">Tags (comma-separated)</Label>
-              <Input
-                id="tags"
-                value={formData.tags}
-                onChange={(e) => setFormData({ ...formData, tags: e.target.value })}
-                placeholder="e.g., vip, urgent, prospect"
-              />
-            </div>
-            <div className="flex gap-2 justify-end">
-              <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
-                Cancel
-              </Button>
-              <Button onClick={handleSave} disabled={!formData.name || !formData.phone}>
-                {editingContact ? 'Update' : 'Create'}
-              </Button>
+              <Textarea id="notes" rows={3} value={formData.notes} onChange={(event) => setFormData((prev) => ({ ...prev, notes: event.target.value }))} />
             </div>
           </div>
+
+          <DialogFooter>
+            <Button variant="secondary" onClick={() => setIsDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={() => void handleSave()} disabled={!formData.name || !formData.phone}>
+              {editingContact ? 'Save changes' : 'Create contact'}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+      <Dialog open={Boolean(deleteTarget)} onOpenChange={(open) => !open && setDeleteTarget(null)}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Delete contact</DialogTitle>
             <DialogDescription>
-              This will permanently remove {deleteTarget?.name ?? 'this contact'} from your list.
+              Remove {deleteTarget?.name || 'this contact'} from your directory and history shortcuts.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteOpen(false)} disabled={isDeleting}>
+            <Button variant="secondary" onClick={() => setDeleteTarget(null)}>
               Cancel
             </Button>
-            <Button variant="destructive" onClick={confirmDelete} disabled={isDeleting}>
-              {isDeleting ? 'Deleting...' : 'Delete contact'}
+            <Button variant="danger" onClick={() => void handleDelete()}>
+              Delete
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -402,3 +505,4 @@ export default function ContactsPage() {
     </div>
   );
 }
+

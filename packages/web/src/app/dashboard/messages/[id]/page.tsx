@@ -1,14 +1,15 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import { ArrowLeft, MessageCircle, Sparkles } from 'lucide-react';
+import { apiClient } from '@/lib/api-client';
+import { usePortalBasePath } from '@/lib/portal';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { EmptyState } from '@/components/portal/empty-state';
 import { PageHeader } from '@/components/portal/page-header';
-import { apiClient } from '@/lib/api-client';
-import { usePortalBasePath } from '@/lib/portal';
-import { ArrowLeft, Clock, MessageCircle, Sparkles } from 'lucide-react';
 
 type MessageItem = {
   id: string;
@@ -23,19 +24,14 @@ type MessageThread = {
   id: string;
   contact_name: string;
   contact_phone: string;
-  last_message: string;
   last_at: number;
   lead_status?: string;
 };
 
 const leadBadge = (status?: string) => {
-  if (status === 'CONVERTED') {
-    return { label: 'Scheduled', className: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
-  }
-  if (status === 'QUALIFIED' || status === 'CONTACTED') {
-    return { label: 'Lead', className: 'bg-amber-50 text-amber-800 border-amber-200' };
-  }
-  return { label: 'No Lead', className: 'bg-gray-50 text-gray-700 border-gray-200' };
+  if (status === 'CONVERTED') return { label: 'Booked', variant: 'success' as const };
+  if (status === 'QUALIFIED' || status === 'CONTACTED') return { label: 'Lead', variant: 'warning' as const };
+  return { label: 'Open', variant: 'secondary' as const };
 };
 
 const formatDateTime = (timestamp: number) =>
@@ -59,108 +55,103 @@ export default function MessageThreadPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    let isActive = true;
+    let active = true;
+
     const loadThread = async () => {
       try {
         const result = await apiClient.getMessageThread(threadId);
-        if (!isActive) return;
+        if (!active) return;
         setThread(result?.thread ?? null);
         setMessages(Array.isArray(result?.messages) ? result.messages : []);
         setError(null);
       } catch (err) {
-        if (!isActive) return;
-        setError(err instanceof Error ? err.message : 'Failed to load messages');
-        setThread(null);
-        setMessages([]);
+        if (!active) return;
+        setError(err instanceof Error ? err.message : 'Failed to load conversation');
       } finally {
-        if (!isActive) return;
-        setLoading(false);
+        if (active) setLoading(false);
       }
     };
+
     if (threadId) {
-      loadThread();
+      void loadThread();
     }
+
     return () => {
-      isActive = false;
+      active = false;
     };
   }, [threadId]);
 
-  if (!thread) {
+  if (!thread && !loading) {
     return (
-      <div className="space-y-6 animate-fade-up">
-        <PageHeader
-          eyebrow="Messages"
-          title={loading ? 'Loading conversation…' : 'Conversation not found'}
-          subtitle={loading ? 'Please wait a moment.' : 'Try another thread from Messages.'}
-        />
-        {error ? (
-          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            {error}
-          </div>
-        ) : null}
+      <div className="space-y-4">
+        <PageHeader title="Conversation not found" subtitle="Try opening another thread from Messages." />
+        {error ? <p className="text-sm text-destructive">{error}</p> : null}
         <Button onClick={() => router.push(`${basePath}/messages`)}>Back to Messages</Button>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6 animate-fade-up">
+    <div className="space-y-5">
       <PageHeader
         eyebrow="Messages"
-        title={thread.contact_name}
-        subtitle={thread.contact_phone}
+        title={loading ? 'Loading conversation...' : thread?.contact_name || 'Conversation'}
+        subtitle={thread?.contact_phone}
         actions={
-          <Button variant="outline" onClick={() => router.push(`${basePath}/messages`)}>
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Messages
+          <Button variant="secondary" onClick={() => router.push(`${basePath}/messages`)}>
+            <ArrowLeft className="h-4 w-4" />
+            Back
           </Button>
         }
       />
 
       <Card>
-        <CardContent className="pt-6 space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-2 text-sm text-slate-600">
-              <MessageCircle className="h-4 w-4 text-emerald-600" />
-              <span>Conversation</span>
-              <span className="text-slate-300">-</span>
-              <Clock className="h-4 w-4" />
-              <span>{formatDateTime(thread.last_at)}</span>
+        <CardContent className="space-y-4 p-5">
+          {thread ? (
+            <div className="flex items-center justify-between gap-3">
+              <div className="text-sm text-muted-foreground">Last activity: {formatDateTime(thread.last_at)}</div>
+              <Badge variant={leadBadge(thread.lead_status).variant}>{leadBadge(thread.lead_status).label}</Badge>
             </div>
-            <Badge variant="outline" className={leadBadge(thread.lead_status).className}>
-              {leadBadge(thread.lead_status).label}
-            </Badge>
-          </div>
+          ) : null}
 
-          <div className="space-y-3">
-            {messages.map((msg) => (
-              <div
-                key={msg.id}
-                className={`flex ${msg.direction === 'OUTBOUND' ? 'justify-end' : 'justify-start'}`}
-              >
-                <div
-                  className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm shadow-sm ${
-                    msg.direction === 'OUTBOUND'
-                      ? 'bg-emerald-600 text-white'
-                      : 'bg-slate-100 text-slate-900'
-                  }`}
-                >
-                  <p>{msg.body}</p>
-                  <div className="mt-2 flex items-center gap-2 text-xs opacity-80">
-                    <span>{formatDateTime(msg.created_at)}</span>
-                    {msg.ai_handled ? (
-                      <span className="inline-flex items-center gap-1">
-                        <Sparkles className="h-3 w-3" /> AI
-                      </span>
-                    ) : null}
-                    {msg.status ? <span> - {msg.status}</span> : null}
+          {loading ? (
+            <p className="text-sm text-muted-foreground">Loading...</p>
+          ) : messages.length ? (
+            <div className="space-y-3">
+              {messages.map((message) => (
+                <div key={message.id} className={`flex ${message.direction === 'OUTBOUND' ? 'justify-end' : 'justify-start'}`}>
+                  <div
+                    className={`max-w-[80%] rounded-xl border px-3 py-2 text-sm ${
+                      message.direction === 'OUTBOUND'
+                        ? 'border-primary/45 bg-primary/12 text-[#d8eeff]'
+                        : 'border-border bg-[#0f1115] text-foreground'
+                    }`}
+                  >
+                    <p>{message.body}</p>
+                    <p className="mt-2 text-[11px] text-text-faint">
+                      {formatDateTime(message.created_at)}
+                      {message.ai_handled ? (
+                        <span className="ml-2 inline-flex items-center gap-1">
+                          <Sparkles className="h-3 w-3" />
+                          AI
+                        </span>
+                      ) : null}
+                      {message.status ? `  -  ${message.status}` : ''}
+                    </p>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <EmptyState
+              icon={<MessageCircle className="h-6 w-6" />}
+              title="No messages"
+              description="This thread does not have any messages yet."
+            />
+          )}
         </CardContent>
       </Card>
     </div>
   );
 }
+

@@ -1,17 +1,12 @@
-import type { Metadata } from 'next';
-import { Manrope, Space_Grotesk } from 'next/font/google';
+﻿import type { Metadata } from 'next';
+import { Inter } from 'next/font/google';
 import './globals.css';
 import { SessionProvider } from '@/components/providers/session-provider';
 import { Toaster } from '@/components/ui/toaster';
 
-const manrope = Manrope({
+const inter = Inter({
   subsets: ['latin'],
   variable: '--font-sans',
-  display: 'swap',
-});
-const spaceGrotesk = Space_Grotesk({
-  subsets: ['latin'],
-  variable: '--font-display',
   display: 'swap',
 });
 
@@ -27,7 +22,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={`${manrope.variable} ${spaceGrotesk.variable} font-sans antialiased`}>
+      <body className={`${inter.variable} font-sans antialiased`}>
         <SessionProvider>
           {children}
           <Toaster />
@@ -36,3 +31,4 @@ export default function RootLayout({
     </html>
   );
 }
+
