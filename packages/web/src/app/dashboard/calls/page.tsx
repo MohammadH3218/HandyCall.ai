@@ -335,7 +335,7 @@ export default function CallsPage() {
               {calls.map((call) => (
                 <div
                   key={call.call_id}
-                  className="border border-emerald-100/70 bg-white/85 rounded-xl p-4 hover:-translate-y-[1px] hover:shadow-md transition-all cursor-pointer"
+                  className="border border-emerald-100/70 bg-card/85 rounded-xl p-4 hover:-translate-y-[1px] hover:shadow-md transition-all cursor-pointer"
                   onClick={() => handleViewCall(call.call_id)}
                 >
                   <div className="flex items-start justify-between gap-4">

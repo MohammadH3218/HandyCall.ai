@@ -182,7 +182,7 @@ export default function MessagesPage() {
                     key={thread.id}
                     type="button"
                     onClick={() => router.push(`${basePath}/messages/${thread.id}`)}
-                    className="w-full text-left rounded-xl border border-emerald-100/70 bg-white/85 p-4 hover:-translate-y-[1px] hover:shadow-md transition-all"
+                    className="w-full text-left rounded-xl border border-emerald-100/70 bg-card/85 p-4 hover:-translate-y-[1px] hover:shadow-md transition-all"
                   >
                     <div className="flex items-start justify-between gap-4">
                       <div className="min-w-0">

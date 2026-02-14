@@ -86,9 +86,9 @@ export default function AdminSubscriptionsPage() {
 
   const getPlanColor = (plan: SubscriptionPlan) => {
     const colors = {
-      [SubscriptionPlan.STARTER]: '#3b82f6',
-      [SubscriptionPlan.PRO]: '#4f6ef7',
-      [SubscriptionPlan.MAX]: '#3147b7',
+      [SubscriptionPlan.STARTER]: '#93bdae',
+      [SubscriptionPlan.PRO]: '#74aa9c',
+      [SubscriptionPlan.MAX]: '#4f7b71',
     };
     return colors[plan];
   };
@@ -118,9 +118,9 @@ export default function AdminSubscriptionsPage() {
     });
 
     const planData = [
-      { name: 'Starter', value: planCounts[SubscriptionPlan.STARTER], color: '#3b82f6' },
-      { name: 'Pro', value: planCounts[SubscriptionPlan.PRO], color: '#4f6ef7' },
-      { name: 'Max', value: planCounts[SubscriptionPlan.MAX], color: '#3147b7' },
+      { name: 'Starter', value: planCounts[SubscriptionPlan.STARTER], color: '#93bdae' },
+      { name: 'Pro', value: planCounts[SubscriptionPlan.PRO], color: '#74aa9c' },
+      { name: 'Max', value: planCounts[SubscriptionPlan.MAX], color: '#4f7b71' },
     ];
 
     return {

@@ -205,7 +205,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <aside
         className={`
           fixed lg:sticky lg:top-0 inset-y-0 left-0 z-50
-          h-screen w-72 bg-white/85 backdrop-blur-xl border-r border-border/60 flex flex-col
+          h-screen w-72 bg-card/85 backdrop-blur-xl border-r border-border/60 flex flex-col
           transform transition-transform duration-200 ease-in-out
           ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
         `}
@@ -222,7 +222,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </Button>
         </div>
 
-        <div className="p-6 flex flex-col items-start justify-center border-b border-border/60 bg-white/70">
+        <div className="p-6 flex flex-col items-start justify-center border-b border-border/60 bg-card/70">
           <Logo variant="words" width={150} height={36} />
           {company?.company_name && (
             <p className="mt-1 text-sm font-semibold text-foreground/80 leading-tight">
@@ -316,7 +316,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
         </nav>
 
-        <div className="mt-auto p-4 border-t border-border/60 bg-white/70">
+        <div className="mt-auto p-4 border-t border-border/60 bg-card/70">
           <ProfileDropdown />
         </div>
       </aside>
@@ -324,7 +324,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Mobile menu button */}
-        <div className="lg:hidden p-4 border-b border-border/60 bg-white/80 backdrop-blur">
+        <div className="lg:hidden p-4 border-b border-border/60 bg-card/80 backdrop-blur">
           <Button
             variant="ghost"
             size="sm"

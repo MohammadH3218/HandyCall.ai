@@ -150,14 +150,14 @@ const urgencyLines = ['Go live before next business day', 'Stop missing after-ho
 
 export default function Home() {
   return (
-    <div className="min-h-screen bg-white text-foreground">
+    <div className="min-h-screen bg-card text-foreground">
       <SiteHeader />
 
       <main>
         {/* ═══════════════════════════════════════════════════════
             HERO
         ═══════════════════════════════════════════════════════ */}
-        <section className="border-b border-slate-200 bg-white">
+        <section className="border-b border-slate-200 bg-card">
           <div className="mx-auto grid max-w-6xl items-center gap-12 px-4 pb-16 pt-12 lg:grid-cols-[1.1fr_0.9fr] lg:gap-16 lg:pb-20 lg:pt-16">
             {/* Left - Copy */}
             <div>
@@ -255,7 +255,7 @@ export default function Home() {
 
             {/* Right - Call transcript (real product evidence) */}
             <FadeIn delay={200} duration={500} direction="left">
-              <div className="rounded-xl border border-slate-200 bg-white">
+              <div className="rounded-xl border border-slate-200 bg-card">
                 {/* Transcript header */}
                 <div className="flex items-center justify-between border-b border-slate-100 px-5 py-3">
                   <div className="flex items-center gap-2.5">
@@ -338,7 +338,7 @@ export default function Home() {
             <FadeIn duration={400}>
               <div className="grid gap-px overflow-hidden rounded-lg border border-slate-200 bg-slate-200 sm:grid-cols-4">
                 {pipeline.map((step, i) => (
-                  <div key={step.label} className="bg-white px-5 py-4">
+                  <div key={step.label} className="bg-card px-5 py-4">
                     <div className="flex items-baseline gap-2">
                       <span className="text-xs font-medium text-emerald-700">{i + 1}.</span>
                       <span className="text-sm font-semibold text-slate-900">{step.label}</span>
@@ -354,7 +354,7 @@ export default function Home() {
         {/* -----------------------------------------------------------------------------------------------
             INDUSTRY DATA
         ----------------------------------------------------------------------------------------------- */}
-        <section className="border-b border-slate-200 bg-white">
+        <section className="border-b border-slate-200 bg-card">
           <div className="mx-auto max-w-6xl px-4 py-14">
             <FadeIn duration={400}>
               <p className="text-sm font-medium uppercase tracking-wide text-emerald-700">
@@ -389,7 +389,7 @@ export default function Home() {
         {/* -----------------------------------------------------------------------------------------------
             WHAT CALLERS EXPERIENCE
         ----------------------------------------------------------------------------------------------- */}
-        <section className="border-b border-slate-200 bg-white">
+        <section className="border-b border-slate-200 bg-card">
           <div className="mx-auto max-w-6xl px-4 py-20">
             <FadeIn duration={400}>
               <p className="text-sm font-medium uppercase tracking-wide text-emerald-700">
@@ -411,7 +411,7 @@ export default function Home() {
                     title="Listen to a sample call (swap with your real recording)"
                   />
 
-                  <div className="rounded-lg border border-slate-200 bg-white p-4">
+                  <div className="rounded-lg border border-slate-200 bg-card p-4">
                     <div className="flex items-center justify-between text-xs text-slate-400">
                       <span>Call transcript | Feb 4, 2026 | 7:14 PM</span>
                       <span>2m 14s</span>
@@ -461,7 +461,7 @@ export default function Home() {
 
               <FadeIn delay={200} duration={500}>
                 <div className="space-y-4">
-                  <div className="rounded-lg border border-slate-200 bg-white p-5">
+                  <div className="rounded-lg border border-slate-200 bg-card p-5">
                     <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
                       Booking replay
                     </p>
@@ -496,13 +496,13 @@ export default function Home() {
                     <p className="mt-3 text-xs text-slate-400">Sent Feb 4, 7:15 PM</p>
                   </div>
 
-                  <div className="rounded-lg border border-slate-200 bg-white p-5">
+                  <div className="rounded-lg border border-slate-200 bg-card p-5">
                     <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
                       What it says
                     </p>
                     <div className="mt-3 grid gap-2 text-sm text-slate-600">
                       {callerExperience.map((item) => (
-                        <div key={item.label} className="rounded-md border border-slate-100 bg-white p-3">
+                        <div key={item.label} className="rounded-md border border-slate-100 bg-card p-3">
                           <p className="text-xs font-semibold text-slate-500">{item.label}</p>
                           <p className="mt-1 text-slate-700">{item.script}</p>
                         </div>
@@ -518,7 +518,7 @@ export default function Home() {
         {/* ═══════════════════════════════════════════════════════
             WHAT HANDYCALL DOES (replaces fake dashboard)
         ═══════════════════════════════════════════════════════ */}
-        <section className="border-b border-slate-200 bg-white">
+        <section className="border-b border-slate-200 bg-card">
           <div className="mx-auto max-w-6xl px-4 py-20">
             <FadeIn duration={400}>
               <p className="text-sm font-medium uppercase tracking-wide text-emerald-700">
@@ -536,7 +536,7 @@ export default function Home() {
             <FadeIn delay={150} duration={500}>
               <div className="mt-12 grid gap-6 lg:grid-cols-3">
                 {/* Card 1 - Call record */}
-                <div className="rounded-lg border border-slate-200 bg-white p-6">
+                <div className="rounded-lg border border-slate-200 bg-card p-6">
                   <div className="flex items-center gap-2 text-slate-400">
                     <FileText className="h-4 w-4" />
                     <span className="text-xs font-medium uppercase tracking-wide">Call record</span>
@@ -566,7 +566,7 @@ export default function Home() {
                 </div>
 
                 {/* Card 2 - Booking */}
-                <div className="rounded-lg border border-slate-200 bg-white p-6">
+                <div className="rounded-lg border border-slate-200 bg-card p-6">
                   <div className="flex items-center gap-2 text-slate-400">
                     <CalendarCheck className="h-4 w-4" />
                     <span className="text-xs font-medium uppercase tracking-wide">Booking created</span>
@@ -596,7 +596,7 @@ export default function Home() {
                 </div>
 
                 {/* Card 3 - SMS confirmation */}
-                <div className="rounded-lg border border-slate-200 bg-white p-6">
+                <div className="rounded-lg border border-slate-200 bg-card p-6">
                   <div className="flex items-center gap-2 text-slate-400">
                     <Send className="h-4 w-4" />
                     <span className="text-xs font-medium uppercase tracking-wide">SMS sent</span>
@@ -653,7 +653,7 @@ export default function Home() {
                   const Icon = item.icon;
                   return (
                     <FadeIn key={item.title} delay={i * 100} duration={400}>
-                      <div className="rounded-lg border border-slate-200 bg-white p-5">
+                      <div className="rounded-lg border border-slate-200 bg-card p-5">
                         <div className="flex items-start gap-3">
                           <Icon className="mt-0.5 h-4 w-4 shrink-0 text-emerald-700" />
                           <div>
@@ -673,7 +673,7 @@ export default function Home() {
         {/* -----------------------------------------------------------------------------------------------
             SKEPTIC LAYER + SETUP
         ----------------------------------------------------------------------------------------------- */}
-        <section className="border-b border-slate-200 bg-white">
+        <section className="border-b border-slate-200 bg-card">
           <div className="mx-auto max-w-6xl px-4 py-20">
             <div className="grid gap-12 lg:grid-cols-[1.1fr_0.9fr]">
               <FadeIn duration={400}>
@@ -724,7 +724,7 @@ export default function Home() {
                 </div>
                 <div className="mt-6 grid gap-px overflow-hidden rounded-lg border border-slate-200 bg-slate-200 sm:grid-cols-3">
                   {setupSteps.map((step, index) => (
-                    <div key={step.title} className="bg-white px-5 py-4">
+                    <div key={step.title} className="bg-card px-5 py-4">
                       <p className="text-xs font-semibold text-emerald-700">Step {index + 1}</p>
                       <p className="mt-2 text-sm font-semibold text-slate-900">{step.title}</p>
                       <p className="mt-1 text-sm text-slate-500">{step.desc}</p>
@@ -753,7 +753,7 @@ export default function Home() {
         {/* ═══════════════════════════════════════════════════════
             CALL FLOW (replaces numbered bubble steps)
         ═══════════════════════════════════════════════════════ */}
-        <section className="border-b border-slate-200 bg-white">
+        <section className="border-b border-slate-200 bg-card">
           <div className="mx-auto max-w-6xl px-4 py-20">
             <FadeIn duration={400}>
               <p className="text-sm font-medium uppercase tracking-wide text-emerald-700">
@@ -794,7 +794,7 @@ export default function Home() {
                 ].map((item) => {
                   const Icon = item.icon;
                   return (
-                    <div key={item.step} className="bg-white p-6">
+                    <div key={item.step} className="bg-card p-6">
                       <div className="flex items-center gap-2">
                         <span className="text-xs font-bold text-emerald-700">{item.step}</span>
                         <Icon className="h-4 w-4 text-slate-400" />
@@ -848,7 +848,7 @@ export default function Home() {
             </div>
 
             <div className="mt-6 flex flex-wrap items-center gap-3">
-              <Button asChild className="gap-2 bg-white text-slate-900 hover:bg-slate-100">
+              <Button asChild className="gap-2 bg-card text-slate-900 hover:bg-slate-100">
                 <Link href="/register">
                   Turn calls into revenue
                   <ArrowRight className="h-4 w-4" />
@@ -869,7 +869,7 @@ export default function Home() {
         {/* ═══════════════════════════════════════════════════════
             INDUSTRIES (replaces pill chip cloud)
         ═══════════════════════════════════════════════════════ */}
-        <section className="border-b border-slate-200 bg-white">
+        <section className="border-b border-slate-200 bg-card">
           <div className="mx-auto max-w-6xl px-4 py-20">
             <FadeIn duration={400}>
               <p className="text-sm font-medium uppercase tracking-wide text-emerald-700">
@@ -887,7 +887,7 @@ export default function Home() {
             <FadeIn delay={150} duration={500}>
               <div className="mt-10 grid gap-px overflow-hidden rounded-lg border border-slate-200 bg-slate-200 sm:grid-cols-2 lg:grid-cols-4">
                 {industries.map((item) => (
-                  <div key={item.name} className="bg-white px-5 py-4">
+                  <div key={item.name} className="bg-card px-5 py-4">
                     <p className="text-sm font-semibold text-slate-900">{item.name}</p>
                     <p className="mt-1 text-sm text-slate-500">{item.example}</p>
                   </div>
@@ -919,7 +919,7 @@ export default function Home() {
                 <Button
                   asChild
                   size="lg"
-                  className="gap-2 bg-white text-emerald-800 hover:bg-emerald-50"
+                  className="gap-2 bg-card text-emerald-800 hover:bg-emerald-50"
                 >
                   <Link href="/register">
                     Start booking more jobs

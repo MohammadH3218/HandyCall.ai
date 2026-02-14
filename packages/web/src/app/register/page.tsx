@@ -134,7 +134,7 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-white via-emerald-50/30 to-white text-foreground">
+    <div className="min-h-screen bg-gradient-to-b from-background via-emerald-50/30 to-background text-foreground">
       <SiteHeader ctaLabel="Login" ctaHref="/login" hideLoginLink />
       <main className="mx-auto max-w-6xl px-4 pb-16 pt-12">
         <div className="grid items-start gap-12 lg:grid-cols-[1.1fr_0.9fr]">
@@ -151,7 +151,7 @@ export default function RegisterPage() {
 
             <div className="grid gap-3">
               {SETUP_STEPS.map((step, index) => (
-                <Card key={step.title} className="border-emerald-100 bg-white/80 shadow-sm">
+                <Card key={step.title} className="border-emerald-100 bg-card/80 shadow-sm">
                   <CardContent className="flex gap-4 p-4">
                     <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-50 text-sm font-semibold text-emerald-700">
                       {index + 1}
@@ -167,7 +167,7 @@ export default function RegisterPage() {
           </div>
 
           <div className="relative">
-            <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-emerald-100/60 via-white to-emerald-50 blur-2xl" />
+            <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-emerald-100/60 via-card to-emerald-50 blur-2xl" />
             <div className="relative">
               <Card className="shadow-xl shadow-emerald-100">
                 <CardHeader>

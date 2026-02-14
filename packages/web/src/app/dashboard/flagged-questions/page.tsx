@@ -181,7 +181,7 @@ export default function FlaggedQuestionsPage() {
           ) : questions.length > 0 ? (
             <div className="space-y-4">
               {questions.map((q) => (
-                <div key={q.flagged_id} className="border border-emerald-100/70 bg-white/85 rounded-xl p-4">
+                <div key={q.flagged_id} className="border border-emerald-100/70 bg-card/85 rounded-xl p-4">
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-2">

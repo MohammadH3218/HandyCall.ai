@@ -985,7 +985,7 @@ export default function AppointmentsPage() {
                       New
                     </Button>
                   </div>
-                  <div className="rounded-lg border border-gray-200 bg-white p-3">
+                  <div className="rounded-lg border border-gray-200 bg-card p-3">
                     <div className="flex items-center justify-between mb-3">
                       <div className="text-sm font-semibold text-gray-900">{monthLabel}</div>
                       <div className="flex items-center gap-1">
@@ -1066,7 +1066,7 @@ export default function AppointmentsPage() {
                   <div className="space-y-2">
                     <Label className="text-xs text-gray-500">Status</Label>
                     <select
-                      className="h-10 w-full rounded-md border border-gray-200 bg-white px-3 text-sm"
+                      className="h-10 w-full rounded-md border border-gray-200 bg-card px-3 text-sm"
                       value={statusFilter}
                       onChange={(e) => setStatusFilter(e.target.value as any)}
                     >
@@ -1080,7 +1080,7 @@ export default function AppointmentsPage() {
                   <div className="space-y-2">
                     <Label className="text-xs text-gray-500">Service type</Label>
                     <select
-                      className="h-10 w-full rounded-md border border-gray-200 bg-white px-3 text-sm"
+                      className="h-10 w-full rounded-md border border-gray-200 bg-card px-3 text-sm"
                       value={serviceFilter}
                       onChange={(e) => setServiceFilter(e.target.value)}
                     >
@@ -1128,7 +1128,7 @@ export default function AppointmentsPage() {
                       </Badge>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
-                      <div className="flex items-center gap-1 rounded-md border border-gray-200 bg-white p-1">
+                      <div className="flex items-center gap-1 rounded-md border border-gray-200 bg-card p-1">
                         <Button variant="ghost" size="icon" onClick={handlePrevRange}>
                           <ChevronLeft className="h-4 w-4" />
                         </Button>
@@ -1139,7 +1139,7 @@ export default function AppointmentsPage() {
                           <ChevronRight className="h-4 w-4" />
                         </Button>
                       </div>
-                      <div className="flex items-center gap-1 rounded-md border border-gray-200 bg-white p-1">
+                      <div className="flex items-center gap-1 rounded-md border border-gray-200 bg-card p-1">
                         <Button variant={calendarView === 'day' ? 'default' : 'ghost'} size="sm" onClick={() => setCalendarView('day')}>
                           Day
                         </Button>
@@ -1186,7 +1186,7 @@ export default function AppointmentsPage() {
                             <button
                               key={key}
                               className={`min-h-[110px] p-2 text-left hover:bg-gray-50 transition relative ${
-                                inMonth ? 'bg-white' : 'bg-gray-50/50'
+                                inMonth ? 'bg-card' : 'bg-gray-50/50'
                               } ${isToday ? 'ring-2 ring-inset ring-emerald-500' : ''}`}
                               onClick={() => {
                                 if (!isCalendarSetupComplete) return;
@@ -1248,7 +1248,7 @@ export default function AppointmentsPage() {
                                   return (
                                     <button
                                       key={apt.appointment_id}
-                                      className="w-full rounded-xl border border-gray-200 bg-white p-4 text-left hover:border-emerald-300 hover:shadow-sm transition"
+                                      className="w-full rounded-xl border border-gray-200 bg-card p-4 text-left hover:border-emerald-300 hover:shadow-sm transition"
                                       onClick={() => handleViewAppointment(apt.appointment_id)}
                                     >
                                       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -1284,14 +1284,14 @@ export default function AppointmentsPage() {
                         ))}
                       </div>
                       <div className="flex-1 overflow-x-auto">
-                        <div className={`grid ${calendarView === 'week' ? 'grid-cols-7 min-w-[840px]' : 'grid-cols-1'} bg-white`}>
+                        <div className={`grid ${calendarView === 'week' ? 'grid-cols-7 min-w-[840px]' : 'grid-cols-1'} bg-card`}>
                           {(calendarView === 'week' ? weekDays : [focusDate]).map((day) => {
                             const zonedDay = toZonedDate(day, displayTimezone);
                             const key = ymd(zonedDay);
                             const dayAppointments = apptsByDay.get(key) ?? [];
                             return (
                               <div key={key} className="border-r border-gray-100 last:border-r-0">
-                                <div className="sticky top-0 z-10 bg-white/90 backdrop-blur px-3 py-2 border-b border-gray-100">
+                                <div className="sticky top-0 z-10 bg-card/90 backdrop-blur px-3 py-2 border-b border-gray-100">
                                   <div className="text-xs text-gray-500">
                                     {zonedDay.toLocaleDateString('en-US', { timeZone: displayTimezone, weekday: 'short' })}
                                   </div>
@@ -1515,7 +1515,7 @@ export default function AppointmentsPage() {
               {createDraft.recurrence_enabled ? (
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-3">
                   <select
-                    className="h-10 rounded-md border border-gray-200 bg-white px-3 text-sm"
+                    className="h-10 rounded-md border border-gray-200 bg-card px-3 text-sm"
                     value={createDraft.recurrence_frequency}
                     onChange={(e) => setCreateDraft((p: any) => ({ ...p, recurrence_frequency: e.target.value }))}
                   >
@@ -1731,7 +1731,7 @@ export default function AppointmentsPage() {
             <div>
               <div className="text-xs text-gray-500 mb-1">Status</div>
               <select
-                className="w-full h-10 rounded-md border border-gray-200 bg-white px-3 text-sm"
+                className="w-full h-10 rounded-md border border-gray-200 bg-card px-3 text-sm"
                 value={editDraft.status || 'SCHEDULED'}
                 onChange={(e) => setEditDraft((p: any) => ({ ...p, status: e.target.value }))}
               >
@@ -1818,7 +1818,7 @@ export default function AppointmentsPage() {
               </div>
             )}
 
-            <div className="rounded-lg border border-gray-200 bg-white p-4">
+            <div className="rounded-lg border border-gray-200 bg-card p-4">
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <div className="text-sm font-medium text-gray-900">Timezone</div>
@@ -1840,7 +1840,7 @@ export default function AppointmentsPage() {
               </div>
             </div>
 
-            <div className="rounded-lg border border-gray-200 bg-white p-4">
+            <div className="rounded-lg border border-gray-200 bg-card p-4">
               <div className="text-sm font-medium text-gray-900">Weekly working hours</div>
               <div className="text-xs text-gray-600 mt-1">Set one or more available time windows per day.</div>
 
@@ -1939,7 +1939,7 @@ export default function AppointmentsPage() {
               </div>
             </div>
 
-            <div className="rounded-lg border border-gray-200 bg-white p-4">
+            <div className="rounded-lg border border-gray-200 bg-card p-4">
               <div className="text-sm font-medium text-gray-900">Date exceptions</div>
               <div className="text-xs text-gray-600 mt-1">Override availability for a specific date (vacation, holidays, partial day).</div>
 

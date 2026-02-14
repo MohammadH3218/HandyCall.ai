@@ -239,7 +239,7 @@ export default function ContactsPage() {
               {contacts.map((contact) => (
                 <div
                   key={contact.contact_id}
-                  className="border border-emerald-100/70 bg-white/80 rounded-xl p-4 shadow-sm hover:-translate-y-[1px] hover:shadow-md transition-all"
+                  className="border border-emerald-100/70 bg-card/80 rounded-xl p-4 shadow-sm hover:-translate-y-[1px] hover:shadow-md transition-all"
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex-1">

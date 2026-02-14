@@ -330,7 +330,7 @@ export default function BillingPage() {
 
                 <div className="grid gap-3 sm:grid-cols-3">
                   {planHighlights.map((item) => (
-                    <div key={item.label} className="rounded-lg border border-emerald-100/70 bg-white/80 p-3">
+                    <div key={item.label} className="rounded-lg border border-emerald-100/70 bg-card/80 p-3">
                       <p className="text-xs uppercase tracking-wide text-slate-500">{item.label}</p>
                       <p className="text-sm font-semibold text-slate-900">{item.value}</p>
                     </div>
@@ -400,7 +400,7 @@ export default function BillingPage() {
                   return (
                     <div
                       key={method.id}
-                      className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-emerald-100/70 bg-white/85 p-4"
+                      className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-emerald-100/70 bg-card/85 p-4"
                     >
                       <div className="flex items-center gap-3">
                         <div className="h-10 w-12 rounded-md bg-emerald-50 flex items-center justify-center text-emerald-700">

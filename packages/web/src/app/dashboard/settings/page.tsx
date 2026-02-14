@@ -279,7 +279,7 @@ export default function SettingsPage() {
         subtitle="Manage your business information and preferences."
       />
 
-      <div className="flex flex-wrap gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
+      <div className="flex flex-wrap gap-2 rounded-2xl border border-slate-200 bg-card p-2 shadow-sm">
         {[
           { key: 'business', label: 'Business info' },
           { key: 'call', label: 'Call handling' },
@@ -369,13 +369,13 @@ export default function SettingsPage() {
                       className={`rounded-2xl border p-4 text-left text-sm transition ${
                         selected
                           ? 'border-emerald-400 bg-emerald-50/70 shadow-sm'
-                          : 'border-slate-200 bg-white hover:border-emerald-200'
+                          : 'border-slate-200 bg-card hover:border-emerald-200'
                       }`}
                     >
                       <div className="flex items-start gap-3">
                         <span
                           className={`mt-1 h-3 w-3 rounded-full border ${
-                            selected ? 'border-emerald-600 bg-emerald-600' : 'border-slate-300 bg-white'
+                            selected ? 'border-emerald-600 bg-emerald-600' : 'border-slate-300 bg-card'
                           }`}
                         />
                         <div>
@@ -423,7 +423,7 @@ export default function SettingsPage() {
                   }`}
                 >
                   <span
-                    className={`absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow transition ${
+                    className={`absolute left-1 top-1 h-5 w-5 rounded-full bg-card shadow transition ${
                       formData.transfer_enabled ? 'translate-x-5' : 'translate-x-0'
                     }`}
                   />
@@ -490,7 +490,7 @@ export default function SettingsPage() {
                 <span className="text-sm font-semibold text-slate-900">{statusLabel}</span>
               </div>
               {company?.trial_ends_at && (
-                <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-4">
+                <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-card p-4">
                   <span className="text-sm font-medium text-slate-700">Trial ends</span>
                   <span className="text-sm text-slate-600">
                     {new Date(company.trial_ends_at).toLocaleDateString()}
@@ -536,7 +536,7 @@ export default function SettingsPage() {
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-slate-200 bg-white p-4">
+              <div className="rounded-2xl border border-slate-200 bg-card p-4">
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <p className="text-sm font-semibold text-slate-900">Webhook URL</p>
@@ -554,7 +554,7 @@ export default function SettingsPage() {
                       }`}
                     >
                       <span
-                        className={`absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow transition ${
+                        className={`absolute left-1 top-1 h-5 w-5 rounded-full bg-card shadow transition ${
                           webhookDraft.is_enabled ? 'translate-x-5' : 'translate-x-0'
                         }`}
                       />
@@ -575,7 +575,7 @@ export default function SettingsPage() {
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-slate-200 bg-white p-4">
+              <div className="rounded-2xl border border-slate-200 bg-card p-4">
                 <div className="flex items-center gap-2">
                   <Webhook className="h-4 w-4 text-emerald-600" />
                   <p className="text-sm font-semibold text-slate-900">Events to send</p>
@@ -602,7 +602,7 @@ export default function SettingsPage() {
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-slate-200 bg-white p-4">
+              <div className="rounded-2xl border border-slate-200 bg-card p-4">
                 <p className="text-sm font-semibold text-slate-900">Signing secret</p>
                 <p className="mt-1 text-xs text-slate-600">
                   Use this secret to verify payload signatures. Keep it private.
@@ -650,7 +650,7 @@ export default function SettingsPage() {
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-slate-200 bg-white p-4">
+              <div className="rounded-2xl border border-slate-200 bg-card p-4">
                 <p className="text-sm font-semibold text-slate-900">Delivery status</p>
                 <div className="mt-3 grid gap-3 sm:grid-cols-2">
                   <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3">

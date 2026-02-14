@@ -4,34 +4,34 @@
 
 @layer base {
   :root {
-    --background: 220 22% 98%;
-    --foreground: 224 18% 16%;
+    --background: 0 0% 13%;
+    --foreground: 0 0% 93%;
 
-    --card: 0 0% 100%;
-    --card-foreground: 224 18% 16%;
+    --card: 0 0% 18%;
+    --card-foreground: 0 0% 93%;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 224 18% 16%;
+    --popover: 0 0% 16%;
+    --popover-foreground: 0 0% 93%;
 
-    --primary: 225 88% 60%;
-    --primary-foreground: 0 0% 100%;
+    --primary: 160 24% 56%;
+    --primary-foreground: 160 26% 12%;
 
-    --secondary: 220 18% 95%;
-    --secondary-foreground: 224 16% 24%;
+    --secondary: 0 0% 20%;
+    --secondary-foreground: 0 0% 90%;
 
-    --muted: 220 16% 94%;
-    --muted-foreground: 220 10% 42%;
+    --muted: 0 0% 16%;
+    --muted-foreground: 0 0% 72%;
 
-    --accent: 224 62% 96%;
-    --accent-foreground: 226 40% 34%;
+    --accent: 0 0% 21%;
+    --accent-foreground: 0 0% 93%;
 
     --destructive: 0 72% 52%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 220 15% 86%;
-    --input: 220 16% 90%;
+    --border: 0 0% 24%;
+    --input: 0 0% 24%;
 
-    --ring: 225 84% 60%;
+    --ring: 160 24% 56%;
 
     --radius: 0.75rem;
   }
@@ -44,7 +44,7 @@
 
   body {
     @apply bg-background text-foreground;
-    background-image: radial-gradient(circle at top right, rgba(79, 110, 247, 0.08), transparent 42%);
+    background-image: radial-gradient(circle at top right, rgba(116, 170, 156, 0.08), transparent 42%);
   }
 
   h1,
@@ -56,7 +56,7 @@
   }
 
   ::selection {
-    background: rgba(79, 110, 247, 0.2);
+    background: rgba(116, 170, 156, 0.28);
   }
 }
 
@@ -84,8 +84,8 @@
     width: 20px;
     height: 20px;
     border-radius: 9999px;
-    background: white;
-    border: 3px solid #4f6ef7;
+    background: #ececec;
+    border: 3px solid #74aa9c;
     box-shadow: 0 1px 6px rgba(0, 0, 0, 0.12);
     cursor: grab;
     margin-top: -6px;
@@ -93,14 +93,14 @@
   }
 
   .calc-slider::-webkit-slider-thumb:hover {
-    box-shadow: 0 1px 8px rgba(0, 0, 0, 0.18), 0 0 0 4px rgba(79, 110, 247, 0.12);
+    box-shadow: 0 1px 8px rgba(0, 0, 0, 0.18), 0 0 0 4px rgba(116, 170, 156, 0.16);
     transform: scale(1.12);
   }
 
   .calc-slider::-webkit-slider-thumb:active {
     cursor: grabbing;
     transform: scale(1.04);
-    box-shadow: 0 1px 8px rgba(0, 0, 0, 0.18), 0 0 0 4px rgba(79, 110, 247, 0.16);
+    box-shadow: 0 1px 8px rgba(0, 0, 0, 0.18), 0 0 0 4px rgba(116, 170, 156, 0.22);
   }
 
   .calc-slider::-moz-range-track {
@@ -114,14 +114,14 @@
     width: 20px;
     height: 20px;
     border-radius: 9999px;
-    background: white;
-    border: 3px solid #4f6ef7;
+    background: #ececec;
+    border: 3px solid #74aa9c;
     box-shadow: 0 1px 6px rgba(0, 0, 0, 0.12);
     cursor: grab;
     transition: box-shadow 0.15s ease, transform 0.15s ease;
   }
 
   .calc-slider::-moz-range-thumb:hover {
-    box-shadow: 0 1px 8px rgba(0, 0, 0, 0.18), 0 0 0 4px rgba(79, 110, 247, 0.12);
+    box-shadow: 0 1px 8px rgba(0, 0, 0, 0.18), 0 0 0 4px rgba(116, 170, 156, 0.16);
   }
 }

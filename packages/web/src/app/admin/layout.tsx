@@ -54,7 +54,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       <div className="flex min-h-screen">
         <AdminSidebar />
         <div className="flex min-h-screen flex-1 flex-col">
-          <header className="border-b border-border bg-white/80 backdrop-blur">
+          <header className="border-b border-border bg-card/80 backdrop-blur">
             <div className="flex flex-col gap-4 px-4 py-4 md:px-6 lg:px-8">
               <div className="flex items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
@@ -80,7 +80,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </header>
           <main className="flex-1 space-y-6 px-4 py-6 md:px-6 lg:px-8">
             {requiresCompany && !companyId ? (
-              <div className="rounded-2xl border border-emerald-100 bg-white p-6 shadow-sm">
+              <div className="rounded-2xl border border-emerald-100 bg-card p-6 shadow-sm">
                 <h2 className="text-lg font-semibold text-foreground">Select a company to begin</h2>
                 <p className="mt-2 text-sm text-muted-foreground">
                   Choose a company from the selector above to review calls, appointments, customers, and settings.

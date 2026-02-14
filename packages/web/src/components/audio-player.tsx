@@ -156,7 +156,7 @@ export function AudioPlayer({ src, title }: AudioPlayerProps) {
             disabled={isLoading || Boolean(loadError) || duration <= 0}
             className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
             style={{
-              background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${progress}%, #e5e7eb ${progress}%, #e5e7eb 100%)`,
+              background: `linear-gradient(to right, #74aa9c 0%, #74aa9c ${progress}%, #343541 ${progress}%, #343541 100%)`,
             }}
           />
           <div className="flex justify-between text-xs text-gray-500 mt-1">

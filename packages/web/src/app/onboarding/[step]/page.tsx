@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
@@ -360,7 +360,7 @@ function BillingStep({ nextStep }: { nextStep?: OnboardingStepId }) {
         })}
       </div>
 
-      <Card className="mt-8 border-emerald-100 bg-white">
+      <Card className="mt-8 border-emerald-100 bg-card">
         <CardHeader>
           <CardTitle>Payment method</CardTitle>
           <CardDescription>
@@ -456,7 +456,7 @@ function OnboardingPaymentForm({
           ? `Selected plan: ${PLAN_CATALOG[selectedPlan].name}`
           : 'Select a plan above to unlock payment.'}
       </div>
-      <div className="rounded-xl border border-slate-200 bg-white p-4">
+      <div className="rounded-xl border border-slate-200 bg-card p-4">
         <CardElement
           options={{
             style: {
@@ -616,7 +616,7 @@ function CompanyStep({ nextStep }: { nextStep?: OnboardingStepId }) {
           <CardContent className="space-y-3 text-sm text-emerald-900">
             <p>HandyCall uses your company type to adjust tone, terminology, and service questions.</p>
             <p>Timezone ensures bookings land in the right business day.</p>
-            <div className="rounded-xl border border-emerald-200 bg-white/70 p-3">
+            <div className="rounded-xl border border-emerald-200 bg-card/70 p-3">
               <p className="font-semibold">Tip</p>
               <p className="mt-1 text-emerald-800/80">
                 You can always change these in Settings later.
@@ -758,7 +758,7 @@ function ServiceAreaStep({ nextStep }: { nextStep?: OnboardingStepId }) {
                   </div>
                   <div className="mt-3 flex flex-wrap gap-2">
                     {zipCodes.map((zip) => (
-                      <Badge key={zip} className="bg-white text-slate-700">
+                      <Badge key={zip} className="bg-card text-slate-700">
                         {zip}
                       </Badge>
                     ))}
@@ -779,7 +779,7 @@ function ServiceAreaStep({ nextStep }: { nextStep?: OnboardingStepId }) {
                   </div>
                   <div className="mt-3 flex flex-wrap gap-2">
                     {cities.map((city) => (
-                      <Badge key={city} className="bg-white text-slate-700">
+                      <Badge key={city} className="bg-card text-slate-700">
                         {city}
                       </Badge>
                     ))}
@@ -1408,7 +1408,7 @@ function PhoneStep({ nextStep }: { nextStep?: OnboardingStepId }) {
                     <label
                       key={option.value}
                       className={`cursor-pointer rounded-xl border p-3 text-left transition ${
-                        selected ? 'border-emerald-400 bg-emerald-50/70' : 'border-slate-200 bg-white/80'
+                        selected ? 'border-emerald-400 bg-emerald-50/70' : 'border-slate-200 bg-card/80'
                       }`}
                     >
                       <div className="flex items-start gap-2">
@@ -1485,7 +1485,7 @@ function PhoneStep({ nextStep }: { nextStep?: OnboardingStepId }) {
               </label>
 
               {transferEnabled && (
-                <div className="space-y-3 rounded-xl border border-emerald-100 bg-white/70 p-4">
+                <div className="space-y-3 rounded-xl border border-emerald-100 bg-card/70 p-4">
                   <div className="space-y-2">
                     <Label>Forwarding target</Label>
                     <div className="flex flex-col gap-2 text-sm text-slate-700">
@@ -1585,7 +1585,7 @@ function PhoneStep({ nextStep }: { nextStep?: OnboardingStepId }) {
                   availableNumbers.map((number) => (
                     <div
                       key={number.phoneNumber}
-                      className="flex items-center justify-between rounded-xl border border-emerald-100 bg-white/70 p-3"
+                      className="flex items-center justify-between rounded-xl border border-emerald-100 bg-card/70 p-3"
                     >
                       <div>
                         <p className="font-semibold text-slate-900">{number.phoneNumber}</p>
