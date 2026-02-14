@@ -153,7 +153,7 @@ async function resolveElevenLabsConfig() {
   ]);
   let optimizeStreamingLatency = latencyRaw ? Number(latencyRaw) : 4;
   if (!Number.isFinite(optimizeStreamingLatency)) optimizeStreamingLatency = 4;
-  const outputFormat = envFirst(['ELEVENLABS_OUTPUT_FORMAT', 'ELEVEN_LABS_OUTPUT_FORMAT']) || 'mp3_44100_128';
+  const outputFormat = envFirst(['ELEVENLABS_OUTPUT_FORMAT', 'ELEVEN_LABS_OUTPUT_FORMAT']) || 'pcm_16000';
   if (!apiKey || !voiceId) return null;
   return { apiKey, voiceId, modelId, optimizeStreamingLatency, outputFormat };
 }
@@ -190,21 +190,25 @@ async function elevenLabsStreamTts(
   return Readable.fromWeb(res.body as any);
 }
 
-function transcodeToMulaw8k(input: Readable, abortSignal?: AbortSignal) {
-  const ffmpeg = spawn('ffmpeg', [
-    '-hide_banner',
-    '-loglevel',
-    'error',
-    '-i',
-    'pipe:0',
-    '-ac',
-    '1',
-    '-ar',
-    '8000',
-    '-f',
-    'mulaw',
-    'pipe:1',
-  ]);
+function transcodeToMulaw8k(
+  input: Readable,
+  options?: { inputFormat?: string },
+  abortSignal?: AbortSignal
+) {
+  const inputFormat = String(options?.inputFormat || '').trim().toLowerCase();
+  const args: string[] = ['-hide_banner', '-loglevel', 'error'];
+  if (inputFormat.startsWith('pcm_')) {
+    const sampleRate = Number.parseInt(inputFormat.slice('pcm_'.length), 10);
+    if (Number.isFinite(sampleRate) && sampleRate > 0) {
+      args.push('-f', 's16le', '-ac', '1', '-ar', String(sampleRate));
+    }
+  } else if (inputFormat === 'ulaw_8000') {
+    args.push('-f', 'mulaw', '-ac', '1', '-ar', '8000');
+  }
+
+  args.push('-i', 'pipe:0', '-ac', '1', '-ar', '8000', '-f', 'mulaw', 'pipe:1');
+
+  const ffmpeg = spawn('ffmpeg', args);
 
   input.pipe(ffmpeg.stdin);
 
@@ -269,6 +273,24 @@ type ActiveCallState = {
 };
 
 const activeCalls = new Map<string, ActiveCallState>();
+const greetedCalls = new Map<string, number>();
+
+function hasGreetedCall(callSid?: string): boolean {
+  const sid = String(callSid || '').trim();
+  if (!sid) return false;
+  const ttlMs = 24 * 60 * 60 * 1000;
+  const now = Date.now();
+  for (const [key, ts] of greetedCalls.entries()) {
+    if (now - ts > ttlMs) greetedCalls.delete(key);
+  }
+  return greetedCalls.has(sid);
+}
+
+function markCallGreeted(callSid?: string) {
+  const sid = String(callSid || '').trim();
+  if (!sid) return;
+  greetedCalls.set(sid, Date.now());
+}
 
 const fillerUtterances = new Set([
   'mhm',
@@ -1379,12 +1401,18 @@ wss.on('connection', (twilioWs: WebSocket) => {
 
   function tryGreet() {
     if (!openaiWs || !openaiReady || !twilioReady || greeted) return;
+    const callSid = ctx?.callSid;
+    if (hasGreetedCall(callSid)) {
+      greeted = true;
+      return;
+    }
     const name = ctx?.company_name || 'our company';
     const greeting = hasExistingAppointments
       ? `Hi there, thanks for calling ${name}. Would you like to manage an existing booking, or book a new appointment?`
       : `Hi there, thanks for calling ${name}. How can I help you today?`;
     createResponse(`Say exactly: "${greeting}" Then stop. Do not add any follow-up question.`);
     greeted = true;
+    markCallGreeted(callSid);
     greetingStartedAt = Date.now();
     lastRepromptAt = 0;
   }
@@ -1486,29 +1514,42 @@ wss.on('connection', (twilioWs: WebSocket) => {
       lastAssistantAudioAt = Date.now();
 
       try {
-        let ttsStream: Readable;
-        try {
-          ttsStream = await elevenLabsStreamTts({
-            apiKey: config.apiKey,
-            voiceId: config.voiceId,
-            modelId: config.modelId,
-            optimizeStreamingLatency: config.optimizeStreamingLatency,
-            outputFormat: config.outputFormat,
-            text: cleaned,
-          });
-        } catch (primaryErr: any) {
-          ttsStream = await elevenLabsStreamTts({
-            apiKey: config.apiKey,
-            voiceId: config.voiceId,
-            modelId: config.modelId,
-            optimizeStreamingLatency: config.optimizeStreamingLatency,
-            outputFormat: 'mp3_44100_128',
-            text: cleaned,
-          });
-          console.warn('[elevenlabs] primary output format failed; using mp3 fallback', primaryErr?.message ?? String(primaryErr));
+        let ttsStream: Readable | null = null;
+        let resolvedFormat = '';
+        let lastFormatError: any = null;
+        const candidateFormats = Array.from(
+          new Set([config.outputFormat || 'pcm_16000', 'pcm_16000', 'pcm_22050', 'ulaw_8000'])
+        );
+        for (const candidateFormat of candidateFormats) {
+          try {
+            ttsStream = await elevenLabsStreamTts({
+              apiKey: config.apiKey,
+              voiceId: config.voiceId,
+              modelId: config.modelId,
+              optimizeStreamingLatency: config.optimizeStreamingLatency,
+              outputFormat: candidateFormat,
+              text: cleaned,
+            });
+            resolvedFormat = candidateFormat;
+            if (candidateFormat !== config.outputFormat) {
+              console.warn('[elevenlabs] using fallback output format', {
+                requested: config.outputFormat,
+                resolved: candidateFormat,
+              });
+            }
+            break;
+          } catch (err: any) {
+            lastFormatError = err;
+          }
+        }
+        if (!ttsStream || !resolvedFormat) {
+          throw lastFormatError || new Error('Unable to stream TTS from ElevenLabs');
         }
 
-        const mulawStream = transcodeToMulaw8k(ttsStream, controller.signal);
+        const mulawStream =
+          resolvedFormat === 'ulaw_8000'
+            ? ttsStream
+            : transcodeToMulaw8k(ttsStream, { inputFormat: resolvedFormat }, controller.signal);
         await new Promise<void>((resolve, reject) => {
           const onAbort = () => {
             try {
@@ -2235,7 +2276,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
 
       twilioReady = true;
       elevenLabsConfig = await resolveElevenLabsConfig();
-      useElevenLabs = Boolean(elevenLabsConfig) && envFlag('VOICE_BRIDGE_USE_ELEVENLABS', true);
+      useElevenLabs = Boolean(elevenLabsConfig) && envFlag('VOICE_BRIDGE_USE_ELEVENLABS', false);
       console.log('[bridge] tts mode', {
         mode: useElevenLabs ? 'elevenlabs' : 'openai-realtime',
         eleven_output_format: elevenLabsConfig?.outputFormat || null,
