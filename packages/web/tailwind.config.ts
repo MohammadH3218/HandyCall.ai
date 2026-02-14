@@ -1,4 +1,4 @@
-﻿import type { Config } from 'tailwindcss'
+import type { Config } from 'tailwindcss'
 
 const config = {
   darkMode: ['class'],
@@ -12,11 +12,7 @@ const config = {
   theme: {
     container: {
       center: true,
-      padding: {
-        DEFAULT: '24px',
-        md: '32px',
-        xl: '40px',
-      },
+      padding: '2rem',
       screens: {
         '2xl': '1400px',
       },
@@ -27,66 +23,82 @@ const config = {
         display: ['var(--font-display)', 'ui-sans-serif', 'system-ui', 'sans-serif'],
       },
       colors: {
-        border: 'rgb(var(--stroke-subtle-rgb) / <alpha-value>)',
-        input: 'rgb(var(--stroke-subtle-rgb) / <alpha-value>)',
-        ring: 'rgb(var(--focus-rgb) / <alpha-value>)',
-        background: 'rgb(var(--bg-rgb) / <alpha-value>)',
-        foreground: 'rgb(var(--text-rgb) / <alpha-value>)',
+        border: 'hsl(var(--border))',
+        input: 'hsl(var(--input))',
+        ring: 'hsl(var(--ring))',
+        background: 'hsl(var(--background))',
+        foreground: 'hsl(var(--foreground))',
         primary: {
-          DEFAULT: 'rgb(var(--accent-rgb) / <alpha-value>)',
-          foreground: 'rgb(var(--bg-rgb) / <alpha-value>)',
+          DEFAULT: 'hsl(var(--primary))',
+          foreground: 'hsl(var(--primary-foreground))',
         },
         secondary: {
-          DEFAULT: 'rgb(var(--bg-elev-1-rgb) / <alpha-value>)',
-          foreground: 'rgb(var(--text-rgb) / <alpha-value>)',
+          DEFAULT: 'hsl(var(--secondary))',
+          foreground: 'hsl(var(--secondary-foreground))',
         },
         destructive: {
-          DEFAULT: 'rgb(var(--danger-rgb) / <alpha-value>)',
-          foreground: 'rgb(var(--text-rgb) / <alpha-value>)',
+          DEFAULT: 'hsl(var(--destructive))',
+          foreground: 'hsl(var(--destructive-foreground))',
         },
         muted: {
-          DEFAULT: 'rgb(var(--bg-elev-2-rgb) / <alpha-value>)',
-          foreground: 'rgb(var(--text-muted-rgb) / <alpha-value>)',
+          DEFAULT: 'hsl(var(--muted))',
+          foreground: 'hsl(var(--muted-foreground))',
         },
         accent: {
-          DEFAULT: 'rgb(var(--accent-rgb) / <alpha-value>)',
-          foreground: 'rgb(var(--text-rgb) / <alpha-value>)',
+          DEFAULT: 'hsl(var(--accent))',
+          foreground: 'hsl(var(--accent-foreground))',
         },
         popover: {
-          DEFAULT: 'rgb(var(--bg-elev-2-rgb) / <alpha-value>)',
-          foreground: 'rgb(var(--text-rgb) / <alpha-value>)',
+          DEFAULT: 'hsl(var(--popover))',
+          foreground: 'hsl(var(--popover-foreground))',
         },
         card: {
-          DEFAULT: 'rgb(var(--bg-elev-1-rgb) / <alpha-value>)',
-          foreground: 'rgb(var(--text-rgb) / <alpha-value>)',
+          DEFAULT: 'hsl(var(--card))',
+          foreground: 'hsl(var(--card-foreground))',
         },
-        surface: {
-          1: 'rgb(var(--bg-elev-1-rgb) / <alpha-value>)',
-          2: 'rgb(var(--bg-elev-2-rgb) / <alpha-value>)',
+        emerald: {
+          50: '#eff4ff',
+          100: '#e1ebff',
+          200: '#c9dbff',
+          300: '#a8c2ff',
+          400: '#7fa0ff',
+          500: '#4f6ef7',
+          600: '#3d58de',
+          700: '#3147b7',
+          800: '#2a3d93',
+          900: '#263576',
+          950: '#18214a',
         },
-        text: {
-          DEFAULT: 'rgb(var(--text-rgb) / <alpha-value>)',
-          muted: 'rgb(var(--text-muted-rgb) / <alpha-value>)',
-          faint: 'rgb(var(--text-faint-rgb) / <alpha-value>)',
+        green: {
+          50: '#eff4ff',
+          100: '#e1ebff',
+          200: '#c9dbff',
+          300: '#a8c2ff',
+          400: '#7fa0ff',
+          500: '#4f6ef7',
+          600: '#3d58de',
+          700: '#3147b7',
+          800: '#2a3d93',
+          900: '#263576',
+          950: '#18214a',
         },
-        success: 'rgb(var(--success-rgb) / <alpha-value>)',
-        warning: 'rgb(var(--warning-rgb) / <alpha-value>)',
+        slate: {
+          50: '#f8fafc',
+          100: '#f1f5f9',
+          200: '#e2e8f0',
+          300: '#cbd5e1',
+          400: '#94a3b8',
+          500: '#64748b',
+          600: '#475569',
+          700: '#334155',
+          800: '#1f2937',
+          900: '#111827',
+        },
       },
       borderRadius: {
-        sm: 'var(--r-sm)',
-        md: 'var(--r-md)',
-        lg: 'var(--r-lg)',
-        xl: 'var(--r-xl)',
-      },
-      boxShadow: {
-        1: 'var(--shadow-1)',
-        2: 'var(--shadow-2)',
-      },
-      transitionTimingFunction: {
-        standard: 'cubic-bezier(0.2, 0.8, 0.2, 1)',
-      },
-      transitionDuration: {
-        standard: '180ms',
+        lg: 'var(--radius)',
+        md: 'calc(var(--radius) - 2px)',
+        sm: 'calc(var(--radius) - 4px)',
       },
       keyframes: {
         'accordion-down': {
@@ -108,5 +120,3 @@ const config = {
 } satisfies Config
 
 export default config
-
-

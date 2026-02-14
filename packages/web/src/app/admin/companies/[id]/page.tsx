@@ -449,7 +449,7 @@ export default function AdminCompanyDetailPage() {
                 <div className="text-sm font-medium text-gray-700">Account Status</div>
                 <div className="flex items-center gap-2 mt-1">
                   {company?.status === 'ACTIVE' ? (
-                    <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
+                    <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">
                       <CheckCircle className="h-3 w-3 mr-1" />
                       Active
                     </Badge>

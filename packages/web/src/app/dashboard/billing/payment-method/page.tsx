@@ -129,8 +129,8 @@ function PaymentMethodForm({ selectedPlan }: { selectedPlan?: SubscriptionPlan }
       )}
 
       {success && (
-        <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-md">
-          <p className="text-sm text-green-800">
+        <div className="mb-4 p-3 bg-emerald-50 border border-emerald-200 rounded-md">
+          <p className="text-sm text-emerald-800">
             {selectedPlan ? 'Subscription created successfully!' : 'Payment method updated successfully!'}
           </p>
         </div>

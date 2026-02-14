@@ -1,13 +1,15 @@
-﻿'use client';
+'use client';
 
 import { useEffect, useMemo, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { signOut, useSession } from 'next-auth/react';
+import Link from 'next/link';
 import { useAuthStore } from '@/stores/auth-store';
 import { apiClient } from '@/lib/api-client';
+import { Logo } from '@/components/ui/logo';
 import { ProfileDropdown } from '@/components/profile-dropdown';
-import { AppShell, AppSidebar, AppTopBar } from '@/components/app-shell/app-shell';
-import { BarChart3, Calendar, CreditCard, Home, MessageCircle, Phone, PlugZap, Settings, Users } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { BarChart3, Calendar, CreditCard, Home, Menu, MessageCircle, MessageSquare, Phone, Settings, Users, X } from 'lucide-react';
 import { UserRole } from '@handycall/shared';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -19,10 +21,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [knowledgeCount, setKnowledgeCount] = useState<number | null>(null);
   const [companyNumber, setCompanyNumber] = useState<string | null>(null);
   const [companyNumberLoaded, setCompanyNumberLoaded] = useState(false);
-
-  useEffect(() => {
-    setSidebarOpen(false);
-  }, [pathname]);
 
   const knowledgeComplete = knowledgeCount !== null ? knowledgeCount > 0 : false;
   const setupStatus = useMemo(() => {
@@ -193,100 +191,191 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     );
   }
 
-  const navGroups = [
-    {
-      items: [
-        {
-          href: '/dashboard',
-          label: 'Overview',
-          icon: <Home className="h-4 w-4" />,
-          active: pathname === '/dashboard',
-        },
-        {
-          href: '/dashboard/calls',
-          label: 'Calls',
-          icon: <Phone className="h-4 w-4" />,
-          active: pathname?.startsWith('/dashboard/calls'),
-        },
-        {
-          href: '/dashboard/messages',
-          label: 'Messages',
-          icon: <MessageCircle className="h-4 w-4" />,
-          active: pathname?.startsWith('/dashboard/messages'),
-        },
-        {
-          href: '/dashboard/appointments',
-          label: 'Appointments',
-          icon: <Calendar className="h-4 w-4" />,
-          active: pathname?.startsWith('/dashboard/appointments'),
-        },
-        {
-          href: '/dashboard/contacts',
-          label: 'Contacts',
-          icon: <Users className="h-4 w-4" />,
-          active: pathname?.startsWith('/dashboard/contacts') || pathname?.startsWith('/dashboard/customers'),
-        },
-      ],
-    },
-    {
-      label: 'Workspace',
-      items: [
-        {
-          href: '/dashboard/settings',
-          label: 'Settings',
-          icon: <Settings className="h-4 w-4" />,
-          active: pathname?.startsWith('/dashboard/settings'),
-        },
-        {
-          href: '/dashboard/settings?tab=integrations',
-          label: 'Integrations',
-          icon: <PlugZap className="h-4 w-4" />,
-          active: pathname?.startsWith('/dashboard/settings'),
-        },
-      ],
-    },
-    {
-      label: 'Revenue',
-      items: [
-        {
-          href: '/dashboard/billing',
-          label: 'Billing',
-          icon: <CreditCard className="h-4 w-4" />,
-          active: pathname?.startsWith('/dashboard/billing'),
-        },
-        {
-          href: '/dashboard/usage',
-          label: 'Usage',
-          icon: <BarChart3 className="h-4 w-4" />,
-          active: pathname?.startsWith('/dashboard/usage'),
-        },
-      ],
-    },
-  ];
-
-  const routingEnabled = !['DISABLED', 'OFF'].includes(String(company?.call_handling_mode || '').toUpperCase());
-
   return (
-    <AppShell
-      sidebar={
-        <AppSidebar
-          open={sidebarOpen}
-          onClose={() => setSidebarOpen(false)}
-          companyName={company?.company_name}
-          groups={navGroups}
+    <div className="flex h-screen bg-transparent overflow-hidden">
+      {/* Mobile overlay */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 bg-foreground/50 z-40 lg:hidden transition-opacity duration-200"
+          onClick={() => setSidebarOpen(false)}
         />
-      }
-      topbar={
-        <AppTopBar
-          onMenuClick={() => setSidebarOpen(true)}
-          statusLabel={routingEnabled ? 'Routing on' : 'Routing off'}
-          statusTone={routingEnabled ? 'on' : 'off'}
-          rightSlot={<ProfileDropdown />}
-        />
-      }
-    >
-      <div className="animate-fade-up">{children}</div>
-    </AppShell>
+      )}
+
+      {/* Sidebar */}
+      <aside
+        className={`
+          fixed lg:sticky lg:top-0 inset-y-0 left-0 z-50
+          h-screen w-72 bg-white/85 backdrop-blur-xl border-r border-border/60 flex flex-col
+          transform transition-transform duration-200 ease-in-out
+          ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+        `}
+      >
+        {/* Mobile close button */}
+        <div className="lg:hidden absolute top-4 right-4">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setSidebarOpen(false)}
+            className="h-8 w-8 p-0"
+          >
+            <X className="h-5 w-5" />
+          </Button>
+        </div>
+
+        <div className="p-6 flex flex-col items-start justify-center border-b border-border/60 bg-white/70">
+          <Logo variant="words" width={150} height={36} />
+          {company?.company_name && (
+            <p className="mt-1 text-sm font-semibold text-foreground/80 leading-tight">
+              {company.company_name}
+            </p>
+          )}
+        </div>
+
+        <nav className="flex-1 px-4 py-5 space-y-5 overflow-y-auto">
+          <div className="space-y-1">
+            <NavLink
+              href="/dashboard"
+              icon={<Home className="h-5 w-5" />}
+              active={pathname === '/dashboard'}
+              onClick={() => setSidebarOpen(false)}
+            >
+              Dashboard
+            </NavLink>
+            <NavLink
+              href="/dashboard/calls"
+              icon={<Phone className="h-5 w-5" />}
+              active={pathname?.startsWith('/dashboard/calls')}
+              onClick={() => setSidebarOpen(false)}
+            >
+              Calls
+            </NavLink>
+            <NavLink
+              href="/dashboard/messages"
+              icon={<MessageCircle className="h-5 w-5" />}
+              active={pathname?.startsWith('/dashboard/messages')}
+              onClick={() => setSidebarOpen(false)}
+            >
+              Messages
+            </NavLink>
+            <NavLink
+              href="/dashboard/customers"
+              icon={<Users className="h-5 w-5" />}
+              active={pathname?.startsWith('/dashboard/customers')}
+              onClick={() => setSidebarOpen(false)}
+            >
+              Customers
+            </NavLink>
+            <NavLink
+              href="/dashboard/appointments"
+              icon={<Calendar className="h-5 w-5" />}
+              active={pathname?.startsWith('/dashboard/appointments')}
+              onClick={() => setSidebarOpen(false)}
+            >
+              Appointments
+            </NavLink>
+          </div>
+
+          <div className="pt-2 border-t border-border space-y-1">
+            <p className="px-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Company</p>
+            <NavLink
+              href="/dashboard/knowledge"
+              icon={<MessageSquare className="h-5 w-5" />}
+              active={pathname?.startsWith('/dashboard/knowledge')}
+              onClick={() => setSidebarOpen(false)}
+            >
+              Knowledge Base
+            </NavLink>
+            <NavLink
+              href="/dashboard/settings"
+              icon={<Settings className="h-5 w-5" />}
+              active={pathname?.startsWith('/dashboard/settings')}
+              onClick={() => setSidebarOpen(false)}
+            >
+              Settings
+            </NavLink>
+          </div>
+
+          <div className="pt-2 border-t border-border space-y-1">
+            <p className="px-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Account</p>
+            <NavLink
+              href="/dashboard/usage"
+              icon={<BarChart3 className="h-5 w-5" />}
+              active={pathname?.startsWith('/dashboard/usage')}
+              onClick={() => setSidebarOpen(false)}
+            >
+              Usage
+            </NavLink>
+            <NavLink
+              href="/dashboard/billing"
+              icon={<CreditCard className="h-5 w-5" />}
+              active={pathname?.startsWith('/dashboard/billing')}
+              onClick={() => setSidebarOpen(false)}
+            >
+              Billing
+            </NavLink>
+          </div>
+        </nav>
+
+        <div className="mt-auto p-4 border-t border-border/60 bg-white/70">
+          <ProfileDropdown />
+        </div>
+      </aside>
+
+      {/* Main Content */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Mobile menu button */}
+        <div className="lg:hidden p-4 border-b border-border/60 bg-white/80 backdrop-blur">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-10 w-10 p-0"
+            onClick={() => setSidebarOpen(true)}
+          >
+            <Menu className="h-5 w-5" />
+          </Button>
+        </div>
+
+        {/* Main Content Area */}
+        <main className="flex-1 overflow-auto p-4 sm:p-6 lg:p-10">
+          <div className="animate-fade-up">{children}</div>
+        </main>
+      </div>
+
+    </div>
   );
 }
 
+function NavLink({
+  href,
+  icon,
+  children,
+  active,
+  onClick
+}: {
+  href: string;
+  icon: React.ReactNode;
+  children: React.ReactNode;
+  active?: boolean;
+  onClick?: () => void;
+}) {
+  return (
+    <Link
+      href={href}
+      onClick={onClick}
+      className={`group flex items-center px-4 py-3 text-sm rounded-xl transition-all duration-200 ${
+        active
+          ? 'bg-emerald-50 text-emerald-900 shadow-sm border border-emerald-100'
+          : 'text-foreground/80 hover:bg-secondary/70 hover:text-foreground'
+      }`}
+    >
+      <span
+        className={`mr-3 transition-colors duration-200 ${
+          active ? 'text-emerald-600' : 'text-muted-foreground group-hover:text-emerald-600'
+        }`}
+      >
+        {icon}
+      </span>
+      <span className="font-medium">{children}</span>
+    </Link>
+  );
+}

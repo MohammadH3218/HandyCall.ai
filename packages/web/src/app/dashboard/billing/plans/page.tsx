@@ -146,7 +146,7 @@ export default function BillingPlansPage() {
                   : planInfo.badge === 'Best value'
                   ? 'border-emerald-500 border'
                   : ''
-              } ${isCurrent ? 'bg-green-50 border-green-500' : ''}`}
+              } ${isCurrent ? 'bg-emerald-50 border-emerald-500' : ''}`}
             >
               {planInfo.badge && (
                 <div className="absolute top-0 right-0 bg-emerald-100 text-emerald-800 px-3 py-1 text-sm font-medium rounded-bl-lg rounded-tr-lg">
@@ -176,7 +176,7 @@ export default function BillingPlansPage() {
                   {planInfo.features.map((feature, idx) => (
                     <li key={idx} className="flex items-start gap-2">
                       <svg
-                        className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0"
+                        className="w-5 h-5 text-emerald-500 mt-0.5 flex-shrink-0"
                         fill="none"
                         stroke="currentColor"
                         viewBox="0 0 24 24"

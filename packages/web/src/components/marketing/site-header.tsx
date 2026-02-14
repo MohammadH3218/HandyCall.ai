@@ -1,4 +1,4 @@
-﻿import Link from 'next/link';
+import Link from 'next/link';
 import { Logo } from '../ui/logo';
 import { Button } from '../ui/button';
 
@@ -16,39 +16,34 @@ export function SiteHeader({
   hideLoginLink = false,
 }: SiteHeaderProps) {
   return (
-    <header className="sticky top-0 z-30 border-b border-border/90 bg-background/95 backdrop-blur-sm">
-      <div className="mx-auto flex h-16 w-full max-w-[1120px] items-center justify-between px-6 md:px-8">
+    <header className="sticky top-0 z-20 border-b border-slate-200 bg-white">
+      <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3.5">
         <Link href="/" className="flex items-center">
-          <Logo width={134} height={32} />
+          <Logo width={148} height={36} />
         </Link>
 
-        <nav className="hidden items-center gap-7 md:flex">
-          <Link href="/pricing" className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground">
+        <nav className="hidden items-center gap-8 md:flex">
+          <Link href="/pricing" className="text-sm font-medium text-slate-600 transition-colors hover:text-slate-900">
             Pricing
           </Link>
-          <Link href="/faq" className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground">
-            FAQ
-          </Link>
-          <Link href="/contact" className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground">
+          <Link href="/contact" className="text-sm font-medium text-slate-600 transition-colors hover:text-slate-900">
             Contact
           </Link>
         </nav>
 
-        {!hideLogin ? (
+        {!hideLogin && (
           <div className="flex items-center gap-2">
-            {!hideLoginLink ? (
-              <Button asChild size="sm" variant="ghost" className="hidden sm:inline-flex">
+            {!hideLoginLink && (
+              <Button asChild size="sm" variant="ghost" className="hidden text-slate-600 hover:text-slate-900 md:inline-flex">
                 <Link href="/login">Log in</Link>
               </Button>
-            ) : null}
-            <Button asChild size="sm" variant="primary">
+            )}
+            <Button asChild size="sm">
               <Link href={ctaHref}>{ctaLabel}</Link>
             </Button>
           </div>
-        ) : null}
+        )}
       </div>
     </header>
   );
 }
-
-

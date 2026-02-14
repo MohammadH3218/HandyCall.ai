@@ -62,7 +62,7 @@ export default function AdminSubscriptionsPage() {
   const getStatusBadge = (status: SubscriptionStatus) => {
     const colors: Record<SubscriptionStatus, string> = {
       [SubscriptionStatus.TRIALING]: 'bg-blue-100 text-blue-800',
-      [SubscriptionStatus.ACTIVE]: 'bg-green-100 text-green-800',
+      [SubscriptionStatus.ACTIVE]: 'bg-emerald-100 text-emerald-800',
       [SubscriptionStatus.PAST_DUE]: 'bg-yellow-100 text-yellow-800',
       [SubscriptionStatus.CANCELED]: 'bg-red-100 text-red-800',
       [SubscriptionStatus.UNPAID]: 'bg-orange-100 text-orange-800',
@@ -87,8 +87,8 @@ export default function AdminSubscriptionsPage() {
   const getPlanColor = (plan: SubscriptionPlan) => {
     const colors = {
       [SubscriptionPlan.STARTER]: '#3b82f6',
-      [SubscriptionPlan.PRO]: '#8b5cf6',
-      [SubscriptionPlan.MAX]: '#10b981',
+      [SubscriptionPlan.PRO]: '#4f6ef7',
+      [SubscriptionPlan.MAX]: '#3147b7',
     };
     return colors[plan];
   };
@@ -119,8 +119,8 @@ export default function AdminSubscriptionsPage() {
 
     const planData = [
       { name: 'Starter', value: planCounts[SubscriptionPlan.STARTER], color: '#3b82f6' },
-      { name: 'Pro', value: planCounts[SubscriptionPlan.PRO], color: '#8b5cf6' },
-      { name: 'Max', value: planCounts[SubscriptionPlan.MAX], color: '#10b981' },
+      { name: 'Pro', value: planCounts[SubscriptionPlan.PRO], color: '#4f6ef7' },
+      { name: 'Max', value: planCounts[SubscriptionPlan.MAX], color: '#3147b7' },
     ];
 
     return {
@@ -171,7 +171,7 @@ export default function AdminSubscriptionsPage() {
           <Card>
             <CardHeader className="pb-2">
               <CardDescription>Active</CardDescription>
-              <CardTitle className="text-3xl text-green-600">{stats.active}</CardTitle>
+              <CardTitle className="text-3xl text-emerald-600">{stats.active}</CardTitle>
             </CardHeader>
           </Card>
 

@@ -1,4 +1,5 @@
-﻿import React from 'react';
+import React from 'react';
+import Image from 'next/image';
 import { cn } from '@/lib/utils';
 
 export interface LogoProps {
@@ -9,23 +10,23 @@ export interface LogoProps {
 }
 
 export function Logo({ variant = 'words', className, width, height }: LogoProps) {
-  const iconSize = variant === 'icon' ? (width ?? 32) : 26;
-  const style = width || height ? { width, height } : undefined;
+  // Default sizes based on variant
+  const defaultWidth = variant === 'words' ? 200 : 40;
+  const defaultHeight = variant === 'words' ? 50 : 40;
+
+  const logoSrc = variant === 'words' ? '/images/logo-words.svg' : '/images/logo-icon.svg';
+  const alt = variant === 'words' ? 'HandyCall Logo' : 'HandyCall Icon';
 
   return (
-    <div className={cn('inline-flex items-center', className)} style={style} aria-label="HandyCall">
-      <span
-        className="relative inline-flex items-center justify-center rounded-md border border-border bg-[#13161b]"
-        style={{ width: iconSize, height: height ?? iconSize }}
-      >
-        <span className="absolute h-2 w-2 rounded-full bg-primary" />
-        <span className="h-4 w-4 rounded-sm border border-border" />
-      </span>
-      {variant === 'words' ? (
-        <span className="ml-2 text-sm font-semibold tracking-tight text-foreground">HandyCall</span>
-      ) : null}
+    <div className={cn('relative flex items-center', className)}>
+      <Image
+        src={logoSrc}
+        alt={alt}
+        width={width || defaultWidth}
+        height={height || defaultHeight}
+        className="object-contain"
+        priority
+      />
     </div>
   );
 }
-
-
