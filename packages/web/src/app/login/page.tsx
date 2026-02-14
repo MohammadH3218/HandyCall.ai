@@ -263,7 +263,7 @@ function LoginPageInner() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-background via-emerald-50/40 to-background text-foreground">
+    <div className="min-h-screen bg-gradient-to-b from-white via-emerald-50/40 to-white text-foreground">
       <SiteHeader hideLogin />
       <main className="mx-auto max-w-6xl px-4 pb-16 pt-12">
         <div className="grid items-start gap-12 lg:grid-cols-[1.1fr_0.9fr]">
@@ -298,7 +298,7 @@ function LoginPageInner() {
                   desc: 'Automated SMS recaps and reminders to keep prospects warm.',
                 },
               ].map((item) => (
-                <Card key={item.title} className="border-emerald-100 bg-card/80 shadow-sm">
+                <Card key={item.title} className="border-emerald-100 bg-white/80 shadow-sm">
                   <CardContent className="space-y-1 p-4">
                     <h3 className="text-lg font-semibold text-gray-900">{item.title}</h3>
                     <p className="text-sm text-muted-foreground">{item.desc}</p>
@@ -309,7 +309,7 @@ function LoginPageInner() {
           </div>
 
           <div className="relative">
-            <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-emerald-100/60 via-card to-emerald-50 blur-2xl" />
+            <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-emerald-100/60 via-white to-emerald-50 blur-2xl" />
             <div className="relative">
               <div className="mb-6 flex flex-col items-center justify-center space-y-3">
                 <Logo variant="words" width={220} height={54} />

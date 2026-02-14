@@ -31,7 +31,7 @@ export function AdminSidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="hidden lg:flex lg:flex-col lg:w-64 lg:border-r lg:border-border lg:bg-card/80 lg:backdrop-blur">
+    <aside className="hidden lg:flex lg:flex-col lg:w-64 lg:border-r lg:border-border lg:bg-white/80 lg:backdrop-blur">
       <div className="px-6 py-6">
         <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Admin CRM</p>
         <p className="mt-1 text-lg font-semibold text-foreground">HandyCall</p>

@@ -323,7 +323,7 @@ export default function DashboardPage() {
                     <Link
                       key={call.call_id}
                       href={`${basePath}/calls/${call.call_id}`}
-                      className="group block rounded-2xl border border-border/60 bg-card/80 p-4 transition-all hover:-translate-y-0.5 hover:border-emerald-200 hover:shadow-md"
+                      className="group block rounded-2xl border border-border/60 bg-white/80 p-4 transition-all hover:-translate-y-0.5 hover:border-emerald-200 hover:shadow-md"
                     >
                       <div className="flex items-start justify-between gap-4">
                         <div>
@@ -384,7 +384,7 @@ export default function DashboardPage() {
                     <Link
                       key={apt.appointment_id}
                       href={`${basePath}/appointments`}
-                      className="group block rounded-2xl border border-border/60 bg-card/80 p-4 transition-all hover:-translate-y-0.5 hover:border-emerald-200 hover:shadow-md"
+                      className="group block rounded-2xl border border-border/60 bg-white/80 p-4 transition-all hover:-translate-y-0.5 hover:border-emerald-200 hover:shadow-md"
                     >
                       <div className="flex items-start justify-between gap-4">
                         <div>
@@ -452,15 +452,15 @@ export default function DashboardPage() {
                 <AreaChart data={chartSeries[chartRange]}>
                   <defs>
                     <linearGradient id="callsGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#74aa9c" stopOpacity={0.35} />
-                      <stop offset="100%" stopColor="#74aa9c" stopOpacity={0.05} />
+                      <stop offset="0%" stopColor="#10b981" stopOpacity={0.35} />
+                      <stop offset="100%" stopColor="#10b981" stopOpacity={0.05} />
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="4 4" stroke="#e5e7eb" />
                   <XAxis dataKey="label" tick={{ fontSize: 12 }} stroke="#94a3b8" />
                   <YAxis tick={{ fontSize: 12 }} stroke="#94a3b8" allowDecimals={false} />
                   <Tooltip
-                    cursor={{ stroke: '#74aa9c', strokeWidth: 1, strokeDasharray: '4 4' }}
+                    cursor={{ stroke: '#10b981', strokeWidth: 1, strokeDasharray: '4 4' }}
                     contentStyle={{
                       borderRadius: '12px',
                       border: '1px solid #e2e8f0',
@@ -471,7 +471,7 @@ export default function DashboardPage() {
                   <Area
                     type="monotone"
                     dataKey="value"
-                    stroke="#74aa9c"
+                    stroke="#10b981"
                     strokeWidth={2}
                     fill="url(#callsGradient)"
                     name="Calls"

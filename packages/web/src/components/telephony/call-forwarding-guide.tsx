@@ -196,7 +196,7 @@ export function CallForwardingGuide({
             <div
               key={section.key}
               className={`rounded-xl border p-3 ${
-                isHighlighted ? 'border-emerald-300 bg-emerald-50/70' : 'border-slate-200 bg-card/80'
+                isHighlighted ? 'border-emerald-300 bg-emerald-50/70' : 'border-slate-200 bg-white/80'
               }`}
             >
               <div className="flex flex-wrap items-center gap-2">

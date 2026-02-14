@@ -124,7 +124,7 @@ export default function FlaggedQuestionsPage() {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'OPEN': return 'bg-orange-100 text-orange-700';
-      case 'RESOLVED': return 'bg-emerald-100 text-emerald-700';
+      case 'RESOLVED': return 'bg-green-100 text-green-700';
       case 'DISMISSED': return 'bg-gray-100 text-gray-700';
       default: return 'bg-gray-100 text-gray-700';
     }
@@ -181,7 +181,7 @@ export default function FlaggedQuestionsPage() {
           ) : questions.length > 0 ? (
             <div className="space-y-4">
               {questions.map((q) => (
-                <div key={q.flagged_id} className="border border-emerald-100/70 bg-card/85 rounded-xl p-4">
+                <div key={q.flagged_id} className="border border-emerald-100/70 bg-white/85 rounded-xl p-4">
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-2">
@@ -206,7 +206,7 @@ export default function FlaggedQuestionsPage() {
                         </div>
                       )}
                       {q.answer && (
-                        <div className="bg-emerald-50 p-3 rounded-lg mb-2">
+                        <div className="bg-green-50 p-3 rounded-lg mb-2">
                           <p className="text-sm text-slate-700">
                             <span className="font-medium">Your answer:</span> {q.answer}
                           </p>

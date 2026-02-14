@@ -180,7 +180,7 @@ export default function PricingPage() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-card text-foreground">
+    <div className="min-h-screen bg-white text-foreground">
       <SiteHeader />
       <main className="mx-auto max-w-6xl px-4 pb-20 pt-12">
           <section className="grid gap-10 lg:grid-cols-[1.1fr_0.9fr]">
@@ -214,7 +214,7 @@ export default function PricingPage() {
               </div>
             </div>
 
-            <Card className="border-emerald-100 bg-card/80 shadow-lg shadow-emerald-100">
+            <Card className="border-emerald-100 bg-white/80 shadow-lg shadow-emerald-100">
               <CardHeader>
                 <CardTitle>Every plan includes</CardTitle>
               </CardHeader>
@@ -232,13 +232,13 @@ export default function PricingPage() {
             </Card>
           </section>
           <section className="mt-12">
-            <div className="rounded-2xl border border-emerald-100 bg-card p-6 shadow-sm">
+            <div className="rounded-2xl border border-emerald-100 bg-white p-6 shadow-sm">
               <p className="text-sm font-medium uppercase tracking-wide text-emerald-700">
                 Example cost comparison
               </p>
               <div className="mt-4 space-y-3">
                 {costComparison.map((row) => (
-                  <div key={row.label} className="rounded-lg border border-slate-200 bg-card p-4">
+                  <div key={row.label} className="rounded-lg border border-slate-200 bg-white p-4">
                     <div className="flex items-center justify-between">
                       <span className="text-sm font-semibold text-slate-900">{row.label}</span>
                       <span className="text-sm font-semibold text-emerald-700">{row.value}</span>
@@ -262,7 +262,7 @@ export default function PricingPage() {
                 <Card
                   key={plan.name}
                   className={`relative flex h-full flex-col border-emerald-100 shadow-sm transition hover:-translate-y-1 hover:shadow-md ${
-                    plan.highlight ? 'bg-card shadow-lg shadow-emerald-100 ring-1 ring-emerald-200' : 'bg-card/90'
+                    plan.highlight ? 'bg-white shadow-lg shadow-emerald-100 ring-1 ring-emerald-200' : 'bg-white/90'
                   } ${isRecommended ? 'ring-2 ring-emerald-500' : ''}`}
                 >
                   {isRecommended && (
@@ -321,7 +321,7 @@ export default function PricingPage() {
               );
             })}
           </section>
-          <section className="mt-10 rounded-2xl border border-emerald-100 bg-card p-6 shadow-sm">
+          <section className="mt-10 rounded-2xl border border-emerald-100 bg-white p-6 shadow-sm">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
                 <p className="text-sm font-medium uppercase tracking-wide text-emerald-700">
@@ -352,7 +352,7 @@ export default function PricingPage() {
 
 
           {/* -- Plan calculator -- */}
-          <section className="mt-16 overflow-hidden rounded-[28px] border border-emerald-100/60 bg-gradient-to-br from-background via-emerald-50/10 to-background p-8 shadow-lg shadow-emerald-50/50 md:p-12">
+          <section className="mt-16 overflow-hidden rounded-[28px] border border-emerald-100/60 bg-gradient-to-br from-white via-emerald-50/10 to-white p-8 shadow-lg shadow-emerald-50/50 md:p-12">
             <div className="text-center">
               <Badge className="bg-emerald-100/80 text-emerald-700">Plan calculator</Badge>
               <h2 className="mt-3 text-3xl font-display text-slate-900 md:text-4xl">
@@ -382,7 +382,7 @@ export default function PricingPage() {
                         </div>
                         <span className="text-sm font-semibold text-slate-800">{slider.label}</span>
                       </div>
-                      <div className="rounded-lg border border-slate-200 bg-card px-3.5 py-1.5 text-sm font-semibold tabular-nums text-slate-900 shadow-sm">
+                      <div className="rounded-lg border border-slate-200 bg-white px-3.5 py-1.5 text-sm font-semibold tabular-nums text-slate-900 shadow-sm">
                         {value} <span className="font-normal text-slate-500">{slider.unit}</span>
                       </div>
                     </div>
@@ -526,7 +526,7 @@ export default function PricingPage() {
               Share your call load and service mix. We will build a rollout that protects your bookings.
             </p>
             <div className="mt-4 flex justify-center">
-              <Button asChild size="lg" variant="secondary" className="bg-card text-emerald-700 shadow">
+              <Button asChild size="lg" variant="secondary" className="bg-white text-emerald-700 shadow">
                 <Link href="/contact">Plan your rollout</Link>
               </Button>
             </div>

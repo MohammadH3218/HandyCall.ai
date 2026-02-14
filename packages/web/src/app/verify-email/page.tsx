@@ -96,7 +96,7 @@ function VerifyEmailPageInner() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-background via-emerald-50/30 to-background text-foreground">
+    <div className="min-h-screen bg-gradient-to-b from-white via-emerald-50/30 to-white text-foreground">
       <SiteHeader ctaLabel="Login" ctaHref="/login" hideLoginLink />
       <main className="mx-auto max-w-4xl px-4 pb-16 pt-12">
         <div className="mx-auto max-w-lg space-y-6">

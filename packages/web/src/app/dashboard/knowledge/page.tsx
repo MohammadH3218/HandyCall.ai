@@ -156,7 +156,7 @@ export default function KnowledgePage() {
   const getTypeColor = (type: string) => {
     switch (type) {
       case 'FAQ': return 'bg-blue-100 text-blue-700';
-      case 'SERVICE': return 'bg-emerald-100 text-emerald-700';
+      case 'SERVICE': return 'bg-green-100 text-green-700';
       case 'POLICY': return 'bg-purple-100 text-purple-700';
       case 'PRODUCT': return 'bg-orange-100 text-orange-700';
       case 'SAFETY': return 'bg-red-100 text-red-700';
@@ -187,7 +187,7 @@ export default function KnowledgePage() {
           className={`flex items-center px-4 py-2 rounded-full border text-sm transition-colors ${
             activeTab === 'knowledge'
               ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-              : 'border-transparent bg-card/70 text-slate-500 hover:text-slate-700'
+              : 'border-transparent bg-white/70 text-slate-500 hover:text-slate-700'
           }`}
         >
           <MessageSquare className="h-4 w-4 mr-2" />
@@ -198,7 +198,7 @@ export default function KnowledgePage() {
           className={`flex items-center px-4 py-2 rounded-full border text-sm transition-colors ${
             activeTab === 'service-area'
               ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-              : 'border-transparent bg-card/70 text-slate-500 hover:text-slate-700'
+              : 'border-transparent bg-white/70 text-slate-500 hover:text-slate-700'
           }`}
         >
           <MapPin className="h-4 w-4 mr-2" />
@@ -236,7 +236,7 @@ export default function KnowledgePage() {
                   {items.map((item) => (
                     <div
                       key={item.knowledge_id}
-                      className="border border-emerald-100/70 bg-card/85 rounded-xl p-4 hover:-translate-y-[1px] hover:shadow-md transition-all"
+                      className="border border-emerald-100/70 bg-white/85 rounded-xl p-4 hover:-translate-y-[1px] hover:shadow-md transition-all"
                     >
                       <div className="flex items-start justify-between mb-3">
                         <div className="flex-1">

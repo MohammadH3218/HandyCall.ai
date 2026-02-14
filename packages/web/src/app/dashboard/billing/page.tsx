@@ -232,7 +232,7 @@ export default function BillingPage() {
   const getStatusBadge = (status?: SubscriptionStatus) => {
     const colors: Record<SubscriptionStatus, string> = {
       [SubscriptionStatus.TRIALING]: 'bg-blue-100 text-blue-800',
-      [SubscriptionStatus.ACTIVE]: 'bg-emerald-100 text-emerald-800',
+      [SubscriptionStatus.ACTIVE]: 'bg-green-100 text-green-800',
       [SubscriptionStatus.PAST_DUE]: 'bg-yellow-100 text-yellow-800',
       [SubscriptionStatus.CANCELED]: 'bg-red-100 text-red-800',
       [SubscriptionStatus.UNPAID]: 'bg-orange-100 text-orange-800',
@@ -330,7 +330,7 @@ export default function BillingPage() {
 
                 <div className="grid gap-3 sm:grid-cols-3">
                   {planHighlights.map((item) => (
-                    <div key={item.label} className="rounded-lg border border-emerald-100/70 bg-card/80 p-3">
+                    <div key={item.label} className="rounded-lg border border-emerald-100/70 bg-white/80 p-3">
                       <p className="text-xs uppercase tracking-wide text-slate-500">{item.label}</p>
                       <p className="text-sm font-semibold text-slate-900">{item.value}</p>
                     </div>
@@ -400,7 +400,7 @@ export default function BillingPage() {
                   return (
                     <div
                       key={method.id}
-                      className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-emerald-100/70 bg-card/85 p-4"
+                      className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-emerald-100/70 bg-white/85 p-4"
                     >
                       <div className="flex items-center gap-3">
                         <div className="h-10 w-12 rounded-md bg-emerald-50 flex items-center justify-center text-emerald-700">
@@ -505,7 +505,7 @@ export default function BillingPage() {
                         ? 'bg-red-500'
                         : calculateUsagePercentage(usage.call_minutes || 0, planLimits?.minutes || 0) >= 75
                         ? 'bg-yellow-500'
-                        : 'bg-emerald-500'
+                        : 'bg-green-500'
                     }`}
                     style={{ width: `${calculateUsagePercentage(usage.call_minutes || 0, planLimits?.minutes || 0)}%` }}
                   ></div>
@@ -527,7 +527,7 @@ export default function BillingPage() {
                         ? 'bg-red-500'
                         : calculateUsagePercentage(usage.sms_count || 0, planLimits?.sms || 0) >= 75
                         ? 'bg-yellow-500'
-                        : 'bg-emerald-500'
+                        : 'bg-green-500'
                     }`}
                     style={{ width: `${calculateUsagePercentage(usage.sms_count || 0, planLimits?.sms || 0)}%` }}
                   ></div>
@@ -549,7 +549,7 @@ export default function BillingPage() {
                         ? 'bg-red-500'
                         : calculateUsagePercentage(usage.active_contacts || 0, planLimits?.contacts || 0) >= 75
                         ? 'bg-yellow-500'
-                        : 'bg-emerald-500'
+                        : 'bg-green-500'
                     }`}
                     style={{ width: `${calculateUsagePercentage(usage.active_contacts || 0, planLimits?.contacts || 0)}%` }}
                   ></div>

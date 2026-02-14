@@ -207,7 +207,7 @@ export default function UsagePage() {
               label="SMS messages"
               used={usage?.sms_count || 0}
               limit={planLimits?.sms}
-              icon={<MessageSquare className="h-5 w-5 text-emerald-600" />}
+              icon={<MessageSquare className="h-5 w-5 text-green-600" />}
               calculateUsagePercentage={calculateUsagePercentage}
             />
             <UsageMeter
@@ -290,7 +290,7 @@ function UsageMeter({
 }) {
   const percent = calculateUsagePercentage(used, limit);
   const color =
-    percent >= 90 ? 'bg-red-500' : percent >= 75 ? 'bg-yellow-500' : 'bg-emerald-500';
+    percent >= 90 ? 'bg-red-500' : percent >= 75 ? 'bg-yellow-500' : 'bg-green-500';
 
   // Show "0 / 0" when no limit is set (no plan), "Unlimited" when limit is -1 (unlimited plan)
   const limitLabel = limit === undefined ? 'Set a plan' : limit === -1 ? 'Unlimited' : limit;

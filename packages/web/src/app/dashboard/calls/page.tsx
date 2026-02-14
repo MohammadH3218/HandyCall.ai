@@ -183,7 +183,7 @@ export default function CallsPage() {
   const getSentimentColor = (sentiment?: string) => {
     switch (sentiment?.toLowerCase()) {
       case 'positive':
-        return 'text-emerald-600 bg-emerald-50';
+        return 'text-green-600 bg-green-50';
       case 'negative':
         return 'text-red-600 bg-red-50';
       case 'neutral':
@@ -335,7 +335,7 @@ export default function CallsPage() {
               {calls.map((call) => (
                 <div
                   key={call.call_id}
-                  className="border border-emerald-100/70 bg-card/85 rounded-xl p-4 hover:-translate-y-[1px] hover:shadow-md transition-all cursor-pointer"
+                  className="border border-emerald-100/70 bg-white/85 rounded-xl p-4 hover:-translate-y-[1px] hover:shadow-md transition-all cursor-pointer"
                   onClick={() => handleViewCall(call.call_id)}
                 >
                   <div className="flex items-start justify-between gap-4">

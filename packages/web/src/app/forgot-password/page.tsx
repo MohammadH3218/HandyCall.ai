@@ -53,7 +53,7 @@ export default function ForgotPasswordPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-background via-emerald-50/25 to-background text-foreground">
+    <div className="min-h-screen bg-gradient-to-b from-white via-emerald-50/25 to-white text-foreground">
       <SiteHeader />
       <main className="mx-auto max-w-xl px-4 pb-16 pt-12">
         <Card className="shadow-xl shadow-emerald-100 border-emerald-100">

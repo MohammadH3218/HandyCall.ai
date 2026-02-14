@@ -6,7 +6,7 @@ import { SiteFooter } from '@/components/marketing/site-footer';
 
 export default function PrivacyPolicyPage() {
   return (
-    <div className="min-h-screen bg-card text-foreground">
+    <div className="min-h-screen bg-white text-foreground">
       <SiteHeader />
       <main className="mx-auto max-w-4xl px-4 pb-20 pt-12">
         <div className="space-y-6">

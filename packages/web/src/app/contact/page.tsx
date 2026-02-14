@@ -47,7 +47,7 @@ export default function ContactPage() {
     };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-background via-emerald-50/25 to-background text-foreground">
+    <div className="min-h-screen bg-gradient-to-b from-white via-emerald-50/25 to-white text-foreground">
       <SiteHeader />
       <main className="mx-auto max-w-6xl px-4 pb-20 pt-12">
         <section className="grid items-start gap-12 lg:grid-cols-[1.05fr_0.95fr]">
@@ -60,7 +60,7 @@ export default function ContactPage() {
             </p>
             <div className="grid gap-4 md:grid-cols-2">
               {points.map((item) => (
-                <Card key={item.title} className="border-emerald-100 bg-card/85">
+                <Card key={item.title} className="border-emerald-100 bg-white/85">
                   <CardContent className="space-y-1 p-4">
                     <p className="text-sm font-semibold text-emerald-700">{item.title}</p>
                     <p className="text-sm text-slate-600">{item.desc}</p>

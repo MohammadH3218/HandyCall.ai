@@ -104,7 +104,7 @@ export function ProfileDropdown() {
 
     if (!planValue) {
       if (status === SubscriptionStatus.TRIALING) return { text: 'Trialing', color: 'text-blue-600' };
-      if (status === SubscriptionStatus.ACTIVE) return { text: 'Active', color: 'text-emerald-600' };
+      if (status === SubscriptionStatus.ACTIVE) return { text: 'Active', color: 'text-green-600' };
       return { text: 'No Plan', color: 'text-muted-foreground' };
     }
 
@@ -121,7 +121,7 @@ export function ProfileDropdown() {
       color = 'text-blue-600';
     } else if (status === SubscriptionStatus.ACTIVE) {
       statusText = ' (Active)';
-      color = 'text-emerald-600';
+      color = 'text-green-600';
     } else if (status === SubscriptionStatus.PAST_DUE) {
       statusText = ' (Past Due)';
       color = 'text-yellow-600';

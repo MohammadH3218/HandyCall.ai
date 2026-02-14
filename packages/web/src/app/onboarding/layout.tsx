@@ -72,7 +72,7 @@ function OnboardingShell({ children }: { children: React.ReactNode }) {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-background via-emerald-50/40 to-background">
+      <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-white via-emerald-50/40 to-white">
         <div className="text-center">
           <div className="mx-auto h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
           <p className="mt-4 text-sm text-muted-foreground">Preparing your setup...</p>
@@ -91,8 +91,8 @@ function OnboardingShell({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-background via-emerald-50/40 to-background text-foreground">
-      <header className="border-b border-emerald-100/70 bg-card/80 backdrop-blur">
+    <div className="min-h-screen bg-gradient-to-b from-white via-emerald-50/40 to-white text-foreground">
+      <header className="border-b border-emerald-100/70 bg-white/80 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4">
           <Link href="/" className="flex items-center gap-3">
             <Logo width={150} height={36} />
@@ -102,7 +102,7 @@ function OnboardingShell({ children }: { children: React.ReactNode }) {
       </header>
 
       <div className="mx-auto grid max-w-6xl gap-8 px-4 pb-16 pt-10 lg:grid-cols-[280px_1fr]">
-        <aside className="rounded-3xl border border-emerald-100/60 bg-card/70 p-5 shadow-sm shadow-emerald-100">
+        <aside className="rounded-3xl border border-emerald-100/60 bg-white/70 p-5 shadow-sm shadow-emerald-100">
           <div className="mb-6">
             <p className="text-xs uppercase tracking-wide text-emerald-600">Progress</p>
             <div className="mt-2 flex items-center justify-between">
@@ -131,7 +131,7 @@ function OnboardingShell({ children }: { children: React.ReactNode }) {
                   className={`group block rounded-2xl border px-4 py-3 transition ${
                     isActive
                       ? 'border-emerald-200 bg-emerald-50'
-                      : 'border-transparent hover:border-emerald-100 hover:bg-card/70'
+                      : 'border-transparent hover:border-emerald-100 hover:bg-white/70'
                   } ${isLocked ? 'pointer-events-none opacity-50' : ''}`}
                 >
                   <div className="flex items-start gap-3">
@@ -157,7 +157,7 @@ function OnboardingShell({ children }: { children: React.ReactNode }) {
           </div>
         </aside>
 
-        <main className="rounded-3xl border border-emerald-100/60 bg-card/80 p-6 shadow-lg shadow-emerald-100">
+        <main className="rounded-3xl border border-emerald-100/60 bg-white/80 p-6 shadow-lg shadow-emerald-100">
           <div className="animate-fade-up">{children}</div>
           <div className="mt-8 flex justify-between">
             <Button variant="ghost" onClick={handleSignOut} disabled={signingOut}>

@@ -66,7 +66,7 @@ export function CompanySwitcher() {
           }
         }}
       >
-        <SelectTrigger className="w-[260px] bg-card">
+        <SelectTrigger className="w-[260px] bg-white">
           <SelectValue
             placeholder={loading ? 'Loading companies...' : 'Select company'}
           >

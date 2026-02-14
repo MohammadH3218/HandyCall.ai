@@ -172,7 +172,7 @@ export default function ContactsPage() {
     switch (source) {
       case 'CALL': return 'bg-blue-100 text-blue-700';
       case 'MANUAL': return 'bg-purple-100 text-purple-700';
-      case 'IMPORT': return 'bg-emerald-100 text-emerald-700';
+      case 'IMPORT': return 'bg-green-100 text-green-700';
       default: return 'bg-gray-100 text-gray-700';
     }
   };
@@ -239,7 +239,7 @@ export default function ContactsPage() {
               {contacts.map((contact) => (
                 <div
                   key={contact.contact_id}
-                  className="border border-emerald-100/70 bg-card/80 rounded-xl p-4 shadow-sm hover:-translate-y-[1px] hover:shadow-md transition-all"
+                  className="border border-emerald-100/70 bg-white/80 rounded-xl p-4 shadow-sm hover:-translate-y-[1px] hover:shadow-md transition-all"
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
