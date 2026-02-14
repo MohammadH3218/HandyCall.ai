@@ -5,7 +5,6 @@ import twilio from 'twilio';
 import { SSMClient, GetParameterCommand } from '@aws-sdk/client-ssm';
 import { toolsSchema } from './toolsSchema';
 import { Readable } from 'stream';
-import { spawn } from 'child_process';
 
 function env(name: string): string | undefined {
   return process.env[name];
@@ -32,6 +31,18 @@ function envFlag(name: string, defaultValue = false): boolean {
   if (['1', 'true', 'yes', 'on'].includes(normalized)) return true;
   if (['0', 'false', 'no', 'off'].includes(normalized)) return false;
   return defaultValue;
+}
+
+function clampNumber(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
+}
+
+function envFloat(name: string, defaultValue: number, min: number, max: number): number {
+  const raw = env(name);
+  if (raw === undefined || raw === null || String(raw).trim() === '') return defaultValue;
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed)) return defaultValue;
+  return clampNumber(parsed, min, max);
 }
 
 const awsRegion = process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION || 'us-east-1';
@@ -154,8 +165,14 @@ async function resolveElevenLabsConfig() {
   let optimizeStreamingLatency = latencyRaw ? Number(latencyRaw) : 4;
   if (!Number.isFinite(optimizeStreamingLatency)) optimizeStreamingLatency = 4;
   const outputFormat = envFirst(['ELEVENLABS_OUTPUT_FORMAT', 'ELEVEN_LABS_OUTPUT_FORMAT']) || 'pcm_16000';
+  const voiceSettings = {
+    stability: envFloat('ELEVENLABS_STABILITY', 0.55, 0, 1),
+    similarity_boost: envFloat('ELEVENLABS_SIMILARITY_BOOST', 0.75, 0, 1),
+    style: envFloat('ELEVENLABS_STYLE', 0.0, 0, 1),
+    use_speaker_boost: envFlag('ELEVENLABS_SPEAKER_BOOST', false),
+  };
   if (!apiKey || !voiceId) return null;
-  return { apiKey, voiceId, modelId, optimizeStreamingLatency, outputFormat };
+  return { apiKey, voiceId, modelId, optimizeStreamingLatency, outputFormat, voiceSettings };
 }
 
 async function elevenLabsStreamTts(
@@ -166,9 +183,15 @@ async function elevenLabsStreamTts(
     text: string;
     optimizeStreamingLatency: number;
     outputFormat: string;
+    voiceSettings: {
+      stability: number;
+      similarity_boost: number;
+      style: number;
+      use_speaker_boost: boolean;
+    };
   }
 ): Promise<Readable> {
-  const { apiKey, voiceId, modelId, text, optimizeStreamingLatency, outputFormat } = params;
+  const { apiKey, voiceId, modelId, text, optimizeStreamingLatency, outputFormat, voiceSettings } = params;
   const url = `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voiceId)}/stream`;
   const res = await fetch(url, {
     method: 'POST',
@@ -181,6 +204,7 @@ async function elevenLabsStreamTts(
       model_id: modelId,
       optimize_streaming_latency: optimizeStreamingLatency,
       output_format: outputFormat,
+      voice_settings: voiceSettings,
     }),
   });
   if (!res.ok || !res.body) {
@@ -190,50 +214,110 @@ async function elevenLabsStreamTts(
   return Readable.fromWeb(res.body as any);
 }
 
-function transcodeToMulaw8k(
-  input: Readable,
-  options?: { inputFormat?: string },
-  abortSignal?: AbortSignal
-) {
-  const inputFormat = String(options?.inputFormat || '').trim().toLowerCase();
-  const args: string[] = ['-hide_banner', '-loglevel', 'error'];
-  if (inputFormat.startsWith('pcm_')) {
-    const sampleRate = Number.parseInt(inputFormat.slice('pcm_'.length), 10);
-    if (Number.isFinite(sampleRate) && sampleRate > 0) {
-      args.push('-f', 's16le', '-ac', '1', '-ar', String(sampleRate));
-    }
-  } else if (inputFormat === 'ulaw_8000') {
-    args.push('-f', 'mulaw', '-ac', '1', '-ar', '8000');
+function linearPcm16ToMuLawSample(sample: number): number {
+  const BIAS = 0x84;
+  const CLIP = 32635;
+  let sign = 0;
+  let pcm = sample;
+  if (pcm < 0) {
+    sign = 0x80;
+    pcm = -pcm;
+  }
+  if (pcm > CLIP) pcm = CLIP;
+  pcm += BIAS;
+  let exponent = 7;
+  for (let expMask = 0x4000; (pcm & expMask) === 0 && exponent > 0; expMask >>= 1) {
+    exponent -= 1;
+  }
+  const mantissa = (pcm >> (exponent + 3)) & 0x0f;
+  return ~(sign | (exponent << 4) | mantissa) & 0xff;
+}
+
+type PcmToMulawState = {
+  wavHeaderDone: boolean;
+  wavHeaderBuffer: Buffer;
+  carryByte: number | null;
+  pendingSample: number | null;
+};
+
+function createPcm16kToMulaw8kState(): PcmToMulawState {
+  return {
+    wavHeaderDone: false,
+    wavHeaderBuffer: Buffer.alloc(0),
+    carryByte: null,
+    pendingSample: null,
+  };
+}
+
+function stripOptionalWavHeader(chunk: Buffer, state: PcmToMulawState): Buffer {
+  if (state.wavHeaderDone) return chunk;
+  state.wavHeaderBuffer = Buffer.concat([state.wavHeaderBuffer, chunk]);
+  if (state.wavHeaderBuffer.length < 12) return Buffer.alloc(0);
+
+  const header = state.wavHeaderBuffer;
+  const isWav =
+    header.subarray(0, 4).toString('ascii') === 'RIFF' &&
+    header.subarray(8, 12).toString('ascii') === 'WAVE';
+
+  if (!isWav) {
+    state.wavHeaderDone = true;
+    const out = state.wavHeaderBuffer;
+    state.wavHeaderBuffer = Buffer.alloc(0);
+    return out;
   }
 
-  args.push('-i', 'pipe:0', '-ac', '1', '-ar', '8000', '-f', 'mulaw', 'pipe:1');
-
-  const ffmpeg = spawn('ffmpeg', args);
-
-  input.pipe(ffmpeg.stdin);
-
-  const onAbort = () => {
-    try {
-      ffmpeg.kill('SIGKILL');
-    } catch {
-      // ignore
+  let offset = 12;
+  while (offset + 8 <= header.length) {
+    const chunkId = header.subarray(offset, offset + 4).toString('ascii');
+    const chunkSize = header.readUInt32LE(offset + 4);
+    const dataStart = offset + 8;
+    const next = dataStart + chunkSize;
+    if (chunkId === 'data') {
+      if (header.length < dataStart) return Buffer.alloc(0);
+      state.wavHeaderDone = true;
+      const out = header.subarray(dataStart);
+      state.wavHeaderBuffer = Buffer.alloc(0);
+      return out;
     }
-    try {
-      input.destroy();
-    } catch {
-      // ignore
+    if (next > header.length) return Buffer.alloc(0);
+    offset = next;
+  }
+  return Buffer.alloc(0);
+}
+
+function convertPcm16kChunkToMulaw8k(chunk: Buffer, state: PcmToMulawState): Buffer {
+  const raw = stripOptionalWavHeader(chunk, state);
+  if (!raw.length) return Buffer.alloc(0);
+  const out: number[] = [];
+  let idx = 0;
+
+  const readSample = (): number | null => {
+    if (state.carryByte === null) {
+      if (idx >= raw.length) return null;
+      state.carryByte = raw[idx++];
     }
+    if (idx >= raw.length) return null;
+    const lo = state.carryByte;
+    const hi = raw[idx++];
+    state.carryByte = null;
+    let sample = (hi << 8) | lo;
+    if (sample & 0x8000) sample -= 0x10000;
+    return sample;
   };
 
-  if (abortSignal) {
-    abortSignal.addEventListener('abort', onAbort, { once: true });
+  while (true) {
+    const sample = readSample();
+    if (sample === null) break;
+    if (state.pendingSample === null) {
+      state.pendingSample = sample;
+      continue;
+    }
+    const avg = Math.round((state.pendingSample + sample) / 2);
+    out.push(linearPcm16ToMuLawSample(avg));
+    state.pendingSample = null;
   }
 
-  ffmpeg.on('exit', () => {
-    if (abortSignal) abortSignal.removeEventListener('abort', onAbort);
-  });
-
-  return ffmpeg.stdout;
+  return out.length ? Buffer.from(out) : Buffer.alloc(0);
 }
 
 type CallContext = {
@@ -1253,6 +1337,12 @@ wss.on('connection', (twilioWs: WebSocket) => {
         modelId: string;
         optimizeStreamingLatency: number;
         outputFormat: string;
+        voiceSettings: {
+          stability: number;
+          similarity_boost: number;
+          style: number;
+          use_speaker_boost: boolean;
+        };
       }
     | null = null;
   let useElevenLabs = false;
@@ -1266,6 +1356,8 @@ wss.on('connection', (twilioWs: WebSocket) => {
   let ttsAbort: AbortController | null = null;
   let assistantTextBuffer = '';
   let assistantFullTextBuffer = '';
+  let lastAssistantDeltaAt = 0;
+  let earlyChunkTimer: ReturnType<typeof setInterval> | null = null;
   let ttsChain: Promise<void> = Promise.resolve();
   let ttsGeneration = 0;
   let recordingSynced = false;
@@ -1514,61 +1606,47 @@ wss.on('connection', (twilioWs: WebSocket) => {
       lastAssistantAudioAt = Date.now();
 
       try {
-        let ttsStream: Readable | null = null;
-        let resolvedFormat = '';
-        let lastFormatError: any = null;
-        const candidateFormats = Array.from(
-          new Set([config.outputFormat || 'pcm_16000', 'pcm_16000', 'pcm_22050', 'ulaw_8000'])
-        );
-        for (const candidateFormat of candidateFormats) {
-          try {
-            ttsStream = await elevenLabsStreamTts({
-              apiKey: config.apiKey,
-              voiceId: config.voiceId,
-              modelId: config.modelId,
-              optimizeStreamingLatency: config.optimizeStreamingLatency,
-              outputFormat: candidateFormat,
-              text: cleaned,
-            });
-            resolvedFormat = candidateFormat;
-            if (candidateFormat !== config.outputFormat) {
-              console.warn('[elevenlabs] using fallback output format', {
-                requested: config.outputFormat,
-                resolved: candidateFormat,
-              });
-            }
-            break;
-          } catch (err: any) {
-            lastFormatError = err;
-          }
-        }
-        if (!ttsStream || !resolvedFormat) {
-          throw lastFormatError || new Error('Unable to stream TTS from ElevenLabs');
+        const configuredFormat = String(config.outputFormat || '').trim().toLowerCase();
+        const outputFormat = configuredFormat === 'pcm_16000' ? 'pcm_16000' : 'pcm_16000';
+        if (configuredFormat && configuredFormat !== outputFormat) {
+          console.warn('[elevenlabs] forcing realtime output format', {
+            requested: config.outputFormat,
+            resolved: outputFormat,
+          });
         }
 
-        const mulawStream =
-          resolvedFormat === 'ulaw_8000'
-            ? ttsStream
-            : transcodeToMulaw8k(ttsStream, { inputFormat: resolvedFormat }, controller.signal);
+        const ttsStream = await elevenLabsStreamTts({
+          apiKey: config.apiKey,
+          voiceId: config.voiceId,
+          modelId: config.modelId,
+          optimizeStreamingLatency: config.optimizeStreamingLatency,
+          outputFormat,
+          voiceSettings: config.voiceSettings,
+          text: cleaned,
+        });
+
+        const pcmState = createPcm16kToMulaw8kState();
         await new Promise<void>((resolve, reject) => {
           const onAbort = () => {
             try {
-              mulawStream.destroy();
+              ttsStream.destroy();
             } catch {
               // ignore
             }
           };
           controller.signal.addEventListener('abort', onAbort, { once: true });
-          mulawStream.on('data', (chunk: Buffer) => {
+          ttsStream.on('data', (chunk: Buffer) => {
             if (controller.signal.aborted || generation !== ttsGeneration) return;
+            const mulawChunk = convertPcm16kChunkToMulaw8k(chunk, pcmState);
+            if (!mulawChunk.length) return;
             lastAssistantAudioAt = Date.now();
-            enqueueTwilioAudio(chunk.toString('base64'));
+            enqueueTwilioAudio(mulawChunk.toString('base64'));
           });
-          mulawStream.on('end', () => {
+          ttsStream.on('end', () => {
             controller.signal.removeEventListener('abort', onAbort);
             resolve();
           });
-          mulawStream.on('error', (err) => {
+          ttsStream.on('error', (err) => {
             controller.signal.removeEventListener('abort', onAbort);
             reject(err);
           });
@@ -1605,11 +1683,33 @@ wss.on('connection', (twilioWs: WebSocket) => {
     return -1;
   }
 
+  function findEarlyChunkBoundary(text: string, idleMs: number): number {
+    const minChars = 90;
+    const idleThresholdMs = 320;
+    if (text.length < minChars && idleMs < idleThresholdMs) return -1;
+
+    const maxScan = Math.min(text.length, 180);
+    const minScan = Math.min(55, maxScan);
+    for (let i = maxScan - 1; i >= minScan; i -= 1) {
+      const ch = text[i];
+      if (ch === ',' || ch === ';' || ch === ':') return i + 1;
+    }
+
+    const atSpace = text.lastIndexOf(' ', maxScan - 1);
+    if (atSpace >= minScan) return atSpace + 1;
+    if (text.length >= 130) return 120;
+    return -1;
+  }
+
   function flushSpeakableChunks(force = false) {
     if (!useElevenLabs) return;
     let remaining = assistantTextBuffer;
     while (remaining) {
-      const boundary = findSentenceBoundary(remaining);
+      const sentenceBoundary = findSentenceBoundary(remaining);
+      const idleMs = lastAssistantDeltaAt ? Date.now() - lastAssistantDeltaAt : 0;
+      const earlyBoundary = force ? -1 : findEarlyChunkBoundary(remaining, idleMs);
+      const boundary =
+        sentenceBoundary > 0 ? sentenceBoundary : earlyBoundary > 0 ? earlyBoundary : force ? remaining.length : -1;
       if (boundary <= 0) break;
       const chunk = remaining.slice(0, boundary).trim();
       remaining = remaining.slice(boundary).trimStart();
@@ -1617,16 +1717,12 @@ wss.on('connection', (twilioWs: WebSocket) => {
         void speakWithElevenLabs(chunk);
       }
     }
-    if (force) {
-      const tail = remaining.trim();
-      if (tail) void speakWithElevenLabs(tail);
-      remaining = '';
-    }
     assistantTextBuffer = remaining;
   }
 
   function appendAssistantText(delta: string) {
     if (!delta) return;
+    lastAssistantDeltaAt = Date.now();
     assistantFullTextBuffer += delta;
     assistantTextBuffer += delta;
     flushSpeakableChunks(false);
@@ -1663,6 +1759,10 @@ wss.on('connection', (twilioWs: WebSocket) => {
     }
     assistantSpeaking = false;
     clearOutboundAudio(false);
+    if (earlyChunkTimer) {
+      clearInterval(earlyChunkTimer);
+      earlyChunkTimer = null;
+    }
     try {
       twilioWs.close();
     } catch {
@@ -2281,6 +2381,12 @@ wss.on('connection', (twilioWs: WebSocket) => {
         mode: useElevenLabs ? 'elevenlabs' : 'openai-realtime',
         eleven_output_format: elevenLabsConfig?.outputFormat || null,
       });
+      if (useElevenLabs && !earlyChunkTimer) {
+        earlyChunkTimer = setInterval(() => {
+          if (!useElevenLabs || !assistantTextBuffer.trim()) return;
+          flushSpeakableChunks(false);
+        }, 120);
+      }
       await connectOpenAI(resolvedTenant);
 
       callTool(ctx, 'start_call', {}).catch((err: any) =>
