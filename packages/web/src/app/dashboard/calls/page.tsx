@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { PageHeader } from '@/components/portal/page-header';
 import { EmptyState } from '@/components/portal/empty-state';
-import { Phone, Search, ChevronRight, Clock, PhoneCall } from 'lucide-react';
+import { Phone, Search, ChevronRight } from 'lucide-react';
 
 interface Call {
   call_id: string;
@@ -36,6 +36,19 @@ interface Call {
   collected_info?: any;
 }
 
+interface ContactRecord {
+  contact_id: string;
+  phone_number?: string;
+  phone?: string;
+}
+
+interface AppointmentRecord {
+  contact_phone?: string;
+  status?: string;
+}
+
+type CallerType = 'Customer' | 'Returning' | 'New';
+
 export default function CallsPage() {
   const router = useRouter();
   const basePath = usePortalBasePath();
@@ -49,6 +62,8 @@ export default function CallsPage() {
   const [pageKeys, setPageKeys] = useState<(string | null)[]>([null]);
   const [totalPages, setTotalPages] = useState<number | null>(null);
   const [isPaging, setIsPaging] = useState(false);
+  const [knownContactPhones, setKnownContactPhones] = useState<Set<string>>(new Set());
+  const [customerPhones, setCustomerPhones] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -60,6 +75,7 @@ export default function CallsPage() {
   useEffect(() => {
     void loadCallsPage(1, true);
     void loadTotalCount();
+    void loadCustomerContext();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [contactFilter]);
 
@@ -141,12 +157,33 @@ export default function CallsPage() {
     router.push(`${basePath}/calls/${callId}`);
   };
 
+  const normalizePhone = (value?: string) => {
+    const digits = String(value || '').replace(/\D/g, '');
+    if (!digits) return '';
+    if (digits.length === 11 && digits.startsWith('1')) return digits.slice(1);
+    return digits;
+  };
+
+  const formatPhone = (value?: string) => {
+    const normalized = normalizePhone(value);
+    if (normalized.length === 10) {
+      return `(${normalized.slice(0, 3)}) ${normalized.slice(3, 6)}-${normalized.slice(6)}`;
+    }
+    return String(value || 'Unknown');
+  };
+
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
-    return date.toLocaleString('en-US', {
+    return date.toLocaleDateString('en-US', {
       month: 'short',
       day: 'numeric',
       year: 'numeric',
+    });
+  };
+
+  const formatTime = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleTimeString('en-US', {
       hour: '2-digit',
       minute: '2-digit',
     });
@@ -159,38 +196,75 @@ export default function CallsPage() {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const getOutcome = (call: Call): { label: string; className: string } => {
-    const outcome = (call.outcome || '').toUpperCase();
-    if (outcome === 'APPOINTMENT_BOOKED' || call.appointment_created || call.appointment_id) {
-      return { label: 'Booked', className: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
+  const loadCustomerContext = async () => {
+    try {
+      const allContacts: ContactRecord[] = [];
+      let cursor: string | undefined;
+      let guard = 0;
+      do {
+        const res = await apiClient.getContacts(200, cursor);
+        const pageContacts = (res?.contacts || []) as ContactRecord[];
+        allContacts.push(...pageContacts);
+        cursor = res?.lastEvaluatedKey ? JSON.stringify(res.lastEvaluatedKey) : undefined;
+        guard += 1;
+      } while (cursor && guard < 30);
+
+      const now = new Date();
+      const start = new Date(now);
+      start.setDate(start.getDate() - 365);
+      const end = new Date(now);
+      end.setDate(end.getDate() + 365);
+      const apptsRes = await apiClient.getAppointmentsRange(start.toISOString(), end.toISOString());
+      const appointments = (apptsRes?.appointments || []) as AppointmentRecord[];
+
+      const contactSet = new Set<string>();
+      for (const c of allContacts) {
+        const normalized = normalizePhone(c.phone_number || c.phone);
+        if (normalized) contactSet.add(normalized);
+      }
+
+      const customerSet = new Set<string>();
+      for (const a of appointments) {
+        const status = String(a.status || '').toUpperCase();
+        if (status === 'CANCELLED') continue;
+        const normalized = normalizePhone(a.contact_phone);
+        if (normalized) customerSet.add(normalized);
+      }
+
+      setKnownContactPhones(contactSet);
+      setCustomerPhones(customerSet);
+    } catch (err) {
+      console.error('Error loading customer context:', err);
     }
-    if (outcome === 'LEAD' || call.lead_captured) {
-      return { label: 'Lead', className: 'bg-amber-50 text-amber-800 border-amber-200' };
-    }
-    return { label: 'No Lead', className: 'bg-gray-50 text-gray-700 border-gray-200' };
   };
 
-  const getStatusBadge = (status?: string): { label: string; className: string } => {
-    const s = (status || '').toUpperCase();
-    if (s === 'COMPLETED') return { label: 'Completed', className: 'bg-gray-50 text-gray-700 border-gray-200' };
-    if (s === 'IN_PROGRESS' || s === 'RINGING')
-      return { label: s.replace('_', ' '), className: 'bg-indigo-50 text-indigo-700 border-indigo-200' };
-    if (s === 'FAILED' || s === 'NO_ANSWER' || s === 'BUSY')
-      return { label: s.replace('_', ' '), className: 'bg-red-50 text-red-700 border-red-200' };
-    return { label: (status || 'Unknown').replace('_', ' '), className: 'bg-gray-50 text-gray-700 border-gray-200' };
+  const callCountsByPhone = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const call of calls) {
+      const normalized = normalizePhone(call.caller_phone);
+      if (!normalized) continue;
+      counts.set(normalized, (counts.get(normalized) || 0) + 1);
+    }
+    return counts;
+  }, [calls]);
+
+  const getCallerType = (call: Call): CallerType => {
+    const normalized = normalizePhone(call.caller_phone);
+    if (!normalized) return 'New';
+    if (customerPhones.has(normalized)) return 'Customer';
+    if (knownContactPhones.has(normalized)) return 'Returning';
+    if ((callCountsByPhone.get(normalized) || 0) > 1) return 'Returning';
+    return 'New';
   };
 
-  const getSentimentColor = (sentiment?: string) => {
-    switch (sentiment?.toLowerCase()) {
-      case 'positive':
-        return 'text-green-600 bg-green-50';
-      case 'negative':
-        return 'text-red-600 bg-red-50';
-      case 'neutral':
-        return 'text-gray-600 bg-gray-50';
-      default:
-        return 'text-gray-600 bg-gray-50';
+  const callerTypeBadge = (callerType: CallerType) => {
+    if (callerType === 'Customer') {
+      return { label: 'Customer', className: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
     }
+    if (callerType === 'Returning') {
+      return { label: 'Returning', className: 'bg-amber-50 text-amber-800 border-amber-200' };
+    }
+    return { label: 'New', className: 'bg-sky-50 text-sky-700 border-sky-200' };
   };
 
   const paginationOptions = useMemo(() => {
@@ -335,49 +409,33 @@ export default function CallsPage() {
               {calls.map((call) => (
                 <div
                   key={call.call_id}
-                  className="border border-emerald-100/70 bg-white/85 rounded-xl p-4 hover:-translate-y-[1px] hover:shadow-md transition-all cursor-pointer"
+                  className="border border-slate-200 bg-white rounded-xl p-4 hover:-translate-y-[1px] hover:shadow-sm transition-all cursor-pointer"
                   onClick={() => handleViewCall(call.call_id)}
                 >
                   <div className="flex items-start justify-between gap-4">
-                    <div className="flex items-start gap-4 min-w-0 flex-1">
-                      <div className="bg-emerald-50 p-2 rounded-full border border-emerald-100 mt-0.5">
-                        <PhoneCall className="h-5 w-5 text-emerald-700" />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <div className="font-semibold text-slate-900 truncate">
+                          {call.caller_name || formatPhone(call.caller_phone)}
+                        </div>
+                        {(() => {
+                          const badge = callerTypeBadge(getCallerType(call));
+                          return (
+                            <Badge variant="outline" className={badge.className}>
+                              {badge.label}
+                            </Badge>
+                          );
+                        })()}
                       </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <div className="font-semibold text-slate-900 truncate">
-                            {call.caller_name ? `${call.caller_name} - ${call.caller_phone}` : call.caller_phone}
-                          </div>
-                          {(() => {
-                            const o = getOutcome(call);
-                            return (
-                              <Badge variant="outline" className={o.className}>
-                                {o.label}
-                              </Badge>
-                            );
-                          })()}
-                          {(() => {
-                            const s = getStatusBadge(call.status);
-                            return (
-                              <Badge variant="outline" className={s.className}>
-                                {s.label}
-                              </Badge>
-                            );
-                          })()}
-                        </div>
 
-                        <div className="text-sm text-slate-600 flex items-center gap-2 mt-1">
-                          <Clock className="h-4 w-4" />
-                          <span>{formatDate(call.created_at)}</span>
-                          <span className="text-slate-300">-</span>
-                          <span>{formatDuration(call.duration)}</span>
-                        </div>
+                      <div className="text-sm text-slate-600 mt-1">{formatPhone(call.caller_phone)}</div>
 
-                        {call.summary ? (
-                          <p className="text-sm text-slate-700 mt-2 line-clamp-2">{call.summary}</p>
-                        ) : (
-                          <p className="text-sm text-slate-500 mt-2">No summary yet.</p>
-                        )}
+                      <div className="text-sm text-slate-600 flex items-center gap-2 mt-2">
+                        <span>{formatDate(call.created_at)}</span>
+                        <span className="text-slate-300">|</span>
+                        <span>{formatTime(call.created_at)}</span>
+                        <span className="text-slate-300">|</span>
+                        <span>{formatDuration(call.duration)}</span>
                       </div>
                     </div>
 
