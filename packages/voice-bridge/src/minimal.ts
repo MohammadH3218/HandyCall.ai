@@ -153,7 +153,7 @@ async function resolveElevenLabsConfig() {
   ]);
   let optimizeStreamingLatency = latencyRaw ? Number(latencyRaw) : 4;
   if (!Number.isFinite(optimizeStreamingLatency)) optimizeStreamingLatency = 4;
-  const outputFormat = envFirst(['ELEVENLABS_OUTPUT_FORMAT', 'ELEVEN_LABS_OUTPUT_FORMAT']) || 'ulaw_8000';
+  const outputFormat = envFirst(['ELEVENLABS_OUTPUT_FORMAT', 'ELEVEN_LABS_OUTPUT_FORMAT']) || 'mp3_44100_128';
   if (!apiKey || !voiceId) return null;
   return { apiKey, voiceId, modelId, optimizeStreamingLatency, outputFormat };
 }
@@ -1011,35 +1011,58 @@ async function fetchTwilioCallDetails(callSid: string): Promise<{ to?: string; f
   }
 }
 
+async function resolveCallContext(
+  callSid: string,
+  options?: { to?: string; from?: string; streamSid?: string; fallbackStartedAt?: number }
+): Promise<CallContext | null> {
+  const cached = activeCalls.get(callSid)?.ctx;
+  if (cached) {
+    return {
+      ...cached,
+      streamSid: options?.streamSid || cached.streamSid,
+      startedAt: options?.fallbackStartedAt || cached.startedAt,
+    };
+  }
+
+  let to = (options?.to || '').trim();
+  let from = (options?.from || '').trim();
+  if (!to) {
+    const details = await fetchTwilioCallDetails(callSid);
+    to = (details?.to || '').trim();
+    from = from || (details?.from || '').trim();
+  }
+  if (!to) return null;
+
+  try {
+    const tenant: TenantInfo = await resolveTenant(to);
+    return {
+      callSid,
+      streamSid: options?.streamSid || 'system',
+      from,
+      to,
+      company_id: tenant.company_id,
+      company_name: tenant.company_name,
+      timezone: tenant.timezone,
+      transfer_enabled: tenant.transfer_enabled,
+      transfer_number: tenant.transfer_number,
+      startedAt: options?.fallbackStartedAt || Date.now(),
+    };
+  } catch (err: any) {
+    console.warn('[bridge] resolveTenant failed while resolving call context', err?.message ?? String(err));
+    return null;
+  }
+}
+
 async function finalizeCallFromStatus(callSid: string, reason: string) {
   const cached = activeCalls.get(callSid);
   if (cached?.ended) return;
 
-  let ctx = cached?.ctx;
-  if (!ctx) {
-    const details = await fetchTwilioCallDetails(callSid);
-    const to = details?.to || '';
-    const from = details?.from || '';
-    if (to) {
-      try {
-        const tenant: TenantInfo = await resolveTenant(to);
-        ctx = {
-          callSid,
-          streamSid: 'stream_status',
-          from,
-          to,
-          company_id: tenant.company_id,
-          company_name: tenant.company_name,
-          timezone: tenant.timezone,
-          transfer_enabled: tenant.transfer_enabled,
-          transfer_number: tenant.transfer_number,
-          startedAt: Date.now(),
-        };
-      } catch (err: any) {
-        console.warn('[bridge] resolveTenant failed in stream status', err?.message ?? String(err));
-      }
-    }
-  }
+  const ctx =
+    cached?.ctx ||
+    (await resolveCallContext(callSid, {
+      streamSid: 'stream_status',
+      fallbackStartedAt: Date.now(),
+    }));
 
   if (!ctx) return;
 
@@ -1111,17 +1134,15 @@ const server = http.createServer(async (req, res) => {
 
       if (callSid && recordingSid && recordingStatus === 'completed') {
         try {
-          const tenant: TenantInfo = await resolveTenant(to);
-          const ctx: CallContext = {
-            callSid,
-            streamSid: 'recording_callback',
-            from,
+          const ctx = await resolveCallContext(callSid, {
             to,
-            company_id: tenant.company_id,
-            company_name: tenant.company_name,
-            timezone: tenant.timezone,
-            startedAt: Date.now(),
-          };
+            from,
+            streamSid: 'recording_callback',
+            fallbackStartedAt: Date.now(),
+          });
+          if (!ctx) {
+            throw new Error('Unable to resolve call context for recording callback');
+          }
           await callTool(ctx, 'save_recording', {
             recording_sid: recordingSid,
             duration_seconds: Number.isFinite(durationSeconds) ? durationSeconds : undefined,
@@ -1466,7 +1487,6 @@ wss.on('connection', (twilioWs: WebSocket) => {
 
       try {
         let ttsStream: Readable;
-        let isMulaw8k = false;
         try {
           ttsStream = await elevenLabsStreamTts({
             apiKey: config.apiKey,
@@ -1476,7 +1496,6 @@ wss.on('connection', (twilioWs: WebSocket) => {
             outputFormat: config.outputFormat,
             text: cleaned,
           });
-          isMulaw8k = config.outputFormat.toLowerCase() === 'ulaw_8000';
         } catch (primaryErr: any) {
           ttsStream = await elevenLabsStreamTts({
             apiKey: config.apiKey,
@@ -1486,11 +1505,10 @@ wss.on('connection', (twilioWs: WebSocket) => {
             outputFormat: 'mp3_44100_128',
             text: cleaned,
           });
-          isMulaw8k = false;
           console.warn('[elevenlabs] primary output format failed; using mp3 fallback', primaryErr?.message ?? String(primaryErr));
         }
 
-        const mulawStream = isMulaw8k ? ttsStream : transcodeToMulaw8k(ttsStream, controller.signal);
+        const mulawStream = transcodeToMulaw8k(ttsStream, controller.signal);
         await new Promise<void>((resolve, reject) => {
           const onAbort = () => {
             try {
