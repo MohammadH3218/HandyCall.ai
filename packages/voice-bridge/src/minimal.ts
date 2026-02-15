@@ -1387,6 +1387,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
   let outboundAudioQueue: string[] = [];
   let outboundAudioTimer: ReturnType<typeof setTimeout> | null = null;
   let outboundNextSendAt = 0;
+  let outboundPartialFrame = Buffer.alloc(0);
   let requiredIntakeFields: string[] = [];
   let collectedDetails: Record<string, any> = {};
   let lastCallerUtterance: string | null = null;
@@ -1400,6 +1401,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
   function clearOutboundAudio(sendClear = false) {
     outboundAudioQueue = [];
     outboundNextSendAt = 0;
+    outboundPartialFrame = Buffer.alloc(0);
     if (outboundAudioTimer) {
       clearTimeout(outboundAudioTimer);
       outboundAudioTimer = null;
@@ -1417,17 +1419,29 @@ wss.on('connection', (twilioWs: WebSocket) => {
     } catch {
       return;
     }
+    if (!buf.length) return;
     const frameSize = 160; // 20ms of G.711 u-law at 8kHz
-    const padByte = 0xff; // u-law silence
-    for (let offset = 0; offset < buf.length; offset += frameSize) {
-      let chunk = buf.subarray(offset, offset + frameSize);
-      if (chunk.length < frameSize) {
-        const padded = Buffer.alloc(frameSize, padByte);
-        chunk.copy(padded, 0, 0, chunk.length);
-        chunk = padded;
-      }
-      outboundAudioQueue.push(chunk.toString('base64'));
+    if (outboundPartialFrame.length > 0) {
+      buf = Buffer.concat([outboundPartialFrame, buf]);
+      outboundPartialFrame = Buffer.alloc(0);
     }
+    const fullBytes = Math.floor(buf.length / frameSize) * frameSize;
+    for (let offset = 0; offset < fullBytes; offset += frameSize) {
+      outboundAudioQueue.push(buf.subarray(offset, offset + frameSize).toString('base64'));
+    }
+    if (fullBytes < buf.length) outboundPartialFrame = Buffer.from(buf.subarray(fullBytes));
+    if (!outboundNextSendAt) outboundNextSendAt = Date.now();
+    if (!outboundAudioTimer) scheduleTwilioAudioDrain();
+  }
+
+  function flushTwilioAudioRemainder() {
+    if (!outboundPartialFrame.length) return;
+    const frameSize = 160;
+    const padByte = 0xff; // u-law silence
+    const padded = Buffer.alloc(frameSize, padByte);
+    outboundPartialFrame.copy(padded, 0, 0, Math.min(outboundPartialFrame.length, frameSize));
+    outboundPartialFrame = Buffer.alloc(0);
+    outboundAudioQueue.push(padded.toString('base64'));
     if (!outboundNextSendAt) outboundNextSendAt = Date.now();
     if (!outboundAudioTimer) scheduleTwilioAudioDrain();
   }
@@ -1644,6 +1658,9 @@ wss.on('connection', (twilioWs: WebSocket) => {
           });
           ttsStream.on('end', () => {
             controller.signal.removeEventListener('abort', onAbort);
+            if (!controller.signal.aborted && generation === ttsGeneration) {
+              flushTwilioAudioRemainder();
+            }
             resolve();
           });
           ttsStream.on('error', (err) => {
@@ -1999,6 +2016,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
 
       if (msg?.type === 'response.audio.done') {
         if (useElevenLabs) return;
+        flushTwilioAudioRemainder();
         assistantSpeaking = false;
         openaiResponding = false;
         if (pendingHangup && !waitingForHangupMark) {
