@@ -525,7 +525,7 @@ export default function BookingPage() {
       : '';
   const addressLine = [street, city, state, zip].filter(Boolean).join(', ');
   const mapQuery = addressLine ? encodeURIComponent(addressLine) : '';
-  const mapEmbedUrl = mapQuery ? `https://www.google.com/maps?q=${mapQuery}&output=embed` : '';
+  const mapEmbedUrl = mapQuery ? `https://maps.google.com/maps?output=embed&q=${mapQuery}` : '';
   const mapLink = mapQuery ? `https://www.google.com/maps/search/?api=1&query=${mapQuery}` : '';
 
   if (mode === 'manage') {

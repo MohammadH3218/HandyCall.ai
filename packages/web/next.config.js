@@ -31,7 +31,7 @@ const securityHeaders = [
       "img-src 'self' data: https:",
       "font-src 'self' data:",
       "connect-src 'self' https: wss:",
-      "frame-src https://js.stripe.com https://hooks.stripe.com",
+      "frame-src https://js.stripe.com https://hooks.stripe.com https://www.google.com https://maps.google.com",
     ].join('; '),
   },
   ...(isProduction
