@@ -4,7 +4,8 @@ import { WebSocketServer, WebSocket } from 'ws';
 import twilio from 'twilio';
 import { SSMClient, GetParameterCommand } from '@aws-sdk/client-ssm';
 import { toolsSchema } from './toolsSchema';
-import { Readable } from 'stream';
+import { PassThrough, Readable } from 'stream';
+import { spawn } from 'child_process';
 
 function env(name: string): string | undefined {
   return process.env[name];
@@ -33,17 +34,67 @@ function envFlag(name: string, defaultValue = false): boolean {
   return defaultValue;
 }
 
-function clampNumber(value: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, value));
+function parseNumber(value: string | undefined, fallback: number, min?: number, max?: number): number {
+  const parsed = value !== undefined ? Number(value) : fallback;
+  if (!Number.isFinite(parsed)) return fallback;
+  if (typeof min === 'number' && parsed < min) return min;
+  if (typeof max === 'number' && parsed > max) return max;
+  return parsed;
 }
 
-function envFloat(name: string, defaultValue: number, min: number, max: number): number {
-  const raw = env(name);
-  if (raw === undefined || raw === null || String(raw).trim() === '') return defaultValue;
-  const parsed = Number(raw);
-  if (!Number.isFinite(parsed)) return defaultValue;
-  return clampNumber(parsed, min, max);
+const safeDiagEnabled = envFlag('VOICE_BRIDGE_SAFE_DIAG', false);
+const elevenLabsEnabled = envFlag('VOICE_BRIDGE_USE_ELEVENLABS', false);
+
+function diag(event: string, payload?: Record<string, unknown>) {
+  if (!safeDiagEnabled) return;
+  if (payload) {
+    console.log('[diag]', event, payload);
+    return;
+  }
+  console.log('[diag]', event);
 }
+
+function headHex(data: Buffer, size = 16): string {
+  return data.subarray(0, size).toString('hex');
+}
+
+function detectAudioMagic(data: Buffer): string {
+  if (data.length >= 4 && data.subarray(0, 4).toString('ascii') === 'RIFF') return 'riff_wav';
+  if (data.length >= 3 && data.subarray(0, 3).toString('ascii') === 'ID3') return 'id3';
+  if (
+    data.length >= 2 &&
+    data[0] === 0xff &&
+    (data[1] === 0xfb || data[1] === 0xf3 || data[1] === 0xf2 || (data[1] & 0xe0) === 0xe0)
+  ) {
+    return 'mp3_frame';
+  }
+  if (data.length >= 4 && data.subarray(0, 4).toString('ascii') === 'OggS') return 'ogg';
+  if (data.length >= 4 && data.subarray(0, 4).toString('ascii') === 'fLaC') return 'flac';
+  return 'unknown_or_raw';
+}
+
+function base64ByteLength(value: string): number {
+  const clean = String(value || '').trim();
+  if (!clean) return 0;
+  const padding = clean.endsWith('==') ? 2 : clean.endsWith('=') ? 1 : 0;
+  return Math.max(0, Math.floor((clean.length * 3) / 4) - padding);
+}
+
+type ElevenLabsVoiceSettings = {
+  stability: number;
+  similarity_boost: number;
+  style: number;
+  use_speaker_boost: boolean;
+};
+
+type ElevenLabsConfig = {
+  apiKey: string;
+  voiceId: string;
+  modelId: string;
+  optimizeStreamingLatency: number;
+  outputFormat: string;
+  voiceSettings: ElevenLabsVoiceSettings;
+};
 
 const awsRegion = process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION || 'us-east-1';
 const ssm = new SSMClient({ region: awsRegion });
@@ -127,6 +178,13 @@ function escapeXml(value: string) {
     .replace(/'/g, '&apos;');
 }
 
+function normalizeSpeechText(value: string): string {
+  return String(value || '')
+    .replace(/\s+/g, ' ')
+    .replace(/([!?.,])\1{2,}/g, '$1$1')
+    .trim();
+}
+
 function toWsBaseUrl(publicBaseUrl: string) {
   if (publicBaseUrl.startsWith('https://')) return `wss://${publicBaseUrl.slice('https://'.length)}`;
   if (publicBaseUrl.startsWith('http://')) return `ws://${publicBaseUrl.slice('http://'.length)}`;
@@ -157,19 +215,24 @@ async function resolveElevenLabsConfig() {
     }
   }
   const voiceId = envFirst(['ELEVENLABS_VOICE_ID', 'ELEVEN_LABS_VOICE_ID']) || '';
-  const modelId = envFirst(['ELEVENLABS_MODEL_ID', 'ELEVEN_LABS_MODEL_ID']) || 'eleven_multilingual_v2';
-  const latencyRaw = envFirst([
-    'ELEVENLABS_OPTIMIZE_STREAMING_LATENCY',
-    'ELEVEN_LABS_OPTIMIZE_STREAMING_LATENCY',
-  ]);
-  let optimizeStreamingLatency = latencyRaw ? Number(latencyRaw) : 4;
-  if (!Number.isFinite(optimizeStreamingLatency)) optimizeStreamingLatency = 4;
-  const outputFormat = envFirst(['ELEVENLABS_OUTPUT_FORMAT', 'ELEVEN_LABS_OUTPUT_FORMAT']) || 'pcm_16000';
-  const voiceSettings = {
-    stability: envFloat('ELEVENLABS_STABILITY', 0.55, 0, 1),
-    similarity_boost: envFloat('ELEVENLABS_SIMILARITY_BOOST', 0.75, 0, 1),
-    style: envFloat('ELEVENLABS_STYLE', 0.0, 0, 1),
-    use_speaker_boost: envFlag('ELEVENLABS_SPEAKER_BOOST', false),
+  const modelId = envFirst(['ELEVENLABS_MODEL_ID', 'ELEVEN_LABS_MODEL_ID']) || 'eleven_turbo_v2_5';
+  const optimizeStreamingLatency = parseNumber(
+    envFirst(['ELEVENLABS_OPTIMIZE_STREAMING_LATENCY', 'ELEVEN_LABS_OPTIMIZE_STREAMING_LATENCY']),
+    1,
+    0,
+    4
+  );
+  const outputFormat = envFirst(['ELEVENLABS_OUTPUT_FORMAT', 'ELEVEN_LABS_OUTPUT_FORMAT']) || 'mp3_22050_32';
+  const voiceSettings: ElevenLabsVoiceSettings = {
+    stability: parseNumber(envFirst(['ELEVENLABS_STABILITY', 'ELEVEN_LABS_STABILITY']), 0.55, 0, 1),
+    similarity_boost: parseNumber(
+      envFirst(['ELEVENLABS_SIMILARITY_BOOST', 'ELEVEN_LABS_SIMILARITY_BOOST']),
+      0.75,
+      0,
+      1
+    ),
+    style: parseNumber(envFirst(['ELEVENLABS_STYLE', 'ELEVEN_LABS_STYLE']), 0.1, 0, 1),
+    use_speaker_boost: envFlag('ELEVENLABS_SPEAKER_BOOST', true),
   };
   if (!apiKey || !voiceId) return null;
   return { apiKey, voiceId, modelId, optimizeStreamingLatency, outputFormat, voiceSettings };
@@ -183,21 +246,25 @@ async function elevenLabsStreamTts(
     text: string;
     optimizeStreamingLatency: number;
     outputFormat: string;
-    voiceSettings: {
-      stability: number;
-      similarity_boost: number;
-      style: number;
-      use_speaker_boost: boolean;
-    };
+    voiceSettings: ElevenLabsVoiceSettings;
   }
 ): Promise<Readable> {
   const { apiKey, voiceId, modelId, text, optimizeStreamingLatency, outputFormat, voiceSettings } = params;
   const url = `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voiceId)}/stream`;
+  diag('elevenlabs.request', {
+    voiceId,
+    modelId,
+    textChars: text.length,
+    optimizeStreamingLatency,
+    outputFormat,
+    voiceSettings,
+  });
   const res = await fetch(url, {
     method: 'POST',
     headers: {
       'xi-api-key': apiKey,
       'Content-Type': 'application/json',
+      Accept: 'audio/mpeg',
     },
     body: JSON.stringify({
       text,
@@ -211,113 +278,62 @@ async function elevenLabsStreamTts(
     const msg = await res.text();
     throw new Error(`ElevenLabs TTS failed (${res.status}): ${msg}`);
   }
+  diag('elevenlabs.response', {
+    status: res.status,
+    contentType: res.headers.get('content-type') || '',
+    contentLength: res.headers.get('content-length') || '',
+  });
   return Readable.fromWeb(res.body as any);
 }
 
-function linearPcm16ToMuLawSample(sample: number): number {
-  const BIAS = 0x84;
-  const CLIP = 32635;
-  let sign = 0;
-  let pcm = sample;
-  if (pcm < 0) {
-    sign = 0x80;
-    pcm = -pcm;
-  }
-  if (pcm > CLIP) pcm = CLIP;
-  pcm += BIAS;
-  let exponent = 7;
-  for (let expMask = 0x4000; (pcm & expMask) === 0 && exponent > 0; expMask >>= 1) {
-    exponent -= 1;
-  }
-  const mantissa = (pcm >> (exponent + 3)) & 0x0f;
-  return ~(sign | (exponent << 4) | mantissa) & 0xff;
-}
+function transcodeToMulaw8k(input: Readable, abortSignal?: AbortSignal) {
+  const ffmpeg = spawn('ffmpeg', [
+    '-hide_banner',
+    '-loglevel',
+    'error',
+    '-i',
+    'pipe:0',
+    '-ac',
+    '1',
+    '-ar',
+    '8000',
+    '-f',
+    'mulaw',
+    'pipe:1',
+  ]);
 
-type PcmToMulawState = {
-  wavHeaderDone: boolean;
-  wavHeaderBuffer: Buffer;
-  carryByte: number | null;
-  pendingSample: number | null;
-};
+  input.pipe(ffmpeg.stdin);
+  let ffmpegStderr = '';
+  ffmpeg.stderr.on('data', (chunk: Buffer | string) => {
+    const text = Buffer.isBuffer(chunk) ? chunk.toString('utf8') : String(chunk);
+    ffmpegStderr = (ffmpegStderr + text).slice(-2000);
+  });
 
-function createPcm16kToMulaw8kState(): PcmToMulawState {
-  return {
-    wavHeaderDone: false,
-    wavHeaderBuffer: Buffer.alloc(0),
-    carryByte: null,
-    pendingSample: null,
-  };
-}
-
-function stripOptionalWavHeader(chunk: Buffer, state: PcmToMulawState): Buffer {
-  if (state.wavHeaderDone) return chunk;
-  state.wavHeaderBuffer = Buffer.concat([state.wavHeaderBuffer, chunk]);
-  if (state.wavHeaderBuffer.length < 12) return Buffer.alloc(0);
-
-  const header = state.wavHeaderBuffer;
-  const isWav =
-    header.subarray(0, 4).toString('ascii') === 'RIFF' &&
-    header.subarray(8, 12).toString('ascii') === 'WAVE';
-
-  if (!isWav) {
-    state.wavHeaderDone = true;
-    const out = state.wavHeaderBuffer;
-    state.wavHeaderBuffer = Buffer.alloc(0);
-    return out;
-  }
-
-  let offset = 12;
-  while (offset + 8 <= header.length) {
-    const chunkId = header.subarray(offset, offset + 4).toString('ascii');
-    const chunkSize = header.readUInt32LE(offset + 4);
-    const dataStart = offset + 8;
-    const next = dataStart + chunkSize;
-    if (chunkId === 'data') {
-      if (header.length < dataStart) return Buffer.alloc(0);
-      state.wavHeaderDone = true;
-      const out = header.subarray(dataStart);
-      state.wavHeaderBuffer = Buffer.alloc(0);
-      return out;
+  const onAbort = () => {
+    try {
+      ffmpeg.kill('SIGKILL');
+    } catch {
+      // ignore
     }
-    if (next > header.length) return Buffer.alloc(0);
-    offset = next;
-  }
-  return Buffer.alloc(0);
-}
-
-function convertPcm16kChunkToMulaw8k(chunk: Buffer, state: PcmToMulawState): Buffer {
-  const raw = stripOptionalWavHeader(chunk, state);
-  if (!raw.length) return Buffer.alloc(0);
-  const out: number[] = [];
-  let idx = 0;
-
-  const readSample = (): number | null => {
-    if (state.carryByte === null) {
-      if (idx >= raw.length) return null;
-      state.carryByte = raw[idx++];
+    try {
+      input.destroy();
+    } catch {
+      // ignore
     }
-    if (idx >= raw.length) return null;
-    const lo = state.carryByte;
-    const hi = raw[idx++];
-    state.carryByte = null;
-    let sample = (hi << 8) | lo;
-    if (sample & 0x8000) sample -= 0x10000;
-    return sample;
   };
 
-  while (true) {
-    const sample = readSample();
-    if (sample === null) break;
-    if (state.pendingSample === null) {
-      state.pendingSample = sample;
-      continue;
-    }
-    const avg = Math.round((state.pendingSample + sample) / 2);
-    out.push(linearPcm16ToMuLawSample(avg));
-    state.pendingSample = null;
+  if (abortSignal) {
+    abortSignal.addEventListener('abort', onAbort, { once: true });
   }
 
-  return out.length ? Buffer.from(out) : Buffer.alloc(0);
+  ffmpeg.on('exit', (code, signal) => {
+    if (abortSignal) abortSignal.removeEventListener('abort', onAbort);
+    if (code !== 0 && !abortSignal?.aborted) {
+      console.warn('[diag] ffmpeg.exit', { code, signal, stderr: ffmpegStderr });
+    }
+  });
+
+  return ffmpeg.stdout;
 }
 
 type CallContext = {
@@ -357,60 +373,11 @@ type ActiveCallState = {
 };
 
 const activeCalls = new Map<string, ActiveCallState>();
-const greetedCalls = new Map<string, number>();
 
-function hasGreetedCall(callSid?: string): boolean {
-  const sid = String(callSid || '').trim();
-  if (!sid) return false;
-  const ttlMs = 24 * 60 * 60 * 1000;
-  const now = Date.now();
-  for (const [key, ts] of greetedCalls.entries()) {
-    if (now - ts > ttlMs) greetedCalls.delete(key);
-  }
-  return greetedCalls.has(sid);
-}
-
-function markCallGreeted(callSid?: string) {
-  const sid = String(callSid || '').trim();
-  if (!sid) return;
-  greetedCalls.set(sid, Date.now());
-}
-
-const fillerUtterances = new Set([
-  'mhm',
-  'mm',
-  'uh',
-  'um',
-  'uh-huh',
-  'uh huh',
-  'hmm',
-  'hm',
-  'ok',
-  'okay',
-  'yeah',
-  'yep',
-  'yup',
-  'mm-hmm',
-  'mm hmm',
-]);
+const fillerUtterances = new Set(['mhm', 'mm', 'uh', 'um', 'uh-huh', 'uh huh', 'hmm', 'hm', 'ok', 'okay', 'yeah', 'yep']);
 const shortIntentKeywords = new Set([
   'yes',
   'no',
-  'yeah',
-  'yep',
-  'yup',
-  'ok',
-  'okay',
-  'sure',
-  'correct',
-  'right',
-  'affirmative',
-  'hello',
-  'hi',
-  'hey',
-  'uh huh',
-  'mm hmm',
-  'mhm',
   'book',
   'booking',
   'appointment',
@@ -681,26 +648,6 @@ function askedAnythingElse(text?: string) {
   );
 }
 
-function normalizeTtsText(input: string): string {
-  let text = String(input || '')
-    .replace(/\s+/g, ' ')
-    .trim();
-  if (!text) return '';
-
-  // Expand common abbreviations that often sound slurred in TTS.
-  text = text
-    .replace(/\bSt\./g, 'Street')
-    .replace(/\bRd\./g, 'Road')
-    .replace(/\bDr\./g, 'Drive')
-    .replace(/\bAve\./g, 'Avenue')
-    .replace(/\bBlvd\./g, 'Boulevard');
-
-  // Spell long numeric strings digit-by-digit for clarity.
-  text = text.replace(/\b\d{4,}\b/g, (digits) => digits.split('').join(' '));
-
-  return text;
-}
-
 function buildNotesFromDetails(details: any): string | undefined {
   if (!details || typeof details !== 'object') return undefined;
   const ignored = new Set(['name', 'full_name', 'zip', 'zipcode', 'preferred_time', 'email', 'phone', 'phone_number']);
@@ -829,11 +776,7 @@ function buildInstructions(tenant: TenantInfo, options: { serviceAreaRequired: b
     renderedTemplatePrompt || `You are the phone receptionist for ${name}.`,
     `Greet the caller immediately and include the company name in the first sentence.`,
     `Be friendly, concise, and phone-like. Ask one question at a time.`,
-    `Keep responses short and direct (1-2 short sentences). Avoid unnecessary filler or repeated pleasantries.`,
-    `Keep each spoken sentence short (prefer under 18 words).`,
-    `For long numeric strings (addresses, ZIPs, booking IDs), read digits clearly and avoid rushing.`,
-    `Skip extra acknowledgements like "Of course" or "I'd be happy to" - go straight to the next question.`,
-    `When you need to check availability or perform a task, a brief one-liner like "One moment" is enough.`,
+    `Keep responses short by default. Use a brief filler phrase only when waiting on a tool call.`,
     `You can answer FAQs and help callers book appointments directly.`,
     `Never ask for the caller's phone number. Use the caller ID.`,
     serviceAreaRequired
@@ -847,12 +790,13 @@ function buildInstructions(tenant: TenantInfo, options: { serviceAreaRequired: b
     `Never claim a time is available unless get_availability returns it. If a requested time is unavailable, say so and offer available slots from get_availability.`,
     `If get_availability returns closed_day=true, tell the caller that day is closed and ask for another day.`,
     `If get_availability includes suggested_time_only, ONLY offer those times (max 3). Do not invent times.`,
-    `If a requested time is available, acknowledge it and continue (do not ask to confirm the time).`,
+    `If a requested time is available, say exactly: "That time is available. Let me book it for you." Then continue with booking (do not ask to confirm the time).`,
     `If the caller shares a time early, acknowledge it and say you'll confirm after collecting the remaining required details.`,
     `Only provide ONE summary, after ALL required intake fields (including address if required) AND a specific time slot have been collected. Do not summarize early or multiple times.`,
-    `When you summarize, keep it to one short sentence.`,
     `Never summarize immediately after the caller gives a time; finish collecting missing details first.`,
     `Never provide more than one summary per call.`,
+    `The summary must sound natural and conversational in 1-2 short sentences.`,
+    `Do not read a checklist or label-value list during the summary.`,
     `Before booking, summarize the details and ask for confirmation. Only then call create_booking with confirmed=true.`,
     `When calling create_booking, you MUST include ALL collected intake fields in the details object—not just the most recent ones. Include every field you gathered during the conversation (name, address, zip, service details, etc.).`,
     `If create_booking returns a MissingRequiredFields error, ask ONLY for the specific fields listed in missing_fields. Do NOT re-ask for information you already collected. Then retry create_booking with ALL collected fields (old and new) in the details object.`,
@@ -1117,58 +1061,35 @@ async function fetchTwilioCallDetails(callSid: string): Promise<{ to?: string; f
   }
 }
 
-async function resolveCallContext(
-  callSid: string,
-  options?: { to?: string; from?: string; streamSid?: string; fallbackStartedAt?: number }
-): Promise<CallContext | null> {
-  const cached = activeCalls.get(callSid)?.ctx;
-  if (cached) {
-    return {
-      ...cached,
-      streamSid: options?.streamSid || cached.streamSid,
-      startedAt: options?.fallbackStartedAt || cached.startedAt,
-    };
-  }
-
-  let to = (options?.to || '').trim();
-  let from = (options?.from || '').trim();
-  if (!to) {
-    const details = await fetchTwilioCallDetails(callSid);
-    to = (details?.to || '').trim();
-    from = from || (details?.from || '').trim();
-  }
-  if (!to) return null;
-
-  try {
-    const tenant: TenantInfo = await resolveTenant(to);
-    return {
-      callSid,
-      streamSid: options?.streamSid || 'system',
-      from,
-      to,
-      company_id: tenant.company_id,
-      company_name: tenant.company_name,
-      timezone: tenant.timezone,
-      transfer_enabled: tenant.transfer_enabled,
-      transfer_number: tenant.transfer_number,
-      startedAt: options?.fallbackStartedAt || Date.now(),
-    };
-  } catch (err: any) {
-    console.warn('[bridge] resolveTenant failed while resolving call context', err?.message ?? String(err));
-    return null;
-  }
-}
-
 async function finalizeCallFromStatus(callSid: string, reason: string) {
   const cached = activeCalls.get(callSid);
   if (cached?.ended) return;
 
-  const ctx =
-    cached?.ctx ||
-    (await resolveCallContext(callSid, {
-      streamSid: 'stream_status',
-      fallbackStartedAt: Date.now(),
-    }));
+  let ctx = cached?.ctx;
+  if (!ctx) {
+    const details = await fetchTwilioCallDetails(callSid);
+    const to = details?.to || '';
+    const from = details?.from || '';
+    if (to) {
+      try {
+        const tenant: TenantInfo = await resolveTenant(to);
+        ctx = {
+          callSid,
+          streamSid: 'stream_status',
+          from,
+          to,
+          company_id: tenant.company_id,
+          company_name: tenant.company_name,
+          timezone: tenant.timezone,
+          transfer_enabled: tenant.transfer_enabled,
+          transfer_number: tenant.transfer_number,
+          startedAt: Date.now(),
+        };
+      } catch (err: any) {
+        console.warn('[bridge] resolveTenant failed in stream status', err?.message ?? String(err));
+      }
+    }
+  }
 
   if (!ctx) return;
 
@@ -1234,21 +1155,29 @@ const server = http.createServer(async (req, res) => {
       const callSid = (params.CallSid || params.callSid || '').trim();
       const recordingSid = (params.RecordingSid || params.recordingSid || '').trim();
       const recordingStatus = (params.RecordingStatus || params.recordingStatus || '').trim().toLowerCase();
-      const to = (params.To || params.to || '').trim();
-      const from = (params.From || params.from || '').trim();
+      let to = (params.To || params.to || '').trim();
+      let from = (params.From || params.from || '').trim();
       const durationSeconds = Number.parseInt(params.RecordingDuration || params.recordingDuration || '', 10);
 
       if (callSid && recordingSid && recordingStatus === 'completed') {
         try {
-          const ctx = await resolveCallContext(callSid, {
-            to,
-            from,
-            streamSid: 'recording_callback',
-            fallbackStartedAt: Date.now(),
-          });
-          if (!ctx) {
-            throw new Error('Unable to resolve call context for recording callback');
+          if (!to) {
+            const details = await fetchTwilioCallDetails(callSid);
+            to = (details?.to || '').trim();
+            if (!from) from = (details?.from || '').trim();
           }
+          if (!to) throw new Error('Missing destination number on recording callback');
+          const tenant: TenantInfo = await resolveTenant(to);
+          const ctx: CallContext = {
+            callSid,
+            streamSid: 'recording_callback',
+            from,
+            to,
+            company_id: tenant.company_id,
+            company_name: tenant.company_name,
+            timezone: tenant.timezone,
+            startedAt: Date.now(),
+          };
           await callTool(ctx, 'save_recording', {
             recording_sid: recordingSid,
             duration_seconds: Number.isFinite(durationSeconds) ? durationSeconds : undefined,
@@ -1330,36 +1259,16 @@ wss.on('connection', (twilioWs: WebSocket) => {
   let openaiWs: WebSocket | null = null;
   let ctx: CallContext | null = null;
   let transcript: string[] = [];
-  let elevenLabsConfig:
-    | {
-        apiKey: string;
-        voiceId: string;
-        modelId: string;
-        optimizeStreamingLatency: number;
-        outputFormat: string;
-        voiceSettings: {
-          stability: number;
-          similarity_boost: number;
-          style: number;
-          use_speaker_boost: boolean;
-        };
-      }
-    | null = null;
+  let elevenLabsConfig: ElevenLabsConfig | null = null;
   let useElevenLabs = false;
   let openaiReady = false;
   let openaiResponding = false;
   let twilioReady = false;
   let greeted = false;
-  let greetingStartedAt = 0;
   let assistantSpeaking = false;
   let lastAssistantAudioAt = 0;
   let ttsAbort: AbortController | null = null;
   let assistantTextBuffer = '';
-  let assistantFullTextBuffer = '';
-  let lastAssistantDeltaAt = 0;
-  let earlyChunkTimer: ReturnType<typeof setInterval> | null = null;
-  let ttsChain: Promise<void> = Promise.resolve();
-  let ttsGeneration = 0;
   let recordingSynced = false;
   let recordingSyncScheduled = false;
   let serviceAreaRequired = false;
@@ -1377,164 +1286,39 @@ wss.on('connection', (twilioWs: WebSocket) => {
   let existingAppointmentsChecked = false;
   let lastAssistantAskedFollowUp = false;
   let lowSignalAttempts = 0;
-  let lastRepromptAt = 0;
   let lastSpeechStartAt = 0;
-  let lastSpeechStopAt = 0;
-  let lastMeaningfulCallerAt = 0;
-  let callerTurnSeq = 0;
-  let responseStartedTurn = -1;
-  let responseKickoffTimer: ReturnType<typeof setTimeout> | null = null;
-  let outboundAudioQueue: string[] = [];
-  let outboundAudioTimer: ReturnType<typeof setTimeout> | null = null;
-  let outboundNextSendAt = 0;
-  let outboundPartialFrame = Buffer.alloc(0);
+  let speechActive = false;
+  let speechActiveStartedAt = 0;
+  let pendingInterruptTimer: ReturnType<typeof setTimeout> | null = null;
   let requiredIntakeFields: string[] = [];
   let collectedDetails: Record<string, any> = {};
   let lastCallerUtterance: string | null = null;
-
-  function clearResponseKickoffTimer() {
-    if (!responseKickoffTimer) return;
-    clearTimeout(responseKickoffTimer);
-    responseKickoffTimer = null;
-  }
-
-  function clearOutboundAudio(sendClear = false) {
-    outboundAudioQueue = [];
-    outboundNextSendAt = 0;
-    outboundPartialFrame = Buffer.alloc(0);
-    if (outboundAudioTimer) {
-      clearTimeout(outboundAudioTimer);
-      outboundAudioTimer = null;
-    }
-    if (sendClear && ctx?.streamSid) {
-      sendToTwilio(twilioWs, { event: 'clear', streamSid: ctx.streamSid });
-    }
-  }
-
-  function enqueueTwilioAudio(payloadBase64: string) {
-    if (!ctx?.streamSid || twilioWs.readyState !== twilioWs.OPEN) return;
-    let buf: Buffer;
-    try {
-      buf = Buffer.from(payloadBase64, 'base64');
-    } catch {
-      return;
-    }
-    if (!buf.length) return;
-    const frameSize = 160; // 20ms of G.711 u-law at 8kHz
-    if (outboundPartialFrame.length > 0) {
-      buf = Buffer.concat([outboundPartialFrame, buf]);
-      outboundPartialFrame = Buffer.alloc(0);
-    }
-    const fullBytes = Math.floor(buf.length / frameSize) * frameSize;
-    for (let offset = 0; offset < fullBytes; offset += frameSize) {
-      outboundAudioQueue.push(buf.subarray(offset, offset + frameSize).toString('base64'));
-    }
-    if (fullBytes < buf.length) outboundPartialFrame = Buffer.from(buf.subarray(fullBytes));
-    if (!outboundNextSendAt) outboundNextSendAt = Date.now();
-    if (!outboundAudioTimer) scheduleTwilioAudioDrain();
-  }
-
-  function flushTwilioAudioRemainder() {
-    if (!outboundPartialFrame.length) return;
-    const frameSize = 160;
-    const padByte = 0xff; // u-law silence
-    const padded = Buffer.alloc(frameSize, padByte);
-    outboundPartialFrame.copy(padded, 0, 0, Math.min(outboundPartialFrame.length, frameSize));
-    outboundPartialFrame = Buffer.alloc(0);
-    outboundAudioQueue.push(padded.toString('base64'));
-    if (!outboundNextSendAt) outboundNextSendAt = Date.now();
-    if (!outboundAudioTimer) scheduleTwilioAudioDrain();
-  }
-
-  function scheduleTwilioAudioDrain() {
-    if (outboundAudioTimer) return;
-    const delay = Math.max(0, outboundNextSendAt - Date.now());
-    outboundAudioTimer = setTimeout(drainTwilioAudio, delay);
-  }
-
-  function drainTwilioAudio() {
-    outboundAudioTimer = null;
-    if (!ctx?.streamSid || twilioWs.readyState !== twilioWs.OPEN) {
-      clearOutboundAudio(false);
-      return;
-    }
-    const payload = outboundAudioQueue.shift();
-    if (!payload) {
-      outboundNextSendAt = 0;
-      return;
-    }
-    sendToTwilio(twilioWs, {
-      event: 'media',
-      streamSid: ctx.streamSid,
-      media: { payload },
-    });
-    outboundNextSendAt = Math.max(outboundNextSendAt + 20, Date.now() + 20);
-    if (outboundAudioQueue.length > 0) scheduleTwilioAudioDrain();
-  }
-
-  function cancelAssistantPlayback() {
-    const hadOutput = assistantSpeaking || outboundAudioQueue.length > 0 || Boolean(ttsAbort);
-    ttsGeneration += 1;
-    assistantTextBuffer = '';
-    assistantFullTextBuffer = '';
-    if (ttsAbort) {
-      try {
-        ttsAbort.abort();
-      } catch {
-        // ignore
-      }
-    }
-    assistantSpeaking = false;
-    clearOutboundAudio(hadOutput);
-  }
-
-  function scheduleResponseAfterSpeechStop() {
-    clearResponseKickoffTimer();
-    if (!openaiWs || !openaiReady || pendingHangup) return;
-    const configured = Number(envFirst(['VOICE_TURN_RESPONSE_DELAY_MS', 'TURN_RESPONSE_DELAY_MS']) || '220');
-    const delayMs = Number.isFinite(configured) ? Math.max(0, Math.min(configured, 800)) : 220;
-    responseKickoffTimer = setTimeout(() => {
-      responseKickoffTimer = null;
-      if (!openaiWs || !openaiReady || pendingHangup) return;
-      if (!lastSpeechStopAt || Date.now() - lastSpeechStopAt > 3000) return;
-      const speechMs = lastSpeechStopAt > lastSpeechStartAt ? lastSpeechStopAt - lastSpeechStartAt : 0;
-      if (speechMs > 0 && speechMs < 180) return;
-      if (openaiResponding) return;
-      if (responseStartedTurn === callerTurnSeq) return;
-      createResponse();
-    }, delayMs);
-  }
+  let diagTtsSeq = 0;
+  let diagTwilioInboundLogged = false;
+  let diagOpenAIAudioLogged = false;
+  let diagTwilioInboundChunks = 0;
+  let diagTwilioInboundBytes = 0;
+  let diagOpenAIAudioChunks = 0;
+  let diagOpenAIAudioBytes = 0;
+  let diagShutdownLogged = false;
 
   function tryGreet() {
     if (!openaiWs || !openaiReady || !twilioReady || greeted) return;
-    const callSid = ctx?.callSid;
-    if (hasGreetedCall(callSid)) {
-      greeted = true;
-      return;
-    }
     const name = ctx?.company_name || 'our company';
     const greeting = hasExistingAppointments
       ? `Hi there, thanks for calling ${name}. Would you like to manage an existing booking, or book a new appointment?`
       : `Hi there, thanks for calling ${name}. How can I help you today?`;
     createResponse(`Say exactly: "${greeting}" Then stop. Do not add any follow-up question.`);
     greeted = true;
-    markCallGreeted(callSid);
-    greetingStartedAt = Date.now();
-    lastRepromptAt = 0;
   }
 
   function reprompt(attempt: number) {
     if (!openaiWs || !openaiReady) return;
     const msg =
       attempt <= 1
-        ? "Sorry, I didn't catch that. Are you booking an appointment, or do you have a question?"
+        ? "Sorry, didn't catch that. Are you calling to book an appointment, or do you have a quick question?"
         : "I'm still having trouble hearing you. If you'd like, I can take a message for a callback - what's your name?";
-    clearResponseKickoffTimer();
-    cancelAssistantPlayback();
-    if (openaiResponding) {
-      sendToOpenAI(openaiWs, { type: 'response.cancel' });
-      openaiResponding = false;
-    }
+    sendToOpenAI(openaiWs, { type: 'response.cancel' });
     createResponse(`Say: "${msg}"`);
   }
 
@@ -1544,242 +1328,212 @@ wss.on('connection', (twilioWs: WebSocket) => {
 
   function createResponse(instructions?: string) {
     if (!openaiWs) return;
-    clearResponseKickoffTimer();
     assistantTextBuffer = '';
-    assistantFullTextBuffer = '';
     const response: any = { modalities: buildModalities() };
     if (instructions) response.instructions = instructions;
     sendToOpenAI(openaiWs, { type: 'response.create', response });
     openaiResponding = true;
-    responseStartedTurn = callerTurnSeq;
   }
 
-  const fillerPhrases = [
-    'One moment while I check that.',
-    'Give me just a second.',
-    'Let me check that.',
-  ];
-  const fillerToolNames = new Set([
-    'get_availability',
-    'create_booking',
-    'list_appointments_by_phone',
-    'reschedule_appointment',
-    'cancel_appointment',
-    'knowledge_search',
-    'hold_slot',
-    'send_booking_link',
-  ]);
+  function cancelPendingInterruptTimer() {
+    if (!pendingInterruptTimer) return;
+    clearTimeout(pendingInterruptTimer);
+    pendingInterruptTimer = null;
+  }
 
-  function scheduleToolFiller(toolName?: string) {
-    if (!useElevenLabs || !toolName || !fillerToolNames.has(toolName)) {
-      return { wait: async () => {} };
+  function interruptAssistant(reason: string) {
+    if (!assistantSpeaking) return;
+    const now = Date.now();
+    if (now - lastAssistantAudioAt > 5000) return;
+
+    if (useElevenLabs && ttsAbort) {
+      try {
+        ttsAbort.abort();
+      } catch {
+        // ignore
+      }
     }
-    if (assistantSpeaking) {
-      return { wait: async () => {} };
-    }
-    const delayMs = 650;
-    let started = false;
-    let timer: ReturnType<typeof setTimeout> | null = null;
-    let promise: Promise<void> | null = null;
-
-    const start = () => {
-      if (started) return;
-      started = true;
-      const phrase = fillerPhrases[Math.floor(Math.random() * fillerPhrases.length)];
-      promise = speakWithElevenLabs(phrase);
-    };
-
-    timer = setTimeout(start, delayMs);
-
-    return {
-      wait: async () => {
-        if (timer) clearTimeout(timer);
-        if (started && promise) {
-          try {
-            await promise;
-          } catch {
-            // ignore filler errors
-          }
-        }
-      },
-    };
+    if (ctx?.streamSid) sendToTwilio(twilioWs, { event: 'clear', streamSid: ctx.streamSid });
+    if (openaiWs) sendToOpenAI(openaiWs, { type: 'response.cancel' });
+    assistantSpeaking = false;
+    openaiResponding = false;
+    diag('barge_in.interrupt', {
+      callSid: ctx?.callSid || '',
+      reason,
+      speechMs: speechActiveStartedAt ? now - speechActiveStartedAt : undefined,
+    });
   }
 
   async function speakWithElevenLabs(text: string) {
     if (!ctx?.streamSid || !elevenLabsConfig) return;
-    const config = elevenLabsConfig;
-    const cleaned = normalizeTtsText(text);
-    if (!cleaned) return;
-
-    const generation = ttsGeneration;
-    const run = async () => {
-      if (generation !== ttsGeneration) return;
-      const controller = new AbortController();
-      ttsAbort = controller;
-      assistantSpeaking = true;
-      lastAssistantAudioAt = Date.now();
-
-      try {
-        const configuredFormat = String(config.outputFormat || '').trim().toLowerCase();
-        const outputFormat = configuredFormat === 'pcm_16000' ? 'pcm_16000' : 'pcm_16000';
-        if (configuredFormat && configuredFormat !== outputFormat) {
-          console.warn('[elevenlabs] forcing realtime output format', {
-            requested: config.outputFormat,
-            resolved: outputFormat,
-          });
-        }
-
-        const ttsStream = await elevenLabsStreamTts({
-          apiKey: config.apiKey,
-          voiceId: config.voiceId,
-          modelId: config.modelId,
-          optimizeStreamingLatency: config.optimizeStreamingLatency,
-          outputFormat,
-          voiceSettings: config.voiceSettings,
-          text: cleaned,
-        });
-
-        const pcmState = createPcm16kToMulaw8kState();
-        await new Promise<void>((resolve, reject) => {
-          const onAbort = () => {
-            try {
-              ttsStream.destroy();
-            } catch {
-              // ignore
-            }
-          };
-          controller.signal.addEventListener('abort', onAbort, { once: true });
-          ttsStream.on('data', (chunk: Buffer) => {
-            if (controller.signal.aborted || generation !== ttsGeneration) return;
-            const mulawChunk = convertPcm16kChunkToMulaw8k(chunk, pcmState);
-            if (!mulawChunk.length) return;
-            lastAssistantAudioAt = Date.now();
-            enqueueTwilioAudio(mulawChunk.toString('base64'));
-          });
-          ttsStream.on('end', () => {
-            controller.signal.removeEventListener('abort', onAbort);
-            if (!controller.signal.aborted && generation === ttsGeneration) {
-              flushTwilioAudioRemainder();
-            }
-            resolve();
-          });
-          ttsStream.on('error', (err) => {
-            controller.signal.removeEventListener('abort', onAbort);
-            reject(err);
-          });
-        });
-      } catch (err: any) {
-        console.warn('[elevenlabs] TTS failed', err?.message ?? String(err));
-      } finally {
-        if (ttsAbort === controller) {
-          ttsAbort = null;
-        }
-        assistantSpeaking = false;
-        if (pendingHangup && !waitingForHangupMark && !controller.signal.aborted) {
-          setTimeout(() => {
-            if (pendingHangup && !waitingForHangupMark) queueHangupMark();
-          }, 1500);
-        }
-      }
-    };
-
-    const next = ttsChain.then(run, run);
-    ttsChain = next.catch(() => {});
-    await next;
-  }
-
-  function findSentenceBoundary(text: string): number {
-    for (let i = 0; i < text.length; i += 1) {
-      const ch = text[i];
-      if (ch !== '.' && ch !== '?' && ch !== '!') continue;
-      const next = text[i + 1];
-      if (!next || /\s|["')\]]/.test(next)) {
-        return i + 1;
-      }
-    }
-    return -1;
-  }
-
-  function findEarlyChunkBoundary(text: string, idleMs: number): number {
-    const minChars = 90;
-    const idleThresholdMs = 320;
-    if (text.length < minChars && idleMs < idleThresholdMs) return -1;
-
-    const maxScan = Math.min(text.length, 180);
-    const minScan = Math.min(55, maxScan);
-    for (let i = maxScan - 1; i >= minScan; i -= 1) {
-      const ch = text[i];
-      if (ch === ',' || ch === ';' || ch === ':') return i + 1;
-    }
-
-    const atSpace = text.lastIndexOf(' ', maxScan - 1);
-    if (atSpace >= minScan) return atSpace + 1;
-    if (text.length >= 130) return 120;
-    return -1;
-  }
-
-  function flushSpeakableChunks(force = false) {
-    if (!useElevenLabs) return;
-    let remaining = assistantTextBuffer;
-    while (remaining) {
-      const sentenceBoundary = findSentenceBoundary(remaining);
-      const idleMs = lastAssistantDeltaAt ? Date.now() - lastAssistantDeltaAt : 0;
-      const earlyBoundary = force ? -1 : findEarlyChunkBoundary(remaining, idleMs);
-      const boundary =
-        sentenceBoundary > 0 ? sentenceBoundary : earlyBoundary > 0 ? earlyBoundary : force ? remaining.length : -1;
-      if (boundary <= 0) break;
-      const chunk = remaining.slice(0, boundary).trim();
-      remaining = remaining.slice(boundary).trimStart();
-      if (chunk) {
-        void speakWithElevenLabs(chunk);
-      }
-    }
-    assistantTextBuffer = remaining;
-  }
-
-  function appendAssistantText(delta: string) {
-    if (!delta) return;
-    lastAssistantDeltaAt = Date.now();
-    assistantFullTextBuffer += delta;
-    assistantTextBuffer += delta;
-    flushSpeakableChunks(false);
-  }
-
-  function flushAssistantText(textOverride?: string) {
-    const fallback = String(textOverride || '').trim();
-    if (fallback && !assistantFullTextBuffer.trim()) {
-      assistantFullTextBuffer = fallback;
-    }
-    if (fallback && !assistantTextBuffer.trim()) {
-      assistantTextBuffer = fallback;
-    }
-    flushSpeakableChunks(true);
-    const text = assistantFullTextBuffer.trim() || fallback;
-    assistantFullTextBuffer = '';
-    assistantTextBuffer = '';
-    if (!text) return;
-    transcript.push(`Assistant: ${text}`);
-    lastAssistantAskedFollowUp = askedAnythingElse(text);
-  }
-
-  function shutdown(reason: string) {
-    console.log('[bridge] shutdown', reason);
-    clearResponseKickoffTimer();
-    ttsGeneration += 1;
+    const trimmed = normalizeSpeechText(text);
+    if (!trimmed) return;
     if (ttsAbort) {
       try {
         ttsAbort.abort();
       } catch {
         // ignore
       }
-      ttsAbort = null;
     }
-    assistantSpeaking = false;
-    clearOutboundAudio(false);
-    if (earlyChunkTimer) {
-      clearInterval(earlyChunkTimer);
-      earlyChunkTimer = null;
+    const controller = new AbortController();
+    ttsAbort = controller;
+    assistantSpeaking = true;
+    lastAssistantAudioAt = Date.now();
+    const ttsSeq = ++diagTtsSeq;
+    let emittedAudio = false;
+    diag('tts.start', {
+      callSid: ctx.callSid,
+      ttsSeq,
+      textChars: trimmed.length,
+    });
+    try {
+      const ttsStream = await elevenLabsStreamTts({
+        apiKey: elevenLabsConfig.apiKey,
+        voiceId: elevenLabsConfig.voiceId,
+        modelId: elevenLabsConfig.modelId,
+        optimizeStreamingLatency: elevenLabsConfig.optimizeStreamingLatency,
+        outputFormat: elevenLabsConfig.outputFormat,
+        voiceSettings: elevenLabsConfig.voiceSettings,
+        text: trimmed,
+      });
+      const ttsProbe = new PassThrough();
+      let elevenBytes = 0;
+      let elevenChunks = 0;
+      let elevenHeadLogged = false;
+      ttsProbe.on('data', (chunk: Buffer) => {
+        const data = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+        elevenChunks += 1;
+        elevenBytes += data.length;
+        if (!elevenHeadLogged && data.length) {
+          elevenHeadLogged = true;
+          diag('tts.elevenlabs_head', {
+            callSid: ctx?.callSid || '',
+            ttsSeq,
+            bytes: data.length,
+            magic: detectAudioMagic(data),
+            headHex: headHex(data),
+          });
+        }
+      });
+      ttsProbe.on('end', () => {
+        diag('tts.elevenlabs_done', {
+          callSid: ctx?.callSid || '',
+          ttsSeq,
+          chunks: elevenChunks,
+          bytes: elevenBytes,
+        });
+      });
+
+      const mulaw = transcodeToMulaw8k(ttsStream.pipe(ttsProbe), controller.signal);
+      await new Promise<void>((resolve, reject) => {
+        let mulawBytes = 0;
+        let mulawChunks = 0;
+        let mulawHeadLogged = false;
+        const onAbort = () => {
+          if (ctx?.streamSid) {
+            sendToTwilio(twilioWs, { event: 'clear', streamSid: ctx.streamSid });
+          }
+          try {
+            mulaw.destroy();
+          } catch {
+            // ignore
+          }
+        };
+        controller.signal.addEventListener('abort', onAbort, { once: true });
+        mulaw.on('data', (chunk: Buffer) => {
+          if (controller.signal.aborted || !ctx?.streamSid) return;
+          emittedAudio = true;
+          mulawChunks += 1;
+          mulawBytes += chunk.length;
+          if (!mulawHeadLogged && chunk.length) {
+            mulawHeadLogged = true;
+            diag('tts.mulaw_head', {
+              callSid: ctx.callSid,
+              ttsSeq,
+              bytes: chunk.length,
+              headHex: headHex(chunk),
+            });
+          }
+          if (mulawChunks % 50 === 0) {
+            diag('tts.mulaw_progress', {
+              callSid: ctx.callSid,
+              ttsSeq,
+              chunks: mulawChunks,
+              bytes: mulawBytes,
+            });
+          }
+          lastAssistantAudioAt = Date.now();
+          sendToTwilio(twilioWs, {
+            event: 'media',
+            streamSid: ctx.streamSid,
+            media: { payload: chunk.toString('base64') },
+          });
+        });
+        mulaw.on('end', () => {
+          controller.signal.removeEventListener('abort', onAbort);
+          diag('tts.mulaw_done', {
+            callSid: ctx?.callSid || '',
+            ttsSeq,
+            chunks: mulawChunks,
+            bytes: mulawBytes,
+          });
+          resolve();
+        });
+        mulaw.on('error', (err) => {
+          controller.signal.removeEventListener('abort', onAbort);
+          reject(err);
+        });
+      });
+    } catch (err: any) {
+      console.warn('[elevenlabs] TTS failed', err?.message ?? String(err));
+      if (!controller.signal.aborted && !emittedAudio && openaiWs) {
+        useElevenLabs = false;
+        createResponse(`Say this naturally in one short sentence: ${trimmed}`);
+      }
+    } finally {
+      if (ttsAbort === controller) {
+        ttsAbort = null;
+      }
+      assistantSpeaking = false;
+      if (pendingHangup && !waitingForHangupMark && !controller.signal.aborted) {
+        setTimeout(() => {
+          if (pendingHangup && !waitingForHangupMark) queueHangupMark();
+        }, 1500);
+      }
     }
+  }
+
+  function appendAssistantText(delta: string) {
+    if (!delta) return;
+    assistantTextBuffer += delta;
+  }
+
+  function flushAssistantText(textOverride?: string) {
+    const text = String(textOverride ?? assistantTextBuffer).trim();
+    assistantTextBuffer = '';
+    if (!text) return;
+    transcript.push(`Assistant: ${text}`);
+    lastAssistantAskedFollowUp = askedAnythingElse(text);
+    void speakWithElevenLabs(text);
+  }
+
+  function shutdown(reason: string) {
+    cancelPendingInterruptTimer();
+    if (!diagShutdownLogged) {
+      diagShutdownLogged = true;
+      diag('call.shutdown', {
+        reason,
+        callSid: ctx?.callSid || '',
+        streamSid: ctx?.streamSid || '',
+        useElevenLabs,
+        twilioInboundChunks: diagTwilioInboundChunks,
+        twilioInboundBytes: diagTwilioInboundBytes,
+        openaiAudioChunks: diagOpenAIAudioChunks,
+        openaiAudioBytes: diagOpenAIAudioBytes,
+        transcriptLines: transcript.length,
+      });
+    }
+    console.log('[bridge] shutdown', reason);
     try {
       twilioWs.close();
     } catch {
@@ -1870,6 +1624,12 @@ wss.on('connection', (twilioWs: WebSocket) => {
         },
       });
       openaiReady = true;
+      diag('openai.session_ready', {
+        callSid: ctx?.callSid || '',
+        model,
+        voice,
+        useElevenLabs,
+      });
       tryGreet();
     });
 
@@ -1882,22 +1642,38 @@ wss.on('connection', (twilioWs: WebSocket) => {
         return;
       }
 
-      if (msg?.type === 'response.created') {
-        openaiResponding = true;
-        return;
-      }
-
-      if (msg?.type === 'response.canceled') {
-        openaiResponding = false;
-        return;
-      }
-
       if (msg?.type === 'response.audio.delta') {
         if (useElevenLabs) return;
-        if (!openaiResponding) return;
         const payload = msg?.delta;
-        if (payload) {
-          enqueueTwilioAudio(payload);
+        if (payload && ctx?.streamSid) {
+          const payloadStr = String(payload);
+          diagOpenAIAudioChunks += 1;
+          diagOpenAIAudioBytes += base64ByteLength(payloadStr);
+          if (!diagOpenAIAudioLogged) {
+            diagOpenAIAudioLogged = true;
+            try {
+              const frame = Buffer.from(payloadStr, 'base64');
+              diag('openai.audio.first_delta', {
+                callSid: ctx.callSid,
+                bytes: frame.length,
+                magic: detectAudioMagic(frame),
+                headHex: headHex(frame),
+              });
+            } catch (err: any) {
+              diag('openai.audio.first_delta_decode_error', {
+                callSid: ctx.callSid,
+                error: err?.message ?? String(err),
+              });
+            }
+          }
+          if (diagOpenAIAudioChunks % 100 === 0) {
+            diag('openai.audio.progress', {
+              callSid: ctx.callSid,
+              chunks: diagOpenAIAudioChunks,
+              bytes: diagOpenAIAudioBytes,
+            });
+          }
+          sendToTwilio(twilioWs, { event: 'media', streamSid: ctx.streamSid, media: { payload } });
           assistantSpeaking = true;
           lastAssistantAudioAt = Date.now();
         }
@@ -1906,7 +1682,6 @@ wss.on('connection', (twilioWs: WebSocket) => {
 
       if (msg?.type === 'response.audio_transcript.done') {
         if (useElevenLabs) return;
-        if (!openaiResponding) return;
         const text = msg?.transcript;
         if (text) {
           transcript.push(`Assistant: ${text}`);
@@ -1919,7 +1694,6 @@ wss.on('connection', (twilioWs: WebSocket) => {
         useElevenLabs &&
         (msg?.type === 'response.text.delta' || msg?.type === 'response.output_text.delta')
       ) {
-        if (!openaiResponding) return;
         const delta = msg?.delta || msg?.text;
         if (delta) appendAssistantText(String(delta));
         return;
@@ -1929,7 +1703,6 @@ wss.on('connection', (twilioWs: WebSocket) => {
         useElevenLabs &&
         (msg?.type === 'response.text.done' || msg?.type === 'response.output_text.done')
       ) {
-        if (!openaiResponding) return;
         const text = msg?.text || msg?.output_text || assistantTextBuffer;
         flushAssistantText(text);
         return;
@@ -1940,49 +1713,33 @@ wss.on('connection', (twilioWs: WebSocket) => {
         if (!text || !String(text).trim()) {
           return;
         }
-        clearResponseKickoffTimer();
 
         const trimmed = String(text).trim();
-        const now = Date.now();
-        const recentSpeech = lastSpeechStartAt && now - lastSpeechStartAt < 3500;
-        const actionableShort = isActionableShortUtterance(trimmed);
-        const fillerOnly = isFillerUtterance(trimmed) && !actionableShort;
-        const lowSignal = isLowSignalTranscript(trimmed) || fillerOnly;
-        const inGreetingGrace = greetingStartedAt && now - greetingStartedAt < 4000;
-
-        if (inGreetingGrace && lowSignal && !actionableShort) {
+        const recentSpeech = lastSpeechStartAt && Date.now() - lastSpeechStartAt < 3500;
+        if (!recentSpeech && trimmed.length < 6) {
           return;
         }
 
-        if (!recentSpeech && !actionableShort && trimmed.length < 6) {
-          return;
-        }
-
-        if (lowSignal) {
-          if (!recentSpeech && !lastMeaningfulCallerAt) {
-            return;
-          }
-          if (lastRepromptAt && now - lastRepromptAt < 3500) {
+        if (isLowSignalTranscript(trimmed) || isFillerUtterance(trimmed)) {
+          if (assistantSpeaking && Date.now() - lastAssistantAudioAt < 2500) {
             return;
           }
           lowSignalAttempts += 1;
-          lastRepromptAt = now;
           reprompt(lowSignalAttempts);
           return;
         }
 
         transcript.push(`Caller: ${trimmed}`);
         lastCallerUtterance = trimmed;
-        lastMeaningfulCallerAt = now;
         lowSignalAttempts = 0;
         if (assistantSpeaking && Date.now() - lastAssistantAudioAt < 1500) {
-          if (wordCount(trimmed) < 3 && !isExplicitBargeIn(trimmed)) {
-            if (openaiResponding) {
-              sendToOpenAI(openaiWs, { type: 'response.cancel' });
-              openaiResponding = false;
-            }
+          const explicitInterrupt =
+            isExplicitBargeIn(trimmed) || wordCount(trimmed) >= 3 || isActionableShortUtterance(trimmed);
+          if (!explicitInterrupt) {
             return;
           }
+          sendToOpenAI(openaiWs, { type: 'response.cancel' });
+          openaiResponding = false;
         }
 
         if (appointmentCreated && lastAssistantAskedFollowUp && isNegativeResponse(trimmed) && ctx) {
@@ -1994,12 +1751,8 @@ wss.on('connection', (twilioWs: WebSocket) => {
         }
 
         if (openaiWs && openaiReady) {
-          if (responseStartedTurn === callerTurnSeq) {
-            return;
-          }
           if (openaiResponding) {
             sendToOpenAI(openaiWs, { type: 'response.cancel' });
-            openaiResponding = false;
           }
           createResponse();
         }
@@ -2008,7 +1761,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
 
       if (msg?.type === 'response.done') {
         openaiResponding = false;
-        if (useElevenLabs && (assistantTextBuffer.trim() || assistantFullTextBuffer.trim())) {
+        if (useElevenLabs && assistantTextBuffer.trim()) {
           flushAssistantText();
         }
         return;
@@ -2016,7 +1769,6 @@ wss.on('connection', (twilioWs: WebSocket) => {
 
       if (msg?.type === 'response.audio.done') {
         if (useElevenLabs) return;
-        flushTwilioAudioRemainder();
         assistantSpeaking = false;
         openaiResponding = false;
         if (pendingHangup && !waitingForHangupMark) {
@@ -2029,23 +1781,30 @@ wss.on('connection', (twilioWs: WebSocket) => {
 
       if (msg?.type === 'input_audio_buffer.speech_started') {
         lastSpeechStartAt = Date.now();
-        callerTurnSeq += 1;
-        clearResponseKickoffTimer();
-        const now = Date.now();
-        const wasSpeaking = assistantSpeaking;
-        cancelAssistantPlayback();
-        if (openaiResponding || (wasSpeaking && now - lastAssistantAudioAt < 5000)) {
-          sendToOpenAI(openaiWs, { type: 'response.cancel' });
-          openaiResponding = false;
-        }
-        assistantSpeaking = false;
-        responseStartedTurn = -1;
+        speechActive = true;
+        speechActiveStartedAt = Date.now();
+        cancelPendingInterruptTimer();
+        pendingInterruptTimer = setTimeout(() => {
+          if (!speechActive) return;
+          interruptAssistant('speech_started_debounced');
+        }, 280);
         return;
       }
 
       if (msg?.type === 'input_audio_buffer.speech_stopped') {
-        lastSpeechStopAt = Date.now();
-        scheduleResponseAfterSpeechStop();
+        const now = Date.now();
+        const startedAt = speechActiveStartedAt;
+        const speechMs = startedAt ? now - startedAt : 0;
+        speechActive = false;
+        cancelPendingInterruptTimer();
+        if (speechMs >= 280) {
+          interruptAssistant('speech_stopped');
+        } else {
+          diag('barge_in.ignored_short_speech', {
+            callSid: ctx?.callSid || '',
+            speechMs,
+          });
+        }
         return;
       }
 
@@ -2059,9 +1818,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
           args = {};
         }
 
-        clearResponseKickoffTimer();
         openaiResponding = false;
-        const filler = scheduleToolFiller(toolName);
         let result: any;
         try {
           if (!ctx) throw new Error('Missing call context');
@@ -2261,6 +2018,9 @@ wss.on('connection', (twilioWs: WebSocket) => {
               }
             }
             if (toolName === 'get_availability') {
+              if ((result as any)?.requested_time_available === true) {
+                (result as any).spoken_availability = 'That time is available. Let me book it for you.';
+              }
               if (Array.isArray((result as any)?.slots)) {
                 lastAvailabilitySlots = (result as any).slots.filter((slot: any) => typeof slot === 'string');
                 lastAvailabilityTimezone =
@@ -2294,7 +2054,6 @@ wss.on('connection', (twilioWs: WebSocket) => {
           result = { ok: false, error: err?.message ?? String(err) };
         }
 
-        await filler.wait();
         sendToOpenAI(openaiWs, {
           type: 'conversation.item.create',
           item: {
@@ -2373,6 +2132,13 @@ wss.on('connection', (twilioWs: WebSocket) => {
         transfer_number: resolvedTenant.transfer_number,
         startedAt: Date.now(),
       };
+      diag('call.start', {
+        callSid,
+        streamSid,
+        from,
+        to,
+        companyId: resolvedTenant.company_id,
+      });
 
       activeCalls.set(callSid, {
         ctx,
@@ -2394,17 +2160,13 @@ wss.on('connection', (twilioWs: WebSocket) => {
 
       twilioReady = true;
       elevenLabsConfig = await resolveElevenLabsConfig();
-      useElevenLabs = Boolean(elevenLabsConfig) && envFlag('VOICE_BRIDGE_USE_ELEVENLABS', false);
-      console.log('[bridge] tts mode', {
-        mode: useElevenLabs ? 'elevenlabs' : 'openai-realtime',
-        eleven_output_format: elevenLabsConfig?.outputFormat || null,
+      useElevenLabs = Boolean(elevenLabsConfig) && elevenLabsEnabled;
+      diag('call.audio_path', {
+        callSid,
+        useElevenLabs,
+        elevenLabsEnabled,
+        elevenModel: elevenLabsConfig?.modelId || '',
       });
-      if (useElevenLabs && !earlyChunkTimer) {
-        earlyChunkTimer = setInterval(() => {
-          if (!useElevenLabs || !assistantTextBuffer.trim()) return;
-          flushSpeakableChunks(false);
-        }, 120);
-      }
       await connectOpenAI(resolvedTenant);
 
       callTool(ctx, 'start_call', {}).catch((err: any) =>
@@ -2421,6 +2183,33 @@ wss.on('connection', (twilioWs: WebSocket) => {
     if (msg?.event === 'media') {
       const payload = msg?.media?.payload;
       if (payload && openaiWs && openaiReady) {
+        const payloadStr = String(payload);
+        diagTwilioInboundChunks += 1;
+        diagTwilioInboundBytes += base64ByteLength(payloadStr);
+        if (!diagTwilioInboundLogged) {
+          diagTwilioInboundLogged = true;
+          try {
+            const frame = Buffer.from(payloadStr, 'base64');
+            diag('twilio.inbound.first_media', {
+              callSid: ctx?.callSid || '',
+              bytes: frame.length,
+              magic: detectAudioMagic(frame),
+              headHex: headHex(frame),
+            });
+          } catch (err: any) {
+            diag('twilio.inbound.first_media_decode_error', {
+              callSid: ctx?.callSid || '',
+              error: err?.message ?? String(err),
+            });
+          }
+        }
+        if (diagTwilioInboundChunks % 100 === 0) {
+          diag('twilio.inbound.progress', {
+            callSid: ctx?.callSid || '',
+            chunks: diagTwilioInboundChunks,
+            bytes: diagTwilioInboundBytes,
+          });
+        }
         sendToOpenAI(openaiWs, { type: 'input_audio_buffer.append', audio: payload });
       }
       return;

@@ -1267,7 +1267,7 @@ export class RealtimeToolsService {
       spokenAvailability = `We are closed on ${label}. What day works instead?`;
     } else if (hasTime) {
       if (requested_time_available === true) {
-        spokenAvailability = `That time is available.`;
+        spokenAvailability = `That time is available. Let me book it for you.`;
       } else if (requested_time_available === false) {
         if (slots.length) {
           const sample = (suggestedTimeOnly.length ? suggestedTimeOnly : timeOnlySlots).slice(0, 3);
@@ -1461,13 +1461,14 @@ export class RealtimeToolsService {
   }
 
   private resolveBookingFromEmail(company: any): { from: string; display: string } {
+    const explicitFrom =
+      this.config.get<string>('BOOKING_FROM_EMAIL') ||
+      this.config.get<string>('NO_REPLY_EMAIL') ||
+      this.config.get<string>('NO_CONTACT_EMAIL') ||
+      '';
     const override =
       (typeof company?.booking_from_email === 'string' && company.booking_from_email) ||
       (typeof company?.email_from === 'string' && company.email_from);
-    const explicitFrom =
-      this.config.get<string>('BOOKING_FROM_EMAIL') ||
-      this.config.get<string>('NO_CONTACT_EMAIL') ||
-      '';
     const domain =
       this.config.get<string>('BOOKING_EMAIL_DOMAIN') ||
       this.config.get<string>('SES_FROM_DOMAIN') ||
@@ -1479,7 +1480,7 @@ export class RealtimeToolsService {
       .replace(/^-+|-+$/g, '')
       .slice(0, 32);
     const local = `no-reply+${slug || company?.company_id || 'company'}`;
-    const from = override || explicitFrom || `${local}@${domain}`;
+    const from = explicitFrom || override || `${local}@${domain}`;
     const display = rawName;
     return { from, display };
   }

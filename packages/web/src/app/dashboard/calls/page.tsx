@@ -36,19 +36,6 @@ interface Call {
   collected_info?: any;
 }
 
-interface ContactRecord {
-  contact_id: string;
-  phone_number?: string;
-  phone?: string;
-}
-
-interface AppointmentRecord {
-  contact_phone?: string;
-  status?: string;
-}
-
-type CallerType = 'Customer' | 'Returning' | 'New';
-
 export default function CallsPage() {
   const router = useRouter();
   const basePath = usePortalBasePath();
@@ -62,8 +49,6 @@ export default function CallsPage() {
   const [pageKeys, setPageKeys] = useState<(string | null)[]>([null]);
   const [totalPages, setTotalPages] = useState<number | null>(null);
   const [isPaging, setIsPaging] = useState(false);
-  const [knownContactPhones, setKnownContactPhones] = useState<Set<string>>(new Set());
-  const [customerPhones, setCustomerPhones] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -75,7 +60,6 @@ export default function CallsPage() {
   useEffect(() => {
     void loadCallsPage(1, true);
     void loadTotalCount();
-    void loadCustomerContext();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [contactFilter]);
 
@@ -196,75 +180,20 @@ export default function CallsPage() {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const loadCustomerContext = async () => {
-    try {
-      const allContacts: ContactRecord[] = [];
-      let cursor: string | undefined;
-      let guard = 0;
-      do {
-        const res = await apiClient.getContacts(200, cursor);
-        const pageContacts = (res?.contacts || []) as ContactRecord[];
-        allContacts.push(...pageContacts);
-        cursor = res?.lastEvaluatedKey ? JSON.stringify(res.lastEvaluatedKey) : undefined;
-        guard += 1;
-      } while (cursor && guard < 30);
-
-      const now = new Date();
-      const start = new Date(now);
-      start.setDate(start.getDate() - 365);
-      const end = new Date(now);
-      end.setDate(end.getDate() + 365);
-      const apptsRes = await apiClient.getAppointmentsRange(start.toISOString(), end.toISOString());
-      const appointments = (apptsRes?.appointments || []) as AppointmentRecord[];
-
-      const contactSet = new Set<string>();
-      for (const c of allContacts) {
-        const normalized = normalizePhone(c.phone_number || c.phone);
-        if (normalized) contactSet.add(normalized);
-      }
-
-      const customerSet = new Set<string>();
-      for (const a of appointments) {
-        const status = String(a.status || '').toUpperCase();
-        if (status === 'CANCELLED') continue;
-        const normalized = normalizePhone(a.contact_phone);
-        if (normalized) customerSet.add(normalized);
-      }
-
-      setKnownContactPhones(contactSet);
-      setCustomerPhones(customerSet);
-    } catch (err) {
-      console.error('Error loading customer context:', err);
+  const getCallTag = (call: Call) => {
+    const status = String(call.status || '').toUpperCase();
+    if (status === 'IN_PROGRESS' || status === 'RINGING') {
+      return { label: 'In Progress', className: 'bg-indigo-50 text-indigo-700 border-indigo-200' };
     }
-  };
 
-  const callCountsByPhone = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const call of calls) {
-      const normalized = normalizePhone(call.caller_phone);
-      if (!normalized) continue;
-      counts.set(normalized, (counts.get(normalized) || 0) + 1);
+    const outcome = String(call.outcome || '').toUpperCase();
+    if (outcome === 'APPOINTMENT_BOOKED' || call.appointment_created || call.appointment_id) {
+      return { label: 'Booked', className: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
     }
-    return counts;
-  }, [calls]);
-
-  const getCallerType = (call: Call): CallerType => {
-    const normalized = normalizePhone(call.caller_phone);
-    if (!normalized) return 'New';
-    if (customerPhones.has(normalized)) return 'Customer';
-    if (knownContactPhones.has(normalized)) return 'Returning';
-    if ((callCountsByPhone.get(normalized) || 0) > 1) return 'Returning';
-    return 'New';
-  };
-
-  const callerTypeBadge = (callerType: CallerType) => {
-    if (callerType === 'Customer') {
-      return { label: 'Customer', className: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
+    if (outcome === 'LEAD' || call.lead_captured) {
+      return { label: 'Lead', className: 'bg-amber-50 text-amber-800 border-amber-200' };
     }
-    if (callerType === 'Returning') {
-      return { label: 'Returning', className: 'bg-amber-50 text-amber-800 border-amber-200' };
-    }
-    return { label: 'New', className: 'bg-sky-50 text-sky-700 border-sky-200' };
+    return { label: 'No Lead', className: 'bg-gray-50 text-gray-700 border-gray-200' };
   };
 
   const paginationOptions = useMemo(() => {
@@ -419,7 +348,7 @@ export default function CallsPage() {
                           {call.caller_name || formatPhone(call.caller_phone)}
                         </div>
                         {(() => {
-                          const badge = callerTypeBadge(getCallerType(call));
+                          const badge = getCallTag(call);
                           return (
                             <Badge variant="outline" className={badge.className}>
                               {badge.label}
