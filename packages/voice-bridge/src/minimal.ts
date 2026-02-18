@@ -34,16 +34,9 @@ function envFlag(name: string, defaultValue = false): boolean {
   return defaultValue;
 }
 
-function parseNumber(value: string | undefined, fallback: number, min?: number, max?: number): number {
-  const parsed = value !== undefined ? Number(value) : fallback;
-  if (!Number.isFinite(parsed)) return fallback;
-  if (typeof min === 'number' && parsed < min) return min;
-  if (typeof max === 'number' && parsed > max) return max;
-  return parsed;
-}
-
 const safeDiagEnabled = envFlag('VOICE_BRIDGE_SAFE_DIAG', false);
-const elevenLabsEnabled = envFlag('VOICE_BRIDGE_USE_ELEVENLABS', false);
+// OpenAI audio is now the only supported runtime TTS path.
+const elevenLabsEnabled = false;
 
 function diag(event: string, payload?: Record<string, unknown>) {
   if (!safeDiagEnabled) return;
@@ -202,42 +195,6 @@ async function postJson(url: string, headers: Record<string, string>, body: any)
   return text ? JSON.parse(text) : {};
 }
 
-async function resolveElevenLabsConfig() {
-  let apiKey = envFirst(['ELEVENLABS_API_KEY', 'ELEVENLABS_KEY', 'ELEVEN_LABS_API_KEY']) || '';
-  if (apiKey && isPlaceholderSecret(apiKey)) {
-    apiKey = '';
-  }
-  if (!apiKey) {
-    try {
-      apiKey = await getSecret('ELEVENLABS_API_KEY');
-    } catch (err: any) {
-      console.warn('[elevenlabs] secret lookup failed', err?.message ?? String(err));
-    }
-  }
-  const voiceId = envFirst(['ELEVENLABS_VOICE_ID', 'ELEVEN_LABS_VOICE_ID']) || '';
-  const modelId = envFirst(['ELEVENLABS_MODEL_ID', 'ELEVEN_LABS_MODEL_ID']) || 'eleven_turbo_v2_5';
-  const optimizeStreamingLatency = parseNumber(
-    envFirst(['ELEVENLABS_OPTIMIZE_STREAMING_LATENCY', 'ELEVEN_LABS_OPTIMIZE_STREAMING_LATENCY']),
-    1,
-    0,
-    4
-  );
-  const outputFormat = envFirst(['ELEVENLABS_OUTPUT_FORMAT', 'ELEVEN_LABS_OUTPUT_FORMAT']) || 'mp3_22050_32';
-  const voiceSettings: ElevenLabsVoiceSettings = {
-    stability: parseNumber(envFirst(['ELEVENLABS_STABILITY', 'ELEVEN_LABS_STABILITY']), 0.55, 0, 1),
-    similarity_boost: parseNumber(
-      envFirst(['ELEVENLABS_SIMILARITY_BOOST', 'ELEVEN_LABS_SIMILARITY_BOOST']),
-      0.75,
-      0,
-      1
-    ),
-    style: parseNumber(envFirst(['ELEVENLABS_STYLE', 'ELEVEN_LABS_STYLE']), 0.1, 0, 1),
-    use_speaker_boost: envFlag('ELEVENLABS_SPEAKER_BOOST', true),
-  };
-  if (!apiKey || !voiceId) return null;
-  return { apiKey, voiceId, modelId, optimizeStreamingLatency, outputFormat, voiceSettings };
-}
-
 async function elevenLabsStreamTts(
   params: {
     apiKey: string;
@@ -357,6 +314,8 @@ type TenantInfo = {
   agent_config?: {
     realtime_model?: string;
     realtime_voice?: string;
+    model?: string;
+    voice?: string;
     realtime_instructions?: string;
   };
   service_template?: any;
@@ -1650,12 +1609,14 @@ wss.on('connection', (twilioWs: WebSocket) => {
   async function connectOpenAI(tenant: TenantInfo) {
     const model =
       tenant?.agent_config?.realtime_model ||
+      tenant?.agent_config?.model ||
       envFirst(['OPENAI_REALTIME_MODEL', 'REALTIME_MODEL']) ||
-      'gpt-realtime-mini';
+      'gpt-realtime';
     const voice =
       tenant?.agent_config?.realtime_voice ||
+      tenant?.agent_config?.voice ||
       envFirst(['OPENAI_REALTIME_VOICE', 'REALTIME_VOICE']) ||
-      'alloy';
+      'marin';
     const instructions = buildInstructions(tenant, {
       serviceAreaRequired,
     });
@@ -2255,13 +2216,13 @@ wss.on('connection', (twilioWs: WebSocket) => {
       }
 
       twilioReady = true;
-      elevenLabsConfig = await resolveElevenLabsConfig();
-      useElevenLabs = Boolean(elevenLabsConfig) && elevenLabsEnabled;
+      elevenLabsConfig = null;
+      useElevenLabs = false;
       diag('call.audio_path', {
         callSid,
+        provider: 'openai_realtime',
         useElevenLabs,
         elevenLabsEnabled,
-        elevenModel: elevenLabsConfig?.modelId || '',
       });
       await connectOpenAI(resolvedTenant);
 

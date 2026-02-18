@@ -564,8 +564,11 @@ export class RealtimeToolsService {
       call_handling_mode: (company as any).call_handling_mode || CallHandlingMode.ALWAYS,
       agent_config: config ? {
         language: (config as any).language || 'en',
-        voice: (config as any).voice || 'alloy',
-        model: (config as any).model || 'gpt-4o-realtime-preview-2024-10-01',
+        realtime_voice: (config as any).realtime_voice || (config as any).voice || 'marin',
+        realtime_model: (config as any).realtime_model || (config as any).model || 'gpt-realtime',
+        // Keep legacy keys for older bridge clients.
+        voice: (config as any).realtime_voice || (config as any).voice || 'marin',
+        model: (config as any).realtime_model || (config as any).model || 'gpt-realtime',
         extra_instructions: (config as any).custom_greeting || ''
       } : undefined
     };
