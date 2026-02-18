@@ -375,6 +375,18 @@ type ActiveCallState = {
 const activeCalls = new Map<string, ActiveCallState>();
 
 const fillerUtterances = new Set(['mhm', 'mm', 'uh', 'um', 'uh-huh', 'uh huh', 'hmm', 'hm', 'ok', 'okay', 'yeah', 'yep']);
+const shortAcknowledgements = new Set([
+  'yes',
+  'yeah',
+  'yep',
+  'yup',
+  'ok',
+  'okay',
+  'correct',
+  'right',
+  'sure',
+  'sounds good',
+]);
 const shortIntentKeywords = new Set([
   'yes',
   'no',
@@ -418,6 +430,18 @@ function isExplicitBargeIn(text: string) {
     'pause',
     'actually',
   ].some((phrase) => t === phrase || t.startsWith(`${phrase} `) || t.includes(phrase));
+}
+
+function normalizeShortAck(text?: string): string {
+  return normalizeSpeech(text);
+}
+
+function isShortAcknowledgement(text?: string): boolean {
+  const normalized = normalizeShortAck(text);
+  if (!normalized) return false;
+  if (shortAcknowledgements.has(normalized)) return true;
+  const words = normalized.split(' ').filter(Boolean);
+  return words.length <= 2 && words.every((word) => shortAcknowledgements.has(word));
 }
 
 function resolveTransferTarget(queue?: string): string | null {
@@ -785,19 +809,20 @@ function buildInstructions(tenant: TenantInfo, options: { serviceAreaRequired: b
     `If the ZIP is not serviced, apologize and end the call politely.`,
     requiredFields ? `Required intake fields to collect before booking: ${requiredFields}.` : null,
     optionalFields ? `Optional fields (collect only if relevant): ${optionalFields}.` : null,
-    `You MUST collect EVERY required intake field before asking about scheduling. Do not skip any. Go through each required field one at a time. Do not move to preferred time until all other required fields (including address if required) have been collected.`,
-    `Ask for preferred day/time, call get_availability, then offer available slots.`,
+    `You MUST collect EVERY required intake field before asking about scheduling. Do not skip any. Ask one missing field at a time.`,
+    `Do NOT ask for preferred date/time until all non-time required fields are collected (including address when required).`,
+    `After all non-time required fields are collected, give ONE short natural recap in 1-2 sentences (no labels), then ask for preferred day/time.`,
+    `Never use checklist labels like "Name:" or "Address:" when recapping details.`,
+    `Then call get_availability and offer available slots.`,
     `Never claim a time is available unless get_availability returns it. If a requested time is unavailable, say so and offer available slots from get_availability.`,
     `If get_availability returns closed_day=true, tell the caller that day is closed and ask for another day.`,
     `If get_availability includes suggested_time_only, ONLY offer those times (max 3). Do not invent times.`,
-    `If a requested time is available, say exactly: "That time is available. Let me book it for you." Then continue with booking (do not ask to confirm the time).`,
-    `If the caller shares a time early, acknowledge it and say you'll confirm after collecting the remaining required details.`,
-    `Only provide ONE summary, after ALL required intake fields (including address if required) AND a specific time slot have been collected. Do not summarize early or multiple times.`,
-    `Never summarize immediately after the caller gives a time; finish collecting missing details first.`,
+    `If a requested time is available, say exactly: "That time is available. Let me book it for you." Then continue.`,
+    `If the caller shares a time early, acknowledge it briefly and continue collecting missing required fields first.`,
+    `Do not give another recap after availability. Keep moving forward.`,
     `Never provide more than one summary per call.`,
-    `The summary must sound natural and conversational in 1-2 short sentences.`,
-    `Do not read a checklist or label-value list during the summary.`,
-    `Before booking, summarize the details and ask for confirmation. Only then call create_booking with confirmed=true.`,
+    `If the caller says yes after your recap, call create_booking immediately. Do not repeat the same recap or confirmation question.`,
+    `Before booking, ask for confirmation once, then call create_booking with confirmed=true.`,
     `When calling create_booking, you MUST include ALL collected intake fields in the details object—not just the most recent ones. Include every field you gathered during the conversation (name, address, zip, service details, etc.).`,
     `If create_booking returns a MissingRequiredFields error, ask ONLY for the specific fields listed in missing_fields. Do NOT re-ask for information you already collected. Then retry create_booking with ALL collected fields (old and new) in the details object.`,
     `After create_booking succeeds, ask for the best email to send the confirmation link.`,
@@ -827,48 +852,73 @@ async function callTool(ctx: CallContext, name: string, args: any) {
   const toolsBase = requireEnvFirst(['TOOLS_API_BASE_URL', 'HANDYCALL_BACKEND_BASE_URL']).replace(/\/$/, '');
   const toolsKey = requireEnvFirst(['TOOLS_API_KEY', 'HANDYCALL_TOOLS_API_KEY']);
   const headers = { 'x-handycall-tools-key': toolsKey };
+  const timed = async <T>(fn: () => Promise<T> | T): Promise<T> => {
+    const startedAt = Date.now();
+    try {
+      const result = await fn();
+      const output: any = result as any;
+      const payload: Record<string, unknown> = {
+        callSid: ctx.callSid,
+        tool: name,
+        ms: Date.now() - startedAt,
+      };
+      if (typeof output?.ok === 'boolean') payload.ok = output.ok;
+      if (typeof output?.error === 'string') payload.error = output.error;
+      if (name === 'get_availability' && Array.isArray(output?.slots)) payload.slot_count = output.slots.length;
+      diag('tool.result', payload);
+      return result;
+    } catch (err: any) {
+      diag('tool.error', {
+        callSid: ctx.callSid,
+        tool: name,
+        ms: Date.now() - startedAt,
+        error: err?.message ?? String(err),
+      });
+      throw err;
+    }
+  };
 
   if (name === 'knowledge_search') {
-    return postJson(`${toolsBase}/tools/knowledge_search`, headers, {
+    return timed(() => postJson(`${toolsBase}/tools/knowledge_search`, headers, {
       company_id: ctx.company_id,
       query: args?.query ?? '',
       top_k: args?.top_k,
-    });
+    }));
   }
 
   if (name === 'check_service_area') {
-    return postJson(`${toolsBase}/tools/check_service_area`, headers, {
+    return timed(() => postJson(`${toolsBase}/tools/check_service_area`, headers, {
       company_id: ctx.company_id,
       zip: args?.zip ?? '',
-    });
+    }));
   }
 
   if (name === 'get_availability') {
     const startTime = args?.start_time ?? args?.preferred_time ?? args?.window_start;
     const endTime = args?.end_time ?? args?.window_end;
     if (!startTime) {
-      return { ok: false, error: 'MissingStartTime', message: 'start_time is required' };
+      return timed(() => ({ ok: false, error: 'MissingStartTime', message: 'start_time is required' }));
     }
-    return postJson(`${toolsBase}/tools/get_availability`, headers, {
+    return timed(() => postJson(`${toolsBase}/tools/get_availability`, headers, {
       company_id: ctx.company_id,
       start_time: startTime,
       end_time: endTime,
       timezone: ctx.timezone ?? args?.timezone,
-    });
+    }));
   }
 
   if (name === 'create_booking') {
     const confirmed = typeof args?.confirmed === 'boolean' ? args.confirmed : true;
     if (!confirmed) {
-      return {
+      return timed(() => ({
         ok: false,
         error: 'BookingNotConfirmed',
         message: 'You must confirm booking details with the user first.',
-      };
+      }));
     }
     const startTime = args?.start_time ?? args?.preferred_time;
     if (!startTime) {
-      return { ok: false, error: 'MissingStartTime', message: 'start_time is required' };
+      return timed(() => ({ ok: false, error: 'MissingStartTime', message: 'start_time is required' }));
     }
     const customerName =
       typeof args?.customer_name === 'string'
@@ -876,7 +926,7 @@ async function callTool(ctx: CallContext, name: string, args: any) {
         : typeof args?.full_name === 'string'
           ? args.full_name
           : undefined;
-    return postJson(`${toolsBase}/tools/create_booking`, headers, {
+    return timed(() => postJson(`${toolsBase}/tools/create_booking`, headers, {
       company_id: ctx.company_id,
       call_id: ctx.callSid,
       ...args,
@@ -885,17 +935,17 @@ async function callTool(ctx: CallContext, name: string, args: any) {
       end_time: args?.end_time,
       timezone: ctx.timezone ?? args?.timezone,
       confirmed,
-    });
+    }));
   }
 
   if (name === 'hold_slot') {
-    return postJson(`${toolsBase}/tools/hold_slot`, headers, {
+    return timed(() => postJson(`${toolsBase}/tools/hold_slot`, headers, {
       company_id: ctx.company_id,
       call_id: ctx.callSid,
       slot: args?.slot ?? args?.start_time ?? '',
       timezone: ctx.timezone ?? args?.timezone,
       hold_minutes: args?.hold_minutes,
-    });
+    }));
   }
 
   if (name === 'list_appointments_by_phone') {
@@ -970,16 +1020,16 @@ async function callTool(ctx: CallContext, name: string, args: any) {
   }
 
   if (name === 'start_call') {
-    return postJson(`${toolsBase}/tools/start_call`, headers, {
+    return timed(() => postJson(`${toolsBase}/tools/start_call`, headers, {
       company_id: ctx.company_id,
       call_id: ctx.callSid,
       from_number: ctx.from,
       to_number: ctx.to,
-    });
+    }));
   }
 
   if (name === 'save_call') {
-    return postJson(`${toolsBase}/tools/save_call`, headers, {
+    return timed(() => postJson(`${toolsBase}/tools/save_call`, headers, {
       company_id: ctx.company_id,
       call_id: ctx.callSid,
       transcript: args?.transcript,
@@ -987,24 +1037,24 @@ async function callTool(ctx: CallContext, name: string, args: any) {
       duration_seconds: args?.duration_seconds,
       collected_info: args?.collected_info,
       skip_contact_update: args?.skip_contact_update,
-    });
+    }));
   }
 
   if (name === 'save_recording') {
-    return postJson(`${toolsBase}/tools/save_recording`, headers, {
+    return timed(() => postJson(`${toolsBase}/tools/save_recording`, headers, {
       company_id: ctx.company_id,
       call_id: ctx.callSid,
       recording_sid: args?.recording_sid,
       duration_seconds: args?.duration_seconds,
-    });
+    }));
   }
 
   if (name === 'send_booking_link') {
-    return postJson(`${toolsBase}/tools/send_booking_link`, headers, {
+    return timed(() => postJson(`${toolsBase}/tools/send_booking_link`, headers, {
       company_id: ctx.company_id,
       call_id: ctx.callSid,
       email: args?.email ?? '',
-    });
+    }));
   }
 
   if (name === 'end_call') {
@@ -1293,6 +1343,8 @@ wss.on('connection', (twilioWs: WebSocket) => {
   let requiredIntakeFields: string[] = [];
   let collectedDetails: Record<string, any> = {};
   let lastCallerUtterance: string | null = null;
+  let lastShortAckNormalized = '';
+  let lastShortAckAt = 0;
   let diagTtsSeq = 0;
   let diagTwilioInboundLogged = false;
   let diagOpenAIAudioLogged = false;
@@ -1362,6 +1414,18 @@ wss.on('connection', (twilioWs: WebSocket) => {
       reason,
       speechMs: speechActiveStartedAt ? now - speechActiveStartedAt : undefined,
     });
+  }
+
+  function callerLikelyProvidedAddress(): boolean {
+    const streetPattern = /\b(street|st|avenue|ave|road|rd|drive|dr|lane|ln|boulevard|blvd|court|ct|way|circle|cir|trail|trl)\b/i;
+    for (let i = transcript.length - 1; i >= 0; i -= 1) {
+      const line = transcript[i];
+      if (!line.startsWith('Caller:')) continue;
+      const text = line.replace(/^Caller:\s*/, '');
+      if (/my address/i.test(text)) return true;
+      if (/\d{2,}/.test(text) && streetPattern.test(text)) return true;
+    }
+    return false;
   }
 
   async function speakWithElevenLabs(text: string) {
@@ -1715,6 +1779,26 @@ wss.on('connection', (twilioWs: WebSocket) => {
         }
 
         const trimmed = String(text).trim();
+        const now = Date.now();
+        const normalizedShortAck = normalizeShortAck(trimmed);
+        if (
+          isShortAcknowledgement(trimmed) &&
+          normalizedShortAck &&
+          normalizedShortAck === lastShortAckNormalized &&
+          now - lastShortAckAt < 2500
+        ) {
+          diag('caller.duplicate_short_ack_ignored', {
+            callSid: ctx?.callSid || '',
+            text: normalizedShortAck,
+            elapsed_ms: now - lastShortAckAt,
+          });
+          return;
+        }
+        if (isShortAcknowledgement(trimmed) && normalizedShortAck) {
+          lastShortAckNormalized = normalizedShortAck;
+          lastShortAckAt = now;
+        }
+
         const recentSpeech = lastSpeechStartAt && Date.now() - lastSpeechStartAt < 3500;
         if (!recentSpeech && trimmed.length < 6) {
           return;
@@ -1738,8 +1822,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
           if (!explicitInterrupt) {
             return;
           }
-          sendToOpenAI(openaiWs, { type: 'response.cancel' });
-          openaiResponding = false;
+          interruptAssistant('transcript_explicit_interrupt');
         }
 
         if (appointmentCreated && lastAssistantAskedFollowUp && isNegativeResponse(trimmed) && ctx) {
@@ -1842,6 +1925,19 @@ wss.on('connection', (twilioWs: WebSocket) => {
               }
             }
             args = { ...args, start_time: startTime, timezone: normalizedTimezone };
+
+            const requiresAddress = requiredIntakeFields.some((field) => normalizeFieldKey(field) === 'address');
+            const hasAddressInState = isFieldPresent('address', { details: collectedDetails });
+            const hasAddressInArgs = isFieldPresent('address', args);
+            if (requiresAddress && !hasAddressInState && !hasAddressInArgs && !callerLikelyProvidedAddress()) {
+              result = {
+                ok: false,
+                error: 'AddressRequiredBeforeScheduling',
+                missing_fields: ['address'],
+                message:
+                  'Before checking availability, ask ONLY for the service address. Do not recap details yet. After collecting address, then check availability.',
+              };
+            }
           }
 
           if (toolName === 'create_booking') {
@@ -1883,7 +1979,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
                 error: 'MissingRequiredFields',
                 missing_fields: missingFields,
                 already_collected: presentFields,
-                message: `The details object is missing: ${missingFields.map((f) => titleizeField(f)).join(', ')}. Ask the caller ONLY for these missing fields. Do NOT re-ask for fields you already have (${presentFields.map((f) => titleizeField(f)).join(', ')}). When you retry create_booking, include ALL fields in the details object.`,
+                message: `The details object is missing: ${missingFields.map((f) => titleizeField(f)).join(', ')}. Ask ONLY for these missing fields in one short sentence. Do NOT recap or summarize yet. Do NOT use label-style wording like "Name:" or "Address:". Do NOT re-ask fields already collected (${presentFields.map((f) => titleizeField(f)).join(', ')}). When retrying create_booking, include ALL collected fields in details.`,
               };
             }
             let resolvedSlot: string | null = null;

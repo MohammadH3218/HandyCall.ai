@@ -1068,6 +1068,7 @@ export class RealtimeToolsService {
   }
 
   async getAvailability(dto: GetAvailabilityDto) {
+    const startedAt = Date.now();
     const company_id = dto.company_id;
     if (!company_id) throw new BadRequestException('company_id is required');
 
@@ -1280,6 +1281,14 @@ export class RealtimeToolsService {
       const sample = timeOnlySlots.slice(0, 3);
       spokenAvailability = `I have ${sample.join(', ')}. Which time works best?`;
     }
+
+    console.log('[getAvailability:done]', {
+      company_id,
+      duration_ms: Date.now() - startedAt,
+      slot_count: slots.length,
+      requested_time_available,
+      closed_day: closedDay,
+    });
 
     return {
       ok: true,
