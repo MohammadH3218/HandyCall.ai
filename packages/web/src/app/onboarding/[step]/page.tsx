@@ -52,6 +52,54 @@ const TIMEZONES = [
   { value: 'Pacific/Honolulu', label: 'Hawaii (HST)' },
 ];
 
+const CALENDAR_WEEKDAYS: Array<{ key: string; label: string; longKey: string }> = [
+  { key: 'mon', label: 'Mon', longKey: 'monday' },
+  { key: 'tue', label: 'Tue', longKey: 'tuesday' },
+  { key: 'wed', label: 'Wed', longKey: 'wednesday' },
+  { key: 'thu', label: 'Thu', longKey: 'thursday' },
+  { key: 'fri', label: 'Fri', longKey: 'friday' },
+  { key: 'sat', label: 'Sat', longKey: 'saturday' },
+  { key: 'sun', label: 'Sun', longKey: 'sunday' },
+];
+
+type CalendarDayDraft = {
+  closed: boolean;
+  open: string;
+  close: string;
+};
+
+type CalendarHoursDraft = Record<string, CalendarDayDraft>;
+
+function normalizeCalendarHours(raw: any): CalendarHoursDraft {
+  const output: CalendarHoursDraft = {};
+  for (const day of CALENDAR_WEEKDAYS) {
+    const candidate = raw?.[day.key] || raw?.[day.longKey] || {};
+    const segments = Array.isArray(candidate?.segments) ? candidate.segments : [];
+    const segment = segments.find((s: any) => s?.open && s?.close);
+    const open = String(segment?.open || candidate?.open || '09:00');
+    const close = String(segment?.close || candidate?.close || '17:00');
+    const closed = candidate?.closed === true || !(segment || (candidate?.open && candidate?.close));
+    output[day.key] = { closed, open, close };
+  }
+  return output;
+}
+
+function compactCalendarHours(draft: CalendarHoursDraft) {
+  const result: Record<string, any> = {};
+  for (const day of CALENDAR_WEEKDAYS) {
+    const item = draft[day.key];
+    if (!item || item.closed) {
+      result[day.key] = { closed: true };
+      continue;
+    }
+    result[day.key] = {
+      closed: false,
+      segments: [{ open: item.open, close: item.close }],
+    };
+  }
+  return result;
+}
+
 const PRICING_MODEL_OPTIONS: Array<{
   value: CompanyPricingModel;
   label: string;
@@ -1471,6 +1519,22 @@ function CalendarStep({ nextStep }: { nextStep?: OnboardingStepId }) {
   const [showAppleForm, setShowAppleForm] = useState(false);
   const [appleEmail, setAppleEmail] = useState('');
   const [applePassword, setApplePassword] = useState('');
+  const [calendarModeChoice, setCalendarModeChoice] = useState<'INTERNAL' | 'EXTERNAL'>(
+    company?.calendar_mode === 'EXTERNAL' ? 'EXTERNAL' : 'INTERNAL'
+  );
+  const [calendarTimezone, setCalendarTimezone] = useState(company?.timezone || 'America/New_York');
+  const [calendarHoursDraft, setCalendarHoursDraft] = useState<CalendarHoursDraft>(() =>
+    normalizeCalendarHours(company?.business_hours)
+  );
+
+  useEffect(() => {
+    setCalendarModeChoice(company?.calendar_mode === 'EXTERNAL' ? 'EXTERNAL' : 'INTERNAL');
+    setCalendarTimezone(company?.timezone || 'America/New_York');
+    setCalendarHoursDraft(normalizeCalendarHours(company?.business_hours));
+  }, [company]);
+
+  const hasHoursConfigured = CALENDAR_WEEKDAYS.some((day) => !calendarHoursDraft[day.key]?.closed);
+  const scheduleSetupComplete = Boolean(calendarTimezone) && hasHoursConfigured;
 
   const calendarStatusLabel =
     company?.calendar_provider && company.calendar_provider !== 'NONE'
@@ -1479,14 +1543,30 @@ function CalendarStep({ nextStep }: { nextStep?: OnboardingStepId }) {
       ? 'HandyCall calendar active'
       : 'Not connected yet';
 
+  const persistScheduleSetup = async (mode: 'INTERNAL' | 'EXTERNAL', options?: { calendarReady?: boolean }) => {
+    const updates: any = {
+      calendar_mode: mode,
+      timezone: calendarTimezone,
+      business_hours: compactCalendarHours(calendarHoursDraft),
+      schedule_setup_completed: scheduleSetupComplete,
+      calendar_setup_completed: options?.calendarReady === true,
+    };
+    if (mode === 'INTERNAL') updates.calendar_provider = 'NONE';
+    return apiClient.updateMyCompany(updates);
+  };
+
   const handleUseInternal = async () => {
+    if (!scheduleSetupComplete) {
+      toast({
+        title: 'Set hours first',
+        description: 'Choose your timezone and at least one open day before continuing.',
+        variant: 'destructive',
+      });
+      return;
+    }
     setSaving(true);
     try {
-      const updated = await apiClient.updateMyCompany({
-        calendar_mode: 'INTERNAL',
-        calendar_provider: 'NONE',
-        calendar_setup_completed: true,
-      });
+      const updated = await persistScheduleSetup('INTERNAL', { calendarReady: true });
       setCompany(updated);
       await refreshAll();
       toast({
@@ -1513,11 +1593,33 @@ function CalendarStep({ nextStep }: { nextStep?: OnboardingStepId }) {
       });
       return;
     }
+    if (!scheduleSetupComplete) {
+      toast({
+        title: 'Set hours first',
+        description: 'Choose your timezone and at least one open day before connecting a calendar.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    setSaving(true);
     if (selectedProvider === 'APPLE') {
+      try {
+        await persistScheduleSetup('EXTERNAL', { calendarReady: false });
+      } catch (err: any) {
+        toast({
+          title: 'Setup failed',
+          description: err?.message || 'Unable to save schedule settings.',
+          variant: 'destructive',
+        });
+        setSaving(false);
+        return;
+      }
+      setSaving(false);
       setShowAppleForm(true);
       return;
     }
     try {
+      await persistScheduleSetup('EXTERNAL', { calendarReady: false });
       const res =
         selectedProvider === 'GOOGLE'
           ? await apiClient.getGoogleCalendarAuthUrl()
@@ -1531,11 +1633,23 @@ function CalendarStep({ nextStep }: { nextStep?: OnboardingStepId }) {
         description: err?.message || 'Unable to start calendar connection.',
         variant: 'destructive',
       });
+    } finally {
+      setSaving(false);
     }
   };
 
   const handleConnectApple = async () => {
+    if (!scheduleSetupComplete) {
+      toast({
+        title: 'Set hours first',
+        description: 'Choose your timezone and at least one open day before connecting Apple Calendar.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    setSaving(true);
     try {
+      await persistScheduleSetup('EXTERNAL', { calendarReady: false });
       await apiClient.connectAppleCalendar(appleEmail, applePassword);
       await refreshAll();
       toast({
@@ -1552,6 +1666,8 @@ function CalendarStep({ nextStep }: { nextStep?: OnboardingStepId }) {
         description: err?.message || 'Unable to connect Apple Calendar.',
         variant: 'destructive',
       });
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -1570,18 +1686,115 @@ function CalendarStep({ nextStep }: { nextStep?: OnboardingStepId }) {
             <CardDescription>{calendarStatusLabel}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex flex-wrap gap-2">
-              <Button onClick={handleUseInternal} disabled={saving}>
-                Use HandyCall calendar
-              </Button>
-              <Button variant="outline" onClick={() => setDialogOpen(true)}>
-                Connect existing calendar
-                <ExternalLink className="ml-2 h-4 w-4" />
-              </Button>
+            <div className="space-y-2">
+              <Label>Calendar mode</Label>
+              <div className="grid gap-2 md:grid-cols-2">
+                <Button
+                  type="button"
+                  variant={calendarModeChoice === 'INTERNAL' ? 'default' : 'outline'}
+                  onClick={() => setCalendarModeChoice('INTERNAL')}
+                >
+                  Use HandyCall calendar
+                </Button>
+                <Button
+                  type="button"
+                  variant={calendarModeChoice === 'EXTERNAL' ? 'default' : 'outline'}
+                  onClick={() => setCalendarModeChoice('EXTERNAL')}
+                >
+                  Connect existing calendar
+                </Button>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="calendar-timezone">Timezone</Label>
+              <Select value={calendarTimezone} onValueChange={setCalendarTimezone}>
+                <SelectTrigger id="calendar-timezone">
+                  <SelectValue placeholder="Select timezone" />
+                </SelectTrigger>
+                <SelectContent>
+                  {TIMEZONES.map((tz) => (
+                    <SelectItem key={tz.value} value={tz.value}>
+                      {tz.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-4">
+              <p className="text-sm font-semibold text-slate-900">Open/closed hours</p>
+              <p className="mt-1 text-xs text-slate-600">Set at least one open day so callers can book valid times.</p>
+              <div className="mt-4 space-y-3">
+                {CALENDAR_WEEKDAYS.map((day) => {
+                  const row = calendarHoursDraft[day.key] || { closed: true, open: '09:00', close: '17:00' };
+                  return (
+                    <div key={day.key} className="rounded-lg border border-slate-200 bg-white p-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-sm font-semibold text-slate-900">{day.label}</p>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant={row.closed ? 'outline' : 'default'}
+                          onClick={() =>
+                            setCalendarHoursDraft((prev) => ({
+                              ...prev,
+                              [day.key]: { ...row, closed: !row.closed },
+                            }))
+                          }
+                        >
+                          {row.closed ? 'Closed' : 'Open'}
+                        </Button>
+                      </div>
+                      {!row.closed && (
+                        <div className="mt-3 grid gap-2 md:grid-cols-[1fr_auto_1fr] md:items-center">
+                          <Input
+                            type="time"
+                            value={row.open}
+                            onChange={(e) =>
+                              setCalendarHoursDraft((prev) => ({
+                                ...prev,
+                                [day.key]: { ...row, open: e.target.value || '09:00' },
+                              }))
+                            }
+                          />
+                          <span className="text-center text-sm text-slate-500">to</span>
+                          <Input
+                            type="time"
+                            value={row.close}
+                            onChange={(e) =>
+                              setCalendarHoursDraft((prev) => ({
+                                ...prev,
+                                [day.key]: { ...row, close: e.target.value || '17:00' },
+                              }))
+                            }
+                          />
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
 
             <div className="rounded-xl border border-emerald-100 bg-emerald-50/60 p-4 text-sm text-emerald-900">
-              We recommend connecting Google or Outlook if you already manage bookings there.
+              {calendarModeChoice === 'INTERNAL'
+                ? 'Use HandyCall calendar for fastest setup and built-in booking automation.'
+                : 'Connect Google, Outlook, or Apple if you already manage your schedule there.'}
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <Button onClick={handleUseInternal} disabled={saving || calendarModeChoice !== 'INTERNAL'}>
+                Save and use HandyCall calendar
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => setDialogOpen(true)}
+                disabled={saving || calendarModeChoice !== 'EXTERNAL'}
+              >
+                Save and connect calendar
+                <ExternalLink className="ml-2 h-4 w-4" />
+              </Button>
             </div>
 
             <div className="flex justify-end gap-3 pt-2">
