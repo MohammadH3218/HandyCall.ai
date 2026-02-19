@@ -933,17 +933,18 @@ export default function AppointmentsPage() {
         subtitle="Manage bookings, calendars, and availability in one place."
         actions={
           <>
-            {isExternalCalendarConnected ? (
+            {isCalendarSetupComplete ? (
               <Button variant="outline" onClick={handleOpenCalendarSettings}>
                 <Settings className="h-4 w-4 mr-2" />
                 Calendar Settings
               </Button>
-            ) : (
+            ) : null}
+            {!isExternalCalendarConnected ? (
               <Button variant="outline" onClick={() => setIsCalendarProviderDialogOpen(true)}>
                 <ExternalLink className="h-4 w-4 mr-2" />
                 Connect Calendar
               </Button>
-            )}
+            ) : null}
             <Button onClick={() => setIsCreateOpen(true)} disabled={!isCalendarSetupComplete}>
               <Plus className="h-4 w-4 mr-2" />
               New appointment
@@ -2080,14 +2081,18 @@ export default function AppointmentsPage() {
             </div>
 
             <div className="flex justify-between items-center pt-4 border-t">
-              <Button
-                variant="outline"
-                className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                onClick={() => setIsDeleteCalendarConfirmOpen(true)}
-              >
-                <Trash2 className="h-4 w-4 mr-2" />
-                Disconnect Calendar
-              </Button>
+              {isExternalCalendarConnected ? (
+                <Button
+                  variant="outline"
+                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                  onClick={() => setIsDeleteCalendarConfirmOpen(true)}
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Disconnect Calendar
+                </Button>
+              ) : (
+                <div />
+              )}
               <div className="flex gap-2">
                 <Button variant="outline" onClick={() => setIsCalendarSettingsOpen(false)}>
                   Cancel
