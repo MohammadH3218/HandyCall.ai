@@ -562,20 +562,29 @@ export class AuthService {
 
   async refreshWithCognito(refreshToken: string, email: string) {
     const result = await this.cognitoService.refreshAccessToken(refreshToken, email, 'auto');
+    const tokenClaims = this.decodeJwtClaims(result.idToken);
+    const normalizedEmail = (tokenClaims?.email as string | undefined) || email;
 
     if (result.poolType === 'admin') {
       return {
         access_token: result.accessToken,
         id_token: result.idToken,
-        email,
+        email: normalizedEmail,
         userRole: UserRole.ADMIN,
         isAdmin: true,
       };
     }
 
     // Users pool refresh: attach company context for customer users.
-    const userAttributes = await this.cognitoService.getUserAttributes(email, 'users');
-    const companyId = userAttributes?.['custom:company_id'];
+    let userAttributes: Record<string, string> = {};
+    try {
+      userAttributes = await this.cognitoService.getUserAttributes(normalizedEmail, 'users');
+    } catch {
+      userAttributes = {};
+    }
+    const companyId =
+      userAttributes?.['custom:company_id'] ||
+      ((tokenClaims?.['custom:company_id'] as string | undefined) ?? undefined);
 
     if (!companyId) {
       throw new UnauthorizedException('User not properly configured');
@@ -590,10 +599,24 @@ export class AuthService {
       access_token: result.accessToken,
       id_token: result.idToken,
       company,
-      email,
+      email: normalizedEmail,
       company_id: companyId,
       userRole: UserRole.OWNER,
     };
+  }
+
+  private decodeJwtClaims(token: string): Record<string, unknown> | null {
+    try {
+      const parts = token.split('.');
+      if (parts.length < 2) return null;
+      const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+      const padded = base64 + '='.repeat((4 - (base64.length % 4)) % 4);
+      const json = Buffer.from(padded, 'base64').toString('utf8');
+      const parsed = JSON.parse(json);
+      return parsed && typeof parsed === 'object' ? parsed : null;
+    } catch {
+      return null;
+    }
   }
 
   private getFrontendBaseUrl(): string {
