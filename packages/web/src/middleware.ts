@@ -52,9 +52,11 @@ export async function middleware(request: NextRequest) {
     secret: process.env.NEXTAUTH_SECRET,
   });
   const userRole = (token as any)?.userRole as string | undefined;
+  const tokenError = (token as any)?.error as string | undefined;
+  const hasBearer = Boolean((token as any)?.idToken || (token as any)?.accessToken);
 
   // Not signed in -> send to login with callback
-  if (!token) {
+  if (!token || tokenError || !hasBearer) {
     const loginUrl = new URL('/login', request.url);
     loginUrl.searchParams.set('callbackUrl', pathname);
     return NextResponse.redirect(loginUrl);

@@ -34,6 +34,7 @@ const isAdminRoute = () => {
 
 class ApiClient {
   private baseUrl: string;
+  private sessionExpiryRedirecting = false;
 
   constructor(baseUrl: string) {
     this.baseUrl = baseUrl;
@@ -42,6 +43,63 @@ class ApiClient {
   setAccessToken(token: string | null) {
     // Legacy method - no longer needed with BFF pattern
     // Tokens are handled server-side via NextAuth cookies
+  }
+
+  private isAuthFailureResponse(response: Response, data: any, message: string): boolean {
+    if (response.status === 401 || response.status === 403) return true;
+
+    const text = [
+      message,
+      data?.error?.message,
+      data?.message,
+      data?.error,
+      data?.raw,
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase();
+
+    return (
+      text.includes('invalid or expired token') ||
+      text.includes('invalid token') ||
+      text.includes('expired token') ||
+      text.includes('token expired') ||
+      text.includes('jwt expired') ||
+      text.includes('unauthorized') ||
+      text.includes('not authorized')
+    );
+  }
+
+  private async forceLogoutToLogin() {
+    if (typeof window === 'undefined') return;
+    if (this.sessionExpiryRedirecting) return;
+    this.sessionExpiryRedirecting = true;
+
+    try {
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('id_token');
+      localStorage.removeItem('refresh_token');
+      localStorage.removeItem('email');
+      localStorage.removeItem('user_role');
+      localStorage.removeItem('handycall-admin-company');
+    } catch {
+      // no-op
+    }
+
+    try {
+      window.dispatchEvent(new CustomEvent('handycall:session-expired'));
+    } catch {
+      // no-op
+    }
+
+    try {
+      const auth = await import('next-auth/react');
+      await auth.signOut({ redirect: false });
+    } catch {
+      // no-op
+    } finally {
+      window.location.assign('/login?reason=session_expired');
+    }
   }
 
   private async request<T>(
@@ -85,6 +143,9 @@ class ApiClient {
 
       if (!response.ok) {
         const errorMessage = data?.error?.message || data?.message || `Request failed with status ${response.status}`;
+        if (this.isAuthFailureResponse(response, data, errorMessage)) {
+          await this.forceLogoutToLogin();
+        }
         throw new Error(errorMessage);
       }
 

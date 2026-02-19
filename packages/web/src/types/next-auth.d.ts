@@ -6,6 +6,7 @@ declare module "next-auth" {
     accessToken?: string;
     idToken?: string;
     refreshToken?: string;
+    error?: string;
     userRole?: UserRole;
     poolType?: "users" | "admin";
     user: {
@@ -38,6 +39,7 @@ declare module "next-auth/jwt" {
     accessToken?: string;
     idToken?: string;
     refreshToken?: string;
+    error?: string;
     sub?: string;
     email?: string;
     userRole?: UserRole;

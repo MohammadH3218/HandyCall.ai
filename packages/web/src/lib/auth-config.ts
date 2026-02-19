@@ -60,9 +60,19 @@ function getTokenExpiryMs(token?: string) {
 
 async function refreshCognitoTokens(token: JWT): Promise<JWT> {
   const refreshToken = token.refreshToken as string | undefined;
-  const email = (token.email as string | undefined) || (token.sub as string | undefined);
+  const idToken = token.idToken as string | undefined;
+  const decoded = idToken ? decodeJWT(idToken) : null;
+  const email =
+    (token.email as string | undefined) ||
+    (decoded?.email as string | undefined) ||
+    (token.sub as string | undefined);
   if (!refreshToken || !email) {
-    return token;
+    return {
+      ...token,
+      accessToken: undefined,
+      idToken: undefined,
+      error: "RefreshAccessTokenError",
+    };
   }
 
   try {
@@ -73,7 +83,12 @@ async function refreshCognitoTokens(token: JWT): Promise<JWT> {
     });
 
     if (!response.ok) {
-      return token;
+      return {
+        ...token,
+        accessToken: undefined,
+        idToken: undefined,
+        error: "RefreshAccessTokenError",
+      };
     }
 
     const data = await response.json();
@@ -86,9 +101,15 @@ async function refreshCognitoTokens(token: JWT): Promise<JWT> {
       accessToken: accessToken || token.accessToken,
       idToken: idToken || token.idToken,
       refreshToken: nextRefreshToken,
+      error: undefined,
     };
   } catch {
-    return token;
+    return {
+      ...token,
+      accessToken: undefined,
+      idToken: undefined,
+      error: "RefreshAccessTokenError",
+    };
   }
 }
 
@@ -308,7 +329,9 @@ export const authOptions: NextAuthOptions = {
         token.poolType = token.userRole === UserRole.ADMIN ? 'admin' : 'users';
       }
 
-      const expiryMs = getTokenExpiryMs(token.idToken as string | undefined);
+      const expiryMs =
+        getTokenExpiryMs(token.idToken as string | undefined) ??
+        getTokenExpiryMs(token.accessToken as string | undefined);
       if (expiryMs && Date.now() > expiryMs - TOKEN_REFRESH_BUFFER_MS) {
         token = await refreshCognitoTokens(token);
       }
@@ -346,6 +369,7 @@ export const authOptions: NextAuthOptions = {
         (session.user as any).family_name = token.family_name;
         (session as any).userRole = derivedRole;
         (session as any).poolType = poolType;
+        (session as any).error = token.error;
       }
       return session;
     },
