@@ -8,6 +8,7 @@ import { apiClient } from '@/lib/api-client';
 import { useOnboarding } from '@/components/onboarding/onboarding-context';
 import { ONBOARDING_STEPS, OnboardingStepId } from '@/constants/onboarding';
 import { SERVICE_TYPE_OPTIONS } from '@/constants/service-types';
+import { getServicePricingGuide } from '@/constants/service-pricing-guides';
 import { CALL_HANDLING_OPTIONS, formatCallHandlingLabel } from '@/constants/call-handling';
 import { PLAN_CATALOG, getPlanPriceDisplay } from '@/constants/plans';
 import { useAuthStore } from '@/stores/auth-store';
@@ -32,7 +33,14 @@ import {
   Phone,
   Sparkles,
 } from 'lucide-react';
-import { CallHandlingMode, SubscriptionPlan } from '@handycall/shared';
+import {
+  CallHandlingMode,
+  CompanyPricingLineItem,
+  CompanyPricingModel,
+  CompanyPricingProfile,
+  ServiceType,
+  SubscriptionPlan,
+} from '@handycall/shared';
 
 const TIMEZONES = [
   { value: 'America/New_York', label: 'Eastern Time (ET)' },
@@ -43,6 +51,237 @@ const TIMEZONES = [
   { value: 'America/Anchorage', label: 'Alaska (AKT)' },
   { value: 'Pacific/Honolulu', label: 'Hawaii (HST)' },
 ];
+
+const PRICING_MODEL_OPTIONS: Array<{
+  value: CompanyPricingModel;
+  label: string;
+  description: string;
+}> = [
+  { value: 'FIXED', label: 'Fixed pricing', description: 'Flat pricing for common jobs.' },
+  { value: 'HOURLY', label: 'Hourly pricing', description: 'Rate based on labor time.' },
+  { value: 'SUBSCRIPTION', label: 'Subscription plans', description: 'Recurring plan tiers.' },
+  { value: 'QUOTE_AFTER_INSPECTION', label: 'Quote after inspection', description: 'Final price after diagnostics.' },
+  { value: 'MIXED', label: 'Mixed model', description: 'Combination of flat, hourly, or plans.' },
+  { value: 'CUSTOM', label: 'Custom model', description: 'Special pricing structure.' },
+];
+
+const PRICING_KNOWLEDGE_TAG = 'onboarding:pricing-profile';
+const PRICING_KNOWLEDGE_TITLE = 'Pricing and service model';
+
+type CompanyStepFormState = {
+  company_name: string;
+  service_type: string;
+  timezone: string;
+  pricing_model: CompanyPricingModel | '';
+  pricing_summary: string;
+  estimate_policy: string;
+  starting_price: string;
+  service_call_fee: string;
+  hourly_rate: string;
+  minimum_charge: string;
+  emergency_surcharge: string;
+  tiers_text: string;
+  add_ons_text: string;
+  highlights_text: string;
+  warranty_summary: string;
+  notes: string;
+  financing_available: boolean;
+  prices_start_at_only: boolean;
+};
+
+function toCurrencyNumber(value: string): number | undefined {
+  const trimmed = String(value || '').trim();
+  if (!trimmed) return undefined;
+  const normalized = trimmed.replace(/[$,\s]/g, '');
+  const parsed = Number(normalized);
+  if (!Number.isFinite(parsed)) return undefined;
+  return parsed;
+}
+
+function parseMultiline(value: string): string[] {
+  return String(value || '')
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+function parsePricingLines(value: string): CompanyPricingLineItem[] {
+  return parseMultiline(value)
+    .map((line) => {
+      const [nameRaw, priceRaw, detailsRaw] = line.split('|').map((part) => part?.trim() || '');
+      if (!nameRaw) return null;
+      const item: CompanyPricingLineItem = { name: nameRaw };
+      if (priceRaw) item.price_label = priceRaw;
+      if (detailsRaw) item.details = detailsRaw;
+      return item;
+    })
+    .filter((item): item is CompanyPricingLineItem => Boolean(item));
+}
+
+function formatPricingLines(items?: CompanyPricingLineItem[]): string {
+  if (!Array.isArray(items) || items.length === 0) return '';
+  return items
+    .map((item) => [item.name, item.price_label, item.details].filter(Boolean).join(' | '))
+    .join('\n');
+}
+
+function hasPricingProfileData(profile: CompanyPricingProfile | null | undefined): boolean {
+  if (!profile || typeof profile !== 'object') return false;
+  const keys = Object.keys(profile).filter((key) => key !== 'currency' && key !== 'updated_at');
+  for (const key of keys) {
+    const value = (profile as Record<string, unknown>)[key];
+    if (Array.isArray(value) && value.length > 0) return true;
+    if (typeof value === 'number' && Number.isFinite(value)) return true;
+    if (typeof value === 'boolean') return true;
+    if (typeof value === 'string' && value.trim()) return true;
+  }
+  return false;
+}
+
+function extractCompanyFormState(company: any): CompanyStepFormState {
+  const profile = (company?.pricing_profile || {}) as CompanyPricingProfile;
+  return {
+    company_name: company?.company_name || '',
+    service_type: String(company?.service_type || ''),
+    timezone: company?.timezone || 'America/New_York',
+    pricing_model: (profile.model as CompanyPricingModel | undefined) || '',
+    pricing_summary: profile.summary || '',
+    estimate_policy: profile.estimate_policy || '',
+    starting_price:
+      typeof profile.starting_price === 'number' && Number.isFinite(profile.starting_price)
+        ? String(profile.starting_price)
+        : '',
+    service_call_fee:
+      typeof profile.service_call_fee === 'number' && Number.isFinite(profile.service_call_fee)
+        ? String(profile.service_call_fee)
+        : '',
+    hourly_rate:
+      typeof profile.hourly_rate === 'number' && Number.isFinite(profile.hourly_rate)
+        ? String(profile.hourly_rate)
+        : '',
+    minimum_charge:
+      typeof profile.minimum_charge === 'number' && Number.isFinite(profile.minimum_charge)
+        ? String(profile.minimum_charge)
+        : '',
+    emergency_surcharge:
+      typeof profile.emergency_surcharge === 'number' && Number.isFinite(profile.emergency_surcharge)
+        ? String(profile.emergency_surcharge)
+        : '',
+    tiers_text: formatPricingLines(profile.tiers),
+    add_ons_text: formatPricingLines(profile.add_ons),
+    highlights_text: Array.isArray(profile.plan_highlights) ? profile.plan_highlights.join('\n') : '',
+    warranty_summary: profile.warranty_summary || '',
+    notes: profile.notes || '',
+    financing_available: profile.financing_available === true,
+    prices_start_at_only: profile.prices_start_at_only === true,
+  };
+}
+
+function buildPricingProfile(form: CompanyStepFormState): CompanyPricingProfile | null {
+  const profile: CompanyPricingProfile = {
+    currency: 'USD',
+    updated_at: Date.now(),
+  };
+
+  if (form.pricing_model) profile.model = form.pricing_model;
+  if (form.pricing_summary.trim()) profile.summary = form.pricing_summary.trim();
+  if (form.estimate_policy.trim()) profile.estimate_policy = form.estimate_policy.trim();
+  if (form.warranty_summary.trim()) profile.warranty_summary = form.warranty_summary.trim();
+  if (form.notes.trim()) profile.notes = form.notes.trim();
+
+  const startingPrice = toCurrencyNumber(form.starting_price);
+  if (startingPrice !== undefined) profile.starting_price = startingPrice;
+  const serviceCallFee = toCurrencyNumber(form.service_call_fee);
+  if (serviceCallFee !== undefined) profile.service_call_fee = serviceCallFee;
+  const hourlyRate = toCurrencyNumber(form.hourly_rate);
+  if (hourlyRate !== undefined) profile.hourly_rate = hourlyRate;
+  const minimumCharge = toCurrencyNumber(form.minimum_charge);
+  if (minimumCharge !== undefined) profile.minimum_charge = minimumCharge;
+  const emergencySurcharge = toCurrencyNumber(form.emergency_surcharge);
+  if (emergencySurcharge !== undefined) profile.emergency_surcharge = emergencySurcharge;
+
+  const tiers = parsePricingLines(form.tiers_text);
+  if (tiers.length > 0) profile.tiers = tiers;
+
+  const addOns = parsePricingLines(form.add_ons_text);
+  if (addOns.length > 0) profile.add_ons = addOns;
+
+  const highlights = parseMultiline(form.highlights_text);
+  if (highlights.length > 0) profile.plan_highlights = highlights;
+
+  if (form.financing_available) profile.financing_available = true;
+  if (form.prices_start_at_only) profile.prices_start_at_only = true;
+
+  return hasPricingProfileData(profile) ? profile : null;
+}
+
+function getServiceTypeLabel(value: string): string {
+  const option = SERVICE_TYPE_OPTIONS.find((item) => item.value === value);
+  return option?.label || 'your services';
+}
+
+function buildPricingKnowledgeContent(serviceTypeLabel: string, profile: CompanyPricingProfile): string {
+  const lines: string[] = [];
+  lines.push(`Pricing profile for ${serviceTypeLabel}:`);
+
+  if (profile.model) lines.push(`- Pricing model: ${profile.model.replace(/_/g, ' ').toLowerCase()}.`);
+  if (profile.summary) lines.push(`- Overview: ${profile.summary}`);
+  if (typeof profile.starting_price === 'number') lines.push(`- Typical starting price: $${profile.starting_price}.`);
+  if (typeof profile.service_call_fee === 'number') lines.push(`- Service/diagnostic call fee: $${profile.service_call_fee}.`);
+  if (typeof profile.hourly_rate === 'number') lines.push(`- Hourly rate: $${profile.hourly_rate}.`);
+  if (typeof profile.minimum_charge === 'number') lines.push(`- Minimum charge: $${profile.minimum_charge}.`);
+  if (typeof profile.emergency_surcharge === 'number') lines.push(`- Emergency surcharge: $${profile.emergency_surcharge}.`);
+  if (profile.estimate_policy) lines.push(`- Estimate policy: ${profile.estimate_policy}`);
+  if (profile.prices_start_at_only) lines.push(`- Quote guidance: prices are starting points and final cost depends on scope.`);
+  if (profile.financing_available) lines.push(`- Financing: available when eligible.`);
+  if (profile.warranty_summary) lines.push(`- Warranty/guarantee: ${profile.warranty_summary}`);
+
+  if (Array.isArray(profile.tiers) && profile.tiers.length > 0) {
+    lines.push('- Plan tiers:');
+    for (const tier of profile.tiers) {
+      const detail = [tier.name, tier.price_label, tier.details].filter(Boolean).join(' - ');
+      lines.push(`  - ${detail}`);
+    }
+  }
+
+  if (Array.isArray(profile.add_ons) && profile.add_ons.length > 0) {
+    lines.push('- Common add-ons:');
+    for (const addOn of profile.add_ons) {
+      const detail = [addOn.name, addOn.price_label, addOn.details].filter(Boolean).join(' - ');
+      lines.push(`  - ${detail}`);
+    }
+  }
+
+  if (Array.isArray(profile.plan_highlights) && profile.plan_highlights.length > 0) {
+    lines.push(`- Key highlights: ${profile.plan_highlights.join('; ')}`);
+  }
+
+  if (profile.notes) lines.push(`- Internal notes for caller-facing responses: ${profile.notes}`);
+  lines.push('- If exact scope is unknown, explain what affects final price and offer to schedule an estimate.');
+  return lines.join('\n');
+}
+
+async function upsertPricingKnowledge(profile: CompanyPricingProfile, serviceTypeLabel: string) {
+  if (!hasPricingProfileData(profile)) return;
+  const existingRaw = await apiClient.getKnowledgeItems(undefined, undefined, 250);
+  const items = Array.isArray(existingRaw) ? existingRaw : existingRaw?.items || [];
+  const existing = items.find(
+    (item: any) => Array.isArray(item?.tags) && item.tags.includes(PRICING_KNOWLEDGE_TAG)
+  );
+  const payload = {
+    title: PRICING_KNOWLEDGE_TITLE,
+    type: 'POLICY',
+    tags: [PRICING_KNOWLEDGE_TAG, 'pricing', 'onboarding'],
+    content: buildPricingKnowledgeContent(serviceTypeLabel, profile),
+  };
+
+  if (existing?.knowledge_id) {
+    await apiClient.updateKnowledgeItem(existing.knowledge_id, payload);
+    return;
+  }
+
+  await apiClient.createKnowledgeItem(payload);
+}
 
 export default function OnboardingStepPage() {
   const params = useParams();
@@ -491,21 +730,16 @@ function CompanyStep({ nextStep }: { nextStep?: OnboardingStepId }) {
   const { setCompany } = useAuthStore();
   const { toast } = useToast();
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({
-    company_name: company?.company_name || '',
-    service_type: (company?.service_type as string) || '',
-    timezone: company?.timezone || 'America/New_York',
-  });
+  const [form, setForm] = useState<CompanyStepFormState>(() => extractCompanyFormState(company));
 
   useEffect(() => {
-    if (company) {
-      setForm({
-        company_name: company.company_name || '',
-        service_type: (company.service_type as string) || '',
-        timezone: company.timezone || 'America/New_York',
-      });
-    }
+    setForm(extractCompanyFormState(company));
   }, [company]);
+
+  const selectedServiceType = (form.service_type || company?.service_type || '') as ServiceType | '';
+  const serviceGuide = getServicePricingGuide(selectedServiceType || undefined);
+  const serviceTypeLabel = getServiceTypeLabel(form.service_type);
+  const pricingProfile = buildPricingProfile(form);
 
   const handleSave = async () => {
     if (!form.company_name.trim() || !form.service_type) {
@@ -523,13 +757,25 @@ function CompanyStep({ nextStep }: { nextStep?: OnboardingStepId }) {
         company_name: form.company_name.trim(),
         service_type: form.service_type,
         timezone: form.timezone,
+        pricing_profile: pricingProfile || {},
         company_profile_completed: true,
       });
       setCompany(updated);
+
+      if (pricingProfile) {
+        try {
+          await upsertPricingKnowledge(pricingProfile, serviceTypeLabel);
+        } catch (knowledgeError) {
+          console.warn('[Onboarding] Failed to sync pricing knowledge', knowledgeError);
+        }
+      }
+
       await refreshAll();
       toast({
         title: 'Company profile saved',
-        description: 'Great! Let’s move to your service area.',
+        description: pricingProfile
+          ? 'Great! Company and pricing context are ready.'
+          : 'Great! Let’s move to your service area.',
       });
     } catch (err: any) {
       toast({
@@ -547,14 +793,16 @@ function CompanyStep({ nextStep }: { nextStep?: OnboardingStepId }) {
       <SectionHeading
         icon={<Sparkles className="h-4 w-4" />}
         title="Tell us about your company"
-        subtitle="We use this to personalize how HandyCall answers calls."
+        subtitle="Set your business type and pricing style so the AI gives accurate, realistic answers."
       />
 
       <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
         <Card>
           <CardHeader>
             <CardTitle>Company details</CardTitle>
-            <CardDescription>These show up in your AI greeting and scripts.</CardDescription>
+            <CardDescription>
+              Core profile fields are required. Pricing personalization is optional and can be updated later.
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
@@ -599,6 +847,179 @@ function CompanyStep({ nextStep }: { nextStep?: OnboardingStepId }) {
                 </SelectContent>
               </Select>
             </div>
+            <div className="rounded-2xl border border-emerald-100 bg-emerald-50/60 p-4">
+              <p className="text-sm font-semibold text-emerald-900">Pricing personalization (optional)</p>
+              <p className="mt-1 text-xs text-emerald-800/80">
+                Fill what you know today. Leave the rest blank. HandyCall will still work and you can refine this later.
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="pricing_model">Pricing model</Label>
+              <Select
+                value={form.pricing_model || 'NONE'}
+                onValueChange={(value) =>
+                  setForm((prev) => ({
+                    ...prev,
+                    pricing_model: value === 'NONE' ? '' : (value as CompanyPricingModel),
+                  }))
+                }
+              >
+                <SelectTrigger id="pricing_model">
+                  <SelectValue placeholder="Select pricing model (optional)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="NONE">Not set yet</SelectItem>
+                  {PRICING_MODEL_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {form.pricing_model && (
+                <p className="text-xs text-slate-500">
+                  {PRICING_MODEL_OPTIONS.find((option) => option.value === form.pricing_model)?.description}
+                </p>
+              )}
+            </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="starting_price">Starting price (USD)</Label>
+                <Input
+                  id="starting_price"
+                  inputMode="decimal"
+                  value={form.starting_price}
+                  onChange={(e) => setForm((prev) => ({ ...prev, starting_price: e.target.value }))}
+                  placeholder="e.g., 129"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="service_call_fee">Service/diagnostic fee (USD)</Label>
+                <Input
+                  id="service_call_fee"
+                  inputMode="decimal"
+                  value={form.service_call_fee}
+                  onChange={(e) => setForm((prev) => ({ ...prev, service_call_fee: e.target.value }))}
+                  placeholder="e.g., 79"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="hourly_rate">Hourly rate (USD)</Label>
+                <Input
+                  id="hourly_rate"
+                  inputMode="decimal"
+                  value={form.hourly_rate}
+                  onChange={(e) => setForm((prev) => ({ ...prev, hourly_rate: e.target.value }))}
+                  placeholder="e.g., 120"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="minimum_charge">Minimum charge (USD)</Label>
+                <Input
+                  id="minimum_charge"
+                  inputMode="decimal"
+                  value={form.minimum_charge}
+                  onChange={(e) => setForm((prev) => ({ ...prev, minimum_charge: e.target.value }))}
+                  placeholder="e.g., 99"
+                />
+              </div>
+              <div className="space-y-2 md:col-span-2">
+                <Label htmlFor="emergency_surcharge">Emergency surcharge (USD)</Label>
+                <Input
+                  id="emergency_surcharge"
+                  inputMode="decimal"
+                  value={form.emergency_surcharge}
+                  onChange={(e) => setForm((prev) => ({ ...prev, emergency_surcharge: e.target.value }))}
+                  placeholder="e.g., 50"
+                />
+              </div>
+            </div>
+            <div className="grid gap-2 md:grid-cols-2">
+              <Button
+                type="button"
+                variant={form.prices_start_at_only ? 'default' : 'outline'}
+                onClick={() => setForm((prev) => ({ ...prev, prices_start_at_only: !prev.prices_start_at_only }))}
+              >
+                {form.prices_start_at_only ? 'Uses starting prices' : 'Set prices as starting-from'}
+              </Button>
+              <Button
+                type="button"
+                variant={form.financing_available ? 'default' : 'outline'}
+                onClick={() => setForm((prev) => ({ ...prev, financing_available: !prev.financing_available }))}
+              >
+                {form.financing_available ? 'Financing available' : 'Mark financing availability'}
+              </Button>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="pricing_summary">Pricing summary for callers</Label>
+              <Textarea
+                id="pricing_summary"
+                value={form.pricing_summary}
+                onChange={(e) => setForm((prev) => ({ ...prev, pricing_summary: e.target.value }))}
+                placeholder="Explain your pricing in plain language."
+                rows={3}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="estimate_policy">Estimate policy</Label>
+              <Textarea
+                id="estimate_policy"
+                value={form.estimate_policy}
+                onChange={(e) => setForm((prev) => ({ ...prev, estimate_policy: e.target.value }))}
+                placeholder="Example: Final quote provided after onsite inspection."
+                rows={2}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="tiers_text">Plan tiers (optional, one per line)</Label>
+              <Textarea
+                id="tiers_text"
+                value={form.tiers_text}
+                onChange={(e) => setForm((prev) => ({ ...prev, tiers_text: e.target.value }))}
+                placeholder={'Starter | $39/month | Exterior treatment every 30 days\nPro | $79/month | Interior + exterior + priority support'}
+                rows={3}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="add_ons_text">Add-ons (optional, one per line)</Label>
+              <Textarea
+                id="add_ons_text"
+                value={form.add_ons_text}
+                onChange={(e) => setForm((prev) => ({ ...prev, add_ons_text: e.target.value }))}
+                placeholder={'Rodent exclusion | $199 | Includes sealing entry points\nYard treatment | $49/visit | Perimeter spray'}
+                rows={3}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="highlights_text">Pricing highlights (optional, one per line)</Label>
+              <Textarea
+                id="highlights_text"
+                value={form.highlights_text}
+                onChange={(e) => setForm((prev) => ({ ...prev, highlights_text: e.target.value }))}
+                placeholder={'No long-term contract required\nFree re-treatment within 14 days'}
+                rows={2}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="warranty_summary">Warranty/guarantee summary (optional)</Label>
+              <Textarea
+                id="warranty_summary"
+                value={form.warranty_summary}
+                onChange={(e) => setForm((prev) => ({ ...prev, warranty_summary: e.target.value }))}
+                placeholder="Example: 30-day workmanship guarantee on repairs."
+                rows={2}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="pricing_notes">Additional caller-facing notes (optional)</Label>
+              <Textarea
+                id="pricing_notes"
+                value={form.notes}
+                onChange={(e) => setForm((prev) => ({ ...prev, notes: e.target.value }))}
+                placeholder="Any details the AI should mention when asked about pricing."
+                rows={2}
+              />
+            </div>
             <div className="flex justify-end gap-3 pt-2">
               <Button onClick={handleSave} disabled={saving}>
                 {saving ? 'Saving...' : 'Save company profile'}
@@ -610,18 +1031,39 @@ function CompanyStep({ nextStep }: { nextStep?: OnboardingStepId }) {
 
         <Card className="border-emerald-100 bg-emerald-50/70">
           <CardHeader>
-            <CardTitle>Why we ask</CardTitle>
-            <CardDescription>Small details power more accurate calls.</CardDescription>
+            <CardTitle>{serviceGuide.headline}</CardTitle>
+            <CardDescription>{serviceGuide.intro}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3 text-sm text-emerald-900">
-            <p>HandyCall uses your company type to adjust tone, terminology, and service questions.</p>
-            <p>Timezone ensures bookings land in the right business day.</p>
+            <p>HandyCall uses your company type to tailor intake and booking logic for {serviceTypeLabel}.</p>
+            <p>Timezone ensures bookings land in the correct business day and local time.</p>
+            <div>
+              <p className="font-semibold">Common caller questions</p>
+              <ul className="mt-2 list-disc space-y-1 pl-5">
+                {serviceGuide.pricingQuestions.map((question) => (
+                  <li key={question}>{question}</li>
+                ))}
+              </ul>
+            </div>
+            <div>
+              <p className="font-semibold">Good details to provide</p>
+              <ul className="mt-2 list-disc space-y-1 pl-5">
+                {serviceGuide.suggestedDetails.map((detail) => (
+                  <li key={detail}>{detail}</li>
+                ))}
+              </ul>
+            </div>
             <div className="rounded-xl border border-emerald-200 bg-white/70 p-3">
               <p className="font-semibold">Tip</p>
               <p className="mt-1 text-emerald-800/80">
-                You can always change these in Settings later.
+                Pricing lines support this format: <code>Name | Price label | Notes</code>.
               </p>
             </div>
+            {pricingProfile && (
+              <div className="rounded-xl border border-emerald-200 bg-white/70 p-3 text-emerald-800/90">
+                Pricing details will also be synced into your knowledge base so callers get consistent answers.
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -817,19 +1259,25 @@ function ServiceAreaStep({ nextStep }: { nextStep?: OnboardingStepId }) {
 }
 
 function KnowledgeStep({ nextStep }: { nextStep?: OnboardingStepId }) {
-  const { knowledgeCount, refreshKnowledge, status } = useOnboarding();
+  const { company, knowledgeCount, refreshKnowledge, status } = useOnboarding();
   const { toast } = useToast();
+  const serviceTypeLabel = getServiceTypeLabel(String(company?.service_type || ''));
+  const companyPricingProfile = (company?.pricing_profile || null) as CompanyPricingProfile | null;
+  const pricingProfileReady = hasPricingProfileData(companyPricingProfile);
   const [form, setForm] = useState({
     title: '',
     content: '',
     type: 'FAQ',
   });
   const [saving, setSaving] = useState(false);
+  const [syncingPricing, setSyncingPricing] = useState(false);
 
   const quickStarts = [
     {
-      title: 'Pricing overview',
-      content: 'We provide flat-rate pricing for common services. Share your typical ranges, any trip fees, and how estimates work.',
+      title: PRICING_KNOWLEDGE_TITLE,
+      content: pricingProfileReady && companyPricingProfile
+        ? buildPricingKnowledgeContent(serviceTypeLabel, companyPricingProfile)
+        : `Share how ${serviceTypeLabel} pricing works, including starting prices, service fees, and when final quotes depend on inspection.`,
       type: 'POLICY',
     },
     {
@@ -843,6 +1291,35 @@ function KnowledgeStep({ nextStep }: { nextStep?: OnboardingStepId }) {
       type: 'FAQ',
     },
   ];
+
+  const handleSyncPricingProfile = async () => {
+    if (!pricingProfileReady || !companyPricingProfile) {
+      toast({
+        title: 'No pricing profile yet',
+        description: 'Add pricing details in Company profile first, then sync here.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setSyncingPricing(true);
+    try {
+      await upsertPricingKnowledge(companyPricingProfile, serviceTypeLabel);
+      await refreshKnowledge();
+      toast({
+        title: 'Pricing knowledge synced',
+        description: 'Your pricing profile was added to the knowledge base.',
+      });
+    } catch (err: any) {
+      toast({
+        title: 'Sync failed',
+        description: err?.message || 'Unable to sync pricing profile.',
+        variant: 'destructive',
+      });
+    } finally {
+      setSyncingPricing(false);
+    }
+  };
 
   const handleSave = async () => {
     if (!form.title.trim() || !form.content.trim()) {
@@ -890,12 +1367,24 @@ function KnowledgeStep({ nextStep }: { nextStep?: OnboardingStepId }) {
         <Card>
           <CardHeader>
             <CardTitle>Add a knowledge entry</CardTitle>
-            <CardDescription>Minimum one entry is required to continue.</CardDescription>
+            <CardDescription>
+              Add entries for policies and FAQs. Pricing from company setup can be synced automatically.
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-center gap-3 rounded-xl border border-emerald-100 bg-emerald-50/60 p-3 text-sm">
               <Sparkles className="h-4 w-4 text-emerald-600" />
               <span>{knowledgeCount ?? 0} knowledge items added</span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" variant="outline" onClick={handleSyncPricingProfile} disabled={syncingPricing || !pricingProfileReady}>
+                {syncingPricing ? 'Syncing pricing...' : 'Sync pricing profile'}
+              </Button>
+              {!pricingProfileReady && (
+                <p className="text-xs text-slate-500 self-center">
+                  Add optional pricing details in Company profile to enable one-click sync.
+                </p>
+              )}
             </div>
 
             <div className="space-y-2">

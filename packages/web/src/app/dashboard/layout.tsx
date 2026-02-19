@@ -12,6 +12,18 @@ import { Button } from '@/components/ui/button';
 import { BarChart3, Calendar, CreditCard, Home, Menu, MessageCircle, MessageSquare, Phone, Settings, Users, X } from 'lucide-react';
 import { UserRole } from '@handycall/shared';
 
+function hasPricingProfileData(company: any | null) {
+  const profile = company?.pricing_profile;
+  if (!profile || typeof profile !== 'object') return false;
+  return Object.values(profile).some((value) => {
+    if (Array.isArray(value)) return value.length > 0;
+    if (typeof value === 'string') return value.trim().length > 0;
+    if (typeof value === 'number') return Number.isFinite(value);
+    if (typeof value === 'boolean') return true;
+    return false;
+  });
+}
+
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -22,7 +34,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [companyNumber, setCompanyNumber] = useState<string | null>(null);
   const [companyNumberLoaded, setCompanyNumberLoaded] = useState(false);
 
-  const knowledgeComplete = knowledgeCount !== null ? knowledgeCount > 0 : false;
+  const knowledgeComplete = (knowledgeCount !== null ? knowledgeCount > 0 : false) || hasPricingProfileData(company);
   const setupStatus = useMemo(() => {
     if (!company) {
       return {

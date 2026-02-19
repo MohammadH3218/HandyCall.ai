@@ -35,7 +35,7 @@ export const ONBOARDING_STEPS: Array<{
   {
     id: 'knowledge',
     label: 'Knowledge base',
-    description: 'Add pricing, FAQs, and policies.',
+    description: 'Sync pricing profile, add FAQs, and policies.',
   },
   {
     id: 'calendar',

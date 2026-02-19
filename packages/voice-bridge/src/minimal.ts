@@ -311,6 +311,24 @@ type TenantInfo = {
   company_name: string;
   timezone?: string;
   service_area_zipcodes?: string[];
+  pricing_profile?: {
+    model?: string;
+    currency?: string;
+    summary?: string;
+    starting_price?: number;
+    service_call_fee?: number;
+    hourly_rate?: number;
+    minimum_charge?: number;
+    emergency_surcharge?: number;
+    estimate_policy?: string;
+    prices_start_at_only?: boolean;
+    financing_available?: boolean;
+    warranty_summary?: string;
+    plan_highlights?: string[];
+    tiers?: Array<{ name: string; price_label?: string; details?: string }>;
+    add_ons?: Array<{ name: string; price_label?: string; details?: string }>;
+    notes?: string;
+  };
   agent_config?: {
     realtime_model?: string;
     realtime_voice?: string;
@@ -745,6 +763,63 @@ function findMissingRequired(fields: string[], args: any): string[] {
   return fields.filter((field) => !isFieldPresent(field, args));
 }
 
+function formatPricingProfileForPrompt(profile: TenantInfo['pricing_profile']): string | null {
+  if (!profile || typeof profile !== 'object') return null;
+  const lines: string[] = [];
+  const model = typeof profile.model === 'string' ? profile.model.replace(/_/g, ' ').toLowerCase() : '';
+  if (model) lines.push(`model=${model}`);
+  if (typeof profile.summary === 'string' && profile.summary.trim()) lines.push(`summary=${profile.summary.trim()}`);
+  if (typeof profile.starting_price === 'number') lines.push(`starting_price=${profile.starting_price}`);
+  if (typeof profile.service_call_fee === 'number') lines.push(`service_call_fee=${profile.service_call_fee}`);
+  if (typeof profile.hourly_rate === 'number') lines.push(`hourly_rate=${profile.hourly_rate}`);
+  if (typeof profile.minimum_charge === 'number') lines.push(`minimum_charge=${profile.minimum_charge}`);
+  if (typeof profile.emergency_surcharge === 'number') lines.push(`emergency_surcharge=${profile.emergency_surcharge}`);
+  if (typeof profile.estimate_policy === 'string' && profile.estimate_policy.trim()) {
+    lines.push(`estimate_policy=${profile.estimate_policy.trim()}`);
+  }
+  if (typeof profile.warranty_summary === 'string' && profile.warranty_summary.trim()) {
+    lines.push(`warranty=${profile.warranty_summary.trim()}`);
+  }
+  if (profile.financing_available === true) lines.push('financing_available=true');
+  if (profile.prices_start_at_only === true) lines.push('prices_start_at_only=true');
+
+  if (Array.isArray(profile.tiers) && profile.tiers.length > 0) {
+    const tierSummary = profile.tiers
+      .slice(0, 4)
+      .map((tier) => {
+        const name = tier?.name ? String(tier.name).trim() : '';
+        const price = tier?.price_label ? String(tier.price_label).trim() : '';
+        const details = tier?.details ? String(tier.details).trim() : '';
+        return [name, price, details].filter(Boolean).join(' - ');
+      })
+      .filter(Boolean)
+      .join(' | ');
+    if (tierSummary) lines.push(`tiers=${tierSummary}`);
+  }
+
+  if (Array.isArray(profile.add_ons) && profile.add_ons.length > 0) {
+    const addOnSummary = profile.add_ons
+      .slice(0, 4)
+      .map((item) => {
+        const name = item?.name ? String(item.name).trim() : '';
+        const price = item?.price_label ? String(item.price_label).trim() : '';
+        const details = item?.details ? String(item.details).trim() : '';
+        return [name, price, details].filter(Boolean).join(' - ');
+      })
+      .filter(Boolean)
+      .join(' | ');
+    if (addOnSummary) lines.push(`add_ons=${addOnSummary}`);
+  }
+
+  if (Array.isArray(profile.plan_highlights) && profile.plan_highlights.length > 0) {
+    const highlights = profile.plan_highlights.map((item) => String(item || '').trim()).filter(Boolean).slice(0, 5);
+    if (highlights.length > 0) lines.push(`highlights=${highlights.join(' | ')}`);
+  }
+
+  if (typeof profile.notes === 'string' && profile.notes.trim()) lines.push(`notes=${profile.notes.trim()}`);
+  return lines.length > 0 ? lines.join('; ') : null;
+}
+
 function buildInstructions(tenant: TenantInfo, options: { serviceAreaRequired: boolean }) {
   const name = tenant.company_name || 'our company';
   const extra = tenant.agent_config?.realtime_instructions;
@@ -752,6 +827,7 @@ function buildInstructions(tenant: TenantInfo, options: { serviceAreaRequired: b
     ? tenant.service_template.base_system_prompt
     : null;
   const renderedTemplatePrompt = templatePrompt ? templatePrompt.replace(/\{company_name\}/g, name) : null;
+  const pricingProfileSummary = formatPricingProfileForPrompt(tenant.pricing_profile);
   const serviceAreaRequired = options.serviceAreaRequired;
   const requiredFields = formatFieldList(tenant.service_template?.intake_schema?.required);
   const optionalFields = formatFieldList(tenant.service_template?.intake_schema?.optional);
@@ -768,6 +844,9 @@ function buildInstructions(tenant: TenantInfo, options: { serviceAreaRequired: b
     `If the ZIP is not serviced, apologize and end the call politely.`,
     requiredFields ? `Required intake fields to collect before booking: ${requiredFields}.` : null,
     optionalFields ? `Optional fields (collect only if relevant): ${optionalFields}.` : null,
+    pricingProfileSummary
+      ? `Company pricing context: ${pricingProfileSummary}. Use this for pricing questions first. If unsure, use knowledge_search and never invent rates or guarantees.`
+      : null,
     `You MUST collect EVERY required intake field before asking about scheduling. Do not skip any. Ask one missing field at a time.`,
     `Do NOT ask for preferred date/time until all non-time required fields are collected (including address when required).`,
     `After all non-time required fields are collected, give ONE short natural recap in 1-2 sentences (no labels), then ask for preferred day/time.`,

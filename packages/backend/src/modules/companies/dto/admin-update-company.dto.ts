@@ -100,6 +100,10 @@ export class AdminUpdateCompanyDto {
   subscription_tier?: string;
 
   @IsOptional()
+  @IsObject()
+  pricing_profile?: Record<string, any>;
+
+  @IsOptional()
   @IsBoolean()
   calls_enabled?: boolean;
 

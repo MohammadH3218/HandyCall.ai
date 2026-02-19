@@ -41,6 +41,18 @@ function hasActiveSubscription(company: any | null) {
   );
 }
 
+function hasPricingProfileData(company: any | null) {
+  const profile = company?.pricing_profile;
+  if (!profile || typeof profile !== 'object') return false;
+  return Object.values(profile).some((value) => {
+    if (Array.isArray(value)) return value.length > 0;
+    if (typeof value === 'string') return value.trim().length > 0;
+    if (typeof value === 'number') return Number.isFinite(value);
+    if (typeof value === 'boolean') return true;
+    return false;
+  });
+}
+
 export function OnboardingProvider({ children }: { children: React.ReactNode }) {
   const { company, isAuthenticated, isLoading, checkAuth, userRole, user, email } = useAuthStore();
   const [knowledgeCount, setKnowledgeCount] = useState<number | null>(null);
@@ -112,7 +124,7 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
       billing: hasActiveSubscription(company),
       companyProfile: company.company_profile_completed === true,
       serviceArea: company.service_area_completed === true,
-      knowledge: knowledgeCount !== null ? knowledgeCount > 0 : false,
+      knowledge: (knowledgeCount !== null ? knowledgeCount > 0 : false) || hasPricingProfileData(company),
       calendar: company.calendar_setup_completed === true,
       phone: Boolean(companyNumber),
     };

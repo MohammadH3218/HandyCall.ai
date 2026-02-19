@@ -163,6 +163,10 @@ export class UpdateCompanyDto {
   service_area_cities?: string[];
 
   @IsOptional()
+  @IsObject()
+  pricing_profile?: Record<string, any>;
+
+  @IsOptional()
   @IsBoolean()
   company_profile_completed?: boolean;
 

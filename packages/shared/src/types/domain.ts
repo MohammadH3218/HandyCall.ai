@@ -62,6 +62,40 @@ export enum ServiceType {
   OTHER = 'OTHER',
 }
 
+export type CompanyPricingModel =
+  | 'FIXED'
+  | 'HOURLY'
+  | 'SUBSCRIPTION'
+  | 'QUOTE_AFTER_INSPECTION'
+  | 'MIXED'
+  | 'CUSTOM';
+
+export interface CompanyPricingLineItem {
+  name: string;
+  price_label?: string;
+  details?: string;
+}
+
+export interface CompanyPricingProfile {
+  model?: CompanyPricingModel;
+  currency?: string;
+  summary?: string;
+  starting_price?: number;
+  service_call_fee?: number;
+  hourly_rate?: number;
+  minimum_charge?: number;
+  emergency_surcharge?: number;
+  estimate_policy?: string;
+  prices_start_at_only?: boolean;
+  financing_available?: boolean;
+  warranty_summary?: string;
+  plan_highlights?: string[];
+  tiers?: CompanyPricingLineItem[];
+  add_ons?: CompanyPricingLineItem[];
+  notes?: string;
+  updated_at?: Timestamp;
+}
+
 export interface Company {
   company_id: UUID;
   company_name: string;
@@ -99,6 +133,7 @@ export interface Company {
   use_simple_scheduling?: boolean; // Fallback to simple time slots
   service_area_zipcodes?: string[];
   service_area_cities?: string[];
+  pricing_profile?: CompanyPricingProfile;
   company_profile_completed?: boolean;
   service_area_completed?: boolean;
 

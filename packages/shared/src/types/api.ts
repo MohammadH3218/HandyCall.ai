@@ -143,6 +143,7 @@ export interface UpdateCompanyRequest {
   business_hours?: Company['business_hours'];
   service_area_zipcodes?: string[];
   service_area_cities?: string[];
+  pricing_profile?: Company['pricing_profile'];
   company_profile_completed?: boolean;
   service_area_completed?: boolean;
   transfer_enabled?: boolean;

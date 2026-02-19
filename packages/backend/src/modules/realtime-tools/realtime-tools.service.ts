@@ -559,6 +559,7 @@ export class RealtimeToolsService {
       calls_enabled: company.calls_enabled !== (false as any),
       business_hours: company.business_hours,
       service_area_zipcodes: (company as any).service_area_zipcodes || [],
+      pricing_profile: (company as any).pricing_profile || undefined,
       transfer_enabled: (company as any).transfer_enabled === true,
       transfer_number: (company as any).transfer_number || undefined,
       call_handling_mode: (company as any).call_handling_mode || CallHandlingMode.ALWAYS,

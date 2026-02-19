@@ -48,6 +48,24 @@ export interface TenantResolveResponse {
 
     business_hours?: Record<string, { start: string; end: string }>; // e.g. mon: 09:00-17:00
     service_area_zipcodes?: string[];
+    pricing_profile?: {
+        model?: string;
+        currency?: string;
+        summary?: string;
+        starting_price?: number;
+        service_call_fee?: number;
+        hourly_rate?: number;
+        minimum_charge?: number;
+        emergency_surcharge?: number;
+        estimate_policy?: string;
+        prices_start_at_only?: boolean;
+        financing_available?: boolean;
+        warranty_summary?: string;
+        plan_highlights?: string[];
+        tiers?: Array<{ name: string; price_label?: string; details?: string }>;
+        add_ons?: Array<{ name: string; price_label?: string; details?: string }>;
+        notes?: string;
+    };
 
     agent_config?: {
         language?: string; // 'en'

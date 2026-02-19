@@ -220,6 +220,7 @@ export class CompaniesService {
       calendar_connection?: any;
       service_area_zipcodes?: string[];
       service_area_cities?: string[];
+      pricing_profile?: Record<string, any>;
       company_profile_completed?: boolean;
       service_area_completed?: boolean;
       service_template_id?: string;
