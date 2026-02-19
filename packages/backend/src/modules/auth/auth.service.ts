@@ -561,10 +561,20 @@ export class AuthService {
   }
 
   async refreshWithCognito(refreshToken: string, email: string) {
-    const result = await this.cognitoService.refreshAccessToken(refreshToken, email);
+    const result = await this.cognitoService.refreshAccessToken(refreshToken, email, 'auto');
 
-    // Get user attributes to fetch company info
-    const userAttributes = await this.cognitoService.getUserAttributes(email);
+    if (result.poolType === 'admin') {
+      return {
+        access_token: result.accessToken,
+        id_token: result.idToken,
+        email,
+        userRole: UserRole.ADMIN,
+        isAdmin: true,
+      };
+    }
+
+    // Users pool refresh: attach company context for customer users.
+    const userAttributes = await this.cognitoService.getUserAttributes(email, 'users');
     const companyId = userAttributes?.['custom:company_id'];
 
     if (!companyId) {
@@ -582,6 +592,7 @@ export class AuthService {
       company,
       email,
       company_id: companyId,
+      userRole: UserRole.OWNER,
     };
   }
 

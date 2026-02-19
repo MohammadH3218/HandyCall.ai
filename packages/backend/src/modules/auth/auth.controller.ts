@@ -58,7 +58,7 @@ export class AuthController {
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
   async refreshToken(@Body() dto: RefreshTokenDto) {
-    return this.authService.refreshToken(dto.refresh_token);
+    return this.authService.refreshWithCognito(dto.refresh_token, dto.email);
   }
 
   @Public()

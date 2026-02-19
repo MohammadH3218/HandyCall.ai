@@ -304,33 +304,53 @@ export class CognitoService {
     }
   }
 
-  async refreshAccessToken(refreshToken: string, username: string): Promise<{accessToken: string; idToken: string}> {
-    const secretHash = this.calculateSecretHash(username, this.usersClientId, this.usersClientSecret);
+  async refreshAccessToken(
+    refreshToken: string,
+    username: string,
+    poolType: 'auto' | 'users' | 'admin' = 'auto'
+  ): Promise<{ accessToken: string; idToken: string; poolType: 'users' | 'admin' }> {
+    const poolsToTry: Array<'users' | 'admin'> = poolType === 'auto' ? ['users', 'admin'] : [poolType];
+    let lastError: any = null;
 
-    try {
-      const command = new AdminInitiateAuthCommand({
-        UserPoolId: this.usersPoolId,
-        ClientId: this.usersClientId,
-        AuthFlow: AuthFlowType.REFRESH_TOKEN_AUTH,
-        AuthParameters: {
-          REFRESH_TOKEN: refreshToken,
-          SECRET_HASH: secretHash,
-        },
-      });
+    for (const pool of poolsToTry) {
+      const poolId = pool === 'admin' ? this.adminPoolId : this.usersPoolId;
+      const clientId = pool === 'admin' ? this.adminClientId : this.usersClientId;
+      const clientSecret = pool === 'admin' ? this.adminClientSecret : this.usersClientSecret;
 
-      const response = await this.cognitoClient.send(command);
-
-      if (!response.AuthenticationResult) {
-        throw new UnauthorizedException('Token refresh failed');
+      if (!poolId || !clientId || !clientSecret) {
+        continue;
       }
 
-      return {
-        accessToken: response.AuthenticationResult.AccessToken!,
-        idToken: response.AuthenticationResult.IdToken!,
-      };
-    } catch (error) {
-      throw new UnauthorizedException('Invalid refresh token');
+      const secretHash = this.calculateSecretHash(username, clientId, clientSecret);
+
+      try {
+        const command = new AdminInitiateAuthCommand({
+          UserPoolId: poolId,
+          ClientId: clientId,
+          AuthFlow: AuthFlowType.REFRESH_TOKEN_AUTH,
+          AuthParameters: {
+            REFRESH_TOKEN: refreshToken,
+            SECRET_HASH: secretHash,
+          },
+        });
+
+        const response = await this.cognitoClient.send(command);
+
+        if (!response.AuthenticationResult?.AccessToken || !response.AuthenticationResult?.IdToken) {
+          throw new UnauthorizedException('Token refresh failed');
+        }
+
+        return {
+          accessToken: response.AuthenticationResult.AccessToken,
+          idToken: response.AuthenticationResult.IdToken,
+          poolType: pool,
+        };
+      } catch (error: any) {
+        lastError = error;
+      }
     }
+
+    throw new UnauthorizedException(lastError?.message || 'Invalid refresh token');
   }
 
   /**
