@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { SERVICE_TYPE_OPTIONS } from '@/constants/service-types';
+import { DEFAULT_TIMEZONE, TIMEZONE_OPTIONS } from '@/constants/timezones';
 
 const USER_ROLES = [
   { value: 'OWNER', label: 'Owner' },
@@ -16,16 +17,6 @@ const USER_ROLES = [
 ];
 
 const SERVICE_TYPES = SERVICE_TYPE_OPTIONS;
-
-const TIMEZONES = [
-  { value: 'America/New_York', label: 'Eastern Time (ET)' },
-  { value: 'America/Chicago', label: 'Central Time (CT)' },
-  { value: 'America/Denver', label: 'Mountain Time (MT)' },
-  { value: 'America/Los_Angeles', label: 'Pacific Time (PT)' },
-  { value: 'America/Phoenix', label: 'Arizona (MST)' },
-  { value: 'America/Anchorage', label: 'Alaska (AKT)' },
-  { value: 'Pacific/Honolulu', label: 'Hawaii (HST)' },
-];
 
 interface Company {
   company_id: string;
@@ -49,7 +40,7 @@ export function CreateUserDialog({ open, onOpenChange, onSuccess, preselectedCom
     company_name: '',
     company_service_type: '',
     company_email: '',
-    company_timezone: 'America/New_York',
+    company_timezone: DEFAULT_TIMEZONE,
     email: '',
     password: '',
     first_name: '',
@@ -192,7 +183,7 @@ export function CreateUserDialog({ open, onOpenChange, onSuccess, preselectedCom
         company_name: '',
         company_service_type: '',
         company_email: '',
-        company_timezone: 'America/New_York',
+        company_timezone: DEFAULT_TIMEZONE,
         email: '',
         password: '',
         first_name: '',
@@ -242,7 +233,7 @@ export function CreateUserDialog({ open, onOpenChange, onSuccess, preselectedCom
                     company_name: '',
                     company_service_type: '',
                     company_email: '',
-                    company_timezone: 'America/New_York',
+                    company_timezone: DEFAULT_TIMEZONE,
                   }));
                 }
               }}
@@ -272,7 +263,7 @@ export function CreateUserDialog({ open, onOpenChange, onSuccess, preselectedCom
                         company_name: '',
                         company_service_type: '',
                         company_email: '',
-                        company_timezone: 'America/New_York',
+                        company_timezone: DEFAULT_TIMEZONE,
                       });
                     }}
                     disabled={!!preselectedCompanyId || !!formData.company_name}
@@ -372,7 +363,7 @@ export function CreateUserDialog({ open, onOpenChange, onSuccess, preselectedCom
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            {TIMEZONES.map((tz) => (
+                            {TIMEZONE_OPTIONS.map((tz) => (
                               <SelectItem key={tz.value} value={tz.value}>
                                 {tz.label}
                               </SelectItem>

@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { SERVICE_TYPE_OPTIONS } from '@/constants/service-types';
+import { DEFAULT_TIMEZONE, TIMEZONE_OPTIONS, hasTimezoneOption } from '@/constants/timezones';
 import { PageHeader } from '@/components/portal/page-header';
 import { ArrowLeft, Phone, Save, Search, AlertTriangle, XCircle, CheckCircle } from 'lucide-react';
 
@@ -117,7 +118,7 @@ export default function AdminCompanyDetailPage() {
         service_type: data.service_type,
         email: data.email,
         phone_number: data.phone_number ?? '',
-        timezone: data.timezone,
+        timezone: data.timezone || DEFAULT_TIMEZONE,
         status: data.status,
         subscription_tier: (data as any).subscription_tier ?? '',
         calls_enabled: Boolean((data as any).calls_enabled),
@@ -370,12 +371,24 @@ export default function AdminCompanyDetailPage() {
 
               <div className="space-y-2">
                 <Label htmlFor="timezone">Timezone</Label>
-                <Input
-                  id="timezone"
+                <Select
                   value={String(editData.timezone ?? '')}
-                  onChange={(e) => setEditData((p) => ({ ...p, timezone: e.target.value }))}
-                  placeholder="America/Chicago"
-                />
+                  onValueChange={(value) => setEditData((p) => ({ ...p, timezone: value }))}
+                >
+                  <SelectTrigger id="timezone">
+                    <SelectValue placeholder="Select timezone" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {!hasTimezoneOption(String(editData.timezone ?? '')) && editData.timezone ? (
+                      <SelectItem value={String(editData.timezone)}>{String(editData.timezone)}</SelectItem>
+                    ) : null}
+                    {TIMEZONE_OPTIONS.map((timezone) => (
+                      <SelectItem key={timezone.value} value={timezone.value}>
+                        {timezone.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="space-y-2">

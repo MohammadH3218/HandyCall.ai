@@ -7,7 +7,9 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { CALL_HANDLING_OPTIONS } from '@/constants/call-handling';
+import { DEFAULT_TIMEZONE, TIMEZONE_OPTIONS, hasTimezoneOption } from '@/constants/timezones';
 import { CallHandlingMode } from '@handycall/shared';
 import { CallForwardingGuide } from '@/components/telephony/call-forwarding-guide';
 import { PageHeader } from '@/components/portal/page-header';
@@ -21,7 +23,7 @@ export default function SettingsPage() {
   const [formData, setFormData] = useState({
     company_name: '',
     phone_number: '',
-    timezone: '',
+    timezone: DEFAULT_TIMEZONE,
     transfer_enabled: false,
     transfer_number: '',
     call_handling_mode: CallHandlingMode.ALWAYS,
@@ -34,7 +36,7 @@ export default function SettingsPage() {
   const [editDraft, setEditDraft] = useState({
     company_name: '',
     phone_number: '',
-    timezone: '',
+    timezone: DEFAULT_TIMEZONE,
   });
   const [webhookLoading, setWebhookLoading] = useState(false);
   const [webhookSaving, setWebhookSaving] = useState(false);
@@ -60,7 +62,7 @@ export default function SettingsPage() {
     setFormData({
       company_name: company.company_name,
       phone_number: company.phone_number ?? '',
-      timezone: company.timezone,
+      timezone: company.timezone || DEFAULT_TIMEZONE,
       transfer_enabled: company.transfer_enabled ?? false,
       transfer_number: company.transfer_number ?? '',
       call_handling_mode: (company.call_handling_mode as CallHandlingMode) || CallHandlingMode.ALWAYS,
@@ -68,7 +70,7 @@ export default function SettingsPage() {
     setEditDraft({
       company_name: company.company_name,
       phone_number: company.phone_number ?? '',
-      timezone: company.timezone,
+      timezone: company.timezone || DEFAULT_TIMEZONE,
     });
   }, [company]);
 
@@ -737,11 +739,21 @@ export default function SettingsPage() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="timezone">Timezone</Label>
-              <Input
-                id="timezone"
-                value={editDraft.timezone}
-                onChange={(e) => setEditDraft((prev) => ({ ...prev, timezone: e.target.value }))}
-              />
+              <Select value={editDraft.timezone} onValueChange={(value) => setEditDraft((prev) => ({ ...prev, timezone: value }))}>
+                <SelectTrigger id="timezone">
+                  <SelectValue placeholder="Select timezone" />
+                </SelectTrigger>
+                <SelectContent>
+                  {!hasTimezoneOption(editDraft.timezone) && editDraft.timezone ? (
+                    <SelectItem value={editDraft.timezone}>{editDraft.timezone}</SelectItem>
+                  ) : null}
+                  {TIMEZONE_OPTIONS.map((timezone) => (
+                    <SelectItem key={timezone.value} value={timezone.value}>
+                      {timezone.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setEditOpen(false)}>

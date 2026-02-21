@@ -8,16 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { SERVICE_TYPE_OPTIONS } from '@/constants/service-types';
-
-const TIMEZONES = [
-  { value: 'America/New_York', label: 'Eastern Time (ET)' },
-  { value: 'America/Chicago', label: 'Central Time (CT)' },
-  { value: 'America/Denver', label: 'Mountain Time (MT)' },
-  { value: 'America/Los_Angeles', label: 'Pacific Time (PT)' },
-  { value: 'America/Phoenix', label: 'Arizona (MST)' },
-  { value: 'America/Anchorage', label: 'Alaska (AKT)' },
-  { value: 'Pacific/Honolulu', label: 'Hawaii (HST)' },
-];
+import { DEFAULT_TIMEZONE, TIMEZONE_OPTIONS } from '@/constants/timezones';
 
 interface CreateCompanyDialogProps {
   open: boolean;
@@ -33,7 +24,7 @@ export function CreateCompanyDialog({ open, onOpenChange, onSuccess }: CreateCom
     service_type: '',
     phone_number: '',
     email: '',
-    timezone: 'America/New_York',
+    timezone: DEFAULT_TIMEZONE,
     initial_admin_email: '',
     initial_admin_password: '',
     initial_admin_name: '',
@@ -114,7 +105,7 @@ export function CreateCompanyDialog({ open, onOpenChange, onSuccess }: CreateCom
         service_type: '',
         phone_number: '',
         email: '',
-        timezone: 'America/New_York',
+        timezone: DEFAULT_TIMEZONE,
         initial_admin_email: '',
         initial_admin_password: '',
         initial_admin_name: '',
@@ -225,7 +216,7 @@ export function CreateCompanyDialog({ open, onOpenChange, onSuccess }: CreateCom
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {TIMEZONES.map((tz) => (
+                  {TIMEZONE_OPTIONS.map((tz) => (
                     <SelectItem key={tz.value} value={tz.value}>
                       {tz.label}
                     </SelectItem>

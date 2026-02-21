@@ -10,7 +10,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { useToast } from '@/hooks/use-toast';
+import { DEFAULT_TIMEZONE, TIMEZONE_OPTIONS, hasTimezoneOption } from '@/constants/timezones';
 import { Calendar, ChevronLeft, ChevronRight, ExternalLink, Plus, Pencil, Trash2, Settings, X } from 'lucide-react';
 import { PageHeader } from '@/components/portal/page-header';
 
@@ -183,6 +186,7 @@ function eventTone(status?: string) {
 }
 
 export default function AppointmentsPage() {
+  const { toast } = useToast();
   const [company, setCompany] = useState<any>(null);
   const setCompanyInStore = useAuthStore((state) => state.setCompany);
   const [appointments, setAppointments] = useState<any[]>([]);
@@ -232,7 +236,7 @@ export default function AppointmentsPage() {
 
   const [isSetupOpen, setIsSetupOpen] = useState(false);
   const [setupChoice, setSetupChoice] = useState<'INTERNAL' | 'EXTERNAL' | null>(null);
-  const [setupTimezone, setSetupTimezone] = useState('');
+  const [setupTimezone, setSetupTimezone] = useState(DEFAULT_TIMEZONE);
 
   const [isCalendarProviderDialogOpen, setIsCalendarProviderDialogOpen] = useState(false);
   const [selectedProvider, setSelectedProvider] = useState<'GOOGLE' | 'MICROSOFT' | 'APPLE' | null>(null);
@@ -510,7 +514,7 @@ export default function AppointmentsPage() {
       setCalendarTimezone(c?.calendar_connection?.timezone || c?.calendar_connection?.timeZone || c?.timezone || '');
       setBusinessHoursDraft(normalizeBusinessHours(c?.business_hours));
       setDateOverridesDraft(normalizeOverrides(c?.schedule_overrides));
-      setSetupTimezone(c?.calendar_connection?.timezone || c?.calendar_connection?.timeZone || c?.timezone || '');
+      setSetupTimezone(c?.calendar_connection?.timezone || c?.calendar_connection?.timeZone || c?.timezone || DEFAULT_TIMEZONE);
       setAppointments(a.appointments || []);
     } catch (err: any) {
       console.error('Error loading appointments:', err);
@@ -575,7 +579,7 @@ export default function AppointmentsPage() {
 
   const handleStartSetup = () => {
     setSetupChoice(null);
-    setSetupTimezone(company?.timezone || '');
+    setSetupTimezone(company?.timezone || DEFAULT_TIMEZONE);
     setIsSetupOpen(true);
   };
 
@@ -595,6 +599,10 @@ export default function AppointmentsPage() {
       });
       setIsSetupOpen(false);
       await loadData();
+      toast({
+        title: 'Calendar setup saved',
+        description: 'Your internal calendar preferences were saved.',
+      });
     } else {
       // EXTERNAL - redirect to OAuth flow
       setIsSetupOpen(false);
@@ -891,6 +899,10 @@ export default function AppointmentsPage() {
       await apiClient.updateMyCompany(updates);
       setIsCalendarSettingsOpen(false);
       await loadData();
+      toast({
+        title: 'Calendar settings saved',
+        description: 'Your timezone and availability were updated.',
+      });
     } catch (err: any) {
       setError(err?.message || 'Failed to update settings');
     }
@@ -1678,8 +1690,21 @@ export default function AppointmentsPage() {
 
             <div>
               <Label className="text-sm">Timezone</Label>
-              <Input value={setupTimezone} onChange={(e) => setSetupTimezone(e.target.value)} placeholder="e.g., America/New_York" />
-              <div className="text-xs text-gray-500 mt-1">Use an IANA timezone (same format as Settings).</div>
+              <Select value={setupTimezone} onValueChange={setSetupTimezone}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select timezone" />
+                </SelectTrigger>
+                <SelectContent>
+                  {!hasTimezoneOption(setupTimezone) && setupTimezone ? (
+                    <SelectItem value={setupTimezone}>{setupTimezone}</SelectItem>
+                  ) : null}
+                  {TIMEZONE_OPTIONS.map((timezone) => (
+                    <SelectItem key={timezone.value} value={timezone.value}>
+                      {timezone.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="flex justify-end gap-2 pt-2">
@@ -1830,12 +1855,21 @@ export default function AppointmentsPage() {
                 </div>
                 {!isExternalCalendarConnected && (
                   <div className="w-full max-w-xs">
-                    <Input
-                      value={calendarTimezone}
-                      onChange={(e) => setCalendarTimezone(e.target.value)}
-                      placeholder="e.g., America/Chicago"
-                    />
-                    <div className="text-[11px] text-gray-500 mt-1">IANA timezone format</div>
+                    <Select value={calendarTimezone} onValueChange={setCalendarTimezone}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select timezone" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {!hasTimezoneOption(calendarTimezone) && calendarTimezone ? (
+                          <SelectItem value={calendarTimezone}>{calendarTimezone}</SelectItem>
+                        ) : null}
+                        {TIMEZONE_OPTIONS.map((timezone) => (
+                          <SelectItem key={timezone.value} value={timezone.value}>
+                            {timezone.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                 )}
               </div>

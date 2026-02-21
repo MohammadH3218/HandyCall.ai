@@ -11,6 +11,7 @@ import { SERVICE_TYPE_OPTIONS } from '@/constants/service-types';
 import { getServicePricingGuide } from '@/constants/service-pricing-guides';
 import { CALL_HANDLING_OPTIONS, formatCallHandlingLabel } from '@/constants/call-handling';
 import { PLAN_CATALOG, getPlanPriceDisplay } from '@/constants/plans';
+import { DEFAULT_TIMEZONE, TIMEZONE_OPTIONS } from '@/constants/timezones';
 import { useAuthStore } from '@/stores/auth-store';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -41,16 +42,6 @@ import {
   ServiceType,
   SubscriptionPlan,
 } from '@handycall/shared';
-
-const TIMEZONES = [
-  { value: 'America/New_York', label: 'Eastern Time (ET)' },
-  { value: 'America/Chicago', label: 'Central Time (CT)' },
-  { value: 'America/Denver', label: 'Mountain Time (MT)' },
-  { value: 'America/Los_Angeles', label: 'Pacific Time (PT)' },
-  { value: 'America/Phoenix', label: 'Arizona (MST)' },
-  { value: 'America/Anchorage', label: 'Alaska (AKT)' },
-  { value: 'Pacific/Honolulu', label: 'Hawaii (HST)' },
-];
 
 const CALENDAR_WEEKDAYS: Array<{ key: string; label: string; longKey: string }> = [
   { key: 'mon', label: 'Mon', longKey: 'monday' },
@@ -191,7 +182,7 @@ function extractCompanyFormState(company: any): CompanyStepFormState {
   return {
     company_name: company?.company_name || '',
     service_type: String(company?.service_type || ''),
-    timezone: company?.timezone || 'America/New_York',
+    timezone: company?.timezone || DEFAULT_TIMEZONE,
     pricing_model: (profile.model as CompanyPricingModel | undefined) || '',
     pricing_summary: profile.summary || '',
     estimate_policy: profile.estimate_policy || '',
@@ -887,7 +878,7 @@ function CompanyStep({ nextStep }: { nextStep?: OnboardingStepId }) {
                   <SelectValue placeholder="Select timezone" />
                 </SelectTrigger>
                 <SelectContent>
-                  {TIMEZONES.map((tz) => (
+                  {TIMEZONE_OPTIONS.map((tz) => (
                     <SelectItem key={tz.value} value={tz.value}>
                       {tz.label}
                     </SelectItem>
@@ -1522,14 +1513,14 @@ function CalendarStep({ nextStep }: { nextStep?: OnboardingStepId }) {
   const [calendarModeChoice, setCalendarModeChoice] = useState<'INTERNAL' | 'EXTERNAL'>(
     company?.calendar_mode === 'EXTERNAL' ? 'EXTERNAL' : 'INTERNAL'
   );
-  const [calendarTimezone, setCalendarTimezone] = useState(company?.timezone || 'America/New_York');
+  const [calendarTimezone, setCalendarTimezone] = useState(company?.timezone || DEFAULT_TIMEZONE);
   const [calendarHoursDraft, setCalendarHoursDraft] = useState<CalendarHoursDraft>(() =>
     normalizeCalendarHours(company?.business_hours)
   );
 
   useEffect(() => {
     setCalendarModeChoice(company?.calendar_mode === 'EXTERNAL' ? 'EXTERNAL' : 'INTERNAL');
-    setCalendarTimezone(company?.timezone || 'America/New_York');
+    setCalendarTimezone(company?.timezone || DEFAULT_TIMEZONE);
     setCalendarHoursDraft(normalizeCalendarHours(company?.business_hours));
   }, [company]);
 
@@ -1713,7 +1704,7 @@ function CalendarStep({ nextStep }: { nextStep?: OnboardingStepId }) {
                   <SelectValue placeholder="Select timezone" />
                 </SelectTrigger>
                 <SelectContent>
-                  {TIMEZONES.map((tz) => (
+                  {TIMEZONE_OPTIONS.map((tz) => (
                     <SelectItem key={tz.value} value={tz.value}>
                       {tz.label}
                     </SelectItem>
@@ -2342,5 +2333,3 @@ function PhoneStep({ nextStep }: { nextStep?: OnboardingStepId }) {
     </div>
   );
 }
-
-
