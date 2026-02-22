@@ -68,10 +68,10 @@ struct DashboardView: View {
 
     private func statGrid(stats: DashboardStats) -> some View {
         let items: [(String, Int)] = [
-            ("Today's Calls", stats.today.totalCalls ?? 0),
-            ("Today's Leads", stats.today.newLeads ?? 0),
-            ("Appointments", stats.today.appointmentsScheduled ?? 0),
-            ("AI Handled", stats.today.aiHandledCalls ?? 0)
+            ("Today's Calls", stats.today.totalCalls),
+            ("Today's Leads", stats.today.newLeads),
+            ("Appointments", stats.today.appointmentsScheduled),
+            ("Open Questions", stats.pendingQuestions)
         ]
 
         return LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {

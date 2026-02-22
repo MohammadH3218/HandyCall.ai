@@ -26,10 +26,19 @@ final class SessionStore: ObservableObject {
 
         do {
             let response = try await apiClient.login(email: email, password: password)
+            if response.requiresPasswordChange {
+                authError = "Password reset is required for this account. Use Forgot Password to continue."
+                return
+            }
+
+            guard let accessToken = response.accessToken, let idToken = response.idToken else {
+                authError = "Sign in failed. Missing authentication tokens."
+                return
+            }
             let resolvedEmail = response.email ?? email
             let auth = AuthSession(
-                accessToken: response.accessToken,
-                idToken: response.idToken,
+                accessToken: accessToken,
+                idToken: idToken,
                 refreshToken: response.refreshToken,
                 email: resolvedEmail
             )

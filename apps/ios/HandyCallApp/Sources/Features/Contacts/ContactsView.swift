@@ -29,6 +29,12 @@ struct ContactsView: View {
                     ProgressView()
                 } else if let error = viewModel.error {
                     Text(error).foregroundStyle(.red)
+                } else if viewModel.contacts.isEmpty {
+                    ContentUnavailableView(
+                        "No leads yet",
+                        systemImage: "person.crop.circle.badge.plus",
+                        description: Text("New leads and contacts will appear here.")
+                    )
                 } else {
                     List(viewModel.contacts) { contact in
                         VStack(alignment: .leading, spacing: 6) {

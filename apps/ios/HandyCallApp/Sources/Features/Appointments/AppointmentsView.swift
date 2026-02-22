@@ -29,6 +29,12 @@ struct AppointmentsView: View {
                     ProgressView()
                 } else if let error = viewModel.error {
                     Text(error).foregroundStyle(.red)
+                } else if viewModel.appointments.isEmpty {
+                    ContentUnavailableView(
+                        "No appointments yet",
+                        systemImage: "calendar.badge.exclamationmark",
+                        description: Text("Scheduled appointments will appear here.")
+                    )
                 } else {
                     List(viewModel.appointments) { appointment in
                         VStack(alignment: .leading, spacing: 6) {

@@ -60,6 +60,46 @@ final class APIClient: @unchecked Sendable {
         )
     }
 
+    func register(_ payload: RegisterRequest) async throws -> RegisterResponse {
+        try await request(path: "/auth/register", method: "POST", body: payload, requiresAuth: false)
+    }
+
+    func confirmSignUp(email: String, code: String) async throws {
+        _ = try await request(
+            path: "/auth/confirm-signup",
+            method: "POST",
+            body: ConfirmSignUpRequest(email: email, code: code),
+            requiresAuth: false
+        ) as OkResponse
+    }
+
+    func resendConfirmation(email: String) async throws {
+        _ = try await request(
+            path: "/auth/resend-confirmation",
+            method: "POST",
+            body: ResendConfirmationRequest(email: email),
+            requiresAuth: false
+        ) as OkResponse
+    }
+
+    func requestPasswordReset(email: String) async throws {
+        _ = try await request(
+            path: "/auth/forgot-password",
+            method: "POST",
+            body: ForgotPasswordRequest(email: email),
+            requiresAuth: false
+        ) as OkResponse
+    }
+
+    func confirmPasswordReset(email: String, token: String, newPassword: String) async throws {
+        _ = try await request(
+            path: "/auth/confirm-forgot-password",
+            method: "POST",
+            body: ConfirmForgotPasswordRequest(email: email, token: token, newPassword: newPassword),
+            requiresAuth: false
+        ) as OkResponse
+    }
+
     func refresh(refreshToken: String, email: String) async throws -> RefreshResponse {
         struct RefreshBody: Encodable {
             let refresh_token: String
@@ -231,6 +271,10 @@ final class APIClient: @unchecked Sendable {
         if let envelope = try? JSONDecoder().decode(APIEnvelope<T>.self, from: data),
            let wrapped = envelope.data {
             return wrapped
+        }
+
+        if T.self == OkResponse.self, data.isEmpty {
+            return OkResponse(ok: true) as! T
         }
         throw APIError.decoding
     }

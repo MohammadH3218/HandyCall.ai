@@ -29,6 +29,12 @@ struct CallsView: View {
                     ProgressView()
                 } else if let error = viewModel.error {
                     Text(error).foregroundStyle(.red)
+                } else if viewModel.calls.isEmpty {
+                    ContentUnavailableView(
+                        "No calls yet",
+                        systemImage: "phone.down.waves.left.and.right",
+                        description: Text("Completed and in-progress calls will appear here.")
+                    )
                 } else {
                     List(viewModel.calls) { call in
                         VStack(alignment: .leading, spacing: 6) {
