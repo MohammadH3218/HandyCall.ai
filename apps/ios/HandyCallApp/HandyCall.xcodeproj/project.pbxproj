@@ -3,11 +3,12 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 77;
+	objectVersion = 63;
 	objects = {
 
 /* Begin PBXBuildFile section */
 		050F54DCF5AAC899C139A236 /* PushNotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3E19222D091943EDB0C229F /* PushNotificationManager.swift */; };
+		10A2A36A4E194A7D9F4371C2 /* SocialAuthManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B201E19BB32430F95D222A7 /* SocialAuthManager.swift */; };
 		144F98D3C1C72B492603E354 /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A656F576F626DB193A8B4C30 /* DashboardView.swift */; };
 		24BA09BBBFB5048AAF2508D5 /* ToastBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77D5C1C7F9FAF38CFC167793 /* ToastBanner.swift */; };
 		2B3DE70548541DB8A89A8136 /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E7BF13F94FBB9F4282DA9EC /* MainTabView.swift */; };
@@ -44,6 +45,7 @@
 		77D5C1C7F9FAF38CFC167793 /* ToastBanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToastBanner.swift; sourceTree = "<group>"; };
 		86A90724B4A080521B0A96F5 /* KeychainStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainStore.swift; sourceTree = "<group>"; };
 		899CA1E6E8C082760188DB50 /* DomainModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DomainModels.swift; sourceTree = "<group>"; };
+		9B201E19BB32430F95D222A7 /* SocialAuthManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SocialAuthManager.swift; sourceTree = "<group>"; };
 		9DA128D9D9B176797AAABF1B /* CallsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CallsView.swift; sourceTree = "<group>"; };
 		9E7BF13F94FBB9F4282DA9EC /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabView.swift; sourceTree = "<group>"; };
 		A21DDB30222DB3C29C5BC1CE /* HandyCallAppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HandyCallAppDelegate.swift; sourceTree = "<group>"; };
@@ -55,7 +57,7 @@
 		B3E19222D091943EDB0C229F /* PushNotificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PushNotificationManager.swift; sourceTree = "<group>"; };
 		BF22EA15A7041DB454507BCC /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
 		C18B2ECCF5C8637E55A73CD1 /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClient.swift; sourceTree = "<group>"; };
-		C39F3C5640C8489470D6CA87 /* HandyCall.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = HandyCall.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		C39F3C5640C8489470D6CA87 /* HandyCall.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = HandyCall.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		DD52B483802CF84BA2FB310C /* NotificationModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationModels.swift; sourceTree = "<group>"; };
 		F4022915025FE74B6E9D9BE2 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -145,6 +147,7 @@
 				2457BCF47FD3877180473621 /* AppContainer.swift */,
 				86A90724B4A080521B0A96F5 /* KeychainStore.swift */,
 				B3E19222D091943EDB0C229F /* PushNotificationManager.swift */,
+				9B201E19BB32430F95D222A7 /* SocialAuthManager.swift */,
 				421D436D04BC1CCFC571BC6D /* SessionStore.swift */,
 			);
 			path = Core;
@@ -264,7 +267,6 @@
 			);
 			mainGroup = F8E0639974F4E0EF52B5F3CF;
 			minimizedProjectReferenceProxies = 1;
-			preferredProjectObjectVersion = 77;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
@@ -299,6 +301,7 @@
 				050F54DCF5AAC899C139A236 /* PushNotificationManager.swift in Sources */,
 				BED05376E4EF195F88D676CC /* RootView.swift in Sources */,
 				3982ABBDEDCB56F48963974F /* SessionStore.swift in Sources */,
+				10A2A36A4E194A7D9F4371C2 /* SocialAuthManager.swift in Sources */,
 				565B65EEFA90E4D684CD8A03 /* SettingsView.swift in Sources */,
 				24BA09BBBFB5048AAF2508D5 /* ToastBanner.swift in Sources */,
 			);
@@ -314,6 +317,7 @@
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = V837WL34MG;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Sources/Support/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
@@ -337,6 +341,7 @@
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = V837WL34MG;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Sources/Support/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;

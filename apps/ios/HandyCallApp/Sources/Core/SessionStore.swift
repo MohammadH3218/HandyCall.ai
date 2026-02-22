@@ -58,6 +58,27 @@ final class SessionStore: ObservableObject {
         }
     }
 
+    func completeSocialLogin(_ social: SocialAuthResult) async {
+        isLoading = true
+        authError = nil
+        defer { isLoading = false }
+
+        let auth = AuthSession(
+            accessToken: social.accessToken,
+            idToken: social.idToken,
+            refreshToken: social.refreshToken,
+            email: social.email
+        )
+        apply(session: auth)
+
+        do {
+            company = try await apiClient.getMyCompany()
+        } catch {
+            authError = error.localizedDescription
+            logout()
+        }
+    }
+
     func logout() {
         session = nil
         company = nil

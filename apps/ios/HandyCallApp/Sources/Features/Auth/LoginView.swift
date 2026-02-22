@@ -11,7 +11,6 @@ private enum AuthMode: String, CaseIterable {
 struct LoginView: View {
     @EnvironmentObject private var container: AppContainer
     @EnvironmentObject private var sessionStore: SessionStore
-    @Environment(\.openURL) private var openURL
 
     @State private var mode: AuthMode = .signIn
     @State private var email = ""
@@ -176,9 +175,9 @@ struct LoginView: View {
     private var socialButtons: some View {
         VStack(spacing: 10) {
             Divider()
-            socialButton(title: "Continue with Google", provider: "Google")
-            socialButton(title: "Continue with Apple", provider: "SignInWithApple")
-            Text("Social sign-in currently continues in secure web auth.")
+            socialButton(title: "Continue with Google", provider: .google)
+            socialButton(title: "Continue with Apple", provider: .apple)
+            Text("Native secure sign-in with your provider.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -307,9 +306,9 @@ struct LoginView: View {
             .background(.white, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 
-    private func socialButton(title: String, provider: String) -> some View {
+    private func socialButton(title: String, provider: SocialAuthProvider) -> some View {
         Button {
-            startSocialSignIn(provider: provider)
+            Task { await signInWithSocial(provider) }
         } label: {
             Text(title)
                 .font(.callout.weight(.semibold))
@@ -473,26 +472,22 @@ struct LoginView: View {
         }
     }
 
-    private func startSocialSignIn(provider: String) {
-        guard var components = URLComponents(string: "https://handycall.auth.us-east-1.amazoncognito.com/oauth2/authorize") else {
-            localError = "Could not start social sign-in."
-            return
+    private func signInWithSocial(_ provider: SocialAuthProvider) async {
+        localError = nil
+        isWorking = true
+        defer { isWorking = false }
+
+        do {
+            let result = try await container.socialAuthManager.authenticate(with: provider)
+            await sessionStore.completeSocialLogin(result)
+            if let error = sessionStore.authError, !error.isEmpty {
+                localError = error
+            } else {
+                showToast("Signed in with \(provider == .google ? "Google" : "Apple").")
+            }
+        } catch {
+            localError = error.localizedDescription
         }
-
-        components.queryItems = [
-            URLQueryItem(name: "identity_provider", value: provider),
-            URLQueryItem(name: "redirect_uri", value: "https://handycall.org/api/auth/callback/cognito"),
-            URLQueryItem(name: "response_type", value: "code"),
-            URLQueryItem(name: "client_id", value: "3vhh0artoakoardoi4e9rdm3m9"),
-            URLQueryItem(name: "scope", value: "openid email profile"),
-        ]
-
-        guard let url = components.url else {
-            localError = "Could not start social sign-in."
-            return
-        }
-
-        openURL(url)
     }
 
     private func showToast(_ text: String) {
