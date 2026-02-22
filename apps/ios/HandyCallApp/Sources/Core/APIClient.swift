@@ -183,7 +183,9 @@ final class APIClient: @unchecked Sendable {
     }
 
     private func makeRequest(path: String, method: String, requiresAuth: Bool) throws -> URLRequest {
-        guard let url = URL(string: path, relativeTo: baseURL) else {
+        let base = baseURL.absoluteString.hasSuffix("/") ? baseURL.absoluteString : "\(baseURL.absoluteString)/"
+        let normalizedPath = path.hasPrefix("/") ? String(path.dropFirst()) : path
+        guard let url = URL(string: "\(base)\(normalizedPath)") else {
             throw APIError.invalidURL
         }
 
