@@ -34,9 +34,10 @@ private struct APIEnvelopeError: Decodable {
     let message: String?
 }
 
-final class APIClient {
+final class APIClient: @unchecked Sendable {
     private let baseURL: URL
     private let session: URLSession
+    private let stateQueue = DispatchQueue(label: "org.handycall.api-client.state")
     private var bearerToken: String?
 
     init(baseURL: URL = AppConfig.apiBaseURL, session: URLSession = .shared) {
@@ -45,7 +46,9 @@ final class APIClient {
     }
 
     func setBearerToken(_ token: String?) {
-        self.bearerToken = token
+        stateQueue.sync {
+            self.bearerToken = token
+        }
     }
 
     func login(email: String, password: String) async throws -> LoginResponse {
@@ -190,10 +193,11 @@ final class APIClient {
         request.timeoutInterval = 20
 
         if requiresAuth {
-            guard let bearerToken else {
+            let token = stateQueue.sync { bearerToken }
+            guard let token else {
                 throw APIError.unauthorized
             }
-            request.setValue("Bearer \(bearerToken)", forHTTPHeaderField: "Authorization")
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
         return request
     }
