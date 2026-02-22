@@ -259,6 +259,33 @@ These endpoints are used by the OpenAI Realtime SIP controller (not the web dash
 - `POST /tools/create_lead` - Create/update contact + call record for an inbound call
 - `POST /tools/save_call` - Persist transcript/summary + collected fields for a completed call
 
+---
+
+## 🔔 NOTIFICATIONS (Implemented)
+
+### Notification event catalog
+- `GET /notifications/events`
+
+Returns all configurable notification event keys and labels.
+
+### Notification preferences
+- `GET /notifications/preferences`
+- `PUT /notifications/preferences`
+
+Store per-user toggles for `in_app` and `push` channels.
+
+### Notification inbox
+- `GET /notifications`
+- `GET /notifications/unread-count`
+- `POST /notifications/:notificationId/read`
+- `POST /notifications/read-all`
+
+### Device registration (iOS/APNs)
+- `POST /notifications/devices`
+- `DELETE /notifications/devices/:deviceId`
+
+Registers APNs device tokens for push delivery.
+
 ### Webhooks (CRM/Automation)
 Generic outbound webhooks for CRM sync (Zapier/Make/n8n/custom).
 

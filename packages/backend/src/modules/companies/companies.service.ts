@@ -342,11 +342,15 @@ export class CompaniesService {
       this.deleteRelatedData('calls', companyId),
       this.deleteRelatedData('contacts', companyId),
       this.deleteRelatedData('appointments', companyId),
-      this.deleteRelatedData('knowledge', companyId),
+      this.deleteRelatedData('knowledge_items', companyId),
       this.deleteRelatedData('flagged_questions', companyId),
-      this.deleteRelatedData('agent_config', companyId),
+      this.deleteRelatedData('agent_configs', companyId),
       this.deleteRelatedData('pricing_rules', companyId),
       this.deleteRelatedData('webhook_configs', companyId),
+      this.deleteRelatedData('notification_preferences', companyId),
+      this.deleteRelatedData('notifications', companyId),
+      this.deleteRelatedData('notification_devices', companyId),
+      this.deleteRelatedData('notification_usage_alerts', companyId),
     ]);
   }
 
@@ -381,14 +385,18 @@ export class CompaniesService {
   private getTableKeys(tableName: string, item: any): any {
     const keyMap: Record<string, string[]> = {
       users: ['company_id', 'user_id'],
-      calls: ['call_id'],
-      contacts: ['contact_id'],
-      appointments: ['appointment_id'],
-      knowledge: ['knowledge_id'],
-      flagged_questions: ['flagged_id'],
-      agent_config: ['config_id'],
-      pricing_rules: ['pricing_id'],
+      calls: ['company_id', 'call_id'],
+      contacts: ['company_id', 'contact_id'],
+      appointments: ['company_id', 'appointment_id'],
+      knowledge_items: ['company_id', 'knowledge_id'],
+      flagged_questions: ['company_id', 'flagged_id'],
+      agent_configs: ['company_id', 'config_id'],
+      pricing_rules: ['company_id', 'pricing_id'],
       webhook_configs: ['company_id'],
+      notification_preferences: ['company_id', 'user_id'],
+      notifications: ['company_id', 'notification_id'],
+      notification_devices: ['company_id', 'device_id'],
+      notification_usage_alerts: ['company_id', 'alert_key'],
     };
 
     const keyNames = keyMap[tableName];

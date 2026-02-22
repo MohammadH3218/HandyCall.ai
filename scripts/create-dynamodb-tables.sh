@@ -477,14 +477,16 @@ else
       ]" \
     --tags Key=Environment,Value="$ENV" Key=Project,Value=HandyCall
   wait_for_table "$TABLE_NAME"
+fi
+
 # =============================================================================
 # 13. WEBHOOK CONFIGS TABLE
 # =============================================================================
 TABLE_NAME="${TABLE_PREFIX}webhook_configs"
 if [ -n "$(table_exists $TABLE_NAME)" ]; then
-  echo "âš ï¸  Table $TABLE_NAME already exists, skipping..."
+  echo "⚠️  Table $TABLE_NAME already exists, skipping..."
 else
-  echo "ðŸ“¦ Creating table: $TABLE_NAME"
+  echo "📦 Creating table: $TABLE_NAME"
   aws dynamodb create-table \
     --table-name "$TABLE_NAME" \
     --region "$REGION" \
@@ -513,6 +515,120 @@ else
       AttributeName=template_id,AttributeType=S \
     --key-schema \
       AttributeName=template_id,KeyType=HASH \
+    --tags Key=Environment,Value="$ENV" Key=Project,Value=HandyCall
+  wait_for_table "$TABLE_NAME"
+fi
+
+# =============================================================================
+# 15. NOTIFICATIONS TABLE
+# =============================================================================
+TABLE_NAME="${TABLE_PREFIX}notifications"
+if [ -n "$(table_exists $TABLE_NAME)" ]; then
+  echo "⚠️  Table $TABLE_NAME already exists, skipping..."
+else
+  echo "📦 Creating table: $TABLE_NAME"
+  aws dynamodb create-table \
+    --table-name "$TABLE_NAME" \
+    --region "$REGION" \
+    --billing-mode "$BILLING_MODE" \
+    --attribute-definitions \
+      AttributeName=company_id,AttributeType=S \
+      AttributeName=notification_id,AttributeType=S \
+      AttributeName=company_user,AttributeType=S \
+      AttributeName=created_at,AttributeType=N \
+    --key-schema \
+      AttributeName=company_id,KeyType=HASH \
+      AttributeName=notification_id,KeyType=RANGE \
+    --global-secondary-indexes \
+      "[
+        {
+          \"IndexName\": \"recipient-index\",
+          \"KeySchema\": [
+            {\"AttributeName\":\"company_user\",\"KeyType\":\"HASH\"},
+            {\"AttributeName\":\"created_at\",\"KeyType\":\"RANGE\"}
+          ],
+          \"Projection\": {\"ProjectionType\":\"ALL\"}
+        }
+      ]" \
+    --tags Key=Environment,Value="$ENV" Key=Project,Value=HandyCall
+  wait_for_table "$TABLE_NAME"
+fi
+
+# =============================================================================
+# 16. NOTIFICATION PREFERENCES TABLE
+# =============================================================================
+TABLE_NAME="${TABLE_PREFIX}notification_preferences"
+if [ -n "$(table_exists $TABLE_NAME)" ]; then
+  echo "⚠️  Table $TABLE_NAME already exists, skipping..."
+else
+  echo "📦 Creating table: $TABLE_NAME"
+  aws dynamodb create-table \
+    --table-name "$TABLE_NAME" \
+    --region "$REGION" \
+    --billing-mode "$BILLING_MODE" \
+    --attribute-definitions \
+      AttributeName=company_id,AttributeType=S \
+      AttributeName=user_id,AttributeType=S \
+    --key-schema \
+      AttributeName=company_id,KeyType=HASH \
+      AttributeName=user_id,KeyType=RANGE \
+    --tags Key=Environment,Value="$ENV" Key=Project,Value=HandyCall
+  wait_for_table "$TABLE_NAME"
+fi
+
+# =============================================================================
+# 17. NOTIFICATION DEVICES TABLE
+# =============================================================================
+TABLE_NAME="${TABLE_PREFIX}notification_devices"
+if [ -n "$(table_exists $TABLE_NAME)" ]; then
+  echo "⚠️  Table $TABLE_NAME already exists, skipping..."
+else
+  echo "📦 Creating table: $TABLE_NAME"
+  aws dynamodb create-table \
+    --table-name "$TABLE_NAME" \
+    --region "$REGION" \
+    --billing-mode "$BILLING_MODE" \
+    --attribute-definitions \
+      AttributeName=company_id,AttributeType=S \
+      AttributeName=device_id,AttributeType=S \
+      AttributeName=company_user,AttributeType=S \
+      AttributeName=updated_at,AttributeType=N \
+    --key-schema \
+      AttributeName=company_id,KeyType=HASH \
+      AttributeName=device_id,KeyType=RANGE \
+    --global-secondary-indexes \
+      "[
+        {
+          \"IndexName\": \"user-index\",
+          \"KeySchema\": [
+            {\"AttributeName\":\"company_user\",\"KeyType\":\"HASH\"},
+            {\"AttributeName\":\"updated_at\",\"KeyType\":\"RANGE\"}
+          ],
+          \"Projection\": {\"ProjectionType\":\"ALL\"}
+        }
+      ]" \
+    --tags Key=Environment,Value="$ENV" Key=Project,Value=HandyCall
+  wait_for_table "$TABLE_NAME"
+fi
+
+# =============================================================================
+# 18. NOTIFICATION USAGE ALERTS TABLE
+# =============================================================================
+TABLE_NAME="${TABLE_PREFIX}notification_usage_alerts"
+if [ -n "$(table_exists $TABLE_NAME)" ]; then
+  echo "⚠️  Table $TABLE_NAME already exists, skipping..."
+else
+  echo "📦 Creating table: $TABLE_NAME"
+  aws dynamodb create-table \
+    --table-name "$TABLE_NAME" \
+    --region "$REGION" \
+    --billing-mode "$BILLING_MODE" \
+    --attribute-definitions \
+      AttributeName=company_id,AttributeType=S \
+      AttributeName=alert_key,AttributeType=S \
+    --key-schema \
+      AttributeName=company_id,KeyType=HASH \
+      AttributeName=alert_key,KeyType=RANGE \
     --tags Key=Environment,Value="$ENV" Key=Project,Value=HandyCall
   wait_for_table "$TABLE_NAME"
 fi

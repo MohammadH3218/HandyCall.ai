@@ -1,10 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import { DynamoDBService } from '../../infrastructure/database/dynamodb.service';
 import { UsageMetrics, PlanLimits, SubscriptionPlan } from '@handycall/shared';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class UsageService {
-  constructor(private dynamodb: DynamoDBService) {}
+  constructor(
+    private dynamodb: DynamoDBService,
+    private notifications: NotificationsService,
+  ) {}
 
   /**
    * Increment call minutes for today
@@ -39,6 +43,10 @@ export class UsageService {
         updated_at: Date.now(),
       });
     }
+
+    void this.notifications.emitUsageThresholdNotifications(companyId).catch((err) => {
+      console.warn('[UsageService] Failed to emit usage threshold notifications:', err?.message || err);
+    });
   }
 
   /**
@@ -73,6 +81,10 @@ export class UsageService {
         updated_at: Date.now(),
       });
     }
+
+    void this.notifications.emitUsageThresholdNotifications(companyId).catch((err) => {
+      console.warn('[UsageService] Failed to emit usage threshold notifications:', err?.message || err);
+    });
   }
 
   /**
@@ -107,6 +119,10 @@ export class UsageService {
         updated_at: Date.now(),
       });
     }
+
+    void this.notifications.emitUsageThresholdNotifications(companyId).catch((err) => {
+      console.warn('[UsageService] Failed to emit usage threshold notifications:', err?.message || err);
+    });
   }
 
   /**

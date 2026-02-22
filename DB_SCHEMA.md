@@ -590,6 +590,145 @@ Use this table to map an inbound phone number (DID) to a tenant (`company_id`) f
 
 ---
 
+## 14. Notifications Table
+
+**Table Name**: `handycall_{env}_notifications`
+
+### Primary Key
+- **PK**: `company_id` (String)
+- **SK**: `notification_id` (String)
+
+### Attributes
+```typescript
+{
+  company_id: string;                  // UUID (PK)
+  notification_id: string;             // UUID (SK)
+  company_user: string;                // `${company_id}#${user_id}`
+  user_id: string;                     // recipient user id
+  event_key: string;                   // appointment_created, usage_threshold_75, etc.
+  category: string;                    // APPOINTMENTS, CALLS, LEADS, USAGE, SYSTEM
+  title: string;
+  body: string;
+  channels: string[];                  // IN_APP, PUSH
+  is_read: boolean;
+  read_at?: number;
+  action_url?: string;
+  payload?: Record<string, any>;
+  created_at: number;
+}
+```
+
+### GSIs
+**GSI1: recipient-index**
+- PK: `company_user`
+- SK: `created_at`
+- Purpose: Fetch notifications for one user in recency order
+
+### Access Patterns
+1. List user notifications -> `Query GSI1 (company_user)`
+2. Mark single notification read -> `UpdateItem(company_id, notification_id)`
+3. Mark all read -> `Query GSI1`, then batch `UpdateItem`
+
+---
+
+## 15. NotificationPreferences Table
+
+**Table Name**: `handycall_{env}_notification_preferences`
+
+### Primary Key
+- **PK**: `company_id` (String)
+- **SK**: `user_id` (String)
+
+### Attributes
+```typescript
+{
+  company_id: string;                             // UUID (PK)
+  user_id: string;                                // UUID (SK)
+  preferences: {
+    [eventKey: string]: {
+      in_app: boolean;
+      push: boolean;
+    }
+  };
+  created_at: number;
+  updated_at: number;
+}
+```
+
+### Access Patterns
+1. Get user preference profile -> `GetItem(company_id, user_id)`
+2. Update preference profile -> `PutItem(company_id, user_id)`
+
+---
+
+## 16. NotificationDevices Table
+
+**Table Name**: `handycall_{env}_notification_devices`
+
+### Primary Key
+- **PK**: `company_id` (String)
+- **SK**: `device_id` (String)
+
+### Attributes
+```typescript
+{
+  company_id: string;             // UUID (PK)
+  device_id: string;              // app-generated stable id (SK)
+  company_user: string;           // `${company_id}#${user_id}`
+  user_id: string;
+  platform: 'IOS';
+  apns_token: string;
+  apns_environment: 'sandbox' | 'production';
+  push_enabled: boolean;
+  is_active: boolean;
+  app_version?: string;
+  device_model?: string;
+  locale?: string;
+  created_at: number;
+  updated_at: number;
+  last_seen_at: number;
+}
+```
+
+### GSIs
+**GSI1: user-index**
+- PK: `company_user`
+- SK: `updated_at`
+- Purpose: List active devices for a single user quickly
+
+### Access Patterns
+1. Register/update device -> `PutItem(company_id, device_id)`
+2. Soft-remove device -> `UpdateItem(company_id, device_id)`
+3. List user devices -> `Query GSI1 (company_user)`
+
+---
+
+## 17. NotificationUsageAlerts Table
+
+**Table Name**: `handycall_{env}_notification_usage_alerts`
+
+### Primary Key
+- **PK**: `company_id` (String)
+- **SK**: `alert_key` (String)
+
+### Attributes
+```typescript
+{
+  company_id: string;          // UUID (PK)
+  alert_key: string;           // `${period_start}:${metric}:${threshold}`
+  period_start: number;
+  metric: 'minutes' | 'sms' | 'contacts';
+  threshold: number;           // 25, 50, 75, 90, 100
+  created_at: number;
+}
+```
+
+### Access Patterns
+1. Deduplicate threshold alert emission -> `GetItem(company_id, alert_key)`
+2. Record emitted alert marker -> `PutItem(company_id, alert_key)`
+
+---
+
 ## 🔧 CAPACITY PLANNING
 
 ### Provisioned vs On-Demand
@@ -606,6 +745,8 @@ Use this table to map an inbound phone number (DID) to a tenant (`company_id`) f
 - KnowledgeChunks: ~10 KB (due to embeddings)
 - FlaggedQuestions: ~3 KB
 - WebhookConfigs: ~1 KB
+- Notifications: ~1 KB
+- NotificationDevices: ~0.5 KB
 
 ### GSI Costs
 - Each GSI doubles storage costs for projected items
@@ -658,7 +799,6 @@ Use this table to map an inbound phone number (DID) to a tenant (`company_id`) f
 ---
 
 **End of DB_SCHEMA.md**
-
 
 
 

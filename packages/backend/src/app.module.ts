@@ -23,6 +23,7 @@ import { CalendarIntegrationModule } from './modules/calendar-integration/calend
 import { PublicBookingModule } from './modules/public-booking/public-booking.module';
 import { WebhooksModule } from './modules/webhooks/webhooks.module';
 import { MessagesModule } from './modules/messages/messages.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
 import { DatabaseModule } from './infrastructure/database/database.module';
 import { StorageModule } from './infrastructure/storage/storage.module';
 import { ParameterStoreModule } from './infrastructure/config/config.module';
@@ -66,6 +67,7 @@ import { AppService } from './app.service';
     PublicBookingModule,
     WebhooksModule,
     MessagesModule,
+    NotificationsModule,
   ],
   controllers: [AppController],
   providers: [

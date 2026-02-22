@@ -23,6 +23,13 @@ import type {
   CallTranscript,
 } from './telephony';
 
+import type {
+  NotificationDevice,
+  NotificationDeviceRegistration,
+  NotificationItem,
+  NotificationPreferencesMap,
+} from './notifications';
+
 // ============================================================================
 // Standard API Response Wrapper
 // ============================================================================
@@ -365,4 +372,27 @@ export interface UrgentItem {
   id: UUID;
   description: string;
   created_at: Timestamp;
+}
+
+// ============================================================================
+// Notifications
+// ============================================================================
+
+export interface ListNotificationsResponse {
+  notifications: NotificationItem[];
+  lastEvaluatedKey?: Record<string, any>;
+}
+
+export interface GetNotificationPreferencesResponse {
+  preferences: NotificationPreferencesMap;
+}
+
+export interface UpdateNotificationPreferencesRequest {
+  preferences: Partial<NotificationPreferencesMap>;
+}
+
+export interface RegisterNotificationDeviceRequest extends NotificationDeviceRegistration {}
+
+export interface RegisterNotificationDeviceResponse {
+  device: NotificationDevice;
 }

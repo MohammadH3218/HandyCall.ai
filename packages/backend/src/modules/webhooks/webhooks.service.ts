@@ -7,6 +7,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { WEBHOOK_PUBLIC_EVENTS, PublicWebhookEventType, WebhookEventType } from './webhooks.types';
 import { KMSClient, DecryptCommand, EncryptCommand } from '@aws-sdk/client-kms';
 import { SQSClient, SendMessageCommand } from '@aws-sdk/client-sqs';
+import { NotificationsService } from '../notifications/notifications.service';
 
 export interface WebhookConfig {
   company_id: string;
@@ -50,6 +51,7 @@ export class WebhooksService {
   constructor(
     private readonly dynamodb: DynamoDBService,
     private readonly config: ConfigService,
+    private readonly notifications: NotificationsService,
   ) {
     this.sqsUrl = this.config.get<string>('WEBHOOK_SQS_URL') || undefined;
     if (this.sqsUrl) {
@@ -171,6 +173,10 @@ export class WebhooksService {
     data: Record<string, any>,
     options?: { awaitDelivery?: boolean },
   ): Promise<void | WebhookDeliveryResult> {
+    void this.notifications.dispatchFromWebhookEvent(companyId, event, data).catch((err) => {
+      console.warn('[WebhooksService] Notification dispatch failed:', err?.message ?? err);
+    });
+
     const config = await this.getConfig(companyId);
     if (!config || !config.webhook_url || config.is_enabled === false) {
       return;

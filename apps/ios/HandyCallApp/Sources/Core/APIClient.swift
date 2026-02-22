@@ -1,0 +1,231 @@
+import Foundation
+
+enum APIError: Error, LocalizedError {
+    case invalidURL
+    case invalidResponse
+    case unauthorized
+    case server(message: String)
+    case decoding
+
+    var errorDescription: String? {
+        switch self {
+        case .invalidURL:
+            return "Invalid request URL."
+        case .invalidResponse:
+            return "Invalid server response."
+        case .unauthorized:
+            return "Your session expired. Please sign in again."
+        case .server(let message):
+            return message
+        case .decoding:
+            return "Could not parse server data."
+        }
+    }
+}
+
+private struct APIEnvelope<T: Decodable>: Decodable {
+    let success: Bool?
+    let data: T?
+    let error: APIEnvelopeError?
+}
+
+private struct APIEnvelopeError: Decodable {
+    let code: String?
+    let message: String?
+}
+
+final class APIClient {
+    private let baseURL: URL
+    private let session: URLSession
+    private var bearerToken: String?
+
+    init(baseURL: URL = AppConfig.apiBaseURL, session: URLSession = .shared) {
+        self.baseURL = baseURL
+        self.session = session
+    }
+
+    func setBearerToken(_ token: String?) {
+        self.bearerToken = token
+    }
+
+    func login(email: String, password: String) async throws -> LoginResponse {
+        try await request(
+            path: "/auth/login",
+            method: "POST",
+            body: LoginRequest(email: email, password: password),
+            requiresAuth: false
+        )
+    }
+
+    func refresh(refreshToken: String, email: String) async throws -> RefreshResponse {
+        struct RefreshBody: Encodable {
+            let refresh_token: String
+            let email: String
+        }
+        return try await request(path: "/auth/refresh", method: "POST", body: RefreshBody(refresh_token: refreshToken, email: email), requiresAuth: false)
+    }
+
+    func getMyCompany() async throws -> Company {
+        try await request(path: "/companies/me", method: "GET")
+    }
+
+    func getDashboardStats() async throws -> DashboardStats {
+        try await request(path: "/dashboard/stats", method: "GET")
+    }
+
+    func getAppointments(limit: Int = 50) async throws -> [Appointment] {
+        struct Response: Decodable { let appointments: [Appointment] }
+        let response: Response = try await request(path: "/appointments?limit=\(limit)", method: "GET")
+        return response.appointments
+    }
+
+    func getCalls(limit: Int = 50) async throws -> [CallItem] {
+        struct Response: Decodable { let calls: [CallItem] }
+        let response: Response = try await request(path: "/calls?limit=\(limit)", method: "GET")
+        return response.calls
+    }
+
+    func getContacts(limit: Int = 50) async throws -> [ContactItem] {
+        struct Response: Decodable { let contacts: [ContactItem] }
+        let response: Response = try await request(path: "/contacts?limit=\(limit)", method: "GET")
+        return response.contacts
+    }
+
+    func getNotificationEvents() async throws -> [NotificationEventMeta] {
+        struct Response: Decodable { let events: [NotificationEventMeta] }
+        let response: Response = try await request(path: "/notifications/events", method: "GET")
+        return response.events
+    }
+
+    func getNotificationPreferences() async throws -> [String: NotificationToggle] {
+        let response: NotificationPreferencePayload = try await request(path: "/notifications/preferences", method: "GET")
+        return response.preferences
+    }
+
+    func updateNotificationPreferences(_ preferences: [String: NotificationToggle]) async throws {
+        let body = NotificationPreferenceUpdateRequest(preferences: preferences)
+        _ = try await request(path: "/notifications/preferences", method: "PUT", body: body) as NotificationPreferencePayload
+    }
+
+    func getNotifications(limit: Int = 50, unreadOnly: Bool = false) async throws -> [NotificationItem] {
+        let path = "/notifications?limit=\(limit)&unread_only=\(unreadOnly ? "true" : "false")"
+        let response: NotificationListResponse = try await request(path: path, method: "GET")
+        return response.notifications
+    }
+
+    func getUnreadNotificationCount() async throws -> Int {
+        let response: NotificationUnreadCount = try await request(path: "/notifications/unread-count", method: "GET")
+        return response.unread
+    }
+
+    func markNotificationRead(notificationID: String) async throws {
+        struct Empty: Decodable {}
+        _ = try await request(path: "/notifications/\(notificationID)/read", method: "POST") as Empty
+    }
+
+    func markAllNotificationsRead() async throws {
+        struct Empty: Decodable {}
+        _ = try await request(path: "/notifications/read-all", method: "POST") as Empty
+    }
+
+    func registerPushDevice(token: String) async throws {
+        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String
+        let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String
+        let normalizedVersion: String? = {
+            if let version, let build { return "\(version) (\(build))" }
+            return version ?? build
+        }()
+
+        let body = NotificationDeviceRegistrationRequest(
+            deviceID: deviceIdentifier(),
+            platform: "IOS",
+            apnsToken: token,
+            apnsEnvironment: AppConfig.apnsEnvironment.rawValue,
+            appVersion: normalizedVersion,
+            deviceModel: nil,
+            locale: Locale.current.identifier,
+            pushEnabled: true
+        )
+        struct Empty: Decodable {}
+        _ = try await request(path: "/notifications/devices", method: "POST", body: body) as Empty
+    }
+
+    private func deviceIdentifier() -> String {
+        if let cached = UserDefaults.standard.string(forKey: "handycall.device_id"), !cached.isEmpty {
+            return cached
+        }
+        let generated = UUID().uuidString
+        UserDefaults.standard.set(generated, forKey: "handycall.device_id")
+        return generated
+    }
+
+    private func request<T: Decodable, Body: Encodable>(
+        path: String,
+        method: String,
+        body: Body,
+        requiresAuth: Bool = true
+    ) async throws -> T {
+        var request = try makeRequest(path: path, method: method, requiresAuth: requiresAuth)
+        request.httpBody = try JSONEncoder().encode(body)
+        return try await execute(request)
+    }
+
+    private func request<T: Decodable>(
+        path: String,
+        method: String,
+        requiresAuth: Bool = true
+    ) async throws -> T {
+        let request = try makeRequest(path: path, method: method, requiresAuth: requiresAuth)
+        return try await execute(request)
+    }
+
+    private func makeRequest(path: String, method: String, requiresAuth: Bool) throws -> URLRequest {
+        guard let url = URL(string: path, relativeTo: baseURL) else {
+            throw APIError.invalidURL
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = method
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.timeoutInterval = 20
+
+        if requiresAuth {
+            guard let bearerToken else {
+                throw APIError.unauthorized
+            }
+            request.setValue("Bearer \(bearerToken)", forHTTPHeaderField: "Authorization")
+        }
+        return request
+    }
+
+    private func execute<T: Decodable>(_ request: URLRequest) async throws -> T {
+        let (data, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse else {
+            throw APIError.invalidResponse
+        }
+
+        if http.statusCode == 401 || http.statusCode == 403 {
+            throw APIError.unauthorized
+        }
+        guard (200...299).contains(http.statusCode) else {
+            if let envelope = try? JSONDecoder().decode(APIEnvelope<T>.self, from: data),
+               let message = envelope.error?.message {
+                throw APIError.server(message: message)
+            }
+            if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let message = (json["message"] as? String) ?? (json["error"] as? String) {
+                throw APIError.server(message: message)
+            }
+            throw APIError.server(message: "Request failed with status \(http.statusCode)")
+        }
+
+        if let decoded = try? JSONDecoder().decode(T.self, from: data) {
+            return decoded
+        }
+        if let envelope = try? JSONDecoder().decode(APIEnvelope<T>.self, from: data),
+           let wrapped = envelope.data {
+            return wrapped
+        }
+        throw APIError.decoding
+    }
+}

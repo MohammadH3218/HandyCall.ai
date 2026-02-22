@@ -759,6 +759,81 @@ class ApiClient {
     return response.data ?? response;
   }
 
+  // Notifications endpoints
+  async getNotificationEvents(): Promise<any> {
+    const response = await this.request<any>('/notifications/events', {
+      method: 'GET',
+    });
+    return response.data ?? response;
+  }
+
+  async getNotificationPreferences(): Promise<any> {
+    const response = await this.request<any>('/notifications/preferences', {
+      method: 'GET',
+    });
+    return response.data ?? response;
+  }
+
+  async updateNotificationPreferences(preferences: any): Promise<any> {
+    const response = await this.request<any>('/notifications/preferences', {
+      method: 'PUT',
+      body: JSON.stringify({ preferences }),
+    });
+    return response.data ?? response;
+  }
+
+  async listNotifications(limit = 25, unreadOnly = false): Promise<any> {
+    const response = await this.request<any>(`/notifications?limit=${limit}&unread_only=${unreadOnly}`, {
+      method: 'GET',
+    });
+    return response.data ?? response;
+  }
+
+  async getUnreadNotificationCount(): Promise<any> {
+    const response = await this.request<any>('/notifications/unread-count', {
+      method: 'GET',
+    });
+    return response.data ?? response;
+  }
+
+  async markNotificationRead(notificationId: string): Promise<any> {
+    const response = await this.request<any>(`/notifications/${notificationId}/read`, {
+      method: 'POST',
+    });
+    return response.data ?? response;
+  }
+
+  async markAllNotificationsRead(): Promise<any> {
+    const response = await this.request<any>('/notifications/read-all', {
+      method: 'POST',
+    });
+    return response.data ?? response;
+  }
+
+  async registerNotificationDevice(payload: {
+    device_id: string;
+    platform: 'IOS';
+    apns_token: string;
+    apns_environment?: 'sandbox' | 'production';
+    app_version?: string;
+    device_model?: string;
+    locale?: string;
+    push_enabled?: boolean;
+  }): Promise<any> {
+    const response = await this.request<any>('/notifications/devices', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+    return response.data ?? response;
+  }
+
+  async removeNotificationDevice(deviceId: string): Promise<any> {
+    const response = await this.request<any>(`/notifications/devices/${deviceId}`, {
+      method: 'DELETE',
+    });
+    return response.data ?? response;
+  }
+
   // Admin billing endpoints
   async getAdminSubscriptions(): Promise<any[]> {
     const response = await this.request<any[]>('/billing/admin/subscriptions', {
