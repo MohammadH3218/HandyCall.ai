@@ -47,6 +47,27 @@ Set in backend runtime:
 
 If these are missing, in-app notifications still work but push delivery is skipped.
 
+### Parameter Store fallback (recommended)
+
+Backend now also supports loading APNs values from SSM Parameter Store (when `USE_PARAMETER_STORE=true`):
+- `/handycall/apns/key-id`
+- `/handycall/apns/team-id`
+- `/handycall/apns/bundle-id`
+- `/handycall/apns/private-key` (SecureString)
+
+Use:
+- `scripts/set-apns-parameters.sh`
+
+Example:
+```bash
+AWS_PROFILE=handycall-dev AWS_REGION=us-east-1 \
+APNS_KEY_ID="<apple-key-id>" \
+APNS_TEAM_ID="<apple-team-id>" \
+APNS_BUNDLE_ID="<ios-bundle-id>" \
+APNS_PRIVATE_KEY_FILE="/path/to/AuthKey_XXXXXXXXXX.p8" \
+./scripts/set-apns-parameters.sh
+```
+
 ## Suggested rollout
 
 1. Deploy backend with new notification endpoints.

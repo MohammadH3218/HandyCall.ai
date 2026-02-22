@@ -9,15 +9,12 @@ It is designed to consume the existing backend API (`/api/v1`) and includes:
 - Notification preferences with explicit Save + toast confirmation
 - APNs device registration wiring to backend (`POST /notifications/devices`)
 
-## 1. Create Xcode Project
+## 1. Open Xcode Project
 
-1. Open Xcode (26+ recommended).
-2. Create a new iOS app project:
-   - Product Name: `HandyCall`
-   - Interface: `SwiftUI`
-   - Language: `Swift`
-3. Delete the default generated source files.
-4. Drag `apps/ios/HandyCallApp/Sources` into the project navigator and add all files to the app target.
+1. Open `apps/ios/HandyCallApp/HandyCall.xcodeproj` in Xcode (26+ recommended).
+2. Use scheme `HandyCall`.
+3. If you change project structure/settings, regenerate from `apps/ios/HandyCallApp/project.yml`:
+   - `xcodegen generate --spec apps/ios/HandyCallApp/project.yml`
 
 ## 2. Required iOS Capabilities
 
@@ -44,6 +41,12 @@ Set these backend environment variables to enable APNs delivery:
 - `APNS_PRIVATE_KEY` (PEM text, `\n` escaped) or `APNS_PRIVATE_KEY_BASE64`
 
 If unset, notifications still work in-app but push delivery is skipped.
+
+If `USE_PARAMETER_STORE=true`, backend can also load APNs values from SSM:
+- `/handycall/apns/key-id`
+- `/handycall/apns/team-id`
+- `/handycall/apns/bundle-id`
+- `/handycall/apns/private-key` (SecureString)
 
 ## 5. Apple Review Readiness
 

@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { DynamoDBService } from '../../infrastructure/database/dynamodb.service';
+import { ParameterStoreService } from '../../infrastructure/config/parameter-store.service';
 import { createSign } from 'crypto';
 import * as http2 from 'http2';
 import { v4 as uuidv4 } from 'uuid';
@@ -109,10 +110,17 @@ const PLAN_LIMITS: Record<SubscriptionPlan, { minutes: number; sms: number; cont
 @Injectable()
 export class NotificationsService {
   private apnsTokenCache: { jwt: string; expiresAt: number } | null = null;
+  private apnsConfigCache:
+    | {
+        config: { keyId: string; teamId: string; bundleId: string; privateKey: string } | null;
+        expiresAt: number;
+      }
+    | null = null;
 
   constructor(
     private readonly dynamodb: DynamoDBService,
     private readonly config: ConfigService,
+    private readonly parameterStore: ParameterStoreService,
   ) {}
 
   listEvents(): EventCatalogItem[] {
@@ -718,16 +726,12 @@ export class NotificationsService {
     device: NotificationDevice,
     input: { title: string; body: string; eventKey: NotificationEventKey; actionUrl?: string; payload?: Record<string, any> },
   ): Promise<{ ok: boolean; deactivate?: boolean }> {
-    const keyId = this.config.get<string>('APNS_KEY_ID');
-    const teamId = this.config.get<string>('APNS_TEAM_ID');
-    const bundleId = this.config.get<string>('APNS_BUNDLE_ID');
-    const privateKey = this.getApnsPrivateKey();
-
-    if (!keyId || !teamId || !bundleId || !privateKey) {
+    const apns = await this.getApnsConfig();
+    if (!apns) {
       return { ok: false };
     }
 
-    const jwt = this.getApnsJwt(teamId, keyId, privateKey);
+    const jwt = this.getApnsJwt(apns.teamId, apns.keyId, apns.privateKey);
     const host = device.apns_environment === 'sandbox' ? 'api.sandbox.push.apple.com' : 'api.push.apple.com';
     const payload = JSON.stringify({
       aps: {
@@ -762,7 +766,7 @@ export class NotificationsService {
         ':method': 'POST',
         ':path': `/3/device/${device.apns_token}`,
         authorization: `bearer ${jwt}`,
-        'apns-topic': bundleId,
+        'apns-topic': apns.bundleId,
         'apns-push-type': 'alert',
         'apns-priority': '10',
       });
@@ -809,19 +813,68 @@ export class NotificationsService {
     });
   }
 
-  private getApnsPrivateKey(): string | null {
-    const inline = this.config.get<string>('APNS_PRIVATE_KEY');
+  private async getApnsConfig(): Promise<{ keyId: string; teamId: string; bundleId: string; privateKey: string } | null> {
+    const now = Math.floor(Date.now() / 1000);
+    if (this.apnsConfigCache && this.apnsConfigCache.expiresAt > now + 30) {
+      return this.apnsConfigCache.config;
+    }
+
+    const keyId = await this.readApnsValue('APNS_KEY_ID', 'APNS_KEY_ID_PARAM', '/handycall/apns/key-id');
+    const teamId = await this.readApnsValue('APNS_TEAM_ID', 'APNS_TEAM_ID_PARAM', '/handycall/apns/team-id');
+    const bundleId = await this.readApnsValue('APNS_BUNDLE_ID', 'APNS_BUNDLE_ID_PARAM', '/handycall/apns/bundle-id');
+    const privateKey = await this.getApnsPrivateKey();
+
+    const config =
+      keyId && teamId && bundleId && privateKey
+        ? {
+            keyId,
+            teamId,
+            bundleId,
+            privateKey,
+          }
+        : null;
+    this.apnsConfigCache = { config, expiresAt: now + 5 * 60 };
+    return config;
+  }
+
+  private async getApnsPrivateKey(): Promise<string | null> {
+    const inline = await this.readApnsValue('APNS_PRIVATE_KEY', 'APNS_PRIVATE_KEY_PARAM', '/handycall/apns/private-key', true);
     if (inline) {
       return inline.includes('\\n') ? inline.replace(/\\n/g, '\n') : inline;
     }
 
-    const base64 = this.config.get<string>('APNS_PRIVATE_KEY_BASE64');
+    const base64 = await this.readApnsValue(
+      'APNS_PRIVATE_KEY_BASE64',
+      'APNS_PRIVATE_KEY_BASE64_PARAM',
+      '/handycall/apns/private-key-base64',
+      true,
+    );
     if (base64) {
       try {
         return Buffer.from(base64, 'base64').toString('utf8');
       } catch {
         return null;
       }
+    }
+
+    return null;
+  }
+
+  private async readApnsValue(
+    envName: string,
+    paramPathEnvName: string,
+    defaultParamPath: string,
+    decrypt: boolean = true,
+  ): Promise<string | null> {
+    const inline = this.config.get<string>(envName);
+    if (typeof inline === 'string' && inline.trim()) {
+      return inline.trim();
+    }
+
+    const paramPath = this.config.get<string>(paramPathEnvName) || defaultParamPath;
+    const fromParameterStore = await this.parameterStore.getParameter(paramPath, decrypt);
+    if (typeof fromParameterStore === 'string' && fromParameterStore.trim()) {
+      return fromParameterStore.trim();
     }
 
     return null;

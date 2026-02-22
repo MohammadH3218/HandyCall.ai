@@ -31,6 +31,12 @@ aws elasticbeanstalk create-environment \
     "Namespace=aws:elasticbeanstalk:application:environment,OptionName=AWS_COGNITO_ADMIN_CLIENT_ID,Value=$AWS_COGNITO_ADMIN_CLIENT_ID" \
     "Namespace=aws:elasticbeanstalk:application:environment,OptionName=AWS_COGNITO_ADMIN_CLIENT_SECRET,Value=$AWS_COGNITO_ADMIN_CLIENT_SECRET" \
     "Namespace=aws:elasticbeanstalk:application:environment,OptionName=DYNAMODB_TABLE_PREFIX,Value=handycall_prod_" \
+    "Namespace=aws:elasticbeanstalk:application:environment,OptionName=USE_PARAMETER_STORE,Value=true" \
+    "Namespace=aws:elasticbeanstalk:application:environment,OptionName=APNS_KEY_ID_PARAM,Value=/handycall/apns/key-id" \
+    "Namespace=aws:elasticbeanstalk:application:environment,OptionName=APNS_TEAM_ID_PARAM,Value=/handycall/apns/team-id" \
+    "Namespace=aws:elasticbeanstalk:application:environment,OptionName=APNS_BUNDLE_ID_PARAM,Value=/handycall/apns/bundle-id" \
+    "Namespace=aws:elasticbeanstalk:application:environment,OptionName=APNS_PRIVATE_KEY_PARAM,Value=/handycall/apns/private-key" \
+    "Namespace=aws:elasticbeanstalk:application:environment,OptionName=APNS_PRIVATE_KEY_BASE64_PARAM,Value=/handycall/apns/private-key-base64" \
     "Namespace=aws:elasticbeanstalk:application:environment,OptionName=S3_BUCKET_RECORDINGS,Value=handycall-recordings-prod" \
     "Namespace=aws:elasticbeanstalk:application:environment,OptionName=S3_BUCKET_TRANSCRIPTS,Value=handycall-transcripts-prod" \
     "Namespace=aws:elasticbeanstalk:application:environment,OptionName=BEDROCK_MODEL_ID,Value=$BEDROCK_MODEL_ID" \

@@ -179,7 +179,7 @@ aws dynamodb put-item \
     \"status\": {\"S\": \"ACTIVE\"},
     \"status_updated\": {\"S\": \"ACTIVE#$TIMESTAMP\"},
     \"question\": {\"S\": \"How much do you charge?\"},
-    \"answer\": {\"S\": \"Our rates start at \\$75 per hour for general handyman work. Larger projects are quoted individually after an on-site assessment. We provide free estimates for all jobs. Emergency services may include an additional call-out fee.\"},
+    \"answer\": {\"S\": \"Our rates start at \$75 per hour for general handyman work. Larger projects are quoted individually after an on-site assessment. We provide free estimates for all jobs. Emergency services may include an additional call-out fee.\"},
     \"created_by\": {\"S\": \"$USER_ID\"},
     \"source\": {\"S\": \"MANUAL\"},
     \"use_count\": {\"N\": \"0\"},
