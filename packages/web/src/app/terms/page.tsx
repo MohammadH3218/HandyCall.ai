@@ -49,6 +49,50 @@ export default function TermsPage() {
           </section>
 
           <section className="space-y-3">
+            <h2 className="text-lg font-semibold text-slate-900">SMS Program Terms — HandyCall Appointment SMS</h2>
+            <ul className="list-disc pl-5 text-sm text-slate-600 space-y-1">
+              <li>
+                <strong>Program name:</strong> HandyCall Appointment SMS
+              </li>
+              <li>
+                <strong>Description:</strong> Transactional appointment messages including booking confirmations,
+                reminders, reschedule/cancellation notices, and appointment request status updates sent by HandyCall
+                to customers who have provided explicit opt-in consent.
+              </li>
+              <li>
+                <strong>Message frequency:</strong> Message frequency varies based on appointment activity
+                (typically 1–3 messages per appointment booked).
+              </li>
+              <li>
+                <strong>Rates:</strong> Message and data rates may apply.
+              </li>
+              <li>
+                <strong>Opt-out:</strong> Reply <strong>STOP</strong> to any message to cancel. You will receive a
+                one-time confirmation that you have been unsubscribed. No further messages will be sent unless you
+                opt in again.
+              </li>
+              <li>
+                <strong>Help:</strong> Reply <strong>HELP</strong> for help. You can also contact us at{' '}
+                <Link href="mailto:hello@handycall.org" className="text-emerald-700 underline">
+                  hello@handycall.org
+                </Link>{' '}
+                or visit{' '}
+                <Link href="https://handycall.org" className="text-emerald-700 underline">
+                  handycall.org
+                </Link>
+                .
+              </li>
+              <li>
+                <strong>No mobile opt-in data</strong> will be shared with or sold to third parties or affiliates
+                for marketing or promotional purposes.
+              </li>
+              <li>
+                Consent to receive SMS is not a condition of purchase or use of HandyCall services.
+              </li>
+            </ul>
+          </section>
+
+          <section className="space-y-3">
             <h2 className="text-lg font-semibold text-slate-900">Billing</h2>
             <p className="text-sm text-slate-600">
               Plans are billed according to your subscription terms. You may cancel anytime; access continues until

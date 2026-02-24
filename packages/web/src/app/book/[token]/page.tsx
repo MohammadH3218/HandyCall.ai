@@ -148,6 +148,7 @@ export default function BookingPage() {
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
+  const [smsConsent, setSmsConsent] = useState(false);
   const [street, setStreet] = useState('');
   const [city, setCity] = useState('');
   const [state, setState] = useState('');
@@ -918,6 +919,32 @@ export default function BookingPage() {
                   </div>
                 </div>
               ) : null}
+
+              <div className="space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-4">
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    id="sms-consent"
+                    checked={smsConsent}
+                    onChange={(e) => setSmsConsent(e.target.checked)}
+                    className="mt-0.5 h-4 w-4 shrink-0 rounded border-gray-300 accent-emerald-600"
+                  />
+                  <span className="text-xs text-slate-600 leading-relaxed">
+                    I agree to receive appointment-related text messages from{' '}
+                    <strong>HandyCall</strong> (confirmations, reminders, and updates).
+                    Message frequency varies. Msg &amp; data rates may apply. Reply{' '}
+                    <strong>STOP</strong> to opt out, <strong>HELP</strong> for help.
+                    Consent is not a condition of purchase.{' '}
+                    <a href="https://handycall.org/privacy-policy" className="underline text-emerald-700" target="_blank" rel="noopener noreferrer">
+                      Privacy Policy
+                    </a>{' '}
+                    |{' '}
+                    <a href="https://handycall.org/terms" className="underline text-emerald-700" target="_blank" rel="noopener noreferrer">
+                      Terms
+                    </a>
+                  </span>
+                </label>
+              </div>
 
               <Button onClick={handleSubmit} disabled={submitting}>
                 {submitting ? 'Booking...' : 'Confirm Appointment'}
