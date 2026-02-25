@@ -24,31 +24,11 @@ import {
    DATA
    ──────────────────────────────────────────────────────────── */
 
-const pipeline = [
-  { label: 'Answer', detail: 'Every inbound call, 24/7' },
-  { label: 'Qualify', detail: 'Capture job type, urgency, contact' },
-  { label: 'Book', detail: 'Propose slots from live availability' },
-  { label: 'Confirm', detail: 'SMS confirmation + calendar sync' },
-];
-
-const industryStatsHero = [
-  { value: '78%', label: 'of callers abandon a business after an unanswered call' },
-  { value: '41%', label: 'hang up after 1-2 minutes on hold' },
-  { value: '52.5B', label: 'robocalls placed in the U.S. in 2025' },
-];
-
-const industryStatsHeroSource =
-  'Sources: CallRail survey of 1,000 U.S. consumers (2025); YouMail Robocall Index (2025).';
-
 const benchmarks = [
-  { value: '42%', label: 'leave a voicemail when they reach no one', source: 'CallRail 2025' },
-  { value: '24%', label: 'turn to online chat after a missed call', source: 'CallRail 2025' },
-  { value: '21%', label: 'call another business immediately', source: 'CallRail 2025' },
-  {
-    value: '55%',
-    label: 'report stable staffing while handling higher volumes with AI',
-    source: 'Gartner 2025',
-  },
+  { value: '78%', label: 'of callers abandon after no answer', source: 'CallRail 2025' },
+  { value: '41%', label: 'hang up after 1–2 minutes on hold', source: 'CallRail 2025' },
+  { value: '21%', label: 'immediately call a competitor', source: 'CallRail 2025' },
+  { value: '55%', label: 'stable staffing while handling higher call volumes with AI', source: 'Gartner 2025' },
 ];
 
 const benchmarksSource =
@@ -86,21 +66,6 @@ const industries = [
   { name: 'Cleaning', example: 'Move-out cleans, recurring service' },
   { name: 'Garage Doors', example: 'Opener repair, spring replacement' },
   { name: 'Property Maintenance', example: 'Handyman, turnover prep' },
-];
-
-const callerExperience = [
-  {
-    label: 'Greeting',
-    script: 'Thanks for calling GreenShield Pest. Are you calling about ants, roaches, or termites-',
-  },
-  {
-    label: 'Qualification',
-    script: 'Got it. Is this an active infestation and what is the best address to send a tech-',
-  },
-  {
-    label: 'Booking',
-    script: 'I can do Wednesday at 3:30 PM or Thursday at 10 AM. Which works best-',
-  },
 ];
 
 const handoffScenarios = [
@@ -142,8 +107,6 @@ const trustBadges = [
   'Uptime SLA target',
 ];
 
-const urgencyLines = ['Go live before next business day', 'Stop missing after-hours calls'];
-
 /* ────────────────────────────────────────────────────────────
    PAGE
    ──────────────────────────────────────────────────────────── */
@@ -157,169 +120,140 @@ export default function Home() {
         {/* ═══════════════════════════════════════════════════════
             HERO
         ═══════════════════════════════════════════════════════ */}
-        <section className="border-b border-slate-200 bg-white">
-          <div className="mx-auto grid max-w-6xl items-center gap-12 px-4 pb-16 pt-12 lg:grid-cols-[1.1fr_0.9fr] lg:gap-16 lg:pb-20 lg:pt-16">
-            {/* Left - Copy */}
+        <section className="relative overflow-hidden border-b border-slate-100 bg-white">
+          {/* Ambient background glows */}
+          <div className="pointer-events-none absolute inset-0 overflow-hidden">
+            <div className="absolute -top-32 right-0 h-[640px] w-[640px] rounded-full bg-emerald-50/70 blur-3xl" />
+            <div className="absolute bottom-0 -left-32 h-[400px] w-[400px] rounded-full bg-slate-50/80 blur-3xl" />
+          </div>
+
+          <div className="relative mx-auto grid max-w-6xl items-center gap-10 px-4 pb-20 pt-16 lg:grid-cols-[1.15fr_0.85fr] lg:gap-16 lg:pb-28 lg:pt-22">
+            {/* ── Left: Copy ── */}
             <div>
               <FadeIn delay={0} duration={400} direction="none">
-                <p className="text-sm font-medium uppercase tracking-wide text-emerald-700">
+                <span className="inline-flex items-center gap-2 rounded-full border border-emerald-200/80 bg-emerald-50 px-3.5 py-1.5 text-xs font-semibold text-emerald-700">
                   AI receptionist for service businesses
-                </p>
+                </span>
               </FadeIn>
 
-              <FadeIn delay={80} duration={400}>
-                <h1 className="mt-4 text-4xl font-bold leading-[1.1] text-slate-900 md:text-[3.25rem]">
+              <FadeIn delay={60} duration={500}>
+                <h1 className="mt-5 text-[2.8rem] font-bold leading-[1.05] tracking-tight text-slate-900 md:text-[3.6rem] lg:text-[4rem]">
                   Your phones answered.{' '}
-                  <span className="text-emerald-700">Your calendar filled.</span>
+                  <span className="text-emerald-600">Your calendar filled.</span>
                 </h1>
               </FadeIn>
 
-              <FadeIn delay={160} duration={400}>
-                <p className="mt-5 max-w-lg text-lg leading-relaxed text-slate-600">
-                  HandyCall picks up every call, captures the job details, and books appointments from
-                  your live availability. You stay on the job site - the line stays covered.
+              <FadeIn delay={140} duration={400}>
+                <p className="mt-5 max-w-[480px] text-xl leading-relaxed text-slate-500">
+                  HandyCall answers every call, books the job, and sends confirmation — automatically, 24/7.
                 </p>
               </FadeIn>
 
-              <FadeIn delay={240} duration={400}>
-                <div className="mt-6 grid gap-3 sm:grid-cols-3">
-                  {industryStatsHero.map((item) => (
-                    <div key={item.label} className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
-                      <p className="text-xl font-semibold text-slate-900">{item.value}</p>
-                      <p className="text-sm text-slate-500">{item.label}</p>
-                    </div>
+              <FadeIn delay={220} duration={400}>
+                <div className="mt-8 flex flex-wrap items-center gap-3">
+                  <Button asChild size="lg" className="h-12 gap-2 px-6 text-base shadow-md shadow-emerald-200/60">
+                    <Link href="/register">
+                      Start booking more jobs
+                      <ArrowRight className="h-4 w-4" />
+                    </Link>
+                  </Button>
+                  <Button asChild size="lg" variant="outline" className="h-12 px-6 text-base">
+                    <Link href="/pricing">See pricing</Link>
+                  </Button>
+                </div>
+
+                <div className="mt-5 flex flex-wrap items-center gap-5 text-sm text-slate-500">
+                  {['Setup in 10 minutes', 'Keep your number', 'No contracts'].map((item) => (
+                    <span key={item} className="inline-flex items-center gap-1.5">
+                      <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                      {item}
+                    </span>
                   ))}
-                </div>
-                <p className="mt-2 text-xs text-slate-400">{industryStatsHeroSource}</p>
-              </FadeIn>
-
-              <FadeIn delay={300} duration={400}>
-                <div className="mt-4 flex flex-wrap items-center gap-3 text-xs text-slate-500">
-                  <span className="inline-flex items-center gap-1.5">
-                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
-                    24/7 call coverage
-                  </span>
-                  <span className="inline-flex items-center gap-1.5">
-                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
-                    Human fallback on overflow
-                  </span>
-                  <span className="inline-flex items-center gap-1.5">
-                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
-                    TCPA-friendly scripts
-                  </span>
-                  <span className="inline-flex items-center gap-1.5">
-                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
-                    CRM + calendar sync
-                  </span>
-                  <span className="inline-flex items-center gap-1.5">
-                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
-                    Spam call filtering
-                  </span>
-                </div>
-              </FadeIn>
-
-              <FadeIn delay={380} duration={400}>
-                <div className="mt-8">
-                  <div className="flex items-center gap-3">
-                    <Button asChild size="lg" className="gap-2">
-                      <Link href="/register">
-                        Start booking more jobs
-                        <ArrowRight className="h-4 w-4" />
-                      </Link>
-                    </Button>
-                    <Button asChild size="lg" variant="outline">
-                      <Link href="/pricing">See pricing &amp; ROI</Link>
-                    </Button>
-                  </div>
-                  <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-slate-500">
-                    <span className="inline-flex items-center gap-1.5">
-                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
-                      Setup in 10 minutes
-                    </span>
-                    <span className="inline-flex items-center gap-1.5">
-                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
-                      Keep your number
-                    </span>
-                    <span className="inline-flex items-center gap-1.5">
-                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
-                      No contracts
-                    </span>
-                    <span className="inline-flex items-center gap-1.5">
-                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
-                      Free onboarding
-                    </span>
-                  </div>
                 </div>
               </FadeIn>
             </div>
 
-            {/* Right - Call transcript (real product evidence) */}
-            <FadeIn delay={200} duration={500} direction="left">
-              <div className="rounded-xl border border-slate-200 bg-white">
-                {/* Transcript header */}
-                <div className="flex items-center justify-between border-b border-slate-100 px-5 py-3">
-                  <div className="flex items-center gap-2.5">
-                    <div className="flex h-7 w-7 items-center justify-center rounded-md bg-emerald-600">
-                      <Phone className="h-3.5 w-3.5 text-white" />
+            {/* ── Right: Call transcript widget ── */}
+            <FadeIn delay={200} duration={600} direction="left">
+              <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-2xl shadow-slate-200/80">
+                {/* macOS-style top bar */}
+                <div className="flex items-center justify-between bg-slate-900 px-5 py-3.5">
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-1.5">
+                      <div className="h-2.5 w-2.5 rounded-full bg-red-400/90" />
+                      <div className="h-2.5 w-2.5 rounded-full bg-amber-400/90" />
+                      <div className="h-2.5 w-2.5 rounded-full bg-emerald-400/90" />
                     </div>
-                    <div>
-                      <p className="text-sm font-semibold text-slate-900">Inbound call</p>
-                      <p className="text-xs text-slate-500">Pest Control &middot; (555) 891-2345</p>
-                    </div>
+                    <span className="text-xs font-medium text-slate-500">HandyCall · Live call</span>
                   </div>
-                  <span className="text-xs text-slate-400">2m 14s</span>
-                </div>
-
-                {/* Transcript body */}
-                <div className="space-y-3 px-5 py-4 text-sm">
-                  <div>
-                    <p className="text-xs font-medium text-slate-400">Caller</p>
-                    <p className="mt-0.5 text-slate-700">
-                      &ldquo;Hi, I need someone to look at a termite problem. Found damage near the
-                      garage. Can someone come out this week-&rdquo;
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs font-medium text-emerald-600">HandyCall</p>
-                    <p className="mt-0.5 text-slate-700">
-                      &ldquo;I can help with that. I have Thursday at 9 AM or Friday at 2 PM open.
-                      Which works better for you-&rdquo;
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs font-medium text-slate-400">Caller</p>
-                    <p className="mt-0.5 text-slate-700">&ldquo;Thursday morning works.&rdquo;</p>
-                  </div>
-                  <div>
-                    <p className="text-xs font-medium text-emerald-600">HandyCall</p>
-                    <p className="mt-0.5 text-slate-700">
-                      &ldquo;You&apos;re booked for Thursday at 9 AM. I&apos;ll send a confirmation
-                      text with the details.&rdquo;
-                    </p>
+                  <div className="flex items-center gap-2">
+                    <span className="flex items-center gap-1.5 text-xs font-medium text-emerald-400">
+                      <span className="relative flex h-2 w-2">
+                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-70" />
+                        <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+                      </span>
+                      Live
+                    </span>
+                    <span className="text-xs text-slate-500">2m 14s</span>
                   </div>
                 </div>
 
-                {/* Captured data */}
-                <div className="border-t border-slate-100 px-5 py-3">
-                  <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
-                    Captured
-                  </p>
-                  <div className="mt-2 grid grid-cols-2 gap-x-6 gap-y-1.5 text-sm">
+                {/* Call context strip */}
+                <div className="flex items-center gap-3 border-b border-slate-100 bg-slate-50/80 px-5 py-3">
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-600">
+                    <Phone className="h-3.5 w-3.5 text-white" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-slate-900">GreenShield Pest · Inbound</p>
+                    <p className="text-xs text-slate-500">Pest Control · (555) 891-2345</p>
+                  </div>
+                </div>
+
+                {/* Transcript messages */}
+                <div className="space-y-4 px-5 py-4 text-sm">
+                  {[
+                    { role: 'Caller', text: '"Hi, I need a termite inspection. Found damage near the garage."', isAI: false },
+                    { role: 'HandyCall', text: '"I have Thursday at 9 AM or Friday at 2 PM open. Which works better?"', isAI: true },
+                    { role: 'Caller', text: '"Thursday morning works."', isAI: false },
+                    { role: 'HandyCall', text: '"You\'re booked for Thursday at 9 AM. Sending a confirmation text now."', isAI: true },
+                  ].map((msg, i) => (
+                    <div key={i} className="flex gap-3">
+                      <div
+                        className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
+                          msg.isAI ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-600'
+                        }`}
+                      >
+                        {msg.isAI ? 'H' : 'C'}
+                      </div>
+                      <div>
+                        <p className={`text-xs font-semibold ${msg.isAI ? 'text-emerald-600' : 'text-slate-400'}`}>
+                          {msg.role}
+                        </p>
+                        <p className="mt-0.5 text-slate-700">{msg.text}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Captured data strip */}
+                <div className="border-t border-slate-100 bg-emerald-50/60 px-5 py-4">
+                  <p className="text-xs font-bold uppercase tracking-widest text-emerald-700">Booked</p>
+                  <div className="mt-2.5 grid grid-cols-2 gap-x-6 gap-y-1.5 text-sm">
                     <div className="flex justify-between">
-                      <span className="text-slate-500">Service</span>
+                      <span className="text-slate-400">Service</span>
                       <span className="font-medium text-slate-800">Termite inspection</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-slate-500">Urgency</span>
-                      <span className="font-medium text-slate-800">This week</span>
+                      <span className="text-slate-400">Booked</span>
+                      <span className="font-semibold text-emerald-700">Thu 9:00 AM ✓</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-slate-500">Booked</span>
-                      <span className="font-medium text-emerald-700">Thu 9:00 AM</span>
+                      <span className="text-slate-400">SMS</span>
+                      <span className="font-medium text-emerald-700">Delivered</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-slate-500">SMS sent</span>
-                      <span className="font-medium text-emerald-700">Confirmed</span>
+                      <span className="text-slate-400">Duration</span>
+                      <span className="font-medium text-slate-800">2m 14s</span>
                     </div>
                   </div>
                 </div>
@@ -328,450 +262,147 @@ export default function Home() {
           </div>
         </section>
 
-        
-
         {/* ═══════════════════════════════════════════════════════
-            PIPELINE STRIP
+            STATS STRIP
         ═══════════════════════════════════════════════════════ */}
-        <section className="border-b border-slate-200 bg-slate-50">
-          <div className="mx-auto max-w-6xl px-4 py-10">
-            <FadeIn duration={400}>
-              <div className="grid gap-px overflow-hidden rounded-lg border border-slate-200 bg-slate-200 sm:grid-cols-4">
-                {pipeline.map((step, i) => (
-                  <div key={step.label} className="bg-white px-5 py-4">
-                    <div className="flex items-baseline gap-2">
-                      <span className="text-xs font-medium text-emerald-700">{i + 1}.</span>
-                      <span className="text-sm font-semibold text-slate-900">{step.label}</span>
-                    </div>
-                    <p className="mt-1 text-sm text-slate-500">{step.detail}</p>
-                  </div>
-                ))}
-              </div>
-            </FadeIn>
-          </div>
-        </section>
-
-        {/* -----------------------------------------------------------------------------------------------
-            INDUSTRY DATA
-        ----------------------------------------------------------------------------------------------- */}
-        <section className="border-b border-slate-200 bg-white">
+        <section className="border-b border-slate-100 bg-slate-50">
           <div className="mx-auto max-w-6xl px-4 py-14">
             <FadeIn duration={400}>
-              <p className="text-sm font-medium uppercase tracking-wide text-emerald-700">
-                Industry data
-              </p>
-              <h2 className="mt-2 max-w-2xl text-3xl font-bold text-slate-900 md:text-4xl">
-                What callers do when no one answers.
-              </h2>
-              <p className="mt-3 max-w-2xl text-slate-600">
-                These are benchmarks from consumer and service leader surveys - not HandyCall claims.
-              </p>
-            </FadeIn>
-
-            <FadeIn delay={150} duration={400}>
-              <div className="mt-10 grid grid-cols-2 gap-8 lg:grid-cols-4">
+              <div className="grid grid-cols-2 gap-8 lg:grid-cols-4">
                 {benchmarks.map((stat) => (
-                  <div key={stat.label}>
-                    <AnimatedCounter
-                      value={stat.value}
-                      className="block text-3xl font-bold text-slate-900"
-                    />
-                    <p className="mt-1 text-sm text-slate-500">{stat.label}</p>
+                  <div key={stat.label} className="text-center">
+                    <AnimatedCounter value={stat.value} className="block text-[2.5rem] font-bold tracking-tight text-slate-900" />
+                    <p className="mt-2 text-sm leading-snug text-slate-500">{stat.label}</p>
                     <p className="mt-1 text-xs text-slate-400">{stat.source}</p>
                   </div>
                 ))}
               </div>
-              <p className="mt-6 text-xs text-slate-400">{benchmarksSource}</p>
+              <p className="mt-8 text-center text-xs text-slate-400">{benchmarksSource}</p>
             </FadeIn>
           </div>
         </section>
 
-        {/* -----------------------------------------------------------------------------------------------
-            WHAT CALLERS EXPERIENCE
-        ----------------------------------------------------------------------------------------------- */}
-        <section className="border-b border-slate-200 bg-white">
-          <div className="mx-auto max-w-6xl px-4 py-20">
+        {/* ═══════════════════════════════════════════════════════
+            PRODUCT DEMO — hear it, see it
+        ═══════════════════════════════════════════════════════ */}
+        <section className="border-b border-slate-100 bg-white">
+          <div className="mx-auto max-w-6xl px-4 py-24">
             <FadeIn duration={400}>
-              <p className="text-sm font-medium uppercase tracking-wide text-emerald-700">
-                What callers experience
-              </p>
-              <h2 className="mt-2 max-w-2xl text-3xl font-bold text-slate-900 md:text-4xl">
-                It sounds like your best dispatcher - not a bot.
-              </h2>
-              <p className="mt-3 max-w-2xl text-slate-600">
-                Hear how the AI greets callers, qualifies the job, and confirms the booking with a real SMS.
-              </p>
+              <div className="mb-14 text-center">
+                <span className="text-xs font-bold uppercase tracking-widest text-emerald-700">
+                  Hear it in action
+                </span>
+                <h2 className="mt-3 text-4xl font-bold tracking-tight text-slate-900 md:text-5xl">
+                  Sounds like your best dispatcher.
+                </h2>
+                <p className="mx-auto mt-4 max-w-xl text-lg text-slate-500">
+                  Real conversations. Real bookings. Not a bot.
+                </p>
+              </div>
             </FadeIn>
 
-            <div className="mt-10 grid gap-8 lg:grid-cols-[1.1fr_0.9fr]">
+            <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
+              {/* Left: audio + transcript */}
               <FadeIn delay={120} duration={500}>
                 <div className="space-y-4">
                   <AudioPlayer
                     src="/audio/sample-call.wav"
-                    title="Listen to a sample call (swap with your real recording)"
+                    title="Listen to a sample call"
                   />
 
-                  <div className="rounded-lg border border-slate-200 bg-white p-4">
-                    <div className="flex items-center justify-between text-xs text-slate-400">
-                      <span>Call transcript | Feb 4, 2026 | 7:14 PM</span>
-                      <span>2m 14s</span>
+                  <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+                    <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/70 px-5 py-3">
+                      <span className="text-xs font-medium text-slate-500">
+                        Transcript · Feb 4, 2026 · 7:14 PM
+                      </span>
+                      <span className="text-xs text-slate-400">2m 14s</span>
                     </div>
-                    <div className="mt-3 space-y-3 text-sm">
-                      <div className="flex gap-3">
-                        <span className="text-xs text-slate-400">00:08</span>
-                        <div>
-                          <p className="text-xs font-medium text-slate-400">Caller</p>
-                          <p className="text-slate-700">
-                            &quot;Hi, I need a termite inspection. We saw damage near the garage.&quot;
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex gap-3">
-                        <span className="text-xs text-slate-400">00:22</span>
-                        <div>
-                          <p className="text-xs font-medium text-emerald-600">HandyCall</p>
-                          <p className="text-slate-700">
-                            &quot;Thanks for calling GreenShield Pest. Are you available Thursday at 9 AM or Friday at
-                            2 PM-&quot;
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex gap-3">
-                        <span className="text-xs text-slate-400">00:48</span>
-                        <div>
-                          <p className="text-xs font-medium text-slate-400">Caller</p>
-                          <p className="text-slate-700">
-                            &quot;Thursday works. Address is 142 Oak St, Mesa.&quot;
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex gap-3">
-                        <span className="text-xs text-slate-400">01:10</span>
-                        <div>
-                          <p className="text-xs font-medium text-emerald-600">HandyCall</p>
-                          <p className="text-slate-700">
-                            &quot;Booked for Thursday at 9 AM. I&apos;ll text you a confirmation now.&quot;
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </FadeIn>
-
-              <FadeIn delay={200} duration={500}>
-                <div className="space-y-4">
-                  <div className="rounded-lg border border-slate-200 bg-white p-5">
-                    <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
-                      Booking replay
-                    </p>
-                    <div className="mt-3 space-y-2 text-sm">
-                      <div className="flex justify-between">
-                        <span className="text-slate-500">Service</span>
-                        <span className="font-medium text-slate-800">Termite inspection</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-slate-500">Caller</span>
-                        <span className="font-medium text-slate-800">Sarah M.</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-slate-500">Address</span>
-                        <span className="font-medium text-slate-800">142 Oak St, Mesa (blurred)</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-slate-500">Booked</span>
-                        <span className="font-medium text-emerald-700">Thu, Feb 6 | 9:00 AM</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-5">
-                    <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
-                      SMS confirmation
-                    </p>
-                    <p className="mt-2 text-sm text-slate-700">
-                      &quot;You&apos;re confirmed for Thursday at 9:00 AM. We&apos;ll see you at 142 Oak
-                      St. Reply CHANGE to reschedule. - GreenShield Pest&quot;
-                    </p>
-                    <p className="mt-3 text-xs text-slate-400">Sent Feb 4, 7:15 PM</p>
-                  </div>
-
-                  <div className="rounded-lg border border-slate-200 bg-white p-5">
-                    <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
-                      What it says
-                    </p>
-                    <div className="mt-3 grid gap-2 text-sm text-slate-600">
-                      {callerExperience.map((item) => (
-                        <div key={item.label} className="rounded-md border border-slate-100 bg-white p-3">
-                          <p className="text-xs font-semibold text-slate-500">{item.label}</p>
-                          <p className="mt-1 text-slate-700">{item.script}</p>
+                    <div className="space-y-4 px-5 py-4 text-sm">
+                      {[
+                        { time: '00:08', role: 'Caller', text: '"Hi, I need a termite inspection. We saw damage near the garage."', isAI: false },
+                        { time: '00:22', role: 'HandyCall', text: '"Thanks for calling GreenShield Pest. Are you available Thursday at 9 AM or Friday at 2 PM?"', isAI: true },
+                        { time: '00:48', role: 'Caller', text: '"Thursday works. Address is 142 Oak St, Mesa."', isAI: false },
+                        { time: '01:10', role: 'HandyCall', text: '"Booked for Thursday at 9 AM. I\'ll text you a confirmation now."', isAI: true },
+                      ].map((msg, i) => (
+                        <div key={i} className="flex gap-3">
+                          <span className="w-8 shrink-0 pt-[1px] text-xs text-slate-400">{msg.time}</span>
+                          <div>
+                            <p className={`text-xs font-semibold ${msg.isAI ? 'text-emerald-600' : 'text-slate-400'}`}>
+                              {msg.role}
+                            </p>
+                            <p className="mt-0.5 text-slate-700">{msg.text}</p>
+                          </div>
                         </div>
                       ))}
                     </div>
                   </div>
                 </div>
               </FadeIn>
-            </div>
-          </div>
-        </section>
 
-        {/* ═══════════════════════════════════════════════════════
-            WHAT HANDYCALL DOES (replaces fake dashboard)
-        ═══════════════════════════════════════════════════════ */}
-        <section className="border-b border-slate-200 bg-white">
-          <div className="mx-auto max-w-6xl px-4 py-20">
-            <FadeIn duration={400}>
-              <p className="text-sm font-medium uppercase tracking-wide text-emerald-700">
-                How it works
-              </p>
-              <h2 className="mt-2 max-w-xl text-3xl font-bold text-slate-900 md:text-4xl">
-                Every call becomes a structured record.
-              </h2>
-              <p className="mt-3 max-w-xl text-slate-600">
-                HandyCall logs the conversation, extracts the job details, and creates the booking - all
-                before you check your phone.
-              </p>
-            </FadeIn>
-
-            <FadeIn delay={150} duration={500}>
-              <div className="mt-12 grid gap-6 lg:grid-cols-3">
-                {/* Card 1 - Call record */}
-                <div className="rounded-lg border border-slate-200 bg-white p-6">
-                  <div className="flex items-center gap-2 text-slate-400">
-                    <FileText className="h-4 w-4" />
-                    <span className="text-xs font-medium uppercase tracking-wide">Call record</span>
-                  </div>
-                  <div className="mt-4 space-y-3 text-sm">
-                    <div className="flex justify-between border-b border-slate-100 pb-2">
-                      <span className="text-slate-500">Caller</span>
-                      <span className="font-medium text-slate-800">Sarah Mitchell</span>
+              {/* Right: booking summary + SMS */}
+              <FadeIn delay={200} duration={500}>
+                <div className="space-y-4">
+                  <div className="rounded-2xl border border-slate-200 bg-white p-6">
+                    <div className="flex items-center gap-2 text-slate-400">
+                      <CalendarCheck className="h-4 w-4" />
+                      <span className="text-xs font-semibold uppercase tracking-widest">Booking created</span>
                     </div>
-                    <div className="flex justify-between border-b border-slate-100 pb-2">
-                      <span className="text-slate-500">Phone</span>
-                      <span className="font-medium text-slate-800">(555) 891-2345</span>
-                    </div>
-                    <div className="flex justify-between border-b border-slate-100 pb-2">
-                      <span className="text-slate-500">Service</span>
-                      <span className="font-medium text-slate-800">Termite inspection</span>
-                    </div>
-                    <div className="flex justify-between border-b border-slate-100 pb-2">
-                      <span className="text-slate-500">Urgency</span>
-                      <span className="font-medium text-slate-800">This week</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-500">Duration</span>
-                      <span className="font-medium text-slate-800">2m 14s</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Card 2 - Booking */}
-                <div className="rounded-lg border border-slate-200 bg-white p-6">
-                  <div className="flex items-center gap-2 text-slate-400">
-                    <CalendarCheck className="h-4 w-4" />
-                    <span className="text-xs font-medium uppercase tracking-wide">Booking created</span>
-                  </div>
-                  <div className="mt-4 space-y-3 text-sm">
-                    <div className="flex justify-between border-b border-slate-100 pb-2">
-                      <span className="text-slate-500">Date</span>
-                      <span className="font-medium text-slate-800">Thursday, Jan 16</span>
-                    </div>
-                    <div className="flex justify-between border-b border-slate-100 pb-2">
-                      <span className="text-slate-500">Time</span>
-                      <span className="font-medium text-slate-800">9:00 AM</span>
-                    </div>
-                    <div className="flex justify-between border-b border-slate-100 pb-2">
-                      <span className="text-slate-500">Type</span>
-                      <span className="font-medium text-slate-800">Termite inspection</span>
-                    </div>
-                    <div className="flex justify-between border-b border-slate-100 pb-2">
-                      <span className="text-slate-500">Address</span>
-                      <span className="font-medium text-slate-800">142 Oak St</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-500">Status</span>
-                      <span className="font-medium text-emerald-700">Confirmed</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Card 3 - SMS confirmation */}
-                <div className="rounded-lg border border-slate-200 bg-white p-6">
-                  <div className="flex items-center gap-2 text-slate-400">
-                    <Send className="h-4 w-4" />
-                    <span className="text-xs font-medium uppercase tracking-wide">SMS sent</span>
-                  </div>
-                  <div className="mt-4 rounded-lg border border-slate-100 bg-slate-50 p-4">
-                    <p className="text-sm leading-relaxed text-slate-700">
-                      Hi Sarah, your termite inspection is confirmed for <strong>Thursday, Jan 16 at
-                      9:00 AM</strong>. Our technician will arrive at 142 Oak St. Reply CHANGE to
-                      reschedule or CANCEL to cancel. - GreenShield Pest
-                    </p>
-                  </div>
-                  <div className="mt-4 space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-slate-500">Sent at</span>
-                      <span className="font-medium text-slate-800">10:42 AM</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-500">Status</span>
-                      <span className="font-medium text-emerald-700">Delivered</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </FadeIn>
-          </div>
-        </section>
-
-        
-
-        {/* ═══════════════════════════════════════════════════════
-            CONTROLS / CONFIGURATION
-        ═══════════════════════════════════════════════════════ */}
-        <section className="border-b border-slate-200 bg-slate-50">
-          <div className="mx-auto max-w-6xl px-4 py-20">
-            <div className="grid gap-12 lg:grid-cols-2">
-              <div>
-                <FadeIn duration={400}>
-                  <p className="text-sm font-medium uppercase tracking-wide text-emerald-700">
-                    Configuration
-                  </p>
-                  <h2 className="mt-2 text-3xl font-bold text-slate-900 md:text-4xl">
-                    You set the rules.{' '}
-                    <span className="text-slate-500">HandyCall follows them.</span>
-                  </h2>
-                  <p className="mt-3 max-w-md text-slate-600">
-                    Define your hours, services, and scripts. The AI handles calls exactly the way you
-                    would - or better, because it never gets distracted.
-                  </p>
-                </FadeIn>
-              </div>
-
-              <div className="space-y-4">
-                {controls.map((item, i) => {
-                  const Icon = item.icon;
-                  return (
-                    <FadeIn key={item.title} delay={i * 100} duration={400}>
-                      <div className="rounded-lg border border-slate-200 bg-white p-5">
-                        <div className="flex items-start gap-3">
-                          <Icon className="mt-0.5 h-4 w-4 shrink-0 text-emerald-700" />
-                          <div>
-                            <p className="text-sm font-semibold text-slate-900">{item.title}</p>
-                            <p className="mt-1 text-sm text-slate-500">{item.desc}</p>
-                          </div>
+                    <div className="mt-4 space-y-2.5 text-sm">
+                      {[
+                        ['Service', 'Termite inspection', false],
+                        ['Caller', 'Sarah M.', false],
+                        ['Address', '142 Oak St, Mesa', false],
+                        ['Booked', 'Thu, Feb 6 · 9:00 AM', true],
+                      ].map(([k, v, highlight]) => (
+                        <div key={String(k)} className="flex items-center justify-between">
+                          <span className="text-slate-500">{k}</span>
+                          <span className={`font-semibold ${highlight ? 'text-emerald-700' : 'text-slate-800'}`}>{v}</span>
                         </div>
-                      </div>
-                    </FadeIn>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        </section>
+                      ))}
+                    </div>
+                  </div>
 
-        {/* -----------------------------------------------------------------------------------------------
-            SKEPTIC LAYER + SETUP
-        ----------------------------------------------------------------------------------------------- */}
-        <section className="border-b border-slate-200 bg-white">
-          <div className="mx-auto max-w-6xl px-4 py-20">
-            <div className="grid gap-12 lg:grid-cols-[1.1fr_0.9fr]">
-              <FadeIn duration={400}>
-                <p className="text-sm font-medium uppercase tracking-wide text-emerald-700">
-                  When AI hands off
-                </p>
-                <h2 className="mt-2 text-3xl font-bold text-slate-900 md:text-4xl">
-                  You stay in control of the tough calls.
-                </h2>
-                <p className="mt-3 max-w-lg text-slate-600">
-                  HandyCall handles the routine bookings. For edge cases or safety issues, it escalates to your
-                  team or a live fallback.
-                </p>
+                  <div className="rounded-2xl border border-slate-800 bg-slate-900 p-6">
+                    <div className="flex items-center gap-2 text-slate-500">
+                      <Send className="h-4 w-4" />
+                      <span className="text-xs font-semibold uppercase tracking-widest">SMS sent automatically</span>
+                    </div>
+                    <div className="mt-3 rounded-xl bg-white/8 border border-white/10 p-4">
+                      <p className="text-sm leading-relaxed text-slate-200">
+                        &ldquo;You&apos;re confirmed for Thursday at 9:00 AM. We&apos;ll see you at 142 Oak St.
+                        Reply CHANGE to reschedule. — GreenShield Pest&rdquo;
+                      </p>
+                    </div>
+                    <p className="mt-3 text-xs text-slate-500">Sent Feb 4, 7:15 PM · Delivered ✓</p>
+                  </div>
+                </div>
               </FadeIn>
-
-              <div className="space-y-4">
-                {handoffScenarios.map((item, i) => (
-                  <FadeIn key={item.title} delay={i * 100} duration={400}>
-                    <div className="rounded-lg border border-slate-200 bg-slate-50 p-5">
-                      <p className="text-sm font-semibold text-slate-900">{item.title}</p>
-                      <p className="mt-1 text-sm text-slate-600">{item.desc}</p>
-                    </div>
-                  </FadeIn>
-                ))}
-              </div>
             </div>
-
-            <FadeIn delay={150} duration={500}>
-              <div className="mt-12 rounded-xl border border-slate-200 bg-slate-50 p-6">
-                <div className="flex flex-wrap items-center justify-between gap-4">
-                  <div>
-                    <p className="text-sm font-medium uppercase tracking-wide text-emerald-700">Setup process</p>
-                    <h3 className="mt-2 text-2xl font-semibold text-slate-900">
-                      Go live in 10 minutes, not weeks.
-                    </h3>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-3">
-                    <Button asChild size="lg" className="gap-2">
-                      <Link href="/register">
-                        Activate your AI receptionist
-                        <ArrowRight className="h-4 w-4" />
-                      </Link>
-                    </Button>
-                    <Button asChild size="lg" variant="outline">
-                      <Link href="/contact">See setup checklist</Link>
-                    </Button>
-                  </div>
-                </div>
-                <div className="mt-6 grid gap-px overflow-hidden rounded-lg border border-slate-200 bg-slate-200 sm:grid-cols-3">
-                  {setupSteps.map((step, index) => (
-                    <div key={step.title} className="bg-white px-5 py-4">
-                      <p className="text-xs font-semibold text-emerald-700">Step {index + 1}</p>
-                      <p className="mt-2 text-sm font-semibold text-slate-900">{step.title}</p>
-                      <p className="mt-1 text-sm text-slate-500">{step.desc}</p>
-                    </div>
-                  ))}
-                </div>
-                <div className="mt-4 flex flex-wrap items-center gap-3 text-xs text-slate-500">
-                  <span className="inline-flex items-center gap-1.5">
-                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
-                    Keep your number
-                  </span>
-                  <span className="inline-flex items-center gap-1.5">
-                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
-                    No contracts
-                  </span>
-                  <span className="inline-flex items-center gap-1.5">
-                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
-                    Free onboarding
-                  </span>
-                </div>
-              </div>
-            </FadeIn>
           </div>
         </section>
 
         {/* ═══════════════════════════════════════════════════════
-            CALL FLOW (replaces numbered bubble steps)
+            HOW IT WORKS — 4 steps
         ═══════════════════════════════════════════════════════ */}
-        <section className="border-b border-slate-200 bg-white">
-          <div className="mx-auto max-w-6xl px-4 py-20">
+        <section className="border-b border-slate-100 bg-slate-50">
+          <div className="mx-auto max-w-6xl px-4 py-24">
             <FadeIn duration={400}>
-              <p className="text-sm font-medium uppercase tracking-wide text-emerald-700">
-                Call flow
-              </p>
-              <h2 className="mt-2 max-w-lg text-3xl font-bold text-slate-900 md:text-4xl">
-                From ring to booked in under 3 minutes.
-              </h2>
+              <div className="mb-12 text-center">
+                <span className="text-xs font-bold uppercase tracking-widest text-emerald-700">How it works</span>
+                <h2 className="mt-3 text-4xl font-bold tracking-tight text-slate-900 md:text-5xl">
+                  Ring to booked in under 3 minutes.
+                </h2>
+              </div>
             </FadeIn>
 
-            <FadeIn delay={150} duration={500}>
-              <div className="mt-12 grid gap-px overflow-hidden rounded-lg border border-slate-200 bg-slate-200 lg:grid-cols-4">
+            <FadeIn delay={120} duration={500}>
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                 {[
                   {
                     icon: PhoneIncoming,
                     step: '01',
                     title: 'Call answered',
-                    desc: 'HandyCall picks up with your greeting, tone, and service prompts loaded.',
+                    desc: 'HandyCall picks up with your greeting and service prompts loaded.',
                   },
                   {
                     icon: Target,
@@ -789,17 +420,19 @@ export default function Home() {
                     icon: Send,
                     step: '04',
                     title: 'Confirmation sent',
-                    desc: 'SMS with date, time, and address goes to the caller. Record logged to dashboard.',
+                    desc: 'SMS with date, time, and address sent. Record logged to dashboard.',
                   },
                 ].map((item) => {
                   const Icon = item.icon;
                   return (
-                    <div key={item.step} className="bg-white p-6">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-bold text-emerald-700">{item.step}</span>
-                        <Icon className="h-4 w-4 text-slate-400" />
+                    <div key={item.step} className="rounded-2xl border border-slate-200 bg-white p-6">
+                      <div className="mb-4 flex items-center gap-2.5">
+                        <span className="text-sm font-bold text-emerald-700">{item.step}</span>
+                        <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-50 border border-emerald-100">
+                          <Icon className="h-4 w-4 text-emerald-600" />
+                        </div>
                       </div>
-                      <p className="mt-3 text-sm font-semibold text-slate-900">{item.title}</p>
+                      <p className="text-sm font-semibold text-slate-900">{item.title}</p>
                       <p className="mt-1.5 text-sm leading-relaxed text-slate-500">{item.desc}</p>
                     </div>
                   );
@@ -809,87 +442,181 @@ export default function Home() {
           </div>
         </section>
 
-        {/* -----------------------------------------------------------------------------------------------
-            RELIABILITY & COMPLIANCE
-        ----------------------------------------------------------------------------------------------- */}
-        <section className="border-b border-slate-200 bg-slate-900">
-          <div className="mx-auto max-w-6xl px-4 py-16">
-            <FadeIn duration={400}>
-              <p className="text-sm font-medium uppercase tracking-wide text-emerald-400">
-                Reliability & compliance
-              </p>
-              <h2 className="mt-2 text-3xl font-bold text-white md:text-4xl">
-                Operational safeguards that keep bookings accurate.
-              </h2>
-              <p className="mt-3 max-w-xl text-slate-400">
-                Guardrails designed to keep calls routed, scheduled, and confirmed the right way.
-              </p>
-            </FadeIn>
+        {/* ═══════════════════════════════════════════════════════
+            CONFIGURATION — feature grid
+        ═══════════════════════════════════════════════════════ */}
+        <section className="border-b border-slate-100 bg-white">
+          <div className="mx-auto max-w-6xl px-4 py-24">
+            <div className="grid gap-16 lg:grid-cols-2 lg:items-center">
+              <FadeIn duration={400}>
+                <span className="text-xs font-bold uppercase tracking-widest text-emerald-700">Configuration</span>
+                <h2 className="mt-3 text-4xl font-bold tracking-tight text-slate-900 md:text-5xl">
+                  You set the rules.{' '}
+                  <span className="text-slate-400">HandyCall follows them.</span>
+                </h2>
+                <p className="mt-4 max-w-md text-lg text-slate-500">
+                  Define your hours, services, and scripts. The AI handles calls exactly the way you would —
+                  or better, because it never gets distracted.
+                </p>
+              </FadeIn>
 
-            <FadeIn delay={150} duration={400}>
-              <p className="mt-4 max-w-xl text-sm text-slate-400">
-                Spam filtering blocks robocalls before they reach your line. The U.S. saw 52.5B robocalls in 2025
-                (YouMail Robocall Index).
-              </p>
-              <p className="mt-2 max-w-xl text-sm text-slate-400">
-                Scripts stay TCPA-friendly and edge cases can hand off to a human fallback.
-              </p>
-            </FadeIn>
-
-            <div className="mt-8 flex flex-wrap items-center gap-3 text-xs text-slate-300">
-              {trustBadges.map((badge) => (
-                <span
-                  key={badge}
-                  className="rounded-full border border-slate-700/60 px-3 py-1 text-slate-200"
-                >
-                  {badge}
-                </span>
-              ))}
+              <div className="grid gap-3 sm:grid-cols-2">
+                {controls.map((item, i) => {
+                  const Icon = item.icon;
+                  return (
+                    <FadeIn key={item.title} delay={i * 80} duration={400}>
+                      <div className="group rounded-2xl border border-slate-200 bg-slate-50/60 p-5 transition-all hover:border-emerald-200 hover:bg-emerald-50/30 hover:shadow-sm">
+                        <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white shadow-sm transition-colors group-hover:border-emerald-200">
+                          <Icon className="h-4 w-4 text-emerald-700" />
+                        </div>
+                        <p className="text-sm font-semibold text-slate-900">{item.title}</p>
+                        <p className="mt-1 text-sm text-slate-500">{item.desc}</p>
+                      </div>
+                    </FadeIn>
+                  );
+                })}
+              </div>
             </div>
-
-            <div className="mt-6 flex flex-wrap items-center gap-3">
-              <Button asChild className="gap-2 bg-white text-slate-900 hover:bg-slate-100">
-                <Link href="/register">
-                  Turn calls into revenue
-                  <ArrowRight className="h-4 w-4" />
-                </Link>
-              </Button>
-              <Button
-                asChild
-                variant="outline"
-                className="border-slate-600 bg-transparent text-slate-100 hover:bg-slate-800"
-              >
-                <Link href="/pricing">View pricing</Link>
-              </Button>
-            </div>
-            <p className="mt-3 text-xs text-slate-400">{urgencyLines.join(' | ')}</p>
           </div>
         </section>
 
         {/* ═══════════════════════════════════════════════════════
-            INDUSTRIES (replaces pill chip cloud)
+            CONTROL + SETUP — 2-column
         ═══════════════════════════════════════════════════════ */}
-        <section className="border-b border-slate-200 bg-white">
-          <div className="mx-auto max-w-6xl px-4 py-20">
+        <section className="border-b border-slate-100 bg-slate-50">
+          <div className="mx-auto max-w-6xl px-4 py-24">
+            <div className="grid gap-14 lg:grid-cols-2 lg:items-start">
+              {/* Handoff scenarios */}
+              <FadeIn duration={400}>
+                <span className="text-xs font-bold uppercase tracking-widest text-emerald-700">Edge cases</span>
+                <h2 className="mt-3 text-3xl font-bold tracking-tight text-slate-900 md:text-4xl">
+                  You stay in control of the tough calls.
+                </h2>
+                <p className="mt-3 text-lg text-slate-500">
+                  HandyCall handles the routine. For safety issues or unusual requests, it escalates to your team.
+                </p>
+                <div className="mt-7 space-y-3">
+                  {handoffScenarios.map((item) => (
+                    <div key={item.title} className="rounded-2xl border border-slate-200 bg-white p-5">
+                      <p className="text-sm font-semibold text-slate-900">{item.title}</p>
+                      <p className="mt-1 text-sm text-slate-500">{item.desc}</p>
+                    </div>
+                  ))}
+                </div>
+              </FadeIn>
+
+              {/* Setup steps */}
+              <FadeIn delay={120} duration={500}>
+                <span className="text-xs font-bold uppercase tracking-widest text-emerald-700">Setup</span>
+                <h2 className="mt-3 text-3xl font-bold tracking-tight text-slate-900 md:text-4xl">
+                  Go live in 10 minutes.
+                </h2>
+                <p className="mt-3 text-lg text-slate-500">
+                  No technical setup. No flowcharts. Just forward your number and you&apos;re live.
+                </p>
+                <div className="mt-7 space-y-3">
+                  {setupSteps.map((step, index) => (
+                    <div key={step.title} className="flex gap-4 rounded-2xl border border-slate-200 bg-white p-5">
+                      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-xs font-bold text-white">
+                        {index + 1}
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-slate-900">{step.title}</p>
+                        <p className="mt-0.5 text-sm text-slate-500">{step.desc}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-7">
+                  <Button asChild size="lg" className="h-12 gap-2 px-6 text-base">
+                    <Link href="/register">
+                      Activate your AI receptionist
+                      <ArrowRight className="h-4 w-4" />
+                    </Link>
+                  </Button>
+                </div>
+              </FadeIn>
+            </div>
+          </div>
+        </section>
+
+        {/* ═══════════════════════════════════════════════════════
+            RELIABILITY — dark section
+        ═══════════════════════════════════════════════════════ */}
+        <section className="bg-slate-900">
+          <div className="mx-auto max-w-6xl px-4 py-24">
             <FadeIn duration={400}>
-              <p className="text-sm font-medium uppercase tracking-wide text-emerald-700">
-                Industries
-              </p>
-              <h2 className="mt-2 max-w-lg text-3xl font-bold text-slate-900 md:text-4xl">
-                Built for trades. Configured per business.
+              <span className="text-xs font-bold uppercase tracking-widest text-emerald-400">
+                Reliability & compliance
+              </span>
+              <h2 className="mt-3 text-4xl font-bold tracking-tight text-white md:text-5xl">
+                Operational safeguards built in.
               </h2>
-              <p className="mt-3 max-w-xl text-slate-600">
-                Every service type has its own intake fields, scripts, and booking rules. HandyCall
-                adapts to how your trade actually works.
+              <p className="mt-4 max-w-xl text-lg text-slate-400">
+                TCPA-friendly scripts, spam filtering, and human fallback — so every call is handled correctly.
               </p>
             </FadeIn>
 
-            <FadeIn delay={150} duration={500}>
-              <div className="mt-10 grid gap-px overflow-hidden rounded-lg border border-slate-200 bg-slate-200 sm:grid-cols-2 lg:grid-cols-4">
+            <FadeIn delay={120} duration={400}>
+              <div className="mt-8 flex flex-wrap gap-2.5">
+                {trustBadges.map((badge) => (
+                  <span
+                    key={badge}
+                    className="rounded-full border border-slate-700 bg-slate-800/70 px-4 py-1.5 text-sm text-slate-300"
+                  >
+                    {badge}
+                  </span>
+                ))}
+              </div>
+            </FadeIn>
+
+            <FadeIn delay={200} duration={400}>
+              <div className="mt-10 flex flex-wrap gap-3">
+                <Button asChild size="lg" className="h-12 gap-2 bg-white px-6 text-base text-slate-900 hover:bg-slate-100">
+                  <Link href="/register">
+                    Turn calls into revenue
+                    <ArrowRight className="h-4 w-4" />
+                  </Link>
+                </Button>
+                <Button
+                  asChild
+                  size="lg"
+                  variant="outline"
+                  className="h-12 border-slate-700 bg-transparent px-6 text-base text-slate-200 hover:bg-slate-800"
+                >
+                  <Link href="/pricing">View pricing</Link>
+                </Button>
+              </div>
+            </FadeIn>
+          </div>
+        </section>
+
+        {/* ═══════════════════════════════════════════════════════
+            INDUSTRIES
+        ═══════════════════════════════════════════════════════ */}
+        <section className="border-b border-slate-100 bg-white">
+          <div className="mx-auto max-w-6xl px-4 py-24">
+            <FadeIn duration={400}>
+              <div className="mb-12 text-center">
+                <span className="text-xs font-bold uppercase tracking-widest text-emerald-700">Industries</span>
+                <h2 className="mt-3 text-4xl font-bold tracking-tight text-slate-900 md:text-5xl">
+                  Built for trades.
+                </h2>
+                <p className="mx-auto mt-4 max-w-xl text-lg text-slate-500">
+                  Every service type gets its own intake fields, scripts, and booking rules.
+                </p>
+              </div>
+            </FadeIn>
+
+            <FadeIn delay={120} duration={500}>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                 {industries.map((item) => (
-                  <div key={item.name} className="bg-white px-5 py-4">
+                  <div
+                    key={item.name}
+                    className="group rounded-2xl border border-slate-200 bg-slate-50/60 px-5 py-4 text-center transition-all hover:border-emerald-200 hover:bg-emerald-50/40 hover:shadow-sm"
+                  >
                     <p className="text-sm font-semibold text-slate-900">{item.name}</p>
-                    <p className="mt-1 text-sm text-slate-500">{item.example}</p>
+                    <p className="mt-1 text-xs text-slate-500">{item.example}</p>
                   </div>
                 ))}
               </div>
@@ -901,25 +628,21 @@ export default function Home() {
             FINAL CTA
         ═══════════════════════════════════════════════════════ */}
         <section className="bg-emerald-700">
-          <div className="mx-auto max-w-6xl px-4 py-16 text-center">
+          <div className="mx-auto max-w-6xl px-4 py-24 text-center">
             <FadeIn duration={400}>
-              <h2 className="text-3xl font-bold text-white md:text-4xl">
-                Book more jobs without hiring a receptionist.
+              <h2 className="text-4xl font-bold tracking-tight text-white md:text-5xl lg:text-[3.5rem]">
+                Book more jobs without{' '}
+                <span className="text-emerald-200">hiring a receptionist.</span>
               </h2>
-              <p className="mx-auto mt-4 max-w-2xl text-emerald-100">
-                Go live before the next business day. HandyCall keeps your phones answered, schedules the job,
-                and sends confirmations while your crew stays on-site.
+              <p className="mx-auto mt-5 max-w-xl text-xl text-emerald-100">
+                Go live before the next business day. 78% of callers abandon a business that doesn&apos;t answer.
               </p>
 
-              <p className="mt-6 text-sm text-emerald-100">
-                Industry data shows 78% of callers abandon a business after an unanswered call (CallRail, 2025).
-              </p>
-
-              <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+              <div className="mt-9 flex flex-wrap items-center justify-center gap-3">
                 <Button
                   asChild
                   size="lg"
-                  className="gap-2 bg-white text-emerald-800 hover:bg-emerald-50"
+                  className="h-13 gap-2 bg-white px-8 text-base text-emerald-800 shadow-xl shadow-emerald-900/25 hover:bg-emerald-50"
                 >
                   <Link href="/register">
                     Start booking more jobs
@@ -930,35 +653,17 @@ export default function Home() {
                   asChild
                   size="lg"
                   variant="outline"
-                  className="border-emerald-300 bg-transparent text-white hover:bg-emerald-600"
+                  className="h-13 border-emerald-400/60 bg-transparent px-8 text-base text-white hover:bg-emerald-600"
                 >
                   <Link href="/contact">Schedule a demo</Link>
                 </Button>
               </div>
 
-              <div className="mt-4 flex flex-wrap items-center justify-center gap-3 text-xs text-emerald-100">
-                <span className="inline-flex items-center gap-1.5">
-                  <CheckCircle2 className="h-3.5 w-3.5 text-white" />
-                  Setup in 10 minutes
-                </span>
-                <span className="inline-flex items-center gap-1.5">
-                  <CheckCircle2 className="h-3.5 w-3.5 text-white" />
-                  Keep your number
-                </span>
-                <span className="inline-flex items-center gap-1.5">
-                  <CheckCircle2 className="h-3.5 w-3.5 text-white" />
-                  No contracts
-                </span>
-                <span className="inline-flex items-center gap-1.5">
-                  <CheckCircle2 className="h-3.5 w-3.5 text-white" />
-                  Free onboarding
-                </span>
-              </div>
-
-              <div className="mt-4 flex flex-wrap items-center justify-center gap-2 text-xs text-emerald-200">
-                {trustBadges.map((badge) => (
-                  <span key={badge} className="rounded-full border border-emerald-400/40 px-3 py-1">
-                    {badge}
+              <div className="mt-6 flex flex-wrap items-center justify-center gap-5 text-sm text-emerald-100">
+                {['Setup in 10 minutes', 'Keep your number', 'No contracts', 'Free onboarding'].map((item) => (
+                  <span key={item} className="inline-flex items-center gap-1.5">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-300" />
+                    {item}
                   </span>
                 ))}
               </div>
@@ -967,9 +672,6 @@ export default function Home() {
         </section>
       </main>
 
-      {/* ═══════════════════════════════════════════════════════
-          FOOTER
-      ═══════════════════════════════════════════════════════ */}
       <SiteFooter />
     </div>
   );

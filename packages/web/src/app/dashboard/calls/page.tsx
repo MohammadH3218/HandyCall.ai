@@ -4,13 +4,12 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiClient } from '@/lib/api-client';
 import { usePortalBasePath } from '@/lib/portal';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { PageHeader } from '@/components/portal/page-header';
 import { EmptyState } from '@/components/portal/empty-state';
-import { Phone, Search, ChevronRight } from 'lucide-react';
+import { Phone, Search, ChevronRight, ChevronLeft } from 'lucide-react';
 
 interface Call {
   call_id: string;
@@ -64,10 +63,7 @@ export default function CallsPage() {
   }, [contactFilter]);
 
   const loadTotalCount = async () => {
-    if (contactFilter) {
-      // Count is returned by contact call endpoint when needed.
-      return;
-    }
+    if (contactFilter) return;
     try {
       const res = await apiClient.getCallsCount();
       const total = Number(res?.total || 0);
@@ -122,7 +118,6 @@ export default function CallsPage() {
       void loadCallsPage(1, true);
       return;
     }
-
     try {
       setIsLoading(true);
       const results = await apiClient.searchCalls(searchQuery, pageSize);
@@ -158,57 +153,74 @@ export default function CallsPage() {
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    });
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   };
 
   const formatTime = (dateString: string) => {
     const date = new Date(dateString);
-    return date.toLocaleTimeString('en-US', {
-      hour: '2-digit',
-      minute: '2-digit',
-    });
+    return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
   };
 
   const formatDuration = (seconds?: number) => {
-    if (!seconds) return 'N/A';
+    if (!seconds) return null;
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
+  const getInitials = (name?: string) => {
+    if (!name?.trim()) return '#';
+    const parts = name.trim().split(/\s+/);
+    if (parts.length >= 2) return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+    return name[0].toUpperCase();
+  };
+
   const getCallTag = (call: Call) => {
     const status = String(call.status || '').toUpperCase();
     if (status === 'IN_PROGRESS' || status === 'RINGING') {
-      return { label: 'In Progress', className: 'bg-indigo-50 text-indigo-700 border-indigo-200' };
+      return {
+        label: 'In Progress',
+        badgeClass: 'bg-indigo-50 text-indigo-700 border-indigo-200',
+        avatarClass: 'bg-indigo-500',
+      };
     }
-
     const outcome = String(call.outcome || '').toUpperCase();
     if (outcome === 'APPOINTMENT_BOOKED' || call.appointment_created || call.appointment_id) {
-      return { label: 'Booked', className: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
+      return {
+        label: 'Booked',
+        badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+        avatarClass: 'bg-emerald-500',
+      };
     }
     if (outcome === 'LEAD' || call.lead_captured) {
-      return { label: 'Lead', className: 'bg-amber-50 text-amber-800 border-amber-200' };
+      return {
+        label: 'Lead',
+        badgeClass: 'bg-amber-50 text-amber-800 border-amber-200',
+        avatarClass: 'bg-amber-500',
+      };
     }
-    return { label: 'No Lead', className: 'bg-gray-50 text-gray-700 border-gray-200' };
+    return {
+      label: 'No Lead',
+      badgeClass: 'bg-slate-50 text-slate-600 border-slate-200',
+      avatarClass: 'bg-slate-400',
+    };
   };
-
-  const paginationOptions = useMemo(() => {
-    const pages = totalPages ? Array.from({ length: totalPages }, (_, idx) => idx + 1) : [1];
-    return pages;
-  }, [totalPages]);
 
   const canGoPrev = currentPage > 1;
   const canGoNext = totalPages ? currentPage < totalPages : Boolean(pageKeys[currentPage]);
 
+  const visiblePages = useMemo(() => {
+    if (!totalPages) return [currentPage];
+    const pages: number[] = [];
+    const start = Math.max(1, currentPage - 2);
+    const end = Math.min(totalPages, currentPage + 2);
+    for (let i = start; i <= end; i++) pages.push(i);
+    return pages;
+  }, [currentPage, totalPages]);
+
   const handlePageChange = async (page: number) => {
     if (page === currentPage) return;
-    // Ensure we have the cursor for the requested page (cursor = previous page key)
     if (!pageKeys[page - 1] && page > 1) {
-      // Load sequentially until we reach the desired page
       let nextPage = currentPage;
       while (nextPage < page && pageKeys[nextPage]) {
         nextPage += 1;
@@ -219,55 +231,40 @@ export default function CallsPage() {
     await loadCallsPage(page);
   };
 
-  const handleNext = async () => {
-    if (!canGoNext) return;
-    await handlePageChange(currentPage + 1);
-  };
-
-  const handlePrev = async () => {
-    if (!canGoPrev) return;
-    await handlePageChange(currentPage - 1);
-  };
-
-  const handleFirst = async () => {
-    await handlePageChange(1);
-  };
-
-  const handleLast = async () => {
-    if (!totalPages) return;
-    await handlePageChange(totalPages);
-  };
-
-  const PaginationControls = (
-    <div className="flex flex-wrap items-center justify-between gap-3">
-      <div className="text-sm text-muted-foreground">
-        Page {currentPage} {totalPages ? `of ${totalPages}` : ''}
-      </div>
-      <div className="flex flex-wrap items-center gap-2">
-        <Button variant="outline" onClick={handleFirst} disabled={!canGoPrev || isPaging}>
-          First
-        </Button>
-        <Button variant="outline" onClick={handlePrev} disabled={!canGoPrev || isPaging}>
-          Previous
-        </Button>
-        <select
-          className="h-9 rounded-md border border-input bg-background px-3 text-sm"
-          value={currentPage}
-          onChange={(e) => void handlePageChange(Number(e.target.value))}
-          disabled={isPaging}
+  const PaginationBar = (
+    <div className="flex items-center justify-between">
+      <p className="text-sm text-slate-500">
+        Page {currentPage}{totalPages ? ` of ${totalPages}` : ''}
+      </p>
+      <div className="flex items-center gap-1">
+        <button
+          onClick={() => void handlePageChange(currentPage - 1)}
+          disabled={!canGoPrev || isPaging}
+          className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
         >
-          {paginationOptions.map((page) => (
-            <option key={page} value={page}>
-              Page {page}
-            </option>
-          ))}
-        </select>
-        <Button variant="outline" onClick={handleNext} disabled={!canGoNext || isPaging}>
-          Next
-        </Button>
-        <Button variant="outline" onClick={handleLast} disabled={!totalPages || !canGoNext || isPaging}>
-          Last
-        </Button>
+          <ChevronLeft className="h-4 w-4" />
+        </button>
+        {visiblePages.map((page) => (
+          <button
+            key={page}
+            onClick={() => void handlePageChange(page)}
+            disabled={isPaging}
+            className={`flex h-8 w-8 items-center justify-center rounded-lg text-sm font-medium transition-colors ${
+              page === currentPage
+                ? 'bg-emerald-600 text-white shadow-sm'
+                : 'text-slate-600 hover:bg-slate-50'
+            }`}
+          >
+            {page}
+          </button>
+        ))}
+        <button
+          onClick={() => void handlePageChange(currentPage + 1)}
+          disabled={!canGoNext || isPaging}
+          className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          <ChevronRight className="h-4 w-4" />
+        </button>
       </div>
     </div>
   );
@@ -275,11 +272,11 @@ export default function CallsPage() {
   if (error) {
     return (
       <div className="p-8">
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-          <p className="text-red-800">{error}</p>
+        <div className="rounded-2xl border border-red-200 bg-red-50 p-5">
+          <p className="text-sm text-red-800">{error}</p>
           <button
             onClick={() => void loadCallsPage(1, true)}
-            className="mt-2 text-sm text-red-600 hover:text-red-800 underline"
+            className="mt-2 text-sm font-medium text-red-600 underline hover:text-red-800"
           >
             Try again
           </button>
@@ -289,100 +286,104 @@ export default function CallsPage() {
   }
 
   return (
-    <div className="space-y-6 animate-fade-up">
+    <div className="space-y-5">
       <PageHeader
         eyebrow="Calls"
         title="Every conversation in one place."
-        subtitle="Search recent calls, review outcomes, and follow up on leads without digging through your phone."
+        subtitle="Search recent calls, review outcomes, and follow up on leads."
       />
 
-      <Card className="mb-6">
-        <CardContent className="pt-6">
-          <div className="flex flex-col sm:flex-row gap-3">
-            <div className="flex-1">
-              <Input
-                type="text"
-                placeholder="Search calls by name, phone, or summary..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                className="flex-1"
-              />
-            </div>
-            <Button onClick={handleSearch}>
-              <Search className="h-4 w-4 mr-2" />
-              Search
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+      {/* Search */}
+      <div className="flex gap-3">
+        <div className="relative flex-1">
+          <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <Input
+            type="text"
+            placeholder="Search by name, phone, or summary…"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && void handleSearch()}
+            className="h-10 pl-10"
+          />
+        </div>
+        <Button onClick={() => void handleSearch()} className="h-10 px-5">
+          Search
+        </Button>
+      </div>
 
-      {/* Calls List */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Call History</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="mb-4">{PaginationControls}</div>
-          {isLoading ? (
-            <div className="space-y-3">
-              {[1, 2, 3, 4, 5].map((i) => (
-                <div key={i} className="animate-pulse border-b border-gray-200 pb-3">
-                  <div className="h-5 bg-gray-200 rounded w-1/3 mb-2"></div>
-                  <div className="h-4 bg-gray-200 rounded w-2/3"></div>
-                </div>
-              ))}
+      {/* Pagination — top */}
+      {!isLoading && calls.length > 0 && PaginationBar}
+
+      {/* List */}
+      {isLoading ? (
+        <div className="space-y-2">
+          {[1, 2, 3, 4, 5].map((i) => (
+            <div key={i} className="flex items-center gap-4 rounded-2xl border border-slate-100 bg-white p-4">
+              <div className="h-10 w-10 animate-pulse rounded-full bg-slate-100" />
+              <div className="flex-1 space-y-2">
+                <div className="h-4 w-1/3 animate-pulse rounded bg-slate-100" />
+                <div className="h-3 w-1/4 animate-pulse rounded bg-slate-100" />
+                <div className="h-3 w-1/2 animate-pulse rounded bg-slate-100" />
+              </div>
             </div>
-          ) : calls.length > 0 ? (
-            <div className="space-y-3">
-              {calls.map((call) => (
+          ))}
+        </div>
+      ) : calls.length > 0 ? (
+        <div className="space-y-2">
+          {calls.map((call) => {
+            const tag = getCallTag(call);
+            const displayName = call.caller_name?.trim() || formatPhone(call.caller_phone);
+            const showPhone = Boolean(call.caller_name?.trim());
+            const duration = formatDuration(call.duration);
+
+            return (
+              <div
+                key={call.call_id}
+                onClick={() => handleViewCall(call.call_id)}
+                className="group flex cursor-pointer items-center gap-4 rounded-2xl border border-slate-100 bg-white p-4 transition-all hover:border-emerald-100 hover:shadow-sm"
+              >
+                {/* Avatar */}
                 <div
-                  key={call.call_id}
-                  className="border border-slate-200 bg-white rounded-xl p-4 hover:-translate-y-[1px] hover:shadow-sm transition-all cursor-pointer"
-                  onClick={() => handleViewCall(call.call_id)}
+                  className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white ${tag.avatarClass}`}
                 >
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <div className="font-semibold text-slate-900 truncate">
-                          {call.caller_name || formatPhone(call.caller_phone)}
-                        </div>
-                        {(() => {
-                          const badge = getCallTag(call);
-                          return (
-                            <Badge variant="outline" className={badge.className}>
-                              {badge.label}
-                            </Badge>
-                          );
-                        })()}
-                      </div>
-
-                      <div className="text-sm text-slate-600 mt-1">{formatPhone(call.caller_phone)}</div>
-
-                      <div className="text-sm text-slate-600 flex items-center gap-2 mt-2">
-                        <span>{formatDate(call.created_at)}</span>
-                        <span className="text-slate-300">|</span>
-                        <span>{formatTime(call.created_at)}</span>
-                        <span className="text-slate-300">|</span>
-                        <span>{formatDuration(call.duration)}</span>
-                      </div>
-                    </div>
-
-                    <ChevronRight className="h-5 w-5 text-slate-300 mt-1" />
-                  </div>
+                  {getInitials(call.caller_name)}
                 </div>
-              ))}
-            </div>
-          ) : (
-            <EmptyState
-              icon={<Phone className="h-10 w-10" />}
-              title="No calls yet"
-              description="Your AI receptionist will handle calls automatically when your business is unavailable."
-            />
-          )}
-          <div className="mt-4">{PaginationControls}</div>
-        </CardContent>
-      </Card>
+
+                {/* Body */}
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="truncate font-semibold text-slate-900">{displayName}</span>
+                    <Badge variant="outline" className={`${tag.badgeClass} text-xs`}>
+                      {tag.label}
+                    </Badge>
+                  </div>
+                  {showPhone && (
+                    <p className="mt-0.5 text-sm text-slate-500">{formatPhone(call.caller_phone)}</p>
+                  )}
+                  <p className="mt-1 text-xs text-slate-400">
+                    {formatDate(call.created_at)} · {formatTime(call.created_at)}
+                    {duration ? ` · ${duration}` : ''}
+                  </p>
+                </div>
+
+                {/* Arrow */}
+                <ChevronRight className="h-5 w-5 shrink-0 text-slate-300 transition-colors group-hover:text-emerald-500" />
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/50">
+          <EmptyState
+            icon={<Phone className="h-10 w-10" />}
+            title="No calls yet"
+            description="Your AI receptionist will handle calls automatically when your business is unavailable."
+          />
+        </div>
+      )}
+
+      {/* Pagination — bottom */}
+      {!isLoading && calls.length > 0 && PaginationBar}
     </div>
   );
 }
