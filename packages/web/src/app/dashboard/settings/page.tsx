@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from 'react';
 import { apiClient } from '@/lib/api-client';
 import { useAuthStore } from '@/stores/auth-store';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -304,57 +303,58 @@ export default function SettingsPage() {
       </div>
 
       {activeTab === 'business' && (
-        <div className="space-y-6">
-          <Card>
-            <CardHeader className="flex flex-row items-start justify-between gap-4">
+        <div className="space-y-5">
+          <div className="rounded-2xl border border-slate-100 bg-white shadow-sm">
+            <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
               <div>
-                <CardTitle>Business information</CardTitle>
-                <CardDescription>Review your core company details.</CardDescription>
+                <h2 className="text-sm font-semibold text-slate-900">Business information</h2>
+                <p className="text-xs text-slate-500">Review your core company details.</p>
               </div>
-              <Button onClick={() => setEditOpen(true)} variant="outline">
+              <button
+                onClick={() => setEditOpen(true)}
+                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50 transition-colors"
+              >
                 Edit details
-              </Button>
-            </CardHeader>
-            <CardContent className="grid gap-4 sm:grid-cols-2">
-              <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
-                <p className="text-xs uppercase tracking-wide text-slate-500">Business name</p>
+              </button>
+            </div>
+            <div className="grid gap-4 p-5 sm:grid-cols-2">
+              <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-4">
+                <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Business name</p>
                 <p className="mt-2 text-sm font-semibold text-slate-900">{formData.company_name || 'Not set'}</p>
               </div>
-              <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
-                <p className="text-xs uppercase tracking-wide text-slate-500">Business contact phone</p>
-                <p className="mt-2 text-sm font-semibold text-slate-900">
-                  {formData.phone_number || 'Not set'}
-                </p>
+              <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-4">
+                <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Business contact phone</p>
+                <p className="mt-2 text-sm font-semibold text-slate-900">{formData.phone_number || 'Not set'}</p>
               </div>
-              <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
-                <p className="text-xs uppercase tracking-wide text-slate-500">Timezone</p>
+              <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-4">
+                <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Timezone</p>
                 <p className="mt-2 text-sm font-semibold text-slate-900">{formData.timezone || 'Not set'}</p>
               </div>
               <div className="rounded-xl border border-emerald-100 bg-emerald-50/70 p-4">
-                <div className="flex items-center gap-2 text-emerald-700">
-                  <Phone className="h-4 w-4" />
-                  <p className="text-xs uppercase tracking-wide">Inbound number</p>
+                <div className="flex items-center gap-2">
+                  <Phone className="h-3.5 w-3.5 text-emerald-600" />
+                  <p className="text-xs font-bold uppercase tracking-widest text-emerald-700">Inbound number</p>
                 </div>
                 <p className="mt-2 text-sm font-semibold text-slate-900">{inboundSummary}</p>
                 {!myNumber && (
-                  <p className="mt-2 text-xs text-slate-600">
+                  <p className="mt-1.5 text-xs text-slate-500">
                     HandyCall assigns this number. Contact support if you need a specific area code.
                   </p>
                 )}
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         </div>
       )}
 
       {activeTab === 'call' && (
-        <div className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Call handling</CardTitle>
-              <CardDescription>Choose how HandyCall answers and routes calls.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
+        <div className="space-y-5">
+          <div className="rounded-2xl border border-slate-100 bg-white shadow-sm">
+            <div className="border-b border-slate-100 px-5 py-4">
+              <h2 className="text-sm font-semibold text-slate-900">Call handling</h2>
+              <p className="text-xs text-slate-500">Choose how HandyCall answers and routes calls.</p>
+            </div>
+            <div className="space-y-4 p-5">
               <div className="grid gap-3 md:grid-cols-3">
                 {CALL_HANDLING_OPTIONS.map((option) => {
                   const selected = formData.call_handling_mode === option.value;
@@ -389,18 +389,18 @@ export default function SettingsPage() {
                   );
                 })}
               </div>
-              <p className="text-xs text-slate-600">
+              <p className="text-xs text-slate-500">
                 Use your carrier forwarding settings to match this choice.
               </p>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Human transfer</CardTitle>
-              <CardDescription>Let callers reach a person when needed.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
+          <div className="rounded-2xl border border-slate-100 bg-white shadow-sm">
+            <div className="border-b border-slate-100 px-5 py-4">
+              <h2 className="text-sm font-semibold text-slate-900">Human transfer</h2>
+              <p className="text-xs text-slate-500">Let callers reach a person when needed.</p>
+            </div>
+            <div className="space-y-4 p-5">
               <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
                 <div className="flex items-center gap-3">
                   <div className="rounded-full bg-emerald-100 p-2 text-emerald-700">
@@ -461,32 +461,32 @@ export default function SettingsPage() {
 
               <div className="flex justify-end">
                 <Button onClick={handleSaveCallHandling} disabled={isSavingCall}>
-                  {isSavingCall ? 'Saving...' : 'Save changes'}
+                  {isSavingCall ? 'Saving…' : 'Save changes'}
                 </Button>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
 
           <CallForwardingGuide forwardToNumber={myNumber} callHandlingMode={formData.call_handling_mode} />
         </div>
       )}
 
       {activeTab === 'account' && (
-        <div className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Account status</CardTitle>
-              <CardDescription>Your subscription information.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+        <div className="space-y-5">
+          <div className="rounded-2xl border border-slate-100 bg-white shadow-sm">
+            <div className="border-b border-slate-100 px-5 py-4">
+              <h2 className="text-sm font-semibold text-slate-900">Account status</h2>
+              <p className="text-xs text-slate-500">Your subscription information.</p>
+            </div>
+            <div className="space-y-3 p-5">
+              <div className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50/70 p-4">
                 <div className="flex items-center gap-3">
-                  <div className="rounded-full bg-emerald-100 p-2 text-emerald-700">
-                    <ShieldCheck className="h-4 w-4" />
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-emerald-100 bg-emerald-50">
+                    <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" />
                   </div>
                   <div>
                     <p className="text-sm font-semibold text-slate-900">Account status</p>
-                    <p className="text-xs text-slate-600">Current subscription state</p>
+                    <p className="text-xs text-slate-500">Current subscription state</p>
                   </div>
                 </div>
                 <span className="text-sm font-semibold text-slate-900">{statusLabel}</span>
@@ -499,21 +499,19 @@ export default function SettingsPage() {
                   </span>
                 </div>
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         </div>
       )}
 
       {activeTab === 'integrations' && (
-        <div className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Connect your CRM</CardTitle>
-              <CardDescription>
-                Send HandyCall events to Zapier, Make, n8n, or any CRM that accepts webhooks.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-5">
+        <div className="space-y-5">
+          <div className="rounded-2xl border border-slate-100 bg-white shadow-sm">
+            <div className="border-b border-slate-100 px-5 py-4">
+              <h2 className="text-sm font-semibold text-slate-900">Connect your CRM</h2>
+              <p className="text-xs text-slate-500">Send HandyCall events to Zapier, Make, n8n, or any CRM that accepts webhooks.</p>
+            </div>
+            <div className="space-y-5 p-5">
               <div className="grid gap-4 md:grid-cols-3">
                 <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
                   <p className="text-xs uppercase tracking-wide text-slate-500">Step 1</p>
@@ -693,15 +691,15 @@ export default function SettingsPage() {
                   {webhookSaving ? 'Saving...' : 'Save changes'}
                 </Button>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Zapier, Make, n8n guidance</CardTitle>
-              <CardDescription>Fastest setup for non-technical users.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3 text-sm text-slate-700">
+          <div className="rounded-2xl border border-slate-100 bg-white shadow-sm">
+            <div className="border-b border-slate-100 px-5 py-4">
+              <h2 className="text-sm font-semibold text-slate-900">Zapier, Make, n8n guidance</h2>
+              <p className="text-xs text-slate-500">Fastest setup for non-technical users.</p>
+            </div>
+            <div className="space-y-3 p-5 text-sm text-slate-600">
               <p>
                 Recommended: Zapier Webhooks → Catch Hook. Paste your URL above and click Test webhook, then map fields
                 into your CRM action (HubSpot, Pipedrive, Zoho, Google Sheets, Airtable, etc).
@@ -710,8 +708,8 @@ export default function SettingsPage() {
                 Power users can use Make or n8n with the same webhook URL. HandyCall sends JSON with a top-level event
                 name plus object payloads for contacts, appointments, and calls.
               </p>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         </div>
       )}
 

@@ -4,12 +4,11 @@ import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { apiClient } from '@/lib/api-client';
 import { usePortalBasePath } from '@/lib/portal';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { AudioPlayer } from '@/components/audio-player';
 import { PageHeader } from '@/components/portal/page-header';
-import { ArrowLeft, User, Calendar, ExternalLink, AlertCircle } from 'lucide-react';
+import { ArrowLeft, User, Calendar, ExternalLink, AlertCircle, Mic, FileText } from 'lucide-react';
 
 interface Call {
   call_id: string;
@@ -69,9 +68,7 @@ export default function CallDetailsPage() {
 
   async function loadCallDetails(silent?: boolean) {
     try {
-      if (!silent) {
-        setIsLoading(true);
-      }
+      if (!silent) setIsLoading(true);
       setError(null);
       const callData = await apiClient.getCallById(callId);
       setCall(callData);
@@ -79,9 +76,7 @@ export default function CallDetailsPage() {
       console.error('Error loading call details:', err);
       setError(err?.message || 'Failed to load call details');
     } finally {
-      if (!silent) {
-        setIsLoading(false);
-      }
+      if (!silent) setIsLoading(false);
     }
   }
 
@@ -111,17 +106,17 @@ export default function CallDetailsPage() {
     if (outcome === 'LEAD' || call.lead_captured) {
       return { label: 'Lead', className: 'bg-amber-50 text-amber-800 border-amber-200' };
     }
-    return { label: 'No Lead', className: 'bg-gray-50 text-gray-700 border-gray-200' };
+    return { label: 'No Lead', className: 'bg-slate-50 text-slate-600 border-slate-200' };
   };
 
   const getStatusBadge = (status?: string): { label: string; className: string } => {
     const s = (status || '').toUpperCase();
-    if (s === 'COMPLETED') return { label: 'Completed', className: 'bg-gray-50 text-gray-700 border-gray-200' };
+    if (s === 'COMPLETED') return { label: 'Completed', className: 'bg-slate-50 text-slate-600 border-slate-200' };
     if (s === 'IN_PROGRESS' || s === 'RINGING')
       return { label: s.replace('_', ' '), className: 'bg-indigo-50 text-indigo-700 border-indigo-200' };
     if (s === 'FAILED' || s === 'NO_ANSWER' || s === 'BUSY')
       return { label: s.replace('_', ' '), className: 'bg-red-50 text-red-700 border-red-200' };
-    return { label: (status || 'Unknown').replace('_', ' '), className: 'bg-gray-50 text-gray-700 border-gray-200' };
+    return { label: (status || 'Unknown').replace('_', ' '), className: 'bg-slate-50 text-slate-600 border-slate-200' };
   };
 
   const extractAddressLine = (info?: any): string => {
@@ -138,16 +133,19 @@ export default function CallDetailsPage() {
 
   if (isLoading) {
     return (
-      <div className="p-8 animate-fade-up">
-        <div className="flex items-center gap-4 mb-8">
-          <Button variant="outline" onClick={() => router.push(`${basePath}/calls`)}>
-            <ArrowLeft className="h-4 w-4 mr-2" />
+      <div className="space-y-5">
+        <div>
+          <button
+            onClick={() => router.push(`${basePath}/calls`)}
+            className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-slate-800 transition-colors"
+          >
+            <ArrowLeft className="h-4 w-4" />
             Back to Calls
-          </Button>
+          </button>
         </div>
-        <div className="text-center py-12">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent mx-auto"></div>
-          <p className="mt-4 text-sm text-muted-foreground">Loading call details...</p>
+        <div className="flex flex-col items-center justify-center py-20">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-emerald-500 border-t-transparent" />
+          <p className="mt-4 text-sm text-slate-500">Loading call details…</p>
         </div>
       </div>
     );
@@ -155,20 +153,21 @@ export default function CallDetailsPage() {
 
   if (error || !call) {
     return (
-      <div className="p-8 animate-fade-up">
-        <div className="flex items-center gap-4 mb-8">
-          <Button variant="outline" onClick={() => router.push(`${basePath}/calls`)}>
-            <ArrowLeft className="h-4 w-4 mr-2" />
+      <div className="space-y-5">
+        <div>
+          <button
+            onClick={() => router.push(`${basePath}/calls`)}
+            className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-slate-800 transition-colors"
+          >
+            <ArrowLeft className="h-4 w-4" />
             Back to Calls
-          </Button>
+          </button>
         </div>
-        <div className="bg-red-50 border border-red-200 rounded-lg p-8 text-center">
-          <AlertCircle className="h-12 w-12 text-red-600 mx-auto mb-4" />
-          <h3 className="text-lg font-semibold text-red-800 mb-2">Failed to Load Call</h3>
-          <p className="text-red-600 mb-4">{error || 'Call not found'}</p>
-          <Button onClick={() => void loadCallDetails()} variant="outline">
-            Try Again
-          </Button>
+        <div className="rounded-2xl border border-red-200 bg-red-50 px-6 py-10 text-center">
+          <AlertCircle className="h-10 w-10 text-red-500 mx-auto mb-3" />
+          <h3 className="text-base font-semibold text-red-800 mb-1">Failed to load call</h3>
+          <p className="text-sm text-red-600 mb-4">{error || 'Call not found'}</p>
+          <Button onClick={() => void loadCallDetails()} variant="outline" size="sm">Try again</Button>
         </div>
       </div>
     );
@@ -181,84 +180,92 @@ export default function CallDetailsPage() {
   const mapEmbedUrl = mapQuery ? `https://maps.google.com/maps?output=embed&q=${mapQuery}` : '';
   const mapLink = mapQuery ? `https://www.google.com/maps/search/?api=1&query=${mapQuery}` : '';
 
+  // Parse transcript lines into structured messages
+  const transcriptMessages = call.transcript
+    ? call.transcript.split('\n').filter(Boolean).map((line, idx) => {
+        const isCaller = line.startsWith('Caller:');
+        const isAssistant = line.startsWith('Assistant:');
+        const role = isCaller ? 'caller' : isAssistant ? 'assistant' : 'other';
+        const text = line.replace(/^Caller:\s*|^Assistant:\s*/, '');
+        return { idx, role, text, raw: line };
+      })
+    : [];
+
   return (
-    <div className="space-y-6 animate-fade-up">
+    <div className="space-y-5">
+      {/* Back nav */}
+      <div>
+        <button
+          onClick={() => router.push(`${basePath}/calls`)}
+          className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-slate-800 transition-colors"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Back to Calls
+        </button>
+      </div>
+
       <PageHeader
         eyebrow="Call details"
-        title={call.caller_name ? `${call.caller_name} - ${call.caller_phone}` : call.caller_phone}
+        title={call.caller_name ? `${call.caller_name} · ${call.caller_phone}` : call.caller_phone}
         subtitle={`${formatDate(call.created_at)} · ${formatDuration(call.duration)}`}
-        actions={
-          <Button variant="outline" onClick={() => router.push(`${basePath}/calls`)}>
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Calls
-          </Button>
-        }
         meta={
           <>
-            <Badge variant="outline" className={outcome.className}>
-              {outcome.label}
-            </Badge>
-            <Badge variant="outline" className={statusBadge.className}>
-              {statusBadge.label}
-            </Badge>
+            <Badge variant="outline" className={outcome.className}>{outcome.label}</Badge>
+            <Badge variant="outline" className={statusBadge.className}>{statusBadge.label}</Badge>
           </>
         }
       />
 
-      {/* Associations - Contact & Appointment */}
+      {/* Associations */}
       {(call.contact_id || call.appointment_id) && (
-        <div className="grid gap-4 md:grid-cols-2 mb-6">
+        <div className="grid gap-3 sm:grid-cols-2">
           {call.contact_id && (
-            <Card
-              className="cursor-pointer hover:border-emerald-300 hover:shadow-md transition-all"
+            <button
+              type="button"
               onClick={() => router.push(`${basePath}/customers?contact=${call.contact_id}`)}
+              className="group flex items-center gap-3 rounded-2xl border border-slate-100 bg-white p-4 text-left shadow-sm transition-all hover:border-emerald-100 hover:shadow-md"
             >
-              <CardContent className="flex items-center gap-3 py-4">
-                <div className="bg-emerald-50 p-3 rounded-full">
-                  <User className="h-6 w-6 text-emerald-600" />
-                </div>
-                <div className="flex-1">
-                  <p className="font-medium">Associated Contact</p>
-                  <p className="text-sm text-slate-500">View customer profile</p>
-                </div>
-                <ExternalLink className="h-5 w-5 text-slate-400" />
-              </CardContent>
-            </Card>
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-emerald-100 bg-emerald-50">
+                <User className="h-4 w-4 text-emerald-600" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-slate-900">Associated Contact</p>
+                <p className="text-xs text-slate-500">View customer profile</p>
+              </div>
+              <ExternalLink className="h-4 w-4 text-slate-300 group-hover:text-emerald-500 transition-colors" />
+            </button>
           )}
           {call.appointment_id && (
-            <Card
-              className="cursor-pointer hover:border-emerald-300 hover:shadow-md transition-all"
+            <button
+              type="button"
               onClick={() => router.push(`${basePath}/appointments?appointment=${call.appointment_id}`)}
+              className="group flex items-center gap-3 rounded-2xl border border-slate-100 bg-white p-4 text-left shadow-sm transition-all hover:border-emerald-100 hover:shadow-md"
             >
-              <CardContent className="flex items-center gap-3 py-4">
-                <div className="bg-emerald-50 p-3 rounded-full">
-                  <Calendar className="h-6 w-6 text-emerald-600" />
-                </div>
-                <div className="flex-1">
-                  <p className="font-medium">Booked Appointment</p>
-                  <p className="text-sm text-slate-500">View appointment details</p>
-                </div>
-                <ExternalLink className="h-5 w-5 text-slate-400" />
-              </CardContent>
-            </Card>
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-emerald-100 bg-emerald-50">
+                <Calendar className="h-4 w-4 text-emerald-600" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-slate-900">Booked Appointment</p>
+                <p className="text-xs text-slate-500">View appointment details</p>
+              </div>
+              <ExternalLink className="h-4 w-4 text-slate-300 group-hover:text-emerald-500 transition-colors" />
+            </button>
           )}
         </div>
       )}
 
       {/* Captured Info + Location */}
-      <div
-        className={`grid gap-6 mb-6 ${addressLine ? 'lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]' : ''}`}
-      >
-        <Card>
-          <CardHeader>
-            <CardTitle>Captured Information</CardTitle>
-          </CardHeader>
-          <CardContent>
+      <div className={`grid gap-5 ${addressLine ? 'lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]' : ''}`}>
+        <div className="rounded-2xl border border-slate-100 bg-white shadow-sm">
+          <div className="border-b border-slate-100 px-5 py-4">
+            <h2 className="text-sm font-semibold text-slate-900">Captured Information</h2>
+          </div>
+          <div className="px-5 py-4">
             {call.collected_info && Object.keys(call.collected_info).length > 0 ? (
               <div className="space-y-3">
                 {Object.entries(call.collected_info).map(([key, value]) => (
-                  <div key={key} className="flex justify-between items-start gap-4 pb-3 border-b last:border-b-0">
-                    <span className="text-sm text-slate-500 capitalize font-medium">{key.replace(/_/g, ' ')}</span>
+                  <div key={key} className="flex justify-between items-start gap-4 pb-3 border-b border-slate-50 last:border-b-0 last:pb-0">
+                    <span className="text-sm text-slate-500 capitalize">{key.replace(/_/g, ' ')}</span>
                     {key.toLowerCase().includes('address') && mapLink ? (
                       <a
                         className="text-sm font-semibold text-emerald-700 text-right hover:underline"
@@ -275,95 +282,144 @@ export default function CallDetailsPage() {
                 ))}
               </div>
             ) : (
-              <p className="text-slate-500 italic">No structured information captured during this call.</p>
+              <p className="text-sm text-slate-400 italic">No structured information captured during this call.</p>
             )}
-          </CardContent>
-        </Card>
-        {addressLine ? (
-          <Card>
-            <CardHeader>
-              <CardTitle>Location</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="overflow-hidden rounded-lg border border-slate-200">
-                <iframe title="Service location" src={mapEmbedUrl} className="h-48 w-full" loading="lazy" />
+          </div>
+        </div>
+
+        {addressLine && (
+          <div className="rounded-2xl border border-slate-100 bg-white shadow-sm">
+            <div className="border-b border-slate-100 px-5 py-4">
+              <h2 className="text-sm font-semibold text-slate-900">Location</h2>
+            </div>
+            <div className="px-5 py-4 space-y-3">
+              <div className="overflow-hidden rounded-xl border border-slate-200">
+                <iframe title="Service location" src={mapEmbedUrl} className="h-44 w-full" loading="lazy" />
               </div>
-              <div className="text-sm text-slate-600">{addressLine}</div>
-              <Button variant="outline" size="sm" onClick={() => window.open(mapLink, '_blank')}>
-                Open in Maps
-              </Button>
-            </CardContent>
-          </Card>
-        ) : null}
+              <p className="text-sm text-slate-600">{addressLine}</p>
+              <button
+                onClick={() => window.open(mapLink, '_blank')}
+                className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700 hover:text-emerald-600 transition-colors"
+              >
+                Open in Maps <ExternalLink className="h-3 w-3" />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Call Recording */}
-      <Card className="mb-6">
-        <CardHeader>
-          <CardTitle>Call Recording</CardTitle>
-          <p className="text-sm text-slate-600">
-            {call.recording_url ? 'Listen to the complete call recording.' : 'Recording is not available yet.'}
-          </p>
-        </CardHeader>
-        <CardContent>
+      <div className="rounded-2xl border border-slate-100 bg-white shadow-sm">
+        <div className="border-b border-slate-100 px-5 py-4 flex items-center gap-3">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-emerald-100 bg-emerald-50">
+            <Mic className="h-3.5 w-3.5 text-emerald-600" />
+          </div>
+          <div>
+            <h2 className="text-sm font-semibold text-slate-900">Call Recording</h2>
+            <p className="text-xs text-slate-500">
+              {call.recording_url ? 'Listen to the complete call.' : 'Recording not yet available.'}
+            </p>
+          </div>
+        </div>
+        <div className="px-5 py-4">
           {call.recording_url ? (
-            <div className="bg-slate-50 border border-slate-200 rounded-lg p-6">
+            <div className="rounded-xl bg-slate-50 border border-slate-200 p-4">
               <AudioPlayer
                 src={call.recording_url}
                 title={`Call with ${call.caller_name || call.caller_phone}`}
               />
             </div>
           ) : (
-            <div className="text-center py-8 bg-slate-50 border border-slate-200 rounded-lg">
-              <AlertCircle className="h-10 w-10 text-slate-400 mx-auto mb-3" />
-              <p className="text-slate-600">Recording will be available shortly after the call completes.</p>
+            <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50/50 py-10 text-center">
+              <Mic className="h-8 w-8 text-slate-300 mb-2" />
+              <p className="text-sm text-slate-500">Recording will appear shortly after the call ends.</p>
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {/* Transcript */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Full Transcript</CardTitle>
-          <p className="text-sm text-slate-600">Complete conversation text from the call.</p>
-        </CardHeader>
-        <CardContent>
-          {call.transcript ? (
-            <div className="bg-slate-50 border border-slate-200 rounded-lg p-6 max-h-[600px] overflow-auto">
-              <div className="space-y-2">
-                {call.transcript.split('\n').filter(Boolean).map((line, idx) => {
-                  const isCaller = line.startsWith('Caller:');
-                  const isAssistant = line.startsWith('Assistant:');
-                  const label = isCaller ? 'Caller' : isAssistant ? 'Assistant' : null;
-                  const text = label ? line.replace(/^Caller:\s*|^Assistant:\s*/, '') : line;
+      <div className="rounded-2xl border border-slate-100 bg-white shadow-sm">
+        {/* Header */}
+        <div className="flex items-center gap-3 border-b border-slate-100 px-5 py-4">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-emerald-100 bg-emerald-50">
+            <FileText className="h-3.5 w-3.5 text-emerald-600" />
+          </div>
+          <div>
+            <h2 className="text-sm font-semibold text-slate-900">Full Transcript</h2>
+            <p className="text-xs text-slate-500">Complete conversation from this call.</p>
+          </div>
+          {transcriptMessages.length > 0 && (
+            <span className="ml-auto rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">
+              {transcriptMessages.filter(m => m.role !== 'other').length} turns
+            </span>
+          )}
+        </div>
+
+        <div className="px-5 py-5">
+          {transcriptMessages.length > 0 ? (
+            /* macOS-style chrome wrapper */
+            <div className="overflow-hidden rounded-xl border border-slate-200 bg-slate-900">
+              {/* Chrome bar */}
+              <div className="flex items-center justify-between border-b border-slate-700/60 bg-slate-800/80 px-4 py-2.5">
+                <div className="flex items-center gap-2">
+                  <div className="flex gap-1.5">
+                    <div className="h-2.5 w-2.5 rounded-full bg-red-400/80" />
+                    <div className="h-2.5 w-2.5 rounded-full bg-amber-400/80" />
+                    <div className="h-2.5 w-2.5 rounded-full bg-emerald-400/80" />
+                  </div>
+                  <span className="ml-1.5 text-xs text-slate-500">Transcript</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="flex h-1.5 w-1.5 relative">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
+                    <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                  </span>
+                  <span className="text-xs text-emerald-400">Recorded</span>
+                </div>
+              </div>
+
+              {/* Messages */}
+              <div className="max-h-[560px] overflow-y-auto px-4 py-4 space-y-4">
+                {transcriptMessages.map((msg) => {
+                  if (msg.role === 'other') {
+                    return (
+                      <p key={msg.idx} className="text-xs text-slate-500 italic px-1">{msg.text}</p>
+                    );
+                  }
+                  const isAI = msg.role === 'assistant';
                   return (
-                    <div key={idx} className="flex gap-3">
-                      {label ? (
-                        <span
-                          className={`shrink-0 text-xs font-semibold uppercase tracking-wide ${
-                            isCaller ? 'text-slate-600' : 'text-emerald-700'
-                          }`}
-                        >
-                          {label}
-                        </span>
-                      ) : (
-                        <span className="shrink-0 w-16" />
-                      )}
-                      <p className="text-sm text-slate-800 leading-relaxed whitespace-pre-wrap">{text}</p>
+                    <div key={msg.idx} className="flex items-start gap-3">
+                      {/* Avatar */}
+                      <div
+                        className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-bold ${
+                          isAI
+                            ? 'bg-emerald-500 text-white'
+                            : 'bg-slate-600 text-slate-200'
+                        }`}
+                      >
+                        {isAI ? 'H' : 'C'}
+                      </div>
+                      {/* Bubble */}
+                      <div className="flex-1 min-w-0">
+                        <p className={`mb-1 text-[10px] font-semibold uppercase tracking-wider ${isAI ? 'text-emerald-400' : 'text-slate-400'}`}>
+                          {isAI ? 'HandyCall AI' : 'Caller'}
+                        </p>
+                        <p className="text-sm text-slate-200 leading-relaxed whitespace-pre-wrap">{msg.text}</p>
+                      </div>
                     </div>
                   );
                 })}
               </div>
             </div>
           ) : (
-            <div className="text-center py-8 bg-slate-50 border border-slate-200 rounded-lg">
-              <AlertCircle className="h-10 w-10 text-slate-400 mx-auto mb-3" />
-              <p className="text-slate-600">Transcript is not available yet. It will be generated after the call ends.</p>
+            <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50/50 py-12 text-center">
+              <FileText className="h-8 w-8 text-slate-300 mb-2" />
+              <p className="text-sm text-slate-500">Transcript will be generated after the call ends.</p>
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   );
 }

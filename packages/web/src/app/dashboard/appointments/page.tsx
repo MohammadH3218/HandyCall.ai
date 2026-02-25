@@ -1127,7 +1127,7 @@ export default function AppointmentsPage() {
               </Card>
             </div>
 
-            <div className="space-y-6">
+            <div className="min-w-0 space-y-6">
               <Card className="overflow-hidden">
                 <CardHeader className="pb-2">
                   <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -1180,13 +1180,13 @@ export default function AppointmentsPage() {
                   {isLoading ? (
                     <div className="p-8 text-sm text-gray-500">Loading appointments...</div>
                   ) : calendarView === 'month' ? (
-                    <div>
-                      <div className="grid grid-cols-7 text-xs font-semibold text-gray-600 border-b border-gray-200 bg-gray-50">
+                    <div className="overflow-x-auto">
+                      <div className="grid grid-cols-7 min-w-[560px] text-xs font-semibold text-gray-600 border-b border-gray-200 bg-gray-50">
                         {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((d) => (
                           <div key={d} className="px-3 py-3 text-center">{d}</div>
                         ))}
                       </div>
-                      <div className="grid grid-cols-7 divide-x divide-y divide-gray-100">
+                      <div className="grid grid-cols-7 min-w-[560px] divide-x divide-y divide-gray-100">
                         {monthDays.map((d) => {
                           const dayParts = getZonedParts(d, displayTimezone);
                           const key = ymdFromParts(dayParts);
@@ -1296,8 +1296,8 @@ export default function AppointmentsPage() {
                           </div>
                         ))}
                       </div>
-                      <div className="flex-1 overflow-x-auto">
-                        <div className={`grid ${calendarView === 'week' ? 'grid-cols-7 min-w-[840px]' : 'grid-cols-1'} bg-white`}>
+                      <div className="min-w-0 flex-1 overflow-x-auto">
+                        <div className={`grid ${calendarView === 'week' ? 'grid-cols-7 min-w-[700px]' : 'grid-cols-1'} bg-white`}>
                           {(calendarView === 'week' ? weekDays : [focusDate]).map((day) => {
                             const zonedDay = toZonedDate(day, displayTimezone);
                             const key = ymd(zonedDay);

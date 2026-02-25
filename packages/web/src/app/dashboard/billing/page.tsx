@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiClient } from '@/lib/api-client';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useAuthStore } from '@/stores/auth-store';
 import { SubscriptionPlan, SubscriptionStatus } from '@handycall/shared';
@@ -19,7 +18,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { CreditCard, ShieldCheck, Sparkles } from 'lucide-react';
+import { Clock3, CreditCard, FileText, MessageSquare, ShieldCheck, Sparkles, Users } from 'lucide-react';
 
 type PaymentMethod = {
   id: string;
@@ -46,9 +45,7 @@ export default function BillingPage() {
   const [deleteTarget, setDeleteTarget] = useState<PaymentMethod | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
-  useEffect(() => {
-    loadBillingData();
-  }, []);
+  useEffect(() => { loadBillingData(); }, []);
 
   const currentPlan = resolvePlan(
     (company?.subscription_plan as SubscriptionPlan | undefined) ||
@@ -63,17 +60,12 @@ export default function BillingPage() {
     company?.payment_method_last4
       ? { last4: company.payment_method_last4, brand: company.payment_method_brand }
       : (subscription as any)?.payment_method
-      ? {
-          last4: (subscription as any).payment_method.last4,
-          brand: (subscription as any).payment_method.brand,
-        }
+      ? { last4: (subscription as any).payment_method.last4, brand: (subscription as any).payment_method.brand }
       : null;
 
   const displayPaymentMethods = useMemo(() => {
     if (paymentMethods.length) return paymentMethods;
-    if (fallbackPaymentMethod) {
-      return [{ id: 'fallback', ...fallbackPaymentMethod, is_default: true } as PaymentMethod];
-    }
+    if (fallbackPaymentMethod) return [{ id: 'fallback', ...fallbackPaymentMethod, is_default: true } as PaymentMethod];
     return [];
   }, [paymentMethods, fallbackPaymentMethod]);
 
@@ -82,33 +74,9 @@ export default function BillingPage() {
 
   const planHighlights = useMemo(
     () => [
-      {
-        label: 'Call minutes',
-        value:
-          planLimits?.minutes === -1
-            ? 'Unlimited'
-            : typeof planLimits?.minutes === 'number'
-            ? `${planLimits.minutes}/week`
-            : '-',
-      },
-      {
-        label: 'SMS messages',
-        value:
-          planLimits?.sms === -1
-            ? 'Unlimited'
-            : typeof planLimits?.sms === 'number'
-            ? `${planLimits.sms}/week`
-            : '-',
-      },
-      {
-        label: 'Active contacts',
-        value:
-          planLimits?.contacts === -1
-            ? 'Unlimited'
-            : typeof planLimits?.contacts === 'number'
-            ? `${planLimits.contacts}/week`
-            : '-',
-      },
+      { label: 'Call minutes', value: planLimits?.minutes === -1 ? 'Unlimited' : typeof planLimits?.minutes === 'number' ? `${planLimits.minutes}/week` : '-' },
+      { label: 'SMS messages', value: planLimits?.sms === -1 ? 'Unlimited' : typeof planLimits?.sms === 'number' ? `${planLimits.sms}/week` : '-' },
+      { label: 'Active contacts', value: planLimits?.contacts === -1 ? 'Unlimited' : typeof planLimits?.contacts === 'number' ? `${planLimits.contacts}/week` : '-' },
     ],
     [planLimits]
   );
@@ -116,23 +84,13 @@ export default function BillingPage() {
   const loadBillingData = async () => {
     try {
       setLoading(true);
-
       const withTimeout = <T,>(promise: Promise<T>, ms = 12000) =>
-        Promise.race([
-          promise,
-          new Promise<T>((_, reject) =>
-            setTimeout(() => reject(new Error('Request timed out')), ms)
-          ),
-        ]);
+        Promise.race([promise, new Promise<T>((_, reject) => setTimeout(() => reject(new Error('Request timed out')), ms))]);
 
       const [subData, usageData, paymentData] = await Promise.all([
         withTimeout(apiClient.getMySubscription()),
         withTimeout(apiClient.getUsageMetrics()),
-        withTimeout(
-          apiClient
-            .getPaymentMethods()
-            .catch(() => ({ payment_methods: [], default_payment_method_id: null }))
-        ),
+        withTimeout(apiClient.getPaymentMethods().catch(() => ({ payment_methods: [], default_payment_method_id: null }))),
       ]);
       const plan =
         resolvePlan(company?.subscription_plan as SubscriptionPlan | undefined) ||
@@ -140,24 +98,16 @@ export default function BillingPage() {
 
       setSubscription(subData);
       setUsage(normalizeUsageResponse(usageData, subData));
-      const limits =
-        resolvePlanLimits(plan, usageData?.plan_limits) ||
-        (plan ? PLAN_CATALOG[plan]?.limits : undefined);
+      const limits = resolvePlanLimits(plan, usageData?.plan_limits) || (plan ? PLAN_CATALOG[plan]?.limits : undefined);
       setPlanLimits(limits);
       const sanitizedPaymentMethods = Array.isArray(paymentData?.payment_methods)
-        ? paymentData.payment_methods.filter(
-            (method: PaymentMethod | null | undefined): method is PaymentMethod => Boolean(method?.id)
-          )
+        ? paymentData.payment_methods.filter((m: PaymentMethod | null | undefined): m is PaymentMethod => Boolean(m?.id))
         : [];
       setPaymentMethods(sanitizedPaymentMethods);
       setDefaultPaymentMethodId(paymentData?.default_payment_method_id || null);
     } catch (error: any) {
       console.error('Failed to load billing data:', error);
-      toast({
-        title: 'Unable to load billing',
-        description: error.message || 'Please try again in a moment.',
-        variant: 'destructive',
-      });
+      toast({ title: 'Unable to load billing', description: error.message || 'Please try again in a moment.', variant: 'destructive' });
     } finally {
       setLoading(false);
     }
@@ -167,15 +117,10 @@ export default function BillingPage() {
     try {
       setCancelling(true);
       await apiClient.cancelSubscription();
-      await loadBillingData(); // Reload billing data
+      await loadBillingData();
       setShowCancelDialog(false);
     } catch (error: any) {
-      console.error('Failed to cancel subscription:', error);
-      toast({
-        title: 'Cancel failed',
-        description: error.message || 'Failed to cancel subscription',
-        variant: 'destructive',
-      });
+      toast({ title: 'Cancel failed', description: error.message || 'Failed to cancel subscription', variant: 'destructive' });
     } finally {
       setCancelling(false);
     }
@@ -186,16 +131,9 @@ export default function BillingPage() {
       setPaymentActionId(paymentMethodId);
       await apiClient.setDefaultPaymentMethod(paymentMethodId);
       await loadBillingData();
-      toast({
-        title: 'Default updated',
-        description: 'New payment method set as default.',
-      });
+      toast({ title: 'Default updated', description: 'New payment method set as default.' });
     } catch (error: any) {
-      toast({
-        title: 'Update failed',
-        description: error?.message || 'Failed to update payment method.',
-        variant: 'destructive',
-      });
+      toast({ title: 'Update failed', description: error?.message || 'Failed to update payment method.', variant: 'destructive' });
     } finally {
       setPaymentActionId(null);
     }
@@ -214,65 +152,47 @@ export default function BillingPage() {
       setDeleteDialogOpen(false);
       setDeleteTarget(null);
       await loadBillingData();
-      toast({
-        title: 'Payment method removed',
-        description: 'The card has been removed from your account.',
-      });
+      toast({ title: 'Payment method removed', description: 'The card has been removed from your account.' });
     } catch (error: any) {
-      toast({
-        title: 'Remove failed',
-        description: error?.message || 'Failed to remove payment method.',
-        variant: 'destructive',
-      });
+      toast({ title: 'Remove failed', description: error?.message || 'Failed to remove payment method.', variant: 'destructive' });
     } finally {
       setPaymentActionId(null);
     }
   };
 
-  const getStatusBadge = (status?: SubscriptionStatus) => {
-    const colors: Record<SubscriptionStatus, string> = {
-      [SubscriptionStatus.TRIALING]: 'bg-blue-100 text-blue-800',
-      [SubscriptionStatus.ACTIVE]: 'bg-green-100 text-green-800',
-      [SubscriptionStatus.PAST_DUE]: 'bg-yellow-100 text-yellow-800',
-      [SubscriptionStatus.CANCELED]: 'bg-red-100 text-red-800',
-      [SubscriptionStatus.UNPAID]: 'bg-orange-100 text-orange-800',
-      [SubscriptionStatus.INCOMPLETE]: 'bg-gray-100 text-gray-800',
+  const getStatusPill = (status?: SubscriptionStatus) => {
+    const map: Record<string, string> = {
+      [SubscriptionStatus.TRIALING]: 'bg-blue-50 text-blue-700 border-blue-200',
+      [SubscriptionStatus.ACTIVE]: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+      [SubscriptionStatus.PAST_DUE]: 'bg-amber-50 text-amber-800 border-amber-200',
+      [SubscriptionStatus.CANCELED]: 'bg-slate-50 text-slate-600 border-slate-200',
+      [SubscriptionStatus.UNPAID]: 'bg-red-50 text-red-700 border-red-200',
+      [SubscriptionStatus.INCOMPLETE]: 'bg-slate-50 text-slate-600 border-slate-200',
     };
-
     if (!status) return null;
-
-    return (
-      <span className={`px-3 py-1 rounded-full text-sm font-medium ${colors[status]}`}>
-        {status.charAt(0) + status.slice(1).toLowerCase().replace('_', ' ')}
-      </span>
-    );
+    const cls = map[status] || 'bg-slate-50 text-slate-600 border-slate-200';
+    const label = status.charAt(0) + status.slice(1).toLowerCase().replace('_', ' ');
+    return <span className={`rounded-full border px-2.5 py-0.5 text-xs font-semibold ${cls}`}>{label}</span>;
   };
 
   const formatDate = (timestamp?: number) => {
     if (!timestamp) return '-';
     const date = new Date(timestamp);
     if (Number.isNaN(date.getTime())) return '-';
-    // Backend already sends timestamps in milliseconds
-    return date.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    });
+    return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
   };
 
   const calculateUsagePercentage = (used: number, limit: number) => {
-    if (!limit || limit === -1) return 0; // unlimited or no limit
+    if (!limit || limit === -1) return 0;
     return Math.min(Math.round((used / limit) * 100), 100);
   };
 
   const getDaysRemaining = () => {
     if (!subscription?.current_period_end) return null;
     const endDate = new Date(subscription.current_period_end);
-    const now = new Date();
-    const diffTime = endDate.getTime() - now.getTime();
+    const diffTime = endDate.getTime() - Date.now();
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     const diffHours = Math.ceil(diffTime / (1000 * 60 * 60));
-
     if (diffDays > 1) return `${diffDays} days`;
     if (diffHours > 1) return `${diffHours} hours`;
     return 'less than 1 hour';
@@ -280,316 +200,266 @@ export default function BillingPage() {
 
   if (loading) {
     return (
-      <div className="p-8 max-w-7xl">
-        <div className="animate-pulse">
-          <div className="h-8 bg-gray-200 rounded w-1/4 mb-4"></div>
-          <div className="h-4 bg-gray-200 rounded w-1/2 mb-8"></div>
-          <div className="grid gap-6 md:grid-cols-2">
-            <div className="h-64 bg-gray-200 rounded"></div>
-            <div className="h-64 bg-gray-200 rounded"></div>
-          </div>
+      <div className="space-y-5">
+        <div className="h-8 w-48 animate-pulse rounded-lg bg-slate-100" />
+        <div className="grid gap-5 md:grid-cols-2">
+          <div className="h-72 animate-pulse rounded-2xl bg-slate-100" />
+          <div className="h-72 animate-pulse rounded-2xl bg-slate-100" />
         </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6 animate-fade-up max-w-7xl mx-auto">
+    <div className="space-y-6">
       <PageHeader
         eyebrow="Billing"
         title="Billing and subscription"
         subtitle="Manage your subscription, usage, and billing information."
       />
 
-      <div className="grid gap-6 md:grid-cols-2 mb-6">
+      <div className="grid gap-5 md:grid-cols-2">
         {/* Current Plan */}
-        <Card className="relative overflow-hidden">
-          <div className="pointer-events-none absolute -right-16 -top-16 h-40 w-40 rounded-full bg-emerald-100/70 blur-3xl" />
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Sparkles className="h-5 w-5 text-emerald-600" />
-              Current plan
-            </CardTitle>
-            <CardDescription>Your active subscription and weekly limits.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-5">
+        <div className="relative overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm">
+          <div className="pointer-events-none absolute -right-16 -top-16 h-40 w-40 rounded-full bg-emerald-100/50 blur-3xl" />
+          <div className="border-b border-slate-100 px-5 py-4 flex items-center gap-3">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-emerald-100 bg-emerald-50">
+              <Sparkles className="h-3.5 w-3.5 text-emerald-600" />
+            </div>
+            <div>
+              <h2 className="text-sm font-semibold text-slate-900">Current plan</h2>
+              <p className="text-xs text-slate-500">Your active subscription and weekly limits.</p>
+            </div>
+          </div>
+
+          <div className="px-5 py-5 space-y-4">
             {planDetails ? (
               <>
                 <div className="flex flex-wrap items-start justify-between gap-4">
                   <div>
-                    <p className="text-sm uppercase tracking-wide text-slate-500">Plan</p>
-                    <p className="text-2xl font-semibold text-slate-900">{planDetails.name}</p>
-                    <div className="mt-2 flex flex-wrap items-baseline gap-2">
-                      <span className="text-sm text-slate-400 line-through">{priceDisplay?.original}</span>
-                      <span className="text-3xl font-semibold text-slate-900">{priceDisplay?.current}</span>
-                      <span className="text-sm text-slate-500">{priceDisplay?.cadence}</span>
+                    <p className="text-xs text-slate-500">Plan</p>
+                    <p className="text-xl font-bold text-slate-900">{planDetails.name}</p>
+                    <div className="mt-1 flex flex-wrap items-baseline gap-2">
+                      {priceDisplay?.original && <span className="text-sm text-slate-400 line-through">{priceDisplay.original}</span>}
+                      <span className="text-2xl font-bold text-slate-900">{priceDisplay?.current}</span>
+                      {priceDisplay?.cadence && <span className="text-sm text-slate-500">{priceDisplay.cadence}</span>}
                     </div>
                   </div>
-                  {getStatusBadge(isCanceling ? SubscriptionStatus.CANCELED : status)}
+                  {getStatusPill(isCanceling ? SubscriptionStatus.CANCELED : status)}
                 </div>
 
-                <div className="grid gap-3 sm:grid-cols-3">
+                <div className="grid grid-cols-3 gap-2">
                   {planHighlights.map((item) => (
-                    <div key={item.label} className="rounded-lg border border-emerald-100/70 bg-white/80 p-3">
-                      <p className="text-xs uppercase tracking-wide text-slate-500">{item.label}</p>
-                      <p className="text-sm font-semibold text-slate-900">{item.value}</p>
+                    <div key={item.label} className="rounded-xl border border-slate-100 bg-slate-50/70 p-3">
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">{item.label}</p>
+                      <p className="mt-1 text-sm font-semibold text-slate-900">{item.value}</p>
                     </div>
                   ))}
                 </div>
 
                 {subscription?.current_period_start && (
-                  <div className="rounded-lg border border-slate-200 bg-slate-50/70 p-3 text-sm text-slate-600">
-                    Current period: {formatDate(subscription.current_period_start)} - {formatDate(subscription.current_period_end)}
+                  <div className="rounded-xl border border-slate-100 bg-slate-50/70 px-4 py-3 text-xs text-slate-500">
+                    Period: {formatDate(subscription.current_period_start)} – {formatDate(subscription.current_period_end)}
                   </div>
                 )}
 
                 {isCanceling && subscription?.current_period_end && (
-                  <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-3 text-sm text-yellow-900">
-                    Subscription will end in {getDaysRemaining()} (on {formatDate(subscription.current_period_end)}).
+                  <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800">
+                    Plan ends in {getDaysRemaining()} on {formatDate(subscription.current_period_end)}.
                   </div>
                 )}
 
-                <div className="flex flex-wrap gap-2 pt-2">
+                <div className="flex flex-wrap gap-2">
                   {status === SubscriptionStatus.CANCELED || subscription?.cancel_at_period_end ? (
-                    <Button onClick={() => router.push('/dashboard/billing/plans')}>
-                      Reactivate plan
-                    </Button>
+                    <Button onClick={() => router.push('/dashboard/billing/plans')}>Reactivate plan</Button>
                   ) : (
                     <>
-                      <Button onClick={() => router.push('/dashboard/billing/plans')}>
-                        Manage plan
-                      </Button>
-                      <Button onClick={() => setShowCancelDialog(true)} variant="outline" className="border-red-200 text-red-600 hover:bg-red-50">
+                      <Button onClick={() => router.push('/dashboard/billing/plans')}>Manage plan</Button>
+                      <button
+                        onClick={() => setShowCancelDialog(true)}
+                        className="rounded-xl border border-red-200 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"
+                      >
                         Cancel plan
-                      </Button>
+                      </button>
                     </>
                   )}
                 </div>
               </>
             ) : (
-              <div className="text-center py-8">
-                <p className="text-slate-600 mb-4">No active subscription</p>
-                <Button onClick={() => router.push('/dashboard/billing/plans')}>
-                  Choose a plan
-                </Button>
+              <div className="flex flex-col items-center py-8 text-center">
+                <p className="text-sm text-slate-500 mb-4">No active subscription</p>
+                <Button onClick={() => router.push('/dashboard/billing/plans')}>Choose a plan</Button>
               </div>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
-        {/* Payment Method */}
-        <Card className="relative overflow-hidden">
-          <div className="pointer-events-none absolute -left-20 top-10 h-32 w-32 rounded-full bg-emerald-100/60 blur-3xl" />
-          <CardHeader className="flex flex-row items-start justify-between">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <CreditCard className="h-5 w-5 text-emerald-600" />
-                Payment methods
-              </CardTitle>
-              <CardDescription>Manage how your subscription is billed.</CardDescription>
+        {/* Payment Methods */}
+        <div className="relative overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm">
+          <div className="pointer-events-none absolute -left-16 top-8 h-32 w-32 rounded-full bg-emerald-100/40 blur-3xl" />
+          <div className="border-b border-slate-100 px-5 py-4 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-emerald-100 bg-emerald-50">
+                <CreditCard className="h-3.5 w-3.5 text-emerald-600" />
+              </div>
+              <div>
+                <h2 className="text-sm font-semibold text-slate-900">Payment methods</h2>
+                <p className="text-xs text-slate-500">Manage how your subscription is billed.</p>
+              </div>
             </div>
-            <Button size="sm" onClick={() => router.push('/dashboard/billing/payment-method')}>
-              Add new card
-            </Button>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {displayPaymentMethods.length ? (
-              <div className="space-y-3">
+            <button
+              onClick={() => router.push('/dashboard/billing/payment-method')}
+              className="shrink-0 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 transition-colors"
+            >
+              Add card
+            </button>
+          </div>
+
+          <div className="px-5 py-5 space-y-3">
+            {displayPaymentMethods.length > 0 ? (
+              <>
                 {displayPaymentMethods.map((method) => {
                   const isDefault = method.is_default || method.id === defaultPaymentMethodId;
                   return (
                     <div
                       key={method.id}
-                      className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-emerald-100/70 bg-white/85 p-4"
+                      className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-100 bg-slate-50/50 p-4"
                     >
                       <div className="flex items-center gap-3">
-                        <div className="h-10 w-12 rounded-md bg-emerald-50 flex items-center justify-center text-emerald-700">
-                          <CreditCard className="h-5 w-5" />
+                        <div className="flex h-9 w-11 items-center justify-center rounded-lg border border-emerald-100 bg-emerald-50">
+                          <CreditCard className="h-4 w-4 text-emerald-600" />
                         </div>
                         <div>
                           <div className="flex items-center gap-2">
-                            <p className="text-sm font-semibold text-slate-900">
-                              {(method.brand || 'Card').toUpperCase()}
-                            </p>
+                            <p className="text-sm font-semibold text-slate-900">{(method.brand || 'Card').toUpperCase()}</p>
                             {isDefault && (
-                              <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs text-emerald-700">
+                              <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
                                 Default
                               </span>
                             )}
                           </div>
-                          <p className="text-sm text-slate-600">
-                            **** **** **** {method.last4 || '----'}
-                            {method.exp_month && method.exp_year ? `  -  exp ${method.exp_month}/${method.exp_year}` : ''}
+                          <p className="text-xs text-slate-500">
+                            •••• {method.last4 || '----'}
+                            {method.exp_month && method.exp_year ? `  ·  exp ${method.exp_month}/${method.exp_year}` : ''}
                           </p>
                         </div>
                       </div>
                       {canEditPaymentMethods && (
-                        <div className="flex flex-wrap items-center gap-2">
+                        <div className="flex items-center gap-2">
                           {!isDefault && (
-                            <Button
-                              size="sm"
-                              variant="outline"
+                            <button
                               onClick={() => handleMakeDefault(method.id)}
                               disabled={paymentActionId === method.id}
+                              className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 transition-colors"
                             >
                               Make default
-                            </Button>
+                            </button>
                           )}
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                            onClick={() => handleDeleteClick(method)}
-                            disabled={!canRemovePaymentMethods || paymentActionId === method.id}
-                          >
-                            Remove
-                          </Button>
+                          {canRemovePaymentMethods && (
+                            <button
+                              onClick={() => handleDeleteClick(method)}
+                              disabled={paymentActionId === method.id}
+                              className="rounded-lg px-2.5 py-1 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50 transition-colors"
+                            >
+                              Remove
+                            </button>
+                          )}
                         </div>
                       )}
                     </div>
                   );
                 })}
                 {!canRemovePaymentMethods && canEditPaymentMethods && (
-                  <p className="text-xs text-slate-500">
-                    You must keep at least one payment method on file.
-                  </p>
+                  <p className="text-xs text-slate-400">You must keep at least one payment method on file.</p>
                 )}
-              </div>
+              </>
             ) : (
-              <div className="text-center py-8">
-                <p className="text-slate-600 mb-4">No payment method on file</p>
-                <Button onClick={() => router.push('/dashboard/billing/payment-method')}>
-                  Add payment method
-                </Button>
+              <div className="flex flex-col items-center py-8 text-center">
+                <p className="text-sm text-slate-500 mb-4">No payment method on file</p>
+                <Button onClick={() => router.push('/dashboard/billing/payment-method')}>Add payment method</Button>
               </div>
             )}
 
-            <div className="rounded-lg border border-emerald-100 bg-emerald-50/70 p-4 text-sm text-emerald-900">
+            <div className="rounded-xl border border-emerald-100 bg-emerald-50/70 px-4 py-3">
               <div className="flex items-start gap-3">
-                <ShieldCheck className="h-5 w-5 text-emerald-700 mt-0.5" />
+                <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-700" />
                 <div>
-                  <p className="font-semibold">Secure billing</p>
-                  <p className="text-emerald-800/80">
+                  <p className="text-xs font-semibold text-emerald-900">Secure billing</p>
+                  <p className="text-xs text-emerald-700/80 mt-0.5">
                     Card details are encrypted and stored by Stripe. HandyCall never stores full card numbers.
                   </p>
                 </div>
               </div>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </div>
 
-      {/* Usage Metrics */}
+      {/* Usage meters */}
       {usage && planDetails && (
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle>Current Week Usage</CardTitle>
-            <CardDescription>
-              Your usage for the current billing period ({usage.period_start ? formatDate(usage.period_start) : 'N/A'} - {usage.period_end ? formatDate(usage.period_end) : 'N/A'})
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-6 md:grid-cols-3">
-              {/* Call Minutes */}
-              <div>
-                <div className="flex justify-between items-center mb-2">
-                  <span className="text-sm font-medium text-gray-700">Call Minutes</span>
-                  <span className="text-sm text-gray-600">
-                    {usage.call_minutes || 0} / {planLimits?.minutes === -1 ? 'Unlimited' : planLimits?.minutes ?? 0}
-                  </span>
+        <div className="rounded-2xl border border-slate-100 bg-white shadow-sm">
+          <div className="border-b border-slate-100 px-5 py-4">
+            <h2 className="text-sm font-semibold text-slate-900">Current period usage</h2>
+            <p className="text-xs text-slate-500">
+              {usage.period_start ? formatDate(usage.period_start) : 'N/A'} – {usage.period_end ? formatDate(usage.period_end) : 'N/A'}
+            </p>
+          </div>
+          <div className="grid divide-y divide-slate-50 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+            {[
+              { label: 'Call minutes', used: usage?.call_minutes || 0, limit: planLimits?.minutes, icon: <Clock3 className="h-4 w-4 text-blue-600" />, iconBg: 'border-blue-100 bg-blue-50', barColor: 'bg-blue-500' },
+              { label: 'SMS messages', used: usage?.sms_count || 0, limit: planLimits?.sms, icon: <MessageSquare className="h-4 w-4 text-emerald-600" />, iconBg: 'border-emerald-100 bg-emerald-50', barColor: 'bg-emerald-500' },
+              { label: 'Active contacts', used: usage?.active_contacts || 0, limit: planLimits?.contacts, icon: <Users className="h-4 w-4 text-violet-600" />, iconBg: 'border-violet-100 bg-violet-50', barColor: 'bg-violet-500' },
+            ].map((m) => {
+              const pct = calculateUsagePercentage(m.used, m.limit || 0);
+              const bar = pct >= 90 ? 'bg-red-500' : pct >= 75 ? 'bg-amber-500' : m.barColor;
+              const limitLabel = m.limit === undefined ? 'No plan' : m.limit === -1 ? 'Unlimited' : m.limit.toLocaleString();
+              return (
+                <div key={m.label} className="px-5 py-5">
+                  <div className="flex items-start justify-between gap-3 mb-3">
+                    <div className="flex items-center gap-3">
+                      <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border ${m.iconBg}`}>{m.icon}</div>
+                      <div>
+                        <p className="text-xs font-semibold text-slate-700">{m.label}</p>
+                        <p className="text-[11px] text-slate-400">Limit: {limitLabel}</p>
+                      </div>
+                    </div>
+                    <p className="text-xl font-bold text-slate-900">{m.used.toLocaleString()}</p>
+                  </div>
+                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
+                    <div className={`h-full rounded-full ${bar}`} style={{ width: `${pct}%` }} />
+                  </div>
                 </div>
-                <div className="w-full bg-gray-200 rounded-full h-2">
-                  <div
-                    className={`h-2 rounded-full ${
-                      calculateUsagePercentage(usage.call_minutes || 0, planLimits?.minutes || 0) >= 90
-                        ? 'bg-red-500'
-                        : calculateUsagePercentage(usage.call_minutes || 0, planLimits?.minutes || 0) >= 75
-                        ? 'bg-yellow-500'
-                        : 'bg-green-500'
-                    }`}
-                    style={{ width: `${calculateUsagePercentage(usage.call_minutes || 0, planLimits?.minutes || 0)}%` }}
-                  ></div>
-                </div>
-              </div>
-
-              {/* SMS */}
-              <div>
-                <div className="flex justify-between items-center mb-2">
-                  <span className="text-sm font-medium text-gray-700">SMS Messages</span>
-                  <span className="text-sm text-gray-600">
-                    {usage.sms_count || 0} / {planLimits?.sms === -1 ? 'Unlimited' : planLimits?.sms ?? 0}
-                  </span>
-                </div>
-                <div className="w-full bg-gray-200 rounded-full h-2">
-                  <div
-                    className={`h-2 rounded-full ${
-                      calculateUsagePercentage(usage.sms_count || 0, planLimits?.sms || 0) >= 90
-                        ? 'bg-red-500'
-                        : calculateUsagePercentage(usage.sms_count || 0, planLimits?.sms || 0) >= 75
-                        ? 'bg-yellow-500'
-                        : 'bg-green-500'
-                    }`}
-                    style={{ width: `${calculateUsagePercentage(usage.sms_count || 0, planLimits?.sms || 0)}%` }}
-                  ></div>
-                </div>
-              </div>
-
-              {/* Contacts */}
-              <div>
-                <div className="flex justify-between items-center mb-2">
-                  <span className="text-sm font-medium text-gray-700">Active Contacts</span>
-                  <span className="text-sm text-gray-600">
-                    {usage.active_contacts || 0} / {planLimits?.contacts === -1 ? 'Unlimited' : planLimits?.contacts ?? 0}
-                  </span>
-                </div>
-                <div className="w-full bg-gray-200 rounded-full h-2">
-                  <div
-                    className={`h-2 rounded-full ${
-                      calculateUsagePercentage(usage.active_contacts || 0, planLimits?.contacts || 0) >= 90
-                        ? 'bg-red-500'
-                        : calculateUsagePercentage(usage.active_contacts || 0, planLimits?.contacts || 0) >= 75
-                        ? 'bg-yellow-500'
-                        : 'bg-green-500'
-                    }`}
-                    style={{ width: `${calculateUsagePercentage(usage.active_contacts || 0, planLimits?.contacts || 0)}%` }}
-                  ></div>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+              );
+            })}
+          </div>
+        </div>
       )}
 
-      {/* Quick Links */}
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => router.push('/dashboard/billing/plans')}>
-          <CardHeader>
-            <CardTitle className="text-lg">View All Plans</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-gray-600">Compare plans and upgrade your subscription</p>
-          </CardContent>
-        </Card>
-
-        <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => router.push('/dashboard/billing/invoices')}>
-          <CardHeader>
-            <CardTitle className="text-lg">Invoice History</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-gray-600">View and download past invoices</p>
-          </CardContent>
-        </Card>
-
-        <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => router.push('/dashboard/billing/payment-method')}>
-          <CardHeader>
-            <CardTitle className="text-lg">Payment Settings</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-gray-600">Update your payment information</p>
-          </CardContent>
-        </Card>
+      {/* Quick links */}
+      <div className="grid gap-3 sm:grid-cols-3">
+        {[
+          { icon: <Sparkles className="h-4 w-4 text-emerald-600" />, title: 'View all plans', desc: 'Compare plans and upgrade your subscription.', path: '/dashboard/billing/plans' },
+          { icon: <FileText className="h-4 w-4 text-emerald-600" />, title: 'Invoice history', desc: 'View and download past invoices.', path: '/dashboard/billing/invoices' },
+          { icon: <CreditCard className="h-4 w-4 text-emerald-600" />, title: 'Payment settings', desc: 'Update your payment information.', path: '/dashboard/billing/payment-method' },
+        ].map((item) => (
+          <button
+            key={item.title}
+            type="button"
+            onClick={() => router.push(item.path)}
+            className="group flex items-start gap-3 rounded-2xl border border-slate-100 bg-white p-4 text-left shadow-sm transition-all hover:border-emerald-100 hover:shadow-md"
+          >
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-emerald-100 bg-emerald-50">
+              {item.icon}
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-slate-900 group-hover:text-emerald-700 transition-colors">{item.title}</p>
+              <p className="mt-0.5 text-xs text-slate-500">{item.desc}</p>
+            </div>
+          </button>
+        ))}
       </div>
 
+      {/* Delete payment method dialog */}
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <DialogContent>
           <DialogHeader>
@@ -599,35 +469,27 @@ export default function BillingPage() {
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteDialogOpen(false)} disabled={paymentActionId === deleteTarget?.id}>
-              Keep card
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={handleConfirmDelete}
-              disabled={paymentActionId === deleteTarget?.id}
-            >
-              {paymentActionId === deleteTarget?.id ? 'Removing...' : 'Remove card'}
+            <Button variant="outline" onClick={() => setDeleteDialogOpen(false)} disabled={paymentActionId === deleteTarget?.id}>Keep card</Button>
+            <Button variant="destructive" onClick={handleConfirmDelete} disabled={paymentActionId === deleteTarget?.id}>
+              {paymentActionId === deleteTarget?.id ? 'Removing…' : 'Remove card'}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Cancel Subscription Dialog */}
+      {/* Cancel subscription dialog */}
       <Dialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Cancel Subscription?</DialogTitle>
+            <DialogTitle>Cancel subscription?</DialogTitle>
             <DialogDescription>
-              Are you sure you want to cancel your subscription? Your plan will remain active until the end of the current billing period ({formatDate(subscription?.current_period_end)}), and you'll retain full access until then.
+              Your plan will remain active until the end of the current billing period ({formatDate(subscription?.current_period_end)}), and you'll retain full access until then.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowCancelDialog(false)} disabled={cancelling}>
-              Keep Subscription
-            </Button>
+            <Button variant="outline" onClick={() => setShowCancelDialog(false)} disabled={cancelling}>Keep subscription</Button>
             <Button variant="destructive" onClick={handleCancelSubscription} disabled={cancelling}>
-              {cancelling ? 'Cancelling...' : 'Yes, Cancel'}
+              {cancelling ? 'Cancelling…' : 'Yes, cancel'}
             </Button>
           </DialogFooter>
         </DialogContent>
