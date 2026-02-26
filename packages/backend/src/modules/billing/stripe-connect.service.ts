@@ -394,19 +394,29 @@ export class StripeConnectService {
 
   private async upsertConnectedAccount(companyId: string, account: Stripe.Account): Promise<void> {
     const now = Date.now();
-    const existing = await this.dynamodb.get('connected_accounts', { company_id: companyId });
+    try {
+      const existing = await this.dynamodb.get('connected_accounts', { company_id: companyId });
 
-    await this.dynamodb.put('connected_accounts', {
-      company_id: companyId,
-      stripe_account_id: account.id,
-      charges_enabled: Boolean(account.charges_enabled),
-      payouts_enabled: Boolean(account.payouts_enabled),
-      details_submitted: Boolean(account.details_submitted),
-      requirements_due: account.requirements?.currently_due || [],
-      disabled_reason: account.requirements?.disabled_reason || null,
-      created_at: Number(existing?.created_at || now),
-      updated_at: now,
-    });
+      await this.dynamodb.put('connected_accounts', {
+        company_id: companyId,
+        stripe_account_id: account.id,
+        charges_enabled: Boolean(account.charges_enabled),
+        payouts_enabled: Boolean(account.payouts_enabled),
+        details_submitted: Boolean(account.details_submitted),
+        requirements_due: account.requirements?.currently_due || [],
+        disabled_reason: account.requirements?.disabled_reason || null,
+        created_at: Number(existing?.created_at || now),
+        updated_at: now,
+      });
+    } catch (error: any) {
+      const code = String(error?.name || error?.code || '').toLowerCase();
+      const message = String(error?.message || '').toLowerCase();
+      if (code.includes('resourcenotfound') || message.includes('requested resource not found')) {
+        // Backward-compatible: allow Connect setup even if optional tracking table hasn't been created yet.
+        return;
+      }
+      throw error;
+    }
   }
 
   private async handleCheckoutSessionCompleted(session: Stripe.Checkout.Session): Promise<void> {
