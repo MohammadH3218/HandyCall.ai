@@ -10,6 +10,10 @@ type SiteHeaderVariant = 'consumer' | 'pro' | 'minimal';
 
 type SiteHeaderProps = {
   variant?: SiteHeaderVariant;
+  ctaLabel?: string;
+  ctaHref?: string;
+  hideLogin?: boolean;
+  hideLoginLink?: boolean;
 };
 
 const CONSUMER_LINKS = [
@@ -24,7 +28,13 @@ const PRO_LINKS = [
   { href: '/how-it-works', label: 'How It Works' },
 ];
 
-export function SiteHeader({ variant }: SiteHeaderProps) {
+export function SiteHeader({
+  variant,
+  ctaLabel,
+  ctaHref,
+  hideLogin = false,
+  hideLoginLink = false,
+}: SiteHeaderProps) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -33,6 +43,10 @@ export function SiteHeader({ variant }: SiteHeaderProps) {
 
   const isPro = resolvedVariant === 'pro';
   const links = isPro ? PRO_LINKS : CONSUMER_LINKS;
+  const loginHref = isPro ? '/pros/login' : '/customer/login';
+  const loginLabel = isPro ? 'Log In' : 'Customer Login';
+  const resolvedCtaHref = ctaHref ?? (isPro ? '/pros/signup' : '/signup');
+  const resolvedCtaLabel = ctaLabel ?? (isPro ? 'Get Started Free' : 'Sign Up');
 
   return (
     <header className="sticky top-0 z-20 border-b border-slate-200 bg-white">
@@ -57,7 +71,8 @@ export function SiteHeader({ variant }: SiteHeaderProps) {
         </nav>
 
         {/* Desktop CTA area */}
-        <div className="hidden md:flex items-center gap-1">
+        {!hideLogin && (
+          <div className="hidden md:flex items-center gap-1">
           {isPro ? (
             <>
               <Link
@@ -66,17 +81,19 @@ export function SiteHeader({ variant }: SiteHeaderProps) {
               >
                 For Customers
               </Link>
+              {!hideLoginLink && (
+                <Link
+                  href={loginHref}
+                  className="text-sm font-medium text-slate-700 hover:text-slate-900 px-3 py-2 transition-colors"
+                >
+                  {loginLabel}
+                </Link>
+              )}
               <Link
-                href="/login"
-                className="text-sm font-medium text-slate-700 hover:text-slate-900 px-3 py-2 transition-colors"
-              >
-                Log In
-              </Link>
-              <Link
-                href="/register"
+                href={resolvedCtaHref}
                 className="ml-1 rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 transition"
               >
-                Get Started Free
+                {resolvedCtaLabel}
               </Link>
             </>
           ) : (
@@ -87,21 +104,24 @@ export function SiteHeader({ variant }: SiteHeaderProps) {
               >
                 Join as a Pro
               </Link>
+              {!hideLoginLink && (
+                <Link
+                  href={loginHref}
+                  className="text-sm font-medium text-slate-700 hover:text-slate-900 px-3 py-2 transition-colors"
+                >
+                  {loginLabel}
+                </Link>
+              )}
               <Link
-                href="/login"
-                className="text-sm font-medium text-slate-700 hover:text-slate-900 px-3 py-2 transition-colors"
-              >
-                Log In
-              </Link>
-              <Link
-                href="/signup"
+                href={resolvedCtaHref}
                 className="ml-1 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 transition"
               >
-                Sign Up
+                {resolvedCtaLabel}
               </Link>
             </>
           )}
-        </div>
+          </div>
+        )}
 
         {/* Mobile hamburger */}
         <button
@@ -126,22 +146,25 @@ export function SiteHeader({ variant }: SiteHeaderProps) {
               {link.label}
             </Link>
           ))}
-          <div className="pt-3 border-t border-slate-100 space-y-2 mt-2">
+          {!hideLogin && (
+            <div className="pt-3 border-t border-slate-100 space-y-2 mt-2">
             {isPro ? (
               <>
+                {!hideLoginLink && (
+                  <Link
+                    href={loginHref}
+                    className="block w-full text-center rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                    onClick={() => setMobileOpen(false)}
+                  >
+                    {loginLabel}
+                  </Link>
+                )}
                 <Link
-                  href="/login"
-                  className="block w-full text-center rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-                  onClick={() => setMobileOpen(false)}
-                >
-                  Log In
-                </Link>
-                <Link
-                  href="/register"
+                  href={resolvedCtaHref}
                   className="block w-full text-center rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-800"
                   onClick={() => setMobileOpen(false)}
                 >
-                  Get Started Free
+                  {resolvedCtaLabel}
                 </Link>
               </>
             ) : (
@@ -153,23 +176,26 @@ export function SiteHeader({ variant }: SiteHeaderProps) {
                 >
                   Join as a Pro
                 </Link>
+                {!hideLoginLink && (
+                  <Link
+                    href={loginHref}
+                    className="block w-full text-center rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                    onClick={() => setMobileOpen(false)}
+                  >
+                    {loginLabel}
+                  </Link>
+                )}
                 <Link
-                  href="/login"
-                  className="block w-full text-center rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-                  onClick={() => setMobileOpen(false)}
-                >
-                  Log In
-                </Link>
-                <Link
-                  href="/signup"
+                  href={resolvedCtaHref}
                   className="block w-full text-center rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700"
                   onClick={() => setMobileOpen(false)}
                 >
-                  Sign Up
+                  {resolvedCtaLabel}
                 </Link>
               </>
             )}
-          </div>
+            </div>
+          )}
         </div>
       )}
     </header>
