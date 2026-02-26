@@ -28,6 +28,7 @@ FROM node:20-alpine AS backend-builder
 
 # Install build dependencies for native modules (bcrypt, etc.)
 RUN apk add --no-cache python3 make g++
+ENV NODE_OPTIONS=--max-old-space-size=4096
 
 WORKDIR /build
 

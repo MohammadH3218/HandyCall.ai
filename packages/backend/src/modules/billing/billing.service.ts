@@ -22,6 +22,10 @@ export class BillingService {
     [SubscriptionPlan.MAX]: 9999,
   };
 
+  private toMsOrNull(value: number | null | undefined): number | null {
+    return Number.isFinite(value as number) ? Number(value) * 1000 : null;
+  }
+
   /**
    * Create setup intent for collecting payment method
    */
@@ -108,11 +112,11 @@ export class BillingService {
         : {};
 
     const trialEndsAt = subscription.trial_end
-      ? subscription.trial_end * 1000
+      ? this.toMsOrNull(subscription.trial_end)
       : trialDays
       ? Date.now() + trialDays * 24 * 60 * 60 * 1000
       : null;
-    const trialStartAt = subscription.trial_start ? subscription.trial_start * 1000 : null;
+    const trialStartAt = this.toMsOrNull(subscription.trial_start ?? null);
 
     // Update company record
     await this.companiesService.updateCompany(companyId, {
@@ -120,8 +124,8 @@ export class BillingService {
       stripe_subscription_id: subscription.id,
       subscription_plan: plan,
       subscription_status: this.mapStripeStatus(subscription.status),
-      current_period_start: subscription.current_period_start * 1000,
-      current_period_end: subscription.current_period_end * 1000,
+      current_period_start: this.toMsOrNull(subscription.current_period_start),
+      current_period_end: this.toMsOrNull(subscription.current_period_end),
       cancel_at_period_end: false,
       ...paymentDetails,
       status: this.getCompanyStatus(subscription.status),
@@ -223,8 +227,8 @@ export class BillingService {
     // Update company record
     await this.companiesService.updateCompany(companyId, {
       subscription_plan: newPlan,
-      current_period_start: subscription.current_period_start * 1000,
-      current_period_end: subscription.current_period_end * 1000,
+      current_period_start: this.toMsOrNull(subscription.current_period_start),
+      current_period_end: this.toMsOrNull(subscription.current_period_end),
     });
 
     return { subscription };
@@ -337,8 +341,8 @@ export class BillingService {
       cancel_at_period_end: false,
       subscription_status: this.mapStripeStatus(subscription.status),
       status: this.getCompanyStatus(subscription.status),
-      current_period_start: subscription.current_period_start * 1000,
-      current_period_end: subscription.current_period_end * 1000,
+      current_period_start: this.toMsOrNull(subscription.current_period_start),
+      current_period_end: this.toMsOrNull(subscription.current_period_end),
     });
 
     return { subscription };
@@ -689,14 +693,14 @@ export class BillingService {
     const plan = this.stripeService.getPlanFromPriceId(priceId);
     const isCanceling = subscription.cancel_at_period_end === true;
     const isTrialing = subscription.status === 'trialing';
-    const trialEndsAt = subscription.trial_end ? subscription.trial_end * 1000 : null;
-    const trialStartedAt = subscription.trial_start ? subscription.trial_start * 1000 : null;
+    const trialEndsAt = this.toMsOrNull(subscription.trial_end ?? null);
+    const trialStartedAt = this.toMsOrNull(subscription.trial_start ?? null);
     const isProTrial = plan === SubscriptionPlan.PRO && isTrialing;
 
     await this.companiesService.updateCompany(companyId, {
       subscription_status: this.mapStripeStatus(subscription.status),
-      current_period_start: subscription.current_period_start * 1000,
-      current_period_end: subscription.current_period_end * 1000,
+      current_period_start: this.toMsOrNull(subscription.current_period_start),
+      current_period_end: this.toMsOrNull(subscription.current_period_end),
       cancel_at_period_end: subscription.cancel_at_period_end || false,
       subscription_plan: plan ?? undefined,
       status: isCanceling ? CompanyStatus.CANCELLED : this.getCompanyStatus(subscription.status),
@@ -915,11 +919,12 @@ export class BillingService {
       stripe_subscription_id: isCanceled ? null : stripeSubscription.id,
       subscription_status: isCanceled ? null : this.mapStripeStatus(status),
       subscription_plan: isCanceled ? null : mappedPlan,
-      current_period_start: isCanceled ? null : stripeSubscription.current_period_start * 1000,
-      current_period_end: isCanceled ? null : stripeSubscription.current_period_end * 1000,
+      current_period_start: isCanceled ? null : this.toMsOrNull(stripeSubscription.current_period_start),
+      current_period_end: isCanceled ? null : this.toMsOrNull(stripeSubscription.current_period_end),
       cancel_at_period_end: isCanceled ? false : Boolean(stripeSubscription.cancel_at_period_end),
       status: isCanceled ? CompanyStatus.INACTIVE : this.getCompanyStatus(status),
-      trial_ends_at: status === 'trialing' && stripeSubscription.trial_end ? stripeSubscription.trial_end * 1000 : null,
+      trial_ends_at:
+        status === 'trialing' ? this.toMsOrNull(stripeSubscription.trial_end ?? null) : null,
       calls_enabled: isCanceled ? false : company.calls_enabled,
       sms_enabled: isCanceled ? false : company.sms_enabled,
     };
