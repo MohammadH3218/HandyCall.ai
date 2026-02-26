@@ -56,7 +56,7 @@ export default function AddonsPage() {
   if (loading) {
     return (
       <div>
-        <PageHeader title="Add-on Packs" description="Purchase extra minutes or SMS to top up your plan" />
+        <PageHeader title="Add-on Packs" subtitle="Purchase extra minutes or SMS to top up your plan" />
         <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2">
           {[1, 2, 3, 4].map((i) => (
             <div key={i} className="animate-pulse rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
@@ -72,7 +72,7 @@ export default function AddonsPage() {
 
   return (
     <div>
-      <PageHeader title="Add-on Packs" description="Purchase extra minutes or SMS to top up your current plan limit" />
+      <PageHeader title="Add-on Packs" subtitle="Purchase extra minutes or SMS to top up your current plan limit" />
 
       {error && (
         <div className="mt-4 flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">

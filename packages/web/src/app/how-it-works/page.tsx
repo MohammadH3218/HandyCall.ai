@@ -65,7 +65,7 @@ const trustPoints = [
   {
     icon: Clock,
     title: 'On-Time Guarantee',
-    description: 'If your pro is more than 15 minutes late, we'll work to make it right.',
+    description: 'If your pro is more than 15 minutes late, we will work to make it right.',
   },
 ];
 

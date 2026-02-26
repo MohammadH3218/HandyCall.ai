@@ -665,7 +665,7 @@ class ApiClient {
     return response.data ?? response;
   }
 
-  async getInvoices(): Promise<any[]> {
+  async getBillingInvoices(): Promise<any[]> {
     const response = await this.request<any[]>('/billing/invoices', {
       method: 'GET',
     });

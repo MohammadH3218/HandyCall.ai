@@ -85,7 +85,7 @@ export default function MarketplacePage() {
   if (loading) {
     return (
       <div>
-        <PageHeader title="Marketplace Profile" description="Manage your public listing on HandyCall.ai" />
+        <PageHeader title="Marketplace Profile" subtitle="Manage your public listing on HandyCall.ai" />
         <div className="mt-8 animate-pulse space-y-4">
           <div className="h-48 rounded-2xl bg-white shadow-sm" />
           <div className="h-64 rounded-2xl bg-white shadow-sm" />
@@ -98,7 +98,7 @@ export default function MarketplacePage() {
     <div>
       <PageHeader
         title="Marketplace Profile"
-        description="Manage how your business appears on the HandyCall.ai consumer marketplace"
+        subtitle="Manage how your business appears on the HandyCall.ai consumer marketplace"
       />
 
       {saved && (
