@@ -121,7 +121,7 @@ export class StripeConnectService {
     companyId: string,
     options?: { refresh_url?: string; return_url?: string },
   ): Promise<{ account_id: string; url: string; expires_at: number }> {
-    const { account_id } = await this.createConnectedAccount(companyId);
+    let { account_id } = await this.createConnectedAccount(companyId);
 
     const frontendBase = (this.config.get<string>('FRONTEND_URL') || 'https://handycall.org').replace(/\/$/, '');
     const refresh_url =
@@ -138,7 +138,27 @@ export class StripeConnectService {
         return_url,
       });
     } catch (error: any) {
-      throw this.mapConnectSetupError(error);
+      // Recover from stale/deleted account IDs by recreating once.
+      if (this.isMissingConnectAccountError(error)) {
+        await this.companies.updateCompany(companyId, {
+          stripe_connect_account_id: null as any,
+          stripe_connect_onboarding_complete: false,
+        } as any);
+        const recreated = await this.createConnectedAccount(companyId);
+        account_id = recreated.account_id;
+        try {
+          link = await this.stripe.accountLinks.create({
+            account: account_id,
+            type: 'account_onboarding',
+            refresh_url,
+            return_url,
+          });
+        } catch (retryError: any) {
+          throw this.mapConnectSetupError(retryError);
+        }
+      } else {
+        throw this.mapConnectSetupError(error);
+      }
     }
 
     return {
@@ -156,7 +176,19 @@ export class StripeConnectService {
       return { connected: false };
     }
 
-    const account = await this.stripe.accounts.retrieve(company.stripe_connect_account_id);
+    let account: Stripe.Account;
+    try {
+      account = await this.stripe.accounts.retrieve(company.stripe_connect_account_id);
+    } catch (error: any) {
+      if (this.isMissingConnectAccountError(error)) {
+        await this.companies.updateCompany(companyId, {
+          stripe_connect_account_id: null as any,
+          stripe_connect_onboarding_complete: false,
+        } as any);
+        return { connected: false };
+      }
+      throw this.mapConnectSetupError(error);
+    }
     await this.upsertConnectedAccount(companyId, account);
 
     const onboardingComplete = Boolean(account.details_submitted && account.charges_enabled);
