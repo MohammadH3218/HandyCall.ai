@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { signIn } from 'next-auth/react';
@@ -12,12 +12,18 @@ import { Logo } from '@/components/ui/logo';
 import { SiteFooter } from '@/components/marketing/site-footer';
 import { ArrowRight } from 'lucide-react';
 
-const SETUP_STEPS = [
+const PRO_SETUP_STEPS = [
   { title: 'Activate subscription', description: 'Choose a plan and add a payment method.' },
   { title: 'Company profile', description: 'Company name, service type, and timezone.' },
   { title: 'Service area', description: 'Cities and zip codes you cover.' },
   { title: 'Knowledge base', description: 'Pricing, FAQs, and service details.' },
   { title: 'Calendar + phone', description: 'Connect scheduling, claim your line, and set call handling.' },
+];
+
+const CUSTOMER_SETUP_STEPS = [
+  { title: 'Verify your email', description: 'Confirm your email address and secure your account.' },
+  { title: 'Browse local services', description: 'Search by category, location, and availability.' },
+  { title: 'Book with confidence', description: 'Track requests and updates from one place.' },
 ];
 
 const GoogleIcon = ({ className }: { className?: string }) => (
@@ -38,6 +44,9 @@ const AppleIcon = ({ className }: { className?: string }) => (
 
 export default function RegisterPage() {
   const router = useRouter();
+  const [isProAudience, setIsProAudience] = useState(true);
+  const loginHref = isProAudience ? '/pros/login' : '/customer/login';
+  const steps = isProAudience ? PRO_SETUP_STEPS : CUSTOMER_SETUP_STEPS;
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -46,11 +55,16 @@ export default function RegisterPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [socialLoading, setSocialLoading] = useState<'cognito-google' | 'cognito-apple' | null>(null);
 
+  useEffect(() => {
+    const audience = new URLSearchParams(window.location.search).get('audience');
+    setIsProAudience((audience || '').toLowerCase() !== 'customer');
+  }, []);
+
   const handleSocialSignUp = async (provider: 'cognito-google' | 'cognito-apple') => {
     setError('');
     setSocialLoading(provider);
     try {
-      const result = await signIn(provider, { callbackUrl: '/onboarding/profile' });
+      const result = await signIn(provider, { callbackUrl: isProAudience ? '/onboarding/profile' : '/find-pros' });
       if (result?.error) { setError(result.error); setSocialLoading(null); }
     } catch (err: any) { setError(err?.message || 'Unable to start social sign up.'); setSocialLoading(null); }
   };
@@ -84,7 +98,7 @@ export default function RegisterPage() {
           </Link>
           <p className="text-sm text-slate-500">
             Already have an account?{' '}
-            <Link href="/login" className="font-semibold text-emerald-700 hover:text-emerald-600">
+            <Link href={loginHref} className="font-semibold text-emerald-700 hover:text-emerald-600">
               Sign in
             </Link>
           </p>
@@ -96,20 +110,22 @@ export default function RegisterPage() {
         <div className="space-y-8 lg:pt-4">
           <div>
             <span className="text-xs font-bold uppercase tracking-widest text-emerald-700">
-              Get started free
+              {isProAudience ? 'Get started free' : 'Customer account setup'}
             </span>
             <h1 className="mt-3 text-[2.6rem] font-bold leading-[1.08] tracking-tight text-slate-900 md:text-5xl">
-              Set up your AI receptionist in 10 minutes.
+              {isProAudience ? 'Set up your AI receptionist in 10 minutes.' : 'Create your customer account.'}
             </h1>
             <p className="mt-4 max-w-md text-lg text-slate-500">
-              We walk you through every step — from your first call to your first booking.
+              {isProAudience
+                ? 'We walk you through every step — from your first call to your first booking.'
+                : 'Save your details and manage your home service requests from one account.'}
             </p>
           </div>
 
           {/* Setup steps */}
           <div className="space-y-3">
             <p className="text-xs font-bold uppercase tracking-widest text-slate-400">What happens after signup</p>
-            {SETUP_STEPS.map((step, index) => (
+            {steps.map((step, index) => (
               <div key={step.title} className="flex items-start gap-4 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
                 <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-xs font-bold text-white">
                   {index + 1}
@@ -123,7 +139,9 @@ export default function RegisterPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-4 text-sm text-slate-500">
-            {['No contracts', 'Keep your number', 'Free onboarding call'].map((item) => (
+            {(isProAudience
+              ? ['No contracts', 'Keep your number', 'Free onboarding call']
+              : ['No booking fees', 'Secure checkout', 'Cancel anytime']).map((item) => (
               <span key={item} className="inline-flex items-center gap-1.5">
                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
                 {item}
@@ -138,7 +156,9 @@ export default function RegisterPage() {
           <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-8 shadow-xl shadow-slate-200/60">
             <div className="mb-6 text-center">
               <h2 className="text-lg font-semibold text-slate-900">Create your account</h2>
-              <p className="mt-1 text-sm text-slate-500">We'll email you a verification code next.</p>
+              <p className="mt-1 text-sm text-slate-500">
+                {isProAudience ? "We'll email you a verification code next." : "We'll send a verification code to finish setup."}
+              </p>
             </div>
 
             {error && (
@@ -182,7 +202,7 @@ export default function RegisterPage() {
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="email" className="text-xs font-semibold text-slate-700">Email</Label>
-                <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@business.com" required disabled={isSubmitting} className="h-11" />
+                <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder={isProAudience ? 'you@business.com' : 'you@example.com'} required disabled={isSubmitting} className="h-11" />
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="password" className="text-xs font-semibold text-slate-700">Password</Label>
@@ -207,7 +227,7 @@ export default function RegisterPage() {
             </p>
             <p className="mt-3 text-center text-sm text-slate-500">
               Already have an account?{' '}
-              <Link href="/login" className="font-semibold text-emerald-700 hover:text-emerald-600">Sign in</Link>
+              <Link href={loginHref} className="font-semibold text-emerald-700 hover:text-emerald-600">Sign in</Link>
             </p>
           </div>
         </div>

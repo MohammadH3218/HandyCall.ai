@@ -24,7 +24,7 @@ export const metadata: Metadata = {
     template: '%s | HandyCall',
   },
   description:
-    'Book vetted plumbers, electricians, HVAC techs, cleaners, and more in your area. Fast quotes, real reviews, secure payments. Trusted by thousands of homeowners.',
+    'Book local plumbers, electricians, HVAC techs, cleaners, and more in your area. Compare providers, schedule quickly, and pay securely.',
   keywords: [
     'home services',
     'book a plumber',
@@ -41,7 +41,7 @@ export const metadata: Metadata = {
     siteName: 'HandyCall',
     title: 'HandyCall — Find & Book Trusted Home Service Pros',
     description:
-      'Browse verified pros, read real reviews, and book local home services in minutes. Secure payments. Satisfaction guaranteed.',
+      'Browse local providers, compare service details, and book home services in minutes.',
     images: [
       {
         url: '/og-image.png',
@@ -55,7 +55,7 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: 'HandyCall — Find & Book Trusted Home Service Pros',
     description:
-      'Browse verified pros, read real reviews, and book local home services in minutes.',
+      'Browse local providers and book home services in minutes.',
     images: ['/og-image.png'],
   },
   robots: {

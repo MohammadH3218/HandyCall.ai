@@ -30,9 +30,9 @@ const CATEGORY_DATA: Record<string, {
     faqs: [
       { q: 'How quickly can a plumber arrive?', a: 'Many of our plumbers offer same-day and emergency service, often arriving within 1–2 hours.' },
       { q: 'Are plumbers licensed and insured?', a: 'Yes — all HandyCall plumbers are licensed, insured, and background-checked before joining the platform.' },
-      { q: 'How much does a plumber cost?', a: 'Most plumbing jobs range from $150–$500 for standard repairs. Emergency calls may have additional fees.' },
+      { q: 'How much does a plumber cost?', a: 'Pricing depends on job complexity, urgency, and materials. Request a quote for an exact estimate.' },
     ],
-    avgCost: '$150 – $500',
+    avgCost: 'Varies by project',
     keywords: 'plumber near me, plumbing repair, drain cleaning',
   },
   hvac: {
@@ -45,9 +45,9 @@ const CATEGORY_DATA: Record<string, {
     faqs: [
       { q: 'How often should I service my HVAC?', a: 'Twice a year — once before summer and once before winter — is the standard recommendation.' },
       { q: 'What brands do technicians work with?', a: 'Our HVAC pros are certified on all major brands including Carrier, Lennox, Trane, York, and Rheem.' },
-      { q: 'How much does AC repair cost?', a: 'AC repairs typically range from $150–$1,500 depending on the issue. Refrigerant recharges and compressor replacements cost more.' },
+      { q: 'How much does AC repair cost?', a: 'Costs vary by part availability, unit type, and diagnosis. Most providers share pricing after inspection.' },
     ],
-    avgCost: '$150 – $1,500',
+    avgCost: 'Varies by project',
     keywords: 'HVAC repair near me, AC service, furnace repair',
   },
   electrical: {
@@ -60,9 +60,9 @@ const CATEGORY_DATA: Record<string, {
     faqs: [
       { q: 'Do I need a permit for electrical work?', a: 'Most significant electrical work requires a permit. Our electricians handle the permit process for you.' },
       { q: 'How quickly can an electrician come out?', a: 'Many of our electricians offer next-day and same-day availability for urgent issues.' },
-      { q: 'How much does electrical work cost?', a: 'Basic jobs like outlet installation start around $100–$200. Panel upgrades can range from $1,000–$3,000.' },
+      { q: 'How much does electrical work cost?', a: 'Pricing depends on code requirements, permits, and scope. Request an estimate for your exact job.' },
     ],
-    avgCost: '$100 – $3,000',
+    avgCost: 'Varies by project',
     keywords: 'electrician near me, electrical repair, panel upgrade',
   },
   cleaning: {
@@ -75,9 +75,9 @@ const CATEGORY_DATA: Record<string, {
     faqs: [
       { q: 'Do cleaners bring their own supplies?', a: 'Most cleaners bring professional-grade supplies and equipment, though you can also request they use your products.' },
       { q: 'How long does a house cleaning take?', a: 'A standard 2-bedroom home takes 2–3 hours. Deep cleans and larger homes take longer.' },
-      { q: 'How much does house cleaning cost?', a: 'Standard cleanings range from $100–$250 depending on home size. Deep cleans start around $200.' },
+      { q: 'How much does house cleaning cost?', a: 'Pricing depends on home size, frequency, and cleaning depth. You can request custom quotes directly.' },
     ],
-    avgCost: '$100 – $300',
+    avgCost: 'Varies by project',
     keywords: 'house cleaning near me, maid service, deep cleaning',
   },
   landscaping: {
@@ -90,9 +90,9 @@ const CATEGORY_DATA: Record<string, {
     faqs: [
       { q: 'Do landscapers offer recurring service?', a: 'Yes — many pros offer weekly, biweekly, or monthly contracts for ongoing lawn care.' },
       { q: 'What\'s included in a standard lawn service?', a: 'Typically mowing, edging, and blowing. Additional services like fertilizing or aeration cost extra.' },
-      { q: 'How much does landscaping cost?', a: 'Basic lawn mowing starts around $40–$80/visit. Full landscape design projects range from $500–$10,000+.' },
+      { q: 'How much does landscaping cost?', a: 'Landscaping cost depends on design scope, labor, and materials. Ask providers for a scoped estimate.' },
     ],
-    avgCost: '$40 – $500',
+    avgCost: 'Varies by project',
     keywords: 'landscaping near me, lawn care, tree service',
   },
   handyman: {
@@ -107,7 +107,7 @@ const CATEGORY_DATA: Record<string, {
       { q: 'Do handymen charge by the hour or per project?', a: 'Both — some charge $50–$100/hour, others offer flat rates per project. You\'ll see pricing upfront before booking.' },
       { q: 'How do I book a handyman?', a: 'Browse profiles, pick a time, and confirm. For larger projects, request a free quote first.' },
     ],
-    avgCost: '$50 – $500',
+    avgCost: 'Varies by project',
     keywords: 'handyman near me, home repair, furniture assembly',
   },
   'pest-control': {
@@ -120,9 +120,9 @@ const CATEGORY_DATA: Record<string, {
     faqs: [
       { q: 'Is pest control safe for kids and pets?', a: 'Our pros use EPA-approved, family-safe treatments and will advise you on any precautions needed.' },
       { q: 'How many treatments will I need?', a: 'Most infestations are resolved in 1–3 treatments. We offer recurring quarterly plans for ongoing prevention.' },
-      { q: 'How much does pest control cost?', a: 'One-time treatments start around $100–$300. Annual prevention plans typically range from $400–$700.' },
+      { q: 'How much does pest control cost?', a: 'Cost depends on infestation type, treatment plan, and property size. Providers can quote after assessment.' },
     ],
-    avgCost: '$100 – $500',
+    avgCost: 'Varies by project',
     keywords: 'pest control near me, exterminator, termite treatment',
   },
   roofing: {
@@ -135,9 +135,9 @@ const CATEGORY_DATA: Record<string, {
     faqs: [
       { q: 'How do I know if I need a repair or full replacement?', a: 'Our pros offer free inspections. Most roofs under 20 years old can be repaired; older roofs may need replacement.' },
       { q: 'Do roofers work with insurance claims?', a: 'Yes — many of our roofers are experienced with insurance claims and can help document damage.' },
-      { q: 'How much does roof replacement cost?', a: 'A standard asphalt shingle roof replacement costs $5,000–$15,000 depending on size and materials.' },
+      { q: 'How much does roof replacement cost?', a: 'Roof pricing depends on material, square footage, and structural condition. Request an inspection and written quote.' },
     ],
-    avgCost: '$300 – $15,000',
+    avgCost: 'Varies by project',
     keywords: 'roofer near me, roof repair, roof replacement',
   },
   painting: {
@@ -150,9 +150,9 @@ const CATEGORY_DATA: Record<string, {
     faqs: [
       { q: 'Do painters supply paint?', a: 'Many do — or you can choose your own colors and they\'ll use your materials. Specify your preference when booking.' },
       { q: 'How long does house painting take?', a: 'A single room takes 4–8 hours. A full home exterior takes 3–5 days depending on size.' },
-      { q: 'How much does painting cost?', a: 'Interior rooms average $200–$600 per room. Full exterior painting typically runs $2,500–$8,000.' },
+      { q: 'How much does painting cost?', a: 'Painting cost varies by surface prep, square footage, and finish requirements. Ask for a detailed estimate.' },
     ],
-    avgCost: '$200 – $8,000',
+    avgCost: 'Varies by project',
     keywords: 'painter near me, house painting, exterior painting',
   },
 };

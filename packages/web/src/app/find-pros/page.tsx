@@ -4,6 +4,9 @@ import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { SiteHeader } from '@/components/marketing/site-header';
+import { SiteFooter } from '@/components/marketing/site-footer';
+import { ALL_HOME_SERVICES } from '@/constants/home-services';
 import { Search, Star, MapPin, CheckCircle, ChevronRight } from 'lucide-react';
 
 type Provider = {
@@ -19,12 +22,6 @@ type Provider = {
   city?: string;
   state?: string;
 };
-
-const CATEGORIES = [
-  'Plumbing', 'HVAC', 'Electrical', 'Pest Control',
-  'Cleaning', 'Landscaping', 'Roofing', 'Painting',
-  'Appliance Repair', 'Handyman',
-];
 
 export default function FindProsPage() {
   const [results, setResults] = useState<Provider[]>([]);
@@ -43,15 +40,26 @@ export default function FindProsPage() {
       const res = await fetch(`/api/proxy/marketplace/search?${params.toString()}`);
       const data = await res.json();
       setResults(Array.isArray(data) ? data : []);
-    } catch { setResults([]); }
+    } catch {
+      setResults([]);
+    }
     setLoading(false);
   }, [query, category]);
 
-  useEffect(() => { void search(); }, []);
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const qsCategory = params.get('category');
+    const qsQuery = params.get('q');
+    if (qsCategory) setCategory(qsCategory);
+    if (qsQuery) setQuery(qsQuery);
+    void search();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div className="min-h-screen bg-slate-50">
-      {/* Header */}
+      <SiteHeader />
+
       <div className="bg-white border-b border-slate-100">
         <div className="mx-auto max-w-5xl px-4 py-6">
           <h1 className="text-2xl font-bold text-slate-900 mb-4">Find Home Service Pros</h1>
@@ -72,9 +80,33 @@ export default function FindProsPage() {
               onChange={(e) => setCategory(e.target.value)}
             >
               <option value="">All services</option>
-              {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+              {ALL_HOME_SERVICES.map((service) => (
+                <option key={service} value={service}>
+                  {service}
+                </option>
+              ))}
             </select>
-            <Button onClick={search} className="bg-emerald-600 hover:bg-emerald-700">Search</Button>
+            <Button onClick={search} className="bg-emerald-600 hover:bg-emerald-700">
+              Search
+            </Button>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {['Plumbing', 'HVAC', 'Electrical', 'Pest Control', 'Cleaning', 'Landscaping'].map((quick) => (
+              <button
+                key={quick}
+                type="button"
+                onClick={() => {
+                  setCategory(quick);
+                  setQuery('');
+                }}
+                className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs text-slate-600 hover:border-emerald-300 hover:text-emerald-700"
+              >
+                {quick}
+              </button>
+            ))}
+            <Link href="/categories" className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs text-emerald-700">
+              Browse all categories
+            </Link>
           </div>
         </div>
       </div>
@@ -82,7 +114,9 @@ export default function FindProsPage() {
       <div className="mx-auto max-w-5xl px-4 py-8">
         {loading ? (
           <div className="grid gap-4 md:grid-cols-2">
-            {[1,2,3,4].map((i) => <div key={i} className="h-40 animate-pulse rounded-2xl bg-slate-200" />)}
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="h-40 animate-pulse rounded-2xl bg-slate-200" />
+            ))}
           </div>
         ) : !searched || results.length === 0 ? (
           <div className="text-center py-16">
@@ -119,7 +153,10 @@ export default function FindProsPage() {
                       {p.city && (
                         <div className="flex items-center gap-1 mt-0.5">
                           <MapPin className="h-3 w-3 text-slate-400" />
-                          <span className="text-xs text-slate-500">{p.city}{p.state ? `, ${p.state}` : ''}</span>
+                          <span className="text-xs text-slate-500">
+                            {p.city}
+                            {p.state ? `, ${p.state}` : ''}
+                          </span>
                         </div>
                       )}
                       {p.public_description && (
@@ -127,7 +164,9 @@ export default function FindProsPage() {
                       )}
                       <div className="mt-2 flex flex-wrap gap-1">
                         {p.categories.slice(0, 3).map((c) => (
-                          <span key={c} className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">{c.replace(/_/g, ' ')}</span>
+                          <span key={c} className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
+                            {c.replace(/_/g, ' ')}
+                          </span>
                         ))}
                       </div>
                     </div>
@@ -139,6 +178,8 @@ export default function FindProsPage() {
           </>
         )}
       </div>
+
+      <SiteFooter />
     </div>
   );
 }

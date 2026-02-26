@@ -57,7 +57,8 @@ export async function middleware(request: NextRequest) {
 
   // Not signed in -> send to login with callback
   if (!token || tokenError || !hasBearer) {
-    const loginUrl = new URL('/login', request.url);
+    const loginPath = isDashboardRoute ? '/pros/login' : '/login';
+    const loginUrl = new URL(loginPath, request.url);
     loginUrl.searchParams.set('callbackUrl', pathname);
     return NextResponse.redirect(loginUrl);
   }

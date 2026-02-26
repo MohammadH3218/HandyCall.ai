@@ -4,105 +4,104 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { Logo } from '../ui/logo';
-import { Button } from '../ui/button';
-import { Menu, X } from 'lucide-react';
+import { IconMenu2, IconX } from '@tabler/icons-react';
 
 type SiteHeaderVariant = 'consumer' | 'pro' | 'minimal';
 
 type SiteHeaderProps = {
   variant?: SiteHeaderVariant;
-  ctaLabel?: string;
-  ctaHref?: string;
-  hideLogin?: boolean;
-  hideLoginLink?: boolean;
 };
 
-function ConsumerNav() {
-  return (
-    <>
-      <Link href="/find-pros" className="text-sm font-medium text-slate-600 transition-colors hover:text-slate-900">
-        Find Services
-      </Link>
-      <Link href="/categories" className="text-sm font-medium text-slate-600 transition-colors hover:text-slate-900">
-        Categories
-      </Link>
-      <Link href="/how-it-works" className="text-sm font-medium text-slate-600 transition-colors hover:text-slate-900">
-        How It Works
-      </Link>
-    </>
-  );
-}
+const CONSUMER_LINKS = [
+  { href: '/find-pros', label: 'Find Services' },
+  { href: '/categories', label: 'Categories' },
+  { href: '/how-it-works', label: 'How It Works' },
+];
 
-function ProNav() {
-  return (
-    <>
-      <Link href="/pros#features" className="text-sm font-medium text-slate-600 transition-colors hover:text-slate-900">
-        Features
-      </Link>
-      <Link href="/pros/pricing" className="text-sm font-medium text-slate-600 transition-colors hover:text-slate-900">
-        Pricing
-      </Link>
-      <Link href="/" className="text-sm font-medium text-slate-500 transition-colors hover:text-slate-700">
-        For Customers
-      </Link>
-    </>
-  );
-}
+const PRO_LINKS = [
+  { href: '/pros#features', label: 'Features' },
+  { href: '/pros/pricing', label: 'Pricing' },
+  { href: '/how-it-works', label: 'How It Works' },
+];
 
-export function SiteHeader({
-  variant,
-  ctaLabel,
-  ctaHref,
-  hideLogin = false,
-  hideLoginLink = false,
-}: SiteHeaderProps) {
+export function SiteHeader({ variant }: SiteHeaderProps) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  // Auto-detect variant from path if not provided
   const resolvedVariant: SiteHeaderVariant =
     variant ?? (pathname?.startsWith('/pros') ? 'pro' : 'consumer');
 
   const isPro = resolvedVariant === 'pro';
-  const resolvedCta = ctaLabel ?? (isPro ? 'Get Started' : 'List Your Business');
-  const resolvedCtaHref = ctaHref ?? (isPro ? '/pros/signup' : '/register');
-  const loginHref = isPro ? '/login' : '/login';
-  const loginLabel = isPro ? 'Pro Login' : 'Log In';
+  const links = isPro ? PRO_LINKS : CONSUMER_LINKS;
 
   return (
     <header className="sticky top-0 z-20 border-b border-slate-200 bg-white">
-      <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3.5">
-        <Link href="/" className="flex items-center">
-          <Logo width={148} height={36} />
+      <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3.5 gap-8">
+
+        {/* Logo */}
+        <Link href="/" className="flex items-center shrink-0">
+          <Logo width={140} height={34} />
         </Link>
 
         {/* Desktop Nav */}
-        <nav className="hidden items-center gap-7 md:flex">
-          {isPro ? <ProNav /> : <ConsumerNav />}
+        <nav className="hidden items-center gap-6 md:flex flex-1">
+          {links.map((link) => (
+            <Link
+              key={link.href}
+              href={link.href}
+              className="text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors"
+            >
+              {link.label}
+            </Link>
+          ))}
         </nav>
 
         {/* Desktop CTA area */}
-        {!hideLogin && (
-          <div className="hidden md:flex items-center gap-2">
-            {/* Cross-audience toggle */}
-            {isPro ? null : (
+        <div className="hidden md:flex items-center gap-1">
+          {isPro ? (
+            <>
+              <Link
+                href="/"
+                className="text-sm font-medium text-slate-500 hover:text-slate-700 px-3 py-2 transition-colors"
+              >
+                For Customers
+              </Link>
+              <Link
+                href="/login"
+                className="text-sm font-medium text-slate-700 hover:text-slate-900 px-3 py-2 transition-colors"
+              >
+                Log In
+              </Link>
+              <Link
+                href="/register"
+                className="ml-1 rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 transition"
+              >
+                Get Started Free
+              </Link>
+            </>
+          ) : (
+            <>
               <Link
                 href="/pros"
-                className="text-xs font-semibold border border-slate-300 rounded-full px-3 py-1 text-slate-600 hover:border-emerald-400 hover:text-emerald-700 transition"
+                className="text-sm font-medium text-slate-600 hover:text-slate-900 px-3 py-2 transition-colors"
               >
-                For Pros
+                Join as a Pro
               </Link>
-            )}
-            {!hideLoginLink && (
-              <Button asChild size="sm" variant="ghost" className="text-slate-600 hover:text-slate-900">
-                <Link href={loginHref}>{loginLabel}</Link>
-              </Button>
-            )}
-            <Button asChild size="sm">
-              <Link href={resolvedCtaHref}>{resolvedCta}</Link>
-            </Button>
-          </div>
-        )}
+              <Link
+                href="/login"
+                className="text-sm font-medium text-slate-700 hover:text-slate-900 px-3 py-2 transition-colors"
+              >
+                Log In
+              </Link>
+              <Link
+                href="/signup"
+                className="ml-1 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 transition"
+              >
+                Sign Up
+              </Link>
+            </>
+          )}
+        </div>
 
         {/* Mobile hamburger */}
         <button
@@ -110,34 +109,66 @@ export function SiteHeader({
           onClick={() => setMobileOpen(!mobileOpen)}
           aria-label="Toggle menu"
         >
-          {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+          {mobileOpen ? <IconX className="h-5 w-5" stroke={1.5} /> : <IconMenu2 className="h-5 w-5" stroke={1.5} />}
         </button>
       </div>
 
       {/* Mobile menu */}
       {mobileOpen && (
-        <div className="md:hidden border-t border-slate-100 bg-white px-4 py-4 space-y-3">
-          {isPro ? (
-            <>
-              <Link href="/pros#features" className="block text-sm font-medium text-slate-700 py-1" onClick={() => setMobileOpen(false)}>Features</Link>
-              <Link href="/pros/pricing" className="block text-sm font-medium text-slate-700 py-1" onClick={() => setMobileOpen(false)}>Pricing</Link>
-              <Link href="/" className="block text-sm font-medium text-slate-500 py-1" onClick={() => setMobileOpen(false)}>For Customers</Link>
-            </>
-          ) : (
-            <>
-              <Link href="/find-pros" className="block text-sm font-medium text-slate-700 py-1" onClick={() => setMobileOpen(false)}>Find Services</Link>
-              <Link href="/categories" className="block text-sm font-medium text-slate-700 py-1" onClick={() => setMobileOpen(false)}>Categories</Link>
-              <Link href="/how-it-works" className="block text-sm font-medium text-slate-700 py-1" onClick={() => setMobileOpen(false)}>How It Works</Link>
-              <Link href="/pros" className="block text-sm font-medium text-slate-500 py-1" onClick={() => setMobileOpen(false)}>For Pros</Link>
-            </>
-          )}
-          <div className="pt-2 border-t border-slate-100 flex flex-col gap-2">
-            <Button asChild size="sm" variant="outline" className="w-full">
-              <Link href={loginHref}>{loginLabel}</Link>
-            </Button>
-            <Button asChild size="sm" className="w-full">
-              <Link href={resolvedCtaHref}>{resolvedCta}</Link>
-            </Button>
+        <div className="md:hidden border-t border-slate-100 bg-white px-4 py-4 space-y-1">
+          {links.map((link) => (
+            <Link
+              key={link.href}
+              href={link.href}
+              className="block px-3 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 rounded-lg"
+              onClick={() => setMobileOpen(false)}
+            >
+              {link.label}
+            </Link>
+          ))}
+          <div className="pt-3 border-t border-slate-100 space-y-2 mt-2">
+            {isPro ? (
+              <>
+                <Link
+                  href="/login"
+                  className="block w-full text-center rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                  onClick={() => setMobileOpen(false)}
+                >
+                  Log In
+                </Link>
+                <Link
+                  href="/register"
+                  className="block w-full text-center rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-800"
+                  onClick={() => setMobileOpen(false)}
+                >
+                  Get Started Free
+                </Link>
+              </>
+            ) : (
+              <>
+                <Link
+                  href="/pros"
+                  className="block w-full text-center rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                  onClick={() => setMobileOpen(false)}
+                >
+                  Join as a Pro
+                </Link>
+                <Link
+                  href="/login"
+                  className="block w-full text-center rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                  onClick={() => setMobileOpen(false)}
+                >
+                  Log In
+                </Link>
+                <Link
+                  href="/signup"
+                  className="block w-full text-center rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700"
+                  onClick={() => setMobileOpen(false)}
+                >
+                  Sign Up
+                </Link>
+              </>
+            )}
           </div>
         </div>
       )}

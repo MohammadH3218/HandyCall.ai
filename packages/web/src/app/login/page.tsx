@@ -31,17 +31,25 @@ const AppleIcon = ({ className }: { className?: string }) => (
   </svg>
 );
 
-const features = [
+const PRO_FEATURES = [
   { title: '24/7 AI coverage', desc: 'Answers in ~2 seconds with your approved scripts and pricing rules.' },
   { title: 'Real-time dashboard', desc: 'Transcripts, summaries, and lead capture — all in one place.' },
   { title: 'Smart scheduling', desc: 'Books jobs from your live calendar and sends confirmations automatically.' },
   { title: 'Automated follow-up', desc: 'SMS reminders and recaps keep your prospects warm without lifting a finger.' },
 ];
 
+const CUSTOMER_FEATURES = [
+  { title: 'Track your requests', desc: 'Keep all your service requests and updates in one place.' },
+  { title: 'Faster rebooking', desc: 'Reuse your details and book repeat services quickly.' },
+  { title: 'Secure payment history', desc: 'See your past payments and booking records anytime.' },
+  { title: 'Direct provider updates', desc: 'Get confirmations and status updates without missed messages.' },
+];
+
 function LoginPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const callbackUrl = searchParams?.get('callbackUrl') || undefined;
+  const audienceParam = (searchParams?.get('audience') || '').toLowerCase();
   const { status } = useSession();
   const { changePassword, requiresPasswordChange, passwordChangeSession, passwordChangePoolType, email: storeEmail } = useAuthStore();
   const [email, setEmail] = useState('');
@@ -54,6 +62,14 @@ function LoginPageInner() {
   const [socialLoading, setSocialLoading] = useState<'cognito-google' | 'cognito-apple' | null>(null);
   const [showPasswordChangeModal, setShowPasswordChangeModal] = useState(false);
   const isAdminLogin = typeof window !== 'undefined' && window.location.pathname.startsWith('/admin');
+  const isProAudience =
+    audienceParam === 'pro' ||
+    isAdminLogin ||
+    Boolean(callbackUrl?.startsWith('/dashboard') || callbackUrl?.startsWith('/admin'));
+  const defaultCallbackUrl = callbackUrl || (isAdminLogin ? '/admin' : isProAudience ? '/dashboard' : '/find-pros');
+  const primaryCtaHref = isProAudience ? '/pros/signup' : '/customer/signup';
+  const primaryCtaLabel = isProAudience ? 'Create a pro account' : 'Create a customer account';
+  const activeFeatures = isProAudience ? PRO_FEATURES : CUSTOMER_FEATURES;
 
   const parsePasswordChangeError = (message: string) => {
     if (!message?.startsWith('NEW_PASSWORD_REQUIRED:')) return null;
@@ -110,7 +126,7 @@ function LoginPageInner() {
     try {
       const result = await signIn('credentials', {
         email, password, redirect: false,
-        callbackUrl: callbackUrl || (isAdminLogin ? '/admin' : '/dashboard'),
+        callbackUrl: defaultCallbackUrl,
       });
       if (result?.error) {
         const parsed = parsePasswordChangeError(result.error);
@@ -133,7 +149,7 @@ function LoginPageInner() {
         return;
       }
       if (result?.url) { router.replace(result.url); return; }
-      router.replace(callbackUrl || (isAdminLogin ? '/admin' : '/dashboard'));
+      router.replace(defaultCallbackUrl);
     } catch (err: any) { setError(err.message || 'Invalid email or password'); }
     setIsLoading(false);
   };
@@ -148,14 +164,14 @@ function LoginPageInner() {
     try {
       await changePassword(email, newPassword, passwordChangeSession!, passwordChangePoolType || undefined);
       const loginResult = await signIn('credentials', {
-        email, password: newPassword, redirect: false, callbackUrl: callbackUrl || '/dashboard',
+        email, password: newPassword, redirect: false, callbackUrl: defaultCallbackUrl,
       });
       if (loginResult?.error) { setError(loginResult.error); return; }
       setShowPasswordChangeModal(false);
       setNewPassword('');
       setConfirmPassword('');
       if (loginResult?.url) { router.replace(loginResult.url); return; }
-      router.replace(callbackUrl || (isAdminLogin ? '/admin' : '/dashboard'));
+      router.replace(defaultCallbackUrl);
     } catch (err: any) { setError(err.message || 'Failed to change password'); }
     finally { setIsLoading(false); }
   };
@@ -164,7 +180,7 @@ function LoginPageInner() {
     setError('');
     setSocialLoading(provider);
     try {
-      const result = await signIn(provider, { callbackUrl: callbackUrl || '/dashboard' });
+      const result = await signIn(provider, { callbackUrl: defaultCallbackUrl });
       if (result?.error) { setError(result.error); setSocialLoading(null); }
     } catch (err: any) { setError(err?.message || 'Unable to start social sign-in.'); setSocialLoading(null); }
   };
@@ -179,8 +195,8 @@ function LoginPageInner() {
           </Link>
           <p className="text-sm text-slate-500">
             New here?{' '}
-            <Link href="/register" className="font-semibold text-emerald-700 hover:text-emerald-600">
-              Create an account
+            <Link href={primaryCtaHref} className="font-semibold text-emerald-700 hover:text-emerald-600">
+              {primaryCtaLabel}
             </Link>
           </p>
         </div>
@@ -191,18 +207,20 @@ function LoginPageInner() {
         <div className="space-y-8">
           <div>
             <span className="text-xs font-bold uppercase tracking-widest text-emerald-700">
-              HandyCall Dashboard
+              {isProAudience ? 'HandyCall Dashboard' : 'HandyCall Customers'}
             </span>
             <h1 className="mt-3 text-[2.6rem] font-bold leading-[1.08] tracking-tight text-slate-900 md:text-5xl">
-              Your AI receptionist is ready.
+              {isProAudience ? 'Your AI receptionist is ready.' : 'Manage your home services in one place.'}
             </h1>
             <p className="mt-4 max-w-md text-lg text-slate-500">
-              Sign in to manage calls, review leads, and monitor your AI in real time.
+              {isProAudience
+                ? 'Sign in to manage calls, review leads, and monitor your AI in real time.'
+                : 'Sign in to track bookings, messages, and payment history across your services.'}
             </p>
           </div>
 
           <div className="space-y-4">
-            {features.map((item) => (
+            {activeFeatures.map((item) => (
               <div key={item.title} className="flex items-start gap-3">
                 <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-500" />
                 <div>
@@ -213,7 +231,7 @@ function LoginPageInner() {
             ))}
           </div>
 
-          {/* Mini call widget */}
+          {/* Mini context widget */}
           <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg shadow-slate-100/80 max-w-sm">
             <div className="flex items-center justify-between bg-slate-900 px-4 py-3">
               <div className="flex items-center gap-2">
@@ -222,23 +240,30 @@ function LoginPageInner() {
                   <div className="h-2 w-2 rounded-full bg-amber-400/80" />
                   <div className="h-2 w-2 rounded-full bg-emerald-400/80" />
                 </div>
-                <span className="ml-1 text-xs text-slate-500">Live call</span>
+                <span className="ml-1 text-xs text-slate-500">{isProAudience ? 'Live call' : 'Live booking update'}</span>
               </div>
               <span className="flex items-center gap-1.5 text-xs text-emerald-400">
                 <span className="relative flex h-1.5 w-1.5">
                   <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-70" />
                   <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
                 </span>
-                Answering
+                {isProAudience ? 'Answering' : 'In progress'}
               </span>
             </div>
             <div className="space-y-3 px-4 py-4 text-sm">
-              {[
-                { role: 'Caller', text: '"Need an AC tune-up before summer hits."', isAI: false },
-                { role: 'HandyCall', text: '"I have Thursday at 10 AM open. Does that work?"', isAI: true },
-                { role: 'Caller', text: '"Perfect."', isAI: false },
-                { role: 'HandyCall', text: '"Booked! Confirmation text on its way."', isAI: true },
-              ].map((msg, i) => (
+              {(isProAudience
+                ? [
+                    { role: 'Caller', text: '"Need an AC tune-up before summer hits."', isAI: false },
+                    { role: 'HandyCall', text: '"I have Thursday at 10 AM open. Does that work?"', isAI: true },
+                    { role: 'Caller', text: '"Perfect."', isAI: false },
+                    { role: 'HandyCall', text: '"Booked! Confirmation text on its way."', isAI: true },
+                  ]
+                : [
+                    { role: 'Provider', text: '"Your technician is on the way."', isAI: false },
+                    { role: 'HandyCall', text: '"Arrival window: 10:00 AM - 10:30 AM."', isAI: true },
+                    { role: 'Provider', text: '"Job complete. Please review when ready."', isAI: false },
+                    { role: 'HandyCall', text: '"Receipt is now available in your account."', isAI: true },
+                  ]).map((msg, i) => (
                 <div key={i} className="flex gap-2.5">
                   <div className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${msg.isAI ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-600'}`}>
                     {msg.isAI ? 'H' : 'C'}
@@ -248,7 +273,9 @@ function LoginPageInner() {
               ))}
             </div>
             <div className="border-t border-slate-100 bg-emerald-50/60 px-4 py-2.5">
-              <p className="text-xs font-semibold text-emerald-700">Booked · AC tune-up · Thu 10:00 AM ✓</p>
+              <p className="text-xs font-semibold text-emerald-700">
+                {isProAudience ? 'Booked · AC tune-up · Thu 10:00 AM ✓' : 'Confirmed · Service appointment · Thu 10:00 AM ✓'}
+              </p>
             </div>
           </div>
         </div>
@@ -259,7 +286,9 @@ function LoginPageInner() {
           <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-8 shadow-xl shadow-slate-200/60">
             <div className="mb-6 text-center">
               <h2 className="text-lg font-semibold text-slate-900">Sign in</h2>
-              <p className="mt-1 text-sm text-slate-500">Access your HandyCall workspace</p>
+              <p className="mt-1 text-sm text-slate-500">
+                {isProAudience ? 'Access your HandyCall pro workspace' : 'Access your HandyCall customer account'}
+              </p>
             </div>
 
             {error && (
@@ -309,7 +338,7 @@ function LoginPageInner() {
                 <Input
                   id="email"
                   type="email"
-                  placeholder="you@business.com"
+                  placeholder={isProAudience ? 'you@business.com' : 'you@example.com'}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
@@ -344,8 +373,8 @@ function LoginPageInner() {
 
             <p className="mt-5 text-center text-sm text-slate-500">
               New to HandyCall?{' '}
-              <Link href="/register" className="font-semibold text-emerald-700 hover:text-emerald-600">
-                Create an account
+              <Link href={primaryCtaHref} className="font-semibold text-emerald-700 hover:text-emerald-600">
+                {primaryCtaLabel}
               </Link>
             </p>
           </div>
