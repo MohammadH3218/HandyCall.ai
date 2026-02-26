@@ -1,9 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { apiClient } from '@/lib/api-client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { SubscriptionPlan, SubscriptionStatus } from '@handycall/shared';
 import { PageHeader } from '@/components/portal/page-header';
 import { EmptyState } from '@/components/portal/empty-state';
@@ -26,19 +26,20 @@ import {
 interface Subscription {
   company_id: string;
   company_name: string;
-  plan: SubscriptionPlan;
-  status: SubscriptionStatus;
-  current_period_start: number;
-  current_period_end: number;
-  stripe_subscription_id: string;
+  plan: SubscriptionPlan | null;
+  status: SubscriptionStatus | null;
+  current_period_start: number | null;
+  current_period_end: number | null;
+  stripe_subscription_id: string | null;
   cancel_at_period_end: boolean;
 }
 
 export default function AdminSubscriptionsPage() {
-  const router = useRouter();
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [metrics, setMetrics] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [rowBusy, setRowBusy] = useState<Record<string, boolean>>({});
+  const [rowPlanDrafts, setRowPlanDrafts] = useState<Record<string, SubscriptionPlan>>({});
 
   useEffect(() => {
     loadData();
@@ -52,6 +53,11 @@ export default function AdminSubscriptionsPage() {
       ]);
       setSubscriptions(subs);
       setMetrics(revenue);
+      const nextDrafts: Record<string, SubscriptionPlan> = {};
+      for (const sub of subs as Subscription[]) {
+        nextDrafts[sub.company_id] = (sub.plan || SubscriptionPlan.STARTER) as SubscriptionPlan;
+      }
+      setRowPlanDrafts(nextDrafts);
     } catch (error) {
       console.error('Failed to load admin data:', error);
     } finally {
@@ -59,7 +65,24 @@ export default function AdminSubscriptionsPage() {
     }
   };
 
-  const getStatusBadge = (status: SubscriptionStatus) => {
+  const withRowBusy = async (companyId: string, fn: () => Promise<void>) => {
+    setRowBusy((prev) => ({ ...prev, [companyId]: true }));
+    try {
+      await fn();
+    } finally {
+      setRowBusy((prev) => ({ ...prev, [companyId]: false }));
+    }
+  };
+
+  const getStatusBadge = (status: SubscriptionStatus | null | undefined) => {
+    if (!status) {
+      return (
+        <span className="px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+          Unknown
+        </span>
+      );
+    }
+
     const colors: Record<SubscriptionStatus, string> = {
       [SubscriptionStatus.TRIALING]: 'bg-blue-100 text-blue-800',
       [SubscriptionStatus.ACTIVE]: 'bg-green-100 text-green-800',
@@ -76,21 +99,62 @@ export default function AdminSubscriptionsPage() {
     );
   };
 
-  const formatDate = (timestamp: number) => {
-    return new Date(timestamp * 1000).toLocaleDateString('en-US', {
+  const formatDate = (timestamp?: number | null) => {
+    if (!timestamp) return '-';
+    const ms = timestamp > 1e12 ? timestamp : timestamp * 1000;
+    return new Date(ms).toLocaleDateString('en-US', {
       month: 'short',
       day: 'numeric',
       year: 'numeric',
     });
   };
 
-  const getPlanColor = (plan: SubscriptionPlan) => {
+  const getPlanColor = (plan: SubscriptionPlan | null) => {
     const colors = {
       [SubscriptionPlan.STARTER]: '#3b82f6',
       [SubscriptionPlan.PRO]: '#8b5cf6',
       [SubscriptionPlan.MAX]: '#10b981',
     };
+    if (!plan) return '#6b7280';
     return colors[plan];
+  };
+
+  const syncCompanyFromStripe = async (companyId: string) => {
+    await withRowBusy(companyId, async () => {
+      await apiClient.getAdminCompanyBilling(companyId);
+      await loadData();
+      alert('Company billing synced from Stripe.');
+    });
+  };
+
+  const updateCompanyPlan = async (sub: Subscription) => {
+    const plan = rowPlanDrafts[sub.company_id];
+    await withRowBusy(sub.company_id, async () => {
+      await apiClient.updateAdminCompanySubscription(sub.company_id, plan);
+      await loadData();
+      alert(`Plan updated to ${plan}.`);
+    });
+  };
+
+  const cancelCompanySubscription = async (sub: Subscription, immediate: boolean) => {
+    const confirmText = immediate
+      ? 'Cancel immediately now? This will remove the subscription right away.'
+      : 'Cancel at period end? The user keeps access until the current period ends.';
+    if (!window.confirm(confirmText)) return;
+
+    await withRowBusy(sub.company_id, async () => {
+      await apiClient.cancelAdminCompanySubscription(sub.company_id, immediate);
+      await loadData();
+      alert(immediate ? 'Subscription canceled immediately.' : 'Subscription set to cancel at period end.');
+    });
+  };
+
+  const reactivateCompanySubscription = async (sub: Subscription) => {
+    await withRowBusy(sub.company_id, async () => {
+      await apiClient.reactivateAdminCompanySubscription(sub.company_id);
+      await loadData();
+      alert('Subscription reactivated.');
+    });
   };
 
   // Calculate metrics from subscriptions
@@ -113,8 +177,12 @@ export default function AdminSubscriptionsPage() {
     };
 
     subscriptions.forEach((sub) => {
-      planCounts[sub.plan]++;
-      statusCounts[sub.status]++;
+      if (sub.plan) {
+        planCounts[sub.plan]++;
+      }
+      if (sub.status) {
+        statusCounts[sub.status]++;
+      }
     });
 
     const planData = [
@@ -281,6 +349,7 @@ export default function AdminSubscriptionsPage() {
                     <th className="pb-3 font-medium">Status</th>
                     <th className="pb-3 font-medium">Current Period</th>
                     <th className="pb-3 font-medium">Subscription ID</th>
+                    <th className="pb-3 font-medium">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
@@ -297,7 +366,7 @@ export default function AdminSubscriptionsPage() {
                           className="px-2 py-1 rounded-md text-xs font-medium text-white"
                           style={{ backgroundColor: getPlanColor(sub.plan) }}
                         >
-                          {sub.plan}
+                          {sub.plan || 'N/A'}
                         </span>
                       </td>
                       <td className="py-4">
@@ -312,9 +381,77 @@ export default function AdminSubscriptionsPage() {
                         {formatDate(sub.current_period_start)} - {formatDate(sub.current_period_end)}
                       </td>
                       <td className="py-4">
-                        <code className="text-xs text-gray-600 bg-gray-100 px-2 py-1 rounded">
-                          {sub.stripe_subscription_id}
-                        </code>
+                        {sub.stripe_subscription_id ? (
+                          <a
+                            className="text-xs text-blue-700 bg-blue-50 px-2 py-1 rounded hover:bg-blue-100"
+                            href={`https://dashboard.stripe.com/test/subscriptions/${sub.stripe_subscription_id}`}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            {sub.stripe_subscription_id}
+                          </a>
+                        ) : (
+                          <span className="text-xs text-gray-500">-</span>
+                        )}
+                      </td>
+                      <td className="py-4">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <select
+                            className="h-8 rounded border border-gray-300 bg-white px-2 text-xs"
+                            value={rowPlanDrafts[sub.company_id] || SubscriptionPlan.STARTER}
+                            onChange={(e) =>
+                              setRowPlanDrafts((prev) => ({
+                                ...prev,
+                                [sub.company_id]: e.target.value as SubscriptionPlan,
+                              }))
+                            }
+                            disabled={rowBusy[sub.company_id]}
+                          >
+                            <option value={SubscriptionPlan.STARTER}>STARTER</option>
+                            <option value={SubscriptionPlan.PRO}>PRO</option>
+                            <option value={SubscriptionPlan.MAX}>MAX</option>
+                          </select>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => updateCompanyPlan(sub)}
+                            disabled={rowBusy[sub.company_id]}
+                          >
+                            Change plan
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => syncCompanyFromStripe(sub.company_id)}
+                            disabled={rowBusy[sub.company_id]}
+                          >
+                            Sync Stripe
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => cancelCompanySubscription(sub, false)}
+                            disabled={rowBusy[sub.company_id]}
+                          >
+                            Cancel EOP
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => cancelCompanySubscription(sub, true)}
+                            disabled={rowBusy[sub.company_id]}
+                          >
+                            Cancel now
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => reactivateCompanySubscription(sub)}
+                            disabled={rowBusy[sub.company_id]}
+                          >
+                            Reactivate
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                   ))}

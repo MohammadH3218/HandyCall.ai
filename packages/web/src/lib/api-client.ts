@@ -915,12 +915,44 @@ class ApiClient {
     const response = await this.request<any[]>('/billing/admin/subscriptions', {
       method: 'GET',
     });
-    return response.data || [];
+    return (response as any)?.data ?? (response as any) ?? [];
   }
 
   async getAdminRevenueMetrics(): Promise<any> {
     const response = await this.request<any>('/billing/admin/revenue', {
       method: 'GET',
+    });
+    return response.data ?? response;
+  }
+
+  async getAdminCompanyBilling(companyId: string): Promise<any> {
+    const response = await this.request<any>(`/billing/admin/company/${companyId}`, {
+      method: 'GET',
+    });
+    return response.data ?? response;
+  }
+
+  async updateAdminCompanySubscription(companyId: string, plan: string): Promise<any> {
+    const response = await this.request<any>(`/billing/admin/company/${companyId}/subscription`, {
+      method: 'PUT',
+      body: JSON.stringify({ plan }),
+    });
+    return response.data ?? response;
+  }
+
+  async cancelAdminCompanySubscription(companyId: string, immediate: boolean): Promise<any> {
+    const response = await this.request<any>(
+      `/billing/admin/company/${companyId}/subscription?immediate=${immediate ? 'true' : 'false'}`,
+      {
+        method: 'DELETE',
+      }
+    );
+    return response.data ?? response;
+  }
+
+  async reactivateAdminCompanySubscription(companyId: string): Promise<any> {
+    const response = await this.request<any>(`/billing/admin/company/${companyId}/subscription/reactivate`, {
+      method: 'POST',
     });
     return response.data ?? response;
   }
