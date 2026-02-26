@@ -32,7 +32,7 @@ type PaymentMethod = {
 export default function BillingPage() {
   const router = useRouter();
   const { toast } = useToast();
-  const { company } = useAuthStore();
+  const { company, setCompany } = useAuthStore();
   const [subscription, setSubscription] = useState<any>(null);
   const [usage, setUsage] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -47,6 +47,7 @@ export default function BillingPage() {
   const [connectStatus, setConnectStatus] = useState<any>(null);
   const [customerPaymentStats, setCustomerPaymentStats] = useState<any>(null);
   const [recentCustomerPayments, setRecentCustomerPayments] = useState<any[]>([]);
+  const [paymentModeSaving, setPaymentModeSaving] = useState(false);
 
   useEffect(() => { loadBillingData(); }, []);
 
@@ -180,7 +181,7 @@ export default function BillingPage() {
     if (!managedPaymentsEnabled) {
       toast({
         title: 'Payments are self-managed',
-        description: 'Switch to “Managed in HandyCall” from Settings to connect Stripe.',
+        description: 'Switch to “Managed in HandyCall” to connect Stripe.',
       });
       return;
     }
@@ -201,6 +202,38 @@ export default function BillingPage() {
         description: error?.message || 'Unable to start Stripe Connect onboarding.',
         variant: 'destructive',
       });
+    }
+  };
+
+  const handleSwitchPaymentMode = async (mode: 'HANDYCALL_MANAGED' | 'SELF_MANAGED') => {
+    if (mode === bookingPaymentMode || paymentModeSaving) return;
+
+    try {
+      setPaymentModeSaving(true);
+      const updated = await apiClient.updateMyCompany({
+        booking_payment_mode: mode,
+        booking_payment_enabled: mode === 'HANDYCALL_MANAGED',
+      });
+      const updatedCompany = updated?.company_id ? updated : updated?.company;
+      if (updatedCompany) {
+        setCompany(updatedCompany);
+      }
+      toast({
+        title: mode === 'HANDYCALL_MANAGED' ? 'HandyCall-managed payments enabled' : 'Self-managed payments enabled',
+        description:
+          mode === 'HANDYCALL_MANAGED'
+            ? 'Customers can pay directly from booking links after Stripe Connect setup.'
+            : 'Customers will pay outside HandyCall.',
+      });
+      await loadBillingData();
+    } catch (error: any) {
+      toast({
+        title: 'Could not update payment mode',
+        description: error?.message || 'Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setPaymentModeSaving(false);
     }
   };
 
@@ -515,17 +548,39 @@ export default function BillingPage() {
             <p className="text-xs text-slate-500">Collect payments from booking links with Stripe Connect.</p>
           </div>
           <div className="flex items-center gap-2">
-            {!managedPaymentsEnabled ? (
-              <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-xs font-semibold text-slate-600">
+            <div className="flex items-center rounded-xl border border-slate-200 bg-slate-50 p-0.5">
+              <button
+                type="button"
+                disabled={paymentModeSaving}
+                onClick={() => handleSwitchPaymentMode('HANDYCALL_MANAGED')}
+                className={`rounded-lg px-3 py-1 text-xs font-semibold transition ${
+                  bookingPaymentMode === 'HANDYCALL_MANAGED'
+                    ? 'bg-white text-emerald-700 shadow-sm'
+                    : 'text-slate-600 hover:text-slate-800'
+                } disabled:opacity-60`}
+              >
+                Managed in HandyCall
+              </button>
+              <button
+                type="button"
+                disabled={paymentModeSaving}
+                onClick={() => handleSwitchPaymentMode('SELF_MANAGED')}
+                className={`rounded-lg px-3 py-1 text-xs font-semibold transition ${
+                  bookingPaymentMode === 'SELF_MANAGED'
+                    ? 'bg-white text-slate-700 shadow-sm'
+                    : 'text-slate-600 hover:text-slate-800'
+                } disabled:opacity-60`}
+              >
                 Self-managed
-              </span>
-            ) : connectStatus?.connected ? (
+              </button>
+            </div>
+            {connectStatus?.connected ? (
               <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-700">
                 Connected
               </span>
-            ) : (
+            ) : managedPaymentsEnabled ? (
               <Button size="sm" onClick={handleConnectSetup}>Set up Connect</Button>
-            )}
+            ) : null}
             <Button variant="outline" size="sm" onClick={() => router.push('/dashboard/payments')}>
               View all payments
             </Button>
@@ -537,6 +592,9 @@ export default function BillingPage() {
               <p className="text-sm text-slate-700">
                 Your company is set to handle payments outside HandyCall. AI can still send booking links, but customers will pay through your own process.
               </p>
+              <Button size="sm" className="mt-3" onClick={() => handleSwitchPaymentMode('HANDYCALL_MANAGED')} disabled={paymentModeSaving}>
+                Switch to HandyCall-managed payments
+              </Button>
             </div>
           ) : connectStatus?.connected ? (
             <>

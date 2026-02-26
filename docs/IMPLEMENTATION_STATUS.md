@@ -13,6 +13,7 @@ Last updated: 2026-02-26
 2. Stripe Connect + Customer Payments: in progress
 - Backend service/controller scaffolding present
 - Web payments surfaces added (`dashboard/payments`, booking payment step)
+- Billing page now supports in-place payment mode switching (`Managed in HandyCall` <-> `Self-managed`)
 - Requires environment + end-to-end validation in Stripe test mode
 
 3. Dashboard Redesign: in progress
