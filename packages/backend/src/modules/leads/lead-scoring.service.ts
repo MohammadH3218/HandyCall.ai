@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { DynamoDBService } from '../../infrastructure/database/dynamodb.service';
 
-interface LeadScoringFactors {
+export interface LeadScoringFactors {
   hasEmail: boolean;
   hasPhone: boolean;
   hasAddress: boolean;

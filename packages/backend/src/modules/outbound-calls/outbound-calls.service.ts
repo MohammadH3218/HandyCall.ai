@@ -148,7 +148,7 @@ export class OutboundCallsService {
       '#company_id = :company_id',
       { '#company_id': 'company_id' },
       { ':company_id': companyId },
-      { limit: options?.limit || 25, lastEvaluatedKey: options?.lastKey ? JSON.parse(options.lastKey) : undefined },
+      { limit: options?.limit || 25, exclusiveStartKey: options?.lastKey ? JSON.parse(options.lastKey) : undefined },
     );
     return {
       items: result.items || [],

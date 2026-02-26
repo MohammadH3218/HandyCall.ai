@@ -1,7 +1,7 @@
 import { Body, Controller, Get, NotFoundException, Post, Put } from '@nestjs/common';
 import { UserRole } from '@handycall/shared';
 import { UserRoleParam } from '../../common/decorators/auth.decorator';
-import { CompanyId } from '../../common/decorators/company-id.decorator';
+import { CompanyId } from '../../common/decorators/auth.decorator';
 import { FollowUpSequencesService } from './follow-up-sequences.service';
 
 @Controller('follow-up-sequences')

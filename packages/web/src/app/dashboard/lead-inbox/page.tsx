@@ -46,7 +46,7 @@ export default function LeadInboxPage() {
     try {
       const [scoreData, contactData] = await Promise.all([
         (apiClient as any).get('/leads/scores').catch(() => []),
-        apiClient.getContacts({ limit: 500 }).catch(() => ({ items: [] })),
+        apiClient.getContacts(500).catch(() => ({ items: [] })),
       ]);
 
       const scoreList: LeadScore[] = Array.isArray(scoreData) ? scoreData : [];

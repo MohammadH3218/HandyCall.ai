@@ -1,6 +1,6 @@
 import { Controller, Get, Query } from '@nestjs/common';
 import { AnalyticsService } from './analytics.service';
-import { CompanyId } from '../../common/decorators/company-id.decorator';
+import { CompanyId } from '../../common/decorators/auth.decorator';
 
 @Controller('analytics')
 export class AnalyticsController {

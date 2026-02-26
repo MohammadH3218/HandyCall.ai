@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Post, Query, Request } from '@nestjs/common';
 import { OutboundCallsService } from './outbound-calls.service';
 import { CreateOutboundCallDto } from './dto/create-outbound-call.dto';
-import { CompanyId } from '../../common/decorators/company-id.decorator';
+import { CompanyId } from '../../common/decorators/auth.decorator';
 import { Public } from '../../common/decorators/public.decorator';
 
 @Controller('outbound-calls')

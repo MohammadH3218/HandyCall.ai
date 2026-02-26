@@ -2,7 +2,7 @@ import { Body, Controller, Delete, Get, Param, Post, Put, Query } from '@nestjs/
 import { SmsAutomationService } from './sms-automation.service';
 import { CreateTemplateDto, UpdateTemplateDto } from './dto/create-template.dto';
 import { SendCampaignDto, SendSingleSmsDto } from './dto/send-campaign.dto';
-import { CompanyId } from '../../common/decorators/company-id.decorator';
+import { CompanyId } from '../../common/decorators/auth.decorator';
 
 @Controller('sms-automation')
 export class SmsAutomationController {

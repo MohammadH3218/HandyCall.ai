@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Param, Post, Request } from '@nestjs/common';
 import { ReviewsService } from './reviews.service';
 import { CreateReviewDto, RespondToReviewDto } from './dto/review.dto';
-import { CompanyId } from '../../common/decorators/company-id.decorator';
+import { CompanyId } from '../../common/decorators/auth.decorator';
 import { Public } from '../../common/decorators/public.decorator';
 
 @Controller('reviews')

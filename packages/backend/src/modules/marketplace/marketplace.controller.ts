@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Param, Put, Query } from '@nestjs/common';
 import { MarketplaceService } from './marketplace.service';
-import { CompanyId } from '../../common/decorators/company-id.decorator';
+import { CompanyId } from '../../common/decorators/auth.decorator';
 import { Public } from '../../common/decorators/public.decorator';
 
 @Controller('marketplace')
