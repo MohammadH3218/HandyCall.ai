@@ -82,6 +82,11 @@ export default function BillingPage() {
       ? 'HANDYCALL_MANAGED'
       : 'SELF_MANAGED';
   const managedPaymentsEnabled = bookingPaymentMode === 'HANDYCALL_MANAGED';
+  const connectAccountExists = Boolean(connectStatus?.connected && connectStatus?.account_id);
+  const connectCanCharge = Boolean(connectStatus?.charges_enabled);
+  const connectCanPayout = Boolean(connectStatus?.payouts_enabled);
+  const connectFullyReady = connectAccountExists && connectCanCharge && connectCanPayout;
+  const connectSetupIncomplete = connectAccountExists && !connectFullyReady;
 
   const planHighlights = useMemo(
     () => [
@@ -574,10 +579,17 @@ export default function BillingPage() {
                 Self-managed
               </button>
             </div>
-            {connectStatus?.connected ? (
+            {connectFullyReady ? (
               <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-700">
                 Connected
               </span>
+            ) : connectSetupIncomplete ? (
+              <>
+                <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-700">
+                  Setup incomplete
+                </span>
+                <Button size="sm" onClick={handleConnectSetup}>Complete setup</Button>
+              </>
             ) : managedPaymentsEnabled ? (
               <Button size="sm" onClick={handleConnectSetup}>Set up Connect</Button>
             ) : null}
@@ -596,7 +608,7 @@ export default function BillingPage() {
                 Switch to HandyCall-managed payments
               </Button>
             </div>
-          ) : connectStatus?.connected ? (
+          ) : connectFullyReady ? (
             <>
               <div className="grid gap-3 sm:grid-cols-4">
                 <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-3">
@@ -642,6 +654,17 @@ export default function BillingPage() {
                 <p className="text-sm text-slate-500">No customer payments yet.</p>
               )}
             </>
+          ) : connectSetupIncomplete ? (
+            <div className="rounded-xl border border-amber-200 bg-amber-50/70 px-4 py-4">
+              <p className="text-sm text-amber-800">
+                Stripe account exists, but onboarding is not complete yet.
+                {!connectCanCharge ? ' Enable charges in Stripe Connect.' : ''}
+                {!connectCanPayout ? ' Add bank/payout details to enable payouts.' : ''}
+              </p>
+              <Button size="sm" className="mt-3" onClick={handleConnectSetup}>
+                Complete Stripe setup
+              </Button>
+            </div>
           ) : (
             <div className="rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-4">
               <p className="text-sm text-slate-700">

@@ -838,12 +838,25 @@ export default function SettingsPage() {
 
               <div className="rounded-xl border border-slate-100 bg-white p-4">
                 <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Stripe Connect</p>
+              {(() => {
+                const connectAccountExists = Boolean(connectStatus?.connected && connectStatus?.account_id);
+                const connectCanCharge = Boolean(connectStatus?.charges_enabled);
+                const connectCanPayout = Boolean(connectStatus?.payouts_enabled);
+                const connectFullyReady = connectAccountExists && connectCanCharge && connectCanPayout;
+                const connectSetupIncomplete = connectAccountExists && !connectFullyReady;
+                return (
+                  <>
               {paymentsLoading ? (
                   <p className="mt-2 text-sm text-slate-500">Loading payment status…</p>
-              ) : connectStatus?.connected ? (
+              ) : connectFullyReady ? (
                   <div className="mt-2 rounded-xl border border-emerald-200 bg-emerald-50/70 px-4 py-3 text-sm text-emerald-800">
                     Connected{connectStatus?.account_id ? ` · ${connectStatus.account_id}` : ''}.
-                    {!connectStatus?.charges_enabled ? ' Complete onboarding steps in Stripe to start accepting charges.' : ''}
+                  </div>
+              ) : connectSetupIncomplete ? (
+                  <div className="mt-2 rounded-xl border border-amber-200 bg-amber-50/70 px-4 py-3 text-sm text-amber-800">
+                    Setup incomplete{connectStatus?.account_id ? ` · ${connectStatus.account_id}` : ''}.
+                    {!connectCanCharge ? ' Enable charges in Stripe Connect.' : ''}
+                    {!connectCanPayout ? ' Add bank/payout details to enable payouts.' : ''}
                   </div>
               ) : (
                   <div className="mt-2 rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-3 text-sm text-slate-700">
@@ -852,9 +865,12 @@ export default function SettingsPage() {
               )}
               <div className="flex gap-2">
                 <Button onClick={handleConnectSetup} disabled={bookingPaymentMode !== 'HANDYCALL_MANAGED'}>
-                  {connectStatus?.connected ? 'Open onboarding link' : 'Set up Stripe Connect'}
+                  {connectFullyReady ? 'Open Stripe Connect' : connectSetupIncomplete ? 'Complete Stripe setup' : 'Set up Stripe Connect'}
                 </Button>
               </div>
+                  </>
+                );
+              })()}
               {bookingPaymentMode !== 'HANDYCALL_MANAGED' ? (
                 <p className="mt-2 text-xs text-slate-500">
                   Enable “Managed in HandyCall” to connect Stripe and collect payments from booking links.
