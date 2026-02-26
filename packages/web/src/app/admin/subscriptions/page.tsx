@@ -31,6 +31,7 @@ interface Subscription {
   current_period_start: number | null;
   current_period_end: number | null;
   stripe_subscription_id: string | null;
+  stripe_customer_id: string | null;
   cancel_at_period_end: boolean;
 }
 
@@ -348,6 +349,7 @@ export default function AdminSubscriptionsPage() {
                     <th className="pb-3 font-medium">Plan</th>
                     <th className="pb-3 font-medium">Status</th>
                     <th className="pb-3 font-medium">Current Period</th>
+                    <th className="pb-3 font-medium">Customer</th>
                     <th className="pb-3 font-medium">Subscription ID</th>
                     <th className="pb-3 font-medium">Actions</th>
                   </tr>
@@ -379,6 +381,20 @@ export default function AdminSubscriptionsPage() {
                       </td>
                       <td className="py-4 text-gray-600">
                         {formatDate(sub.current_period_start)} - {formatDate(sub.current_period_end)}
+                      </td>
+                      <td className="py-4">
+                        {sub.stripe_customer_id ? (
+                          <a
+                            className="text-xs text-blue-700 bg-blue-50 px-2 py-1 rounded hover:bg-blue-100"
+                            href={`https://dashboard.stripe.com/test/customers/${sub.stripe_customer_id}`}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            {sub.stripe_customer_id}
+                          </a>
+                        ) : (
+                          <span className="text-xs text-gray-500">-</span>
+                        )}
                       </td>
                       <td className="py-4">
                         {sub.stripe_subscription_id ? (

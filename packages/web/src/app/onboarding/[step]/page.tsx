@@ -555,6 +555,18 @@ function BillingStep({ nextStep }: { nextStep?: OnboardingStepId }) {
   const [showPayment, setShowPayment] = useState(false);
   const [connectStatus, setConnectStatus] = useState<any>(null);
   const [connectBusy, setConnectBusy] = useState(false);
+  const [paymentMode, setPaymentMode] = useState<'HANDYCALL_MANAGED' | 'SELF_MANAGED'>('SELF_MANAGED');
+  const [savingPaymentMode, setSavingPaymentMode] = useState(false);
+
+  useEffect(() => {
+    const mode = String((company as any)?.booking_payment_mode || '').toUpperCase();
+    setPaymentMode(
+      mode === 'HANDYCALL_MANAGED' ||
+        (!mode && ((company as any)?.booking_payment_enabled || (company as any)?.stripe_connect_account_id))
+        ? 'HANDYCALL_MANAGED'
+        : 'SELF_MANAGED',
+    );
+  }, [company]);
 
   useEffect(() => {
     if (selectedPlan) {
@@ -604,6 +616,33 @@ function BillingStep({ nextStep }: { nextStep?: OnboardingStepId }) {
     }
   };
 
+  const savePaymentMode = async (mode: 'HANDYCALL_MANAGED' | 'SELF_MANAGED') => {
+    try {
+      setSavingPaymentMode(true);
+      setPaymentMode(mode);
+      await apiClient.updateMyCompany({
+        booking_payment_mode: mode,
+        booking_payment_enabled: mode === 'HANDYCALL_MANAGED',
+      });
+      await refreshAll();
+      toast({
+        title: 'Payment mode updated',
+        description:
+          mode === 'HANDYCALL_MANAGED'
+            ? 'Customers can pay from booking links after Stripe Connect is set up.'
+            : 'You are set to handle customer payments outside HandyCall.',
+      });
+    } catch (error: any) {
+      toast({
+        title: 'Unable to update payment mode',
+        description: error?.message || 'Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setSavingPaymentMode(false);
+    }
+  };
+
   if (status.billing) {
     return (
       <div>
@@ -625,18 +664,58 @@ function BillingStep({ nextStep }: { nextStep?: OnboardingStepId }) {
         </Card>
         <Card className="mt-5 border-slate-200 bg-white">
           <CardHeader>
-            <CardTitle className="text-base">Optional: accept customer payments</CardTitle>
+            <CardTitle className="text-base">Optional: customer payment setup</CardTitle>
             <CardDescription>
-              Connect Stripe now to collect customer payments from booking links.
+              Choose whether HandyCall should manage customer payments or your team handles payments separately.
             </CardDescription>
           </CardHeader>
-          <CardContent className="flex flex-wrap items-center justify-between gap-3">
-            <p className="text-sm text-slate-600">
-              {connectStatus?.connected ? 'Stripe Connect is configured.' : 'Stripe Connect is not configured yet.'}
-            </p>
-            <Button onClick={startConnectOnboarding} disabled={connectBusy}>
-              {connectBusy ? 'Opening…' : connectStatus?.connected ? 'Manage Connect' : 'Set up Connect'}
-            </Button>
+          <CardContent className="space-y-4">
+            <div className="grid gap-3 md:grid-cols-2">
+              <button
+                type="button"
+                onClick={() => void savePaymentMode('HANDYCALL_MANAGED')}
+                disabled={savingPaymentMode}
+                className={`rounded-xl border p-4 text-left transition ${
+                  paymentMode === 'HANDYCALL_MANAGED'
+                    ? 'border-emerald-300 bg-emerald-50/70'
+                    : 'border-slate-200 bg-white hover:border-emerald-200'
+                }`}
+              >
+                <p className="text-sm font-semibold text-slate-900">Managed in HandyCall (Recommended)</p>
+                <p className="mt-1 text-xs text-slate-600">
+                  AI sends booking links and customers can pay there. HandyCall tracks payments and statuses in one place.
+                </p>
+              </button>
+              <button
+                type="button"
+                onClick={() => void savePaymentMode('SELF_MANAGED')}
+                disabled={savingPaymentMode}
+                className={`rounded-xl border p-4 text-left transition ${
+                  paymentMode === 'SELF_MANAGED'
+                    ? 'border-slate-400 bg-slate-50'
+                    : 'border-slate-200 bg-white hover:border-slate-300'
+                }`}
+              >
+                <p className="text-sm font-semibold text-slate-900">I handle payments myself</p>
+                <p className="mt-1 text-xs text-slate-600">
+                  HandyCall focuses on calls and bookings while your team invoices or charges customers separately.
+                </p>
+              </button>
+            </div>
+            {paymentMode === 'HANDYCALL_MANAGED' ? (
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-3">
+                <p className="text-sm text-slate-600">
+                  {connectStatus?.connected ? 'Stripe Connect is configured.' : 'Stripe Connect is not configured yet.'}
+                </p>
+                <Button onClick={startConnectOnboarding} disabled={connectBusy}>
+                  {connectBusy ? 'Opening…' : connectStatus?.connected ? 'Manage Connect' : 'Set up Connect'}
+                </Button>
+              </div>
+            ) : (
+              <div className="rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-3 text-xs text-slate-600">
+                You can switch this later in Settings if you decide to collect payments through booking links.
+              </div>
+            )}
           </CardContent>
         </Card>
         <div className="mt-8 flex justify-end">

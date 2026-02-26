@@ -56,6 +56,7 @@ export default function SettingsPage() {
   const [connectStatus, setConnectStatus] = useState<any>(null);
   const [paymentsLoading, setPaymentsLoading] = useState(false);
   const [paymentsSaving, setPaymentsSaving] = useState(false);
+  const [bookingPaymentMode, setBookingPaymentMode] = useState<'HANDYCALL_MANAGED' | 'SELF_MANAGED'>('SELF_MANAGED');
   const [bookingPaymentEnabled, setBookingPaymentEnabled] = useState(false);
   const [bookingServices, setBookingServices] = useState<Array<{
     service_id: string;
@@ -63,6 +64,11 @@ export default function SettingsPage() {
     amount_cents: number;
     currency: string;
     active: boolean;
+    collect_payment: boolean;
+    billing_type: 'ONE_TIME' | 'SUBSCRIPTION';
+    billing_interval: 'day' | 'week' | 'month' | 'year';
+    billing_interval_count: number;
+    trial_period_days: number;
   }>>([]);
   const [notificationsLoading, setNotificationsLoading] = useState(false);
   const [notificationsSaving, setNotificationsSaving] = useState(false);
@@ -106,6 +112,13 @@ export default function SettingsPage() {
       phone_number: company.phone_number ?? '',
       timezone: company.timezone || DEFAULT_TIMEZONE,
     });
+    const rawPaymentMode = String((company as any).booking_payment_mode || '').toUpperCase();
+    setBookingPaymentMode(
+      rawPaymentMode === 'HANDYCALL_MANAGED' ||
+        (!rawPaymentMode && ((company as any).booking_payment_enabled || (company as any).stripe_connect_account_id))
+        ? 'HANDYCALL_MANAGED'
+        : 'SELF_MANAGED',
+    );
     setBookingPaymentEnabled(Boolean((company as any).booking_payment_enabled));
     setBookingServices(
       Array.isArray((company as any).booking_services)
@@ -115,6 +128,13 @@ export default function SettingsPage() {
             amount_cents: Number(service.amount_cents || 0),
             currency: String(service.currency || 'usd'),
             active: service.active !== false,
+            collect_payment: service.collect_payment !== false,
+            billing_type: service.billing_type === 'SUBSCRIPTION' ? 'SUBSCRIPTION' : 'ONE_TIME',
+            billing_interval: ['day', 'week', 'month', 'year'].includes(String(service.billing_interval || '').toLowerCase())
+              ? (String(service.billing_interval).toLowerCase() as 'day' | 'week' | 'month' | 'year')
+              : 'month',
+            billing_interval_count: Math.max(1, Number(service.billing_interval_count || 1)),
+            trial_period_days: Math.max(0, Number(service.trial_period_days || 0)),
           }))
         : [],
     );
@@ -394,13 +414,27 @@ export default function SettingsPage() {
         amount_cents: 0,
         currency: 'usd',
         active: true,
+        collect_payment: true,
+        billing_type: 'ONE_TIME',
+        billing_interval: 'month',
+        billing_interval_count: 1,
+        trial_period_days: 0,
       },
     ]);
   };
 
   const handleUpdateBookingService = (
     serviceId: string,
-    field: 'name' | 'amount_cents' | 'currency' | 'active',
+    field:
+      | 'name'
+      | 'amount_cents'
+      | 'currency'
+      | 'active'
+      | 'collect_payment'
+      | 'billing_type'
+      | 'billing_interval'
+      | 'billing_interval_count'
+      | 'trial_period_days',
     value: string | number | boolean,
   ) => {
     setBookingServices((prev) =>
@@ -416,13 +450,20 @@ export default function SettingsPage() {
     try {
       setPaymentsSaving(true);
       await apiClient.updateMyCompany({
-        booking_payment_enabled: bookingPaymentEnabled,
+        booking_payment_mode: bookingPaymentMode,
+        booking_payment_enabled:
+          bookingPaymentMode === 'HANDYCALL_MANAGED' ? bookingPaymentEnabled : false,
         booking_services: bookingServices.map((service) => ({
           service_id: service.service_id,
           name: service.name.trim(),
           amount_cents: Math.max(0, Math.round(Number(service.amount_cents || 0))),
           currency: (service.currency || 'usd').toLowerCase(),
           active: service.active,
+          collect_payment: service.collect_payment,
+          billing_type: service.billing_type,
+          billing_interval: service.billing_interval,
+          billing_interval_count: Math.max(1, Math.round(Number(service.billing_interval_count || 1))),
+          trial_period_days: Math.max(0, Math.round(Number(service.trial_period_days || 0))),
         })),
       });
       toast({
@@ -754,26 +795,71 @@ export default function SettingsPage() {
         <div className="space-y-5">
           <div className="rounded-2xl border border-slate-100 bg-white shadow-sm">
             <div className="border-b border-slate-100 px-5 py-4">
-              <h2 className="text-sm font-semibold text-slate-900">Stripe Connect</h2>
-              <p className="text-xs text-slate-500">Connect your bank account to accept customer payments from booking links.</p>
+              <h2 className="text-sm font-semibold text-slate-900">How you want to handle customer payments</h2>
+              <p className="text-xs text-slate-500">
+                Pick a payment mode. You can change this later.
+              </p>
             </div>
             <div className="space-y-4 p-5">
+              <div className="grid gap-3 md:grid-cols-2">
+                <button
+                  type="button"
+                  onClick={() => setBookingPaymentMode('HANDYCALL_MANAGED')}
+                  className={`rounded-xl border p-4 text-left transition ${
+                    bookingPaymentMode === 'HANDYCALL_MANAGED'
+                      ? 'border-emerald-300 bg-emerald-50/70'
+                      : 'border-slate-200 bg-white hover:border-emerald-200'
+                  }`}
+                >
+                  <p className="text-sm font-semibold text-slate-900">Managed in HandyCall (Recommended)</p>
+                  <p className="mt-1 text-xs text-slate-600">
+                    Connect Stripe once. When AI sends booking links, customers can pay there and everything is tracked in one place.
+                  </p>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setBookingPaymentMode('SELF_MANAGED')}
+                  className={`rounded-xl border p-4 text-left transition ${
+                    bookingPaymentMode === 'SELF_MANAGED'
+                      ? 'border-slate-400 bg-slate-50'
+                      : 'border-slate-200 bg-white hover:border-slate-300'
+                  }`}
+                >
+                  <p className="text-sm font-semibold text-slate-900">I handle payments myself</p>
+                  <p className="mt-1 text-xs text-slate-600">
+                    HandyCall books jobs and collects lead details, but payment happens outside HandyCall.
+                  </p>
+                </button>
+              </div>
+
+              <div className="rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-3 text-xs text-slate-600">
+                You can keep booking links and disable in-link payment anytime if your team prefers manual invoicing.
+              </div>
+
+              <div className="rounded-xl border border-slate-100 bg-white p-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Stripe Connect</p>
               {paymentsLoading ? (
-                <p className="text-sm text-slate-500">Loading payment status…</p>
+                  <p className="mt-2 text-sm text-slate-500">Loading payment status…</p>
               ) : connectStatus?.connected ? (
-                <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 px-4 py-3 text-sm text-emerald-800">
-                  Connected{connectStatus?.account_id ? ` · ${connectStatus.account_id}` : ''}.
-                  {!connectStatus?.charges_enabled ? ' Complete onboarding steps in Stripe to start accepting charges.' : ''}
-                </div>
+                  <div className="mt-2 rounded-xl border border-emerald-200 bg-emerald-50/70 px-4 py-3 text-sm text-emerald-800">
+                    Connected{connectStatus?.account_id ? ` · ${connectStatus.account_id}` : ''}.
+                    {!connectStatus?.charges_enabled ? ' Complete onboarding steps in Stripe to start accepting charges.' : ''}
+                  </div>
               ) : (
-                <div className="rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-3 text-sm text-slate-700">
-                  Stripe Connect is not set up yet.
-                </div>
+                  <div className="mt-2 rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-3 text-sm text-slate-700">
+                    Stripe Connect is not set up yet.
+                  </div>
               )}
               <div className="flex gap-2">
-                <Button onClick={handleConnectSetup}>
+                <Button onClick={handleConnectSetup} disabled={bookingPaymentMode !== 'HANDYCALL_MANAGED'}>
                   {connectStatus?.connected ? 'Open onboarding link' : 'Set up Stripe Connect'}
                 </Button>
+              </div>
+              {bookingPaymentMode !== 'HANDYCALL_MANAGED' ? (
+                <p className="mt-2 text-xs text-slate-500">
+                  Enable “Managed in HandyCall” to connect Stripe and collect payments from booking links.
+                </p>
+              ) : null}
               </div>
               <div className="rounded-xl border border-emerald-100 bg-emerald-50/70 px-4 py-3">
                 <p className="text-xs font-semibold text-emerald-900">Security</p>
@@ -785,7 +871,9 @@ export default function SettingsPage() {
           <div className="rounded-2xl border border-slate-100 bg-white shadow-sm">
             <div className="border-b border-slate-100 px-5 py-4">
               <h2 className="text-sm font-semibold text-slate-900">Booking payment configuration</h2>
-              <p className="text-xs text-slate-500">Choose which services can be paid for during booking.</p>
+              <p className="text-xs text-slate-500">
+                Define service types and whether each is a one-time charge or recurring subscription.
+              </p>
             </div>
             <div className="space-y-4 p-5">
               <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50/70 p-4">
@@ -797,6 +885,7 @@ export default function SettingsPage() {
                   type="button"
                   aria-pressed={bookingPaymentEnabled}
                   onClick={() => setBookingPaymentEnabled((prev) => !prev)}
+                  disabled={bookingPaymentMode !== 'HANDYCALL_MANAGED'}
                   className={`relative h-7 w-12 rounded-full transition ${
                     bookingPaymentEnabled ? 'bg-emerald-600' : 'bg-slate-300'
                   }`}
@@ -811,7 +900,7 @@ export default function SettingsPage() {
 
               <div className="space-y-3">
                 {bookingServices.map((service) => (
-                  <div key={service.service_id} className="grid gap-2 rounded-xl border border-slate-200 bg-white p-3 md:grid-cols-5">
+                  <div key={service.service_id} className="grid gap-2 rounded-xl border border-slate-200 bg-white p-3 md:grid-cols-8">
                     <Input
                       value={service.name}
                       onChange={(e) => handleUpdateBookingService(service.service_id, 'name', e.target.value)}
@@ -829,6 +918,50 @@ export default function SettingsPage() {
                       onChange={(e) => handleUpdateBookingService(service.service_id, 'currency', e.target.value)}
                       placeholder="Currency (usd)"
                     />
+                    <Select
+                      value={service.billing_type}
+                      onValueChange={(value) => handleUpdateBookingService(service.service_id, 'billing_type', value as 'ONE_TIME' | 'SUBSCRIPTION')}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Billing type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="ONE_TIME">One-time</SelectItem>
+                        <SelectItem value="SUBSCRIPTION">Subscription</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {service.billing_type === 'SUBSCRIPTION' ? (
+                      <Select
+                        value={service.billing_interval}
+                        onValueChange={(value) =>
+                          handleUpdateBookingService(
+                            service.service_id,
+                            'billing_interval',
+                            value as 'day' | 'week' | 'month' | 'year',
+                          )
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Interval" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="day">Daily</SelectItem>
+                          <SelectItem value="week">Weekly</SelectItem>
+                          <SelectItem value="month">Monthly</SelectItem>
+                          <SelectItem value="year">Yearly</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <div />
+                    )}
+                    <Input
+                      type="number"
+                      min={1}
+                      value={service.billing_interval_count}
+                      onChange={(e) => handleUpdateBookingService(service.service_id, 'billing_interval_count', Number(e.target.value))}
+                      placeholder="Interval count"
+                      disabled={service.billing_type !== 'SUBSCRIPTION'}
+                    />
                     <label className="flex items-center gap-2 text-sm text-slate-700">
                       <input
                         type="checkbox"
@@ -836,6 +969,14 @@ export default function SettingsPage() {
                         onChange={(e) => handleUpdateBookingService(service.service_id, 'active', e.target.checked)}
                       />
                       Active
+                    </label>
+                    <label className="flex items-center gap-2 text-sm text-slate-700">
+                      <input
+                        type="checkbox"
+                        checked={service.collect_payment}
+                        onChange={(e) => handleUpdateBookingService(service.service_id, 'collect_payment', e.target.checked)}
+                      />
+                      Collect
                     </label>
                     <Button type="button" variant="outline" onClick={() => handleRemoveBookingService(service.service_id)}>
                       Remove

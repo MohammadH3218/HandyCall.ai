@@ -74,6 +74,13 @@ export default function BillingPage() {
 
   const canEditPaymentMethods = paymentMethods.length > 0;
   const canRemovePaymentMethods = paymentMethods.length > 1;
+  const rawBookingPaymentMode = String((company as any)?.booking_payment_mode || '').toUpperCase();
+  const bookingPaymentMode =
+    rawBookingPaymentMode === 'HANDYCALL_MANAGED' ||
+    (!rawBookingPaymentMode && ((company as any)?.booking_payment_enabled || (company as any)?.stripe_connect_account_id))
+      ? 'HANDYCALL_MANAGED'
+      : 'SELF_MANAGED';
+  const managedPaymentsEnabled = bookingPaymentMode === 'HANDYCALL_MANAGED';
 
   const planHighlights = useMemo(
     () => [
@@ -170,6 +177,13 @@ export default function BillingPage() {
   };
 
   const handleConnectSetup = async () => {
+    if (!managedPaymentsEnabled) {
+      toast({
+        title: 'Payments are self-managed',
+        description: 'Switch to “Managed in HandyCall” from Settings to connect Stripe.',
+      });
+      return;
+    }
     try {
       const result = await apiClient.setupConnectAccount();
       if (result?.url) {
@@ -501,7 +515,11 @@ export default function BillingPage() {
             <p className="text-xs text-slate-500">Collect payments from booking links with Stripe Connect.</p>
           </div>
           <div className="flex items-center gap-2">
-            {connectStatus?.connected ? (
+            {!managedPaymentsEnabled ? (
+              <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-xs font-semibold text-slate-600">
+                Self-managed
+              </span>
+            ) : connectStatus?.connected ? (
               <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-700">
                 Connected
               </span>
@@ -514,7 +532,13 @@ export default function BillingPage() {
           </div>
         </div>
         <div className="space-y-4 px-5 py-5">
-          {connectStatus?.connected ? (
+          {!managedPaymentsEnabled ? (
+            <div className="rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-4">
+              <p className="text-sm text-slate-700">
+                Your company is set to handle payments outside HandyCall. AI can still send booking links, but customers will pay through your own process.
+              </p>
+            </div>
+          ) : connectStatus?.connected ? (
             <>
               <div className="grid gap-3 sm:grid-cols-4">
                 <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-3">

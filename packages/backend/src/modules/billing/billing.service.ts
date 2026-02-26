@@ -956,6 +956,7 @@ export class BillingService {
           current_period_start: company.current_period_start || null,
           current_period_end: company.current_period_end || null,
           stripe_subscription_id: company.stripe_subscription_id || null,
+          stripe_customer_id: company.stripe_customer_id || null,
           cancel_at_period_end: Boolean(company.cancel_at_period_end),
         };
       });

@@ -4,6 +4,7 @@ This runbook covers:
 - Monthly subscription pricing setup
 - Stripe Connect setup (bank account onboarding)
 - Booking-link customer payments
+- Service billing types (one-time vs recurring subscription) in booking links
 - Webhook sync so cancellations in Stripe update HandyCall automatically
 
 ## 1) Stripe Dashboard prerequisites
@@ -63,6 +64,10 @@ Create two webhook endpoints in Stripe:
 - URL: `https://<backend-domain>/api/v1/billing/connect/webhook`
 - Events:
   - `account.updated`
+  - `checkout.session.completed`
+  - `invoice.payment_succeeded`
+  - `invoice.payment_failed`
+  - `customer.subscription.deleted`
   - `payment_intent.succeeded`
   - `payment_intent.processing`
   - `payment_intent.payment_failed`
@@ -76,16 +81,29 @@ Company-level prerequisites:
 - Connect account has:
   - `charges_enabled = true`
   - `details_submitted = true`
+- `booking_payment_mode = HANDYCALL_MANAGED`
 - `booking_payment_enabled = true`
 - At least one active `booking_services[]` item with `amount_cents > 0`
 
 Endpoint checks:
 - `GET /api/v1/public/booking/:token/payment-info` should return `enabled: true`
 - `POST /api/v1/public/booking/:token/pay` should return:
-  - `client_secret`
-  - `publishable_key`
+  - One-time service: `client_secret` + `publishable_key`
+  - Subscription service: `checkout_url` + `checkout_session_id`
 
-## 6) Subscription sync behavior
+## 6) Payment mode options in setup/settings
+
+Use one of these company-level modes:
+
+- `HANDYCALL_MANAGED`:
+  - User connects Stripe once via Connect onboarding.
+  - AI-sent booking links can collect payment directly.
+  - Payment records sync into user/admin dashboards.
+- `SELF_MANAGED`:
+  - HandyCall does not collect payment in booking links.
+  - Business handles invoicing/charging externally.
+
+## 7) Subscription sync behavior
 
 Implemented backend behavior:
 - Stripe webhook updates/deletes sync local company subscription state.
@@ -94,7 +112,7 @@ Implemented backend behavior:
 
 This is what keeps user portal and admin portal billing state aligned with Stripe.
 
-## 7) Validation steps
+## 8) Validation steps
 
 1. Create a subscription in Stripe test mode.
 2. Load `/dashboard/billing` and confirm:
@@ -102,4 +120,3 @@ This is what keeps user portal and admin portal billing state aligned with Strip
 3. Cancel in Stripe Dashboard.
 4. Reload `/dashboard/billing` and `/admin/subscriptions`.
 5. Confirm status reflects cancellation and access/entitlement updates as expected.
-

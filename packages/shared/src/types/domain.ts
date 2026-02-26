@@ -105,6 +105,10 @@ export interface BookingService {
   duration_minutes?: number;
   active?: boolean;
   collect_payment?: boolean;
+  billing_type?: 'ONE_TIME' | 'SUBSCRIPTION';
+  billing_interval?: 'day' | 'week' | 'month' | 'year';
+  billing_interval_count?: number;
+  trial_period_days?: number;
 }
 
 export interface Company {
@@ -187,6 +191,7 @@ export interface Company {
   stripe_connect_account_id?: string;
   stripe_connect_onboarding_complete?: boolean;
   booking_payment_enabled?: boolean;
+  booking_payment_mode?: 'HANDYCALL_MANAGED' | 'SELF_MANAGED';
   booking_services?: BookingService[];
 
   // Differentiator settings
@@ -305,7 +310,7 @@ export type CustomerPaymentStatus =
   | 'CANCELED'
   | 'REFUNDED';
 
-export type CustomerPaymentType = 'BOOKING' | 'MANUAL' | 'DEPOSIT';
+export type CustomerPaymentType = 'BOOKING' | 'MANUAL' | 'DEPOSIT' | 'SUBSCRIPTION';
 
 export interface CustomerPayment {
   company_id: UUID;
@@ -320,7 +325,12 @@ export interface CustomerPayment {
   amount_cents: number;
   currency: string;
   stripe_payment_intent_id?: string;
+  stripe_checkout_session_id?: string;
+  stripe_subscription_id?: string;
   stripe_charge_id?: string;
+  billing_type?: 'ONE_TIME' | 'SUBSCRIPTION';
+  billing_interval?: 'day' | 'week' | 'month' | 'year';
+  billing_interval_count?: number;
   metadata?: Record<string, any>;
   created_at: Timestamp;
   updated_at: Timestamp;

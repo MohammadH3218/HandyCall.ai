@@ -153,6 +153,7 @@ export default function PaymentsPage() {
           >
             <option value="ALL">All types</option>
             <option value="BOOKING">Booking</option>
+            <option value="SUBSCRIPTION">Subscription</option>
             <option value="MANUAL">Manual</option>
             <option value="DEPOSIT">Deposit</option>
           </select>
@@ -230,4 +231,3 @@ function StatCard({ label, value }: { label: string; value: string }) {
     </div>
   );
 }
-

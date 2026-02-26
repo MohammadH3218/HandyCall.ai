@@ -153,6 +153,10 @@ export class AdminUpdateCompanyDto {
   booking_payment_enabled?: boolean;
 
   @IsOptional()
+  @IsIn(['HANDYCALL_MANAGED', 'SELF_MANAGED'])
+  booking_payment_mode?: 'HANDYCALL_MANAGED' | 'SELF_MANAGED';
+
+  @IsOptional()
   @IsArray()
   @IsObject({ each: true })
   booking_services?: Array<{
@@ -164,6 +168,10 @@ export class AdminUpdateCompanyDto {
     duration_minutes?: number;
     active?: boolean;
     collect_payment?: boolean;
+    billing_type?: 'ONE_TIME' | 'SUBSCRIPTION';
+    billing_interval?: 'day' | 'week' | 'month' | 'year';
+    billing_interval_count?: number;
+    trial_period_days?: number;
   }>;
 
   @IsOptional()

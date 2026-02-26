@@ -54,7 +54,24 @@ export class StripeConnectService {
       );
     }
 
+    if (lower.includes('no such account')) {
+      return new BadRequestException(
+        'Saved Stripe Connect account could not be found for the current Stripe key. Re-run Connect setup to create a new linked account.',
+      );
+    }
+
     return new BadRequestException(raw || 'Unable to start Stripe Connect onboarding.');
+  }
+
+  private isMissingConnectAccountError(error: any): boolean {
+    const code = String(error?.code || '').toLowerCase();
+    const type = String(error?.type || '').toLowerCase();
+    const message = String(error?.message || '').toLowerCase();
+    return (
+      code === 'resource_missing' ||
+      (type.includes('invalid_request') && message.includes('no such account')) ||
+      message.includes('no such account')
+    );
   }
 
   async createConnectedAccount(companyId: string): Promise<{ account_id: string }> {
@@ -62,7 +79,19 @@ export class StripeConnectService {
     if (!company) throw new NotFoundException('Company not found');
 
     if (company.stripe_connect_account_id) {
-      return { account_id: company.stripe_connect_account_id };
+      try {
+        const existingAccount = await this.stripe.accounts.retrieve(company.stripe_connect_account_id);
+        await this.upsertConnectedAccount(companyId, existingAccount);
+        return { account_id: existingAccount.id };
+      } catch (error: any) {
+        if (!this.isMissingConnectAccountError(error)) {
+          throw this.mapConnectSetupError(error);
+        }
+        await this.companies.updateCompany(companyId, {
+          stripe_connect_account_id: null as any,
+          stripe_connect_onboarding_complete: false,
+        } as any);
+      }
     }
 
     let account: Stripe.Account;
@@ -190,6 +219,81 @@ export class StripeConnectService {
     return paymentIntent;
   }
 
+  async createSubscriptionCheckoutSession(
+    companyId: string,
+    input: {
+      amount_cents: number;
+      currency?: string;
+      service_name: string;
+      customer_email?: string;
+      metadata?: Record<string, string>;
+      interval?: 'day' | 'week' | 'month' | 'year';
+      interval_count?: number;
+      trial_period_days?: number;
+      success_url?: string;
+      cancel_url?: string;
+    },
+  ): Promise<Stripe.Checkout.Session> {
+    if (!Number.isFinite(input.amount_cents) || input.amount_cents < 50) {
+      throw new BadRequestException('amount_cents must be at least 50');
+    }
+
+    const status = await this.getAccountStatus(companyId);
+    if (!status.connected || !status.account_id) {
+      throw new BadRequestException('Stripe Connect account is not set up');
+    }
+    if (!status.charges_enabled) {
+      throw new BadRequestException('Stripe Connect onboarding is incomplete. Charges are not enabled yet.');
+    }
+
+    const currency = (input.currency || 'usd').toLowerCase();
+    const interval = input.interval || 'month';
+    const intervalCount = Math.max(1, Math.floor(Number(input.interval_count || 1)));
+    const trialPeriodDays = Math.max(0, Math.floor(Number(input.trial_period_days || 0)));
+    const frontendBase = (this.config.get<string>('FRONTEND_URL') || 'https://handycall.org').replace(/\/$/, '');
+    const successUrl = input.success_url || `${frontendBase}/dashboard/payments?checkout=success`;
+    const cancelUrl = input.cancel_url || `${frontendBase}/dashboard/payments?checkout=cancel`;
+
+    const session = await this.stripe.checkout.sessions.create({
+      mode: 'subscription',
+      success_url: successUrl,
+      cancel_url: cancelUrl,
+      customer_email: input.customer_email || undefined,
+      line_items: [
+        {
+          quantity: 1,
+          price_data: {
+            currency,
+            unit_amount: Math.round(input.amount_cents),
+            product_data: {
+              name: input.service_name || 'Service subscription',
+            },
+            recurring: {
+              interval,
+              interval_count: intervalCount,
+            },
+          },
+        },
+      ],
+      subscription_data: {
+        transfer_data: {
+          destination: status.account_id,
+        },
+        metadata: {
+          company_id: companyId,
+          ...(input.metadata || {}),
+        },
+        ...(trialPeriodDays > 0 ? { trial_period_days: trialPeriodDays } : {}),
+      },
+      metadata: {
+        company_id: companyId,
+        ...(input.metadata || {}),
+      },
+    });
+
+    return session;
+  }
+
   async handleConnectWebhook(signature: string, rawBody: Buffer): Promise<void> {
     const event = this.constructConnectWebhookEvent(rawBody, signature);
     if (event.type === 'account.updated') {
@@ -199,6 +303,26 @@ export class StripeConnectService {
 
     if (event.type.startsWith('payment_intent.')) {
       await this.customerPayments.syncFromPaymentIntent(event.data.object as Stripe.PaymentIntent);
+      return;
+    }
+
+    if (event.type === 'checkout.session.completed') {
+      await this.handleCheckoutSessionCompleted(event.data.object as Stripe.Checkout.Session);
+      return;
+    }
+
+    if (event.type === 'invoice.payment_succeeded') {
+      await this.handleInvoiceSubscriptionUpdate(event.data.object as Stripe.Invoice, 'SUCCEEDED');
+      return;
+    }
+
+    if (event.type === 'invoice.payment_failed') {
+      await this.handleInvoiceSubscriptionUpdate(event.data.object as Stripe.Invoice, 'FAILED');
+      return;
+    }
+
+    if (event.type === 'customer.subscription.deleted') {
+      await this.handleSubscriptionDeleted(event.data.object as Stripe.Subscription);
     }
   }
 
@@ -250,6 +374,95 @@ export class StripeConnectService {
       disabled_reason: account.requirements?.disabled_reason || null,
       created_at: Number(existing?.created_at || now),
       updated_at: now,
+    });
+  }
+
+  private async handleCheckoutSessionCompleted(session: Stripe.Checkout.Session): Promise<void> {
+    const metadata = session.metadata || {};
+    const companyId = metadata.company_id;
+    const paymentId = metadata.payment_id;
+    if (!companyId || !paymentId) return;
+
+    const subscriptionId =
+      typeof session.subscription === 'string'
+        ? session.subscription
+        : session.subscription?.id;
+
+    await this.customerPayments.updatePayment(companyId, paymentId, {
+      payment_status: 'PROCESSING',
+      stripe_checkout_session_id: session.id,
+      stripe_subscription_id: subscriptionId || undefined,
+    });
+  }
+
+  private async handleInvoiceSubscriptionUpdate(
+    invoice: Stripe.Invoice,
+    status: 'SUCCEEDED' | 'FAILED',
+  ): Promise<void> {
+    const invoiceMetadata = invoice.metadata || {};
+    const subscriptionId =
+      typeof invoice.subscription === 'string'
+        ? invoice.subscription
+        : invoice.subscription?.id;
+
+    let companyId = invoiceMetadata.company_id;
+    let paymentId = invoiceMetadata.payment_id;
+    let subscriptionMetadata: Record<string, string> = {};
+
+    if ((!companyId || !paymentId) && subscriptionId) {
+      try {
+        const subscription = await this.stripe.subscriptions.retrieve(subscriptionId);
+        companyId = companyId || subscription.metadata?.company_id;
+        paymentId = paymentId || subscription.metadata?.payment_id;
+        subscriptionMetadata = subscription.metadata || {};
+      } catch {
+        // Ignore metadata lookup errors; payment sync below is best-effort.
+      }
+    }
+
+    if (!companyId) return;
+
+    const paymentIdForInvoice = paymentId || `inv_${invoice.id}`;
+    const updated = await this.customerPayments.updatePayment(companyId, paymentIdForInvoice, {
+      payment_status: status,
+      stripe_subscription_id: subscriptionId || undefined,
+      paid_at: status === 'SUCCEEDED' ? Date.now() : undefined,
+    });
+
+    if (!updated) {
+      await this.customerPayments.createPayment(companyId, {
+        payment_id: paymentIdForInvoice,
+        contact_id: subscriptionMetadata.contact_id || undefined,
+        appointment_id: subscriptionMetadata.appointment_id || undefined,
+        customer_name: subscriptionMetadata.customer_name || undefined,
+        customer_email: invoice.customer_email || subscriptionMetadata.customer_email || undefined,
+        service_name:
+          subscriptionMetadata.service_name ||
+          invoiceMetadata.service_name ||
+          'Subscription payment',
+        payment_type: 'SUBSCRIPTION',
+        payment_status: status,
+        amount_cents: Math.max(0, Math.round(Number(invoice.amount_paid || invoice.amount_due || 0))),
+        currency: String(invoice.currency || 'usd').toLowerCase(),
+        stripe_subscription_id: subscriptionId || undefined,
+        metadata: {
+          source: 'stripe_invoice',
+          invoice_id: invoice.id,
+          linked_payment_id: paymentId || undefined,
+        },
+        paid_at: status === 'SUCCEEDED' ? Date.now() : undefined,
+      });
+    }
+  }
+
+  private async handleSubscriptionDeleted(subscription: Stripe.Subscription): Promise<void> {
+    const companyId = subscription.metadata?.company_id;
+    const paymentId = subscription.metadata?.payment_id;
+    if (!companyId || !paymentId) return;
+
+    await this.customerPayments.updatePayment(companyId, paymentId, {
+      payment_status: 'CANCELED',
+      stripe_subscription_id: subscription.id,
     });
   }
 }

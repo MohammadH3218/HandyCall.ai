@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -41,14 +41,19 @@ type BookingInfo = {
 
 type BookingPaymentInfo = {
   enabled: boolean;
+  payment_mode?: 'HANDYCALL_MANAGED' | 'SELF_MANAGED';
   disabled_reason?: string;
   paid: boolean;
+  process_note?: string;
   services?: Array<{
     service_id: string;
     name: string;
     description?: string;
     amount_cents: number;
     currency?: string;
+    billing_type?: 'ONE_TIME' | 'SUBSCRIPTION';
+    billing_interval?: 'day' | 'week' | 'month' | 'year';
+    billing_interval_count?: number;
   }>;
   default_currency?: string;
   recommended_amount_cents?: number;
@@ -163,6 +168,7 @@ function formatMoney(cents?: number, currency = 'usd') {
 
 export default function BookingPage() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const token = typeof params?.token === 'string' ? params.token : '';
 
   const [info, setInfo] = useState<BookingInfo | null>(null);
@@ -283,6 +289,16 @@ export default function BookingPage() {
   useEffect(() => {
     void refreshInfo();
   }, [refreshInfo]);
+
+  useEffect(() => {
+    const checkoutStatus = searchParams?.get('checkout');
+    if (checkoutStatus === 'success') {
+      setNotice('Payment checkout completed. We are syncing your payment status.');
+      void refreshInfo();
+    } else if (checkoutStatus === 'cancel') {
+      setPaymentError('Checkout was canceled. You can try again when ready.');
+    }
+  }, [searchParams, refreshInfo]);
 
   const monthLabel = useMemo(() => {
     return new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' }).format(calendarMonth);
@@ -549,6 +565,10 @@ export default function BookingPage() {
       if (!res.ok) {
         throw new Error(data?.message || data?.error?.message || 'Unable to initialize payment');
       }
+      if (data?.checkout_url) {
+        window.location.href = data.checkout_url;
+        return;
+      }
       setPaymentIntentSecret(data?.client_secret || null);
       setPaymentPublishableKey(data?.publishable_key || null);
     } catch (err: any) {
@@ -623,6 +643,10 @@ export default function BookingPage() {
   const selectedPaymentService = (paymentInfo?.services || []).find((service) => service.service_id === selectedServiceId)
     || (paymentInfo?.services || [])[0]
     || null;
+  const selectedServiceBillingLabel =
+    selectedPaymentService?.billing_type === 'SUBSCRIPTION'
+      ? `Subscription${selectedPaymentService?.billing_interval ? ` · every ${selectedPaymentService.billing_interval_count || 1} ${selectedPaymentService.billing_interval}${(selectedPaymentService.billing_interval_count || 1) > 1 ? 's' : ''}` : ''}`
+      : 'One-time';
 
   if (mode === 'manage') {
     return (
@@ -921,11 +945,18 @@ export default function BookingPage() {
                           {selectedPaymentService ? (
                             <div className="text-sm text-gray-700">
                               {selectedPaymentService.name}: {formatMoney(selectedPaymentService.amount_cents, selectedPaymentService.currency || paymentInfo.default_currency || 'usd')}
+                              <span className="ml-2 rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] text-slate-600">
+                                {selectedServiceBillingLabel}
+                              </span>
                             </div>
                           ) : null}
                           {!paymentIntentSecret ? (
                             <Button onClick={createPaymentIntent} disabled={creatingPaymentIntent}>
-                              {creatingPaymentIntent ? 'Preparing secure payment…' : 'Pay now'}
+                              {creatingPaymentIntent
+                                ? 'Preparing secure payment…'
+                                : selectedPaymentService?.billing_type === 'SUBSCRIPTION'
+                                  ? 'Start subscription checkout'
+                                  : 'Pay now'}
                             </Button>
                           ) : stripePromise ? (
                             <Elements stripe={stripePromise} options={{ clientSecret: paymentIntentSecret }}>
@@ -940,6 +971,9 @@ export default function BookingPage() {
                           {paymentError ? <div className="text-sm text-red-600">{paymentError}</div> : null}
                           {paymentInfo.security_note ? (
                             <div className="text-xs text-gray-500">{paymentInfo.security_note}</div>
+                          ) : null}
+                          {paymentInfo.process_note ? (
+                            <div className="text-xs text-slate-500">{paymentInfo.process_note}</div>
                           ) : null}
                         </>
                       )}
@@ -1171,11 +1205,18 @@ export default function BookingPage() {
                         {selectedPaymentService ? (
                           <div className="text-sm text-gray-700">
                             {selectedPaymentService.name}: {formatMoney(selectedPaymentService.amount_cents, selectedPaymentService.currency || paymentInfo.default_currency || 'usd')}
+                            <span className="ml-2 rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] text-slate-600">
+                              {selectedServiceBillingLabel}
+                            </span>
                           </div>
                         ) : null}
                         {!paymentIntentSecret ? (
                           <Button onClick={createPaymentIntent} disabled={creatingPaymentIntent}>
-                            {creatingPaymentIntent ? 'Preparing secure payment…' : 'Pay now'}
+                            {creatingPaymentIntent
+                              ? 'Preparing secure payment…'
+                              : selectedPaymentService?.billing_type === 'SUBSCRIPTION'
+                                ? 'Start subscription checkout'
+                                : 'Pay now'}
                           </Button>
                         ) : stripePromise ? (
                           <Elements stripe={stripePromise} options={{ clientSecret: paymentIntentSecret }}>
@@ -1190,6 +1231,9 @@ export default function BookingPage() {
                         {paymentError ? <div className="text-sm text-red-600">{paymentError}</div> : null}
                         {paymentInfo.security_note ? (
                           <div className="text-xs text-gray-500">{paymentInfo.security_note}</div>
+                        ) : null}
+                        {paymentInfo.process_note ? (
+                          <div className="text-xs text-slate-500">{paymentInfo.process_note}</div>
                         ) : null}
                       </>
                     )}

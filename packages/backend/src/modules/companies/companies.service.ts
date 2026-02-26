@@ -144,6 +144,7 @@ export class CompaniesService {
       calendar_provider: 'NONE',
       stripe_connect_onboarding_complete: false,
       booking_payment_enabled: false,
+      booking_payment_mode: 'SELF_MANAGED',
       booking_services: [],
       follow_up_sequences_enabled: false,
       follow_up_initial_delay_minutes: 0,
@@ -230,6 +231,7 @@ export class CompaniesService {
       stripe_connect_account_id?: string;
       stripe_connect_onboarding_complete?: boolean;
       booking_payment_enabled?: boolean;
+      booking_payment_mode?: 'HANDYCALL_MANAGED' | 'SELF_MANAGED';
       booking_services?: Array<{
         service_id: string;
         name: string;
@@ -239,6 +241,10 @@ export class CompaniesService {
         duration_minutes?: number;
         active?: boolean;
         collect_payment?: boolean;
+        billing_type?: 'ONE_TIME' | 'SUBSCRIPTION';
+        billing_interval?: 'day' | 'week' | 'month' | 'year';
+        billing_interval_count?: number;
+        trial_period_days?: number;
       }>;
       follow_up_sequences_enabled?: boolean;
       follow_up_initial_delay_minutes?: number;

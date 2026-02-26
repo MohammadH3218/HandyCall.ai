@@ -454,9 +454,14 @@ export default function CustomersPage() {
                         </div>
                         <div className="mt-1 flex items-center justify-between text-xs text-slate-500">
                           <span>{formatDate(payment.created_at)}</span>
-                          <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 font-medium text-slate-700">
-                            {payment.payment_status || 'UNKNOWN'}
-                          </span>
+                          <div className="flex items-center gap-2">
+                            <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 font-medium text-slate-700">
+                              {payment.payment_type || 'BOOKING'}
+                            </span>
+                            <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 font-medium text-slate-700">
+                              {payment.payment_status || 'UNKNOWN'}
+                            </span>
+                          </div>
                         </div>
                       </div>
                     ))}

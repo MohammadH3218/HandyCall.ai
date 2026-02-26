@@ -147,6 +147,10 @@ export class PublicBookingService {
     duration_minutes?: number;
     active?: boolean;
     collect_payment?: boolean;
+    billing_type?: 'ONE_TIME' | 'SUBSCRIPTION';
+    billing_interval?: 'day' | 'week' | 'month' | 'year';
+    billing_interval_count?: number;
+    trial_period_days?: number;
   }> {
     const raw = Array.isArray(company?.booking_services) ? company.booking_services : [];
     return raw
@@ -163,6 +167,13 @@ export class PublicBookingService {
           : undefined,
         active: service.active !== false,
         collect_payment: service.collect_payment !== false,
+        billing_type: service.billing_type === 'SUBSCRIPTION' ? 'SUBSCRIPTION' : 'ONE_TIME',
+        billing_interval:
+          ['day', 'week', 'month', 'year'].includes(String(service.billing_interval || '').toLowerCase())
+            ? (String(service.billing_interval).toLowerCase() as 'day' | 'week' | 'month' | 'year')
+            : 'month',
+        billing_interval_count: Math.max(1, Math.floor(Number(service.billing_interval_count || 1))),
+        trial_period_days: Math.max(0, Math.floor(Number(service.trial_period_days || 0))),
       }));
   }
 
@@ -339,14 +350,25 @@ export class PublicBookingService {
 
     const { call, appointment } = await this.loadCallAndAppointment(payload.company_id, payload.call_id);
     const services = this.resolveActiveBookingServices(company).filter((service) => service.collect_payment !== false);
-    const connectConfigured = Boolean(company.booking_payment_enabled && company.stripe_connect_account_id);
+    const paymentMode =
+      String(company.booking_payment_mode || '').toUpperCase() === 'HANDYCALL_MANAGED' ||
+      (!company.booking_payment_mode && (company.booking_payment_enabled || company.stripe_connect_account_id))
+        ? 'HANDYCALL_MANAGED'
+        : 'SELF_MANAGED';
+    const connectConfigured = Boolean(
+      paymentMode === 'HANDYCALL_MANAGED' &&
+      company.booking_payment_enabled &&
+      company.stripe_connect_account_id,
+    );
     const connectStatus = connectConfigured
       ? await this.stripeConnect.getAccountStatus(company.company_id)
       : { connected: false };
     const publishableKey = this.config.get<string>('STRIPE_PUBLISHABLE_KEY');
 
     let disabledReason: string | undefined;
-    if (!company.booking_payment_enabled) {
+    if (paymentMode !== 'HANDYCALL_MANAGED') {
+      disabledReason = 'This business handles payments outside of HandyCall.';
+    } else if (!company.booking_payment_enabled) {
       disabledReason = 'This business has not enabled booking payments.';
     } else if (!company.stripe_connect_account_id) {
       disabledReason = 'Stripe Connect is not configured for this business yet.';
@@ -363,10 +385,20 @@ export class PublicBookingService {
         (appointment?.appointment_id && payment.appointment_id === appointment.appointment_id) ||
         (call?.contact_id && payment.contact_id === call.contact_id),
     );
-    const paid = relevant.some((payment) => payment.payment_status === 'SUCCEEDED');
+    const paid = relevant.some((payment) => {
+      if (payment.payment_status === 'SUCCEEDED') return true;
+      if (
+        payment.payment_type === 'SUBSCRIPTION' &&
+        (payment.payment_status === 'PROCESSING' || payment.payment_status === 'REQUIRES_CONFIRMATION')
+      ) {
+        return true;
+      }
+      return false;
+    });
 
     return {
       enabled,
+      payment_mode: paymentMode,
       disabled_reason: disabledReason,
       paid,
       connect_status: connectStatus,
@@ -377,6 +409,10 @@ export class PublicBookingService {
         (typeof appointment?.price_cents === 'number' ? appointment.price_cents : undefined),
       payment_history: relevant.slice(0, 5),
       security_note: "We never store your bank information. Payments are processed securely by Stripe.",
+      process_note:
+        paymentMode === 'HANDYCALL_MANAGED'
+          ? 'When our AI sends a booking link, customers can pay directly there and everything is tracked in one place.'
+          : 'This business handles payments separately after booking confirmation.',
     };
   }
 
@@ -385,6 +421,15 @@ export class PublicBookingService {
     const company = await this.companies.findById(payload.company_id);
     if (!company) throw new NotFoundException('Company not found');
 
+    const paymentMode =
+      String(company.booking_payment_mode || '').toUpperCase() === 'HANDYCALL_MANAGED' ||
+      (!company.booking_payment_mode && (company.booking_payment_enabled || company.stripe_connect_account_id))
+        ? 'HANDYCALL_MANAGED'
+        : 'SELF_MANAGED';
+
+    if (paymentMode !== 'HANDYCALL_MANAGED') {
+      throw new BadRequestException('This business handles payments outside of HandyCall.');
+    }
     if (!company.booking_payment_enabled) {
       throw new BadRequestException('Customer payments are not enabled for this company');
     }
@@ -411,37 +456,97 @@ export class PublicBookingService {
 
     const currency = (dto.currency || selectedService?.currency || appointment?.currency || 'usd').toLowerCase();
     const paymentId = uuidv4();
+    const billingType = selectedService?.billing_type === 'SUBSCRIPTION' ? 'SUBSCRIPTION' : 'ONE_TIME';
 
-    const paymentIntent = await this.stripeConnect.createPaymentIntent(company.company_id, {
-      amount_cents: amountCents,
-      currency,
-      customer_email: dto.customer_email || appointment?.contact_email || undefined,
-      description: `${company.company_name} - ${selectedService?.name || appointment?.service_type || 'Service payment'}`,
-      metadata: {
-        payment_id: paymentId,
-        appointment_id: appointment?.appointment_id || '',
-        contact_id: call?.contact_id || appointment?.contact_id || '',
-        service_id: selectedService?.service_id || '',
-      },
-    });
-
-    const paymentStatus = this.mapPaymentIntentStatus(paymentIntent.status);
-    const created = await this.customerPayments.createPayment(company.company_id, {
+    const metadata = {
+      payment_id: paymentId,
+      appointment_id: appointment?.appointment_id || '',
+      contact_id: call?.contact_id || appointment?.contact_id || '',
+      service_id: selectedService?.service_id || '',
+      service_name: selectedService?.name || appointment?.service_type || 'Service payment',
+      customer_name: dto.customer_name || appointment?.contact_name || '',
+      customer_email: dto.customer_email || appointment?.contact_email || '',
+    };
+    const commonPaymentInput = {
       payment_id: paymentId,
       contact_id: call?.contact_id || appointment?.contact_id || undefined,
       appointment_id: appointment?.appointment_id || undefined,
       customer_name: dto.customer_name || appointment?.contact_name || undefined,
       customer_email: dto.customer_email || appointment?.contact_email || undefined,
       service_name: selectedService?.name || appointment?.service_type || undefined,
-      payment_type: 'BOOKING',
-      payment_status: paymentStatus,
       amount_cents: amountCents,
       currency,
-      stripe_payment_intent_id: paymentIntent.id,
+      billing_type: billingType as 'ONE_TIME' | 'SUBSCRIPTION',
+      billing_interval: selectedService?.billing_interval,
+      billing_interval_count: selectedService?.billing_interval_count,
       metadata: {
         booking_token: token,
         call_id: payload.call_id,
       },
+    };
+
+    if (billingType === 'SUBSCRIPTION') {
+      const frontendBase = this.getFrontendBaseUrl();
+      const checkoutSession = await this.stripeConnect.createSubscriptionCheckoutSession(company.company_id, {
+        amount_cents: amountCents,
+        currency,
+        customer_email: dto.customer_email || appointment?.contact_email || undefined,
+        service_name: selectedService?.name || appointment?.service_type || 'Service subscription',
+        interval: selectedService?.billing_interval || 'month',
+        interval_count: selectedService?.billing_interval_count || 1,
+        trial_period_days: selectedService?.trial_period_days || 0,
+        success_url: `${frontendBase}/book/${token}?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${frontendBase}/book/${token}?checkout=cancel`,
+        metadata,
+      });
+
+      await this.customerPayments.createPayment(company.company_id, {
+        ...commonPaymentInput,
+        payment_type: 'SUBSCRIPTION',
+        payment_status: 'REQUIRES_CONFIRMATION',
+        stripe_checkout_session_id: checkoutSession.id,
+      });
+
+      if (appointment?.appointment_id) {
+        await this.dynamodb.update(
+          'appointments',
+          { company_id: company.company_id, appointment_id: appointment.appointment_id },
+          {
+            payment_status: 'PENDING',
+            payment_id: paymentId,
+            amount_due_cents: amountCents,
+            amount_paid_cents: 0,
+            updated_at: Date.now(),
+          },
+        );
+      }
+
+      return {
+        ok: true,
+        payment_id: paymentId,
+        payment_status: 'REQUIRES_CONFIRMATION',
+        payment_flow: 'SUBSCRIPTION_CHECKOUT',
+        amount_cents: amountCents,
+        currency,
+        checkout_session_id: checkoutSession.id,
+        checkout_url: checkoutSession.url,
+      };
+    }
+
+    const paymentIntent = await this.stripeConnect.createPaymentIntent(company.company_id, {
+      amount_cents: amountCents,
+      currency,
+      customer_email: dto.customer_email || appointment?.contact_email || undefined,
+      description: `${company.company_name} - ${selectedService?.name || appointment?.service_type || 'Service payment'}`,
+      metadata,
+    });
+
+    const paymentStatus = this.mapPaymentIntentStatus(paymentIntent.status);
+    const created = await this.customerPayments.createPayment(company.company_id, {
+      ...commonPaymentInput,
+      payment_type: 'BOOKING',
+      payment_status: paymentStatus,
+      stripe_payment_intent_id: paymentIntent.id,
     });
 
     if (appointment?.appointment_id) {
@@ -462,6 +567,7 @@ export class PublicBookingService {
       ok: true,
       payment_id: created.payment_id,
       payment_status: paymentStatus,
+      payment_flow: 'PAYMENT_INTENT',
       amount_cents: amountCents,
       currency,
       stripe_payment_intent_id: paymentIntent.id,
