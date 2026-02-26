@@ -28,13 +28,10 @@ cd "${SCRIPT_DIR}"
 # Step 1: Build Docker image from monorepo root (single-platform image for EB)
 echo "===== Building Docker image ====="
 cd "${REPO_ROOT}"
-docker buildx build \
+docker build \
   --platform "${BUILD_PLATFORM}" \
-  --provenance=false \
-  --sbom=false \
   -f packages/backend/Dockerfile \
   -t "${ECR_REPOSITORY}:${VERSION_TAG}" \
-  --load \
   .
 docker tag ${ECR_REPOSITORY}:${VERSION_TAG} ${ECR_REPOSITORY}:latest
 cd "${SCRIPT_DIR}"
