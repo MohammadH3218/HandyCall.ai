@@ -108,15 +108,21 @@ struct NotificationPreferencesView: View {
         if viewModel.isLoading {
             ProgressView()
         } else if let error = viewModel.error {
-            Text(error).foregroundStyle(.red)
+            HCErrorCard(text: error)
+                .padding(HandyCallTheme.Spacing.screenPadding)
         } else {
             List {
                 ForEach(groupedEvents.keys.sorted(), id: \.self) { category in
                     Section(category.capitalized) {
                         ForEach(groupedEvents[category] ?? []) { event in
                             VStack(alignment: .leading, spacing: 8) {
-                                Text(event.label)
-                                    .font(.subheadline.weight(.semibold))
+                                HStack(spacing: 8) {
+                                    Image(systemName: categoryIcon(for: category))
+                                        .font(.caption)
+                                        .foregroundStyle(HandyCallTheme.emerald)
+                                    Text(event.label)
+                                        .font(.subheadline.weight(.semibold))
+                                }
                                 Text(event.description)
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
@@ -124,8 +130,10 @@ struct NotificationPreferencesView: View {
                                 HStack {
                                     Toggle("In-app", isOn: viewModel.binding(for: event.eventKey, channel: \.inApp))
                                         .toggleStyle(.switch)
+                                        .tint(HandyCallTheme.emerald)
                                     Toggle("Push", isOn: viewModel.binding(for: event.eventKey, channel: \.push))
                                         .toggleStyle(.switch)
+                                        .tint(HandyCallTheme.emerald)
                                 }
                                 .font(.footnote)
                             }
@@ -136,5 +144,13 @@ struct NotificationPreferencesView: View {
             }
             .listStyle(.insetGrouped)
         }
+    }
+
+    private func categoryIcon(for category: String) -> String {
+        let lowered = category.lowercased()
+        if lowered.contains("call") { return "phone.fill" }
+        if lowered.contains("appointment") || lowered.contains("calendar") { return "calendar" }
+        if lowered.contains("lead") || lowered.contains("contact") { return "person.badge.plus" }
+        return "bell.fill"
     }
 }

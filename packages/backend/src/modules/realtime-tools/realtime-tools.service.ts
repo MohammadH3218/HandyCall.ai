@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { v4 as uuidv4 } from 'uuid';
 import { CompaniesService } from '../companies/companies.service';
 import { resolveServiceTemplateId } from '../companies/service-template-map';
@@ -9,6 +9,7 @@ import { S3Service } from '../../infrastructure/storage/s3.service';
 import { KnowledgeService } from '../knowledge/knowledge.service';
 import { SchedulingService } from '../scheduling/scheduling.service';
 import { UsageService } from '../billing/usage.service';
+import { UsageGateService } from '../billing/usage-gate.service';
 import { getLocalDateParts, getWeekdayKey, zonedTimeToUtcMs } from '../scheduling/timezone';
 import * as chrono from 'chrono-node';
 import { AppointmentsService } from '../appointments/appointments.service';
@@ -35,6 +36,7 @@ import { sendSesEmail } from '../public-booking/email.util';
 import { renderHandycallEmail } from '../../common/email-templates';
 import { isValidEmail } from '@handycall/shared';
 import { WebhooksService } from '../webhooks/webhooks.service';
+import { FollowUpSequencesService } from '../follow-up-sequences/follow-up-sequences.service';
 
 function asE164(input: string): string {
   const trimmed = (input || '').trim();
@@ -56,8 +58,10 @@ export class RealtimeToolsService {
     private readonly knowledge: KnowledgeService,
     private readonly scheduling: SchedulingService,
     private readonly usageService: UsageService,
+    private readonly usageGate: UsageGateService,
     private readonly appointmentsService: AppointmentsService,
     private readonly webhooks: WebhooksService,
+    private readonly followUps: FollowUpSequencesService,
   ) { }
 
   private twilioAuthHeader(): string {
@@ -511,20 +515,24 @@ export class RealtimeToolsService {
       throw new NotFoundException('No tenant found for this number');
     }
 
-    // Check if calls are enabled for this company
-    if (company.calls_enabled === false) {
-      throw new ForbiddenException('Calls are disabled for this account. Please check your subscription or usage limits.');
+    let effectiveCompany = company;
+    try {
+      await this.usageGate.enforceUsagePolicy(company.company_id);
+      const refreshed = await this.companies.findById(company.company_id);
+      if (refreshed) effectiveCompany = refreshed;
+    } catch (err) {
+      console.warn('[RealtimeToolsService] Usage gate enforcement failed during tenant resolve:', err);
     }
 
-    // Check if company is in a valid status
-    if (company.status === CompanyStatus.INACTIVE || company.status === CompanyStatus.SUSPENDED) {
-      throw new ForbiddenException('Account is inactive or suspended. Please update your subscription.');
-    }
+    const accountBlocked =
+      effectiveCompany.status === CompanyStatus.INACTIVE ||
+      effectiveCompany.status === CompanyStatus.SUSPENDED;
+    const aiCallsEnabled = effectiveCompany.calls_enabled !== (false as any) && !accountBlocked;
 
-    const config = (await this.agentConfig.getConfig(company.company_id)) ?? undefined;
+    const config = (await this.agentConfig.getConfig(effectiveCompany.company_id)) ?? undefined;
 
     let service_template_id =
-      (company as any).service_template_id || resolveServiceTemplateId(company.service_type);
+      (effectiveCompany as any).service_template_id || resolveServiceTemplateId(effectiveCompany.service_type);
     if (!service_template_id) {
       service_template_id = 'tmpl_general_v1';
     }
@@ -542,27 +550,29 @@ export class RealtimeToolsService {
         service_template = null;
       }
     }
-    if (!(company as any).service_template_id && service_template_id) {
+    if (!(effectiveCompany as any).service_template_id && service_template_id) {
       this.dynamodb
-        .update('companies', { company_id: company.company_id }, { service_template_id })
+        .update('companies', { company_id: effectiveCompany.company_id }, { service_template_id })
         .catch(() => null);
     }
 
     return {
-      company_id: company.company_id,
-      company_name: company.company_name,
-      timezone: this.resolveCompanyTimeZone(company),
-      service_type: company.service_type,
+      company_id: effectiveCompany.company_id,
+      company_name: effectiveCompany.company_name,
+      phone_number: effectiveCompany.phone_number || undefined,
+      timezone: this.resolveCompanyTimeZone(effectiveCompany),
+      service_type: effectiveCompany.service_type,
       service_template_id,
       service_template: service_template || undefined,
-      subscription_status: (company as any).subscription_status || 'active',
-      calls_enabled: company.calls_enabled !== (false as any),
-      business_hours: company.business_hours,
-      service_area_zipcodes: (company as any).service_area_zipcodes || [],
-      pricing_profile: (company as any).pricing_profile || undefined,
-      transfer_enabled: (company as any).transfer_enabled === true,
-      transfer_number: (company as any).transfer_number || undefined,
-      call_handling_mode: (company as any).call_handling_mode || CallHandlingMode.ALWAYS,
+      subscription_status: (effectiveCompany as any).subscription_status || 'active',
+      calls_enabled: aiCallsEnabled,
+      account_status: effectiveCompany.status,
+      business_hours: effectiveCompany.business_hours,
+      service_area_zipcodes: (effectiveCompany as any).service_area_zipcodes || [],
+      pricing_profile: (effectiveCompany as any).pricing_profile || undefined,
+      transfer_enabled: (effectiveCompany as any).transfer_enabled === true,
+      transfer_number: (effectiveCompany as any).transfer_number || undefined,
+      call_handling_mode: (effectiveCompany as any).call_handling_mode || CallHandlingMode.ALWAYS,
       agent_config: config ? {
         language: (config as any).language || 'en',
         realtime_voice: (config as any).realtime_voice || (config as any).voice || 'marin',
@@ -959,6 +969,7 @@ export class RealtimeToolsService {
       if (deltaSeconds > 0) {
         try {
           await this.usageService.incrementCallMinutes(company_id, Number((deltaSeconds / 60).toFixed(2)), callsCounted ? 0 : 1);
+          await this.usageGate.enforceUsagePolicy(company_id);
           updates.usage_seconds_recorded = seconds;
           updates.usage_call_counted = true;
         } catch (err) {
@@ -968,6 +979,7 @@ export class RealtimeToolsService {
         // Ensure we count the call even if minutes were already recorded somehow.
         try {
           await this.usageService.incrementCallMinutes(company_id, 0, 1);
+          await this.usageGate.enforceUsagePolicy(company_id);
           updates.usage_call_counted = true;
         } catch (err) {
           console.error('[RealtimeToolsService] Failed to track call count (non-fatal):', err);
@@ -997,6 +1009,22 @@ export class RealtimeToolsService {
         collected_info: updates.collected_info ?? existing?.collected_info,
       };
       void this.webhooks.emitEvent(company_id, 'call.completed', { call: callPayload });
+
+      const hasAppointment = Boolean(updates.appointment_id ?? existing?.appointment_id);
+      if (!hasAppointment) {
+        const bookingLink = this.buildBookingLink(company_id, call_id);
+        void this.followUps
+          .scheduleAfterCall({
+            company_id,
+            contact_id: (updates.contact_id ?? existing?.contact_id) as string | undefined,
+            contact_phone: existing?.from_number,
+            contact_name: (updates.caller_name ?? existing?.caller_name) as string | undefined,
+            booking_link: bookingLink,
+          })
+          .catch((err) => {
+            console.warn('[RealtimeToolsService] Failed to schedule follow-up sequence:', err);
+          });
+      }
     }
 
     return { ok: true, call_id, transcript_url };

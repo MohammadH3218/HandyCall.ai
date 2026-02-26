@@ -7,6 +7,8 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Elements, PaymentElement, useElements, useStripe } from '@stripe/react-stripe-js';
+import { loadStripe } from '@stripe/stripe-js';
 
 type AppointmentInfo = {
   appointment_id: string;
@@ -35,6 +37,21 @@ type BookingInfo = {
     optional?: string[];
     labels?: Record<string, string>;
   };
+};
+
+type BookingPaymentInfo = {
+  enabled: boolean;
+  paid: boolean;
+  services?: Array<{
+    service_id: string;
+    name: string;
+    description?: string;
+    amount_cents: number;
+    currency?: string;
+  }>;
+  default_currency?: string;
+  recommended_amount_cents?: number;
+  security_note?: string;
 };
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
@@ -131,6 +148,18 @@ function formatTimeRange(startMs: number, endMs: number, timeZone?: string) {
   }
 }
 
+function formatMoney(cents?: number, currency = 'usd') {
+  const amount = Number(cents || 0) / 100;
+  try {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: currency.toUpperCase(),
+    }).format(amount);
+  } catch {
+    return `$${amount.toFixed(2)}`;
+  }
+}
+
 export default function BookingPage() {
   const params = useParams();
   const token = typeof params?.token === 'string' ? params.token : '';
@@ -161,6 +190,17 @@ export default function BookingPage() {
   const [availabilityLoading, setAvailabilityLoading] = useState(false);
   const [calendarMonth, setCalendarMonth] = useState<Date>(new Date());
   const [daySlots, setDaySlots] = useState<string[]>([]);
+  const [paymentInfo, setPaymentInfo] = useState<BookingPaymentInfo | null>(null);
+  const [paymentLoading, setPaymentLoading] = useState(false);
+  const [paymentError, setPaymentError] = useState<string | null>(null);
+  const [selectedServiceId, setSelectedServiceId] = useState<string>('');
+  const [paymentIntentSecret, setPaymentIntentSecret] = useState<string | null>(null);
+  const [paymentPublishableKey, setPaymentPublishableKey] = useState<string | null>(null);
+  const [creatingPaymentIntent, setCreatingPaymentIntent] = useState(false);
+  const stripePromise = useMemo(
+    () => (paymentPublishableKey ? loadStripe(paymentPublishableKey) : null),
+    [paymentPublishableKey],
+  );
 
   const refreshInfo = useCallback(async () => {
     if (!token || !API_BASE) return;
@@ -174,6 +214,7 @@ export default function BookingPage() {
       }
       setInfo(data);
       setLinkClosed(false);
+      setPaymentIntentSecret(null);
 
       const appointment = data?.appointment as AppointmentInfo | undefined;
       const collected = data?.collected_info || {};
@@ -212,6 +253,24 @@ export default function BookingPage() {
         }
       }
       setCustomFields(nextCustom);
+
+      try {
+        setPaymentLoading(true);
+        setPaymentError(null);
+        const paymentRes = await fetch(`${API_BASE}/public/booking/${token}/payment-info`);
+        const paymentData = await paymentRes.json();
+        if (paymentRes.ok) {
+          setPaymentInfo(paymentData as BookingPaymentInfo);
+          const firstService = (paymentData?.services || [])[0];
+          setSelectedServiceId(firstService?.service_id || '');
+        } else {
+          setPaymentInfo(null);
+        }
+      } catch {
+        setPaymentInfo(null);
+      } finally {
+        setPaymentLoading(false);
+      }
     } catch (err: any) {
       setError(err?.message || 'Unable to load booking info');
       setInfo(null);
@@ -472,6 +531,38 @@ export default function BookingPage() {
     }
   };
 
+  const createPaymentIntent = async () => {
+    try {
+      setCreatingPaymentIntent(true);
+      setPaymentError(null);
+      const res = await fetch(`${API_BASE}/public/booking/${token}/pay`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          service_id: selectedServiceId || undefined,
+          customer_name: fullName || undefined,
+          customer_email: email || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data?.message || data?.error?.message || 'Unable to initialize payment');
+      }
+      setPaymentIntentSecret(data?.client_secret || null);
+      setPaymentPublishableKey(data?.publishable_key || null);
+    } catch (err: any) {
+      setPaymentError(err?.message || 'Unable to initialize payment');
+    } finally {
+      setCreatingPaymentIntent(false);
+    }
+  };
+
+  const handlePaymentSuccess = async () => {
+    setNotice('Payment received successfully.');
+    setPaymentIntentSecret(null);
+    await refreshInfo();
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 p-6">
@@ -528,6 +619,9 @@ export default function BookingPage() {
   const mapQuery = addressLine ? encodeURIComponent(addressLine) : '';
   const mapEmbedUrl = mapQuery ? `https://maps.google.com/maps?output=embed&q=${mapQuery}` : '';
   const mapLink = mapQuery ? `https://www.google.com/maps/search/?api=1&query=${mapQuery}` : '';
+  const selectedPaymentService = (paymentInfo?.services || []).find((service) => service.service_id === selectedServiceId)
+    || (paymentInfo?.services || [])[0]
+    || null;
 
   if (mode === 'manage') {
     return (
@@ -799,8 +893,59 @@ export default function BookingPage() {
                 <CardHeader>
                   <CardTitle>Payment</CardTitle>
                 </CardHeader>
-                <CardContent>
-                  <div className="text-sm text-gray-600">Payment is due at your appointment.</div>
+                <CardContent className="space-y-3">
+                  {paymentLoading ? (
+                    <div className="text-sm text-gray-500">Loading payment options…</div>
+                  ) : paymentInfo?.enabled ? (
+                    <>
+                      {paymentInfo.paid ? (
+                        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+                          Payment received. Thank you.
+                        </div>
+                      ) : (
+                        <>
+                          {(paymentInfo.services || []).length > 0 ? (
+                            <select
+                              value={selectedServiceId}
+                              onChange={(e) => setSelectedServiceId(e.target.value)}
+                              className="h-10 w-full rounded-xl border border-slate-200 px-3 text-sm"
+                            >
+                              {(paymentInfo.services || []).map((service) => (
+                                <option key={service.service_id} value={service.service_id}>
+                                  {service.name} · {formatMoney(service.amount_cents, service.currency || paymentInfo.default_currency || 'usd')}
+                                </option>
+                              ))}
+                            </select>
+                          ) : null}
+                          {selectedPaymentService ? (
+                            <div className="text-sm text-gray-700">
+                              {selectedPaymentService.name}: {formatMoney(selectedPaymentService.amount_cents, selectedPaymentService.currency || paymentInfo.default_currency || 'usd')}
+                            </div>
+                          ) : null}
+                          {!paymentIntentSecret ? (
+                            <Button onClick={createPaymentIntent} disabled={creatingPaymentIntent}>
+                              {creatingPaymentIntent ? 'Preparing secure payment…' : 'Pay now'}
+                            </Button>
+                          ) : stripePromise ? (
+                            <Elements stripe={stripePromise} options={{ clientSecret: paymentIntentSecret }}>
+                              <BookingPaymentForm
+                                onSuccess={handlePaymentSuccess}
+                                onError={(message) => setPaymentError(message)}
+                              />
+                            </Elements>
+                          ) : (
+                            <div className="text-sm text-amber-700">Payment is configured, but Stripe key is unavailable.</div>
+                          )}
+                          {paymentError ? <div className="text-sm text-red-600">{paymentError}</div> : null}
+                          {paymentInfo.security_note ? (
+                            <div className="text-xs text-gray-500">{paymentInfo.security_note}</div>
+                          ) : null}
+                        </>
+                      )}
+                    </>
+                  ) : (
+                    <div className="text-sm text-gray-600">Payment is due at your appointment.</div>
+                  )}
                 </CardContent>
               </Card>
 
@@ -996,8 +1141,59 @@ export default function BookingPage() {
               <CardHeader>
                 <CardTitle>Payment</CardTitle>
               </CardHeader>
-              <CardContent>
-                <div className="text-sm text-gray-600">Payment is due at your appointment.</div>
+              <CardContent className="space-y-3">
+                {paymentLoading ? (
+                  <div className="text-sm text-gray-500">Loading payment options…</div>
+                ) : paymentInfo?.enabled ? (
+                  <>
+                    {paymentInfo.paid ? (
+                      <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+                        Payment received. Thank you.
+                      </div>
+                    ) : (
+                      <>
+                        {(paymentInfo.services || []).length > 0 ? (
+                          <select
+                            value={selectedServiceId}
+                            onChange={(e) => setSelectedServiceId(e.target.value)}
+                            className="h-10 w-full rounded-xl border border-slate-200 px-3 text-sm"
+                          >
+                            {(paymentInfo.services || []).map((service) => (
+                              <option key={service.service_id} value={service.service_id}>
+                                {service.name} · {formatMoney(service.amount_cents, service.currency || paymentInfo.default_currency || 'usd')}
+                              </option>
+                            ))}
+                          </select>
+                        ) : null}
+                        {selectedPaymentService ? (
+                          <div className="text-sm text-gray-700">
+                            {selectedPaymentService.name}: {formatMoney(selectedPaymentService.amount_cents, selectedPaymentService.currency || paymentInfo.default_currency || 'usd')}
+                          </div>
+                        ) : null}
+                        {!paymentIntentSecret ? (
+                          <Button onClick={createPaymentIntent} disabled={creatingPaymentIntent}>
+                            {creatingPaymentIntent ? 'Preparing secure payment…' : 'Pay now'}
+                          </Button>
+                        ) : stripePromise ? (
+                          <Elements stripe={stripePromise} options={{ clientSecret: paymentIntentSecret }}>
+                            <BookingPaymentForm
+                              onSuccess={handlePaymentSuccess}
+                              onError={(message) => setPaymentError(message)}
+                            />
+                          </Elements>
+                        ) : (
+                          <div className="text-sm text-amber-700">Payment is configured, but Stripe key is unavailable.</div>
+                        )}
+                        {paymentError ? <div className="text-sm text-red-600">{paymentError}</div> : null}
+                        {paymentInfo.security_note ? (
+                          <div className="text-xs text-gray-500">{paymentInfo.security_note}</div>
+                        ) : null}
+                      </>
+                    )}
+                  </>
+                ) : (
+                  <div className="text-sm text-gray-600">Payment is due at your appointment.</div>
+                )}
               </CardContent>
             </Card>
 
@@ -1012,6 +1208,51 @@ export default function BookingPage() {
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+function BookingPaymentForm({
+  onSuccess,
+  onError,
+}: {
+  onSuccess: () => void | Promise<void>;
+  onError: (message: string) => void;
+}) {
+  const stripe = useStripe();
+  const elements = useElements();
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmit = async () => {
+    if (!stripe || !elements) return;
+    try {
+      setSubmitting(true);
+      const result = await stripe.confirmPayment({
+        elements,
+        redirect: 'if_required',
+      });
+      if (result.error) {
+        onError(result.error.message || 'Payment failed. Please try again.');
+        return;
+      }
+      if (result.paymentIntent?.status === 'succeeded') {
+        await onSuccess();
+      } else if (result.paymentIntent?.status) {
+        onError(`Payment status: ${result.paymentIntent.status}`);
+      }
+    } catch (error: any) {
+      onError(error?.message || 'Payment failed. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="space-y-3">
+      <PaymentElement />
+      <Button onClick={handleSubmit} disabled={submitting || !stripe || !elements}>
+        {submitting ? 'Processing payment…' : 'Submit payment'}
+      </Button>
     </div>
   );
 }

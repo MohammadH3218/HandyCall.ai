@@ -139,4 +139,86 @@ export class AdminUpdateCompanyDto {
   @IsOptional()
   @IsIn(['NONE', 'GOOGLE', 'MICROSOFT', 'APPLE'])
   calendar_provider?: 'NONE' | 'GOOGLE' | 'MICROSOFT' | 'APPLE';
+
+  @IsOptional()
+  @IsString()
+  stripe_connect_account_id?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  stripe_connect_onboarding_complete?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  booking_payment_enabled?: boolean;
+
+  @IsOptional()
+  @IsArray()
+  @IsObject({ each: true })
+  booking_services?: Array<{
+    service_id: string;
+    name: string;
+    description?: string;
+    amount_cents: number;
+    currency?: string;
+    duration_minutes?: number;
+    active?: boolean;
+    collect_payment?: boolean;
+  }>;
+
+  @IsOptional()
+  @IsBoolean()
+  follow_up_sequences_enabled?: boolean;
+
+  @IsOptional()
+  @IsNumber()
+  follow_up_initial_delay_minutes?: number;
+
+  @IsOptional()
+  @IsNumber()
+  follow_up_second_delay_minutes?: number;
+
+  @IsOptional()
+  @IsNumber()
+  follow_up_final_delay_minutes?: number;
+
+  @IsOptional()
+  @IsString()
+  follow_up_initial_template?: string;
+
+  @IsOptional()
+  @IsString()
+  follow_up_second_template?: string;
+
+  @IsOptional()
+  @IsString()
+  follow_up_final_template?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  review_request_enabled?: boolean;
+
+  @IsOptional()
+  @IsNumber()
+  review_request_delay_minutes?: number;
+
+  @IsOptional()
+  @IsString()
+  review_platform_url?: string;
+
+  @IsOptional()
+  @IsString()
+  review_request_template?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  website_widget_enabled?: boolean;
+
+  @IsOptional()
+  @IsObject()
+  website_widget_settings?: {
+    primary_color?: string;
+    position?: 'BOTTOM_RIGHT' | 'BOTTOM_LEFT';
+    greeting?: string;
+  };
 }

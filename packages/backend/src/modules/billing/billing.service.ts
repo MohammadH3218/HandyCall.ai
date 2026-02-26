@@ -148,13 +148,13 @@ export class BillingService {
     // For admin-created subscriptions, we don't create Stripe subscription
     // Just update company record with plan details
     const now = Date.now();
-    const oneWeekFromNow = now + (7 * 24 * 60 * 60 * 1000); // 1 week billing period
+    const oneMonthFromNow = now + (30 * 24 * 60 * 60 * 1000); // 30-day billing period
 
     await this.companiesService.updateCompany(companyId, {
       subscription_plan: plan as SubscriptionPlan,
       subscription_status: SubscriptionStatus.ACTIVE,
       current_period_start: now,
-      current_period_end: oneWeekFromNow,
+      current_period_end: oneMonthFromNow,
       cancel_at_period_end: false,
       status: CompanyStatus.ACTIVE,
       trial_ends_at: null,
@@ -168,7 +168,7 @@ export class BillingService {
         plan,
         status: 'active',
         current_period_start: Math.floor(now / 1000),
-        current_period_end: Math.floor(oneWeekFromNow / 1000),
+        current_period_end: Math.floor(oneMonthFromNow / 1000),
       }
     };
   }
@@ -573,8 +573,8 @@ export class BillingService {
       throw new NotFoundException('Company not found');
     }
 
-    const periodStart = company.current_period_start || Date.now();
-    const usage = await this.usageService.getCurrentWeekUsage(companyId, periodStart);
+    const periodStart = company.current_period_start || this.getCurrentMonthStartUtc();
+    const usage = await this.usageService.getCurrentPeriodUsage(companyId, periodStart);
     const plan = company.subscription_plan;
     const limits = plan ? await this.usageService.checkLimitsExceeded(companyId, plan, periodStart) : null;
 
@@ -767,5 +767,10 @@ export class BillingService {
       default:
         return CompanyStatus.SUSPENDED;
     }
+  }
+
+  private getCurrentMonthStartUtc(): number {
+    const now = new Date();
+    return Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1);
   }
 }

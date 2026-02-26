@@ -8,8 +8,9 @@ import { useAuthStore } from '@/stores/auth-store';
 import { apiClient } from '@/lib/api-client';
 import { Logo } from '@/components/ui/logo';
 import { ProfileDropdown } from '@/components/profile-dropdown';
+import { NotificationBell } from '@/components/notifications/notification-bell';
 import { Button } from '@/components/ui/button';
-import { BarChart3, Calendar, CreditCard, Home, Menu, MessageCircle, MessageSquare, Phone, Settings, Users, X } from 'lucide-react';
+import { BarChart3, Calendar, CreditCard, DollarSign, Home, Menu, MessageCircle, MessageSquare, Phone, Settings, Users, X } from 'lucide-react';
 import { UserRole } from '@handycall/shared';
 
 function hasPricingProfileData(company: any | null) {
@@ -325,26 +326,38 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             >
               Billing
             </NavLink>
+            <NavLink
+              href="/dashboard/payments"
+              icon={<DollarSign className="h-5 w-5" />}
+              active={pathname?.startsWith('/dashboard/payments')}
+              onClick={() => setSidebarOpen(false)}
+            >
+              Payments
+            </NavLink>
           </div>
         </nav>
-
-        <div className="mt-auto p-4 border-t border-border/60 bg-white/70">
-          <ProfileDropdown />
-        </div>
       </aside>
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Mobile menu button */}
-        <div className="lg:hidden p-4 border-b border-border/60 bg-white/80 backdrop-blur">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-10 w-10 p-0"
-            onClick={() => setSidebarOpen(true)}
-          >
-            <Menu className="h-5 w-5" />
-          </Button>
+        {/* Top bar */}
+        <div className="border-b border-border/60 bg-white/80 px-4 py-3 backdrop-blur sm:px-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-10 w-10 p-0 lg:hidden"
+                onClick={() => setSidebarOpen(true)}
+              >
+                <Menu className="h-5 w-5" />
+              </Button>
+            </div>
+            <div className="flex items-center gap-3">
+              <NotificationBell />
+              <ProfileDropdown />
+            </div>
+          </div>
         </div>
 
         {/* Main Content Area */}

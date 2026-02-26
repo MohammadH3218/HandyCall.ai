@@ -44,6 +44,9 @@ export default function BillingPage() {
   const [paymentActionId, setPaymentActionId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<PaymentMethod | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [connectStatus, setConnectStatus] = useState<any>(null);
+  const [customerPaymentStats, setCustomerPaymentStats] = useState<any>(null);
+  const [recentCustomerPayments, setRecentCustomerPayments] = useState<any[]>([]);
 
   useEffect(() => { loadBillingData(); }, []);
 
@@ -74,9 +77,9 @@ export default function BillingPage() {
 
   const planHighlights = useMemo(
     () => [
-      { label: 'Call minutes', value: planLimits?.minutes === -1 ? 'Unlimited' : typeof planLimits?.minutes === 'number' ? `${planLimits.minutes}/week` : '-' },
-      { label: 'SMS messages', value: planLimits?.sms === -1 ? 'Unlimited' : typeof planLimits?.sms === 'number' ? `${planLimits.sms}/week` : '-' },
-      { label: 'Active contacts', value: planLimits?.contacts === -1 ? 'Unlimited' : typeof planLimits?.contacts === 'number' ? `${planLimits.contacts}/week` : '-' },
+      { label: 'Call minutes', value: planLimits?.minutes === -1 ? 'Unlimited' : typeof planLimits?.minutes === 'number' ? `${planLimits.minutes}/mo` : '-' },
+      { label: 'SMS messages', value: planLimits?.sms === -1 ? 'Unlimited' : typeof planLimits?.sms === 'number' ? `${planLimits.sms}/mo` : '-' },
+      { label: 'Active contacts', value: planLimits?.contacts === -1 ? 'Unlimited' : typeof planLimits?.contacts === 'number' ? `${planLimits.contacts}/mo` : '-' },
     ],
     [planLimits]
   );
@@ -87,10 +90,13 @@ export default function BillingPage() {
       const withTimeout = <T,>(promise: Promise<T>, ms = 12000) =>
         Promise.race([promise, new Promise<T>((_, reject) => setTimeout(() => reject(new Error('Request timed out')), ms))]);
 
-      const [subData, usageData, paymentData] = await Promise.all([
+      const [subData, usageData, paymentData, connectData, paymentStats, recentPayments] = await Promise.all([
         withTimeout(apiClient.getMySubscription()),
         withTimeout(apiClient.getUsageMetrics()),
         withTimeout(apiClient.getPaymentMethods().catch(() => ({ payment_methods: [], default_payment_method_id: null }))),
+        withTimeout(apiClient.getConnectStatus().catch(() => ({ connected: false }))),
+        withTimeout(apiClient.getCustomerPaymentStats().catch(() => null)),
+        withTimeout(apiClient.getCustomerPayments({ limit: 6 }).catch(() => ({ payments: [] }))),
       ]);
       const plan =
         resolvePlan(company?.subscription_plan as SubscriptionPlan | undefined) ||
@@ -105,6 +111,9 @@ export default function BillingPage() {
         : [];
       setPaymentMethods(sanitizedPaymentMethods);
       setDefaultPaymentMethodId(paymentData?.default_payment_method_id || null);
+      setConnectStatus(connectData || { connected: false });
+      setCustomerPaymentStats(paymentStats || null);
+      setRecentCustomerPayments((recentPayments?.payments || []) as any[]);
     } catch (error: any) {
       console.error('Failed to load billing data:', error);
       toast({ title: 'Unable to load billing', description: error.message || 'Please try again in a moment.', variant: 'destructive' });
@@ -160,6 +169,27 @@ export default function BillingPage() {
     }
   };
 
+  const handleConnectSetup = async () => {
+    try {
+      const result = await apiClient.setupConnectAccount();
+      if (result?.url) {
+        window.location.href = result.url;
+        return;
+      }
+      toast({
+        title: 'Connect setup unavailable',
+        description: 'Unable to generate a Stripe onboarding link right now.',
+        variant: 'destructive',
+      });
+    } catch (error: any) {
+      toast({
+        title: 'Connect setup failed',
+        description: error?.message || 'Unable to start Stripe Connect onboarding.',
+        variant: 'destructive',
+      });
+    }
+  };
+
   const getStatusPill = (status?: SubscriptionStatus) => {
     const map: Record<string, string> = {
       [SubscriptionStatus.TRIALING]: 'bg-blue-50 text-blue-700 border-blue-200',
@@ -182,6 +212,15 @@ export default function BillingPage() {
     return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
   };
 
+  const formatMoney = (cents?: number, currency = 'usd') => {
+    const amount = Number(cents || 0) / 100;
+    try {
+      return new Intl.NumberFormat('en-US', { style: 'currency', currency: currency.toUpperCase() }).format(amount);
+    } catch {
+      return `$${amount.toFixed(2)}`;
+    }
+  };
+
   const calculateUsagePercentage = (used: number, limit: number) => {
     if (!limit || limit === -1) return 0;
     return Math.min(Math.round((used / limit) * 100), 100);
@@ -197,6 +236,14 @@ export default function BillingPage() {
     if (diffHours > 1) return `${diffHours} hours`;
     return 'less than 1 hour';
   };
+
+  const limitReached = Boolean(
+    usage &&
+    planLimits &&
+    ((typeof planLimits.minutes === 'number' && usage.call_minutes >= planLimits.minutes) ||
+      (typeof planLimits.sms === 'number' && usage.sms_count >= planLimits.sms) ||
+      (typeof planLimits.contacts === 'number' && usage.active_contacts >= planLimits.contacts))
+  );
 
   if (loading) {
     return (
@@ -218,6 +265,18 @@ export default function BillingPage() {
         subtitle="Manage your subscription, usage, and billing information."
       />
 
+      {limitReached && (
+        <div className="rounded-2xl border border-red-200 bg-red-50 px-5 py-4">
+          <p className="text-sm font-semibold text-red-800">Usage limit reached</p>
+          <p className="mt-1 text-sm text-red-700">
+            AI call/SMS handling may be paused until your next reset on {formatDate(subscription?.current_period_end)}.
+          </p>
+          <Button size="sm" className="mt-3" onClick={() => router.push('/dashboard/billing/plans')}>
+            Upgrade plan
+          </Button>
+        </div>
+      )}
+
       <div className="grid gap-5 md:grid-cols-2">
         {/* Current Plan */}
         <div className="relative overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm">
@@ -228,7 +287,7 @@ export default function BillingPage() {
             </div>
             <div>
               <h2 className="text-sm font-semibold text-slate-900">Current plan</h2>
-              <p className="text-xs text-slate-500">Your active subscription and weekly limits.</p>
+              <p className="text-xs text-slate-500">Your active subscription and monthly limits.</p>
             </div>
           </div>
 
@@ -434,6 +493,87 @@ export default function BillingPage() {
           </div>
         </div>
       )}
+
+      <div className="rounded-2xl border border-slate-100 bg-white shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
+          <div>
+            <h2 className="text-sm font-semibold text-slate-900">Customer payments</h2>
+            <p className="text-xs text-slate-500">Collect payments from booking links with Stripe Connect.</p>
+          </div>
+          <div className="flex items-center gap-2">
+            {connectStatus?.connected ? (
+              <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-700">
+                Connected
+              </span>
+            ) : (
+              <Button size="sm" onClick={handleConnectSetup}>Set up Connect</Button>
+            )}
+            <Button variant="outline" size="sm" onClick={() => router.push('/dashboard/payments')}>
+              View all payments
+            </Button>
+          </div>
+        </div>
+        <div className="space-y-4 px-5 py-5">
+          {connectStatus?.connected ? (
+            <>
+              <div className="grid gap-3 sm:grid-cols-4">
+                <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Revenue</p>
+                  <p className="mt-1 text-base font-bold text-slate-900">
+                    {formatMoney(customerPaymentStats?.total_revenue_cents || 0)}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">This month</p>
+                  <p className="mt-1 text-base font-bold text-slate-900">
+                    {formatMoney(customerPaymentStats?.this_month_revenue_cents || 0)}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Successful</p>
+                  <p className="mt-1 text-base font-bold text-slate-900">{customerPaymentStats?.successful_payments || 0}</p>
+                </div>
+                <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Avg ticket</p>
+                  <p className="mt-1 text-base font-bold text-slate-900">
+                    {formatMoney(customerPaymentStats?.average_ticket_cents || 0)}
+                  </p>
+                </div>
+              </div>
+
+              {recentCustomerPayments.length > 0 ? (
+                <div className="space-y-2">
+                  {recentCustomerPayments.slice(0, 5).map((payment) => (
+                    <div key={payment.payment_id} className="flex items-center justify-between rounded-xl border border-slate-100 bg-white px-4 py-3">
+                      <div>
+                        <p className="text-sm font-semibold text-slate-900">{payment.customer_name || payment.service_name || 'Payment'}</p>
+                        <p className="text-xs text-slate-500">{formatDate(payment.created_at)}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-semibold text-slate-900">{formatMoney(payment.amount_cents, payment.currency)}</p>
+                        <p className="text-xs text-slate-500">{payment.payment_status}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-slate-500">No customer payments yet.</p>
+              )}
+            </>
+          ) : (
+            <div className="rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-4">
+              <p className="text-sm text-slate-700">
+                Connect Stripe to start collecting customer payments from booking links.
+              </p>
+            </div>
+          )}
+
+          <div className="rounded-xl border border-emerald-100 bg-emerald-50/70 px-4 py-3">
+            <p className="text-xs font-semibold text-emerald-900">Security</p>
+            <p className="mt-1 text-xs text-emerald-700">We never store your bank information.</p>
+          </div>
+        </div>
+      </div>
 
       {/* Quick links */}
       <div className="grid gap-3 sm:grid-cols-3">

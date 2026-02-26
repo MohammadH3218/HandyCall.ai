@@ -37,9 +37,10 @@ async function bootstrap() {
     next();
   });
 
-  // Stripe webhook needs raw body for signature verification
+  // Stripe webhooks need raw body for signature verification
   const apiPrefix = configService.get<string>('API_PREFIX') || 'api/v1';
   app.use(`/${apiPrefix}/billing/webhook`, bodyParser.raw({ type: 'application/json' }));
+  app.use(`/${apiPrefix}/billing/connect/webhook`, bodyParser.raw({ type: 'application/json' }));
 
   app.useGlobalPipes(
     new ValidationPipe({

@@ -91,6 +91,7 @@ export default function CustomersPage() {
   const [upcomingAppointments, setUpcomingAppointments] = useState<any[]>([]);
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
   const [selectedContactAppointments, setSelectedContactAppointments] = useState<any[]>([]);
+  const [selectedContactPayments, setSelectedContactPayments] = useState<any[]>([]);
   const [selectedContactCallsTotal, setSelectedContactCallsTotal] = useState<number | null>(null);
   const [selectedContactCallsLoading, setSelectedContactCallsLoading] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
@@ -194,9 +195,13 @@ export default function CustomersPage() {
       setDetailsOpen(true);
       setSelectedContactCallsTotal(null);
       setSelectedContactCallsLoading(true);
-      const apptsResp = await apiClient.getContactAppointments(contact.contact_id);
+      const [apptsResp, callsResp, paymentsResp] = await Promise.all([
+        apiClient.getContactAppointments(contact.contact_id),
+        apiClient.getContactCalls(contact.contact_id, 1),
+        apiClient.getCustomerPayments({ contact_id: contact.contact_id, limit: 25 }).catch(() => ({ payments: [] })),
+      ]);
       setSelectedContactAppointments(apptsResp.appointments || []);
-      const callsResp = await apiClient.getContactCalls(contact.contact_id, 1);
+      setSelectedContactPayments(paymentsResp?.payments || []);
       setSelectedContactCallsTotal(typeof callsResp.total === 'number' ? callsResp.total : (callsResp.calls || []).length);
       setSelectedContactCallsLoading(false);
     } catch (err: any) {
@@ -427,6 +432,39 @@ export default function CustomersPage() {
                   </div>
                 ) : (
                   <p className="text-sm text-slate-400">No appointments found.</p>
+                )}
+              </div>
+
+              {/* Payments */}
+              <div>
+                <div className="mb-3 flex items-center gap-2">
+                  <p className="text-sm font-semibold text-slate-900">Payment history</p>
+                </div>
+                {selectedContactPayments.length > 0 ? (
+                  <div className="space-y-2">
+                    {selectedContactPayments.map((payment) => (
+                      <div key={payment.payment_id} className="rounded-xl border border-slate-100 bg-white p-3">
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="text-sm font-semibold text-slate-900">
+                            {payment.service_name || 'Service payment'}
+                          </span>
+                          <span className="text-sm font-semibold text-slate-900">
+                            {formatMoney(payment.amount_cents)}
+                          </span>
+                        </div>
+                        <div className="mt-1 flex items-center justify-between text-xs text-slate-500">
+                          <span>{formatDate(payment.created_at)}</span>
+                          <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 font-medium text-slate-700">
+                            {payment.payment_status || 'UNKNOWN'}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="rounded-xl border border-slate-100 bg-slate-50/70 px-3 py-3 text-sm text-slate-500">
+                    No payments on file for this customer yet.
+                  </p>
                 )}
               </div>
             </div>

@@ -5,6 +5,7 @@ import {
   PublicBookingCancelDto,
   PublicBookingAvailabilityDto,
   PublicBookingRequestDto,
+  PublicBookingPaymentDto,
   PublicBookingRescheduleDto,
   PublicBookingUpdateDto,
 } from './dto/public-booking.dto';
@@ -22,6 +23,16 @@ export class PublicBookingController {
   @Post(':token')
   submitBooking(@Param('token') token: string, @Body() dto: PublicBookingRequestDto) {
     return this.bookings.submitBooking(token, dto);
+  }
+
+  @Get(':token/payment-info')
+  getPaymentInfo(@Param('token') token: string) {
+    return this.bookings.getBookingPaymentInfo(token);
+  }
+
+  @Post(':token/pay')
+  createPaymentIntent(@Param('token') token: string, @Body() dto: PublicBookingPaymentDto) {
+    return this.bookings.createBookingPayment(token, dto);
   }
 
   @Post(':token/update')

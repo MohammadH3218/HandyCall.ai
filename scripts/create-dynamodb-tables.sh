@@ -633,6 +633,160 @@ else
   wait_for_table "$TABLE_NAME"
 fi
 
+# =============================================================================
+# 19. CONNECTED ACCOUNTS TABLE (Stripe Connect)
+# =============================================================================
+TABLE_NAME="${TABLE_PREFIX}connected_accounts"
+if [ -n "$(table_exists $TABLE_NAME)" ]; then
+  echo "⚠️  Table $TABLE_NAME already exists, skipping..."
+else
+  echo "📦 Creating table: $TABLE_NAME"
+  aws dynamodb create-table \
+    --table-name "$TABLE_NAME" \
+    --region "$REGION" \
+    --billing-mode "$BILLING_MODE" \
+    --attribute-definitions \
+      AttributeName=company_id,AttributeType=S \
+    --key-schema \
+      AttributeName=company_id,KeyType=HASH \
+    --tags Key=Environment,Value="$ENV" Key=Project,Value=HandyCall
+  wait_for_table "$TABLE_NAME"
+fi
+
+# =============================================================================
+# 20. CUSTOMER PAYMENTS TABLE
+# =============================================================================
+TABLE_NAME="${TABLE_PREFIX}customer_payments"
+if [ -n "$(table_exists $TABLE_NAME)" ]; then
+  echo "⚠️  Table $TABLE_NAME already exists, skipping..."
+else
+  echo "📦 Creating table: $TABLE_NAME"
+  aws dynamodb create-table \
+    --table-name "$TABLE_NAME" \
+    --region "$REGION" \
+    --billing-mode "$BILLING_MODE" \
+    --attribute-definitions \
+      AttributeName=company_id,AttributeType=S \
+      AttributeName=payment_id,AttributeType=S \
+      AttributeName=created_at,AttributeType=N \
+      AttributeName=company_contact,AttributeType=S \
+    --key-schema \
+      AttributeName=company_id,KeyType=HASH \
+      AttributeName=payment_id,KeyType=RANGE \
+    --global-secondary-indexes \
+      "[
+        {
+          \"IndexName\": \"date-index\",
+          \"KeySchema\": [
+            {\"AttributeName\":\"company_id\",\"KeyType\":\"HASH\"},
+            {\"AttributeName\":\"created_at\",\"KeyType\":\"RANGE\"}
+          ],
+          \"Projection\": {\"ProjectionType\":\"ALL\"}
+        },
+        {
+          \"IndexName\": \"contact-index\",
+          \"KeySchema\": [
+            {\"AttributeName\":\"company_contact\",\"KeyType\":\"HASH\"},
+            {\"AttributeName\":\"created_at\",\"KeyType\":\"RANGE\"}
+          ],
+          \"Projection\": {\"ProjectionType\":\"ALL\"}
+        }
+      ]" \
+    --tags Key=Environment,Value="$ENV" Key=Project,Value=HandyCall
+  wait_for_table "$TABLE_NAME"
+fi
+
+# =============================================================================
+# 21. FOLLOW UP SEQUENCES TABLE
+# =============================================================================
+TABLE_NAME="${TABLE_PREFIX}follow_up_sequences"
+if [ -n "$(table_exists $TABLE_NAME)" ]; then
+  echo "⚠️  Table $TABLE_NAME already exists, skipping..."
+else
+  echo "📦 Creating table: $TABLE_NAME"
+  aws dynamodb create-table \
+    --table-name "$TABLE_NAME" \
+    --region "$REGION" \
+    --billing-mode "$BILLING_MODE" \
+    --attribute-definitions \
+      AttributeName=company_id,AttributeType=S \
+      AttributeName=sequence_id,AttributeType=S \
+    --key-schema \
+      AttributeName=company_id,KeyType=HASH \
+      AttributeName=sequence_id,KeyType=RANGE \
+    --tags Key=Environment,Value="$ENV" Key=Project,Value=HandyCall
+  wait_for_table "$TABLE_NAME"
+fi
+
+# =============================================================================
+# 22. SCHEDULED MESSAGES TABLE
+# =============================================================================
+TABLE_NAME="${TABLE_PREFIX}scheduled_messages"
+if [ -n "$(table_exists $TABLE_NAME)" ]; then
+  echo "⚠️  Table $TABLE_NAME already exists, skipping..."
+else
+  echo "📦 Creating table: $TABLE_NAME"
+  aws dynamodb create-table \
+    --table-name "$TABLE_NAME" \
+    --region "$REGION" \
+    --billing-mode "$BILLING_MODE" \
+    --attribute-definitions \
+      AttributeName=company_id,AttributeType=S \
+      AttributeName=message_id,AttributeType=S \
+      AttributeName=status,AttributeType=S \
+      AttributeName=send_at,AttributeType=N \
+    --key-schema \
+      AttributeName=company_id,KeyType=HASH \
+      AttributeName=message_id,KeyType=RANGE \
+    --global-secondary-indexes \
+      "[
+        {
+          \"IndexName\": \"send-at-index\",
+          \"KeySchema\": [
+            {\"AttributeName\":\"status\",\"KeyType\":\"HASH\"},
+            {\"AttributeName\":\"send_at\",\"KeyType\":\"RANGE\"}
+          ],
+          \"Projection\": {\"ProjectionType\":\"ALL\"}
+        }
+      ]" \
+    --tags Key=Environment,Value="$ENV" Key=Project,Value=HandyCall
+  wait_for_table "$TABLE_NAME"
+fi
+
+# =============================================================================
+# 23. CHAT SESSIONS TABLE (Website widget)
+# =============================================================================
+TABLE_NAME="${TABLE_PREFIX}chat_sessions"
+if [ -n "$(table_exists $TABLE_NAME)" ]; then
+  echo "⚠️  Table $TABLE_NAME already exists, skipping..."
+else
+  echo "📦 Creating table: $TABLE_NAME"
+  aws dynamodb create-table \
+    --table-name "$TABLE_NAME" \
+    --region "$REGION" \
+    --billing-mode "$BILLING_MODE" \
+    --attribute-definitions \
+      AttributeName=company_id,AttributeType=S \
+      AttributeName=session_id,AttributeType=S \
+      AttributeName=created_at,AttributeType=N \
+    --key-schema \
+      AttributeName=company_id,KeyType=HASH \
+      AttributeName=session_id,KeyType=RANGE \
+    --global-secondary-indexes \
+      "[
+        {
+          \"IndexName\": \"date-index\",
+          \"KeySchema\": [
+            {\"AttributeName\":\"company_id\",\"KeyType\":\"HASH\"},
+            {\"AttributeName\":\"created_at\",\"KeyType\":\"RANGE\"}
+          ],
+          \"Projection\": {\"ProjectionType\":\"ALL\"}
+        }
+      ]" \
+    --tags Key=Environment,Value="$ENV" Key=Project,Value=HandyCall
+  wait_for_table "$TABLE_NAME"
+fi
+
 echo ""
 echo "=================================================="
 echo "✅ All DynamoDB tables created successfully!"
@@ -644,4 +798,6 @@ echo "Next steps:"
 echo "1. Run './scripts/seed-dynamodb.sh $ENV' to add test data"
 echo "2. Update your backend .env file with:"
 echo "   DYNAMODB_TABLE_PREFIX=${TABLE_PREFIX}"
+echo "   STRIPE_CONNECT_CLIENT_ID=<your_connect_client_id>"
+echo "   STRIPE_CONNECT_WEBHOOK_SECRET=<your_connect_webhook_secret>"
 echo "=================================================="

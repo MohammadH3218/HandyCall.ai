@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { DynamoDBService } from '../../infrastructure/database/dynamodb.service';
-import { UsageMetrics, PlanLimits, SubscriptionPlan } from '@handycall/shared';
+import { UsageMetrics, PlanLimits, SubscriptionPlan, PLAN_LIMITS } from '@handycall/shared';
 import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
@@ -126,9 +126,9 @@ export class UsageService {
   }
 
   /**
-   * Get usage for current billing period (week)
+   * Get usage for current billing period
    */
-  async getCurrentWeekUsage(companyId: string, periodStart: number): Promise<UsageMetrics> {
+  async getCurrentPeriodUsage(companyId: string, periodStart: number): Promise<UsageMetrics> {
     const startDate = new Date(periodStart).toISOString().split('T')[0];
     const endDate = new Date().toISOString().split('T')[0];
 
@@ -160,7 +160,7 @@ export class UsageService {
 
     return {
       company_id: companyId,
-      date: 'current_week',
+      date: 'current_period',
       ...totals,
       created_at: Date.now(),
       updated_at: Date.now(),
@@ -199,25 +199,7 @@ export class UsageService {
    * Get plan limits based on subscription plan
    */
   getPlanLimits(plan: SubscriptionPlan): PlanLimits {
-    const limits = {
-      [SubscriptionPlan.STARTER]: {
-        weekly_minutes: 50,
-        sms_limit: 100,
-        contacts_limit: 200,
-      },
-      [SubscriptionPlan.PRO]: {
-        weekly_minutes: 120,
-        sms_limit: 250,
-        contacts_limit: 500,
-      },
-      [SubscriptionPlan.MAX]: {
-        weekly_minutes: 250,
-        sms_limit: 500,
-        contacts_limit: 1000,
-      },
-    };
-
-    return limits[plan];
+    return PLAN_LIMITS[plan];
   }
 
   /**
@@ -232,15 +214,15 @@ export class UsageService {
     sms: { used: number; limit: number; percent: number; exceeded: boolean };
     contacts: { used: number; limit: number; percent: number; exceeded: boolean };
   }> {
-    const usage = await this.getCurrentWeekUsage(companyId, periodStart);
+    const usage = await this.getCurrentPeriodUsage(companyId, periodStart);
     const limits = this.getPlanLimits(plan);
 
     return {
       minutes: {
         used: usage.minutes_used,
-        limit: limits.weekly_minutes,
-        percent: (usage.minutes_used / limits.weekly_minutes) * 100,
-        exceeded: usage.minutes_used >= limits.weekly_minutes,
+        limit: limits.monthly_minutes,
+        percent: (usage.minutes_used / limits.monthly_minutes) * 100,
+        exceeded: usage.minutes_used >= limits.monthly_minutes,
       },
       sms: {
         used: usage.sms_sent_count,

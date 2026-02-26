@@ -553,12 +553,56 @@ function BillingStep({ nextStep }: { nextStep?: OnboardingStepId }) {
   const currentPlan = (company?.subscription_plan as SubscriptionPlan | undefined) || undefined;
   const [selectedPlan, setSelectedPlan] = useState<SubscriptionPlan | null>(currentPlan || null);
   const [showPayment, setShowPayment] = useState(false);
+  const [connectStatus, setConnectStatus] = useState<any>(null);
+  const [connectBusy, setConnectBusy] = useState(false);
 
   useEffect(() => {
     if (selectedPlan) {
       setShowPayment(true);
     }
   }, [selectedPlan]);
+
+  useEffect(() => {
+    if (!status.billing) return;
+    let isMounted = true;
+    apiClient
+      .getConnectStatus()
+      .then((data) => {
+        if (!isMounted) return;
+        setConnectStatus(data || { connected: false });
+      })
+      .catch(() => {
+        if (!isMounted) return;
+        setConnectStatus({ connected: false });
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, [status.billing]);
+
+  const startConnectOnboarding = async () => {
+    try {
+      setConnectBusy(true);
+      const result = await apiClient.setupConnectAccount();
+      if (result?.url) {
+        window.location.href = result.url;
+        return;
+      }
+      toast({
+        title: 'Unable to start Connect',
+        description: 'Try again from Settings if this continues.',
+        variant: 'destructive',
+      });
+    } catch (error: any) {
+      toast({
+        title: 'Connect setup failed',
+        description: error?.message || 'Unable to start Stripe Connect onboarding.',
+        variant: 'destructive',
+      });
+    } finally {
+      setConnectBusy(false);
+    }
+  };
 
   if (status.billing) {
     return (
@@ -579,6 +623,22 @@ function BillingStep({ nextStep }: { nextStep?: OnboardingStepId }) {
             </div>
           </CardContent>
         </Card>
+        <Card className="mt-5 border-slate-200 bg-white">
+          <CardHeader>
+            <CardTitle className="text-base">Optional: accept customer payments</CardTitle>
+            <CardDescription>
+              Connect Stripe now to collect customer payments from booking links.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-sm text-slate-600">
+              {connectStatus?.connected ? 'Stripe Connect is configured.' : 'Stripe Connect is not configured yet.'}
+            </p>
+            <Button onClick={startConnectOnboarding} disabled={connectBusy}>
+              {connectBusy ? 'Opening…' : connectStatus?.connected ? 'Manage Connect' : 'Set up Connect'}
+            </Button>
+          </CardContent>
+        </Card>
         <div className="mt-8 flex justify-end">
           <NextStepButton nextStep={nextStep} disabled={!status.billing} />
         </div>
@@ -596,12 +656,13 @@ function BillingStep({ nextStep }: { nextStep?: OnboardingStepId }) {
 
       <div className="grid gap-5 lg:grid-cols-3">
         {Object.entries(PLAN_CATALOG).map(([plan, details]) => {
-          const price = getPlanPriceDisplay(plan as SubscriptionPlan);
-          const isSelected = selectedPlan === plan;
+          const planKey = plan as SubscriptionPlan;
+          const price = getPlanPriceDisplay(planKey);
+          const isSelected = selectedPlan === planKey;
           const description =
-            details.badge === 'Best value'
-              ? 'Maximum weekly capacity with advanced routing.'
-              : details.badge === 'Most popular'
+            planKey === SubscriptionPlan.MAX
+              ? 'Maximum monthly capacity with advanced routing.'
+              : planKey === SubscriptionPlan.PRO
               ? 'Best for growing teams with steady call volume.'
               : 'Great for solo operators getting started.';
           return (
@@ -610,7 +671,7 @@ function BillingStep({ nextStep }: { nextStep?: OnboardingStepId }) {
               className={`cursor-pointer border transition-all ${
                 isSelected ? 'border-emerald-400 bg-emerald-50/70 shadow-md' : 'border-emerald-100 hover:border-emerald-200'
               }`}
-              onClick={() => setSelectedPlan(plan as SubscriptionPlan)}
+              onClick={() => setSelectedPlan(planKey)}
             >
               <CardHeader>
                 <CardTitle className="text-lg">{details.name}</CardTitle>

@@ -171,6 +171,112 @@ function escapeXml(value: string) {
     .replace(/'/g, '&apos;');
 }
 
+type DaySchedule = {
+  open?: string;
+  close?: string;
+  closed?: boolean;
+  segments?: Array<{ open: string; close: string }>;
+};
+
+type BusinessHours = Record<string, DaySchedule | undefined>;
+
+function parseTimeToMinutes(value: string | undefined): number | null {
+  if (!value) return null;
+  const match = /^(\d{1,2}):(\d{2})$/.exec(String(value).trim());
+  if (!match) return null;
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return null;
+  if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) return null;
+  return hours * 60 + minutes;
+}
+
+function getLocalTimeParts(now: Date, timeZone: string): { weekday: string; minutes: number } | null {
+  try {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone,
+      weekday: 'long',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    }).formatToParts(now);
+
+    const weekday = (parts.find((p) => p.type === 'weekday')?.value || '').toLowerCase();
+    const hour = Number(parts.find((p) => p.type === 'hour')?.value || '0');
+    const minute = Number(parts.find((p) => p.type === 'minute')?.value || '0');
+    if (!weekday || !Number.isFinite(hour) || !Number.isFinite(minute)) return null;
+    return { weekday, minutes: hour * 60 + minute };
+  } catch {
+    return null;
+  }
+}
+
+function resolveScheduleForDay(hours: BusinessHours | undefined, weekday: string): DaySchedule | null {
+  if (!hours || typeof hours !== 'object') return null;
+  const direct = hours[weekday];
+  if (direct) return direct;
+  const shortMap: Record<string, string> = {
+    monday: 'mon',
+    tuesday: 'tue',
+    wednesday: 'wed',
+    thursday: 'thu',
+    friday: 'fri',
+    saturday: 'sat',
+    sunday: 'sun',
+  };
+  const shortKey = shortMap[weekday];
+  return shortKey ? hours[shortKey] ?? null : null;
+}
+
+function normalizeTimeZone(input: string | undefined, fallback = 'UTC'): string {
+  const candidate = String(input || '').trim();
+  if (!candidate) return fallback;
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: candidate }).format(new Date());
+    return candidate;
+  } catch {
+    return fallback;
+  }
+}
+
+function isWithinBusinessHours(
+  hours: BusinessHours | undefined,
+  timeZone: string | undefined,
+  now: Date = new Date()
+): boolean | null {
+  if (!hours) return null;
+  const tz = normalizeTimeZone(timeZone, 'UTC');
+  const parts = getLocalTimeParts(now, tz);
+  if (!parts) return null;
+
+  const schedule = resolveScheduleForDay(hours, parts.weekday);
+  if (!schedule) return null;
+  if (schedule.closed) return false;
+
+  const segments =
+    Array.isArray(schedule.segments) && schedule.segments.length > 0
+      ? schedule.segments
+      : schedule.open && schedule.close
+        ? [{ open: schedule.open, close: schedule.close }]
+        : [];
+
+  let hasValidSegment = false;
+  for (const segment of segments) {
+    const open = parseTimeToMinutes(segment.open);
+    const close = parseTimeToMinutes(segment.close);
+    if (open === null || close === null) continue;
+    hasValidSegment = true;
+    if (open <= close) {
+      if (parts.minutes >= open && parts.minutes < close) return true;
+    } else {
+      if (parts.minutes >= open || parts.minutes < close) return true;
+    }
+  }
+
+  if (!hasValidSegment) return null;
+  return false;
+}
+
 function normalizeSpeechText(value: string): string {
   return String(value || '')
     .replace(/\s+/g, ' ')
@@ -310,6 +416,11 @@ type TenantInfo = {
   company_id: string;
   company_name: string;
   timezone?: string;
+  phone_number?: string;
+  business_hours?: BusinessHours;
+  calls_enabled?: boolean;
+  account_status?: string;
+  call_handling_mode?: 'ALWAYS' | 'MISSED' | 'AFTER_HOURS' | string;
   service_area_zipcodes?: string[];
   pricing_profile?: {
     model?: string;
@@ -1320,7 +1431,38 @@ const server = http.createServer(async (req, res) => {
 
       console.log('[twilio] voice webhook', { callSid, from, to, mediaWsUrl, streamTrack: streamTrack || 'default' });
 
-      const twiml = `<?xml version="1.0" encoding="UTF-8"?>
+      let tenant: TenantInfo | null = null;
+      if (to) {
+        try {
+          tenant = await resolveTenant(to);
+        } catch (err: any) {
+          console.warn('[twilio] resolveTenant failed for call handling check', err?.message ?? String(err));
+        }
+      }
+
+      const configuredTransfer = typeof tenant?.transfer_number === 'string' ? tenant.transfer_number.trim() : '';
+      const businessNumber = typeof tenant?.phone_number === 'string' ? tenant.phone_number.trim() : '';
+      const fallbackTransfer = resolveTransferTarget() || '';
+      const routingTarget = configuredTransfer || businessNumber || fallbackTransfer;
+      const mode = String(tenant?.call_handling_mode || 'ALWAYS').toUpperCase();
+
+      if (tenant?.calls_enabled === false) {
+        if (routingTarget) {
+          const disabledTwiml = `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Dial>${escapeXml(routingTarget)}</Dial>
+</Response>`;
+          return xml(res, 200, disabledTwiml);
+        }
+        const unavailableTwiml = `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Say>Sorry, this service is temporarily unavailable. Please try again later.</Say>
+  <Hangup/>
+</Response>`;
+        return xml(res, 200, unavailableTwiml);
+      }
+
+      const aiTwiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Connect>
     <Stream url="${escapeXml(mediaWsUrl)}"${trackAttr} statusCallback="${escapeXml(streamStatusUrl)}" statusCallbackEvent="start end">
@@ -1332,7 +1474,36 @@ const server = http.createServer(async (req, res) => {
   </Connect>
 </Response>`;
 
-      return xml(res, 200, twiml);
+      if (mode === 'AFTER_HOURS') {
+        const isOpen = isWithinBusinessHours(tenant?.business_hours, tenant?.timezone, new Date());
+        if (isOpen === true && routingTarget) {
+          const afterHoursTwiml = `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Dial>${escapeXml(routingTarget)}</Dial>
+</Response>`;
+          return xml(res, 200, afterHoursTwiml);
+        }
+      }
+
+      if (mode === 'MISSED' && routingTarget) {
+        const timeoutSeconds = Number(process.env.MISSED_MODE_RING_SECONDS || 18);
+        const safeTimeout = Number.isFinite(timeoutSeconds) ? Math.min(Math.max(Math.round(timeoutSeconds), 8), 45) : 18;
+        const missedTwiml = `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Dial timeout="${safeTimeout}">${escapeXml(routingTarget)}</Dial>
+  <Connect>
+    <Stream url="${escapeXml(mediaWsUrl)}"${trackAttr} statusCallback="${escapeXml(streamStatusUrl)}" statusCallbackEvent="start end">
+      <Parameter name="callSid" value="${escapeXml(callSid)}" />
+      <Parameter name="to" value="${escapeXml(to)}" />
+      <Parameter name="from" value="${escapeXml(from)}" />
+      <Parameter name="token" value="${escapeXml(mediaToken)}" />
+    </Stream>
+  </Connect>
+</Response>`;
+        return xml(res, 200, missedTwiml);
+      }
+
+      return xml(res, 200, aiTwiml);
     }
 
     return json(res, 404, { ok: false, error: 'Not found' });

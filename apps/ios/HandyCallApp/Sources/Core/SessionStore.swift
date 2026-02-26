@@ -1,6 +1,21 @@
 import Foundation
 import SwiftUI
 
+// Returns true when the JWT's exp claim is within `bufferSeconds` of now (or already past).
+private func jwtIsExpiredOrExpiring(_ jwt: String, bufferSeconds: TimeInterval = 5 * 60) -> Bool {
+    let parts = jwt.split(separator: ".").map(String.init)
+    guard parts.count == 3 else { return true }
+    var payload = parts[1]
+    let remainder = payload.count % 4
+    if remainder != 0 { payload += String(repeating: "=", count: 4 - remainder) }
+    guard
+        let data = Data(base64Encoded: payload),
+        let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+        let exp = json["exp"] as? TimeInterval
+    else { return true }
+    return Date().timeIntervalSince1970 >= exp - bufferSeconds
+}
+
 @MainActor
 final class SessionStore: ObservableObject {
     @Published private(set) var session: AuthSession?
@@ -89,6 +104,41 @@ final class SessionStore: ObservableObject {
         KeychainStore.remove("email")
     }
 
+    /// Tries to exchange the stored refresh token for fresh access/id tokens.
+    /// Calls `logout()` and returns `false` if the refresh fails or no refresh token is available.
+    @discardableResult
+    func refreshSession() async -> Bool {
+        guard
+            let currentSession = session,
+            let refreshToken = currentSession.refreshToken
+        else {
+            logout()
+            return false
+        }
+        do {
+            let response = try await apiClient.refresh(refreshToken: refreshToken, email: currentSession.email)
+            let updated = AuthSession(
+                accessToken: response.accessToken,
+                idToken: response.idToken,
+                refreshToken: refreshToken,
+                email: currentSession.email
+            )
+            apply(session: updated)
+            return true
+        } catch {
+            logout()
+            return false
+        }
+    }
+
+    /// Called when the app returns to foreground. Silently refreshes tokens if they are
+    /// expired or about to expire (within 5 minutes). Logs out if refresh is impossible.
+    func validateAndRefreshIfNeeded() async {
+        guard let current = session else { return }
+        guard jwtIsExpiredOrExpiring(current.idToken) else { return }
+        await refreshSession()
+    }
+
     private func restore() {
         guard
             let idToken = KeychainStore.load("id_token"),
@@ -103,6 +153,11 @@ final class SessionStore: ObservableObject {
             email: email
         )
         apply(session: restored)
+
+        // Proactively refresh if the stored token is already expired or expiring soon.
+        if jwtIsExpiredOrExpiring(idToken) {
+            Task { await self.refreshSession() }
+        }
     }
 
     private func apply(session: AuthSession) {

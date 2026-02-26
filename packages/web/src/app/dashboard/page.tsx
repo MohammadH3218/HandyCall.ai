@@ -1,529 +1,283 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { type ReactNode, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { useAuthStore } from '@/stores/auth-store';
+import { AlertTriangle, ArrowRight, CalendarClock, Clock3, DollarSign, MessageSquare, Phone, Users } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
-import { usePortalBasePath } from '@/lib/portal';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
+import { useAuthStore } from '@/stores/auth-store';
 import { PageHeader } from '@/components/portal/page-header';
-import { Phone, Users, Calendar, AlertCircle, ArrowUpRight } from 'lucide-react';
-import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { Button } from '@/components/ui/button';
 
-interface DashboardStats {
-  todayCalls: number;
-  newLeads: number;
-  appointments: number;
-  pendingQuestions: number;
+type DashboardOverview = {
+  metrics: {
+    revenue_this_month_cents: number;
+    lead_conversion_rate: number;
+    total_customers: number;
+    active_leads: number;
+    appointments_this_week: number;
+  };
+  usage_summary: {
+    period_start: number;
+    period_end: number;
+    minutes: { used: number; limit: number; percent: number; blocked: boolean };
+    sms: { used: number; limit: number; percent: number; blocked: boolean };
+    contacts: { used: number; limit: number; percent: number; blocked: boolean };
+  };
+  quick_insights: {
+    unanswered_questions: number;
+    hot_leads_needing_follow_up: number;
+    appointments_next_24h: number;
+    next_appointment_countdown_minutes: number | null;
+    quick_actions: Array<{
+      id: string;
+      title: string;
+      description: string;
+      severity: 'HIGH' | 'MEDIUM' | 'LOW';
+      count: number;
+      action_url: string;
+    }>;
+  };
+  activity_feed: Array<{
+    id: string;
+    type: 'CALL' | 'APPOINTMENT' | 'PAYMENT' | 'LEAD';
+    title: string;
+    description: string;
+    created_at: number;
+    action_url?: string;
+  }>;
+};
+
+function formatMoney(cents = 0) {
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format((cents || 0) / 100);
 }
 
-interface RecentCall {
-  call_id: string;
-  caller_phone: string;
-  caller_name?: string;
-  created_at: string;
-  duration?: number;
-  status: string;
-  summary?: string;
-}
-
-interface UpcomingAppointment {
-  appointment_id: string;
-  contact_name: string;
-  contact_phone: string;
-  scheduled_time: string;
-  service_type?: string;
-  status: string;
-}
-
-interface UsageMetric {
-  date: string;
-  calls_count?: number;
-}
-
-type ChartRange = 'week' | 'month' | 'year';
-
-interface ChartPoint {
-  label: string;
-  value: number;
+function formatDate(ts?: number) {
+  if (!ts) return '-';
+  return new Date(ts).toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
 }
 
 export default function DashboardPage() {
-  const { company, isAuthenticated, isLoading: authLoading } = useAuthStore();
-  const basePath = usePortalBasePath();
-  const [stats, setStats] = useState<DashboardStats | null>(null);
-  const [recentCalls, setRecentCalls] = useState<RecentCall[]>([]);
-  const [upcomingAppointments, setUpcomingAppointments] = useState<UpcomingAppointment[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const { company } = useAuthStore();
+  const [overview, setOverview] = useState<DashboardOverview | null>(null);
+  const [connectStatus, setConnectStatus] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [chartRange, setChartRange] = useState<ChartRange>('week');
-  const [chartSeries, setChartSeries] = useState<Record<ChartRange, ChartPoint[]>>({
-    week: [],
-    month: [],
-    year: [],
-  });
-  const [chartLoading, setChartLoading] = useState<Record<ChartRange, boolean>>({
-    week: false,
-    month: false,
-    year: false,
-  });
-  const [chartError, setChartError] = useState<string | null>(null);
-  const [hasLoaded, setHasLoaded] = useState(false);
+
+  const load = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const [overviewData, connect] = await Promise.all([
+        apiClient.getDashboardStats(),
+        apiClient.getConnectStatus().catch(() => ({ connected: false })),
+      ]);
+      setOverview(overviewData as DashboardOverview);
+      setConnectStatus(connect || { connected: false });
+    } catch (err: any) {
+      setError(err?.message || 'Failed to load dashboard');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    if (authLoading || !isAuthenticated || hasLoaded) return;
-    setHasLoaded(true);
-    loadDashboardData();
-    void loadChartData('week');
-    void loadChartData('month');
-  }, [authLoading, isAuthenticated, hasLoaded]);
+    void load();
+  }, []);
 
-  const loadDashboardData = async () => {
-    try {
-      setIsLoading(true);
-      setError(null);
+  const usageBlocked = useMemo(() => {
+    const usage = overview?.usage_summary;
+    if (!usage) return false;
+    return usage.minutes.blocked || usage.sms.blocked || usage.contacts.blocked;
+  }, [overview]);
 
-      const [statsData, callsData, appointmentsData] = await Promise.all([
-        apiClient.getDashboardStats(),
-        apiClient.getRecentCalls(),
-        apiClient.getUpcomingAppointments(),
-      ]);
-
-      setStats(statsData);
-      setRecentCalls(callsData || []);
-      setUpcomingAppointments(appointmentsData || []);
-    } catch (err: any) {
-      console.error('Error loading dashboard:', err);
-      if (!isAuthenticated || authLoading) {
-        return;
-      }
-      setError(err.message || 'Failed to load dashboard data');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const toISODate = (date: Date) => date.toISOString().split('T')[0];
-
-  const addDays = (date: Date, days: number) => {
-    const next = new Date(date);
-    next.setDate(next.getDate() + days);
-    return next;
-  };
-
-  const buildDailySeries = (start: Date, end: Date, history: UsageMetric[], labelFormat: Intl.DateTimeFormatOptions) => {
-    const map = new Map<string, number>();
-    history.forEach((item) => {
-      if (!item?.date) return;
-      map.set(item.date, Number(item.calls_count || 0));
-    });
-
-    const series: ChartPoint[] = [];
-    let cursor = new Date(start);
-    while (cursor <= end) {
-      const key = toISODate(cursor);
-      const label = cursor.toLocaleDateString('en-US', labelFormat);
-      series.push({ label, value: map.get(key) ?? 0 });
-      cursor = addDays(cursor, 1);
-    }
-    return series;
-  };
-
-  const loadChartData = async (range: ChartRange) => {
-    if (!isAuthenticated || authLoading) return;
-    if (chartLoading[range]) return;
-    if (chartSeries[range]?.length) return;
-
-    setChartLoading((prev) => ({ ...prev, [range]: true }));
-    setChartError(null);
-
-    try {
-      if (range === 'year') {
-        const end = new Date();
-        const points: ChartPoint[] = [];
-        for (let i = 11; i >= 0; i -= 1) {
-          const monthStart = new Date(end.getFullYear(), end.getMonth() - i, 1);
-          const monthEnd = new Date(end.getFullYear(), end.getMonth() - i + 1, 0);
-          const res = await apiClient.getUsageMetrics(toISODate(monthStart), toISODate(monthEnd));
-          const history = (res as any)?.history || [];
-          const total = (history as UsageMetric[]).reduce(
-            (acc, item) => acc + Number(item?.calls_count || 0),
-            0
-          );
-          points.push({
-            label: monthStart.toLocaleDateString('en-US', { month: 'short' }),
-            value: total,
-          });
-        }
-        setChartSeries((prev) => ({ ...prev, year: points }));
-        return;
-      }
-
-      const end = new Date();
-      const start = range === 'week' ? addDays(end, -6) : addDays(end, -29);
-      const res = await apiClient.getUsageMetrics(toISODate(start), toISODate(end));
-      const history = (res as any)?.history || [];
-      const format: Intl.DateTimeFormatOptions =
-        range === 'week' ? { weekday: 'short' } : { month: 'short', day: 'numeric' };
-      const series = buildDailySeries(start, end, history, format);
-      setChartSeries((prev) => ({ ...prev, [range]: series }));
-    } catch (err: any) {
-      setChartError(err?.message || 'Unable to load call activity.');
-    } finally {
-      setChartLoading((prev) => ({ ...prev, [range]: false }));
-    }
-  };
-
-  const formatDate = (dateValue?: string | number) => {
-    if (!dateValue) return '-';
-    const date = new Date(dateValue);
-    if (Number.isNaN(date.getTime())) return '-';
-    return date.toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  };
-
-  const formatDateTime = (dateValue?: string | number) => {
-    if (!dateValue) return '-';
-    const date = new Date(dateValue);
-    if (Number.isNaN(date.getTime())) return '-';
-    return date.toLocaleString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  };
-
-  const formatDuration = (seconds?: number) => {
-    if (!seconds) return '-';
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  const formatStatus = (status?: string) => {
-    if (!status) return 'Unknown';
-    return status.replace(/_/g, ' ').toLowerCase();
-  };
-
-  const recentLimit = 2;
-  const appointmentLimit = 2;
-  const recentPreview = useMemo(() => recentCalls.slice(0, recentLimit), [recentCalls]);
-  const appointmentPreview = useMemo(
-    () => upcomingAppointments.slice(0, appointmentLimit),
-    [upcomingAppointments]
-  );
-  const hasMoreCalls = recentCalls.length > recentLimit;
-  const hasMoreAppointments = upcomingAppointments.length > appointmentLimit;
-
-  if (error) {
+  if (loading) {
     return (
-      <div className="p-8">
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-          <p className="text-red-800">{error}</p>
-          <button
-            onClick={loadDashboardData}
-            className="mt-2 text-sm text-red-600 hover:text-red-800 underline"
-          >
-            Try again
-          </button>
+      <div className="space-y-4">
+        <div className="h-8 w-48 animate-pulse rounded bg-slate-100" />
+        <div className="grid gap-4 md:grid-cols-4">
+          {[1, 2, 3, 4].map((i) => <div key={i} className="h-24 animate-pulse rounded-2xl bg-slate-100" />)}
         </div>
       </div>
     );
   }
 
+  if (error) {
+    return (
+      <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+        {error}
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-6 animate-fade-up">
+    <div className="space-y-6">
       <PageHeader
-        eyebrow="Overview"
+        eyebrow="Dashboard"
         title={`Welcome back, ${company?.company_name || 'HandyCall'}`}
-        subtitle="See today's call activity, new leads, and upcoming appointments at a glance."
+        subtitle="Track usage, leads, appointments, revenue, and what needs attention next."
+        actions={<Button onClick={() => void load()}>Refresh</Button>}
       />
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+      {usageBlocked && (
+        <div className="rounded-2xl border border-red-200 bg-red-50 px-5 py-4">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-red-600" />
+            <div>
+              <p className="text-sm font-semibold text-red-800">Plan limit reached</p>
+              <p className="mt-1 text-sm text-red-700">
+                AI handling may be paused until your next billing reset. Upgrade to restore full coverage immediately.
+              </p>
+              <Button asChild size="sm" className="mt-3">
+                <Link href="/dashboard/billing/plans">Upgrade plan</Link>
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="grid gap-4 md:grid-cols-4">
         <StatCard
-          title="Today's Calls"
-          value={isLoading ? '-' : stats?.todayCalls.toString() || '0'}
-          icon={<Phone className="h-5 w-5 text-emerald-600" />}
-          description={stats?.todayCalls ? 'calls received today' : 'No calls yet today'}
-          isLoading={isLoading}
+          label="Minutes used"
+          value={`${Math.round(overview?.usage_summary.minutes.percent || 0)}%`}
+          detail={`${Math.round(overview?.usage_summary.minutes.used || 0)} / ${Math.round(overview?.usage_summary.minutes.limit || 0)}`}
+          icon={<Clock3 className="h-4 w-4 text-blue-600" />}
         />
         <StatCard
-          title="New Leads"
-          value={isLoading ? '-' : stats?.newLeads.toString() || '0'}
-          icon={<Users className="h-5 w-5 text-emerald-600" />}
-          description={stats?.newLeads ? 'new contacts added' : 'Waiting for first lead'}
-          isLoading={isLoading}
+          label="Active leads"
+          value={String(overview?.metrics.active_leads || 0)}
+          detail={`${overview?.metrics.total_customers || 0} total customers`}
+          icon={<Users className="h-4 w-4 text-emerald-600" />}
         />
         <StatCard
-          title="Appointments"
-          value={isLoading ? '-' : stats?.appointments.toString() || '0'}
-          icon={<Calendar className="h-5 w-5 text-emerald-600" />}
-          description={stats?.appointments ? 'upcoming appointments' : 'No scheduled appointments'}
-          isLoading={isLoading}
+          label="Appointments this week"
+          value={String(overview?.metrics.appointments_this_week || 0)}
+          detail={`${overview?.quick_insights.appointments_next_24h || 0} in next 24h`}
+          icon={<CalendarClock className="h-4 w-4 text-violet-600" />}
         />
         <StatCard
-          title="Pending Questions"
-          value={isLoading ? '-' : stats?.pendingQuestions.toString() || '0'}
-          icon={<AlertCircle className="h-5 w-5 text-amber-500" />}
-          description={stats?.pendingQuestions ? 'need your attention' : 'No flagged questions'}
-          isLoading={isLoading}
+          label="Revenue this month"
+          value={connectStatus?.connected ? formatMoney(overview?.metrics.revenue_this_month_cents || 0) : '—'}
+          detail={connectStatus?.connected ? 'From customer payments' : 'Connect Stripe to view'}
+          icon={<DollarSign className="h-4 w-4 text-amber-600" />}
         />
       </div>
 
-      {/* Recent Activity */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        {/* Recent Calls */}
-        <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
-          <div className="mb-4 flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-slate-900">Recent Calls</h3>
-            {hasMoreCalls && (
-              <Link
-                href={`${basePath}/calls`}
-                className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 hover:text-emerald-600"
-              >
-                View all <ArrowUpRight className="h-3.5 w-3.5" />
-              </Link>
-            )}
-          </div>
-          {isLoading ? (
-            <div className="space-y-3">
-              {[1, 2].map((i) => (
-                <div key={i} className="flex items-center gap-3">
-                  <div className="h-9 w-9 animate-pulse rounded-full bg-slate-100" />
-                  <div className="flex-1 space-y-1.5">
-                    <div className="h-3.5 w-1/2 animate-pulse rounded bg-slate-100" />
-                    <div className="h-3 w-1/3 animate-pulse rounded bg-slate-100" />
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : recentPreview.length > 0 ? (
-            <div className="space-y-2">
-              {recentPreview.map((call) => {
-                const status = call.status?.toString().toLowerCase();
-                const isInProgress = status === 'in_progress' || status === 'in progress';
-                const hasName = Boolean(call.caller_name && call.caller_name.trim());
-                const displayName = isInProgress
-                  ? 'In Progress'
-                  : hasName
-                    ? call.caller_name!.trim()
-                    : 'Unknown caller';
-                const initials = hasName
-                  ? (() => {
-                      const parts = call.caller_name!.trim().split(/\s+/);
-                      return parts.length >= 2
-                        ? `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase()
-                        : call.caller_name![0].toUpperCase();
-                    })()
-                  : '#';
-                const meta = [formatDate(call.created_at), call.duration ? formatDuration(call.duration) : null]
-                  .filter(Boolean).join(' · ');
-                return (
-                  <Link
-                    key={call.call_id}
-                    href={`${basePath}/calls/${call.call_id}`}
-                    className="group flex items-center gap-3 rounded-xl border border-slate-100 bg-white p-3 transition-all hover:border-emerald-100 hover:shadow-sm"
-                  >
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-500 text-xs font-bold text-white">
-                      {initials}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-semibold text-slate-900">{displayName}</p>
-                      <p className="text-xs text-slate-400">{meta || '-'}</p>
-                    </div>
-                    <ArrowUpRight className="h-4 w-4 shrink-0 text-slate-300 transition-colors group-hover:text-emerald-500" />
-                  </Link>
-                );
-              })}
-            </div>
-          ) : (
-            <p className="py-6 text-center text-sm text-slate-400">
-              No calls yet. Your AI receptionist is ready!
-            </p>
-          )}
+      <div className="rounded-2xl border border-slate-100 bg-white shadow-sm">
+        <div className="border-b border-slate-100 px-5 py-4">
+          <h2 className="text-sm font-semibold text-slate-900">Usage summary</h2>
+          <p className="text-xs text-slate-500">
+            {formatDate(overview?.usage_summary.period_start)} – {formatDate(overview?.usage_summary.period_end)}
+          </p>
         </div>
-
-        {/* Upcoming Appointments */}
-        <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
-          <div className="mb-4 flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-slate-900">Upcoming Appointments</h3>
-            {hasMoreAppointments && (
-              <Link
-                href={`${basePath}/appointments`}
-                className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 hover:text-emerald-600"
-              >
-                View all <ArrowUpRight className="h-3.5 w-3.5" />
-              </Link>
-            )}
-          </div>
-          {isLoading ? (
-            <div className="space-y-3">
-              {[1, 2].map((i) => (
-                <div key={i} className="flex items-center gap-3">
-                  <div className="h-9 w-9 animate-pulse rounded-xl bg-slate-100" />
-                  <div className="flex-1 space-y-1.5">
-                    <div className="h-3.5 w-1/2 animate-pulse rounded bg-slate-100" />
-                    <div className="h-3 w-1/3 animate-pulse rounded bg-slate-100" />
-                  </div>
+        <div className="space-y-4 p-5">
+          {[
+            { key: 'minutes', label: 'Call minutes' },
+            { key: 'sms', label: 'SMS' },
+            { key: 'contacts', label: 'Contacts' },
+          ].map((item) => {
+            const usage = (overview?.usage_summary as any)?.[item.key] || { used: 0, limit: 0, percent: 0, blocked: false };
+            const width = Math.min(100, Math.max(0, usage.percent || 0));
+            return (
+              <div key={item.key}>
+                <div className="mb-1 flex items-center justify-between text-sm">
+                  <span className="font-medium text-slate-700">{item.label}</span>
+                  <span className="text-slate-500">{usage.used} / {usage.limit}</span>
                 </div>
-              ))}
-            </div>
-          ) : appointmentPreview.length > 0 ? (
-            <div className="space-y-2">
-              {appointmentPreview.map((apt) => {
-                const scheduled = (apt as any)?.scheduled_start ?? apt.scheduled_time;
-                const meta = formatDateTime(scheduled);
-                const service = apt.service_type || null;
-                return (
-                  <Link
-                    key={apt.appointment_id}
-                    href={`${basePath}/appointments`}
-                    className="group flex items-center gap-3 rounded-xl border border-slate-100 bg-white p-3 transition-all hover:border-emerald-100 hover:shadow-sm"
-                  >
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-50 border border-emerald-100">
-                      <Calendar className="h-4 w-4 text-emerald-600" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-semibold text-slate-900">
-                        {apt.contact_name || service || 'Appointment'}
-                      </p>
-                      <p className="text-xs text-slate-400">
-                        {meta}{service ? ` · ${service}` : ''}
-                      </p>
-                    </div>
-                    <span className="shrink-0 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700">
-                      {formatStatus(apt.status)}
-                    </span>
-                  </Link>
-                );
-              })}
-            </div>
+                <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+                  <div
+                    className={`h-full rounded-full ${usage.blocked ? 'bg-red-500' : width >= 75 ? 'bg-amber-500' : 'bg-emerald-500'}`}
+                    style={{ width: `${width}%` }}
+                  />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-slate-100 bg-white shadow-sm">
+        <div className="border-b border-slate-100 px-5 py-4">
+          <h2 className="text-sm font-semibold text-slate-900">Quick actions</h2>
+          <p className="text-xs text-slate-500">Prioritized items that need attention right now.</p>
+        </div>
+        <div className="grid gap-3 p-5 md:grid-cols-3">
+          {(overview?.quick_insights.quick_actions || []).length ? (
+            overview!.quick_insights.quick_actions.map((action) => (
+              <Link
+                key={action.id}
+                href={action.action_url}
+                className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4 transition hover:border-emerald-200 hover:bg-white"
+              >
+                <p className="text-sm font-semibold text-slate-900">{action.title}</p>
+                <p className="mt-1 text-xs text-slate-600">{action.description}</p>
+                <div className="mt-3 flex items-center justify-between">
+                  <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-700">
+                    {action.count}
+                  </span>
+                  <ArrowRight className="h-4 w-4 text-slate-400" />
+                </div>
+              </Link>
+            ))
           ) : (
-            <p className="py-6 text-center text-sm text-slate-400">
-              No appointments scheduled
-            </p>
+            <p className="text-sm text-slate-500">No urgent actions right now.</p>
           )}
         </div>
       </div>
 
-      {/* Call Activity Chart */}
-      <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
-        <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h3 className="text-sm font-semibold text-slate-900">Call activity</h3>
-            <p className="mt-0.5 text-xs text-slate-500">Total inbound calls by period</p>
-          </div>
-          <div className="flex items-center gap-1 rounded-xl border border-slate-200 bg-slate-50/70 p-1">
-            {(['week', 'month', 'year'] as ChartRange[]).map((range) => (
-              <button
-                key={range}
-                onClick={() => { setChartRange(range); void loadChartData(range); }}
-                className={`rounded-lg px-4 py-1.5 text-xs font-semibold transition-all ${
-                  chartRange === range
-                    ? 'bg-white text-slate-900 shadow-sm'
-                    : 'text-slate-500 hover:text-slate-700'
-                }`}
-              >
-                {range === 'week' ? 'Week' : range === 'month' ? 'Month' : 'Year'}
-              </button>
-            ))}
-          </div>
+      <div className="rounded-2xl border border-slate-100 bg-white shadow-sm">
+        <div className="border-b border-slate-100 px-5 py-4">
+          <h2 className="text-sm font-semibold text-slate-900">Activity feed</h2>
+          <p className="text-xs text-slate-500">Latest events across calls, leads, appointments, and payments.</p>
         </div>
-
-        {chartError ? (
-          <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
-            {chartError}
-          </div>
-        ) : chartLoading[chartRange] ? (
-          <div className="h-[260px] animate-pulse rounded-2xl bg-slate-100/60" />
-        ) : chartSeries[chartRange].length === 0 ? (
-          <div className="flex h-[260px] items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-slate-50/40 text-sm text-slate-400">
-            No call activity yet for this period.
-          </div>
-        ) : (
-          <div className="h-[260px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={chartSeries[chartRange]}>
-                <defs>
-                  <linearGradient id="callsGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#10b981" stopOpacity={0.3} />
-                    <stop offset="100%" stopColor="#10b981" stopOpacity={0.02} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} allowDecimals={false} width={28} />
-                <Tooltip
-                  cursor={{ stroke: '#10b981', strokeWidth: 1.5, strokeDasharray: '4 4' }}
-                  contentStyle={{
-                    borderRadius: '12px',
-                    border: '1px solid #e2e8f0',
-                    boxShadow: '0 8px 24px rgba(15, 23, 42, 0.08)',
-                    fontSize: '12px',
-                  }}
-                  labelStyle={{ color: '#64748b', fontWeight: 600 }}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="value"
-                  stroke="#10b981"
-                  strokeWidth={2.5}
-                  fill="url(#callsGradient)"
-                  name="Calls"
-                  dot={false}
-                  activeDot={{ r: 5, fill: '#10b981', strokeWidth: 2, stroke: '#fff' }}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        )}
+        <div className="divide-y divide-slate-100">
+          {(overview?.activity_feed || []).slice(0, 20).map((item) => (
+            <Link
+              key={item.id}
+              href={item.action_url || '/dashboard'}
+              className="flex items-center justify-between gap-3 px-5 py-3 transition hover:bg-slate-50"
+            >
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold text-slate-900">{item.title}</p>
+                <p className="truncate text-xs text-slate-600">{item.description}</p>
+              </div>
+              <span className="shrink-0 text-xs text-slate-400">{formatDate(item.created_at)}</span>
+            </Link>
+          ))}
+          {(overview?.activity_feed || []).length === 0 && (
+            <p className="px-5 py-5 text-sm text-slate-500">No activity yet.</p>
+          )}
+        </div>
       </div>
     </div>
   );
 }
 
 function StatCard({
-  title,
+  label,
   value,
+  detail,
   icon,
-  description,
-  isLoading,
 }: {
-  title: string;
+  label: string;
   value: string;
-  icon: React.ReactNode;
-  description: string;
-  isLoading?: boolean;
+  detail: string;
+  icon: ReactNode;
 }) {
   return (
-    <div className="group rounded-2xl border border-slate-100 bg-white p-5 shadow-sm transition-all hover:border-emerald-100 hover:shadow-md">
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex-shrink-0 rounded-xl border border-emerald-100 bg-emerald-50 p-2.5 transition-transform duration-200 group-hover:-translate-y-0.5">
+    <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">{label}</p>
+        <div className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-slate-50">
           {icon}
         </div>
-        <div className="min-w-0 flex-1 text-right">
-          <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">{title}</p>
-          {isLoading ? (
-            <div className="mt-2 animate-pulse">
-              <div className="ml-auto h-8 w-16 rounded-lg bg-slate-100" />
-              <div className="ml-auto mt-1.5 h-3 w-24 rounded bg-slate-100" />
-            </div>
-          ) : (
-            <>
-              <p className="mt-1 text-[2rem] font-bold leading-none tracking-tight text-slate-900">{value}</p>
-              <p className="mt-1 text-xs text-slate-500">{description}</p>
-            </>
-          )}
-        </div>
       </div>
+      <p className="mt-2 text-2xl font-bold tracking-tight text-slate-900">{value}</p>
+      <p className="mt-1 text-xs text-slate-500">{detail}</p>
     </div>
   );
 }
-

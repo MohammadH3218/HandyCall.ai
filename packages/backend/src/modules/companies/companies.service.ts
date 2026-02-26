@@ -142,6 +142,16 @@ export class CompaniesService {
       schedule_setup_completed: false,
       calendar_mode: 'INTERNAL',
       calendar_provider: 'NONE',
+      stripe_connect_onboarding_complete: false,
+      booking_payment_enabled: false,
+      booking_services: [],
+      follow_up_sequences_enabled: false,
+      follow_up_initial_delay_minutes: 0,
+      follow_up_second_delay_minutes: 24 * 60,
+      follow_up_final_delay_minutes: 3 * 24 * 60,
+      review_request_enabled: false,
+      review_request_delay_minutes: 120,
+      website_widget_enabled: false,
     };
 
     await this.dynamodb.put(this.tableName, company);
@@ -198,6 +208,11 @@ export class CompaniesService {
       trial_used_at?: number | null;
       calls_enabled?: boolean;
       sms_enabled?: boolean;
+      usage_service_blocked?: {
+        calls?: boolean;
+        sms?: boolean;
+        updated_at?: number;
+      };
       transfer_enabled?: boolean;
       transfer_number?: string;
       call_handling_mode?: CallHandlingMode;
@@ -212,6 +227,36 @@ export class CompaniesService {
       payment_method_last4?: string;
       payment_method_brand?: string;
       cancel_at_period_end?: boolean;
+      stripe_connect_account_id?: string;
+      stripe_connect_onboarding_complete?: boolean;
+      booking_payment_enabled?: boolean;
+      booking_services?: Array<{
+        service_id: string;
+        name: string;
+        description?: string;
+        amount_cents: number;
+        currency?: string;
+        duration_minutes?: number;
+        active?: boolean;
+        collect_payment?: boolean;
+      }>;
+      follow_up_sequences_enabled?: boolean;
+      follow_up_initial_delay_minutes?: number;
+      follow_up_second_delay_minutes?: number;
+      follow_up_final_delay_minutes?: number;
+      follow_up_initial_template?: string;
+      follow_up_second_template?: string;
+      follow_up_final_template?: string;
+      review_request_enabled?: boolean;
+      review_request_delay_minutes?: number;
+      review_platform_url?: string;
+      review_request_template?: string;
+      website_widget_enabled?: boolean;
+      website_widget_settings?: {
+        primary_color?: string;
+        position?: 'BOTTOM_RIGHT' | 'BOTTOM_LEFT';
+        greeting?: string;
+      };
       // Calendar fields
       calendar_setup_completed?: boolean;
       schedule_setup_completed?: boolean;

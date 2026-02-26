@@ -1465,26 +1465,7 @@ const server = http.createServer(async (req, res) => {
           console.warn('[twilio] resolveTenant failed for call handling check', err?.message ?? String(err));
         }
       }
-
-      if (tenant?.call_handling_mode === 'AFTER_HOURS') {
-        const isOpen = isWithinBusinessHours(tenant?.business_hours, tenant?.timezone, new Date());
-        if (isOpen === true) {
-          const transferEnabled = tenant?.transfer_enabled === true;
-          const configuredNumber = typeof tenant?.transfer_number === 'string' ? tenant.transfer_number.trim() : '';
-          const fallbackTarget = transferEnabled ? resolveTransferTarget() : '';
-          const target = transferEnabled ? configuredNumber || fallbackTarget : '';
-          if (target) {
-            const twiml = `<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-  <Dial>${escapeXml(target)}</Dial>
-</Response>`;
-            return xml(res, 200, twiml);
-          }
-          console.warn('[twilio] after-hours mode active but no transfer target configured; continuing to AI');
-        }
-      }
-
-      const twiml = `<?xml version="1.0" encoding="UTF-8"?>
+      const aiTwiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Connect>
     <Stream url="${escapeXml(mediaWsUrl)}"${trackAttr} statusCallback="${escapeXml(streamStatusUrl)}" statusCallbackEvent="start end">
@@ -1496,7 +1477,59 @@ const server = http.createServer(async (req, res) => {
   </Connect>
 </Response>`;
 
-      return xml(res, 200, twiml);
+      const transferEnabled = tenant?.transfer_enabled === true;
+      const configuredTransfer = typeof tenant?.transfer_number === 'string' ? tenant.transfer_number.trim() : '';
+      const businessNumber = typeof tenant?.phone_number === 'string' ? tenant.phone_number.trim() : '';
+      const fallbackTransfer = resolveTransferTarget() || '';
+      const routingTarget = configuredTransfer || businessNumber || fallbackTransfer;
+      const mode = String(tenant?.call_handling_mode || 'ALWAYS').toUpperCase();
+
+      if (tenant?.calls_enabled === false) {
+        if (routingTarget) {
+          const twiml = `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Dial>${escapeXml(routingTarget)}</Dial>
+</Response>`;
+          return xml(res, 200, twiml);
+        }
+        const blockedTwiml = `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Say>Sorry, this service is temporarily unavailable. Please try again later.</Say>
+  <Hangup/>
+</Response>`;
+        return xml(res, 200, blockedTwiml);
+      }
+
+      if (mode === 'AFTER_HOURS') {
+        const isOpen = isWithinBusinessHours(tenant?.business_hours, tenant?.timezone, new Date());
+        if (isOpen === true && routingTarget) {
+          const twiml = `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Dial>${escapeXml(routingTarget)}</Dial>
+</Response>`;
+          return xml(res, 200, twiml);
+        }
+      }
+
+      if (mode === 'MISSED' && routingTarget) {
+        const timeoutSeconds = Number(process.env.MISSED_MODE_RING_SECONDS || 18);
+        const safeTimeout = Number.isFinite(timeoutSeconds) ? Math.min(Math.max(Math.round(timeoutSeconds), 8), 45) : 18;
+        const twiml = `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Dial timeout="${safeTimeout}">${escapeXml(routingTarget)}</Dial>
+  <Connect>
+    <Stream url="${escapeXml(mediaWsUrl)}"${trackAttr} statusCallback="${escapeXml(streamStatusUrl)}" statusCallbackEvent="start end">
+      <Parameter name="callSid" value="${escapeXml(callSid)}" />
+      <Parameter name="to" value="${escapeXml(to)}" />
+      <Parameter name="from" value="${escapeXml(from)}" />
+      <Parameter name="token" value="${escapeXml(mediaToken)}" />
+    </Stream>
+  </Connect>
+</Response>`;
+        return xml(res, 200, twiml);
+      }
+
+      return xml(res, 200, aiTwiml);
     }
 
     return json(res, 404, { ok: false, error: 'Not found' });

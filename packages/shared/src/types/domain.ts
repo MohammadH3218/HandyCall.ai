@@ -96,6 +96,17 @@ export interface CompanyPricingProfile {
   updated_at?: Timestamp;
 }
 
+export interface BookingService {
+  service_id: UUID;
+  name: string;
+  description?: string;
+  amount_cents: number;
+  currency?: string;
+  duration_minutes?: number;
+  active?: boolean;
+  collect_payment?: boolean;
+}
+
 export interface Company {
   company_id: UUID;
   company_name: string;
@@ -119,6 +130,11 @@ export interface Company {
   // Service toggles
   calls_enabled?: boolean;
   sms_enabled?: boolean;
+  usage_service_blocked?: {
+    calls?: boolean;
+    sms?: boolean;
+    updated_at?: Timestamp;
+  };
   booking_from_email?: string;
   email_from?: string;
   transfer_enabled?: boolean;
@@ -166,6 +182,31 @@ export interface Company {
   payment_method_last4?: string;
   payment_method_brand?: string;
   cancel_at_period_end?: boolean;
+
+  // Stripe Connect / customer payments
+  stripe_connect_account_id?: string;
+  stripe_connect_onboarding_complete?: boolean;
+  booking_payment_enabled?: boolean;
+  booking_services?: BookingService[];
+
+  // Differentiator settings
+  follow_up_sequences_enabled?: boolean;
+  follow_up_initial_delay_minutes?: number;
+  follow_up_second_delay_minutes?: number;
+  follow_up_final_delay_minutes?: number;
+  follow_up_initial_template?: string;
+  follow_up_second_template?: string;
+  follow_up_final_template?: string;
+  review_request_enabled?: boolean;
+  review_request_delay_minutes?: number;
+  review_platform_url?: string;
+  review_request_template?: string;
+  website_widget_enabled?: boolean;
+  website_widget_settings?: {
+    primary_color?: string;
+    position?: 'BOTTOM_RIGHT' | 'BOTTOM_LEFT';
+    greeting?: string;
+  };
 }
 
 export interface ScheduleOverride {
@@ -216,9 +257,23 @@ export enum SubscriptionStatus {
 }
 
 export interface PlanLimits {
-  weekly_minutes: number;
+  monthly_minutes: number;
   sms_limit: number;
   contacts_limit: number;
+}
+
+export interface PlanFeatures {
+  transcripts: boolean;
+  call_summaries: boolean;
+  after_hours_routing: boolean;
+  crm_integrations: boolean;
+  advanced_routing: boolean;
+  human_transfer: boolean;
+  sms_reminders: boolean;
+  follow_up_sequences: boolean;
+  recording_retention_days: number;
+  priority_support: boolean;
+  website_widget: boolean;
 }
 
 export interface UsageMetrics {
@@ -239,6 +294,37 @@ export interface BillingEvent {
   stripe_event_id?: string;
   data: any; // Event payload
   created_at: Timestamp;
+}
+
+export type CustomerPaymentStatus =
+  | 'REQUIRES_PAYMENT_METHOD'
+  | 'REQUIRES_CONFIRMATION'
+  | 'PROCESSING'
+  | 'SUCCEEDED'
+  | 'FAILED'
+  | 'CANCELED'
+  | 'REFUNDED';
+
+export type CustomerPaymentType = 'BOOKING' | 'MANUAL' | 'DEPOSIT';
+
+export interface CustomerPayment {
+  company_id: UUID;
+  payment_id: UUID;
+  contact_id?: UUID;
+  appointment_id?: UUID;
+  customer_name?: string;
+  customer_email?: string;
+  service_name?: string;
+  payment_type: CustomerPaymentType;
+  payment_status: CustomerPaymentStatus;
+  amount_cents: number;
+  currency: string;
+  stripe_payment_intent_id?: string;
+  stripe_charge_id?: string;
+  metadata?: Record<string, any>;
+  created_at: Timestamp;
+  updated_at: Timestamp;
+  paid_at?: Timestamp;
 }
 
 // ============================================================================
@@ -432,6 +518,10 @@ export interface Appointment {
   // Optional billing context (not Stripe subscription)
   price_cents?: number;
   currency?: string;
+  payment_status?: 'UNPAID' | 'PENDING' | 'PAID' | 'REFUNDED' | 'FAILED';
+  payment_id?: UUID;
+  amount_due_cents?: number;
+  amount_paid_cents?: number;
   created_at: Timestamp;
   updated_at: Timestamp;
 }

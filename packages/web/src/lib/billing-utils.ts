@@ -30,7 +30,7 @@ export function normalizeUsageResponse(raw: any, subscription?: any): Normalized
 
 export function resolvePlanLimits(
   plan?: SubscriptionPlan,
-  planLimitsFromApi?: { weekly_minutes?: number; sms_limit?: number; contacts_limit?: number }
+  planLimitsFromApi?: { monthly_minutes?: number; sms_limit?: number; contacts_limit?: number }
 ) {
   if (plan && PLAN_CATALOG[plan]) {
     return PLAN_CATALOG[plan].limits;
@@ -38,7 +38,7 @@ export function resolvePlanLimits(
 
   if (planLimitsFromApi) {
     return {
-      minutes: planLimitsFromApi.weekly_minutes ?? 0,
+      minutes: planLimitsFromApi.monthly_minutes ?? 0,
       sms: planLimitsFromApi.sms_limit ?? 0,
       contacts: planLimitsFromApi.contacts_limit ?? 0,
     };

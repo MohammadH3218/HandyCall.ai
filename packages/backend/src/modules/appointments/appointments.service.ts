@@ -6,6 +6,7 @@ import { AppointmentStatus } from '@handycall/shared';
 import { CalendarIntegrationService } from '../calendar-integration/calendar-integration.service';
 import { ConfigService } from '@nestjs/config';
 import { WebhooksService } from '../webhooks/webhooks.service';
+import { FollowUpSequencesService } from '../follow-up-sequences/follow-up-sequences.service';
 
 function asE164(input: string): string {
   const trimmed = (input || '').trim();
@@ -23,6 +24,7 @@ export class AppointmentsService {
     private calendarIntegration: CalendarIntegrationService,
     private configService: ConfigService,
     private webhooks: WebhooksService,
+    private followUps: FollowUpSequencesService,
   ) {}
 
   private getAddressValidationKey(): string | null {
@@ -539,6 +541,23 @@ export class AppointmentsService {
     } catch (err) {
       console.error('Error syncing updated appointment to external calendar:', err);
       // Don't fail appointment update if sync fails
+    }
+
+    const prevStatus = String(appt?.status || '').toUpperCase();
+    const nextStatus = String(updatedAppointment?.status || '').toUpperCase();
+    if (nextStatus === AppointmentStatus.COMPLETED && prevStatus !== AppointmentStatus.COMPLETED) {
+      void this.webhooks.emitEvent(companyId, 'appointment.completed', { appointment: updatedAppointment });
+      void this.followUps
+        .scheduleReviewRequest({
+          company_id: companyId,
+          contact_id: updatedAppointment?.contact_id,
+          contact_phone: updatedAppointment?.contact_phone,
+          contact_name: updatedAppointment?.contact_name,
+          appointment_id: appointmentId,
+        })
+        .catch((err) => {
+          console.warn('[AppointmentsService] Failed to schedule review request:', err);
+        });
     }
 
     return updated ?? updatedAppointment;

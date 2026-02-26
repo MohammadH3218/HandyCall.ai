@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { DynamoDBService } from '../../infrastructure/database/dynamodb.service';
 import { S3Service } from '../../infrastructure/storage/s3.service';
 import { UsageService } from '../billing/usage.service';
+import { UsageGateService } from '../billing/usage-gate.service';
 import { SubscriptionPlan } from '@handycall/shared';
 
 export interface Call {
@@ -35,6 +36,7 @@ export class CallsService {
     private dynamodb: DynamoDBService,
     private s3Service: S3Service,
     private usageService: UsageService,
+    private usageGate: UsageGateService,
   ) {}
 
   async getCalls(
@@ -225,6 +227,7 @@ export class CallsService {
     }
     const minutes = Number((durationSeconds / 60).toFixed(2));
     await this.usageService.incrementCallMinutes(companyId, minutes);
+    await this.usageGate.enforceUsagePolicy(companyId);
 
     // Optional: callers can provide plan to check limits; if omitted we only persist usage
     if (plan) {

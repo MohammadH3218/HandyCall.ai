@@ -72,6 +72,15 @@ export class NotificationsController {
     return this.notifications.markRead(companyId, userId, notificationId);
   }
 
+  @Post(':notificationId/unread')
+  async markUnread(
+    @CompanyId() companyId: string,
+    @UserId() userId: string,
+    @Param('notificationId') notificationId: string,
+  ) {
+    return this.notifications.markUnread(companyId, userId, notificationId);
+  }
+
   @Post('read-all')
   async markAllRead(
     @CompanyId() companyId: string,

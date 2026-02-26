@@ -8,7 +8,17 @@ export class DashboardController {
 
   @Get('stats')
   async getStats(@CompanyId() companyId: string) {
-    return this.dashboardService.getStats(companyId);
+    return this.dashboardService.getDashboardOverview(companyId);
+  }
+
+  @Get('overview')
+  async getOverview(@CompanyId() companyId: string) {
+    return this.dashboardService.getDashboardOverview(companyId);
+  }
+
+  @Get('insights')
+  async getInsights(@CompanyId() companyId: string) {
+    return this.dashboardService.getQuickInsights(companyId);
   }
 
   @Get('recent-calls')

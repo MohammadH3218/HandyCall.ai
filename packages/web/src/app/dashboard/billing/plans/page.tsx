@@ -10,20 +10,25 @@ import { SubscriptionPlan } from '@handycall/shared';
 import { PLAN_CATALOG, getPlanPriceDisplay } from '@/constants/plans';
 import { PageHeader } from '@/components/portal/page-header';
 
-const PLANS = Object.entries(PLAN_CATALOG).map(([plan, details]) => ({
-  plan: plan as SubscriptionPlan,
-  name: details.name,
-  badge: details.badge,
-  trialLabel: details.trialLabel,
-  priceDisplay: getPlanPriceDisplay(plan as SubscriptionPlan),
-  features: details.featureHighlights,
-  description: details.badge === 'Best value'
-    ? 'For teams that want maximum weekly capacity and routing flexibility'
-    : details.badge === 'Most popular'
-    ? 'For growing businesses with consistent call and SMS volume'
-    : 'For solo operators getting started with AI answering',
-  popular: details.badge === 'Most popular',
-}));
+const PLANS = (Object.keys(PLAN_CATALOG) as SubscriptionPlan[]).map((plan) => {
+  const details = PLAN_CATALOG[plan];
+  return {
+    plan,
+    name: details.name,
+    badge: details.badge,
+    trialLabel: details.trialLabel,
+    priceDisplay: getPlanPriceDisplay(plan),
+    features: details.featureHighlights,
+    description:
+      plan === SubscriptionPlan.MAX
+        ? 'For teams that want maximum monthly capacity and routing flexibility'
+        : plan === SubscriptionPlan.PRO
+        ? 'For growing businesses with consistent call and SMS volume'
+        : 'For solo operators getting started with AI answering',
+    popular: plan === SubscriptionPlan.PRO,
+    isTopTier: plan === SubscriptionPlan.MAX,
+  };
+});
 
 export default function BillingPlansPage() {
   const router = useRouter();
@@ -143,7 +148,7 @@ export default function BillingPlansPage() {
               className={`relative ${
                 planInfo.popular
                   ? 'border-blue-500 border-2 shadow-lg'
-                  : planInfo.badge === 'Best value'
+                  : planInfo.isTopTier
                   ? 'border-emerald-500 border'
                   : ''
               } ${isCurrent ? 'bg-green-50 border-green-500' : ''}`}
@@ -203,7 +208,7 @@ export default function BillingPlansPage() {
                     ? 'Processing...'
                     : isCurrent
                     ? 'Current Plan'
-                    : subscription?.plan
+                    : (company?.subscription_plan || subscription?.subscription_plan)
                     ? 'Switch Plan'
                     : 'Select Plan'}
                 </Button>
@@ -274,7 +279,7 @@ export default function BillingPlansPage() {
                 clipRule="evenodd"
               />
             </svg>
-            Weekly billing cycles
+            Monthly billing cycles
           </li>
         </ul>
       </div>

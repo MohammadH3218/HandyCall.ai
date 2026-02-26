@@ -2,6 +2,8 @@
  * Shared constants across the platform
  */
 
+import { PlanFeatures, PlanLimits, SubscriptionPlan } from '../types/domain';
+
 // ============================================================================
 // API
 // ============================================================================
@@ -50,6 +52,70 @@ export const MAX_CALLS_PER_MONTH_TRIAL = 100;
 export const MAX_RECORDING_SIZE_MB = 50;
 export const ALLOWED_AUDIO_FORMATS = ['mp3', 'wav', 'ogg'];
 export const RECORDING_RETENTION_DAYS = 90;
+
+// ============================================================================
+// Subscription Plan Limits & Features
+// ============================================================================
+
+export const PLAN_LIMITS: Record<SubscriptionPlan, PlanLimits> = {
+  [SubscriptionPlan.STARTER]: {
+    monthly_minutes: 100,
+    sms_limit: 200,
+    contacts_limit: 300,
+  },
+  [SubscriptionPlan.PRO]: {
+    monthly_minutes: 300,
+    sms_limit: 600,
+    contacts_limit: 1000,
+  },
+  [SubscriptionPlan.MAX]: {
+    monthly_minutes: 750,
+    sms_limit: 1500,
+    contacts_limit: 3000,
+  },
+};
+
+export const PLAN_FEATURES: Record<SubscriptionPlan, PlanFeatures> = {
+  [SubscriptionPlan.STARTER]: {
+    transcripts: false,
+    call_summaries: false,
+    after_hours_routing: false,
+    crm_integrations: false,
+    advanced_routing: false,
+    human_transfer: false,
+    sms_reminders: true,
+    follow_up_sequences: false,
+    recording_retention_days: 7,
+    priority_support: false,
+    website_widget: false,
+  },
+  [SubscriptionPlan.PRO]: {
+    transcripts: true,
+    call_summaries: true,
+    after_hours_routing: true,
+    crm_integrations: false,
+    advanced_routing: false,
+    human_transfer: true,
+    sms_reminders: true,
+    follow_up_sequences: true,
+    recording_retention_days: 30,
+    priority_support: true,
+    website_widget: false,
+  },
+  [SubscriptionPlan.MAX]: {
+    transcripts: true,
+    call_summaries: true,
+    after_hours_routing: true,
+    crm_integrations: true,
+    advanced_routing: true,
+    human_transfer: true,
+    sms_reminders: true,
+    follow_up_sequences: true,
+    recording_retention_days: 90,
+    priority_support: true,
+    website_widget: true,
+  },
+};
 
 // ============================================================================
 // Error Codes

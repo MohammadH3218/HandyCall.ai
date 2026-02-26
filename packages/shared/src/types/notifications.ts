@@ -12,6 +12,7 @@ export const NOTIFICATION_EVENT_KEYS = [
   'appointment_created',
   'appointment_updated',
   'appointment_cancelled',
+  'appointment_completed',
   'call_completed',
   'lead_created',
   'usage_threshold_25',
@@ -19,6 +20,8 @@ export const NOTIFICATION_EVENT_KEYS = [
   'usage_threshold_75',
   'usage_threshold_90',
   'usage_threshold_100',
+  'service_disabled',
+  'service_restored',
 ] as const;
 
 export type NotificationEventKey = (typeof NOTIFICATION_EVENT_KEYS)[number];

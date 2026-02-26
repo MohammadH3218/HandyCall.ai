@@ -37,7 +37,7 @@ function AuthInitializer({ children }: { children: React.ReactNode }) {
 
 export function SessionProvider({ children }: { children: React.ReactNode }) {
   return (
-    <NextAuthSessionProvider>
+    <NextAuthSessionProvider refetchInterval={5 * 60} refetchOnWindowFocus={true}>
       <AuthInitializer>{children}</AuthInitializer>
     </NextAuthSessionProvider>
   );

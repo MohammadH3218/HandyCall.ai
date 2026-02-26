@@ -18,8 +18,6 @@ struct LoginView: View {
     @State private var signupConfirmPassword = ""
     @State private var firstName = ""
     @State private var lastName = ""
-    @State private var companyName = ""
-    @State private var phoneNumber = ""
     @State private var verificationCode = ""
     @State private var resetCode = ""
     @State private var resetPassword = ""
@@ -29,6 +27,8 @@ struct LoginView: View {
     @State private var localError: String?
     @State private var isWorking = false
     @State private var toastText: String?
+    @State private var headerAppeared = false
+    @State private var formAppeared = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -42,10 +42,12 @@ struct LoginView: View {
             .foregroundStyle(.white)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(24)
-            .background(HandyCallTheme.topGradient)
+            .background(HandyCallTheme.heroGradient)
             .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
             .padding(.horizontal, 20)
             .padding(.top, 24)
+            .offset(y: headerAppeared ? 0 : -20)
+            .opacity(headerAppeared ? 1 : 0)
 
             VStack(spacing: 14) {
                 Picker("Auth mode", selection: $mode) {
@@ -62,7 +64,7 @@ struct LoginView: View {
                 if let error = visibleError {
                     Text(error)
                         .font(.footnote)
-                        .foregroundStyle(.red)
+                        .foregroundStyle(HandyCallTheme.destructive)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
 
@@ -84,7 +86,7 @@ struct LoginView: View {
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(.white)
-                .background(HandyCallTheme.emeraldDark, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .background(HandyCallTheme.emeraldDark, in: RoundedRectangle(cornerRadius: HandyCallTheme.Radius.button, style: .continuous))
                 .disabled(isPrimaryDisabled)
 
                 authModeLinks
@@ -97,6 +99,8 @@ struct LoginView: View {
             )
             .padding(.horizontal, 20)
             .padding(.top, 18)
+            .offset(y: formAppeared ? 0 : 16)
+            .opacity(formAppeared ? 1 : 0)
 
             Spacer(minLength: 0)
         }
@@ -108,34 +112,43 @@ struct LoginView: View {
             }
         }
         .animation(.easeInOut(duration: 0.2), value: toastText)
-        .background(Color(red: 0.95, green: 0.98, blue: 0.96).ignoresSafeArea())
+        .background(HandyCallTheme.pageBackground.ignoresSafeArea())
+        .onAppear {
+            withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
+                headerAppeared = true
+            }
+            withAnimation(.spring(response: 0.5, dampingFraction: 0.8).delay(0.15)) {
+                formAppeared = true
+            }
+        }
     }
+
+    // MARK: - Form Fields
 
     private var formFields: some View {
         VStack(spacing: 12) {
             switch mode {
             case .signIn:
-                emailField
-                passwordField
+                iconTextField("Email", text: $email, icon: "envelope", keyboard: .emailAddress)
+                iconSecureField("Password", text: $password, icon: "lock")
                 socialButtons
             case .signUp:
-                emailField
-                secureField("Password (8+ chars)", text: $password)
-                secureField("Confirm password", text: $signupConfirmPassword)
-                textField("First name", text: $firstName)
-                textField("Last name", text: $lastName)
-                textField("Company name (optional)", text: $companyName)
-                textField("Phone (optional)", text: $phoneNumber, keyboard: .phonePad)
+                iconTextField("Email", text: $email, icon: "envelope", keyboard: .emailAddress)
+                iconSecureField("Password (8+ chars)", text: $password, icon: "lock")
+                iconSecureField("Confirm password", text: $signupConfirmPassword, icon: "lock")
+                iconTextField("First name", text: $firstName, icon: "person")
+                iconTextField("Last name", text: $lastName, icon: "person")
+                socialButtons
             case .verifyEmail:
-                textField("Email", text: verificationEmailBinding, keyboard: .emailAddress)
-                textField("Verification code", text: $verificationCode, keyboard: .numberPad)
+                iconTextField("Email", text: verificationEmailBinding, icon: "envelope", keyboard: .emailAddress)
+                iconTextField("Verification code", text: $verificationCode, icon: "number", keyboard: .numberPad)
             case .forgotPassword:
-                emailField
+                iconTextField("Email", text: $email, icon: "envelope", keyboard: .emailAddress)
             case .resetPassword:
-                textField("Email", text: resetEmailBinding, keyboard: .emailAddress)
-                textField("Reset code", text: $resetCode, keyboard: .asciiCapable)
-                secureField("New password (8+ chars)", text: $resetPassword)
-                secureField("Confirm new password", text: $resetConfirmPassword)
+                iconTextField("Email", text: resetEmailBinding, icon: "envelope", keyboard: .emailAddress)
+                iconTextField("Reset code", text: $resetCode, icon: "key", keyboard: .asciiCapable)
+                iconSecureField("New password (8+ chars)", text: $resetPassword, icon: "lock")
+                iconSecureField("Confirm new password", text: $resetConfirmPassword, icon: "lock")
             }
         }
     }
@@ -183,13 +196,69 @@ struct LoginView: View {
         }
     }
 
-    private var emailField: some View {
-        textField("Email", text: $email, keyboard: .emailAddress)
+    // MARK: - Input Helpers
+
+    private func iconTextField(_ title: String, text: Binding<String>, icon: String, keyboard: UIKeyboardType = .default) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: icon)
+                .font(.subheadline)
+                .foregroundStyle(HandyCallTheme.emerald.opacity(0.7))
+                .frame(width: 20)
+            TextField(title, text: text)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .keyboardType(keyboard)
+        }
+        .padding(14)
+        .background(.white, in: RoundedRectangle(cornerRadius: HandyCallTheme.Radius.button, style: .continuous))
     }
 
-    private var passwordField: some View {
-        secureField("Password", text: $password)
+    private func iconSecureField(_ title: String, text: Binding<String>, icon: String) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: icon)
+                .font(.subheadline)
+                .foregroundStyle(HandyCallTheme.emerald.opacity(0.7))
+                .frame(width: 20)
+            SecureField(title, text: text)
+        }
+        .padding(14)
+        .background(.white, in: RoundedRectangle(cornerRadius: HandyCallTheme.Radius.button, style: .continuous))
     }
+
+    private func socialButton(title: String, provider: SocialAuthProvider) -> some View {
+        Button {
+            Task { await signInWithSocial(provider) }
+        } label: {
+            HStack(spacing: 10) {
+                socialProviderIcon(provider)
+                Text(title)
+                    .font(.callout.weight(.semibold))
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 13)
+            .background(.white, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .strokeBorder(Color.black.opacity(0.08), lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(HandyCallTheme.slate)
+    }
+
+    @ViewBuilder
+    private func socialProviderIcon(_ provider: SocialAuthProvider) -> some View {
+        switch provider {
+        case .google:
+            GoogleMark()
+        case .apple:
+            Image(systemName: "apple.logo")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(.black)
+        }
+    }
+
+    // MARK: - Computed Properties
 
     private var visibleError: String? {
         if let localError, !localError.isEmpty {
@@ -207,24 +276,16 @@ struct LoginView: View {
 
     private var primaryButtonTitle: String {
         switch mode {
-        case .signIn:
-            return "Sign In"
-        case .signUp:
-            return "Create Account"
-        case .verifyEmail:
-            return "Verify Email"
-        case .forgotPassword:
-            return "Send Reset Code"
-        case .resetPassword:
-            return "Reset Password"
+        case .signIn: return "Sign In"
+        case .signUp: return "Create Account"
+        case .verifyEmail: return "Verify Email"
+        case .forgotPassword: return "Send Reset Code"
+        case .resetPassword: return "Reset Password"
         }
     }
 
     private var isPrimaryDisabled: Bool {
-        if isBusy {
-            return true
-        }
-
+        if isBusy { return true }
         switch mode {
         case .signIn:
             return email.trimmingCharacters(in: .whitespaces).isEmpty || password.isEmpty
@@ -241,31 +302,21 @@ struct LoginView: View {
 
     private var secondaryMode: AuthMode {
         switch mode {
-        case .signIn:
-            return .signUp
-        case .signUp:
-            return .signIn
-        case .verifyEmail:
-            return .signIn
-        case .forgotPassword:
-            return .signIn
-        case .resetPassword:
-            return .signIn
+        case .signIn: return .signUp
+        case .signUp: return .signIn
+        case .verifyEmail: return .signIn
+        case .forgotPassword: return .signIn
+        case .resetPassword: return .signIn
         }
     }
 
     private var secondaryButtonTitle: String {
         switch mode {
-        case .signIn:
-            return "Need an account? Sign up"
-        case .signUp:
-            return "Already have an account? Sign in"
-        case .verifyEmail:
-            return "Back to sign in"
-        case .forgotPassword:
-            return "Back to sign in"
-        case .resetPassword:
-            return "Back to sign in"
+        case .signIn: return "Need an account? Sign up"
+        case .signUp: return "Already have an account? Sign in"
+        case .verifyEmail: return "Back to sign in"
+        case .forgotPassword: return "Back to sign in"
+        case .resetPassword: return "Back to sign in"
         }
     }
 
@@ -291,38 +342,7 @@ struct LoginView: View {
         )
     }
 
-    private func textField(_ title: String, text: Binding<String>, keyboard: UIKeyboardType = .default) -> some View {
-        TextField(title, text: text)
-            .textInputAutocapitalization(.never)
-            .autocorrectionDisabled()
-            .keyboardType(keyboard)
-            .padding(14)
-            .background(.white, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-    }
-
-    private func secureField(_ title: String, text: Binding<String>) -> some View {
-        SecureField(title, text: text)
-            .padding(14)
-            .background(.white, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-    }
-
-    private func socialButton(title: String, provider: SocialAuthProvider) -> some View {
-        Button {
-            Task { await signInWithSocial(provider) }
-        } label: {
-            Text(title)
-                .font(.callout.weight(.semibold))
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 10)
-                .background(.white, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .strokeBorder(Color.black.opacity(0.08), lineWidth: 1)
-                )
-        }
-        .buttonStyle(.plain)
-        .foregroundStyle(HandyCallTheme.slate)
-    }
+    // MARK: - Actions
 
     private func performPrimaryAction() {
         localError = nil
@@ -362,11 +382,11 @@ struct LoginView: View {
         do {
             let response = try await container.apiClient.register(
                 RegisterRequest(
-                    companyName: companyName.nonEmpty,
+                    companyName: nil,
                     serviceType: nil,
                     email: normalizedEmail,
                     password: password,
-                    phoneNumber: phoneNumber.nonEmpty,
+                    phoneNumber: nil,
                     firstName: firstName.nonEmpty,
                     lastName: lastName.nonEmpty,
                     timezone: TimeZone.current.identifier
@@ -501,9 +521,29 @@ struct LoginView: View {
     }
 }
 
-private extension String {
-    var nonEmpty: String? {
-        let trimmed = trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : trimmed
+// MARK: - Google Logo Mark
+
+private struct GoogleMark: View {
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(.white)
+            Text("G")
+                .font(.system(size: 15, weight: .bold, design: .rounded))
+                .foregroundStyle(
+                    LinearGradient(
+                        colors: [
+                            Color(red: 0.26, green: 0.52, blue: 0.96),
+                            Color(red: 0.91, green: 0.30, blue: 0.24),
+                            Color(red: 0.97, green: 0.71, blue: 0.18),
+                            Color(red: 0.20, green: 0.67, blue: 0.33)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+        }
+        .frame(width: 18, height: 18)
+        .overlay(Circle().stroke(Color.black.opacity(0.08), lineWidth: 1))
     }
 }

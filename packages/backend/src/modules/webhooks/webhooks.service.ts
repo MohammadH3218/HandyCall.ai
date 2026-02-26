@@ -356,43 +356,67 @@ export class WebhooksService {
 
     const timeoutMs = Number(this.config.get<string>('WEBHOOK_TIMEOUT_MS') || this.defaultTimeoutMs);
     const startedAt = Date.now();
+    const maxAttempts = 3;
+    let lastError: string | undefined;
+    let lastStatus: number | undefined;
 
-    try {
-      const response = await axios.post(config.webhook_url, body, {
-        timeout: timeoutMs,
-        headers: {
-          'Content-Type': 'application/json',
-          'User-Agent': 'HandyCall-Webhooks/1.0',
-          'X-HandyCall-Event': payload.event,
-          'X-HandyCall-Timestamp': timestamp,
-          'X-HandyCall-Signature': `t=${timestamp},v1=${signature}`,
-        },
-        validateStatus: () => true,
-      });
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      try {
+        const response = await axios.post(config.webhook_url, body, {
+          timeout: timeoutMs,
+          headers: {
+            'Content-Type': 'application/json',
+            'User-Agent': 'HandyCall-Webhooks/1.0',
+            'X-HandyCall-Event': payload.event,
+            'X-HandyCall-Timestamp': timestamp,
+            'X-HandyCall-Signature': `t=${timestamp},v1=${signature}`,
+            'X-HandyCall-Attempt': String(attempt),
+          },
+          validateStatus: () => true,
+        });
 
-      const ok = response.status >= 200 && response.status < 300;
-      const result: WebhookDeliveryResult = {
-        ok,
-        status: response.status,
-        response_time_ms: Date.now() - startedAt,
-      };
+        const ok = response.status >= 200 && response.status < 300;
+        lastStatus = response.status;
+        if (ok) {
+          const successResult: WebhookDeliveryResult = {
+            ok: true,
+            status: response.status,
+            response_time_ms: Date.now() - startedAt,
+          };
+          if (options?.updateStatus) {
+            await this.recordDelivery(config.company_id, payload.event, true, response.status);
+          }
+          return successResult;
+        }
 
-      if (options?.updateStatus) {
-        await this.recordDelivery(config.company_id, payload.event, ok, response.status);
+        lastError = `Webhook returned status ${response.status}`;
+        if (attempt < maxAttempts) {
+          await this.sleep(250 * 2 ** (attempt - 1));
+          continue;
+        }
+      } catch (err: any) {
+        lastError = err?.message ?? 'Webhook delivery failed';
+        if (attempt < maxAttempts) {
+          await this.sleep(250 * 2 ** (attempt - 1));
+          continue;
+        }
       }
-
-      return result;
-    } catch (err: any) {
-      const message = err?.message ?? 'Webhook delivery failed';
-      if (options?.updateStatus) {
-        await this.recordDelivery(config.company_id, payload.event, false, undefined, message);
-      }
-      return {
-        ok: false,
-        error: message,
-        response_time_ms: Date.now() - startedAt,
-      };
     }
+
+    if (options?.updateStatus) {
+      await this.recordDelivery(config.company_id, payload.event, false, lastStatus, lastError);
+    }
+
+    return {
+      ok: false,
+      status: lastStatus,
+      error: lastError || 'Webhook delivery failed',
+      response_time_ms: Date.now() - startedAt,
+    };
+  }
+
+  private sleep(ms: number) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
   private async recordDelivery(

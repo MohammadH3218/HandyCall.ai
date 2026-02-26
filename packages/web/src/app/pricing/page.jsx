@@ -15,63 +15,71 @@ import { Check, X, ArrowRight, Phone, MessageSquare, Users, CheckCircle2 } from 
 const plans = [
   {
     name: 'Starter',
-    originalPrice: '$9.99',
-    price: '$4.99',
-    cadence: 'per week',
+    originalPrice: '$29.99',
+    price: '$19.99',
+    cadence: 'per month',
     bestFor: 'Solo operators getting started with AI answering.',
-    badge: 'Limited-time offer',
-    limits: { minutes: 50, sms: 100, contacts: 200 },
+    badge: 'Great for solo operators',
+    limits: { minutes: 100, sms: 200, contacts: 300 },
     features: [
-      { label: '50 minutes/week', available: true },
-      { label: '100 SMS/week', available: true },
-      { label: '200 contacts/week', available: true },
-      { label: 'AI bookings + confirmations', available: true },
-      { label: 'Call recording retention: 7 days', available: true },
+      { label: '100 minutes/month', available: true },
+      { label: '200 SMS/month', available: true },
+      { label: '300 contacts', available: true },
+      { label: 'AI receptionist with brand voice', available: true },
+      { label: 'Smart appointment booking', available: true },
+      { label: 'Lead capture & qualification', available: true },
+      { label: 'Automated SMS confirmations', available: true },
+      { label: 'Spam & robocall filtering', available: true },
+      { label: 'Call recording (7-day retention)', available: true },
       { label: 'Call summaries & transcripts', available: false },
       { label: 'After-hours routing', available: false },
-      { label: 'Lead export via email/CSV', available: true },
+      { label: 'Human transfer', available: false },
+      { label: 'CRM integrations', available: false },
     ],
     highlight: false,
   },
   {
     name: 'Pro',
-    originalPrice: '$19.99',
-    price: '$9.99',
-    cadence: 'per week',
-    bestFor: 'Growing teams that want consistent coverage and bookings.',
+    originalPrice: '$49.99',
+    price: '$39.99',
+    cadence: 'per month',
+    bestFor: 'Growing teams that want full coverage and smart follow-ups.',
     badge: 'Most popular',
     trialLabel: '14-day free trial',
-    limits: { minutes: 120, sms: 250, contacts: 500 },
+    limits: { minutes: 300, sms: 600, contacts: 1000 },
     features: [
-      { label: '120 minutes/week', available: true },
-      { label: '250 SMS/week', available: true },
-      { label: '500 contacts/week', available: true },
-      { label: 'AI bookings + SMS reminders', available: true },
-      { label: 'Call recording retention: 30 days', available: true },
+      { label: '300 minutes/month', available: true },
+      { label: '600 SMS/month', available: true },
+      { label: '1,000 contacts', available: true },
+      { label: 'Everything in Starter', available: true },
       { label: 'Call summaries & transcripts', available: true },
       { label: 'After-hours routing', available: true },
-      { label: 'Lead export + webhook', available: true },
+      { label: 'Human transfer to your phone', available: true },
+      { label: 'Smart follow-up sequences', available: true },
+      { label: 'Call recording (30-day retention)', available: true },
       { label: 'Priority support', available: true },
+      { label: 'CRM integrations', available: false },
+      { label: 'Website chat widget', available: false },
     ],
     highlight: true,
   },
   {
     name: 'Max',
-    originalPrice: '$39.99',
-    price: '$19.99',
-    cadence: 'per week',
-    bestFor: 'Busy crews that need higher weekly volume and follow-ups.',
-    badge: 'Best value',
-    limits: { minutes: 250, sms: 500, contacts: 1000 },
+    originalPrice: '$149.99',
+    price: '$99.99',
+    cadence: 'per month',
+    bestFor: 'Busy crews that need high volume, integrations, and full power.',
+    badge: 'Best value for teams',
+    limits: { minutes: 750, sms: 1500, contacts: 3000 },
     features: [
-      { label: '250 minutes/week', available: true },
-      { label: '500 SMS/week', available: true },
-      { label: '1000 contacts/week', available: true },
-      { label: 'AI bookings + SMS reminders', available: true },
-      { label: 'Call recording retention: 90 days', available: true },
-      { label: 'Call summaries, transcripts, follow-ups', available: true },
+      { label: '750 minutes/month', available: true },
+      { label: '1,500 SMS/month', available: true },
+      { label: '3,000 contacts', available: true },
+      { label: 'Everything in Pro', available: true },
+      { label: 'CRM integrations (Zapier, webhooks)', available: true },
       { label: 'Advanced routing (overflow + multi-location)', available: true },
-      { label: 'Integrations + CRM sync', available: true },
+      { label: 'Website chat widget', available: true },
+      { label: 'Call recording (90-day retention)', available: true },
       { label: 'Priority phone support', available: true },
     ],
     highlight: false,
@@ -89,15 +97,15 @@ const inclusions = [
 ];
 
 const costComparison = [
-  { label: 'Receptionist (20 hrs/week)', value: '$3,200/mo', detail: 'Wages + taxes + coverage gaps', highlight: false },
-  { label: 'HandyCall Pro', value: '~$40/mo', detail: '24/7 coverage + bookings', highlight: true },
-  { label: 'HandyCall Max', value: '~$80/mo', detail: 'Higher volume + priority support', highlight: true },
+  { label: 'Receptionist (part-time)', value: '$3,200/mo', detail: 'Wages + taxes + coverage gaps', highlight: false },
+  { label: 'HandyCall Pro', value: '$39.99/mo', detail: '24/7 coverage + bookings + transcripts', highlight: true },
+  { label: 'HandyCall Max', value: '$99.99/mo', detail: 'Full power + CRM + integrations', highlight: true },
 ];
 
 const volumeExamples = [
-  { trade: 'HVAC', calls: '35–50 calls/week', minutes: '60–90 min', plan: 'Pro' },
-  { trade: 'Plumbing', calls: '20–35 calls/week', minutes: '40–60 min', plan: 'Starter' },
-  { trade: 'Pest Control', calls: '45–70 calls/week', minutes: '80–120 min', plan: 'Pro' },
+  { trade: 'HVAC', calls: '80–150 calls/month', minutes: '200–350 min', plan: 'Pro' },
+  { trade: 'Plumbing', calls: '50–120 calls/month', minutes: '100–250 min', plan: 'Pro' },
+  { trade: 'Pest Control', calls: '120–250 calls/month', minutes: '300–500 min', plan: 'Max' },
 ];
 
 const pricingTrustBadges = [
@@ -106,21 +114,25 @@ const pricingTrustBadges = [
 ];
 
 const featureComparisons = [
-  { label: 'Minutes / SMS / contacts per week', values: { Starter: '50 / 100 / 200', Pro: '120 / 250 / 500', Max: '250 / 500 / 1000' } },
+  { label: 'Minutes / SMS / contacts per month', values: { Starter: '100 / 200 / 300', Pro: '300 / 600 / 1,000', Max: '750 / 1,500 / 3,000' } },
   { label: 'Call recording retention', values: { Starter: '7 days', Pro: '30 days', Max: '90 days' } },
-  { label: 'Call summaries and transcripts', values: { Starter: false, Pro: true, Max: true } },
-  { label: 'AI bookings and reminders', values: { Starter: 'Included', Pro: 'Included', Max: 'Included' } },
-  { label: 'After-hours routing & voicemail triage', values: { Starter: false, Pro: true, Max: true } },
-  { label: 'Lead capture & CRM/export', values: { Starter: 'Email/CSV export', Pro: 'Email + webhook', Max: 'CRM sync + webhook' } },
-  { label: 'SMS automation', values: { Starter: 'Confirmations', Pro: 'Confirmations + follow-ups', Max: 'Campaigns + follow-ups' } },
-  { label: 'Support', values: { Starter: 'Standard', Pro: 'Priority', Max: 'Priority + phone handoff' } },
+  { label: 'Call summaries & transcripts', values: { Starter: false, Pro: true, Max: true } },
+  { label: 'AI bookings & SMS confirmations', values: { Starter: 'Included', Pro: 'Included', Max: 'Included' } },
+  { label: 'After-hours routing', values: { Starter: false, Pro: true, Max: true } },
+  { label: 'Human transfer', values: { Starter: false, Pro: true, Max: true } },
+  { label: 'Smart follow-up sequences', values: { Starter: false, Pro: true, Max: true } },
+  { label: 'CRM integrations (Zapier, webhooks)', values: { Starter: false, Pro: false, Max: true } },
+  { label: 'Advanced routing (overflow + multi-location)', values: { Starter: false, Pro: false, Max: true } },
+  { label: 'Website chat widget', values: { Starter: false, Pro: false, Max: true } },
+  { label: 'Lead export', values: { Starter: 'Email/CSV', Pro: 'Email/CSV', Max: 'CRM sync + webhook' } },
+  { label: 'Support', values: { Starter: 'Standard', Pro: 'Priority', Max: 'Priority + phone' } },
   { label: 'Free trial', values: { Starter: false, Pro: '14 days', Max: false } },
 ];
 
 const sliders = [
-  { key: 'minutes', label: 'Call minutes / week', icon: Phone, min: 0, max: 300, step: 5, unit: 'min' },
-  { key: 'sms', label: 'SMS messages / week', icon: MessageSquare, min: 0, max: 600, step: 10, unit: 'SMS' },
-  { key: 'contacts', label: 'New contacts / week', icon: Users, min: 0, max: 1200, step: 25, unit: 'contacts' },
+  { key: 'minutes', label: 'Call minutes / month', icon: Phone, min: 0, max: 900, step: 10, unit: 'min' },
+  { key: 'sms', label: 'SMS messages / month', icon: MessageSquare, min: 0, max: 1800, step: 25, unit: 'SMS' },
+  { key: 'contacts', label: 'Active contacts', icon: Users, min: 0, max: 3600, step: 50, unit: 'contacts' },
 ];
 
 function getRecommendedPlan(values) {
@@ -138,7 +150,7 @@ function getRecommendedPlan(values) {
 
 export default function PricingPage() {
   const [compareOpen, setCompareOpen] = useState(false);
-  const [calc, setCalc] = useState({ minutes: 40, sms: 80, contacts: 150 });
+  const [calc, setCalc] = useState({ minutes: 120, sms: 250, contacts: 400 });
   const recommended = getRecommendedPlan(calc);
   const updateCalc = useCallback((key, value) => { setCalc((prev) => ({ ...prev, [key]: value })); }, []);
 
@@ -154,13 +166,13 @@ export default function PricingPage() {
         <section className="grid gap-12 lg:grid-cols-[1.15fr_0.85fr] lg:items-center">
           <div className="space-y-6">
             <span className="text-xs font-bold uppercase tracking-widest text-emerald-700">
-              Weekly plans for service teams
+              Monthly plans for service teams
             </span>
             <h1 className="text-[2.6rem] font-bold leading-[1.08] tracking-tight text-slate-900 md:text-5xl">
               Pricing that pays for itself with one booked job.
             </h1>
             <p className="max-w-md text-lg text-slate-500">
-              Choose a weekly plan that fits your call volume. Most service jobs cover the entire week.
+              Choose a monthly plan that fits your call volume. Most service jobs cover the entire month.
             </p>
             <div className="flex flex-wrap gap-3">
               <Button asChild size="lg" className="h-12 gap-2 px-6">
@@ -292,7 +304,7 @@ export default function PricingPage() {
                     <p className={`mt-2 text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{plan.bestFor}</p>
                   </div>
 
-                  <div className="flex-1 space-y-2.5 border-t pt-5 ${isDark ? 'border-slate-800' : 'border-slate-100'}">
+                  <div className={`flex-1 space-y-2.5 border-t pt-5 ${isDark ? 'border-slate-800' : 'border-slate-100'}`}>
                     {plan.features.map((item) => (
                       <div key={item.label} className={`flex items-start gap-2.5 text-sm ${item.available === false ? (isDark ? 'text-slate-600' : 'text-slate-400') : (isDark ? 'text-slate-200' : 'text-slate-700')}`}>
                         {item.available === false
@@ -333,7 +345,7 @@ export default function PricingPage() {
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
                 <p className="text-xs font-bold uppercase tracking-widest text-emerald-700">Call volume examples</p>
-                <h3 className="mt-2 text-2xl font-bold tracking-tight text-slate-900">Typical weeks by trade.</h3>
+                <h3 className="mt-2 text-2xl font-bold tracking-tight text-slate-900">Typical months by trade.</h3>
                 <p className="mt-1 text-sm text-slate-500">
                   Use these as a starting point, then dial in your volume in the calculator below.
                 </p>
@@ -365,10 +377,10 @@ export default function PricingPage() {
               Find the right plan for your volume.
             </h2>
             <p className="mx-auto mt-3 max-w-lg text-slate-500">
-              Drag the sliders to match your weekly usage and we&apos;ll show which plan covers you.
+              Drag the sliders to match your monthly usage and we&apos;ll show which plan covers you.
             </p>
             <p className="mx-auto mt-1 max-w-lg text-sm text-slate-400">
-              If your average job is $350, one booking covers the week.
+              If your average job is $350, one booking covers the month.
             </p>
           </div>
 
@@ -456,7 +468,7 @@ export default function PricingPage() {
                   <p className="mt-1.5 text-4xl font-bold tracking-tight text-slate-900">
                     {recommended}
                     <span className="ml-2 text-xl font-normal text-slate-500">
-                      {plans.find((p) => p.name === recommended)?.price}/week
+                      {plans.find((p) => p.name === recommended)?.price}/mo
                     </span>
                   </p>
                   <p className="mt-1.5 text-sm text-slate-500">{plans.find((p) => p.name === recommended)?.bestFor}</p>

@@ -4,9 +4,12 @@ import { CompaniesService } from '../companies/companies.service';
 import { DynamoDBService } from '../../infrastructure/database/dynamodb.service';
 import { SchedulingService } from '../scheduling/scheduling.service';
 import { AppointmentsService } from '../appointments/appointments.service';
+import { StripeConnectService } from '../billing/stripe-connect.service';
+import { CustomerPaymentsService } from '../billing/customer-payments.service';
 import { parseHHmm, zonedTimeToUtcMs } from '../scheduling/timezone';
 import {
   PublicBookingCancelDto,
+  PublicBookingPaymentDto,
   PublicBookingRequestDto,
   PublicBookingRescheduleDto,
   PublicBookingUpdateDto,
@@ -15,6 +18,7 @@ import { sendSesEmail } from './email.util';
 import { renderHandycallEmail } from '../../common/email-templates';
 import { AppointmentStatus, isValidEmail } from '@handycall/shared';
 import { signBookingToken, verifyBookingToken } from './booking-link.util';
+import { v4 as uuidv4 } from 'uuid';
 
 type BookingTemplate = {
   intake_schema?: { required?: string[]; optional?: string[] };
@@ -71,6 +75,8 @@ export class PublicBookingService {
     private readonly dynamodb: DynamoDBService,
     private readonly scheduling: SchedulingService,
     private readonly appointments: AppointmentsService,
+    private readonly stripeConnect: StripeConnectService,
+    private readonly customerPayments: CustomerPaymentsService,
   ) {}
 
   private getBookingSecret(): string {
@@ -115,6 +121,49 @@ export class PublicBookingService {
       company?.timezone ||
       fallback;
     return candidate || fallback;
+  }
+
+  private mapPaymentIntentStatus(status: string | null | undefined):
+    | 'REQUIRES_PAYMENT_METHOD'
+    | 'REQUIRES_CONFIRMATION'
+    | 'PROCESSING'
+    | 'SUCCEEDED'
+    | 'FAILED'
+    | 'CANCELED' {
+    if (status === 'requires_payment_method') return 'REQUIRES_PAYMENT_METHOD';
+    if (status === 'requires_confirmation') return 'REQUIRES_CONFIRMATION';
+    if (status === 'processing') return 'PROCESSING';
+    if (status === 'succeeded') return 'SUCCEEDED';
+    if (status === 'canceled') return 'CANCELED';
+    return 'FAILED';
+  }
+
+  private resolveActiveBookingServices(company: any): Array<{
+    service_id: string;
+    name: string;
+    description?: string;
+    amount_cents: number;
+    currency?: string;
+    duration_minutes?: number;
+    active?: boolean;
+    collect_payment?: boolean;
+  }> {
+    const raw = Array.isArray(company?.booking_services) ? company.booking_services : [];
+    return raw
+      .filter((service: any) => service && service.active !== false)
+      .filter((service: any) => Number.isFinite(Number(service.amount_cents)) && Number(service.amount_cents) > 0)
+      .map((service: any) => ({
+        service_id: String(service.service_id || uuidv4()),
+        name: String(service.name || 'Service'),
+        description: service.description ? String(service.description) : undefined,
+        amount_cents: Math.round(Number(service.amount_cents)),
+        currency: String(service.currency || 'usd').toLowerCase(),
+        duration_minutes: Number.isFinite(Number(service.duration_minutes))
+          ? Math.round(Number(service.duration_minutes))
+          : undefined,
+        active: service.active !== false,
+        collect_payment: service.collect_payment !== false,
+      }));
   }
 
   async buildBookingLink(companyId: string, callId: string) {
@@ -280,6 +329,125 @@ export class PublicBookingService {
         labels: fields.labels,
       },
       booking_defaults: template?.booking_defaults || undefined,
+    };
+  }
+
+  async getBookingPaymentInfo(token: string) {
+    const payload = verifyBookingToken(token, this.getBookingSecret());
+    const company = await this.companies.findById(payload.company_id);
+    if (!company) throw new NotFoundException('Company not found');
+
+    const { call, appointment } = await this.loadCallAndAppointment(payload.company_id, payload.call_id);
+    const services = this.resolveActiveBookingServices(company).filter((service) => service.collect_payment !== false);
+    const enabled = Boolean(company.booking_payment_enabled && company.stripe_connect_account_id);
+    const connectStatus = enabled ? await this.stripeConnect.getAccountStatus(company.company_id) : { connected: false };
+
+    const recent = await this.customerPayments.getPaymentsByCompany(company.company_id, { limit: 25 });
+    const relevant = recent.payments.filter(
+      (payment) =>
+        (appointment?.appointment_id && payment.appointment_id === appointment.appointment_id) ||
+        (call?.contact_id && payment.contact_id === call.contact_id),
+    );
+    const paid = relevant.some((payment) => payment.payment_status === 'SUCCEEDED');
+
+    return {
+      enabled,
+      paid,
+      connect_status: connectStatus,
+      services,
+      default_currency: services[0]?.currency || appointment?.currency || 'usd',
+      recommended_amount_cents:
+        services[0]?.amount_cents ||
+        (typeof appointment?.price_cents === 'number' ? appointment.price_cents : undefined),
+      payment_history: relevant.slice(0, 5),
+      security_note: "We never store your bank information. Payments are processed securely by Stripe.",
+    };
+  }
+
+  async createBookingPayment(token: string, dto: PublicBookingPaymentDto) {
+    const payload = verifyBookingToken(token, this.getBookingSecret());
+    const company = await this.companies.findById(payload.company_id);
+    if (!company) throw new NotFoundException('Company not found');
+
+    if (!company.booking_payment_enabled) {
+      throw new BadRequestException('Customer payments are not enabled for this company');
+    }
+    if (!company.stripe_connect_account_id) {
+      throw new BadRequestException('Stripe Connect onboarding is incomplete');
+    }
+
+    const { call, appointment } = await this.loadCallAndAppointment(payload.company_id, payload.call_id);
+    const services = this.resolveActiveBookingServices(company).filter((service) => service.collect_payment !== false);
+    const selectedService = dto.service_id
+      ? services.find((service) => service.service_id === dto.service_id)
+      : services[0];
+
+    const amountCents =
+      (dto.amount_cents && dto.amount_cents > 0 ? dto.amount_cents : undefined) ||
+      selectedService?.amount_cents ||
+      (typeof appointment?.price_cents === 'number' ? appointment.price_cents : undefined);
+    if (!amountCents || amountCents < 50) {
+      throw new BadRequestException('A service amount of at least $0.50 is required');
+    }
+
+    const currency = (dto.currency || selectedService?.currency || appointment?.currency || 'usd').toLowerCase();
+    const paymentId = uuidv4();
+
+    const paymentIntent = await this.stripeConnect.createPaymentIntent(company.company_id, {
+      amount_cents: amountCents,
+      currency,
+      customer_email: dto.customer_email || appointment?.contact_email || undefined,
+      description: `${company.company_name} - ${selectedService?.name || appointment?.service_type || 'Service payment'}`,
+      metadata: {
+        payment_id: paymentId,
+        appointment_id: appointment?.appointment_id || '',
+        contact_id: call?.contact_id || appointment?.contact_id || '',
+        service_id: selectedService?.service_id || '',
+      },
+    });
+
+    const paymentStatus = this.mapPaymentIntentStatus(paymentIntent.status);
+    const created = await this.customerPayments.createPayment(company.company_id, {
+      payment_id: paymentId,
+      contact_id: call?.contact_id || appointment?.contact_id || undefined,
+      appointment_id: appointment?.appointment_id || undefined,
+      customer_name: dto.customer_name || appointment?.contact_name || undefined,
+      customer_email: dto.customer_email || appointment?.contact_email || undefined,
+      service_name: selectedService?.name || appointment?.service_type || undefined,
+      payment_type: 'BOOKING',
+      payment_status: paymentStatus,
+      amount_cents: amountCents,
+      currency,
+      stripe_payment_intent_id: paymentIntent.id,
+      metadata: {
+        booking_token: token,
+        call_id: payload.call_id,
+      },
+    });
+
+    if (appointment?.appointment_id) {
+      await this.dynamodb.update(
+        'appointments',
+        { company_id: company.company_id, appointment_id: appointment.appointment_id },
+        {
+          payment_status: paymentStatus === 'SUCCEEDED' ? 'PAID' : 'PENDING',
+          payment_id: created.payment_id,
+          amount_due_cents: amountCents,
+          amount_paid_cents: paymentStatus === 'SUCCEEDED' ? amountCents : 0,
+          updated_at: Date.now(),
+        },
+      );
+    }
+
+    return {
+      ok: true,
+      payment_id: created.payment_id,
+      payment_status: paymentStatus,
+      amount_cents: amountCents,
+      currency,
+      stripe_payment_intent_id: paymentIntent.id,
+      client_secret: paymentIntent.client_secret,
+      publishable_key: this.config.get<string>('STRIPE_PUBLISHABLE_KEY') || null,
     };
   }
 

@@ -263,6 +263,13 @@ class ApiClient {
     return response.data ?? response;
   }
 
+  async getDashboardInsights(): Promise<any> {
+    const response = await this.request<any>('/dashboard/insights', {
+      method: 'GET',
+    });
+    return response.data ?? response;
+  }
+
   async getRecentCalls(): Promise<any> {
     const response = await this.request<any>('/dashboard/recent-calls', {
       method: 'GET',
@@ -674,6 +681,62 @@ class ApiClient {
     return response.data ?? response;
   }
 
+  async setupConnectAccount(): Promise<any> {
+    const response = await this.request<any>('/billing/connect/setup', {
+      method: 'POST',
+    });
+    return response.data ?? response;
+  }
+
+  async createConnectOnboardingLink(): Promise<any> {
+    const response = await this.request<any>('/billing/connect/onboarding-link', {
+      method: 'POST',
+    });
+    return response.data ?? response;
+  }
+
+  async getConnectStatus(): Promise<any> {
+    const response = await this.request<any>('/billing/connect/status', {
+      method: 'GET',
+    });
+    return response.data ?? response;
+  }
+
+  async getCustomerPayments(filters?: {
+    status?: string;
+    type?: string;
+    contact_id?: string;
+    start?: number;
+    end?: number;
+    limit?: number;
+    lastEvaluatedKey?: any;
+  }): Promise<any> {
+    const params = new URLSearchParams();
+    if (filters?.status) params.append('status', filters.status);
+    if (filters?.type) params.append('type', filters.type);
+    if (filters?.contact_id) params.append('contact_id', filters.contact_id);
+    if (typeof filters?.start === 'number') params.append('start', String(filters.start));
+    if (typeof filters?.end === 'number') params.append('end', String(filters.end));
+    if (typeof filters?.limit === 'number') params.append('limit', String(filters.limit));
+    if (filters?.lastEvaluatedKey) params.append('lastEvaluatedKey', JSON.stringify(filters.lastEvaluatedKey));
+    const suffix = params.toString() ? `?${params.toString()}` : '';
+    const response = await this.request<any>(`/billing/customer-payments${suffix}`, {
+      method: 'GET',
+    });
+    return response.data ?? response;
+  }
+
+  async getCustomerPaymentStats(options?: { start?: number; end?: number }): Promise<any> {
+    const params = new URLSearchParams();
+    if (typeof options?.start === 'number') params.append('start', String(options.start));
+    if (typeof options?.end === 'number') params.append('end', String(options.end));
+    const suffix = params.toString() ? `?${params.toString()}` : '';
+    const response = await this.request<any>(`/billing/customer-payments/stats${suffix}`, {
+      method: 'GET',
+    });
+    return response.data ?? response;
+  }
+
   // Calendar Integration endpoints
   async getGoogleCalendarAuthUrl(): Promise<{ url: string }> {
     const response = await this.request<{ url: string }>('/calendar-integration/auth/google/url', {
@@ -782,8 +845,14 @@ class ApiClient {
     return response.data ?? response;
   }
 
-  async listNotifications(limit = 25, unreadOnly = false): Promise<any> {
-    const response = await this.request<any>(`/notifications?limit=${limit}&unread_only=${unreadOnly}`, {
+  async listNotifications(limit = 25, unreadOnly = false, lastEvaluatedKey?: any): Promise<any> {
+    const params = new URLSearchParams();
+    params.append('limit', String(limit));
+    params.append('unread_only', String(unreadOnly));
+    if (lastEvaluatedKey) {
+      params.append('lastEvaluatedKey', JSON.stringify(lastEvaluatedKey));
+    }
+    const response = await this.request<any>(`/notifications?${params.toString()}`, {
       method: 'GET',
     });
     return response.data ?? response;
@@ -798,6 +867,13 @@ class ApiClient {
 
   async markNotificationRead(notificationId: string): Promise<any> {
     const response = await this.request<any>(`/notifications/${notificationId}/read`, {
+      method: 'POST',
+    });
+    return response.data ?? response;
+  }
+
+  async markNotificationUnread(notificationId: string): Promise<any> {
+    const response = await this.request<any>(`/notifications/${notificationId}/unread`, {
       method: 'POST',
     });
     return response.data ?? response;

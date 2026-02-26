@@ -7,7 +7,9 @@ import * as http2 from 'http2';
 import { v4 as uuidv4 } from 'uuid';
 import {
   NOTIFICATION_EVENT_KEYS,
+  PLAN_LIMITS,
   NotificationCategory,
+  NotificationChannelPreference,
   NotificationDevice,
   NotificationDeviceRegistration,
   NotificationEventKey,
@@ -43,6 +45,12 @@ const EVENT_CATALOG: Record<NotificationEventKey, EventCatalogItem> = {
     label: 'Appointment cancelled',
     category: 'APPOINTMENTS',
     description: 'Sent when an appointment is cancelled.',
+  },
+  appointment_completed: {
+    event_key: 'appointment_completed',
+    label: 'Appointment completed',
+    category: 'APPOINTMENTS',
+    description: 'Sent when an appointment is marked completed.',
   },
   call_completed: {
     event_key: 'call_completed',
@@ -86,12 +94,25 @@ const EVENT_CATALOG: Record<NotificationEventKey, EventCatalogItem> = {
     category: 'USAGE',
     description: 'Sent when usage reaches or exceeds 100%.',
   },
+  service_disabled: {
+    event_key: 'service_disabled',
+    label: 'AI service paused',
+    category: 'USAGE',
+    description: 'Sent when a plan limit pause disables AI handling.',
+  },
+  service_restored: {
+    event_key: 'service_restored',
+    label: 'AI service restored',
+    category: 'USAGE',
+    description: 'Sent when AI handling is re-enabled after usage reset/upgrade.',
+  },
 };
 
 const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferencesMap = {
   appointment_created: { in_app: true, push: true },
   appointment_updated: { in_app: true, push: true },
   appointment_cancelled: { in_app: true, push: true },
+  appointment_completed: { in_app: true, push: true },
   call_completed: { in_app: true, push: true },
   lead_created: { in_app: true, push: true },
   usage_threshold_25: { in_app: true, push: false },
@@ -99,12 +120,26 @@ const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferencesMap = {
   usage_threshold_75: { in_app: true, push: true },
   usage_threshold_90: { in_app: true, push: true },
   usage_threshold_100: { in_app: true, push: true },
+  service_disabled: { in_app: true, push: true },
+  service_restored: { in_app: true, push: true },
 };
 
-const PLAN_LIMITS: Record<SubscriptionPlan, { minutes: number; sms: number; contacts: number }> = {
-  [SubscriptionPlan.STARTER]: { minutes: 50, sms: 100, contacts: 200 },
-  [SubscriptionPlan.PRO]: { minutes: 120, sms: 250, contacts: 500 },
-  [SubscriptionPlan.MAX]: { minutes: 250, sms: 500, contacts: 1000 },
+const NOTIFICATION_PLAN_LIMITS: Record<SubscriptionPlan, { minutes: number; sms: number; contacts: number }> = {
+  [SubscriptionPlan.STARTER]: {
+    minutes: PLAN_LIMITS[SubscriptionPlan.STARTER].monthly_minutes,
+    sms: PLAN_LIMITS[SubscriptionPlan.STARTER].sms_limit,
+    contacts: PLAN_LIMITS[SubscriptionPlan.STARTER].contacts_limit,
+  },
+  [SubscriptionPlan.PRO]: {
+    minutes: PLAN_LIMITS[SubscriptionPlan.PRO].monthly_minutes,
+    sms: PLAN_LIMITS[SubscriptionPlan.PRO].sms_limit,
+    contacts: PLAN_LIMITS[SubscriptionPlan.PRO].contacts_limit,
+  },
+  [SubscriptionPlan.MAX]: {
+    minutes: PLAN_LIMITS[SubscriptionPlan.MAX].monthly_minutes,
+    sms: PLAN_LIMITS[SubscriptionPlan.MAX].sms_limit,
+    contacts: PLAN_LIMITS[SubscriptionPlan.MAX].contacts_limit,
+  },
 };
 
 @Injectable()
@@ -157,7 +192,7 @@ export class NotificationsService {
   async updatePreferences(
     companyId: string,
     userId: string,
-    input: Partial<NotificationPreferencesMap>,
+    input: Partial<Record<NotificationEventKey, Partial<NotificationChannelPreference>>>,
   ): Promise<NotificationPreferences> {
     const current = await this.getPreferences(companyId, userId);
     const merged = this.defaultPreferences();
@@ -282,6 +317,26 @@ export class NotificationsService {
     return (updated || { ...existing, is_read: true, read_at: now }) as NotificationItem;
   }
 
+  async markUnread(companyId: string, userId: string, notificationId: string): Promise<NotificationItem> {
+    const existing = await this.dynamodb.get('notifications', {
+      company_id: companyId,
+      notification_id: notificationId,
+    });
+    if (!existing || existing.user_id !== userId) {
+      throw new BadRequestException('Notification not found');
+    }
+    if (!existing.is_read) {
+      return existing as NotificationItem;
+    }
+
+    const updated = await this.dynamodb.update(
+      'notifications',
+      { company_id: companyId, notification_id: notificationId },
+      { is_read: false, read_at: null },
+    );
+    return (updated || { ...existing, is_read: false, read_at: null }) as NotificationItem;
+  }
+
   async markAllRead(companyId: string, userId: string): Promise<{ updated: number }> {
     let updated = 0;
     let cursor: any = undefined;
@@ -389,15 +444,42 @@ export class NotificationsService {
   async emitUsageThresholdNotifications(companyId: string): Promise<void> {
     const company = await this.dynamodb.get('companies', { company_id: companyId });
     const plan = company?.subscription_plan as SubscriptionPlan | undefined;
-    if (!plan || !PLAN_LIMITS[plan]) return;
+    if (!plan || !NOTIFICATION_PLAN_LIMITS[plan]) return;
 
-    const limits = PLAN_LIMITS[plan];
+    const limits = NOTIFICATION_PLAN_LIMITS[plan];
     const periodStart = this.resolveUsagePeriodStart(company?.current_period_start);
     const usage = await this.getUsageAggregate(companyId, periodStart);
 
     await this.maybeEmitUsageThreshold(companyId, periodStart, 'minutes', usage.minutes_used, limits.minutes);
     await this.maybeEmitUsageThreshold(companyId, periodStart, 'sms', usage.sms_sent_count, limits.sms);
     await this.maybeEmitUsageThreshold(companyId, periodStart, 'contacts', usage.contacts_count, limits.contacts);
+  }
+
+  async emitServiceAvailabilityEvent(
+    companyId: string,
+    state: 'disabled' | 'restored',
+    payload?: { reason?: string; reset_at?: number; blocked_services?: string[] },
+  ): Promise<void> {
+    const eventKey: NotificationEventKey = state === 'disabled' ? 'service_disabled' : 'service_restored';
+    const title = state === 'disabled' ? 'AI handling paused' : 'AI handling restored';
+    const baseBody =
+      state === 'disabled'
+        ? 'Usage limits were reached, so AI call/SMS handling has been paused.'
+        : 'AI call/SMS handling is active again.';
+    const resetNote =
+      payload?.reset_at && Number.isFinite(payload.reset_at)
+        ? ` Service resumes by ${new Date(payload.reset_at).toLocaleString()}.`
+        : '';
+    const reason = payload?.reason ? ` ${payload.reason}` : '';
+
+    await this.createForCompanyUsers(companyId, {
+      eventKey,
+      category: 'USAGE',
+      title,
+      body: `${baseBody}${reason}${resetNote}`.trim(),
+      actionUrl: '/dashboard/usage',
+      payload: payload || {},
+    });
   }
 
   private async maybeEmitUsageThreshold(
@@ -432,11 +514,15 @@ export class NotificationsService {
 
       const eventKey = `usage_threshold_${threshold}` as NotificationEventKey;
       const metricLabel = metric === 'minutes' ? 'call minutes' : metric === 'sms' ? 'SMS' : 'contacts';
+      const body =
+        threshold === 100
+          ? `You've used ${used}/${limit} ${metricLabel}. AI handling may pause until your next billing reset unless you upgrade now.`
+          : `You've used ${used}/${limit} ${metricLabel} (${percent.toFixed(0)}%).`;
       await this.createForCompanyUsers(companyId, {
         eventKey,
         category: 'USAGE',
         title: `Usage ${threshold}% reached`,
-        body: `You've used ${used}/${limit} ${metricLabel} (${percent.toFixed(0)}%).`,
+        body,
         actionUrl: '/dashboard/billing',
         payload: {
           metric,
@@ -454,12 +540,9 @@ export class NotificationsService {
     if (typeof raw === 'number' && Number.isFinite(raw)) {
       return raw;
     }
+    // Fallback: start of current month
     const now = new Date();
-    const day = now.getUTCDay() || 7; // Sunday=7
-    const monday = new Date(now);
-    monday.setUTCDate(now.getUTCDate() - day + 1);
-    monday.setUTCHours(0, 0, 0, 0);
-    return monday.getTime();
+    return Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1);
   }
 
   private async getUsageAggregate(companyId: string, periodStart: number) {
@@ -534,6 +617,19 @@ export class NotificationsService {
         category: 'APPOINTMENTS',
         title: 'Appointment cancelled',
         body: `${contact}'s appointment was cancelled.`,
+        actionUrl: '/dashboard/appointments',
+        payload: { appointment_id: appt.appointment_id },
+      };
+    }
+
+    if (event === 'appointment.completed') {
+      const appt = data?.appointment || {};
+      const contact = appt.contact_name || appt.contact_phone || 'Customer';
+      return {
+        eventKey: 'appointment_completed',
+        category: 'APPOINTMENTS',
+        title: 'Appointment completed',
+        body: `${contact}'s appointment has been marked completed.`,
         actionUrl: '/dashboard/appointments',
         payload: { appointment_id: appt.appointment_id },
       };

@@ -1,4 +1,4 @@
-import { IsObject, IsOptional, IsString } from 'class-validator';
+import { IsNumber, IsObject, IsOptional, IsString, Min } from 'class-validator';
 
 export class PublicBookingRequestDto {
   @IsString()
@@ -80,4 +80,27 @@ export class PublicBookingAvailabilityDto {
   @IsString()
   @IsOptional()
   end_date?: string; // YYYY-MM-DD
+}
+
+export class PublicBookingPaymentDto {
+  @IsOptional()
+  @IsString()
+  service_id?: string;
+
+  @IsOptional()
+  @IsString()
+  customer_name?: string;
+
+  @IsOptional()
+  @IsString()
+  customer_email?: string;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(50)
+  amount_cents?: number;
+
+  @IsOptional()
+  @IsString()
+  currency?: string;
 }

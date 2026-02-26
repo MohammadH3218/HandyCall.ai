@@ -14,11 +14,15 @@ import { CallForwardingGuide } from '@/components/telephony/call-forwarding-guid
 import { PageHeader } from '@/components/portal/page-header';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
+import { usePlanFeatures } from '@/hooks/use-plan-features';
 import { Copy, Phone, RefreshCw, Settings2, ShieldCheck, Webhook } from 'lucide-react';
 
 export default function SettingsPage() {
   const { toast } = useToast();
   const { company } = useAuthStore();
+  const { hasFeature } = usePlanFeatures();
+  const crmEnabled = hasFeature('crm_integrations');
+  const canUseFollowUps = hasFeature('follow_up_sequences');
   const [formData, setFormData] = useState({
     company_name: '',
     phone_number: '',
@@ -30,7 +34,7 @@ export default function SettingsPage() {
   const [isSavingBusiness, setIsSavingBusiness] = useState(false);
   const [isSavingCall, setIsSavingCall] = useState(false);
   const [myNumber, setMyNumber] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'business' | 'call' | 'integrations' | 'account'>('business');
+  const [activeTab, setActiveTab] = useState<'business' | 'call' | 'payments' | 'integrations' | 'notifications' | 'account'>('business');
   const [editOpen, setEditOpen] = useState(false);
   const [editDraft, setEditDraft] = useState({
     company_name: '',
@@ -49,6 +53,37 @@ export default function SettingsPage() {
     is_enabled: true,
   });
   const [showSecret, setShowSecret] = useState(false);
+  const [connectStatus, setConnectStatus] = useState<any>(null);
+  const [paymentsLoading, setPaymentsLoading] = useState(false);
+  const [paymentsSaving, setPaymentsSaving] = useState(false);
+  const [bookingPaymentEnabled, setBookingPaymentEnabled] = useState(false);
+  const [bookingServices, setBookingServices] = useState<Array<{
+    service_id: string;
+    name: string;
+    amount_cents: number;
+    currency: string;
+    active: boolean;
+  }>>([]);
+  const [notificationsLoading, setNotificationsLoading] = useState(false);
+  const [notificationsSaving, setNotificationsSaving] = useState(false);
+  const [notificationEvents, setNotificationEvents] = useState<Array<{ event_key: string; label: string; category: string; description: string }>>([]);
+  const [notificationPrefs, setNotificationPrefs] = useState<Record<string, { in_app: boolean; push: boolean }>>({});
+  const [widgetEnabled, setWidgetEnabled] = useState(false);
+  const [widgetPrimaryColor, setWidgetPrimaryColor] = useState('#10b981');
+  const [widgetGreeting, setWidgetGreeting] = useState('Hi there! How can we help?');
+  const [widgetSaving, setWidgetSaving] = useState(false);
+  const [automationSaving, setAutomationSaving] = useState(false);
+  const [followUpEnabled, setFollowUpEnabled] = useState(false);
+  const [followUpInitialDelayMinutes, setFollowUpInitialDelayMinutes] = useState('0');
+  const [followUpSecondDelayMinutes, setFollowUpSecondDelayMinutes] = useState('1440');
+  const [followUpFinalDelayMinutes, setFollowUpFinalDelayMinutes] = useState('4320');
+  const [followUpInitialTemplate, setFollowUpInitialTemplate] = useState('');
+  const [followUpSecondTemplate, setFollowUpSecondTemplate] = useState('');
+  const [followUpFinalTemplate, setFollowUpFinalTemplate] = useState('');
+  const [reviewRequestEnabled, setReviewRequestEnabled] = useState(false);
+  const [reviewRequestDelayMinutes, setReviewRequestDelayMinutes] = useState('120');
+  const [reviewPlatformUrl, setReviewPlatformUrl] = useState('');
+  const [reviewRequestTemplate, setReviewRequestTemplate] = useState('');
 
   const statusLabel = company?.cancel_at_period_end
     ? 'Cancelled'
@@ -71,6 +106,32 @@ export default function SettingsPage() {
       phone_number: company.phone_number ?? '',
       timezone: company.timezone || DEFAULT_TIMEZONE,
     });
+    setBookingPaymentEnabled(Boolean((company as any).booking_payment_enabled));
+    setBookingServices(
+      Array.isArray((company as any).booking_services)
+        ? ((company as any).booking_services as any[]).map((service: any) => ({
+            service_id: String(service.service_id || crypto.randomUUID()),
+            name: String(service.name || ''),
+            amount_cents: Number(service.amount_cents || 0),
+            currency: String(service.currency || 'usd'),
+            active: service.active !== false,
+          }))
+        : [],
+    );
+    setWidgetEnabled(Boolean((company as any).website_widget_enabled));
+    setWidgetPrimaryColor((company as any).website_widget_settings?.primary_color || '#10b981');
+    setWidgetGreeting((company as any).website_widget_settings?.greeting || 'Hi there! How can we help?');
+    setFollowUpEnabled(Boolean((company as any).follow_up_sequences_enabled));
+    setFollowUpInitialDelayMinutes(String((company as any).follow_up_initial_delay_minutes ?? 0));
+    setFollowUpSecondDelayMinutes(String((company as any).follow_up_second_delay_minutes ?? 1440));
+    setFollowUpFinalDelayMinutes(String((company as any).follow_up_final_delay_minutes ?? 4320));
+    setFollowUpInitialTemplate((company as any).follow_up_initial_template || '');
+    setFollowUpSecondTemplate((company as any).follow_up_second_template || '');
+    setFollowUpFinalTemplate((company as any).follow_up_final_template || '');
+    setReviewRequestEnabled(Boolean((company as any).review_request_enabled));
+    setReviewRequestDelayMinutes(String((company as any).review_request_delay_minutes ?? 120));
+    setReviewPlatformUrl((company as any).review_platform_url || '');
+    setReviewRequestTemplate((company as any).review_request_template || '');
   }, [company]);
 
   useEffect(() => {
@@ -117,6 +178,55 @@ export default function SettingsPage() {
         if (isMounted) setWebhookLoading(false);
       });
 
+    return () => {
+      isMounted = false;
+    };
+  }, [activeTab, toast]);
+
+  useEffect(() => {
+    if (activeTab !== 'payments') return;
+    let isMounted = true;
+    setPaymentsLoading(true);
+    apiClient
+      .getConnectStatus()
+      .then((status) => {
+        if (!isMounted) return;
+        setConnectStatus(status || { connected: false });
+      })
+      .catch(() => {
+        if (!isMounted) return;
+        setConnectStatus({ connected: false });
+      })
+      .finally(() => {
+        if (isMounted) setPaymentsLoading(false);
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (activeTab !== 'notifications') return;
+    let isMounted = true;
+    setNotificationsLoading(true);
+    Promise.all([apiClient.getNotificationEvents(), apiClient.getNotificationPreferences()])
+      .then(([events, prefs]) => {
+        if (!isMounted) return;
+        const eventList = Array.isArray(events?.events) ? events.events : [];
+        setNotificationEvents(eventList);
+        setNotificationPrefs((prefs?.preferences || {}) as Record<string, { in_app: boolean; push: boolean }>);
+      })
+      .catch((error: any) => {
+        if (!isMounted) return;
+        toast({
+          title: 'Failed to load notifications',
+          description: error?.message || 'Could not load notification preferences.',
+          variant: 'destructive',
+        });
+      })
+      .finally(() => {
+        if (isMounted) setNotificationsLoading(false);
+      });
     return () => {
       isMounted = false;
     };
@@ -254,6 +364,169 @@ export default function SettingsPage() {
     }
   };
 
+  const handleConnectSetup = async () => {
+    try {
+      const result = await apiClient.setupConnectAccount();
+      if (result?.url) {
+        window.location.href = result.url;
+        return;
+      }
+      toast({
+        title: 'Connect setup unavailable',
+        description: 'Unable to generate a Stripe onboarding link right now.',
+        variant: 'destructive',
+      });
+    } catch (error: any) {
+      toast({
+        title: 'Connect setup failed',
+        description: error?.message || 'Unable to start Stripe Connect onboarding.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleAddBookingService = () => {
+    setBookingServices((prev) => [
+      ...prev,
+      {
+        service_id: crypto.randomUUID(),
+        name: '',
+        amount_cents: 0,
+        currency: 'usd',
+        active: true,
+      },
+    ]);
+  };
+
+  const handleUpdateBookingService = (
+    serviceId: string,
+    field: 'name' | 'amount_cents' | 'currency' | 'active',
+    value: string | number | boolean,
+  ) => {
+    setBookingServices((prev) =>
+      prev.map((service) => (service.service_id === serviceId ? { ...service, [field]: value } : service)),
+    );
+  };
+
+  const handleRemoveBookingService = (serviceId: string) => {
+    setBookingServices((prev) => prev.filter((service) => service.service_id !== serviceId));
+  };
+
+  const handleSavePayments = async () => {
+    try {
+      setPaymentsSaving(true);
+      await apiClient.updateMyCompany({
+        booking_payment_enabled: bookingPaymentEnabled,
+        booking_services: bookingServices.map((service) => ({
+          service_id: service.service_id,
+          name: service.name.trim(),
+          amount_cents: Math.max(0, Math.round(Number(service.amount_cents || 0))),
+          currency: (service.currency || 'usd').toLowerCase(),
+          active: service.active,
+        })),
+      });
+      toast({
+        title: 'Payment settings saved',
+        description: 'Your booking payment configuration has been updated.',
+      });
+    } catch (error: any) {
+      toast({
+        title: 'Save failed',
+        description: error?.message || 'Could not save payment settings.',
+        variant: 'destructive',
+      });
+    } finally {
+      setPaymentsSaving(false);
+    }
+  };
+
+  const toggleNotificationChannel = (eventKey: string, channel: 'in_app' | 'push') => {
+    setNotificationPrefs((prev) => ({
+      ...prev,
+      [eventKey]: {
+        in_app: prev[eventKey]?.in_app ?? true,
+        push: prev[eventKey]?.push ?? false,
+        [channel]: !(prev[eventKey]?.[channel] ?? false),
+      },
+    }));
+  };
+
+  const handleSaveNotifications = async () => {
+    try {
+      setNotificationsSaving(true);
+      await apiClient.updateNotificationPreferences(notificationPrefs);
+      toast({
+        title: 'Notifications updated',
+        description: 'Your notification preferences were saved.',
+      });
+    } catch (error: any) {
+      toast({
+        title: 'Save failed',
+        description: error?.message || 'Could not save notification preferences.',
+        variant: 'destructive',
+      });
+    } finally {
+      setNotificationsSaving(false);
+    }
+  };
+
+  const handleSaveWidgetSettings = async () => {
+    try {
+      setWidgetSaving(true);
+      await apiClient.updateMyCompany({
+        website_widget_enabled: widgetEnabled,
+        website_widget_settings: {
+          primary_color: widgetPrimaryColor,
+          greeting: widgetGreeting,
+          position: 'BOTTOM_RIGHT',
+        },
+      });
+      toast({
+        title: 'Widget settings saved',
+        description: 'Your website chat widget preferences were updated.',
+      });
+    } catch (error: any) {
+      toast({
+        title: 'Save failed',
+        description: error?.message || 'Could not save widget settings.',
+        variant: 'destructive',
+      });
+    } finally {
+      setWidgetSaving(false);
+    }
+  };
+
+  const handleSaveAutomations = async () => {
+    try {
+      setAutomationSaving(true);
+      await apiClient.updateMyCompany({
+        follow_up_sequences_enabled: canUseFollowUps ? followUpEnabled : false,
+        follow_up_initial_delay_minutes: canUseFollowUps ? Math.max(0, Number(followUpInitialDelayMinutes || 0)) : 0,
+        follow_up_second_delay_minutes: canUseFollowUps ? Math.max(0, Number(followUpSecondDelayMinutes || 1440)) : 1440,
+        follow_up_final_delay_minutes: canUseFollowUps ? Math.max(0, Number(followUpFinalDelayMinutes || 4320)) : 4320,
+        follow_up_initial_template: canUseFollowUps ? followUpInitialTemplate.trim() || '' : '',
+        follow_up_second_template: canUseFollowUps ? followUpSecondTemplate.trim() || '' : '',
+        follow_up_final_template: canUseFollowUps ? followUpFinalTemplate.trim() || '' : '',
+        review_request_enabled: reviewRequestEnabled,
+        review_request_delay_minutes: Math.max(0, Number(reviewRequestDelayMinutes || 120)),
+        review_platform_url: reviewPlatformUrl.trim() || '',
+        review_request_template: reviewRequestTemplate.trim() || '',
+      });
+      toast({
+        title: 'Automation settings saved',
+        description: 'Follow-ups and review request rules are updated.',
+      });
+    } catch (error: any) {
+      toast({
+        title: 'Save failed',
+        description: error?.message || 'Could not save automation settings.',
+        variant: 'destructive',
+      });
+    } finally {
+      setAutomationSaving(false);
+    }
+  };
+
   const toggleWebhookEvent = (event: string) => {
     setWebhookDraft((prev) => {
       const hasEvent = prev.enabled_events.includes(event);
@@ -270,6 +543,10 @@ export default function SettingsPage() {
     if (Number.isNaN(date.getTime())) return 'Never';
     return date.toLocaleString();
   };
+  const widgetApiBase = (process.env.NEXT_PUBLIC_API_URL || 'https://api.handycall.org/api/v1').replace(/\/$/, '');
+  const widgetEmbedCode = company?.company_id
+    ? `<script src="https://widget.handycall.org/v1/widget.js" data-company-id="${company.company_id}" data-api-base="${widgetApiBase}" async></script>`
+    : '';
 
 
   return (
@@ -284,7 +561,9 @@ export default function SettingsPage() {
         {[
           { key: 'business', label: 'Business info' },
           { key: 'call', label: 'Call handling' },
+          { key: 'payments', label: 'Payments' },
           { key: 'integrations', label: 'CRM integrations' },
+          { key: 'notifications', label: 'Notifications' },
           { key: 'account', label: 'Account' },
         ].map((tab) => (
           <button
@@ -471,6 +750,347 @@ export default function SettingsPage() {
         </div>
       )}
 
+      {activeTab === 'payments' && (
+        <div className="space-y-5">
+          <div className="rounded-2xl border border-slate-100 bg-white shadow-sm">
+            <div className="border-b border-slate-100 px-5 py-4">
+              <h2 className="text-sm font-semibold text-slate-900">Stripe Connect</h2>
+              <p className="text-xs text-slate-500">Connect your bank account to accept customer payments from booking links.</p>
+            </div>
+            <div className="space-y-4 p-5">
+              {paymentsLoading ? (
+                <p className="text-sm text-slate-500">Loading payment status…</p>
+              ) : connectStatus?.connected ? (
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 px-4 py-3 text-sm text-emerald-800">
+                  Connected{connectStatus?.account_id ? ` · ${connectStatus.account_id}` : ''}.
+                  {!connectStatus?.charges_enabled ? ' Complete onboarding steps in Stripe to start accepting charges.' : ''}
+                </div>
+              ) : (
+                <div className="rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-3 text-sm text-slate-700">
+                  Stripe Connect is not set up yet.
+                </div>
+              )}
+              <div className="flex gap-2">
+                <Button onClick={handleConnectSetup}>
+                  {connectStatus?.connected ? 'Open onboarding link' : 'Set up Stripe Connect'}
+                </Button>
+              </div>
+              <div className="rounded-xl border border-emerald-100 bg-emerald-50/70 px-4 py-3">
+                <p className="text-xs font-semibold text-emerald-900">Security</p>
+                <p className="mt-1 text-xs text-emerald-700">We don't store bank info. Payout details are handled directly by Stripe.</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-slate-100 bg-white shadow-sm">
+            <div className="border-b border-slate-100 px-5 py-4">
+              <h2 className="text-sm font-semibold text-slate-900">Booking payment configuration</h2>
+              <p className="text-xs text-slate-500">Choose which services can be paid for during booking.</p>
+            </div>
+            <div className="space-y-4 p-5">
+              <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+                <div>
+                  <p className="text-sm font-semibold text-slate-900">Enable booking payments</p>
+                  <p className="text-xs text-slate-600">Show a payment step on public booking links.</p>
+                </div>
+                <button
+                  type="button"
+                  aria-pressed={bookingPaymentEnabled}
+                  onClick={() => setBookingPaymentEnabled((prev) => !prev)}
+                  className={`relative h-7 w-12 rounded-full transition ${
+                    bookingPaymentEnabled ? 'bg-emerald-600' : 'bg-slate-300'
+                  }`}
+                >
+                  <span
+                    className={`absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow transition ${
+                      bookingPaymentEnabled ? 'translate-x-5' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
+
+              <div className="space-y-3">
+                {bookingServices.map((service) => (
+                  <div key={service.service_id} className="grid gap-2 rounded-xl border border-slate-200 bg-white p-3 md:grid-cols-5">
+                    <Input
+                      value={service.name}
+                      onChange={(e) => handleUpdateBookingService(service.service_id, 'name', e.target.value)}
+                      placeholder="Service name"
+                    />
+                    <Input
+                      type="number"
+                      min={0}
+                      value={service.amount_cents}
+                      onChange={(e) => handleUpdateBookingService(service.service_id, 'amount_cents', Number(e.target.value))}
+                      placeholder="Amount (cents)"
+                    />
+                    <Input
+                      value={service.currency}
+                      onChange={(e) => handleUpdateBookingService(service.service_id, 'currency', e.target.value)}
+                      placeholder="Currency (usd)"
+                    />
+                    <label className="flex items-center gap-2 text-sm text-slate-700">
+                      <input
+                        type="checkbox"
+                        checked={service.active}
+                        onChange={(e) => handleUpdateBookingService(service.service_id, 'active', e.target.checked)}
+                      />
+                      Active
+                    </label>
+                    <Button type="button" variant="outline" onClick={() => handleRemoveBookingService(service.service_id)}>
+                      Remove
+                    </Button>
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex flex-wrap justify-between gap-2">
+                <Button type="button" variant="outline" onClick={handleAddBookingService}>
+                  Add service
+                </Button>
+                <Button onClick={handleSavePayments} disabled={paymentsSaving}>
+                  {paymentsSaving ? 'Saving…' : 'Save payment settings'}
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-slate-100 bg-white shadow-sm">
+            <div className="border-b border-slate-100 px-5 py-4">
+              <h2 className="text-sm font-semibold text-slate-900">Follow-ups and review requests</h2>
+              <p className="text-xs text-slate-500">Automate post-call and post-appointment outreach.</p>
+            </div>
+            <div className="space-y-4 p-5">
+              {!canUseFollowUps ? (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                  Follow-up sequences are available on Pro and Max plans.
+                </div>
+              ) : null}
+
+              <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+                <div>
+                  <p className="text-sm font-semibold text-slate-900">Enable follow-up SMS sequence</p>
+                  <p className="text-xs text-slate-600">Send immediate, 24-hour, and 3-day follow-ups after calls.</p>
+                </div>
+                <button
+                  type="button"
+                  aria-pressed={followUpEnabled}
+                  onClick={() => canUseFollowUps && setFollowUpEnabled((prev) => !prev)}
+                  disabled={!canUseFollowUps}
+                  className={`relative h-7 w-12 rounded-full transition ${
+                    canUseFollowUps && followUpEnabled ? 'bg-emerald-600' : 'bg-slate-300'
+                  } ${!canUseFollowUps ? 'opacity-60' : ''}`}
+                >
+                  <span
+                    className={`absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow transition ${
+                      canUseFollowUps && followUpEnabled ? 'translate-x-5' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
+
+              {canUseFollowUps && followUpEnabled ? (
+                <div className="grid gap-3 rounded-xl border border-slate-200 bg-white p-4">
+                  <div className="grid gap-3 md:grid-cols-3">
+                    <div className="space-y-2">
+                      <Label htmlFor="follow_up_initial_delay">Initial delay (minutes)</Label>
+                      <Input
+                        id="follow_up_initial_delay"
+                        type="number"
+                        min={0}
+                        value={followUpInitialDelayMinutes}
+                        onChange={(e) => setFollowUpInitialDelayMinutes(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="follow_up_second_delay">Second delay (minutes)</Label>
+                      <Input
+                        id="follow_up_second_delay"
+                        type="number"
+                        min={0}
+                        value={followUpSecondDelayMinutes}
+                        onChange={(e) => setFollowUpSecondDelayMinutes(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="follow_up_final_delay">Final delay (minutes)</Label>
+                      <Input
+                        id="follow_up_final_delay"
+                        type="number"
+                        min={0}
+                        value={followUpFinalDelayMinutes}
+                        onChange={(e) => setFollowUpFinalDelayMinutes(e.target.value)}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="follow_up_initial_template">Initial follow-up message (optional)</Label>
+                    <textarea
+                      id="follow_up_initial_template"
+                      value={followUpInitialTemplate}
+                      onChange={(e) => setFollowUpInitialTemplate(e.target.value)}
+                      rows={2}
+                      className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 outline-none ring-emerald-200 transition focus:ring"
+                      placeholder="Thanks for calling {{company_name}}! Here's your booking link: {{booking_link}}"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="follow_up_second_template">Second follow-up message (optional)</Label>
+                    <textarea
+                      id="follow_up_second_template"
+                      value={followUpSecondTemplate}
+                      onChange={(e) => setFollowUpSecondTemplate(e.target.value)}
+                      rows={2}
+                      className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 outline-none ring-emerald-200 transition focus:ring"
+                      placeholder="Haven't booked yet? We'd love to help. {{booking_link}}"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="follow_up_final_template">Final follow-up message (optional)</Label>
+                    <textarea
+                      id="follow_up_final_template"
+                      value={followUpFinalTemplate}
+                      onChange={(e) => setFollowUpFinalTemplate(e.target.value)}
+                      rows={2}
+                      className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 outline-none ring-emerald-200 transition focus:ring"
+                      placeholder="Final follow-up from {{company_name}}. Reply here if you'd like us to reserve a time for you."
+                    />
+                  </div>
+
+                  <p className="text-xs text-slate-500">
+                    Template variables supported: <code>{'{{company_name}}'}</code>, <code>{'{{booking_link}}'}</code>, <code>{'{{contact_name}}'}</code>.
+                  </p>
+                </div>
+              ) : null}
+
+              <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+                <div>
+                  <p className="text-sm font-semibold text-slate-900">Enable review request SMS</p>
+                  <p className="text-xs text-slate-600">Send a review request automatically after completed appointments.</p>
+                </div>
+                <button
+                  type="button"
+                  aria-pressed={reviewRequestEnabled}
+                  onClick={() => setReviewRequestEnabled((prev) => !prev)}
+                  className={`relative h-7 w-12 rounded-full transition ${
+                    reviewRequestEnabled ? 'bg-emerald-600' : 'bg-slate-300'
+                  }`}
+                >
+                  <span
+                    className={`absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow transition ${
+                      reviewRequestEnabled ? 'translate-x-5' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
+
+              {reviewRequestEnabled ? (
+                <div className="grid gap-3">
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="review_delay_minutes">Send delay (minutes)</Label>
+                      <Input
+                        id="review_delay_minutes"
+                        type="number"
+                        min={0}
+                        value={reviewRequestDelayMinutes}
+                        onChange={(e) => setReviewRequestDelayMinutes(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="review_platform_url">Review URL</Label>
+                      <Input
+                        id="review_platform_url"
+                        value={reviewPlatformUrl}
+                        onChange={(e) => setReviewPlatformUrl(e.target.value)}
+                        placeholder="https://g.page/your-business/review"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="review_request_template">Review request message (optional)</Label>
+                    <textarea
+                      id="review_request_template"
+                      value={reviewRequestTemplate}
+                      onChange={(e) => setReviewRequestTemplate(e.target.value)}
+                      rows={3}
+                      className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 outline-none ring-emerald-200 transition focus:ring"
+                      placeholder="Thanks for choosing [Company]! We'd love your feedback: [review_link]"
+                    />
+                  </div>
+                </div>
+              ) : null}
+
+              <div className="flex justify-end">
+                <Button onClick={handleSaveAutomations} disabled={automationSaving}>
+                  {automationSaving ? 'Saving…' : 'Save automation settings'}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'notifications' && (
+        <div className="space-y-5">
+          <div className="rounded-2xl border border-slate-100 bg-white shadow-sm">
+            <div className="border-b border-slate-100 px-5 py-4">
+              <h2 className="text-sm font-semibold text-slate-900">Notification preferences</h2>
+              <p className="text-xs text-slate-500">Choose which events should trigger in-app and push notifications.</p>
+            </div>
+            <div className="space-y-4 p-5">
+              {notificationsLoading ? (
+                <p className="text-sm text-slate-500">Loading notification settings…</p>
+              ) : (
+                <div className="space-y-2">
+                  {notificationEvents.map((event) => (
+                    <div key={event.event_key} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-3">
+                      <div>
+                        <p className="text-sm font-semibold text-slate-900">{event.label}</p>
+                        <p className="text-xs text-slate-500">{event.description}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => toggleNotificationChannel(event.event_key, 'in_app')}
+                          className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                            notificationPrefs[event.event_key]?.in_app
+                              ? 'bg-emerald-600 text-white'
+                              : 'bg-slate-200 text-slate-600'
+                          }`}
+                        >
+                          In-app
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => toggleNotificationChannel(event.event_key, 'push')}
+                          className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                            notificationPrefs[event.event_key]?.push
+                              ? 'bg-emerald-600 text-white'
+                              : 'bg-slate-200 text-slate-600'
+                          }`}
+                        >
+                          Push
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="flex justify-end">
+                <Button onClick={handleSaveNotifications} disabled={notificationsSaving || notificationsLoading}>
+                  {notificationsSaving ? 'Saving…' : 'Save notification settings'}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {activeTab === 'account' && (
         <div className="space-y-5">
           <div className="rounded-2xl border border-slate-100 bg-white shadow-sm">
@@ -506,6 +1126,18 @@ export default function SettingsPage() {
 
       {activeTab === 'integrations' && (
         <div className="space-y-5">
+          {!crmEnabled ? (
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-5">
+              <p className="text-sm font-semibold text-amber-900">CRM integrations are available on the Max plan</p>
+              <p className="mt-1 text-sm text-amber-800">
+                Upgrade to Max to unlock webhook-based CRM sync and delivery logs.
+              </p>
+              <Button className="mt-4" onClick={() => (window.location.href = '/dashboard/billing/plans')}>
+                Upgrade to Max
+              </Button>
+            </div>
+          ) : (
+            <>
           <div className="rounded-2xl border border-slate-100 bg-white shadow-sm">
             <div className="border-b border-slate-100 px-5 py-4">
               <h2 className="text-sm font-semibold text-slate-900">Connect your CRM</h2>
@@ -710,6 +1342,74 @@ export default function SettingsPage() {
               </p>
             </div>
           </div>
+
+          <div className="rounded-2xl border border-slate-100 bg-white shadow-sm">
+            <div className="border-b border-slate-100 px-5 py-4">
+              <h2 className="text-sm font-semibold text-slate-900">Website chat widget (Max)</h2>
+              <p className="text-xs text-slate-500">Embed HandyCall chat and callback capture on your website.</p>
+            </div>
+            <div className="space-y-4 p-5">
+              {!hasFeature('website_widget') ? (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                  Available on the Max plan. Upgrade to unlock website widget deployment.
+                </div>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900">Enable widget</p>
+                      <p className="text-xs text-slate-600">Allow visitors to chat with AI and request callbacks.</p>
+                    </div>
+                    <button
+                      type="button"
+                      aria-pressed={widgetEnabled}
+                      onClick={() => setWidgetEnabled((prev) => !prev)}
+                      className={`relative h-7 w-12 rounded-full transition ${
+                        widgetEnabled ? 'bg-emerald-600' : 'bg-slate-300'
+                      }`}
+                    >
+                      <span
+                        className={`absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow transition ${
+                          widgetEnabled ? 'translate-x-5' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                  </div>
+
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label>Primary color</Label>
+                      <Input value={widgetPrimaryColor} onChange={(e) => setWidgetPrimaryColor(e.target.value)} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Greeting</Label>
+                      <Input value={widgetGreeting} onChange={(e) => setWidgetGreeting(e.target.value)} />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Embed code</Label>
+                    <Input readOnly value={widgetEmbedCode} />
+                    <Button
+                      variant="outline"
+                      type="button"
+                      onClick={() => navigator.clipboard.writeText(widgetEmbedCode)}
+                      disabled={!widgetEmbedCode}
+                    >
+                      Copy embed code
+                    </Button>
+                  </div>
+                  <div className="flex justify-end">
+                    <Button onClick={handleSaveWidgetSettings} disabled={widgetSaving}>
+                      {widgetSaving ? 'Saving…' : 'Save widget settings'}
+                    </Button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+            </>
+          )}
         </div>
       )}
 

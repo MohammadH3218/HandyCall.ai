@@ -14,6 +14,8 @@ import {
 import { Request } from 'express';
 import { BillingService } from './billing.service';
 import { UsageService } from './usage.service';
+import { StripeConnectService } from './stripe-connect.service';
+import { CustomerPaymentsService } from './customer-payments.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CompanyId, UserRoleParam } from '../../common/decorators/auth.decorator';
 import { Public } from '../../common/decorators/public.decorator';
@@ -27,7 +29,9 @@ import { NotFoundException } from '@nestjs/common';
 export class BillingController {
   constructor(
     private billingService: BillingService,
-    private usageService: UsageService
+    private usageService: UsageService,
+    private stripeConnectService: StripeConnectService,
+    private customerPaymentsService: CustomerPaymentsService,
   ) {}
 
   /**
@@ -159,6 +163,89 @@ export class BillingController {
   }
 
   /**
+   * Create/refresh Stripe Connect onboarding link
+   * POST /billing/connect/setup
+   */
+  @Post('connect/setup')
+  async setupConnectAccount(@CompanyId() companyId: string) {
+    const link = await this.stripeConnectService.createAccountLink(companyId);
+    const status = await this.stripeConnectService.getAccountStatus(companyId);
+    return {
+      ...link,
+      status,
+    };
+  }
+
+  /**
+   * Generate a new Stripe Connect onboarding link
+   * POST /billing/connect/onboarding-link
+   */
+  @Post('connect/onboarding-link')
+  async createConnectOnboardingLink(@CompanyId() companyId: string) {
+    return this.stripeConnectService.createAccountLink(companyId);
+  }
+
+  /**
+   * Get Stripe Connect status
+   * GET /billing/connect/status
+   */
+  @Get('connect/status')
+  async getConnectStatus(@CompanyId() companyId: string) {
+    return this.stripeConnectService.getAccountStatus(companyId);
+  }
+
+  /**
+   * Get customer payments
+   * GET /billing/customer-payments
+   */
+  @Get('customer-payments')
+  async getCustomerPayments(
+    @CompanyId() companyId: string,
+    @Query('status') status?: string,
+    @Query('type') type?: string,
+    @Query('contact_id') contactId?: string,
+    @Query('start') start?: string,
+    @Query('end') end?: string,
+    @Query('limit') limit?: string,
+    @Query('lastEvaluatedKey') lastEvaluatedKey?: string,
+  ) {
+    let parsedLastKey: any = undefined;
+    if (lastEvaluatedKey) {
+      try {
+        parsedLastKey = JSON.parse(lastEvaluatedKey);
+      } catch {
+        parsedLastKey = undefined;
+      }
+    }
+
+    return this.customerPaymentsService.getPaymentsByCompany(companyId, {
+      status: status as any,
+      type: type as any,
+      contact_id: contactId,
+      start: start ? Number(start) : undefined,
+      end: end ? Number(end) : undefined,
+      limit: limit ? Number(limit) : undefined,
+      lastEvaluatedKey: parsedLastKey,
+    });
+  }
+
+  /**
+   * Get customer payment revenue stats
+   * GET /billing/customer-payments/stats
+   */
+  @Get('customer-payments/stats')
+  async getCustomerPaymentStats(
+    @CompanyId() companyId: string,
+    @Query('start') start?: string,
+    @Query('end') end?: string,
+  ) {
+    return this.customerPaymentsService.getRevenueStats(companyId, {
+      start: start ? Number(start) : undefined,
+      end: end ? Number(end) : undefined,
+    });
+  }
+
+  /**
    * Stripe webhook handler
    * POST /billing/webhook
    */
@@ -174,6 +261,25 @@ export class BillingController {
     }
 
     await this.billingService.handleWebhook(signature, rawBody as Buffer);
+    return { received: true };
+  }
+
+  /**
+   * Stripe Connect webhook handler
+   * POST /billing/connect/webhook
+   */
+  @Public()
+  @Post('connect/webhook')
+  async handleConnectWebhook(
+    @Headers('stripe-signature') signature: string,
+    @Req() request: Request
+  ) {
+    const rawBody = request.body;
+    if (!Buffer.isBuffer(rawBody)) {
+      throw new Error('Raw body buffer is required for webhook verification');
+    }
+
+    await this.stripeConnectService.handleConnectWebhook(signature, rawBody as Buffer);
     return { received: true };
   }
 
@@ -210,9 +316,9 @@ export class BillingController {
       throw new NotFoundException('Not found');
     }
 
-    // Calculate total weekly recurring revenue, active subscriptions, etc.
+    // TODO: Replace placeholder with actual monthly recurring revenue metrics.
     return {
-      wrr: 0, // Weekly Recurring Revenue
+      wrr: 0, // Legacy key; now represents MRR placeholder until metric contract is updated.
       active_subscriptions: 0,
       trial_conversions: 0,
       churn_rate: 0,

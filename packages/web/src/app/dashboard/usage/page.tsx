@@ -101,6 +101,15 @@ export default function UsagePage() {
     ].filter((item) => item.percent >= 75 && item.percent < 100 && item.percent !== 0);
   }, [planLimits, usage]);
 
+  const reachedLimits = useMemo(() => {
+    if (!planLimits || !usage) return [];
+    return [
+      { label: 'Call minutes', percent: calculateUsagePercentage(usage.call_minutes || 0, planLimits.minutes) },
+      { label: 'SMS', percent: calculateUsagePercentage(usage.sms_count || 0, planLimits.sms) },
+      { label: 'Contacts', percent: calculateUsagePercentage(usage.active_contacts || 0, planLimits.contacts) },
+    ].filter((item) => item.percent >= 100);
+  }, [planLimits, usage]);
+
   if (isLoading) {
     return (
       <div className="space-y-5">
@@ -147,6 +156,34 @@ export default function UsagePage() {
       />
 
       {/* Alerts */}
+      {reachedLimits.length > 0 && (
+        <div className="rounded-2xl border border-red-200 bg-red-50 px-5 py-4">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-red-600" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-red-900">Usage limit reached</p>
+              <div className="mt-2 space-y-1">
+                {reachedLimits.map((item) => (
+                  <div key={item.label} className="flex items-center justify-between text-sm text-red-700">
+                    <span>{item.label}</span>
+                    <span className="font-semibold">{item.percent}% used</span>
+                  </div>
+                ))}
+              </div>
+              <p className="mt-2 text-xs text-red-700">
+                AI handling may pause until your period resets on {formatDate(usage?.period_end)}.
+              </p>
+              <button
+                onClick={() => router.push(billingPlans)}
+                className="mt-3 text-xs font-semibold text-red-800 underline hover:text-red-900"
+              >
+                Upgrade now →
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {alerts.length > 0 && (
         <div className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4">
           <div className="flex items-start gap-3">

@@ -4,6 +4,7 @@ export const WEBHOOK_PUBLIC_EVENTS = [
   'appointment.created',
   'appointment.updated',
   'appointment.cancelled',
+  'appointment.completed',
   'call.completed',
 ] as const;
 

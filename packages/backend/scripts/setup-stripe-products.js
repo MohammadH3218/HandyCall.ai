@@ -1,6 +1,6 @@
 /**
  * Stripe Product Setup Script
- * Creates the three subscription tiers with weekly billing
+ * Creates the three subscription tiers with monthly billing
  */
 
 require('dotenv').config({ path: require('path').join(__dirname, '../.env') });
@@ -19,22 +19,22 @@ async function setupProducts() {
       {
         name: 'Starter Plan',
         description: 'Perfect for small businesses getting started with AI calling',
-        price: 999, // $9.99 in cents
-        limits: '50 minutes, 100 SMS, 200 contacts per week',
+        price: 1999, // $19.99 in cents
+        limits: '100 minutes, 200 SMS, 300 contacts per month',
         trialDays: 0,
       },
       {
         name: 'Pro Plan',
         description: 'For growing businesses with higher call volumes',
-        price: 1999, // $19.99 in cents
-        limits: '150 minutes, 300 SMS, 500 contacts per week',
+        price: 3999, // $39.99 in cents
+        limits: '300 minutes, 600 SMS, 1000 contacts per month',
         trialDays: 14,
       },
       {
         name: 'Max Plan',
         description: 'Enterprise-grade solution for maximum capacity',
-        price: 3999, // $39.99 in cents
-        limits: '500 minutes, 1000 SMS, unlimited contacts per week',
+        price: 9999, // $99.99 in cents
+        limits: '750 minutes, 1500 SMS, 3000 contacts per month',
         trialDays: 0,
       },
     ];
@@ -55,9 +55,9 @@ async function setupProducts() {
 
       console.log(`  ✅ Product created: ${product.id}`);
 
-      // Create the recurring price with weekly billing
+      // Create the recurring price with monthly billing
       const recurring = {
-        interval: 'week',
+        interval: 'month',
       };
       if (tier.trialDays && tier.trialDays > 0) {
         recurring.trial_period_days = tier.trialDays;
@@ -73,7 +73,7 @@ async function setupProducts() {
         },
       });
 
-      console.log(`  ✅ Price created: ${price.id} ($${tier.price / 100}/week)\n`);
+      console.log(`  ✅ Price created: ${price.id} ($${tier.price / 100}/month)\n`);
 
       // Store price IDs by plan name
       const planKey = tier.name.split(' ')[0].toUpperCase(); // STARTER, PRO, MAX

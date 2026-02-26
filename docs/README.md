@@ -2,6 +2,11 @@
 
 This folder collects runbooks, integration guides, and reference material.
 
+## Priority Docs
+- `docs/IMPLEMENTATION_STATUS.md` - Current feature-phase status and risk checklist.
+- `docs/DEPLOYMENT_HANDOFF.md` - GitHub + AWS Docker deployment handoff.
+- `PROJECT_CONTEXT.md` - Broad platform architecture context.
+
 ## Key Areas
 - `docs/api/` - API-related notes and references.
 - `docs/azure/` - Azure manifest fixes and reusable manifest samples.

@@ -10,6 +10,7 @@ import { ToolsAuthGuard } from '../../common/guards/tools-auth.guard';
 import { SchedulingModule } from '../scheduling/scheduling.module';
 import { AppointmentsModule } from '../appointments/appointments.module';
 import { WebhooksModule } from '../webhooks/webhooks.module';
+import { FollowUpSequencesModule } from '../follow-up-sequences/follow-up-sequences.module';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { WebhooksModule } from '../webhooks/webhooks.module';
     BillingModule,
     AppointmentsModule,
     WebhooksModule,
+    FollowUpSequencesModule,
   ],
   controllers: [RealtimeToolsController],
   providers: [RealtimeToolsService, ToolsAuthGuard],

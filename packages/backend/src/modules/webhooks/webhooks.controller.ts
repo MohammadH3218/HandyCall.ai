@@ -2,8 +2,12 @@ import { Body, Controller, Get, Post, Put } from '@nestjs/common';
 import { WebhooksService } from './webhooks.service';
 import { CompanyId } from '../../common/decorators/auth.decorator';
 import { UpdateWebhookConfigDto } from './webhooks.dto';
+import { UseGuards } from '@nestjs/common';
+import { PlanFeature, PlanFeatureGuard } from '../../common/guards/plan-feature.guard';
 
 @Controller('webhooks')
+@UseGuards(PlanFeatureGuard)
+@PlanFeature('crm_integrations')
 export class WebhooksController {
   constructor(private readonly webhooks: WebhooksService) {}
 

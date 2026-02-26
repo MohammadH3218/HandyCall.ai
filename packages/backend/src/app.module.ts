@@ -24,6 +24,8 @@ import { PublicBookingModule } from './modules/public-booking/public-booking.mod
 import { WebhooksModule } from './modules/webhooks/webhooks.module';
 import { MessagesModule } from './modules/messages/messages.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
+import { FollowUpSequencesModule } from './modules/follow-up-sequences/follow-up-sequences.module';
+import { ChatModule } from './modules/chat/chat.module';
 import { DatabaseModule } from './infrastructure/database/database.module';
 import { StorageModule } from './infrastructure/storage/storage.module';
 import { ParameterStoreModule } from './infrastructure/config/config.module';
@@ -68,6 +70,8 @@ import { AppService } from './app.service';
     WebhooksModule,
     MessagesModule,
     NotificationsModule,
+    FollowUpSequencesModule,
+    ChatModule,
   ],
   controllers: [AppController],
   providers: [
