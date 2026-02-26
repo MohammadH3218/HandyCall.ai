@@ -5,6 +5,7 @@ This folder collects runbooks, integration guides, and reference material.
 ## Priority Docs
 - `docs/IMPLEMENTATION_STATUS.md` - Current feature-phase status and risk checklist.
 - `docs/DEPLOYMENT_HANDOFF.md` - GitHub + AWS Docker deployment handoff.
+- `docs/STRIPE_SETUP_AND_SYNC.md` - Stripe pricing, Connect, webhooks, and billing sync runbook.
 - `PROJECT_CONTEXT.md` - Broad platform architecture context.
 
 ## Key Areas

@@ -16,6 +16,12 @@ export class BillingService {
     private companiesService: CompaniesService
   ) {}
 
+  private static readonly PLAN_MONTHLY_PRICE_CENTS: Record<SubscriptionPlan, number> = {
+    [SubscriptionPlan.STARTER]: 1999,
+    [SubscriptionPlan.PRO]: 3999,
+    [SubscriptionPlan.MAX]: 9999,
+  };
+
   /**
    * Create setup intent for collecting payment method
    */
@@ -347,6 +353,11 @@ export class BillingService {
       throw new NotFoundException('Company not found');
     }
 
+    company = await this.reconcileCompanyWithStripe(company);
+    if (!company) {
+      throw new NotFoundException('Company not found');
+    }
+
     if (
       !company.stripe_subscription_id &&
       company.cancel_at_period_end &&
@@ -364,13 +375,26 @@ export class BillingService {
         calls_enabled: false,
         sms_enabled: false,
       });
+      if (!company) {
+        throw new NotFoundException('Company not found');
+      }
     }
 
     let subscription = null;
     let paymentMethod = null;
 
     if (company.stripe_subscription_id) {
-      subscription = await this.stripeService.getSubscription(company.stripe_subscription_id);
+      try {
+        subscription = await this.stripeService.getSubscription(company.stripe_subscription_id);
+      } catch {
+        company = await this.reconcileCompanyWithStripe(company);
+        if (!company) {
+          throw new NotFoundException('Company not found');
+        }
+        subscription = company.stripe_subscription_id
+          ? await this.stripeService.getSubscription(company.stripe_subscription_id).catch(() => null)
+          : null;
+      }
     }
 
     if (company.stripe_customer_id) {
@@ -655,7 +679,7 @@ export class BillingService {
    * Handle subscription updated webhook
    */
   private async handleSubscriptionUpdated(subscription: Stripe.Subscription): Promise<void> {
-    const companyId = subscription.metadata.company_id;
+    const companyId = await this.resolveCompanyIdForSubscriptionEvent(subscription);
     if (!companyId) {
       console.warn('[BillingService] Subscription missing company_id metadata:', subscription.id);
       return;
@@ -685,7 +709,7 @@ export class BillingService {
    * Handle subscription deleted webhook
    */
   private async handleSubscriptionDeleted(subscription: Stripe.Subscription): Promise<void> {
-    const companyId = subscription.metadata.company_id;
+    const companyId = await this.resolveCompanyIdForSubscriptionEvent(subscription);
     if (!companyId) return;
 
     await this.companiesService.updateCompany(companyId, {
@@ -746,6 +770,8 @@ export class BillingService {
       canceled: SubscriptionStatus.CANCELED,
       unpaid: SubscriptionStatus.UNPAID,
       incomplete: SubscriptionStatus.INCOMPLETE,
+      incomplete_expired: SubscriptionStatus.INCOMPLETE,
+      paused: SubscriptionStatus.PAST_DUE,
     };
     return statusMap[stripeStatus] || SubscriptionStatus.ACTIVE;
   }
@@ -764,6 +790,10 @@ export class BillingService {
         return CompanyStatus.SUSPENDED;
       case 'canceled':
         return CompanyStatus.INACTIVE;
+      case 'incomplete':
+      case 'incomplete_expired':
+      case 'paused':
+        return CompanyStatus.SUSPENDED;
       default:
         return CompanyStatus.SUSPENDED;
     }
@@ -772,5 +802,214 @@ export class BillingService {
   private getCurrentMonthStartUtc(): number {
     const now = new Date();
     return Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1);
+  }
+
+  private normalizeSubscriptionForSorting(
+    subscription: Stripe.Subscription
+  ): { rank: number; created: number } {
+    const status = String(subscription.status || '').toLowerCase();
+    const rank =
+      status === 'active' || status === 'trialing'
+        ? 3
+        : status === 'past_due' || status === 'unpaid'
+        ? 2
+        : status === 'incomplete'
+        ? 1
+        : 0;
+    return { rank, created: Number(subscription.created || 0) };
+  }
+
+  private async findCompanyByStripeCustomerId(customerId: string) {
+    const scan = await this.dynamodb.scan('companies', {
+      filterExpression: '#stripe_customer_id = :customer_id',
+      expressionAttributeNames: { '#stripe_customer_id': 'stripe_customer_id' },
+      expressionAttributeValues: { ':customer_id': customerId },
+      limit: 1,
+    });
+    return (scan.items?.[0] as any) || null;
+  }
+
+  private async findCompanyByStripeSubscriptionId(subscriptionId: string) {
+    const scan = await this.dynamodb.scan('companies', {
+      filterExpression: '#stripe_subscription_id = :subscription_id',
+      expressionAttributeNames: { '#stripe_subscription_id': 'stripe_subscription_id' },
+      expressionAttributeValues: { ':subscription_id': subscriptionId },
+      limit: 1,
+    });
+    return (scan.items?.[0] as any) || null;
+  }
+
+  private async resolveCompanyIdForSubscriptionEvent(subscription: Stripe.Subscription): Promise<string | null> {
+    if (subscription.metadata?.company_id) return subscription.metadata.company_id;
+
+    const bySubId = await this.findCompanyByStripeSubscriptionId(subscription.id);
+    if (bySubId?.company_id) return String(bySubId.company_id);
+
+    const customerId = typeof subscription.customer === 'string' ? subscription.customer : subscription.customer?.id;
+    if (customerId) {
+      const byCustomerId = await this.findCompanyByStripeCustomerId(customerId);
+      if (byCustomerId?.company_id) return String(byCustomerId.company_id);
+    }
+
+    return null;
+  }
+
+  private async reconcileCompanyWithStripe(company: any): Promise<any> {
+    if (!company?.company_id) return company;
+    if (!company.stripe_customer_id && !company.stripe_subscription_id) return company;
+
+    let stripeSubscription: Stripe.Subscription | null = null;
+
+    if (company.stripe_subscription_id) {
+      try {
+        stripeSubscription = await this.stripeService.getSubscription(company.stripe_subscription_id);
+      } catch {
+        stripeSubscription = null;
+      }
+    }
+
+    if (!stripeSubscription && company.stripe_customer_id) {
+      const subs = await this.stripeService.listCustomerSubscriptions(company.stripe_customer_id, 20);
+      if (subs.length > 0) {
+        subs.sort((a, b) => {
+          const left = this.normalizeSubscriptionForSorting(a);
+          const right = this.normalizeSubscriptionForSorting(b);
+          if (right.rank !== left.rank) return right.rank - left.rank;
+          return right.created - left.created;
+        });
+        stripeSubscription = subs[0];
+      }
+    }
+
+    if (!stripeSubscription) {
+      const hadStripeState = Boolean(
+        company.stripe_subscription_id ||
+          company.subscription_plan ||
+          company.subscription_status ||
+          company.cancel_at_period_end ||
+          company.current_period_start ||
+          company.current_period_end
+      );
+      if (!hadStripeState) return company;
+
+      return this.companiesService.updateCompany(company.company_id, {
+        subscription_plan: null,
+        subscription_status: null,
+        stripe_subscription_id: null,
+        current_period_start: null,
+        current_period_end: null,
+        cancel_at_period_end: false,
+        status: CompanyStatus.INACTIVE,
+        trial_ends_at: null,
+        calls_enabled: false,
+        sms_enabled: false,
+      });
+    }
+
+    const status = String(stripeSubscription.status || '').toLowerCase();
+    const isCanceled = status === 'canceled';
+    const priceId = stripeSubscription.items?.data?.[0]?.price?.id;
+    const mappedPlan = this.stripeService.getPlanFromPriceId(priceId) || company.subscription_plan || null;
+
+    const updates: Record<string, any> = {
+      stripe_subscription_id: isCanceled ? null : stripeSubscription.id,
+      subscription_status: isCanceled ? null : this.mapStripeStatus(status),
+      subscription_plan: isCanceled ? null : mappedPlan,
+      current_period_start: isCanceled ? null : stripeSubscription.current_period_start * 1000,
+      current_period_end: isCanceled ? null : stripeSubscription.current_period_end * 1000,
+      cancel_at_period_end: isCanceled ? false : Boolean(stripeSubscription.cancel_at_period_end),
+      status: isCanceled ? CompanyStatus.INACTIVE : this.getCompanyStatus(status),
+      trial_ends_at: status === 'trialing' && stripeSubscription.trial_end ? stripeSubscription.trial_end * 1000 : null,
+      calls_enabled: isCanceled ? false : company.calls_enabled,
+      sms_enabled: isCanceled ? false : company.sms_enabled,
+    };
+
+    const hasDifferences =
+      company.stripe_subscription_id !== updates.stripe_subscription_id ||
+      company.subscription_status !== updates.subscription_status ||
+      company.subscription_plan !== updates.subscription_plan ||
+      company.current_period_start !== updates.current_period_start ||
+      company.current_period_end !== updates.current_period_end ||
+      Boolean(company.cancel_at_period_end) !== Boolean(updates.cancel_at_period_end) ||
+      company.status !== updates.status;
+
+    if (!hasDifferences) return company;
+    return this.companiesService.updateCompany(company.company_id, updates);
+  }
+
+  async listAllSubscriptions(filters?: { status?: string; plan?: string }): Promise<any[]> {
+    const companies = await this.companiesService.listAll(1000);
+    const rows = companies
+      .filter((company: any) => company.subscription_plan || company.stripe_subscription_id || company.subscription_status)
+      .map((company: any) => {
+        const plan = company.subscription_plan as SubscriptionPlan | null;
+        return {
+          company_id: company.company_id,
+          company_name: company.company_name,
+          plan,
+          status: company.subscription_status || null,
+          current_period_start: company.current_period_start || null,
+          current_period_end: company.current_period_end || null,
+          stripe_subscription_id: company.stripe_subscription_id || null,
+          cancel_at_period_end: Boolean(company.cancel_at_period_end),
+        };
+      });
+
+    const filtered = rows.filter((row) => {
+      const matchesStatus = filters?.status ? String(row.status || '').toUpperCase() === String(filters.status).toUpperCase() : true;
+      const matchesPlan = filters?.plan ? String(row.plan || '').toUpperCase() === String(filters.plan).toUpperCase() : true;
+      return matchesStatus && matchesPlan;
+    });
+
+    filtered.sort((a, b) => Number(b.current_period_end || 0) - Number(a.current_period_end || 0));
+    return filtered;
+  }
+
+  async getRevenueMetrics(): Promise<{
+    total_mrr: number;
+    starter_mrr: number;
+    pro_mrr: number;
+    max_mrr: number;
+    active_subscriptions: number;
+    trialing_subscriptions: number;
+    canceled_subscriptions: number;
+  }> {
+    const companies = await this.companiesService.listAll(1000);
+    let starterCount = 0;
+    let proCount = 0;
+    let maxCount = 0;
+    let active = 0;
+    let trialing = 0;
+    let canceled = 0;
+
+    for (const company of companies as any[]) {
+      const status = String(company.subscription_status || '').toUpperCase();
+      const plan = String(company.subscription_plan || '').toUpperCase();
+      if (status === SubscriptionStatus.ACTIVE) active += 1;
+      if (status === SubscriptionStatus.TRIALING) trialing += 1;
+      if (status === SubscriptionStatus.CANCELED || company.cancel_at_period_end) canceled += 1;
+
+      const billable = status === SubscriptionStatus.ACTIVE || status === SubscriptionStatus.TRIALING;
+      if (!billable) continue;
+
+      if (plan === SubscriptionPlan.STARTER) starterCount += 1;
+      if (plan === SubscriptionPlan.PRO) proCount += 1;
+      if (plan === SubscriptionPlan.MAX) maxCount += 1;
+    }
+
+    const starter_mrr = (starterCount * BillingService.PLAN_MONTHLY_PRICE_CENTS[SubscriptionPlan.STARTER]) / 100;
+    const pro_mrr = (proCount * BillingService.PLAN_MONTHLY_PRICE_CENTS[SubscriptionPlan.PRO]) / 100;
+    const max_mrr = (maxCount * BillingService.PLAN_MONTHLY_PRICE_CENTS[SubscriptionPlan.MAX]) / 100;
+    const total_mrr = starter_mrr + pro_mrr + max_mrr;
+
+    return {
+      total_mrr,
+      starter_mrr,
+      pro_mrr,
+      max_mrr,
+      active_subscriptions: active,
+      trialing_subscriptions: trialing,
+      canceled_subscriptions: canceled,
+    };
   }
 }

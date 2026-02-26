@@ -126,6 +126,18 @@ export class StripeService {
   }
 
   /**
+   * List subscriptions for a customer (any status)
+   */
+  async listCustomerSubscriptions(customerId: string, limit: number = 20): Promise<Stripe.Subscription[]> {
+    const result = await this.stripe.subscriptions.list({
+      customer: customerId,
+      status: 'all',
+      limit,
+    });
+    return result.data;
+  }
+
+  /**
    * Create setup intent for collecting payment method
    */
   async createSetupIntent(customerId: string): Promise<Stripe.SetupIntent> {

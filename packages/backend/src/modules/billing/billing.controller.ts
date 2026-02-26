@@ -300,10 +300,7 @@ export class BillingController {
     if (role !== UserRoleEnum.ADMIN) {
       throw new NotFoundException('Not found');
     }
-
-    // Implementation would query all companies with subscription data
-    // For now, return placeholder
-    return { subscriptions: [] };
+    return this.billingService.listAllSubscriptions({ status, plan });
   }
 
   /**
@@ -315,13 +312,11 @@ export class BillingController {
     if (role !== UserRoleEnum.ADMIN) {
       throw new NotFoundException('Not found');
     }
-
-    // TODO: Replace placeholder with actual monthly recurring revenue metrics.
+    const metrics = await this.billingService.getRevenueMetrics();
     return {
-      wrr: 0, // Legacy key; now represents MRR placeholder until metric contract is updated.
-      active_subscriptions: 0,
-      trial_conversions: 0,
-      churn_rate: 0,
+      ...metrics,
+      // Keep legacy key until frontend admin metrics contract is fully migrated.
+      wrr: metrics.total_mrr,
     };
   }
 
