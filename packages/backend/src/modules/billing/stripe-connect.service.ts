@@ -35,6 +35,28 @@ export class StripeConnectService {
     });
   }
 
+  private mapConnectSetupError(error: any): BadRequestException {
+    const raw = String(error?.message || '').trim();
+    const lower = raw.toLowerCase();
+
+    if (
+      lower.includes("you can only create new accounts if you've signed up for connect") ||
+      lower.includes('signed up for connect')
+    ) {
+      return new BadRequestException(
+        'Stripe Connect is not enabled on your Stripe account yet. In Stripe Dashboard, open Connect and complete "Get started", then try again.',
+      );
+    }
+
+    if (lower.includes('api key') || lower.includes('invalid api key')) {
+      return new BadRequestException(
+        'Stripe API key is invalid or not authorized for Connect. Verify STRIPE_SECRET_KEY in backend environment.',
+      );
+    }
+
+    return new BadRequestException(raw || 'Unable to start Stripe Connect onboarding.');
+  }
+
   async createConnectedAccount(companyId: string): Promise<{ account_id: string }> {
     const company = await this.companies.findById(companyId);
     if (!company) throw new NotFoundException('Company not found');
@@ -43,14 +65,19 @@ export class StripeConnectService {
       return { account_id: company.stripe_connect_account_id };
     }
 
-    const account = await this.stripe.accounts.create({
-      type: 'express',
-      business_type: 'company',
-      email: company.email || undefined,
-      metadata: {
-        company_id: companyId,
-      },
-    });
+    let account: Stripe.Account;
+    try {
+      account = await this.stripe.accounts.create({
+        type: 'express',
+        business_type: 'company',
+        email: company.email || undefined,
+        metadata: {
+          company_id: companyId,
+        },
+      });
+    } catch (error: any) {
+      throw this.mapConnectSetupError(error);
+    }
 
     await this.companies.updateCompany(companyId, {
       stripe_connect_account_id: account.id,
@@ -73,12 +100,17 @@ export class StripeConnectService {
     const return_url =
       options?.return_url || `${frontendBase}/dashboard/settings?payments=connect&state=return`;
 
-    const link = await this.stripe.accountLinks.create({
-      account: account_id,
-      type: 'account_onboarding',
-      refresh_url,
-      return_url,
-    });
+    let link: Stripe.AccountLink;
+    try {
+      link = await this.stripe.accountLinks.create({
+        account: account_id,
+        type: 'account_onboarding',
+        refresh_url,
+        return_url,
+      });
+    } catch (error: any) {
+      throw this.mapConnectSetupError(error);
+    }
 
     return {
       account_id,

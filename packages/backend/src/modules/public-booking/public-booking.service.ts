@@ -339,8 +339,23 @@ export class PublicBookingService {
 
     const { call, appointment } = await this.loadCallAndAppointment(payload.company_id, payload.call_id);
     const services = this.resolveActiveBookingServices(company).filter((service) => service.collect_payment !== false);
-    const enabled = Boolean(company.booking_payment_enabled && company.stripe_connect_account_id);
-    const connectStatus = enabled ? await this.stripeConnect.getAccountStatus(company.company_id) : { connected: false };
+    const connectConfigured = Boolean(company.booking_payment_enabled && company.stripe_connect_account_id);
+    const connectStatus = connectConfigured
+      ? await this.stripeConnect.getAccountStatus(company.company_id)
+      : { connected: false };
+    const publishableKey = this.config.get<string>('STRIPE_PUBLISHABLE_KEY');
+
+    let disabledReason: string | undefined;
+    if (!company.booking_payment_enabled) {
+      disabledReason = 'This business has not enabled booking payments.';
+    } else if (!company.stripe_connect_account_id) {
+      disabledReason = 'Stripe Connect is not configured for this business yet.';
+    } else if (!(connectStatus as any)?.charges_enabled) {
+      disabledReason = 'Stripe onboarding is incomplete. Charges are not enabled yet.';
+    } else if (!publishableKey) {
+      disabledReason = 'Stripe publishable key is missing in backend configuration.';
+    }
+    const enabled = !disabledReason;
 
     const recent = await this.customerPayments.getPaymentsByCompany(company.company_id, { limit: 25 });
     const relevant = recent.payments.filter(
@@ -352,6 +367,7 @@ export class PublicBookingService {
 
     return {
       enabled,
+      disabled_reason: disabledReason,
       paid,
       connect_status: connectStatus,
       services,
@@ -374,6 +390,9 @@ export class PublicBookingService {
     }
     if (!company.stripe_connect_account_id) {
       throw new BadRequestException('Stripe Connect onboarding is incomplete');
+    }
+    if (!this.config.get<string>('STRIPE_PUBLISHABLE_KEY')) {
+      throw new BadRequestException('Stripe publishable key is missing on the server.');
     }
 
     const { call, appointment } = await this.loadCallAndAppointment(payload.company_id, payload.call_id);

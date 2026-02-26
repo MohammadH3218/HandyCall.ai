@@ -41,6 +41,7 @@ type BookingInfo = {
 
 type BookingPaymentInfo = {
   enabled: boolean;
+  disabled_reason?: string;
   paid: boolean;
   services?: Array<{
     service_id: string;
@@ -944,7 +945,9 @@ export default function BookingPage() {
                       )}
                     </>
                   ) : (
-                    <div className="text-sm text-gray-600">Payment is due at your appointment.</div>
+                    <div className="text-sm text-gray-600">
+                      {paymentInfo?.disabled_reason || 'Payment is due at your appointment.'}
+                    </div>
                   )}
                 </CardContent>
               </Card>
@@ -1192,7 +1195,9 @@ export default function BookingPage() {
                     )}
                   </>
                 ) : (
-                  <div className="text-sm text-gray-600">Payment is due at your appointment.</div>
+                  <div className="text-sm text-gray-600">
+                    {paymentInfo?.disabled_reason || 'Payment is due at your appointment.'}
+                  </div>
                 )}
               </CardContent>
             </Card>
