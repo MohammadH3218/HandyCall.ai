@@ -1,8 +1,20 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { SiteHeader } from '@/components/marketing/site-header';
 import { SiteFooter } from '@/components/marketing/site-footer';
 import { FadeIn } from '@/components/marketing/fade-in';
+
+export const metadata: Metadata = {
+  title: 'HandyCall — Find & Book Trusted Home Service Pros',
+  description:
+    'Find vetted plumbers, electricians, HVAC techs, cleaners, and more near you. Real reviews, instant booking, and secure payments. Get quotes in minutes.',
+  openGraph: {
+    title: 'HandyCall — Home Services Marketplace',
+    description: 'Book trusted local pros for any home service. Verified reviews, instant scheduling, and secure payments.',
+    url: '/',
+  },
+};
 import {
   Search,
   CheckCircle2,

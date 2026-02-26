@@ -1018,4 +1018,111 @@ export class BillingService {
       canceled_subscriptions: canceled,
     };
   }
+  // ============================================================================
+  // Add-on Packs
+  // ============================================================================
+
+  static readonly ADDON_CATALOG = [
+    {
+      id: 'MINUTES_100',
+      name: '100 Extra Minutes',
+      description: 'Add 100 minutes of AI call handling',
+      price_cents: 999,
+      price_display: '$9.99',
+      minutes: 100,
+      sms: 0,
+    },
+    {
+      id: 'MINUTES_250',
+      name: '250 Extra Minutes',
+      description: 'Add 250 minutes of AI call handling',
+      price_cents: 1999,
+      price_display: '$19.99',
+      minutes: 250,
+      sms: 0,
+    },
+    {
+      id: 'SMS_200',
+      name: '200 Extra SMS',
+      description: 'Add 200 outbound SMS messages',
+      price_cents: 499,
+      price_display: '$4.99',
+      minutes: 0,
+      sms: 200,
+    },
+    {
+      id: 'SMS_500',
+      name: '500 Extra SMS',
+      description: 'Add 500 outbound SMS messages',
+      price_cents: 999,
+      price_display: '$9.99',
+      minutes: 0,
+      sms: 500,
+    },
+  ] as const;
+
+  getAddonCatalog() {
+    return BillingService.ADDON_CATALOG;
+  }
+
+  async purchaseAddonPack(
+    companyId: string,
+    packId: string,
+  ): Promise<{ success: boolean; pack: any; payment_intent_id: string }> {
+    const company = await this.companiesService.findById(companyId);
+    if (!company) {
+      throw new NotFoundException('Company not found');
+    }
+
+    if (!company.stripe_customer_id) {
+      throw new BadRequestException('No billing account on file. Please set up billing first.');
+    }
+
+    const pack = BillingService.ADDON_CATALOG.find((p) => p.id === packId);
+    if (!pack) {
+      throw new BadRequestException(`Unknown add-on pack: ${packId}`);
+    }
+
+    // Charge the customer
+    const paymentIntent = await this.stripeService.chargeOffSession(
+      company.stripe_customer_id,
+      pack.price_cents,
+      `HandyCall add-on: ${pack.name}`,
+      { company_id: companyId, pack_id: packId },
+    );
+
+    if (paymentIntent.status !== 'succeeded') {
+      throw new BadRequestException(`Payment did not succeed (status: ${paymentIntent.status}). Please check your payment method.`);
+    }
+
+    // Grant the credits (negative delta = grant credits that offset today's usage)
+    if (pack.minutes > 0) {
+      await this.usageService.adjustTodayUsage(companyId, { minutes: -pack.minutes });
+    }
+    if (pack.sms > 0) {
+      await this.usageService.adjustTodayUsage(companyId, { sms: -pack.sms });
+    }
+
+    // Log the addon purchase
+    const now = Date.now();
+    await this.dynamodb.put('billing_events', {
+      company_id: companyId,
+      event_id: uuidv4(),
+      event_type: 'addon_purchased',
+      pack_id: packId,
+      pack_name: pack.name,
+      amount_cents: pack.price_cents,
+      payment_intent_id: paymentIntent.id,
+      minutes_granted: pack.minutes,
+      sms_granted: pack.sms,
+      created_at: now,
+    });
+
+    return {
+      success: true,
+      pack: { ...pack },
+      payment_intent_id: paymentIntent.id,
+    };
+  }
+
 }

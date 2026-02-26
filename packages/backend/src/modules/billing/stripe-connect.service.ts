@@ -60,6 +60,12 @@ export class StripeConnectService {
       );
     }
 
+    if (lower.includes('requested resource not found') || lower.includes('resource_missing')) {
+      return new BadRequestException(
+        'Stripe Connect setup could not find the required Stripe resource. We reset stale IDs automatically; please click "Set up Connect" again.',
+      );
+    }
+
     return new BadRequestException(raw || 'Unable to start Stripe Connect onboarding.');
   }
 
@@ -70,7 +76,8 @@ export class StripeConnectService {
     return (
       code === 'resource_missing' ||
       (type.includes('invalid_request') && message.includes('no such account')) ||
-      message.includes('no such account')
+      message.includes('no such account') ||
+      message.includes('requested resource not found')
     );
   }
 

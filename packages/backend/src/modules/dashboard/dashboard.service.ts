@@ -188,19 +188,25 @@ export class DashboardService {
 
     const startDate = new Date(periodStart).toISOString().split('T')[0];
     const endDate = new Date(now).toISOString().split('T')[0];
-    const usageRows = await this.dynamodb.scan('usage_metrics', {
-      filterExpression: '#company_id = :company_id AND #date BETWEEN :start_date AND :end_date',
-      expressionAttributeNames: {
-        '#company_id': 'company_id',
-        '#date': 'date',
-      },
-      expressionAttributeValues: {
-        ':company_id': companyId,
-        ':start_date': startDate,
-        ':end_date': endDate,
-      },
-      limit: 400,
-    });
+    let usageRows: { items: any[] } = { items: [] };
+    try {
+      usageRows = await this.dynamodb.scan('usage_metrics', {
+        filterExpression: '#company_id = :company_id AND #date BETWEEN :start_date AND :end_date',
+        expressionAttributeNames: {
+          '#company_id': 'company_id',
+          '#date': 'date',
+        },
+        expressionAttributeValues: {
+          ':company_id': companyId,
+          ':start_date': startDate,
+          ':end_date': endDate,
+        },
+        limit: 400,
+      });
+    } catch (error) {
+      if (!this.isResourceNotFoundError(error)) throw error;
+      console.warn('[DashboardService] usage_metrics table missing. Returning zero usage summary.');
+    }
 
     const aggregate = (usageRows.items || []).reduce(
       (acc: any, row: any) => ({

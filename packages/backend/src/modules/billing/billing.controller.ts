@@ -450,4 +450,28 @@ export class BillingController {
     await this.billingService.adjustTodayUsage(companyId, body || {});
     return { success: true };
   }
+  /**
+   * Get add-on pack catalog
+   * GET /billing/addons
+   */
+  @Get('addons')
+  async getAddonCatalog() {
+    return { addons: this.billingService.getAddonCatalog() };
+  }
+
+  /**
+   * Purchase an add-on pack
+   * POST /billing/addons/purchase
+   */
+  @Post('addons/purchase')
+  async purchaseAddonPack(
+    @CompanyId() companyId: string,
+    @Body() body: { pack_id: string },
+  ) {
+    if (!body?.pack_id) {
+      throw new NotFoundException('pack_id is required');
+    }
+    return this.billingService.purchaseAddonPack(companyId, body.pack_id);
+  }
+
 }

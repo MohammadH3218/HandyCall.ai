@@ -1030,6 +1030,213 @@ class ApiClient {
     return this.request<any>(`/sms-automation/scheduled/${messageId}`, { method: 'DELETE' });
   }
 
+  // Billing Add-on Packs
+  async getAddonCatalog() {
+    const res = await this.request<any>('/billing/addons');
+    return (res as any)?.addons ?? res;
+  }
+
+  async purchaseAddonPack(packId: string) {
+    return this.request<any>('/billing/addons/purchase', {
+      method: 'POST',
+      body: JSON.stringify({ pack_id: packId }),
+    });
+  }
+
+  // Invoices
+  async getInvoices(): Promise<any[]> {
+    const res = await this.request<any>('/invoices');
+    return (res as any)?.items ?? res ?? [];
+  }
+
+  async getInvoiceStats(): Promise<any> {
+    const res = await this.request<any>('/invoices/stats');
+    return (res as any)?.data ?? res;
+  }
+
+  async createInvoice(data: any): Promise<any> {
+    return this.request<any>('/invoices', { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  async updateInvoice(invoiceId: string, data: any): Promise<any> {
+    return this.request<any>(`/invoices/${invoiceId}`, { method: 'PUT', body: JSON.stringify(data) });
+  }
+
+  async markInvoiceSent(invoiceId: string): Promise<any> {
+    return this.request<any>(`/invoices/${invoiceId}/send`, { method: 'POST' });
+  }
+
+  async markInvoicePaid(invoiceId: string): Promise<any> {
+    return this.request<any>(`/invoices/${invoiceId}/paid`, { method: 'POST' });
+  }
+
+  async deleteInvoice(invoiceId: string): Promise<any> {
+    return this.request<any>(`/invoices/${invoiceId}`, { method: 'DELETE' });
+  }
+
+  // Team Management
+  async getTeamMembers(): Promise<any[]> {
+    const res = await this.request<any>('/team');
+    return (res as any)?.members ?? res ?? [];
+  }
+
+  async inviteTeamMember(data: { email: string; name: string; role: string }): Promise<any> {
+    return this.request<any>('/team/invite', { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  async updateTeamMember(memberId: string, data: { role?: string; name?: string }): Promise<any> {
+    return this.request<any>(`/team/${memberId}`, { method: 'PUT', body: JSON.stringify(data) });
+  }
+
+  async removeTeamMember(memberId: string): Promise<any> {
+    return this.request<any>(`/team/${memberId}`, { method: 'DELETE' });
+  }
+
+  // Lead Scoring
+  async getLeadScores(): Promise<any[]> {
+    const res = await this.request<any>('/leads/scores');
+    return (res as any)?.scores ?? res ?? [];
+  }
+
+  async getLeadScore(contactId: string): Promise<any> {
+    const res = await this.request<any>(`/leads/${contactId}/score`);
+    return (res as any)?.data ?? res;
+  }
+
+  // Marketplace / Provider Search
+  async searchProviders(query?: string, category?: string, zipcode?: string): Promise<any[]> {
+    const params = new URLSearchParams();
+    if (query) params.set('q', query);
+    if (category) params.set('category', category);
+    if (zipcode) params.set('zipcode', zipcode);
+    const qs = params.toString() ? `?${params.toString()}` : '';
+    const res = await this.request<any>(`/marketplace/search${qs}`);
+    return (res as any)?.providers ?? res ?? [];
+  }
+
+  async getProviderCategories(): Promise<string[]> {
+    const res = await this.request<any>('/marketplace/categories');
+    return (res as any)?.categories ?? res ?? [];
+  }
+
+  async getProviderBySlug(slug: string): Promise<any> {
+    const res = await this.request<any>(`/marketplace/providers/${slug}`);
+    return (res as any)?.provider ?? res;
+  }
+
+  async getMyMarketplaceProfile(): Promise<any> {
+    const res = await this.request<any>('/marketplace/profile');
+    return (res as any)?.profile ?? res;
+  }
+
+  async updateMarketplaceProfile(data: any): Promise<any> {
+    return this.request<any>('/marketplace/profile', { method: 'PUT', body: JSON.stringify(data) });
+  }
+
+  // Reviews
+  async getProviderReviews(companyId: string): Promise<any[]> {
+    const res = await this.request<any>(`/reviews/provider/${companyId}`);
+    return (res as any)?.reviews ?? res ?? [];
+  }
+
+  async getMyReviews(): Promise<any[]> {
+    const res = await this.request<any>('/reviews/my-reviews');
+    return (res as any)?.reviews ?? res ?? [];
+  }
+
+  async respondToReview(reviewId: string, response: string): Promise<any> {
+    return this.request<any>(`/reviews/${reviewId}/respond`, {
+      method: 'POST',
+      body: JSON.stringify({ response }),
+    });
+  }
+
+  // Follow-up Sequences settings
+  async getFollowUpSettings(): Promise<any> {
+    const res = await this.request<any>('/follow-up-sequences/settings');
+    return (res as any)?.data ?? res;
+  }
+
+  async updateFollowUpSettings(data: any): Promise<any> {
+    return this.request<any>('/follow-up-sequences/settings', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async listFollowUpSequences(): Promise<any[]> {
+    const res = await this.request<any>('/follow-up-sequences');
+    return Array.isArray(res) ? res : (res as any)?.items ?? [];
+  }
+
+  // Quote Requests (marketplace)
+  async submitQuoteRequest(data: any): Promise<any> {
+    return this.request<any>('/quote-requests', { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  async browseQuoteRequests(category?: string, zipcode?: string): Promise<any[]> {
+    const params = new URLSearchParams();
+    if (category) params.set('category', category);
+    if (zipcode) params.set('zipcode', zipcode);
+    const qs = params.toString() ? `?${params.toString()}` : '';
+    const res = await this.request<any>(`/quote-requests${qs}`);
+    return (res as any)?.quotes ?? res ?? [];
+  }
+
+  async getQuoteRequest(quoteId: string): Promise<any> {
+    const res = await this.request<any>(`/quote-requests/${quoteId}`);
+    return (res as any)?.quote ?? res;
+  }
+
+  async getAvailableQuotes(): Promise<any[]> {
+    const res = await this.request<any>('/quote-requests/pro/available');
+    return (res as any)?.quotes ?? res ?? [];
+  }
+
+  async respondToQuoteRequest(quoteId: string, data: any): Promise<any> {
+    return this.request<any>(`/quote-requests/${quoteId}/respond`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  // Portal Messaging
+  async getProThreads(): Promise<any[]> {
+    const res = await this.request<any>('/portal-messaging/pro/threads');
+    return (res as any)?.threads ?? res ?? [];
+  }
+
+  async getProThreadMessages(threadId: string): Promise<any[]> {
+    const res = await this.request<any>(`/portal-messaging/pro/threads/${threadId}`);
+    return (res as any)?.messages ?? res ?? [];
+  }
+
+  async sendProMessage(threadId: string, content: string): Promise<any> {
+    return this.request<any>(`/portal-messaging/pro/threads/${threadId}/send`, {
+      method: 'POST',
+      body: JSON.stringify({ content }),
+    });
+  }
+
+  async sendCustomerMessage(companyId: string, data: any): Promise<any> {
+    return this.request<any>(`/portal-messaging/customer/send/${companyId}`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getCustomerThreads(email: string): Promise<any[]> {
+    const res = await this.request<any>(`/portal-messaging/customer/threads?email=${encodeURIComponent(email)}`);
+    return (res as any)?.threads ?? res ?? [];
+  }
+
+  async getCustomerThreadMessages(threadId: string, companyId: string): Promise<any[]> {
+    const res = await this.request<any>(
+      `/portal-messaging/customer/threads/${threadId}?company_id=${encodeURIComponent(companyId)}`
+    );
+    return (res as any)?.messages ?? res ?? [];
+  }
+
 }
 
 export const apiClient = new ApiClient(API_URL);

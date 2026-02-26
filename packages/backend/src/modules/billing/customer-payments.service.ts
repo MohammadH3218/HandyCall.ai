@@ -18,6 +18,15 @@ type PaymentFilters = {
 export class CustomerPaymentsService {
   constructor(private readonly dynamodb: DynamoDBService) {}
 
+  private isResourceNotFoundError(error: unknown): boolean {
+    if (!error || typeof error !== 'object') return false;
+    const maybe = error as { name?: string; message?: string };
+    return (
+      maybe.name === 'ResourceNotFoundException' ||
+      String(maybe.message || '').includes('Requested resource not found')
+    );
+  }
+
   async createPayment(
     companyId: string,
     input: Omit<CustomerPayment, 'company_id' | 'payment_id' | 'created_at' | 'updated_at'> & {
@@ -112,19 +121,25 @@ export class CustomerPaymentsService {
         nextCursor = page.lastEvaluatedKey;
       } catch {
         // Fallback for environments where the date GSI has not been created yet.
-        const page = await this.dynamodb.scan('customer_payments', {
-          filterExpression: '#company_id = :company_id',
-          expressionAttributeNames: {
-            '#company_id': 'company_id',
-          },
-          expressionAttributeValues: {
-            ':company_id': companyId,
-          },
-          limit: Math.max(limit * 2, 200),
-          exclusiveStartKey: cursor,
-        });
-        items = page.items || [];
-        nextCursor = page.lastEvaluatedKey;
+        try {
+          const page = await this.dynamodb.scan('customer_payments', {
+            filterExpression: '#company_id = :company_id',
+            expressionAttributeNames: {
+              '#company_id': 'company_id',
+            },
+            expressionAttributeValues: {
+              ':company_id': companyId,
+            },
+            limit: Math.max(limit * 2, 200),
+            exclusiveStartKey: cursor,
+          });
+          items = page.items || [];
+          nextCursor = page.lastEvaluatedKey;
+        } catch (scanError) {
+          if (!this.isResourceNotFoundError(scanError)) throw scanError;
+          console.warn('[CustomerPaymentsService] customer_payments table missing. Returning empty payments.');
+          return { payments: [] };
+        }
       }
 
       for (const item of items) {
@@ -187,16 +202,22 @@ export class CustomerPaymentsService {
     const monthStart = startOfMonth.getTime();
     const last30 = now - 30 * 24 * 60 * 60 * 1000;
 
-    const scan = await this.dynamodb.scan('customer_payments', {
-      filterExpression: '#company_id = :company_id',
-      expressionAttributeNames: {
-        '#company_id': 'company_id',
-      },
-      expressionAttributeValues: {
-        ':company_id': companyId,
-      },
-      limit: 1000,
-    });
+    let scan: { items: any[] } = { items: [] };
+    try {
+      scan = await this.dynamodb.scan('customer_payments', {
+        filterExpression: '#company_id = :company_id',
+        expressionAttributeNames: {
+          '#company_id': 'company_id',
+        },
+        expressionAttributeValues: {
+          ':company_id': companyId,
+        },
+        limit: 1000,
+      });
+    } catch (error) {
+      if (!this.isResourceNotFoundError(error)) throw error;
+      console.warn('[CustomerPaymentsService] customer_payments table missing. Returning zeroed revenue stats.');
+    }
 
     const payments = (scan.items || []) as CustomerPayment[];
     let totalRevenue = 0;

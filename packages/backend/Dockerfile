@@ -18,7 +18,14 @@ COPY packages/shared/src ./packages/shared/src
 
 # Build shared package
 WORKDIR /build/packages/shared
-RUN npm install
+RUN for i in 1 2 3; do \
+      npm_config_fetch_retries=5 \
+      npm_config_fetch_retry_factor=2 \
+      npm_config_fetch_retry_mintimeout=10000 \
+      npm_config_fetch_retry_maxtimeout=120000 \
+      npm_config_fetch_timeout=120000 \
+      npm install --no-audit --no-fund && break || (echo "shared npm install retry $i failed" && sleep 5); \
+    done
 RUN npm run build
 
 # =============================================================================
@@ -46,7 +53,14 @@ COPY --from=shared-builder /build/packages/shared ./packages/shared
 
 # Install ALL dependencies (including dev deps for building)
 WORKDIR /build/packages/backend
-RUN npm install
+RUN for i in 1 2 3; do \
+      npm_config_fetch_retries=5 \
+      npm_config_fetch_retry_factor=2 \
+      npm_config_fetch_retry_mintimeout=10000 \
+      npm_config_fetch_retry_maxtimeout=120000 \
+      npm_config_fetch_timeout=120000 \
+      npm install --no-audit --no-fund && break || (echo "backend npm install retry $i failed" && sleep 5); \
+    done
 
 # Build the backend
 RUN npm run build
@@ -69,7 +83,14 @@ COPY --from=shared-builder /build/packages/shared ./node_modules/@handycall/shar
 
 # Install ONLY production dependencies
 # Use --legacy-peer-deps to avoid conflicts with the local shared package
-RUN npm install --omit=dev --legacy-peer-deps
+RUN for i in 1 2 3; do \
+      npm_config_fetch_retries=5 \
+      npm_config_fetch_retry_factor=2 \
+      npm_config_fetch_retry_mintimeout=10000 \
+      npm_config_fetch_retry_maxtimeout=120000 \
+      npm_config_fetch_timeout=120000 \
+      npm install --omit=dev --legacy-peer-deps --no-audit --no-fund && break || (echo "production npm install retry $i failed" && sleep 5); \
+    done
 
 # Copy built backend code
 COPY --from=backend-builder /build/packages/backend/dist ./dist

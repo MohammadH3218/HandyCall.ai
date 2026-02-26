@@ -7,5 +7,6 @@ import { WebhooksModule } from '../webhooks/webhooks.module';
   imports: [WebhooksModule],
   controllers: [ContactsController],
   providers: [ContactsService],
+  exports: [ContactsService],
 })
 export class ContactsModule {}

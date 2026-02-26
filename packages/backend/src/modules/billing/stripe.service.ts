@@ -272,4 +272,36 @@ export class StripeService {
     if (priceId === max) return SubscriptionPlan.MAX;
     return null;
   }
+  /**
+   * Charge a customer off-session using their default payment method
+   */
+  async chargeOffSession(
+    customerId: string,
+    amountCents: number,
+    description: string,
+    metadata?: Record<string, string>,
+  ): Promise<Stripe.PaymentIntent> {
+    // Retrieve default payment method from customer
+    const customer = await this.getCustomer(customerId);
+    const paymentMethodId =
+      typeof (customer as any).invoice_settings?.default_payment_method === 'string'
+        ? (customer as any).invoice_settings.default_payment_method
+        : null;
+
+    if (!paymentMethodId) {
+      throw new Error('No default payment method on file. Please add a payment method first.');
+    }
+
+    return this.stripe.paymentIntents.create({
+      amount: amountCents,
+      currency: 'usd',
+      customer: customerId,
+      payment_method: paymentMethodId,
+      description,
+      metadata: metadata || {},
+      confirm: true,
+      off_session: true,
+    });
+  }
+
 }

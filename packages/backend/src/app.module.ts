@@ -35,6 +35,8 @@ import { LeadsModule } from './modules/leads/leads.module';
 import { ReviewsModule } from './modules/reviews/reviews.module';
 import { MarketplaceModule } from './modules/marketplace/marketplace.module';
 import { CustomerProfilesModule } from './modules/customer-profiles/customer-profiles.module';
+import { QuoteRequestsModule } from './modules/quote-requests/quote-requests.module';
+import { PortalMessagingModule } from './modules/portal-messaging/portal-messaging.module';
 import { DatabaseModule } from './infrastructure/database/database.module';
 import { StorageModule } from './infrastructure/storage/storage.module';
 import { ParameterStoreModule } from './infrastructure/config/config.module';
@@ -90,6 +92,8 @@ import { AppService } from './app.service';
     ReviewsModule,
     MarketplaceModule,
     CustomerProfilesModule,
+    QuoteRequestsModule,
+    PortalMessagingModule,
   ],
   controllers: [AppController],
   providers: [

@@ -97,7 +97,7 @@ export default function FindProsPage() {
               {results.map((p) => (
                 <Link
                   key={p.company_id}
-                  href={`/pros/${p.public_slug || p.company_id}`}
+                  href={`/find-pros/${p.public_slug || p.company_id}`}
                   className="rounded-2xl border border-slate-200 bg-white p-5 hover:border-emerald-200 hover:shadow-md transition"
                 >
                   <div className="flex items-start gap-4">

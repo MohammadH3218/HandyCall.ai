@@ -10,7 +10,7 @@ import { Logo } from '@/components/ui/logo';
 import { ProfileDropdown } from '@/components/profile-dropdown';
 import { NotificationBell } from '@/components/notifications/notification-bell';
 import { Button } from '@/components/ui/button';
-import { BarChart2, BarChart3, Calendar, CreditCard, DollarSign, FileText, Home, Menu, MessageCircle, MessageSquare, Phone, PhoneOutgoing, Send, Settings, Users, Users2, X } from 'lucide-react';
+import { BarChart2, BarChart3, Calendar, CreditCard, DollarSign, FileText, Globe, Home, Menu, MessageCircle, MessageSquare, Phone, PhoneOutgoing, Send, Settings, Users, Users2, X, Zap } from 'lucide-react';
 import { UserRole } from '@handycall/shared';
 
 function hasPricingProfileData(company: any | null) {
@@ -315,6 +315,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               Invoices
             </NavLink>
                         <NavLink
+              href="/dashboard/marketplace"
+              icon={<Globe className="h-5 w-5" />}
+              active={pathname?.startsWith('/dashboard/marketplace')}
+              onClick={() => setSidebarOpen(false)}
+            >
+              Marketplace Profile
+            </NavLink>
+            <NavLink
               href="/dashboard/settings"
               icon={<Settings className="h-5 w-5" />}
               active={pathname?.startsWith('/dashboard/settings')}
@@ -337,10 +345,18 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <NavLink
               href="/dashboard/billing"
               icon={<CreditCard className="h-5 w-5" />}
-              active={pathname?.startsWith('/dashboard/billing')}
+              active={pathname?.startsWith('/dashboard/billing') && !pathname?.startsWith('/dashboard/billing/addons')}
               onClick={() => setSidebarOpen(false)}
             >
               Billing
+            </NavLink>
+            <NavLink
+              href="/dashboard/billing/addons"
+              icon={<Zap className="h-5 w-5" />}
+              active={pathname?.startsWith('/dashboard/billing/addons')}
+              onClick={() => setSidebarOpen(false)}
+            >
+              Add-on Packs
             </NavLink>
             <NavLink
               href="/dashboard/payments"
