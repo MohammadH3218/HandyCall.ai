@@ -162,11 +162,27 @@ export class NotificationsService {
     return NOTIFICATION_EVENT_KEYS.map((key) => EVENT_CATALOG[key]);
   }
 
+  private isResourceNotFoundError(error: unknown): boolean {
+    if (!error || typeof error !== 'object') return false;
+    const maybe = error as { name?: string; message?: string };
+    return (
+      maybe.name === 'ResourceNotFoundException' ||
+      String(maybe.message || '').includes('Requested resource not found')
+    );
+  }
+
   async getPreferences(companyId: string, userId: string): Promise<NotificationPreferences> {
-    const existing = await this.dynamodb.get('notification_preferences', {
-      company_id: companyId,
-      user_id: userId,
-    });
+    let existing: any;
+    try {
+      existing = await this.dynamodb.get('notification_preferences', {
+        company_id: companyId,
+        user_id: userId,
+      });
+    } catch (error) {
+      if (!this.isResourceNotFoundError(error)) throw error;
+      console.warn('[NotificationsService] notification_preferences table missing. Returning defaults.');
+      existing = undefined;
+    }
 
     if (!existing) {
       const now = Date.now();
@@ -219,7 +235,12 @@ export class NotificationsService {
       updated_at: now,
     };
 
-    await this.dynamodb.put('notification_preferences', payload as any);
+    try {
+      await this.dynamodb.put('notification_preferences', payload as any);
+    } catch (error) {
+      if (!this.isResourceNotFoundError(error)) throw error;
+      console.warn('[NotificationsService] notification_preferences table missing. Skipping persistence.');
+    }
     return payload;
   }
 
@@ -255,26 +276,34 @@ export class NotificationsService {
         },
       );
       return { notifications: (result.items || []) as NotificationItem[], lastEvaluatedKey: result.lastEvaluatedKey };
-    } catch {
-      const scan = await this.dynamodb.scan('notifications', {
-        filterExpression: options?.unreadOnly
-          ? '#company_id = :company_id AND #user_id = :user_id AND #is_read = :is_read'
-          : '#company_id = :company_id AND #user_id = :user_id',
-        expressionAttributeNames: {
-          '#company_id': 'company_id',
-          '#user_id': 'user_id',
-          ...(options?.unreadOnly ? { '#is_read': 'is_read' } : {}),
-        },
-        expressionAttributeValues: {
-          ':company_id': companyId,
-          ':user_id': userId,
-          ...(options?.unreadOnly ? { ':is_read': false } : {}),
-        },
-        limit,
-        exclusiveStartKey: options?.lastEvaluatedKey,
-      });
-      const sorted = (scan.items || []).sort((a: any, b: any) => Number(b?.created_at || 0) - Number(a?.created_at || 0));
-      return { notifications: sorted as NotificationItem[], lastEvaluatedKey: scan.lastEvaluatedKey };
+    } catch (queryError) {
+      try {
+        const scan = await this.dynamodb.scan('notifications', {
+          filterExpression: options?.unreadOnly
+            ? '#company_id = :company_id AND #user_id = :user_id AND #is_read = :is_read'
+            : '#company_id = :company_id AND #user_id = :user_id',
+          expressionAttributeNames: {
+            '#company_id': 'company_id',
+            '#user_id': 'user_id',
+            ...(options?.unreadOnly ? { '#is_read': 'is_read' } : {}),
+          },
+          expressionAttributeValues: {
+            ':company_id': companyId,
+            ':user_id': userId,
+            ...(options?.unreadOnly ? { ':is_read': false } : {}),
+          },
+          limit,
+          exclusiveStartKey: options?.lastEvaluatedKey,
+        });
+        const sorted = (scan.items || []).sort((a: any, b: any) => Number(b?.created_at || 0) - Number(a?.created_at || 0));
+        return { notifications: sorted as NotificationItem[], lastEvaluatedKey: scan.lastEvaluatedKey };
+      } catch (scanError) {
+        if (this.isResourceNotFoundError(queryError) || this.isResourceNotFoundError(scanError)) {
+          console.warn('[NotificationsService] notifications table/index missing. Returning empty notifications.');
+          return { notifications: [] };
+        }
+        throw scanError;
+      }
     }
   }
 

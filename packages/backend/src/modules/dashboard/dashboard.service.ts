@@ -82,6 +82,15 @@ export interface UpcomingAppointment {
 export class DashboardService {
   constructor(private readonly dynamodb: DynamoDBService) {}
 
+  private isResourceNotFoundError(error: unknown): boolean {
+    if (!error || typeof error !== 'object') return false;
+    const maybe = error as { name?: string; message?: string };
+    return (
+      maybe.name === 'ResourceNotFoundException' ||
+      String(maybe.message || '').includes('Requested resource not found')
+    );
+  }
+
   async getDashboardOverview(companyId: string): Promise<{
     metrics: BusinessMetrics;
     usage_summary: UsageSummary;
@@ -413,17 +422,23 @@ export class DashboardService {
   }
 
   private async scanByCompany(table: string, companyId: string, limit: number): Promise<any[]> {
-    const result = await this.dynamodb.scan(table, {
-      filterExpression: '#company_id = :company_id',
-      expressionAttributeNames: {
-        '#company_id': 'company_id',
-      },
-      expressionAttributeValues: {
-        ':company_id': companyId,
-      },
-      limit,
-    });
-    return result.items || [];
+    try {
+      const result = await this.dynamodb.scan(table, {
+        filterExpression: '#company_id = :company_id',
+        expressionAttributeNames: {
+          '#company_id': 'company_id',
+        },
+        expressionAttributeValues: {
+          ':company_id': companyId,
+        },
+        limit,
+      });
+      return result.items || [];
+    } catch (error) {
+      if (!this.isResourceNotFoundError(error)) throw error;
+      console.warn(`[DashboardService] Table missing for scan (${table}). Returning empty data.`);
+      return [];
+    }
   }
 
   private getDayStartUtc(timestamp: number): number {
