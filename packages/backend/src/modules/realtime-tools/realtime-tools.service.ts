@@ -46,6 +46,26 @@ function asE164(input: string): string {
   return trimmed.startsWith('+') ? `+${digits}` : digits;
 }
 
+type ActiveBookingService = {
+  service_id: string;
+  name: string;
+  description?: string;
+  amount_cents: number;
+  currency?: string;
+  billing_type?: 'ONE_TIME' | 'SUBSCRIPTION';
+  billing_interval?: 'day' | 'week' | 'month' | 'year';
+  billing_interval_count?: number;
+  trial_period_days?: number;
+  collect_payment?: boolean;
+  active?: boolean;
+};
+
+type ServiceSelection = {
+  service_id: string;
+  name: string;
+  billing_type: 'ONE_TIME' | 'SUBSCRIPTION';
+};
+
 @Injectable()
 export class RealtimeToolsService {
   constructor(
@@ -153,14 +173,232 @@ export class RealtimeToolsService {
     return { closed, dayLabel };
   }
 
-  private buildBookingLink(companyId: string, callId: string, expiresAtMs?: number): string {
+  private normalizeServiceLabel(value: string | undefined): string {
+    return String(value || '')
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, ' ')
+      .replace(/\s+/g, ' ');
+  }
+
+  private normalizeBillingType(value: any): 'ONE_TIME' | 'SUBSCRIPTION' | undefined {
+    const raw = String(value || '').trim().toUpperCase();
+    if (!raw) return undefined;
+    if (raw === 'SUBSCRIPTION' || raw === 'RECURRING' || raw === 'PLAN' || raw === 'MEMBERSHIP') {
+      return 'SUBSCRIPTION';
+    }
+    if (raw === 'ONE_TIME' || raw === 'ONETIME' || raw === 'ONE-TIME' || raw === 'SINGLE') {
+      return 'ONE_TIME';
+    }
+    return undefined;
+  }
+
+  private resolveActiveBookingServices(company: any): ActiveBookingService[] {
+    const raw = Array.isArray(company?.booking_services) ? company.booking_services : [];
+    return raw
+      .filter((item: any) => item && item.active !== false)
+      .map((item: any) => ({
+        service_id: String(item.service_id || ''),
+        name: String(item.name || '').trim(),
+        description: item.description ? String(item.description) : undefined,
+        amount_cents: Number.isFinite(Number(item.amount_cents)) ? Math.round(Number(item.amount_cents)) : 0,
+        currency: item.currency ? String(item.currency).toLowerCase() : 'usd',
+        billing_type: item.billing_type === 'SUBSCRIPTION' ? 'SUBSCRIPTION' : 'ONE_TIME',
+        billing_interval:
+          ['day', 'week', 'month', 'year'].includes(String(item.billing_interval || '').toLowerCase())
+            ? (String(item.billing_interval || '').toLowerCase() as 'day' | 'week' | 'month' | 'year')
+            : 'month',
+        billing_interval_count: Math.max(1, Math.floor(Number(item.billing_interval_count || 1))),
+        trial_period_days: Math.max(0, Math.floor(Number(item.trial_period_days || 0))),
+        collect_payment: item.collect_payment !== false,
+        active: item.active !== false,
+      }))
+      .filter((item: ActiveBookingService) => !!item.service_id && !!item.name);
+  }
+
+  private resolveServiceSelection(
+    company: any,
+    input: {
+      call?: any;
+      details?: Record<string, any>;
+      preferredServiceId?: string;
+      preferredServiceName?: string;
+      preferredBillingType?: string;
+    }
+  ): ServiceSelection | undefined {
+    const services = this.resolveActiveBookingServices(company);
+    if (!services.length) return undefined;
+
+    const fromDetails = input.details && typeof input.details === 'object' ? input.details : {};
+    const fromCall =
+      input.call && typeof input.call?.collected_info === 'object' ? (input.call.collected_info as Record<string, any>) : {};
+
+    const findById = (serviceId: string | undefined): ServiceSelection | undefined => {
+      if (!serviceId) return undefined;
+      const match = services.find((service) => service.service_id === serviceId.trim());
+      if (!match) return undefined;
+      return {
+        service_id: match.service_id,
+        name: match.name,
+        billing_type: match.billing_type === 'SUBSCRIPTION' ? 'SUBSCRIPTION' : 'ONE_TIME',
+      };
+    };
+
+    const findByName = (label: string | undefined): ServiceSelection | undefined => {
+      const normalized = this.normalizeServiceLabel(label);
+      if (!normalized) return undefined;
+      const exact = services.find((service) => this.normalizeServiceLabel(service.name) === normalized);
+      const partial =
+        exact ||
+        services.find(
+          (service) =>
+            this.normalizeServiceLabel(service.name).includes(normalized) ||
+            normalized.includes(this.normalizeServiceLabel(service.name)),
+        );
+      if (!partial) return undefined;
+      return {
+        service_id: partial.service_id,
+        name: partial.name,
+        billing_type: partial.billing_type === 'SUBSCRIPTION' ? 'SUBSCRIPTION' : 'ONE_TIME',
+      };
+    };
+
+    const idCandidates = [
+      input.preferredServiceId,
+      typeof fromDetails.selected_service_id === 'string' ? fromDetails.selected_service_id : undefined,
+      typeof fromDetails.service_id === 'string' ? fromDetails.service_id : undefined,
+      typeof fromDetails.booking_service_id === 'string' ? fromDetails.booking_service_id : undefined,
+      typeof fromCall.selected_service_id === 'string' ? fromCall.selected_service_id : undefined,
+      typeof fromCall.service_id === 'string' ? fromCall.service_id : undefined,
+      typeof input.call?.selected_service_id === 'string' ? input.call.selected_service_id : undefined,
+    ];
+    for (const serviceId of idCandidates) {
+      const byId = findById(serviceId);
+      if (byId) return byId;
+    }
+
+    const nameCandidates = [
+      input.preferredServiceName,
+      typeof fromDetails.selected_service_name === 'string' ? fromDetails.selected_service_name : undefined,
+      typeof fromDetails.service_name === 'string' ? fromDetails.service_name : undefined,
+      typeof fromDetails.plan_name === 'string' ? fromDetails.plan_name : undefined,
+      typeof fromDetails.subscription_name === 'string' ? fromDetails.subscription_name : undefined,
+      typeof fromDetails.service === 'string' ? fromDetails.service : undefined,
+      typeof fromDetails.service_type === 'string' ? fromDetails.service_type : undefined,
+      typeof fromCall.selected_service_name === 'string' ? fromCall.selected_service_name : undefined,
+      typeof fromCall.service_name === 'string' ? fromCall.service_name : undefined,
+      typeof fromCall.plan_name === 'string' ? fromCall.plan_name : undefined,
+      typeof fromCall.subscription_name === 'string' ? fromCall.subscription_name : undefined,
+      typeof fromCall.service === 'string' ? fromCall.service : undefined,
+      typeof fromCall.service_type === 'string' ? fromCall.service_type : undefined,
+      typeof input.call?.selected_service_name === 'string' ? input.call.selected_service_name : undefined,
+    ];
+    for (const serviceName of nameCandidates) {
+      const byName = findByName(serviceName);
+      if (byName) return byName;
+    }
+
+    const billingType =
+      this.normalizeBillingType(input.preferredBillingType) ||
+      this.normalizeBillingType(fromDetails.selected_billing_type) ||
+      this.normalizeBillingType(fromDetails.billing_type) ||
+      this.normalizeBillingType(fromDetails.plan_type) ||
+      this.normalizeBillingType(fromCall.selected_billing_type) ||
+      this.normalizeBillingType(fromCall.billing_type) ||
+      this.normalizeBillingType(input.call?.selected_billing_type);
+
+    if (billingType) {
+      const matching = services.filter(
+        (service) => (service.billing_type === 'SUBSCRIPTION' ? 'SUBSCRIPTION' : 'ONE_TIME') === billingType,
+      );
+      if (matching.length === 1) {
+        return {
+          service_id: matching[0].service_id,
+          name: matching[0].name,
+          billing_type: billingType,
+        };
+      }
+    }
+
+    if (services.length === 1) {
+      const only = services[0];
+      return {
+        service_id: only.service_id,
+        name: only.name,
+        billing_type: only.billing_type === 'SUBSCRIPTION' ? 'SUBSCRIPTION' : 'ONE_TIME',
+      };
+    }
+
+    return undefined;
+  }
+
+  private buildServiceSelectionGuide(
+    company: any,
+    services: ActiveBookingService[],
+  ): { require_selection_before_booking: boolean; ask_when_unsure: boolean; default_question: string; summary: string } {
+    const hasOneTime = services.some((service) => (service.billing_type || 'ONE_TIME') === 'ONE_TIME');
+    const hasSubscription = services.some((service) => service.billing_type === 'SUBSCRIPTION');
+    const requireSelection = services.length > 1 || (hasOneTime && hasSubscription);
+    const serviceType = String(company?.service_type || '').toUpperCase();
+    const verticalHint =
+      serviceType === 'PEST_CONTROL'
+        ? 'For pest control, clearly ask whether the caller wants a recurring protection plan or a one-time treatment.'
+        : serviceType === 'LANDSCAPING' || serviceType === 'LAWN_CARE'
+          ? 'For landscaping/lawn care, first identify the exact scope (mowing, trimming, tree work, mulch, seeding) before choosing a package.'
+          : 'Clarify the exact service package before booking.';
+
+    const shortList = services
+      .slice(0, 5)
+      .map((service) => {
+        const cadence =
+          service.billing_type === 'SUBSCRIPTION'
+            ? `subscription every ${service.billing_interval_count || 1} ${service.billing_interval || 'month'}${(service.billing_interval_count || 1) > 1 ? 's' : ''}`
+            : 'one-time';
+        return `${service.name} (${cadence})`;
+      })
+      .join('; ');
+
+    return {
+      require_selection_before_booking: requireSelection,
+      ask_when_unsure: true,
+      default_question: hasOneTime && hasSubscription
+        ? 'Would you like a one-time service or a subscription plan?'
+        : services.length > 1
+          ? 'Which service option would you like to book?'
+          : 'Would you like to proceed with this service?',
+      summary: shortList
+        ? `${verticalHint} Available options: ${shortList}. Give a short explanation of each option and confirm one selection before booking.`
+        : `${verticalHint} Confirm one service selection before booking.`,
+    };
+  }
+
+  private buildBookingLink(
+    companyId: string,
+    callId: string,
+    expiresAtMs?: number,
+    selection?: ServiceSelection,
+  ): string {
     const now = Date.now();
     const fallbackMs = Number(this.config.get<string>('BOOKING_LINK_EXPIRES_MS') || 7 * 24 * 60 * 60 * 1000);
     const exp =
       typeof expiresAtMs === 'number' && Number.isFinite(expiresAtMs)
         ? expiresAtMs
         : now + fallbackMs;
-    const token = signBookingToken({ company_id: companyId, call_id: callId, exp }, this.getBookingSecret());
+    const token = signBookingToken(
+      {
+        company_id: companyId,
+        call_id: callId,
+        exp,
+        ...(selection
+          ? {
+              selected_service_id: selection.service_id,
+              selected_service_name: selection.name,
+              selected_billing_type: selection.billing_type,
+            }
+          : {}),
+      },
+      this.getBookingSecret(),
+    );
     return `${this.getFrontendBaseUrl()}/book/${token}`;
   }
 
@@ -556,6 +794,21 @@ export class RealtimeToolsService {
         .catch(() => null);
     }
 
+    const activeBookingServices = this.resolveActiveBookingServices(effectiveCompany);
+    const serviceSelectionGuide = this.buildServiceSelectionGuide(effectiveCompany, activeBookingServices);
+    const serviceTemplateWithGuide = service_template
+      ? {
+          ...service_template,
+          base_system_prompt: `${String(service_template.base_system_prompt || '').trim()}
+
+Service selection and billing rules:
+- ${serviceSelectionGuide.summary}
+- Ask this when needed: "${serviceSelectionGuide.default_question}"
+- Do not call create_booking until one service/plan choice is confirmed and included in details.
+- Save the selected service in details using keys selected_service_id, selected_service_name, and selected_billing_type whenever available.`.trim(),
+        }
+      : undefined;
+
     return {
       company_id: effectiveCompany.company_id,
       company_name: effectiveCompany.company_name,
@@ -563,12 +816,23 @@ export class RealtimeToolsService {
       timezone: this.resolveCompanyTimeZone(effectiveCompany),
       service_type: effectiveCompany.service_type,
       service_template_id,
-      service_template: service_template || undefined,
+      service_template: serviceTemplateWithGuide,
       subscription_status: (effectiveCompany as any).subscription_status || 'active',
       calls_enabled: aiCallsEnabled,
       account_status: effectiveCompany.status,
       business_hours: effectiveCompany.business_hours,
       service_area_zipcodes: (effectiveCompany as any).service_area_zipcodes || [],
+      booking_services: activeBookingServices.map((service) => ({
+        service_id: service.service_id,
+        name: service.name,
+        description: service.description,
+        amount_cents: service.amount_cents,
+        currency: service.currency || 'usd',
+        billing_type: service.billing_type === 'SUBSCRIPTION' ? 'SUBSCRIPTION' : 'ONE_TIME',
+        billing_interval: service.billing_interval || 'month',
+        billing_interval_count: service.billing_interval_count || 1,
+      })),
+      service_selection_guide: serviceSelectionGuide,
       pricing_profile: (effectiveCompany as any).pricing_profile || undefined,
       transfer_enabled: (effectiveCompany as any).transfer_enabled === true,
       transfer_number: (effectiveCompany as any).transfer_number || undefined,
@@ -1352,7 +1616,7 @@ export class RealtimeToolsService {
 
     const timeZone = this.normalizeTimeZone(dto.timezone, this.resolveCompanyTimeZone(company));
     const referenceDate = new Date(new Date().toLocaleString('en-US', { timeZone }));
-    const details = dto.details && typeof dto.details === 'object' ? (dto.details as Record<string, any>) : {};
+    let details = dto.details && typeof dto.details === 'object' ? { ...(dto.details as Record<string, any>) } : {};
     const detailEmail =
       this.pickDetail(details, ['email', 'customer_email', 'contact_email']) || undefined;
     const customerEmail =
@@ -1384,11 +1648,12 @@ export class RealtimeToolsService {
 
     // Use the canonical appointments service so the record is consistent and external calendars are synced.
     let contact_phone: string | undefined;
+    let callRecord: any = null;
     if (dto.call_id) {
       try {
-        const call: any = await this.dynamodb.get('calls', { company_id, call_id: dto.call_id });
-        if (typeof call?.from_number === 'string' && call.from_number.trim()) {
-          contact_phone = call.from_number.trim();
+        callRecord = await this.dynamodb.get('calls', { company_id, call_id: dto.call_id });
+        if (typeof callRecord?.from_number === 'string' && callRecord.from_number.trim()) {
+          contact_phone = callRecord.from_number.trim();
         }
       } catch {
         // non-fatal
@@ -1408,11 +1673,35 @@ export class RealtimeToolsService {
       (dto.full_name && dto.full_name.trim()) ||
       this.pickDetail(details, ['full_name', 'name', 'customer_name', 'caller_name']);
 
+    const selectedService = this.resolveServiceSelection(company, {
+      call: callRecord,
+      details,
+      preferredServiceName: dto.service_type,
+      preferredBillingType:
+        this.pickDetail(details, ['selected_billing_type', 'billing_type', 'plan_type']) || undefined,
+    });
+    if (selectedService) {
+      details = {
+        ...details,
+        selected_service_id: selectedService.service_id,
+        selected_service_name: selectedService.name,
+        selected_billing_type: selectedService.billing_type,
+      };
+    }
+
     const address = this.parseAddressFromDetails(details);
-    const notes = (dto.notes && dto.notes.trim()) || this.buildNotesFromDetails(details);
+    const baseNotes = (dto.notes && dto.notes.trim()) || this.buildNotesFromDetails(details);
+    const billingContext =
+      selectedService?.billing_type === 'SUBSCRIPTION'
+        ? 'Billing type: Subscription'
+        : selectedService?.billing_type === 'ONE_TIME'
+          ? 'Billing type: One-time'
+          : '';
+    const notes = [baseNotes, billingContext].filter(Boolean).join('\n') || undefined;
     const serviceType =
       (dto.service_type && dto.service_type.trim()) ||
-      this.pickDetail(details, ['service_type', 'service']) ||
+      selectedService?.name ||
+      this.pickDetail(details, ['selected_service_name', 'service_name', 'plan_name', 'service_type', 'service']) ||
       company.service_type ||
       'General';
 
@@ -1437,6 +1726,13 @@ export class RealtimeToolsService {
         {
           appointment_created: true,
           appointment_id,
+          ...(selectedService
+            ? {
+                selected_service_id: selectedService.service_id,
+                selected_service_name: selectedService.name,
+                selected_billing_type: selectedService.billing_type,
+              }
+            : {}),
           updated_at: Date.now(),
           ...(Object.keys(details).length ? { collected_info: details } : {}),
         }
@@ -1526,7 +1822,14 @@ export class RealtimeToolsService {
     return { from, display };
   }
 
-  async sendBookingLink(dto: { company_id: string; call_id: string; email?: string }) {
+  async sendBookingLink(dto: {
+    company_id: string;
+    call_id: string;
+    email?: string;
+    service_id?: string;
+    selected_service_name?: string;
+    selected_billing_type?: 'ONE_TIME' | 'SUBSCRIPTION';
+  }) {
     const company_id = dto.company_id;
     const call_id = dto.call_id;
     if (!company_id || !call_id) {
@@ -1565,7 +1868,13 @@ export class RealtimeToolsService {
     const appointmentEnd = typeof appointmentEndRaw === 'number' && Number.isFinite(appointmentEndRaw)
       ? appointmentEndRaw
       : undefined;
-    const bookingLink = this.buildBookingLink(company_id, call_id, appointmentEnd);
+    const selectedService = this.resolveServiceSelection(company, {
+      call: existingCall,
+      preferredServiceId: dto.service_id,
+      preferredServiceName: dto.selected_service_name || appointment?.service_type,
+      preferredBillingType: dto.selected_billing_type || (existingCall as any)?.selected_billing_type,
+    });
+    const bookingLink = this.buildBookingLink(company_id, call_id, appointmentEnd, selectedService);
     const message = `Thanks for booking with ${company.company_name}. Manage or update your appointment here: ${bookingLink}`;
     console.log('[send_booking_link] preparing', {
       company_id,
@@ -1627,6 +1936,13 @@ export class RealtimeToolsService {
         booking_link_channel: 'EMAIL',
         lead_email: email,
         booking_link: bookingLink,
+        ...(selectedService
+          ? {
+              selected_service_id: selectedService.service_id,
+              selected_service_name: selectedService.name,
+              selected_billing_type: selectedService.billing_type,
+            }
+          : {}),
         ...(appointmentEnd ? { booking_link_expires_at: appointmentEnd } : {}),
         updated_at: now,
       };
@@ -1648,6 +1964,13 @@ export class RealtimeToolsService {
         lead_email: email,
         booking_link_channel: 'EMAIL',
         booking_link: bookingLink,
+        ...(selectedService
+          ? {
+              selected_service_id: selectedService.service_id,
+              selected_service_name: selectedService.name,
+              selected_billing_type: selectedService.billing_type,
+            }
+          : {}),
         ...(appointmentEnd ? { booking_link_expires_at: appointmentEnd } : {}),
       } as any;
       await this.dynamodb.put('calls', call);
@@ -1670,13 +1993,30 @@ export class RealtimeToolsService {
       const apptUpdates: Record<string, any> = {
         booking_link: bookingLink,
         contact_email: email,
+        ...(selectedService
+          ? {
+              selected_service_id: selectedService.service_id,
+              selected_service_name: selectedService.name,
+              selected_billing_type: selectedService.billing_type,
+            }
+          : {}),
         ...(appointmentEnd ? { booking_link_expires_at: appointmentEnd } : {}),
         updated_at: now,
       };
       await this.dynamodb.update('appointments', { company_id, appointment_id: appointmentId }, apptUpdates);
     }
 
-    return { ok: true, sent: true };
+    return {
+      ok: true,
+      sent: true,
+      ...(selectedService
+        ? {
+            selected_service_id: selectedService.service_id,
+            selected_service_name: selectedService.name,
+            selected_billing_type: selectedService.billing_type,
+          }
+        : {}),
+    };
   }
 
   async checkServiceArea(company_id: string, zip: string) {

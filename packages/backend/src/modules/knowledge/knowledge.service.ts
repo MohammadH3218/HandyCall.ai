@@ -1,8 +1,10 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { DynamoDBService } from '../../infrastructure/database/dynamodb.service';
 import { RagService } from '../rag/rag.service';
 import { v4 as uuidv4 } from 'uuid';
+import OpenAI from 'openai';
+import { CompaniesService } from '../companies/companies.service';
 
 export interface KnowledgeItem {
   company_id: string;
@@ -33,17 +35,51 @@ export interface UpdateKnowledgeDto {
   tags?: string[];
 }
 
+type AssistantRole = 'user' | 'assistant';
+type KnowledgeType = 'FAQ' | 'SERVICE' | 'POLICY' | 'PRODUCT' | 'SAFETY';
+
+export type KnowledgeAssistantMessage = {
+  role: AssistantRole;
+  content: string;
+};
+
+export type KnowledgeAssistantReply = {
+  assistant_message: string;
+  done: boolean;
+  missing_topics: string[];
+  gathered_topics: string[];
+};
+
+export type GeneratedKnowledgeDraft = {
+  title: string;
+  content: string;
+  type: KnowledgeType;
+  tags?: string[];
+};
+
 @Injectable()
 export class KnowledgeService {
   private tableName: string;
+  private openai: OpenAI;
+  private knowledgeAssistantModelId: string;
 
   constructor(
     private dynamodb: DynamoDBService,
     private ragService: RagService,
     private configService: ConfigService,
+    private companiesService: CompaniesService,
   ) {
     // Use the base table name and let the shared DynamoDB service prepend the configured prefix
     this.tableName = 'knowledge_items';
+    const apiKey = this.configService.get<string>('OPENAI_API_KEY');
+    if (!apiKey) {
+      console.warn(
+        '[KnowledgeService] OPENAI_API_KEY not found. Knowledge setup assistant will not be available.',
+      );
+    }
+    this.openai = new OpenAI({ apiKey: apiKey || 'dummy' });
+    this.knowledgeAssistantModelId =
+      this.configService.get<string>('KNOWLEDGE_SETUP_MODEL_ID') || 'gpt-4.1-nano';
   }
 
   /**
@@ -132,12 +168,16 @@ export class KnowledgeService {
 
       // If content changed, re-chunk and re-embed
       if (contentChanged) {
-        // Delete old chunks
-        await this.ragService.deleteKnowledgeChunks(companyId, knowledgeId);
+        try {
+          // Delete old chunks
+          await this.ragService.deleteKnowledgeChunks(companyId, knowledgeId);
 
-        // Create new chunks
-        const fullText = `${updated.title}\n\n${updated.content}`;
-        await this.ragService.chunkAndStoreKnowledge(companyId, knowledgeId, fullText);
+          // Create new chunks
+          const fullText = `${updated.title}\n\n${updated.content}`;
+          await this.ragService.chunkAndStoreKnowledge(companyId, knowledgeId, fullText);
+        } catch (embedError: any) {
+          console.warn('[KnowledgeService] Failed to re-embed knowledge item after update.', embedError);
+        }
       }
 
       return updated;
@@ -259,6 +299,363 @@ export class KnowledgeService {
       console.error('Error listing knowledge items:', error);
       throw new Error(`Failed to list knowledge items: ${error.message}`);
     }
+  }
+
+  async assistantRespond(
+    companyId: string,
+    messages: KnowledgeAssistantMessage[],
+  ): Promise<KnowledgeAssistantReply> {
+    const cleanMessages = this.sanitizeAssistantMessages(messages);
+    const companyContext = await this.buildAssistantCompanyContext(companyId);
+    const existing = await this.listKnowledgeItems(companyId, { limit: 120 });
+    const existingTitles = existing.slice(0, 30).map((item) => item.title);
+
+    const systemPrompt = [
+      'You are HandyCall Knowledge Setup Assistant.',
+      'Goal: collect business-specific knowledge so an AI receptionist can answer accurately and book correctly.',
+      'Ask one focused follow-up question at a time, unless enough detail is already gathered.',
+      'Adapt to the business type and avoid assumptions. If unknown, ask.',
+      'Keep assistant_message under 120 words.',
+      'Mark done=true only when the knowledge base can be generated with strong coverage.',
+      'Important coverage checklist:',
+      '- Services and add-ons',
+      '- One-time vs subscription options (if applicable)',
+      '- Pricing ranges and what is included',
+      '- Service area and availability windows',
+      '- Booking and cancellation rules',
+      '- Payment flow (HandyCall managed vs self-managed)',
+      '- Guarantees, warranties, and exclusions',
+      '- Emergency/after-hours handling',
+      '- Prep instructions and customer expectations',
+      '- Upsell/cross-sell opportunities by service type',
+      'Return strict JSON with this exact shape:',
+      '{"assistant_message":"string","done":boolean,"missing_topics":["string"],"gathered_topics":["string"]}',
+      'Never include markdown code fences.',
+    ].join('\n');
+
+    const payload = {
+      company_context: companyContext,
+      service_type_hints: this.buildServiceTypeHints(companyContext.service_type),
+      existing_knowledge_titles: existingTitles,
+      conversation: cleanMessages,
+      fallback_behavior:
+        'If conversation is empty, greet briefly and ask the highest-priority first question.',
+    };
+
+    const json = await this.callJsonModel(systemPrompt, payload);
+    const fallback: KnowledgeAssistantReply = {
+      assistant_message:
+        'Tell me the top 3 services you offer and whether each is one-time, subscription, or both.',
+      done: false,
+      missing_topics: ['services', 'billing model', 'pricing'],
+      gathered_topics: [],
+    };
+    const parsed = this.parseAssistantReply(json, fallback);
+
+    if (!parsed.assistant_message.trim()) {
+      parsed.assistant_message = fallback.assistant_message;
+      parsed.done = false;
+    }
+
+    return parsed;
+  }
+
+  async generateKnowledgeFromConversation(
+    companyId: string,
+    messages: KnowledgeAssistantMessage[],
+    autoCreate: boolean,
+  ): Promise<{
+    generated_count: number;
+    created_count: number;
+    updated_count: number;
+    items: GeneratedKnowledgeDraft[];
+  }> {
+    const cleanMessages = this.sanitizeAssistantMessages(messages);
+    const userTurns = cleanMessages.filter((m) => m.role === 'user');
+    if (userTurns.length < 2) {
+      throw new BadRequestException('Please answer at least two assistant questions before generating knowledge.');
+    }
+
+    const companyContext = await this.buildAssistantCompanyContext(companyId);
+    const existing = await this.listKnowledgeItems(companyId, { limit: 250 });
+
+    const systemPrompt = [
+      'You generate a structured knowledge base for an AI receptionist.',
+      'Use only the provided context + conversation. Do not invent unavailable facts.',
+      'If key data is missing, create a POLICY item explicitly stating "Needs confirmation" for that point.',
+      'Generate between 8 and 18 items.',
+      'Each item must include:',
+      '- title',
+      '- content',
+      '- type (FAQ | SERVICE | POLICY | PRODUCT | SAFETY)',
+      '- tags (array of short lowercase tokens)',
+      'Ensure coverage for:',
+      '- Service catalog and add-ons',
+      '- One-time vs subscription options and inclusions',
+      '- Pricing model and estimate policy',
+      '- Booking, cancellation, and reschedule policy',
+      '- Payment handling expectations',
+      '- Service area / availability',
+      '- Guarantees / exclusions',
+      '- Escalation and edge-case guidance',
+      'Keep content concise but operational (2-8 sentences).',
+      'Return strict JSON with shape:',
+      '{"items":[{"title":"string","content":"string","type":"FAQ|SERVICE|POLICY|PRODUCT|SAFETY","tags":["string"]}]}',
+      'Never include markdown code fences.',
+    ].join('\n');
+
+    const payload = {
+      company_context: companyContext,
+      service_type_hints: this.buildServiceTypeHints(companyContext.service_type),
+      conversation: cleanMessages,
+      existing_knowledge_titles: existing.slice(0, 60).map((item) => item.title),
+    };
+
+    const json = await this.callJsonModel(systemPrompt, payload);
+    const drafts = this.parseGeneratedItems(json);
+    if (!drafts.length) {
+      throw new BadRequestException('Assistant could not generate knowledge items from the provided answers.');
+    }
+
+    if (!autoCreate) {
+      return {
+        generated_count: drafts.length,
+        created_count: 0,
+        updated_count: 0,
+        items: drafts,
+      };
+    }
+
+    const upsertResult = await this.upsertGeneratedKnowledgeItems(companyId, drafts, existing);
+    return {
+      generated_count: drafts.length,
+      created_count: upsertResult.created,
+      updated_count: upsertResult.updated,
+      items: drafts,
+    };
+  }
+
+  private async upsertGeneratedKnowledgeItems(
+    companyId: string,
+    drafts: GeneratedKnowledgeDraft[],
+    existingItems?: KnowledgeItem[],
+  ): Promise<{ created: number; updated: number }> {
+    const existing = Array.isArray(existingItems)
+      ? existingItems
+      : await this.listKnowledgeItems(companyId, { limit: 400 });
+    const byTitle = new Map(
+      existing.map((item) => [item.title.trim().toLowerCase(), item] as const),
+    );
+
+    let created = 0;
+    let updated = 0;
+    for (const draft of drafts) {
+      const normalizedTitle = draft.title.trim().toLowerCase();
+      const match = byTitle.get(normalizedTitle);
+      if (match?.knowledge_id) {
+        await this.updateKnowledgeItem(companyId, match.knowledge_id, {
+          title: draft.title,
+          content: draft.content,
+          type: draft.type,
+          status: 'ACTIVE',
+          tags: draft.tags || [],
+        });
+        updated += 1;
+      } else {
+        await this.createKnowledgeItem(companyId, {
+          title: draft.title,
+          content: draft.content,
+          type: draft.type,
+          tags: draft.tags || [],
+          source: 'ai-setup-assistant',
+        });
+        created += 1;
+      }
+    }
+    return { created, updated };
+  }
+
+  private async buildAssistantCompanyContext(companyId: string): Promise<Record<string, any>> {
+    const company = await this.companiesService.findById(companyId);
+    const serviceNames = Array.isArray(company?.booking_services)
+      ? company.booking_services
+          .filter((service: any) => service?.active !== false)
+          .slice(0, 20)
+          .map((service: any) => ({
+            name: service?.name,
+            description: service?.description,
+            amount_cents: service?.amount_cents,
+            billing_type: service?.billing_type || 'ONE_TIME',
+            collect_payment: service?.collect_payment !== false,
+          }))
+      : [];
+
+    return {
+      company_name: company?.company_name || 'Unknown company',
+      service_type: String(company?.service_type || 'OTHER'),
+      timezone: company?.timezone || 'America/New_York',
+      business_hours: company?.business_hours || null,
+      service_area_zipcodes: company?.service_area_zipcodes || [],
+      service_area_cities: company?.service_area_cities || [],
+      pricing_profile: company?.pricing_profile || null,
+      booking_payment_mode: company?.booking_payment_mode || 'HANDYCALL_MANAGED',
+      booking_payment_enabled: company?.booking_payment_enabled !== false,
+      booking_services: serviceNames,
+    };
+  }
+
+  private buildServiceTypeHints(serviceType: string): string[] {
+    const key = String(serviceType || 'OTHER').toUpperCase();
+    const hints: Record<string, string[]> = {
+      PEST_CONTROL: [
+        'Clarify one-time treatment vs recurring plan cadence (monthly/quarterly).',
+        'Capture pest types, property type, square footage bands, and retreat policy.',
+      ],
+      LAWN_CARE: [
+        'Capture mowing frequency, seasonal services, and add-ons like edging or fertilization.',
+        'Clarify whether subscriptions include weed control, aeration, and reseeding.',
+      ],
+      LANDSCAPING: [
+        'Differentiate recurring maintenance from project-based work.',
+        'Capture add-ons such as mulch, shrub trimming, cleanup, irrigation, and tree work.',
+      ],
+      HVAC: [
+        'Clarify diagnostics fee, repair vs maintenance plans, and emergency response windows.',
+        'Capture plan benefits such as priority scheduling and seasonal tune-ups.',
+      ],
+      PLUMBING: [
+        'Capture trip fee, emergency surcharge, and membership plan perks.',
+        'Clarify estimate policy and exclusions for concealed damage.',
+      ],
+      CLEANING: [
+        'Capture one-time deep clean vs recurring cadence and what is included in each.',
+        'Clarify add-ons (inside fridge, oven, windows, post-construction).',
+      ],
+      POOL_SERVICE: [
+        'Capture weekly/biweekly plans, chemical balancing scope, and opening/closing services.',
+      ],
+      TREE_SERVICE: [
+        'Capture hazard assessments, permit constraints, debris haul-away, and stump grinding options.',
+      ],
+      OTHER: [
+        'Identify natural service bundles, recurring options, and project-based options for this business.',
+      ],
+    };
+    return hints[key] || hints.OTHER;
+  }
+
+  private sanitizeAssistantMessages(messages: KnowledgeAssistantMessage[]): KnowledgeAssistantMessage[] {
+    if (!Array.isArray(messages)) return [];
+    return messages
+      .map((message) => {
+        const role: AssistantRole = message?.role === 'assistant' ? 'assistant' : 'user';
+        return {
+          role,
+          content: String(message?.content || '').trim().slice(0, 4000),
+        };
+      })
+      .filter((message) => Boolean(message.content))
+      .slice(-24);
+  }
+
+  private async callJsonModel(systemPrompt: string, payload: Record<string, any>): Promise<any> {
+    const configuredModel = String(this.knowledgeAssistantModelId || '').trim();
+    const modelCandidates = Array.from(
+      new Set([configuredModel, 'gpt-4.1-nano', 'gpt-4o-mini', 'gpt-4.1-mini'].filter(Boolean)),
+    );
+    const serializedPayload = JSON.stringify(payload);
+    let lastError: any = null;
+
+    for (const model of modelCandidates) {
+      try {
+        const response = await this.openai.chat.completions.create({
+          model: model as any,
+          temperature: 0.2,
+          response_format: { type: 'json_object' },
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: serializedPayload },
+          ],
+        } as any);
+        const text = response.choices?.[0]?.message?.content || '{}';
+        return this.parseJsonObject(text);
+      } catch (error: any) {
+        lastError = error;
+        console.warn(`[KnowledgeService] Model ${model} failed for assistant call.`, error?.message || error);
+      }
+    }
+
+    throw new Error(
+      `Knowledge setup assistant request failed: ${
+        (lastError as any)?.message || 'No model succeeded'
+      }`,
+    );
+  }
+
+  private parseJsonObject(text: string): any {
+    if (!text) return {};
+    const trimmed = text.trim();
+    try {
+      return JSON.parse(trimmed);
+    } catch {
+      const cleaned = trimmed
+        .replace(/^```json/i, '')
+        .replace(/^```/i, '')
+        .replace(/```$/i, '')
+        .trim();
+      return JSON.parse(cleaned);
+    }
+  }
+
+  private parseAssistantReply(raw: any, fallback: KnowledgeAssistantReply): KnowledgeAssistantReply {
+    const missingTopics = Array.isArray(raw?.missing_topics)
+      ? raw.missing_topics.map((item: any) => String(item || '').trim()).filter(Boolean).slice(0, 12)
+      : fallback.missing_topics;
+    const gatheredTopics = Array.isArray(raw?.gathered_topics)
+      ? raw.gathered_topics.map((item: any) => String(item || '').trim()).filter(Boolean).slice(0, 20)
+      : [];
+
+    return {
+      assistant_message: String(raw?.assistant_message || fallback.assistant_message).trim().slice(0, 1200),
+      done: raw?.done === true,
+      missing_topics: missingTopics,
+      gathered_topics: gatheredTopics,
+    };
+  }
+
+  private parseGeneratedItems(raw: any): GeneratedKnowledgeDraft[] {
+    const allowedTypes = new Set<KnowledgeType>(['FAQ', 'SERVICE', 'POLICY', 'PRODUCT', 'SAFETY']);
+    const items = Array.isArray(raw?.items) ? raw.items : [];
+    const normalized: GeneratedKnowledgeDraft[] = [];
+    const seenTitles = new Set<string>();
+
+    for (const item of items) {
+      const title = String(item?.title || '').trim().slice(0, 180);
+      const content = String(item?.content || '').trim().slice(0, 6000);
+      const typeCandidate = String(item?.type || 'FAQ').toUpperCase() as KnowledgeType;
+      const type: KnowledgeType = allowedTypes.has(typeCandidate) ? typeCandidate : 'FAQ';
+      const titleKey = title.toLowerCase();
+      if (!title || !content || seenTitles.has(titleKey)) continue;
+      seenTitles.add(titleKey);
+
+      const tags = Array.isArray(item?.tags)
+        ? item.tags
+            .map((tag: any) => String(tag || '').toLowerCase().trim())
+            .filter(Boolean)
+            .map((tag: string) => tag.replace(/[^a-z0-9:_-]/g, '').slice(0, 32))
+            .filter(Boolean)
+            .slice(0, 8)
+        : [];
+
+      normalized.push({
+        title,
+        content,
+        type,
+        tags,
+      });
+    }
+
+    return normalized.slice(0, 24);
   }
 
   /**

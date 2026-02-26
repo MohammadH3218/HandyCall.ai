@@ -25,6 +25,21 @@ type BookingTemplate = {
   booking_defaults?: { duration_minutes?: number };
 };
 
+type BookingPaymentService = {
+  service_id: string;
+  name: string;
+  description?: string;
+  amount_cents: number;
+  currency?: string;
+  duration_minutes?: number;
+  active?: boolean;
+  collect_payment?: boolean;
+  billing_type?: 'ONE_TIME' | 'SUBSCRIPTION';
+  billing_interval?: 'day' | 'week' | 'month' | 'year';
+  billing_interval_count?: number;
+  trial_period_days?: number;
+};
+
 function asE164(input: string): string {
   const trimmed = (input || '').trim();
   if (!trimmed) return '';
@@ -138,20 +153,7 @@ export class PublicBookingService {
     return 'FAILED';
   }
 
-  private resolveActiveBookingServices(company: any): Array<{
-    service_id: string;
-    name: string;
-    description?: string;
-    amount_cents: number;
-    currency?: string;
-    duration_minutes?: number;
-    active?: boolean;
-    collect_payment?: boolean;
-    billing_type?: 'ONE_TIME' | 'SUBSCRIPTION';
-    billing_interval?: 'day' | 'week' | 'month' | 'year';
-    billing_interval_count?: number;
-    trial_period_days?: number;
-  }> {
+  private resolveActiveBookingServices(company: any): BookingPaymentService[] {
     const raw = Array.isArray(company?.booking_services) ? company.booking_services : [];
     return raw
       .filter((service: any) => service && service.active !== false)
@@ -175,6 +177,94 @@ export class PublicBookingService {
         billing_interval_count: Math.max(1, Math.floor(Number(service.billing_interval_count || 1))),
         trial_period_days: Math.max(0, Math.floor(Number(service.trial_period_days || 0))),
       }));
+  }
+
+  private normalizeBillingType(value: any): 'ONE_TIME' | 'SUBSCRIPTION' | undefined {
+    const raw = String(value || '').trim().toUpperCase();
+    if (!raw) return undefined;
+    if (raw === 'SUBSCRIPTION' || raw === 'RECURRING' || raw === 'PLAN' || raw === 'MEMBERSHIP') {
+      return 'SUBSCRIPTION';
+    }
+    if (raw === 'ONE_TIME' || raw === 'ONETIME' || raw === 'ONE-TIME' || raw === 'SINGLE') {
+      return 'ONE_TIME';
+    }
+    return undefined;
+  }
+
+  private normalizeServiceLabel(value: string | undefined): string {
+    return String(value || '')
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, ' ')
+      .replace(/\s+/g, ' ');
+  }
+
+  private resolvePreselectedService(
+    services: BookingPaymentService[],
+    options: {
+      payload?: { selected_service_id?: string; selected_service_name?: string; selected_billing_type?: string };
+      call?: any;
+      appointment?: any;
+    },
+  ) {
+    if (!services.length) return undefined;
+
+    const fromPayload = options.payload || {};
+    const fromCall = options.call && typeof options.call?.collected_info === 'object'
+      ? options.call.collected_info
+      : {};
+
+    const findById = (serviceId: string | undefined) =>
+      serviceId ? services.find((service) => service.service_id === serviceId) : undefined;
+    const findByName = (serviceName: string | undefined) => {
+      const normalized = this.normalizeServiceLabel(serviceName);
+      if (!normalized) return undefined;
+      return (
+        services.find((service) => this.normalizeServiceLabel(service.name) === normalized) ||
+        services.find(
+          (service) =>
+            this.normalizeServiceLabel(service.name).includes(normalized) ||
+            normalized.includes(this.normalizeServiceLabel(service.name)),
+        )
+      );
+    };
+
+    const idMatch =
+      findById(fromPayload.selected_service_id) ||
+      findById(options.call?.selected_service_id) ||
+      findById(fromCall?.selected_service_id) ||
+      findById(fromCall?.service_id);
+    if (idMatch) return idMatch;
+
+    const nameMatch =
+      findByName(fromPayload.selected_service_name) ||
+      findByName(options.call?.selected_service_name) ||
+      findByName(options.appointment?.service_type) ||
+      findByName(fromCall?.selected_service_name) ||
+      findByName(fromCall?.service_name) ||
+      findByName(fromCall?.plan_name) ||
+      findByName(fromCall?.service_type);
+    if (nameMatch) return nameMatch;
+
+    const billingType =
+      this.normalizeBillingType(fromPayload.selected_billing_type) ||
+      this.normalizeBillingType(options.call?.selected_billing_type) ||
+      this.normalizeBillingType(fromCall?.selected_billing_type) ||
+      this.normalizeBillingType(fromCall?.billing_type);
+    if (billingType) {
+      const matching = services.filter(
+        (service) => (service.billing_type === 'SUBSCRIPTION' ? 'SUBSCRIPTION' : 'ONE_TIME') === billingType,
+      );
+      if (matching.length === 1) {
+        return matching[0];
+      }
+    }
+
+    if (services.length === 1) {
+      return services[0];
+    }
+
+    return undefined;
   }
 
   async buildBookingLink(companyId: string, callId: string) {
@@ -310,6 +400,16 @@ export class PublicBookingService {
           : undefined;
     const template = await this.loadTemplate(payload.company_id);
     const fields = this.extractRequiredFields(template);
+    const services = this.resolveActiveBookingServices(company);
+    const preselectedService = this.resolvePreselectedService(services, {
+      payload: {
+        selected_service_id: payload.selected_service_id,
+        selected_service_name: payload.selected_service_name,
+        selected_billing_type: payload.selected_billing_type,
+      },
+      call,
+      appointment,
+    });
 
     return {
       ok: true,
@@ -339,6 +439,9 @@ export class PublicBookingService {
         optional: fields.optional,
         labels: fields.labels,
       },
+      selected_service_id: preselectedService?.service_id,
+      selected_service_name: preselectedService?.name,
+      selected_billing_type: preselectedService?.billing_type || undefined,
       booking_defaults: template?.booking_defaults || undefined,
     };
   }
@@ -350,6 +453,15 @@ export class PublicBookingService {
 
     const { call, appointment } = await this.loadCallAndAppointment(payload.company_id, payload.call_id);
     const services = this.resolveActiveBookingServices(company).filter((service) => service.collect_payment !== false);
+    const preselectedService = this.resolvePreselectedService(services, {
+      payload: {
+        selected_service_id: payload.selected_service_id,
+        selected_service_name: payload.selected_service_name,
+        selected_billing_type: payload.selected_billing_type,
+      },
+      call,
+      appointment,
+    });
     const paymentMode =
       String(company.booking_payment_mode || '').toUpperCase() === 'HANDYCALL_MANAGED' ||
       (!company.booking_payment_mode && (company.booking_payment_enabled || company.stripe_connect_account_id))
@@ -403,15 +515,21 @@ export class PublicBookingService {
       paid,
       connect_status: connectStatus,
       services,
-      default_currency: services[0]?.currency || appointment?.currency || 'usd',
+      preselected_service_id: preselectedService?.service_id,
+      preselected_service_name: preselectedService?.name,
+      preselected_billing_type: preselectedService?.billing_type || undefined,
+      default_currency: preselectedService?.currency || services[0]?.currency || appointment?.currency || 'usd',
       recommended_amount_cents:
+        preselectedService?.amount_cents ||
         services[0]?.amount_cents ||
         (typeof appointment?.price_cents === 'number' ? appointment.price_cents : undefined),
       payment_history: relevant.slice(0, 5),
       security_note: "We never store your bank information. Payments are processed securely by Stripe.",
       process_note:
         paymentMode === 'HANDYCALL_MANAGED'
-          ? 'When our AI sends a booking link, customers can pay directly there and everything is tracked in one place.'
+          ? preselectedService
+            ? `When our AI sends a booking link, customers can pay for "${preselectedService.name}" directly there and everything is tracked in one place.`
+            : 'When our AI sends a booking link, customers can pay directly there and everything is tracked in one place.'
           : 'This business handles payments separately after booking confirmation.',
     };
   }
@@ -442,9 +560,22 @@ export class PublicBookingService {
 
     const { call, appointment } = await this.loadCallAndAppointment(payload.company_id, payload.call_id);
     const services = this.resolveActiveBookingServices(company).filter((service) => service.collect_payment !== false);
-    const selectedService = dto.service_id
+    const preselectedService = this.resolvePreselectedService(services, {
+      payload: {
+        selected_service_id: payload.selected_service_id,
+        selected_service_name: payload.selected_service_name,
+        selected_billing_type: payload.selected_billing_type,
+      },
+      call,
+      appointment,
+    });
+    const explicitlySelectedService = dto.service_id
       ? services.find((service) => service.service_id === dto.service_id)
-      : services[0];
+      : undefined;
+    if (dto.service_id && !explicitlySelectedService) {
+      throw new BadRequestException('Selected service is no longer available.');
+    }
+    const selectedService = explicitlySelectedService || preselectedService || services[0];
 
     const amountCents =
       (dto.amount_cents && dto.amount_cents > 0 ? dto.amount_cents : undefined) ||
@@ -634,12 +765,28 @@ export class PublicBookingService {
       throw new BadRequestException('phone_number is required');
     }
 
+    const preselectedService = this.resolvePreselectedService(this.resolveActiveBookingServices(company), {
+      payload: {
+        selected_service_id: payload.selected_service_id,
+        selected_service_name: payload.selected_service_name,
+        selected_billing_type: payload.selected_billing_type,
+      },
+      call,
+      appointment,
+    });
+
     const custom = dto.custom_fields ?? {};
     const customNotes = Object.entries(custom)
       .filter(([_, v]) => v !== undefined && v !== null && String(v).trim() !== '')
       .map(([k, v]) => `${titleize(k)}: ${String(v).trim()}`)
       .join('\n');
-    const notes = customNotes || undefined;
+    const billingNote =
+      preselectedService?.billing_type === 'SUBSCRIPTION'
+        ? 'Billing type: Subscription'
+        : preselectedService?.billing_type === 'ONE_TIME'
+          ? 'Billing type: One-time'
+          : '';
+    const notes = [customNotes, billingNote].filter(Boolean).join('\n') || undefined;
 
     const createdAppointment = await this.appointments.createAppointment(company.company_id, {
       scheduled_start: startMs,
@@ -647,7 +794,7 @@ export class PublicBookingService {
       contact_name: dto.full_name?.trim() || undefined,
       contact_email: dto.email?.trim() || undefined,
       contact_phone: phone,
-      service_type: company.service_type ?? 'Service',
+      service_type: preselectedService?.name || company.service_type || 'Service',
       notes,
       address: address.street || address.city || address.state || address.zip ? address : undefined,
       created_by: 'WEB',
@@ -660,6 +807,13 @@ export class PublicBookingService {
         {
           appointment_created: true,
           appointment_id: createdAppointment?.appointment_id,
+          ...(preselectedService
+            ? {
+                selected_service_id: preselectedService.service_id,
+                selected_service_name: preselectedService.name,
+                selected_billing_type: preselectedService.billing_type,
+              }
+            : {}),
           outcome: 'APPOINTMENT_BOOKED',
           lead_captured: true,
           ...(dto.email ? { lead_email: dto.email } : {}),

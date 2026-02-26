@@ -1,6 +1,10 @@
 import { Controller, Get, Post, Put, Delete, Body, Param, Query } from '@nestjs/common';
 import { KnowledgeService, CreateKnowledgeDto, UpdateKnowledgeDto } from './knowledge.service';
 import { CompanyId } from '../../common/decorators/auth.decorator';
+import {
+  KnowledgeAssistantGenerateDto,
+  KnowledgeAssistantRespondDto,
+} from './dto/knowledge-assistant.dto';
 
 @Controller('knowledge-items')
 export class KnowledgeController {
@@ -47,6 +51,26 @@ export class KnowledgeController {
     @Body() data: CreateKnowledgeDto,
   ) {
     return this.knowledgeService.createKnowledgeItem(companyId, data);
+  }
+
+  @Post('assistant/respond')
+  async assistantRespond(
+    @CompanyId() companyId: string,
+    @Body() data: KnowledgeAssistantRespondDto,
+  ) {
+    return this.knowledgeService.assistantRespond(companyId, data.messages || []);
+  }
+
+  @Post('assistant/generate')
+  async assistantGenerate(
+    @CompanyId() companyId: string,
+    @Body() data: KnowledgeAssistantGenerateDto,
+  ) {
+    return this.knowledgeService.generateKnowledgeFromConversation(
+      companyId,
+      data.messages || [],
+      data.auto_create === true,
+    );
   }
 
   @Post('bulk-import')

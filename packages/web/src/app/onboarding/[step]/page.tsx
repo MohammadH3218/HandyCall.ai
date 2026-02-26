@@ -23,6 +23,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { CallForwardingGuide } from '@/components/telephony/call-forwarding-guide';
+import { KnowledgeSetupAssistant } from '@/components/knowledge/knowledge-setup-assistant';
 import {
   Calendar,
   CheckCircle2,
@@ -592,6 +593,11 @@ function BillingStep({ nextStep }: { nextStep?: OnboardingStepId }) {
     };
   }, [status.billing]);
 
+  const connectCanCharge = Boolean(connectStatus?.charges_enabled);
+  const connectCanPayout = Boolean(connectStatus?.payouts_enabled);
+  const connectReady = Boolean(connectStatus?.connected && connectCanCharge && connectCanPayout);
+  const connectIncomplete = Boolean(connectStatus?.connected && !connectReady);
+
   const startConnectOnboarding = async () => {
     try {
       setConnectBusy(true);
@@ -666,7 +672,7 @@ function BillingStep({ nextStep }: { nextStep?: OnboardingStepId }) {
           <CardHeader>
             <CardTitle className="text-base">Optional: customer payment setup</CardTitle>
             <CardDescription>
-              Choose whether HandyCall should manage customer payments or your team handles payments separately.
+              Choose whether HandyCall should manage customer payments end-to-end, or your team handles payments separately.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -683,7 +689,7 @@ function BillingStep({ nextStep }: { nextStep?: OnboardingStepId }) {
               >
                 <p className="text-sm font-semibold text-slate-900">Managed in HandyCall (Recommended)</p>
                 <p className="mt-1 text-xs text-slate-600">
-                  AI sends booking links and customers can pay there. HandyCall tracks payments and statuses in one place.
+                  AI sends booking links and customers pay there. Connect Stripe once (bank/payout details included) and HandyCall tracks payment status automatically.
                 </p>
               </button>
               <button
@@ -702,13 +708,20 @@ function BillingStep({ nextStep }: { nextStep?: OnboardingStepId }) {
                 </p>
               </button>
             </div>
+            <div className="rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-3 text-xs text-slate-600">
+              Process: customer chooses service on call or booking form, AI sends booking link, customer pays there when managed mode is enabled.
+            </div>
             {paymentMode === 'HANDYCALL_MANAGED' ? (
               <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-3">
                 <p className="text-sm text-slate-600">
-                  {connectStatus?.connected ? 'Stripe Connect is configured.' : 'Stripe Connect is not configured yet.'}
+                  {connectReady
+                    ? 'Stripe Connect is fully configured.'
+                    : connectIncomplete
+                      ? 'Stripe Connect started but still needs charge/payout setup.'
+                      : 'Stripe Connect is not configured yet.'}
                 </p>
                 <Button onClick={startConnectOnboarding} disabled={connectBusy}>
-                  {connectBusy ? 'Opening…' : connectStatus?.connected ? 'Manage Connect' : 'Set up Connect'}
+                  {connectBusy ? 'Opening…' : connectStatus?.connected ? 'Complete Connect setup' : 'Set up Connect'}
                 </Button>
               </div>
             ) : (
@@ -1542,6 +1555,13 @@ function KnowledgeStep({ nextStep }: { nextStep?: OnboardingStepId }) {
         subtitle="Add pricing, service details, and FAQs. The AI handles general questions automatically."
       />
 
+      <div className="space-y-6">
+        <KnowledgeSetupAssistant
+          onImported={refreshKnowledge}
+          title="AI knowledge interview"
+          description="Answer guided follow-up questions. HandyCall will generate organized knowledge entries you can edit anytime."
+        />
+
       <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
         <Card>
           <CardHeader>
@@ -1635,6 +1655,7 @@ function KnowledgeStep({ nextStep }: { nextStep?: OnboardingStepId }) {
             <p>Answers to objections like “Do you guarantee your work?”</p>
           </CardContent>
         </Card>
+      </div>
       </div>
     </div>
   );

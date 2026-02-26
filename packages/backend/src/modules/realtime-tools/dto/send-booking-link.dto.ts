@@ -1,4 +1,4 @@
-import { IsEmail, IsNotEmpty, IsString } from 'class-validator';
+import { IsEmail, IsIn, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 
 export class SendBookingLinkDto {
   @IsString()
@@ -13,4 +13,17 @@ export class SendBookingLinkDto {
   @IsNotEmpty()
   @IsEmail()
   email!: string;
+
+  @IsOptional()
+  @IsString()
+  service_id?: string;
+
+  @IsOptional()
+  @IsString()
+  selected_service_name?: string;
+
+  @IsOptional()
+  @IsString()
+  @IsIn(['ONE_TIME', 'SUBSCRIPTION'])
+  selected_billing_type?: 'ONE_TIME' | 'SUBSCRIPTION';
 }

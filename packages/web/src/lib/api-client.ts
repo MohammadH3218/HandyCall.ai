@@ -489,6 +489,28 @@ class ApiClient {
     return response.data ?? response;
   }
 
+  async knowledgeAssistantRespond(messages: Array<{ role: 'user' | 'assistant'; content: string }>): Promise<any> {
+    const response = await this.request<any>('/knowledge-items/assistant/respond', {
+      method: 'POST',
+      body: JSON.stringify({ messages }),
+    });
+    return response.data ?? response;
+  }
+
+  async knowledgeAssistantGenerate(
+    messages: Array<{ role: 'user' | 'assistant'; content: string }>,
+    autoCreate: boolean = true,
+  ): Promise<any> {
+    const response = await this.request<any>('/knowledge-items/assistant/generate', {
+      method: 'POST',
+      body: JSON.stringify({
+        messages,
+        auto_create: autoCreate,
+      }),
+    });
+    return response.data ?? response;
+  }
+
   // Flagged Questions endpoints
   async getFlaggedQuestions(status?: string, callId?: string, limit?: number): Promise<any> {
     const params = new URLSearchParams();
@@ -964,6 +986,50 @@ class ApiClient {
     });
     return response.data ?? response;
   }
+  // Analytics
+  async getCallAnalytics(days = 30) {
+    return this.request<any>(`/analytics/calls?days=${days}`);
+  }
+
+  async getSmsAnalytics(days = 30) {
+    return this.request<any>(`/analytics/sms?days=${days}`);
+  }
+
+  // Outbound calls
+  async createOutboundCall(data: { to_number: string; context?: string; contact_id?: string }) {
+    return this.request<any>('/outbound-calls', { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  async getOutboundCalls(limit = 25) {
+    return this.request<any>(`/outbound-calls?limit=${limit}`);
+  }
+
+  // SMS Automation
+  async getSmsTemplates() {
+    return this.request<any[]>('/sms-automation/templates');
+  }
+
+  async createSmsTemplate(data: { name: string; category: string; body: string }) {
+    return this.request<any>('/sms-automation/templates', { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  async deleteSmsTemplate(templateId: string) {
+    return this.request<any>(`/sms-automation/templates/${templateId}`, { method: 'DELETE' });
+  }
+
+  async sendSmsCampaign(data: { template_id: string; contact_ids: string[]; scheduled_at?: number }) {
+    return this.request<any>('/sms-automation/campaign', { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  async getScheduledMessages(status?: string) {
+    const qs = status ? `?status=${status}` : '';
+    return this.request<any[]>(`/sms-automation/scheduled${qs}`);
+  }
+
+  async cancelScheduledMessage(messageId: string) {
+    return this.request<any>(`/sms-automation/scheduled/${messageId}`, { method: 'DELETE' });
+  }
+
 }
 
 export const apiClient = new ApiClient(API_URL);

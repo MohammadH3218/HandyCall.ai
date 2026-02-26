@@ -65,4 +65,14 @@ const nextConfig = {
   },
 };
 
+nextConfig.redirects = async function redirects() {
+  return [
+    {
+      source: '/pros/:path*',
+      destination: '/dashboard/:path*',
+      permanent: false,
+    },
+  ];
+};
+
 module.exports = nextConfig;

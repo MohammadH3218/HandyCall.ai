@@ -26,6 +26,15 @@ import { MessagesModule } from './modules/messages/messages.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { FollowUpSequencesModule } from './modules/follow-up-sequences/follow-up-sequences.module';
 import { ChatModule } from './modules/chat/chat.module';
+import { OutboundCallsModule } from './modules/outbound-calls/outbound-calls.module';
+import { SmsAutomationModule } from './modules/sms-automation/sms-automation.module';
+import { AnalyticsModule } from './modules/analytics/analytics.module';
+import { InvoicingModule } from './modules/invoicing/invoicing.module';
+import { TeamModule } from './modules/team/team.module';
+import { LeadsModule } from './modules/leads/leads.module';
+import { ReviewsModule } from './modules/reviews/reviews.module';
+import { MarketplaceModule } from './modules/marketplace/marketplace.module';
+import { CustomerProfilesModule } from './modules/customer-profiles/customer-profiles.module';
 import { DatabaseModule } from './infrastructure/database/database.module';
 import { StorageModule } from './infrastructure/storage/storage.module';
 import { ParameterStoreModule } from './infrastructure/config/config.module';
@@ -72,6 +81,15 @@ import { AppService } from './app.service';
     NotificationsModule,
     FollowUpSequencesModule,
     ChatModule,
+    OutboundCallsModule,
+    SmsAutomationModule,
+    AnalyticsModule,
+    InvoicingModule,
+    TeamModule,
+    LeadsModule,
+    ReviewsModule,
+    MarketplaceModule,
+    CustomerProfilesModule,
   ],
   controllers: [AppController],
   providers: [

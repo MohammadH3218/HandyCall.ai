@@ -45,6 +45,9 @@ type BookingPaymentInfo = {
   disabled_reason?: string;
   paid: boolean;
   process_note?: string;
+  preselected_service_id?: string;
+  preselected_service_name?: string;
+  preselected_billing_type?: 'ONE_TIME' | 'SUBSCRIPTION';
   services?: Array<{
     service_id: string;
     name: string;
@@ -268,8 +271,15 @@ export default function BookingPage() {
         const paymentData = await paymentRes.json();
         if (paymentRes.ok) {
           setPaymentInfo(paymentData as BookingPaymentInfo);
-          const firstService = (paymentData?.services || [])[0];
-          setSelectedServiceId(firstService?.service_id || '');
+          const services = paymentData?.services || [];
+          const preferredServiceId =
+            paymentData?.preselected_service_id ||
+            (services[0] ? services[0].service_id : '');
+          setSelectedServiceId((current) =>
+            current && services.some((service: any) => service.service_id === current)
+              ? current
+              : preferredServiceId,
+          );
         } else {
           setPaymentInfo(null);
         }
@@ -950,6 +960,11 @@ export default function BookingPage() {
                               </span>
                             </div>
                           ) : null}
+                          {paymentInfo?.preselected_service_id ? (
+                            <div className="text-xs text-slate-500">
+                              Preselected from your call: {paymentInfo.preselected_service_name || selectedPaymentService?.name || 'Service option'}
+                            </div>
+                          ) : null}
                           {!paymentIntentSecret ? (
                             <Button onClick={createPaymentIntent} disabled={creatingPaymentIntent}>
                               {creatingPaymentIntent
@@ -1208,6 +1223,11 @@ export default function BookingPage() {
                             <span className="ml-2 rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] text-slate-600">
                               {selectedServiceBillingLabel}
                             </span>
+                          </div>
+                        ) : null}
+                        {paymentInfo?.preselected_service_id ? (
+                          <div className="text-xs text-slate-500">
+                            Preselected from your call: {paymentInfo.preselected_service_name || selectedPaymentService?.name || 'Service option'}
                           </div>
                         ) : null}
                         {!paymentIntentSecret ? (

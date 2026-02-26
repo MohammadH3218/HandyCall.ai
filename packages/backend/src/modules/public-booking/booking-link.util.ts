@@ -4,6 +4,9 @@ export type BookingTokenPayload = {
   company_id: string;
   call_id: string;
   exp: number; // epoch ms
+  selected_service_id?: string;
+  selected_service_name?: string;
+  selected_billing_type?: 'ONE_TIME' | 'SUBSCRIPTION';
 };
 
 function base64url(input: string | Buffer): string {
@@ -42,6 +45,13 @@ export function verifyBookingToken(token: string, secret: string): BookingTokenP
   const decoded = base64urlDecode(body);
   const payload = JSON.parse(decoded) as BookingTokenPayload;
   if (!payload?.company_id || !payload?.call_id || !payload?.exp) {
+    throw new Error('Invalid booking token payload');
+  }
+  if (
+    payload.selected_billing_type &&
+    payload.selected_billing_type !== 'ONE_TIME' &&
+    payload.selected_billing_type !== 'SUBSCRIPTION'
+  ) {
     throw new Error('Invalid booking token payload');
   }
   if (Date.now() > payload.exp) {

@@ -10,7 +10,7 @@ import { Logo } from '@/components/ui/logo';
 import { ProfileDropdown } from '@/components/profile-dropdown';
 import { NotificationBell } from '@/components/notifications/notification-bell';
 import { Button } from '@/components/ui/button';
-import { BarChart3, Calendar, CreditCard, DollarSign, Home, Menu, MessageCircle, MessageSquare, Phone, Settings, Users, X } from 'lucide-react';
+import { BarChart2, BarChart3, Calendar, CreditCard, DollarSign, FileText, Home, Menu, MessageCircle, MessageSquare, Phone, PhoneOutgoing, Send, Settings, Users, Users2, X } from 'lucide-react';
 import { UserRole } from '@handycall/shared';
 
 function hasPricingProfileData(company: any | null) {
@@ -279,6 +279,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               Customers
             </NavLink>
             <NavLink
+              href="/dashboard/lead-inbox"
+              icon={<Users className="h-5 w-5" />}
+              active={pathname?.startsWith('/dashboard/lead-inbox')}
+              onClick={() => setSidebarOpen(false)}
+            >
+              Lead Inbox
+            </NavLink>
+                        <NavLink
               href="/dashboard/appointments"
               icon={<Calendar className="h-5 w-5" />}
               active={pathname?.startsWith('/dashboard/appointments')}
@@ -299,6 +307,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               Knowledge Base
             </NavLink>
             <NavLink
+              href="/dashboard/invoices"
+              icon={<FileText className="h-5 w-5" />}
+              active={pathname?.startsWith('/dashboard/invoices')}
+              onClick={() => setSidebarOpen(false)}
+            >
+              Invoices
+            </NavLink>
+                        <NavLink
               href="/dashboard/settings"
               icon={<Settings className="h-5 w-5" />}
               active={pathname?.startsWith('/dashboard/settings')}
@@ -333,6 +349,50 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               onClick={() => setSidebarOpen(false)}
             >
               Payments
+            </NavLink>
+            <NavLink
+              href="/dashboard/team"
+              icon={<Users2 className="h-5 w-5" />}
+              active={pathname?.startsWith('/dashboard/team')}
+              onClick={() => setSidebarOpen(false)}
+            >
+              Team
+            </NavLink>
+          </div>
+
+          <div className="pt-2 border-t border-border space-y-1">
+            <p className="px-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Automation</p>
+            <NavLink
+              href="/dashboard/analytics"
+              icon={<BarChart2 className="h-5 w-5" />}
+              active={pathname?.startsWith('/dashboard/analytics')}
+              onClick={() => setSidebarOpen(false)}
+            >
+              Analytics
+            </NavLink>
+            <NavLink
+              href="/dashboard/sms-automation"
+              icon={<MessageSquare className="h-5 w-5" />}
+              active={pathname?.startsWith('/dashboard/sms-automation')}
+              onClick={() => setSidebarOpen(false)}
+            >
+              SMS Automation
+            </NavLink>
+            <NavLink
+              href="/dashboard/follow-ups"
+              icon={<Send className="h-5 w-5" />}
+              active={pathname?.startsWith('/dashboard/follow-ups')}
+              onClick={() => setSidebarOpen(false)}
+            >
+              Follow-ups
+            </NavLink>
+            <NavLink
+              href="/dashboard/outbound-calls"
+              icon={<PhoneOutgoing className="h-5 w-5" />}
+              active={pathname?.startsWith('/dashboard/outbound-calls')}
+              onClick={() => setSidebarOpen(false)}
+            >
+              Outbound Calls
             </NavLink>
           </div>
         </nav>

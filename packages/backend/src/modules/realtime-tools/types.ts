@@ -48,6 +48,22 @@ export interface TenantResolveResponse {
 
     business_hours?: Record<string, { start: string; end: string }>; // e.g. mon: 09:00-17:00
     service_area_zipcodes?: string[];
+    booking_services?: Array<{
+        service_id: string;
+        name: string;
+        description?: string;
+        amount_cents: number;
+        currency?: string;
+        billing_type?: 'ONE_TIME' | 'SUBSCRIPTION';
+        billing_interval?: 'day' | 'week' | 'month' | 'year';
+        billing_interval_count?: number;
+    }>;
+    service_selection_guide?: {
+        require_selection_before_booking: boolean;
+        ask_when_unsure: boolean;
+        default_question: string;
+        summary: string;
+    };
     pricing_profile?: {
         model?: string;
         currency?: string;

@@ -263,4 +263,54 @@ export class FollowUpSequencesService {
     }
     return false;
   }
+
+  // ──── USER-FACING SEQUENCE & SETTINGS METHODS ────────────────────────────
+
+  async listSequences(companyId: string) {
+    const result = await this.dynamodb.scan('follow_up_sequences', {
+      filterExpression: '#company_id = :company_id',
+      expressionAttributeNames: { '#company_id': 'company_id' },
+      expressionAttributeValues: { ':company_id': companyId },
+      limit: 100,
+    });
+    return result.items || [];
+  }
+
+  async getSettings(companyId: string) {
+    const company = await this.companies.findById(companyId);
+    if (!company) return null;
+    return {
+      follow_up_sequences_enabled: company.follow_up_sequences_enabled ?? false,
+      follow_up_initial_delay_minutes: company.follow_up_initial_delay_minutes ?? 0,
+      follow_up_second_delay_minutes: company.follow_up_second_delay_minutes ?? 1440,
+      follow_up_final_delay_minutes: company.follow_up_final_delay_minutes ?? 4320,
+      follow_up_initial_template: company.follow_up_initial_template ?? '',
+      follow_up_second_template: company.follow_up_second_template ?? '',
+      follow_up_final_template: company.follow_up_final_template ?? '',
+      review_request_enabled: company.review_request_enabled ?? false,
+      review_request_delay_minutes: company.review_request_delay_minutes ?? 120,
+      review_platform_url: company.review_platform_url ?? '',
+      review_request_template: company.review_request_template ?? '',
+    };
+  }
+
+  async updateSettings(
+    companyId: string,
+    updates: {
+      follow_up_sequences_enabled?: boolean;
+      follow_up_initial_delay_minutes?: number;
+      follow_up_second_delay_minutes?: number;
+      follow_up_final_delay_minutes?: number;
+      follow_up_initial_template?: string;
+      follow_up_second_template?: string;
+      follow_up_final_template?: string;
+      review_request_enabled?: boolean;
+      review_request_delay_minutes?: number;
+      review_platform_url?: string;
+      review_request_template?: string;
+    },
+  ) {
+    await this.companies.updateCompany(companyId, updates);
+    return this.getSettings(companyId);
+  }
 }
