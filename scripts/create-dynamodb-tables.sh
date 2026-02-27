@@ -787,6 +787,182 @@ else
   wait_for_table "$TABLE_NAME"
 fi
 
+# =============================================================================
+# 24. CUSTOMER PROFILES TABLE
+# =============================================================================
+TABLE_NAME="${TABLE_PREFIX}customer_profiles"
+if [ -n "$(table_exists $TABLE_NAME)" ]; then
+  echo "⚠️  Table $TABLE_NAME already exists, skipping..."
+else
+  echo "📦 Creating table: $TABLE_NAME"
+  aws dynamodb create-table \
+    --table-name "$TABLE_NAME" \
+    --region "$REGION" \
+    --billing-mode "$BILLING_MODE" \
+    --attribute-definitions \
+      AttributeName=user_id,AttributeType=S \
+      AttributeName=profile_id,AttributeType=S \
+    --key-schema \
+      AttributeName=user_id,KeyType=HASH \
+      AttributeName=profile_id,KeyType=RANGE \
+    --tags Key=Environment,Value="$ENV" Key=Project,Value=HandyCall
+  wait_for_table "$TABLE_NAME"
+fi
+
+# =============================================================================
+# 25. INVOICES TABLE
+# =============================================================================
+TABLE_NAME="${TABLE_PREFIX}invoices"
+if [ -n "$(table_exists $TABLE_NAME)" ]; then
+  echo "⚠️  Table $TABLE_NAME already exists, skipping..."
+else
+  echo "📦 Creating table: $TABLE_NAME"
+  aws dynamodb create-table \
+    --table-name "$TABLE_NAME" \
+    --region "$REGION" \
+    --billing-mode "$BILLING_MODE" \
+    --attribute-definitions \
+      AttributeName=company_id,AttributeType=S \
+      AttributeName=invoice_id,AttributeType=S \
+    --key-schema \
+      AttributeName=company_id,KeyType=HASH \
+      AttributeName=invoice_id,KeyType=RANGE \
+    --tags Key=Environment,Value="$ENV" Key=Project,Value=HandyCall
+  wait_for_table "$TABLE_NAME"
+fi
+
+# =============================================================================
+# 26. OUTBOUND CALLS TABLE
+# =============================================================================
+TABLE_NAME="${TABLE_PREFIX}outbound_calls"
+if [ -n "$(table_exists $TABLE_NAME)" ]; then
+  echo "⚠️  Table $TABLE_NAME already exists, skipping..."
+else
+  echo "📦 Creating table: $TABLE_NAME"
+  aws dynamodb create-table \
+    --table-name "$TABLE_NAME" \
+    --region "$REGION" \
+    --billing-mode "$BILLING_MODE" \
+    --attribute-definitions \
+      AttributeName=company_id,AttributeType=S \
+      AttributeName=call_id,AttributeType=S \
+    --key-schema \
+      AttributeName=company_id,KeyType=HASH \
+      AttributeName=call_id,KeyType=RANGE \
+    --tags Key=Environment,Value="$ENV" Key=Project,Value=HandyCall
+  wait_for_table "$TABLE_NAME"
+fi
+
+# =============================================================================
+# 27. PORTAL MESSAGES TABLE
+# =============================================================================
+TABLE_NAME="${TABLE_PREFIX}portal_messages"
+if [ -n "$(table_exists $TABLE_NAME)" ]; then
+  echo "⚠️  Table $TABLE_NAME already exists, skipping..."
+else
+  echo "📦 Creating table: $TABLE_NAME"
+  aws dynamodb create-table \
+    --table-name "$TABLE_NAME" \
+    --region "$REGION" \
+    --billing-mode "$BILLING_MODE" \
+    --attribute-definitions \
+      AttributeName=company_id,AttributeType=S \
+      AttributeName=message_id,AttributeType=S \
+    --key-schema \
+      AttributeName=company_id,KeyType=HASH \
+      AttributeName=message_id,KeyType=RANGE \
+    --tags Key=Environment,Value="$ENV" Key=Project,Value=HandyCall
+  wait_for_table "$TABLE_NAME"
+fi
+
+# =============================================================================
+# 28. QUOTE REQUESTS TABLE
+# =============================================================================
+TABLE_NAME="${TABLE_PREFIX}quote_requests"
+if [ -n "$(table_exists $TABLE_NAME)" ]; then
+  echo "⚠️  Table $TABLE_NAME already exists, skipping..."
+else
+  echo "📦 Creating table: $TABLE_NAME"
+  aws dynamodb create-table \
+    --table-name "$TABLE_NAME" \
+    --region "$REGION" \
+    --billing-mode "$BILLING_MODE" \
+    --attribute-definitions \
+      AttributeName=company_id,AttributeType=S \
+      AttributeName=quote_id,AttributeType=S \
+    --key-schema \
+      AttributeName=company_id,KeyType=HASH \
+      AttributeName=quote_id,KeyType=RANGE \
+    --tags Key=Environment,Value="$ENV" Key=Project,Value=HandyCall
+  wait_for_table "$TABLE_NAME"
+fi
+
+# =============================================================================
+# 29. REVIEWS TABLE
+# =============================================================================
+TABLE_NAME="${TABLE_PREFIX}reviews"
+if [ -n "$(table_exists $TABLE_NAME)" ]; then
+  echo "⚠️  Table $TABLE_NAME already exists, skipping..."
+else
+  echo "📦 Creating table: $TABLE_NAME"
+  aws dynamodb create-table \
+    --table-name "$TABLE_NAME" \
+    --region "$REGION" \
+    --billing-mode "$BILLING_MODE" \
+    --attribute-definitions \
+      AttributeName=provider_company_id,AttributeType=S \
+      AttributeName=review_id,AttributeType=S \
+    --key-schema \
+      AttributeName=provider_company_id,KeyType=HASH \
+      AttributeName=review_id,KeyType=RANGE \
+    --tags Key=Environment,Value="$ENV" Key=Project,Value=HandyCall
+  wait_for_table "$TABLE_NAME"
+fi
+
+# =============================================================================
+# 30. SMS TEMPLATES TABLE
+# =============================================================================
+TABLE_NAME="${TABLE_PREFIX}sms_templates"
+if [ -n "$(table_exists $TABLE_NAME)" ]; then
+  echo "⚠️  Table $TABLE_NAME already exists, skipping..."
+else
+  echo "📦 Creating table: $TABLE_NAME"
+  aws dynamodb create-table \
+    --table-name "$TABLE_NAME" \
+    --region "$REGION" \
+    --billing-mode "$BILLING_MODE" \
+    --attribute-definitions \
+      AttributeName=company_id,AttributeType=S \
+      AttributeName=template_id,AttributeType=S \
+    --key-schema \
+      AttributeName=company_id,KeyType=HASH \
+      AttributeName=template_id,KeyType=RANGE \
+    --tags Key=Environment,Value="$ENV" Key=Project,Value=HandyCall
+  wait_for_table "$TABLE_NAME"
+fi
+
+# =============================================================================
+# 31. TEAM MEMBERS TABLE
+# =============================================================================
+TABLE_NAME="${TABLE_PREFIX}team_members"
+if [ -n "$(table_exists $TABLE_NAME)" ]; then
+  echo "⚠️  Table $TABLE_NAME already exists, skipping..."
+else
+  echo "📦 Creating table: $TABLE_NAME"
+  aws dynamodb create-table \
+    --table-name "$TABLE_NAME" \
+    --region "$REGION" \
+    --billing-mode "$BILLING_MODE" \
+    --attribute-definitions \
+      AttributeName=company_id,AttributeType=S \
+      AttributeName=member_id,AttributeType=S \
+    --key-schema \
+      AttributeName=company_id,KeyType=HASH \
+      AttributeName=member_id,KeyType=RANGE \
+    --tags Key=Environment,Value="$ENV" Key=Project,Value=HandyCall
+  wait_for_table "$TABLE_NAME"
+fi
+
 echo ""
 echo "=================================================="
 echo "✅ All DynamoDB tables created successfully!"
