@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { signIn } from 'next-auth/react';
@@ -17,12 +17,6 @@ const PRO_SETUP_STEPS = [
   { title: 'Service area', description: 'Cities and zip codes you cover.' },
   { title: 'Knowledge base', description: 'Pricing, FAQs, and service details.' },
   { title: 'Calendar + phone', description: 'Connect scheduling, claim your line, and set call handling.' },
-];
-
-const CUSTOMER_SETUP_STEPS = [
-  { title: 'Verify your email', description: 'Confirm your email address and secure your account.' },
-  { title: 'Browse local services', description: 'Search by category, location, and availability.' },
-  { title: 'Book with confidence', description: 'Track requests and updates from one place.' },
 ];
 
 const GoogleIcon = ({ className }: { className?: string }) => (
@@ -43,16 +37,6 @@ const AppleIcon = ({ className }: { className?: string }) => (
 
 export default function RegisterPage() {
   const router = useRouter();
-  const [isProAudience, setIsProAudience] = useState(true);
-  const [isAdminAudience, setIsAdminAudience] = useState(false);
-  const isCustomerAudience = !isProAudience && !isAdminAudience;
-  const registerPoolType: 'users' | 'customer' = isCustomerAudience ? 'customer' : 'users';
-  const loginHref = isAdminAudience
-    ? '/login?audience=admin'
-    : isProAudience
-    ? '/login?audience=pro'
-    : '/customer/login';
-  const steps = isProAudience ? PRO_SETUP_STEPS : CUSTOMER_SETUP_STEPS;
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -61,20 +45,11 @@ export default function RegisterPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [socialLoading, setSocialLoading] = useState<'cognito-google' | 'cognito-apple' | null>(null);
 
-  useEffect(() => {
-    const audience = new URLSearchParams(window.location.search).get('audience');
-    const normalized = (audience || '').toLowerCase();
-    setIsAdminAudience(normalized === 'admin');
-    setIsProAudience(normalized !== 'customer' && normalized !== 'admin');
-  }, []);
-
   const handleSocialSignUp = async (provider: 'cognito-google' | 'cognito-apple') => {
     setError('');
     setSocialLoading(provider);
     try {
-      const result = await signIn(provider, {
-        callbackUrl: isAdminAudience ? '/admin' : isProAudience ? '/onboarding/profile' : '/find-pros',
-      });
+      const result = await signIn(provider, { callbackUrl: '/onboarding' });
       if (result?.error) { setError(result.error); setSocialLoading(null); }
     } catch (err: any) { setError(err?.message || 'Unable to start social sign up.'); setSocialLoading(null); }
   };
@@ -93,10 +68,9 @@ export default function RegisterPage() {
         password,
         first_name: nameParts[0] || undefined,
         last_name: nameParts.slice(1).join(' ') || undefined,
-        pool_type: registerPoolType,
+        pool_type: 'users',
       });
-      const audience = isCustomerAudience ? 'customer' : isAdminAudience ? 'admin' : 'pro';
-      router.push(`/verify-email?email=${encodeURIComponent(email.trim())}&audience=${encodeURIComponent(audience)}`);
+      router.push(`/verify-email?email=${encodeURIComponent(email.trim())}&audience=pro`);
     } catch (err: any) { setError(err?.message || 'Registration failed'); }
     finally { setIsSubmitting(false); }
   };
@@ -111,7 +85,7 @@ export default function RegisterPage() {
           </Link>
           <p className="text-sm text-slate-500">
             Already have an account?{' '}
-            <Link href={loginHref} className="font-semibold text-emerald-700 hover:text-emerald-600">
+            <Link href="/login" className="font-semibold text-emerald-700 hover:text-emerald-600">
               Sign in
             </Link>
           </p>
@@ -123,22 +97,20 @@ export default function RegisterPage() {
         <div className="space-y-8 lg:pt-4">
           <div>
             <span className="text-xs font-bold uppercase tracking-widest text-emerald-700">
-              {isProAudience ? 'Get started free' : 'Customer account setup'}
+              Get started free
             </span>
             <h1 className="mt-3 text-[2.6rem] font-bold leading-[1.08] tracking-tight text-slate-900 md:text-5xl">
-              {isProAudience ? 'Set up your AI receptionist in 10 minutes.' : 'Create your customer account.'}
+              Set up your AI receptionist in 10 minutes.
             </h1>
             <p className="mt-4 max-w-md text-lg text-slate-500">
-              {isProAudience
-                ? 'We walk you through every step — from your first call to your first booking.'
-                : 'Save your details and manage your home service requests from one account.'}
+              We walk you through every step — from your first call to your first booking.
             </p>
           </div>
 
           {/* Setup steps */}
           <div className="space-y-3">
             <p className="text-xs font-bold uppercase tracking-widest text-slate-400">What happens after signup</p>
-            {steps.map((step, index) => (
+            {PRO_SETUP_STEPS.map((step, index) => (
               <div key={step.title} className="flex items-start gap-4 rounded-xl border border-slate-200 bg-white p-4">
                 <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-xs font-bold text-white">
                   {index + 1}
@@ -152,9 +124,7 @@ export default function RegisterPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-4 text-sm text-slate-500">
-            {(isProAudience
-              ? ['No contracts', 'Keep your number', 'Free onboarding call']
-              : ['No booking fees', 'Secure checkout', 'Cancel anytime']).map((item) => (
+            {['No contracts', 'Keep your number', 'Free onboarding call'].map((item) => (
               <span key={item} className="inline-flex items-center gap-1.5">
                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
                 {item}
@@ -168,9 +138,7 @@ export default function RegisterPage() {
           <div className="overflow-hidden rounded-xl border border-slate-200 bg-white p-8">
             <div className="mb-6 text-center">
               <h2 className="text-lg font-semibold text-slate-900">Create your account</h2>
-              <p className="mt-1 text-sm text-slate-500">
-                {isProAudience ? "We'll email you a verification code next." : "We'll send a verification code to finish setup."}
-              </p>
+              <p className="mt-1 text-sm text-slate-500">We'll email you a verification code next.</p>
             </div>
 
             {error && (
@@ -179,37 +147,33 @@ export default function RegisterPage() {
               </div>
             )}
 
-            {!isCustomerAudience && (
-              <>
-                {/* Social buttons */}
-                <div className="space-y-2.5">
-                  <button
-                    type="button"
-                    onClick={() => handleSocialSignUp('cognito-google')}
-                    disabled={isSubmitting || Boolean(socialLoading)}
-                    className="flex h-11 w-full items-center justify-center gap-3 rounded-lg border border-slate-200 bg-white text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    <GoogleIcon className="h-4 w-4" />
-                    {socialLoading === 'cognito-google' ? 'Connecting to Google…' : 'Continue with Google'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleSocialSignUp('cognito-apple')}
-                    disabled={isSubmitting || Boolean(socialLoading)}
-                    className="flex h-11 w-full items-center justify-center gap-3 rounded-lg border border-slate-200 bg-white text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    <AppleIcon className="h-4 w-4" />
-                    {socialLoading === 'cognito-apple' ? 'Connecting to Apple…' : 'Continue with Apple'}
-                  </button>
-                </div>
+            {/* Social buttons */}
+            <div className="space-y-2.5">
+              <button
+                type="button"
+                onClick={() => handleSocialSignUp('cognito-google')}
+                disabled={isSubmitting || Boolean(socialLoading)}
+                className="flex h-11 w-full items-center justify-center gap-3 rounded-lg border border-slate-200 bg-white text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <GoogleIcon className="h-4 w-4" />
+                {socialLoading === 'cognito-google' ? 'Connecting to Google…' : 'Continue with Google'}
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSocialSignUp('cognito-apple')}
+                disabled={isSubmitting || Boolean(socialLoading)}
+                className="flex h-11 w-full items-center justify-center gap-3 rounded-lg border border-slate-200 bg-white text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <AppleIcon className="h-4 w-4" />
+                {socialLoading === 'cognito-apple' ? 'Connecting to Apple…' : 'Continue with Apple'}
+              </button>
+            </div>
 
-                <div className="my-5 flex items-center gap-3">
-                  <span className="h-px flex-1 bg-slate-200" />
-                  <span className="text-xs text-slate-400">or sign up with email</span>
-                  <span className="h-px flex-1 bg-slate-200" />
-                </div>
-              </>
-            )}
+            <div className="my-5 flex items-center gap-3">
+              <span className="h-px flex-1 bg-slate-200" />
+              <span className="text-xs text-slate-400">or sign up with email</span>
+              <span className="h-px flex-1 bg-slate-200" />
+            </div>
 
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-1.5">
@@ -218,7 +182,7 @@ export default function RegisterPage() {
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="email" className="text-xs font-semibold text-slate-700">Email</Label>
-                <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder={isProAudience ? 'you@business.com' : 'you@example.com'} required disabled={isSubmitting} className="h-11" />
+                <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@business.com" required disabled={isSubmitting} className="h-11" />
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="password" className="text-xs font-semibold text-slate-700">Password</Label>
@@ -247,7 +211,7 @@ export default function RegisterPage() {
             </p>
             <p className="mt-3 text-center text-sm text-slate-500">
               Already have an account?{' '}
-              <Link href={loginHref} className="font-semibold text-emerald-700 hover:text-emerald-600">Sign in</Link>
+              <Link href="/login" className="font-semibold text-emerald-700 hover:text-emerald-600">Sign in</Link>
             </p>
           </div>
         </div>

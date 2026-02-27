@@ -12,9 +12,8 @@ function VerifyEmailPageInner() {
   const searchParams = useSearchParams();
   const emailParam = searchParams?.get('email') || '';
   const codeParam = searchParams?.get('code') || '';
-  const audienceParam = (searchParams?.get('audience') || '').toLowerCase();
-  const poolType: 'users' | 'customer' = audienceParam === 'customer' ? 'customer' : 'users';
-  const loginHref = audienceParam === 'customer' ? '/login?audience=customer' : '/login?audience=pro';
+  const poolType: 'users' = 'users';
+  const loginHref = '/login';
 
   const [email, setEmail] = useState(emailParam);
   const [code, setCode] = useState(codeParam);

@@ -18,7 +18,6 @@ import {
   IconCalendar,
   IconMessageDots,
   IconFileText,
-  IconGlobe,
   IconSettings,
   IconChartBar,
   IconCreditCard,
@@ -333,14 +332,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               onClick={() => setSidebarOpen(false)}
             >
               Invoices
-            </NavLink>
-            <NavLink
-              href="/dashboard/marketplace"
-              icon={<IconGlobe stroke={1.5} className="h-5 w-5" />}
-              active={pathname?.startsWith('/dashboard/marketplace')}
-              onClick={() => setSidebarOpen(false)}
-            >
-              Marketplace Profile
             </NavLink>
             <NavLink
               href="/dashboard/settings"

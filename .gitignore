@@ -1,3 +1,6 @@
+# Marketplace / consumer feature archive (not for production)
+future-production/
+
 # Dependencies
 node_modules/
 .pnp

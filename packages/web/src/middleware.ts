@@ -51,11 +51,7 @@ export async function middleware(request: NextRequest) {
   // Only guard dashboard/admin; everything else is public
   const isAdminRoute = pathname.startsWith('/admin');
   const isDashboardRoute = pathname.startsWith('/dashboard');
-  const isProviderProfileRoute =
-    pathname.startsWith('/find-pros/') &&
-    pathname !== '/find-pros' &&
-    !pathname.startsWith('/find-pros/search');
-  if (!isAdminRoute && !isDashboardRoute && !isProviderProfileRoute) {
+  if (!isAdminRoute && !isDashboardRoute) {
     return NextResponse.next();
   }
 
@@ -68,13 +64,11 @@ export async function middleware(request: NextRequest) {
   const hasBearer = Boolean((token as any)?.idToken || (token as any)?.accessToken);
   const poolType = ((token as any)?.poolType as string | undefined) || '';
 
-  // Not signed in -> send to audience-specific login with callback
+  // Not signed in -> send to login with callback
   if (!token || tokenError || !hasBearer) {
     const loginUrl = new URL('/login', request.url);
     if (isDashboardRoute) {
       loginUrl.searchParams.set('audience', 'pro');
-    } else if (isProviderProfileRoute) {
-      loginUrl.searchParams.set('audience', 'customer');
     }
     const safeCallback =
       pathname === '/dashboard/login' || pathname === '/dashboard'
@@ -82,15 +76,6 @@ export async function middleware(request: NextRequest) {
         : pathname;
     loginUrl.searchParams.set('callbackUrl', safeCallback);
     return NextResponse.redirect(loginUrl);
-  }
-
-  if (isProviderProfileRoute) {
-    if (poolType !== 'customer') {
-      const loginUrl = new URL('/login', request.url);
-      loginUrl.searchParams.set('audience', 'customer');
-      loginUrl.searchParams.set('callbackUrl', pathname);
-      return NextResponse.redirect(loginUrl);
-    }
   }
 
   // Admin pool must stay in admin portal.

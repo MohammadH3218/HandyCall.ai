@@ -38,13 +38,6 @@ const PRO_FEATURES = [
   { title: 'Automated follow-up', desc: 'SMS reminders and recaps keep your prospects warm without lifting a finger.' },
 ];
 
-const CUSTOMER_FEATURES = [
-  { title: 'Track your requests', desc: 'Keep all your service requests and updates in one place.' },
-  { title: 'Faster rebooking', desc: 'Reuse your details and book repeat services quickly.' },
-  { title: 'Secure payment history', desc: 'See your past payments and booking records anytime.' },
-  { title: 'Direct provider updates', desc: 'Get confirmations and status updates without missed messages.' },
-];
-
 function LoginPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -61,22 +54,11 @@ function LoginPageInner() {
   const [isLoading, setIsLoading] = useState(false);
   const [socialLoading, setSocialLoading] = useState<'cognito-google' | 'cognito-apple' | null>(null);
   const [showPasswordChangeModal, setShowPasswordChangeModal] = useState(false);
+
   const isAdminPath = typeof window !== 'undefined' && window.location.pathname.startsWith('/admin');
   const isAdminAudience = audienceParam === 'admin' || isAdminPath;
-  const isProAudience =
-    audienceParam === 'pro' ||
-    isAdminAudience ||
-    Boolean(callbackUrl?.startsWith('/dashboard') || callbackUrl?.startsWith('/admin'));
-  const isCustomerAudience = !isProAudience && !isAdminAudience;
-  const loginPoolType: 'users' | 'admin' | 'customer' = isAdminAudience
-    ? 'admin'
-    : isProAudience
-    ? 'users'
-    : 'customer';
-  const defaultCallbackUrl = callbackUrl || (isAdminAudience ? '/admin' : isProAudience ? '/dashboard' : '/find-pros');
-  const primaryCtaHref = isCustomerAudience ? '/register?audience=customer' : '/register?audience=pro';
-  const primaryCtaLabel = isCustomerAudience ? 'Create a customer account' : 'Create a pro account';
-  const activeFeatures = isCustomerAudience ? CUSTOMER_FEATURES : PRO_FEATURES;
+  const loginPoolType: 'users' | 'admin' = isAdminAudience ? 'admin' : 'users';
+  const defaultCallbackUrl = callbackUrl || (isAdminAudience ? '/admin' : '/dashboard');
 
   const parsePasswordChangeError = (message: string) => {
     if (!message?.startsWith('NEW_PASSWORD_REQUIRED:')) return null;
@@ -191,8 +173,8 @@ function LoginPageInner() {
           </Link>
           <p className="text-sm text-slate-500">
             New here?{' '}
-            <Link href={primaryCtaHref} className="font-semibold text-emerald-600 hover:text-emerald-700">
-              {primaryCtaLabel}
+            <Link href="/register" className="font-semibold text-emerald-600 hover:text-emerald-700">
+              Create a pro account
             </Link>
           </p>
         </div>
@@ -203,17 +185,15 @@ function LoginPageInner() {
         <div className="space-y-8">
           <div>
             <h1 className="text-[2.6rem] font-bold leading-[1.08] tracking-tight text-slate-900 md:text-5xl">
-              {isProAudience ? 'Your AI receptionist is ready.' : 'Manage your home services in one place.'}
+              Your AI receptionist is ready.
             </h1>
             <p className="mt-4 max-w-md text-lg text-slate-500">
-              {isProAudience
-                ? 'Sign in to manage calls, review leads, and monitor your AI in real time.'
-                : 'Sign in to track bookings, messages, and payment history across your services.'}
+              Sign in to manage calls, review leads, and monitor your AI in real time.
             </p>
           </div>
 
           <div className="space-y-4">
-            {activeFeatures.map((item) => (
+            {PRO_FEATURES.map((item) => (
               <div key={item.title} className="flex items-start gap-3">
                 <IconCircleCheck className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" stroke={1.5} />
                 <div>
@@ -233,30 +213,23 @@ function LoginPageInner() {
                   <div className="h-2 w-2 rounded-full bg-amber-400/80" />
                   <div className="h-2 w-2 rounded-full bg-emerald-400/80" />
                 </div>
-                <span className="ml-1 text-xs text-slate-500">{isProAudience ? 'Live call' : 'Live booking update'}</span>
+                <span className="ml-1 text-xs text-slate-500">Live call</span>
               </div>
               <span className="flex items-center gap-1.5 text-xs text-emerald-400">
                 <span className="relative flex h-1.5 w-1.5">
                   <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-70" />
                   <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
                 </span>
-                {isProAudience ? 'Answering' : 'In progress'}
+                Answering
               </span>
             </div>
             <div className="space-y-3 px-4 py-4 text-sm">
-              {(isProAudience
-                ? [
-                    { role: 'Caller', text: '"Need an AC tune-up before summer hits."', isAI: false },
-                    { role: 'HandyCall', text: '"I have Thursday at 10 AM open. Does that work?"', isAI: true },
-                    { role: 'Caller', text: '"Perfect."', isAI: false },
-                    { role: 'HandyCall', text: '"Booked! Confirmation text on its way."', isAI: true },
-                  ]
-                : [
-                    { role: 'Provider', text: '"Your technician is on the way."', isAI: false },
-                    { role: 'HandyCall', text: '"Arrival window: 10:00 AM - 10:30 AM."', isAI: true },
-                    { role: 'Provider', text: '"Job complete. Please review when ready."', isAI: false },
-                    { role: 'HandyCall', text: '"Receipt is now available in your account."', isAI: true },
-                  ]).map((msg, i) => (
+              {[
+                { role: 'Caller', text: '"Need an AC tune-up before summer hits."', isAI: false },
+                { role: 'HandyCall', text: '"I have Thursday at 10 AM open. Does that work?"', isAI: true },
+                { role: 'Caller', text: '"Perfect."', isAI: false },
+                { role: 'HandyCall', text: '"Booked! Confirmation text on its way."', isAI: true },
+              ].map((msg, i) => (
                 <div key={i} className="flex gap-2.5">
                   <div className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${msg.isAI ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-600'}`}>
                     {msg.isAI ? 'H' : 'C'}
@@ -266,9 +239,7 @@ function LoginPageInner() {
               ))}
             </div>
             <div className="border-t border-slate-100 bg-emerald-50/60 px-4 py-2.5">
-              <p className="text-xs font-semibold text-emerald-700">
-                {isProAudience ? 'Booked · AC tune-up · Thu 10:00 AM ✓' : 'Confirmed · Service appointment · Thu 10:00 AM ✓'}
-              </p>
+              <p className="text-xs font-semibold text-emerald-700">Booked · AC tune-up · Thu 10:00 AM ✓</p>
             </div>
           </div>
         </div>
@@ -277,9 +248,7 @@ function LoginPageInner() {
         <div className="overflow-hidden rounded-xl border border-slate-200 bg-white p-8">
           <div className="mb-6 text-center">
             <h2 className="text-lg font-semibold text-slate-900">Sign in</h2>
-            <p className="mt-1 text-sm text-slate-500">
-              {isProAudience ? 'Access your HandyCall pro workspace' : 'Access your HandyCall customer account'}
-            </p>
+            <p className="mt-1 text-sm text-slate-500">Access your HandyCall pro workspace</p>
           </div>
 
           {error && (
@@ -295,37 +264,33 @@ function LoginPageInner() {
             </div>
           )}
 
-          {!isCustomerAudience && (
-            <>
-              {/* Social buttons */}
-              <div className="space-y-2.5">
-                <button
-                  type="button"
-                  onClick={() => handleSocialSignIn('cognito-google')}
-                  disabled={isLoading || Boolean(socialLoading)}
-                  className="flex h-11 w-full items-center justify-center gap-3 rounded-xl border border-slate-200 bg-white text-sm font-medium text-slate-700 shadow-sm transition-all hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <GoogleIcon className="h-4 w-4" />
-                  {socialLoading === 'cognito-google' ? 'Connecting to Google…' : 'Continue with Google'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleSocialSignIn('cognito-apple')}
-                  disabled={isLoading || Boolean(socialLoading)}
-                  className="flex h-11 w-full items-center justify-center gap-3 rounded-xl border border-slate-200 bg-white text-sm font-medium text-slate-700 shadow-sm transition-all hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <AppleIcon className="h-4 w-4" />
-                  {socialLoading === 'cognito-apple' ? 'Connecting to Apple…' : 'Continue with Apple'}
-                </button>
-              </div>
+          {/* Social buttons */}
+          <div className="space-y-2.5">
+            <button
+              type="button"
+              onClick={() => handleSocialSignIn('cognito-google')}
+              disabled={isLoading || Boolean(socialLoading)}
+              className="flex h-11 w-full items-center justify-center gap-3 rounded-xl border border-slate-200 bg-white text-sm font-medium text-slate-700 shadow-sm transition-all hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <GoogleIcon className="h-4 w-4" />
+              {socialLoading === 'cognito-google' ? 'Connecting to Google…' : 'Continue with Google'}
+            </button>
+            <button
+              type="button"
+              onClick={() => handleSocialSignIn('cognito-apple')}
+              disabled={isLoading || Boolean(socialLoading)}
+              className="flex h-11 w-full items-center justify-center gap-3 rounded-xl border border-slate-200 bg-white text-sm font-medium text-slate-700 shadow-sm transition-all hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <AppleIcon className="h-4 w-4" />
+              {socialLoading === 'cognito-apple' ? 'Connecting to Apple…' : 'Continue with Apple'}
+            </button>
+          </div>
 
-              <div className="my-5 flex items-center gap-3">
-                <span className="h-px flex-1 bg-slate-200" />
-                <span className="text-xs text-slate-400">or sign in with email</span>
-                <span className="h-px flex-1 bg-slate-200" />
-              </div>
-            </>
-          )}
+          <div className="my-5 flex items-center gap-3">
+            <span className="h-px flex-1 bg-slate-200" />
+            <span className="text-xs text-slate-400">or sign in with email</span>
+            <span className="h-px flex-1 bg-slate-200" />
+          </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-1.5">
@@ -333,7 +298,7 @@ function LoginPageInner() {
               <Input
                 id="email"
                 type="email"
-                placeholder={isProAudience ? 'you@business.com' : 'you@example.com'}
+                placeholder="you@business.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -372,8 +337,8 @@ function LoginPageInner() {
 
           <p className="mt-5 text-center text-sm text-slate-500">
             New to HandyCall?{' '}
-            <Link href={primaryCtaHref} className="font-semibold text-emerald-600 hover:text-emerald-700">
-              {primaryCtaLabel}
+            <Link href="/register" className="font-semibold text-emerald-600 hover:text-emerald-700">
+              Create a pro account
             </Link>
           </p>
         </div>

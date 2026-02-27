@@ -4,72 +4,145 @@ import { SiteHeader } from '@/components/marketing/site-header';
 import { SiteFooter } from '@/components/marketing/site-footer';
 import { FadeIn } from '@/components/marketing/fade-in';
 import {
-  IconDroplet,
-  IconWind,
-  IconBolt,
-  IconBug,
-  IconSparkles,
-  IconTree,
-  IconHome,
-  IconPaint,
-  IconSearch,
+  IconPhone,
   IconCalendar,
+  IconMessage,
+  IconChartBar,
   IconCircleCheck,
   IconArrowRight,
-  IconShield,
+  IconClock,
   IconStar,
   IconUsers,
-  IconMapPin,
 } from '@tabler/icons-react';
 
 export const metadata: Metadata = {
-  title: 'HandyCall — Find & Book Trusted Home Service Pros',
+  title: 'HandyCall — AI Receptionist for Service Professionals',
   description:
-    'Find local plumbers, electricians, HVAC techs, cleaners, and more near you. Compare providers, book quickly, and pay securely.',
+    'Never miss a customer call again. HandyCall answers calls 24/7, auto-books appointments, and sends follow-up messages — so you can focus on the work. Try free for 14 days.',
   openGraph: {
-    title: 'HandyCall — Home Services Marketplace',
-    description: 'Book local pros for home services with clear scheduling and secure payments.',
-    url: '/',
+    title: 'HandyCall for Service Professionals',
+    description: 'AI-powered call answering, booking automation, and customer follow-ups for local pros.',
   },
 };
 
-const categories = [
-  { name: 'Plumbing', icon: IconDroplet, slug: 'plumbing' },
-  { name: 'HVAC', icon: IconWind, slug: 'hvac' },
-  { name: 'Electrical', icon: IconBolt, slug: 'electrical' },
-  { name: 'Pest Control', icon: IconBug, slug: 'pest-control' },
-  { name: 'Cleaning', icon: IconSparkles, slug: 'cleaning' },
-  { name: 'Landscaping', icon: IconTree, slug: 'landscaping' },
-  { name: 'Roofing', icon: IconHome, slug: 'roofing' },
-  { name: 'Painting', icon: IconPaint, slug: 'painting' },
+const features = [
+  {
+    icon: IconPhone,
+    title: 'AI Answers Every Call',
+    description:
+      'Your AI receptionist picks up every call in under 2 seconds — 24/7, even on holidays. No more voicemail, no more missed revenue.',
+  },
+  {
+    icon: IconCalendar,
+    title: 'Auto-Books Appointments',
+    description:
+      'Callers choose their preferred time from your live calendar. Jobs land on your schedule automatically while you focus on the work.',
+  },
+  {
+    icon: IconMessage,
+    title: 'Automated Follow-ups',
+    description:
+      'SMS reminders, confirmations, and job recaps go out automatically — keeping your customers informed and your no-show rate low.',
+  },
+  {
+    icon: IconChartBar,
+    title: 'Real-Time Analytics',
+    description:
+      'See call volume, booking conversion rates, and lead sources at a glance. Know exactly what is growing your business.',
+  },
 ];
 
 const steps = [
   {
-    num: '1',
-    title: 'Describe your project',
-    desc: 'Tell us what service you need and where — we match you with local, verified pros.',
-    icon: IconSearch,
+    number: '1',
+    title: 'Sign Up & Set Up',
+    subtitle: '5 minutes',
+    description:
+      'Create your account and fill out your service profile. Tell us your service area, pricing, and availability.',
   },
   {
-    num: '2',
-    title: 'Get matched instantly',
-    desc: 'Browse profiles, reviews, and pricing. Request quotes or book directly.',
-    icon: IconCalendar,
+    number: '2',
+    title: 'Forward Your Business Number',
+    subtitle: 'Instant',
+    description:
+      'Forward your existing business number to your HandyCall line. Works with any carrier — no new number needed.',
   },
   {
-    num: '3',
-    title: 'Job done, pay securely',
-    desc: 'Your pro arrives, completes the work, and you pay safely through HandyCall.',
-    icon: IconCircleCheck,
+    number: '3',
+    title: 'Never Miss Another Lead',
+    subtitle: 'Starting immediately',
+    description:
+      'Your AI handles every call, books jobs, sends confirmations, and delivers a daily summary to your inbox.',
   },
 ];
 
-const trustBadges = [
-  { label: 'Background checked', icon: IconShield },
-  { label: 'Verified reviews', icon: IconStar },
-  { label: 'Insured pros', icon: IconUsers },
-  { label: 'Service guarantee', icon: IconCircleCheck },
+const plans = [
+  {
+    name: 'Starter',
+    price: '$19.99',
+    period: '/mo',
+    description: 'Perfect for solo pros just getting started.',
+    highlighted: false,
+    features: [
+      '100 AI minutes/month',
+      '200 SMS messages/month',
+      '250 contacts',
+      'Online booking page',
+      'Call transcripts',
+      'Email support',
+    ],
+  },
+  {
+    name: 'Pro',
+    price: '$39.99',
+    period: '/mo',
+    description: 'The most popular plan for growing businesses.',
+    highlighted: true,
+    badge: 'Most Popular',
+    features: [
+      '300 AI minutes/month',
+      '500 SMS messages/month',
+      '1,000 contacts',
+      'Automated follow-up sequences',
+      'Advanced analytics',
+      'Stripe payment collection',
+      'Priority support',
+    ],
+  },
+  {
+    name: 'Max',
+    price: '$99.99',
+    period: '/mo',
+    description: 'Built for high-volume pros and small teams.',
+    highlighted: false,
+    features: [
+      'Unlimited AI minutes',
+      '2,000 SMS messages/month',
+      'Unlimited contacts',
+      'Team management',
+      'Invoicing & Stripe payouts',
+      'API access',
+      'Dedicated priority support',
+    ],
+  },
+];
+
+const testimonials = [
+  {
+    quote: "I was losing $3,000+ a month in missed calls. HandyCall paid for itself in the first week.",
+    name: 'Mike R.',
+    role: 'Plumber · Austin, TX',
+  },
+  {
+    quote: "My booking rate went from 40% to 85%. The AI handles calls better than my old answering service.",
+    name: 'Sarah T.',
+    role: 'HVAC Technician · Dallas, TX',
+  },
+  {
+    quote: "I focus on the job. HandyCall handles everything else. Best investment I've made for my business.",
+    name: 'Carlos M.',
+    role: 'Electrician · Houston, TX',
+  },
 ];
 
 export default function HomePage() {
@@ -78,156 +151,268 @@ export default function HomePage() {
       <SiteHeader />
 
       {/* ── Hero ─────────────────────────────────────────────── */}
-      <section className="bg-white pt-16 pb-20">
-        <div className="mx-auto max-w-3xl px-4 text-center">
+      <section className="bg-white pt-20 pb-24">
+        <div className="mx-auto max-w-4xl px-4 text-center">
           <FadeIn>
-            <h1 className="text-5xl font-extrabold tracking-tight text-slate-900 sm:text-6xl lg:text-7xl">
-              Home improvement,<br className="hidden sm:block" />{' '}
-              <span className="text-emerald-600">made easy.</span>
+            <h1 className="text-5xl font-extrabold leading-tight tracking-tight text-slate-900 sm:text-6xl lg:text-7xl">
+              Turn missed calls<br className="hidden sm:block" />{' '}
+              into <span className="text-emerald-600">booked jobs.</span>
             </h1>
-            <p className="mt-5 text-xl text-slate-500 max-w-xl mx-auto">
-              Find trusted local pros for any project — plumbing, electrical, cleaning, and more.
+            <p className="mx-auto mt-6 max-w-2xl text-xl text-slate-500 leading-relaxed">
+              HandyCall's AI answers every call, books appointments, and keeps your
+              calendar full — even when you're on the job.
             </p>
 
-            {/* Search bar — native GET form so no client component needed */}
-            <div className="mt-10 mx-auto max-w-2xl">
-              <form
-                method="get"
-                action="/find-pros"
-                className="flex flex-col sm:flex-row gap-0 rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden"
+            <div className="mt-10 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
+              <Link
+                href="/register"
+                className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-8 py-3.5 text-base font-semibold text-white hover:bg-emerald-700 transition"
               >
-                <div className="relative flex-1 border-b sm:border-b-0 sm:border-r border-slate-200">
-                  <IconSearch className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" stroke={1.5} />
-                  <input
-                    type="text"
-                    name="q"
-                    placeholder="Describe your project or problem"
-                    className="w-full py-4 pl-11 pr-4 text-sm text-slate-800 placeholder-slate-400 outline-none"
-                  />
-                </div>
-                <div className="relative sm:w-52">
-                  <IconMapPin className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" stroke={1.5} />
-                  <input
-                    type="text"
-                    name="zip"
-                    placeholder="ZIP code"
-                    className="w-full py-4 pl-11 pr-4 text-sm text-slate-800 placeholder-slate-400 outline-none"
-                  />
-                </div>
-                <button
-                  type="submit"
-                  className="bg-emerald-600 px-8 py-4 text-sm font-semibold text-white hover:bg-emerald-700 transition whitespace-nowrap text-center"
-                >
-                  Search
-                </button>
-              </form>
+                Start Free 14-Day Trial
+                <IconArrowRight className="h-4 w-4" stroke={2} />
+              </Link>
+              <Link
+                href="/#how-it-works"
+                className="inline-flex items-center gap-2 rounded-xl border border-slate-300 px-8 py-3.5 text-base font-semibold text-slate-700 hover:bg-slate-50 transition"
+              >
+                See how it works
+              </Link>
             </div>
-
-            {/* Trust badges */}
-            <div className="mt-8 flex flex-wrap items-center justify-center gap-5">
-              {trustBadges.map((b) => (
-                <div key={b.label} className="flex items-center gap-1.5 text-sm text-slate-500">
-                  <b.icon className="h-4 w-4 text-emerald-500" stroke={1.5} />
-                  {b.label}
-                </div>
-              ))}
-            </div>
+            <p className="mt-4 text-sm text-slate-400">No credit card required · Cancel anytime</p>
           </FadeIn>
         </div>
       </section>
 
-      {/* ── Categories ───────────────────────────────────────── */}
-      <section className="border-t border-slate-100 py-14 bg-white">
+      {/* ── Trust Strip ──────────────────────────────────────── */}
+      <section className="border-y border-slate-100 bg-slate-50 py-6">
+        <div className="mx-auto max-w-4xl px-4">
+          <div className="flex flex-wrap items-center justify-center gap-8 text-sm text-slate-600">
+            <span className="flex items-center gap-2"><IconPhone className="h-4 w-4 text-emerald-500" stroke={1.5} /> 24/7 AI call handling</span>
+            <span className="flex items-center gap-2"><IconCalendar className="h-4 w-4 text-emerald-500" stroke={1.5} /> Live calendar booking</span>
+            <span className="flex items-center gap-2"><IconUsers className="h-4 w-4 text-emerald-500" stroke={1.5} /> 500+ active pros</span>
+            <span className="flex items-center gap-2"><IconStar className="h-4 w-4 text-emerald-500" stroke={1.5} /> 4.8 average rating</span>
+          </div>
+        </div>
+      </section>
+
+      {/* ── Features ─────────────────────────────────────────── */}
+      <section id="features" className="bg-white py-20">
+        <div className="mx-auto max-w-6xl px-4">
+          <FadeIn>
+            <div className="mb-12">
+              <p className="text-xs font-bold uppercase tracking-widest text-emerald-600 mb-2">Features</p>
+              <h2 className="text-3xl font-bold text-slate-900 sm:text-4xl">
+                Everything you need to grow
+              </h2>
+              <p className="mt-3 max-w-xl text-slate-500">
+                HandyCall handles the front desk so you can stay focused on the work.
+              </p>
+            </div>
+          </FadeIn>
+
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+            {features.map((feature, i) => (
+              <FadeIn key={feature.title} delay={i * 80}>
+                <div className="group flex h-full flex-col rounded-2xl border border-slate-100 bg-white p-6 shadow-sm transition hover:border-emerald-200 hover:shadow-md">
+                  <feature.icon className="mb-4 h-7 w-7 text-emerald-600" stroke={1.5} />
+                  <h3 className="mb-2 text-base font-bold text-slate-900">{feature.title}</h3>
+                  <p className="text-sm leading-relaxed text-slate-500">{feature.description}</p>
+                </div>
+              </FadeIn>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── How It Works ─────────────────────────────────────── */}
+      <section id="how-it-works" className="border-t border-slate-100 bg-slate-50 py-20">
         <div className="mx-auto max-w-5xl px-4">
           <FadeIn>
-            <div className="mb-8">
-              <h2 className="text-2xl font-bold text-slate-900">
-                Pros for every project
+            <div className="mb-12">
+              <p className="text-xs font-bold uppercase tracking-widest text-emerald-600 mb-2">How It Works</p>
+              <h2 className="text-3xl font-bold text-slate-900 sm:text-4xl">
+                Up and running in minutes
               </h2>
+              <p className="mt-3 max-w-xl text-slate-500">
+                No technical setup required. If you can forward a call, you can use HandyCall.
+              </p>
             </div>
-            <div className="grid grid-cols-4 gap-3 sm:grid-cols-8">
-              {categories.map((cat) => (
-                <Link
-                  key={cat.name}
-                  href={`/categories/${cat.slug}`}
-                  className="group flex flex-col items-center gap-2 py-4 px-2 text-center rounded-xl hover:bg-slate-50 transition"
-                >
-                  <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-slate-200 bg-white group-hover:border-emerald-300 transition">
-                    <cat.icon className="h-6 w-6 text-slate-600 group-hover:text-emerald-600 transition" stroke={1.5} />
+          </FadeIn>
+
+          <div className="grid gap-8 sm:grid-cols-3">
+            {steps.map((step, i) => (
+              <FadeIn key={step.title} delay={i * 100}>
+                <div className="relative">
+                  {i < steps.length - 1 && (
+                    <div className="absolute top-5 left-[calc(50%+2.5rem)] hidden h-px w-[calc(100%-2.5rem)] bg-slate-200 sm:block" />
+                  )}
+                  <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-full border-2 border-slate-900 bg-white text-sm font-bold text-slate-900">
+                    {step.number}
                   </div>
-                  <span className="text-xs font-medium text-slate-700 leading-tight">{cat.name}</span>
-                </Link>
-              ))}
+                  <div className="flex items-center gap-2 mb-1">
+                    <h3 className="text-base font-bold text-slate-900">{step.title}</h3>
+                  </div>
+                  <p className="text-xs font-medium text-slate-400 flex items-center gap-1 mb-2">
+                    <IconClock className="h-3.5 w-3.5" stroke={1.5} /> {step.subtitle}
+                  </p>
+                  <p className="text-sm leading-relaxed text-slate-500">{step.description}</p>
+                </div>
+              </FadeIn>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── Testimonials ─────────────────────────────────────── */}
+      <section className="border-t border-slate-100 bg-white py-20">
+        <div className="mx-auto max-w-5xl px-4">
+          <FadeIn>
+            <div className="mb-10">
+              <p className="text-xs font-bold uppercase tracking-widest text-emerald-600 mb-2">Reviews</p>
+              <h2 className="text-2xl font-bold text-slate-900 sm:text-3xl">Trusted by local pros</h2>
             </div>
+          </FadeIn>
+          <div className="grid gap-5 sm:grid-cols-3">
+            {testimonials.map((t, i) => (
+              <FadeIn key={t.name} delay={i * 80}>
+                <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
+                  <div className="flex gap-0.5 mb-3">
+                    {[...Array(5)].map((_, j) => (
+                      <IconStar key={j} className="h-4 w-4 text-amber-400 fill-amber-400" stroke={1} />
+                    ))}
+                  </div>
+                  <p className="text-sm text-slate-700 leading-relaxed">"{t.quote}"</p>
+                  <div className="mt-4 flex items-center gap-2">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-xs font-bold text-slate-600">
+                      {t.name[0]}
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900">{t.name}</p>
+                      <p className="text-xs text-slate-400">{t.role}</p>
+                    </div>
+                  </div>
+                </div>
+              </FadeIn>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── Pricing Preview ───────────────────────────────────── */}
+      <section className="border-t border-slate-100 bg-slate-50 py-20">
+        <div className="mx-auto max-w-5xl px-4">
+          <FadeIn>
+            <div className="mb-12">
+              <p className="text-xs font-bold uppercase tracking-widest text-emerald-600 mb-2">Pricing</p>
+              <h2 className="text-3xl font-bold text-slate-900 sm:text-4xl">
+                Simple, transparent pricing
+              </h2>
+              <p className="mt-3 max-w-xl text-slate-500">
+                Start free for 14 days. No credit card required. Upgrade or cancel anytime.
+              </p>
+            </div>
+          </FadeIn>
+
+          <div className="grid gap-5 sm:grid-cols-3">
+            {plans.map((plan, i) => (
+              <FadeIn key={plan.name} delay={i * 80}>
+                <div
+                  className={`relative flex h-full flex-col rounded-2xl border p-7 shadow-sm transition ${
+                    plan.highlighted
+                      ? 'border-slate-900 bg-slate-900 text-white shadow-xl'
+                      : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-md'
+                  }`}
+                >
+                  {plan.badge && (
+                    <div className="absolute -top-3.5 left-1/2 -translate-x-1/2">
+                      <span className="rounded-full bg-amber-400 px-3 py-1 text-xs font-bold text-amber-900">
+                        {plan.badge}
+                      </span>
+                    </div>
+                  )}
+
+                  <p className={`text-sm font-semibold mb-1 ${plan.highlighted ? 'text-slate-300' : 'text-slate-500'}`}>
+                    {plan.name}
+                  </p>
+                  <div className="flex items-end gap-1 mb-1">
+                    <span className={`text-4xl font-extrabold ${plan.highlighted ? 'text-white' : 'text-slate-900'}`}>
+                      {plan.price}
+                    </span>
+                    <span className={`mb-1.5 text-sm ${plan.highlighted ? 'text-slate-400' : 'text-slate-400'}`}>
+                      {plan.period}
+                    </span>
+                  </div>
+                  <p className={`mb-6 text-sm ${plan.highlighted ? 'text-slate-400' : 'text-slate-500'}`}>
+                    {plan.description}
+                  </p>
+
+                  <ul className="mb-8 flex-1 space-y-2.5">
+                    {plan.features.map((f) => (
+                      <li key={f} className="flex items-start gap-2 text-sm">
+                        <IconCircleCheck
+                          className={`mt-0.5 h-4 w-4 shrink-0 ${plan.highlighted ? 'text-emerald-400' : 'text-emerald-500'}`}
+                          stroke={1.5}
+                        />
+                        <span className={plan.highlighted ? 'text-slate-300' : 'text-slate-600'}>{f}</span>
+                      </li>
+                    ))}
+                  </ul>
+
+                  <Link
+                    href="/register"
+                    className={`block w-full text-center rounded-xl py-2.5 text-sm font-semibold transition ${
+                      plan.highlighted
+                        ? 'bg-white text-slate-900 hover:bg-slate-100'
+                        : 'border border-slate-300 text-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    Start Free Trial
+                  </Link>
+                </div>
+              </FadeIn>
+            ))}
+          </div>
+
+          <FadeIn>
             <div className="mt-6">
               <Link
-                href="/categories"
+                href="/pricing"
                 className="inline-flex items-center gap-1 text-sm font-semibold text-emerald-600 hover:text-emerald-700"
               >
-                View all categories <IconArrowRight className="h-4 w-4" stroke={2} />
+                View full pricing details <IconArrowRight className="h-4 w-4" stroke={2} />
               </Link>
             </div>
           </FadeIn>
         </div>
       </section>
 
-      {/* ── How it works ─────────────────────────────────────── */}
-      <section className="border-t border-slate-100 py-16 bg-slate-50">
-        <div className="mx-auto max-w-4xl px-4">
+      {/* ── Final CTA ────────────────────────────────────────── */}
+      <section className="border-t border-slate-100 bg-slate-900 py-20">
+        <div className="mx-auto max-w-3xl px-4 text-center">
           <FadeIn>
-            <div className="mb-10">
-              <h2 className="text-2xl font-bold text-slate-900 sm:text-3xl">
-                How it works
-              </h2>
-              <p className="mt-1 text-slate-500">Get the help you need in three steps.</p>
+            <h2 className="text-4xl font-extrabold text-white sm:text-5xl">
+              Ready to grow your business?
+            </h2>
+            <p className="mx-auto mt-5 max-w-xl text-lg text-slate-400">
+              Join 500+ service pros who rely on HandyCall to answer every call,
+              fill every slot, and never miss a lead.
+            </p>
+            <div className="mt-10 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
+              <Link
+                href="/register"
+                className="inline-flex items-center gap-2 rounded-xl bg-white px-10 py-3.5 text-base font-bold text-slate-900 hover:bg-slate-100 transition"
+              >
+                Start Free 14-Day Trial
+                <IconArrowRight className="h-4 w-4" stroke={2} />
+              </Link>
+              <Link
+                href="/pricing"
+                className="inline-flex items-center gap-2 rounded-xl border border-slate-700 px-8 py-3.5 text-base font-semibold text-slate-300 hover:bg-slate-800 transition"
+              >
+                View Pricing
+              </Link>
             </div>
-            <div className="grid gap-8 sm:grid-cols-3">
-              {steps.map((s, i) => (
-                <div key={s.num} className="relative">
-                  {i < steps.length - 1 && (
-                    <div className="absolute top-5 left-[calc(50%+2rem)] hidden h-px w-[calc(100%-2rem)] bg-slate-200 sm:block" />
-                  )}
-                  <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-full border-2 border-slate-900 bg-white text-sm font-bold text-slate-900">
-                    {s.num}
-                  </div>
-                  <h3 className="text-base font-bold text-slate-900">{s.title}</h3>
-                  <p className="mt-1.5 text-sm text-slate-500 leading-relaxed">{s.desc}</p>
-                </div>
-              ))}
-            </div>
-          </FadeIn>
-        </div>
-      </section>
-
-      {/* ── Pro CTA strip ─────────────────────────────────────── */}
-      <section className="border-t border-slate-100 py-12 bg-white">
-        <div className="mx-auto max-w-5xl px-4">
-          <FadeIn>
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-6 rounded-2xl border border-slate-200 px-8 py-7">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-widest text-slate-400 mb-1">For professionals</p>
-                <h2 className="text-xl font-bold text-slate-900">
-                  Grow your service business with HandyCall
-                </h2>
-                <p className="mt-1 text-sm text-slate-500">
-                  AI call answering, automated booking, and more. Join 500+ local pros.
-                </p>
-              </div>
-              <div className="flex flex-col sm:flex-row gap-3 shrink-0">
-                <Link
-                  href="/register?audience=pro"
-                  className="rounded-xl bg-slate-900 px-6 py-2.5 text-sm font-semibold text-white hover:bg-slate-800 transition text-center"
-                >
-                  Join as a Pro
-                </Link>
-                <Link
-                  href="/login?audience=pro"
-                  className="rounded-xl border border-slate-300 px-6 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition text-center"
-                >
-                  Pro Login
-                </Link>
-              </div>
-            </div>
+            <p className="mt-4 text-sm text-slate-500">No credit card · No contracts · Cancel anytime</p>
           </FadeIn>
         </div>
       </section>
