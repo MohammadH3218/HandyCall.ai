@@ -229,7 +229,9 @@ export class PublicBookingService {
       );
     };
 
+    // Appointment-level override takes highest priority (set by the pro from the dashboard).
     const idMatch =
+      findById(options.appointment?.selected_service_id) ||
       findById(fromPayload.selected_service_id) ||
       findById(options.call?.selected_service_id) ||
       findById(fromCall?.selected_service_id) ||

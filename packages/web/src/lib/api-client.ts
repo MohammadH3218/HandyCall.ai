@@ -1255,6 +1255,75 @@ class ApiClient {
     return (res as any)?.messages ?? res ?? [];
   }
 
+  // Refunds
+  async refundCustomerPayment(
+    paymentId: string,
+    data?: { amount_cents?: number; reason?: 'duplicate' | 'fraudulent' | 'requested_by_customer' },
+  ): Promise<any> {
+    const res = await this.request<any>(`/billing/customer-payments/${paymentId}/refund`, {
+      method: 'POST',
+      body: JSON.stringify(data || {}),
+    });
+    return res;
+  }
+
+  // Service Products (pricing catalog)
+  async listServiceProducts(includeInactive = false): Promise<any[]> {
+    const qs = includeInactive ? '?includeInactive=true' : '';
+    const res = await this.request<any>(`/billing/service-products${qs}`);
+    return (res as any)?.products ?? res ?? [];
+  }
+
+  async getServiceProduct(productId: string): Promise<any> {
+    const res = await this.request<any>(`/billing/service-products/${productId}`);
+    return (res as any)?.product ?? res;
+  }
+
+  async createServiceProduct(data: {
+    name: string;
+    description?: string;
+    price_type: 'ONE_TIME' | 'SUBSCRIPTION';
+    amount_cents: number;
+    currency?: string;
+    billing_interval?: 'day' | 'week' | 'month' | 'year';
+    billing_interval_count?: number;
+    trial_period_days?: number;
+    active?: boolean;
+  }): Promise<any> {
+    const res = await this.request<any>('/billing/service-products', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    return res;
+  }
+
+  async updateServiceProduct(productId: string, data: any): Promise<any> {
+    const res = await this.request<any>(`/billing/service-products/${productId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+    return res;
+  }
+
+  async deleteServiceProduct(productId: string, hard = false): Promise<any> {
+    const qs = hard ? '?hard=true' : '';
+    const res = await this.request<any>(`/billing/service-products/${productId}${qs}`, {
+      method: 'DELETE',
+    });
+    return res;
+  }
+
+  async createProductCheckout(
+    productId: string,
+    data: { customer_email?: string; contact_id?: string; success_url?: string; cancel_url?: string },
+  ): Promise<any> {
+    const res = await this.request<any>(`/billing/service-products/${productId}/checkout`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    return res;
+  }
+
 }
 
 export const apiClient = new ApiClient(API_URL);

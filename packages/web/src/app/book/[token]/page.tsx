@@ -956,30 +956,28 @@ export default function BookingPage() {
                         </div>
                       ) : (
                         <>
-                          {(paymentInfo.services || []).length > 0 ? (
-                            <select
-                              value={selectedServiceId}
-                              onChange={(e) => setSelectedServiceId(e.target.value)}
-                              className="h-10 w-full rounded-xl border border-slate-200 px-3 text-sm"
-                            >
-                              {(paymentInfo.services || []).map((service) => (
-                                <option key={service.service_id} value={service.service_id}>
-                                  {service.name} · {formatMoney(service.amount_cents, service.currency || paymentInfo.default_currency || 'usd')}
-                                </option>
-                              ))}
-                            </select>
-                          ) : null}
                           {selectedPaymentService ? (
-                            <div className="text-sm text-gray-700">
-                              {selectedPaymentService.name}: {formatMoney(selectedPaymentService.amount_cents, selectedPaymentService.currency || paymentInfo.default_currency || 'usd')}
-                              <span className="ml-2 rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] text-slate-600">
-                                {selectedServiceBillingLabel}
-                              </span>
+                            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                              <div className="flex items-start justify-between gap-3">
+                                <div>
+                                  <p className="text-sm font-semibold text-slate-900">{selectedPaymentService.name}</p>
+                                  {selectedPaymentService.description && (
+                                    <p className="text-xs text-slate-500 mt-0.5">{selectedPaymentService.description}</p>
+                                  )}
+                                </div>
+                                <div className="text-right flex-shrink-0">
+                                  <p className="text-sm font-bold text-slate-900">
+                                    {formatMoney(selectedPaymentService.amount_cents, selectedPaymentService.currency || paymentInfo.default_currency || 'usd')}
+                                  </p>
+                                  <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[11px] text-slate-500">
+                                    {selectedServiceBillingLabel}
+                                  </span>
+                                </div>
+                              </div>
                             </div>
-                          ) : null}
-                          {paymentInfo?.preselected_service_id ? (
-                            <div className="text-xs text-slate-500">
-                              Preselected from your call: {paymentInfo.preselected_service_name || selectedPaymentService?.name || 'Service option'}
+                          ) : (paymentInfo.services || []).length > 0 ? (
+                            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+                              {paymentInfo.services![0].name} · {formatMoney(paymentInfo.services![0].amount_cents, paymentInfo.services![0].currency || paymentInfo.default_currency || 'usd')}
                             </div>
                           ) : null}
                           {!paymentIntentSecret ? (
@@ -1221,30 +1219,28 @@ export default function BookingPage() {
                       </div>
                     ) : (
                       <>
-                        {(paymentInfo.services || []).length > 0 ? (
-                          <select
-                            value={selectedServiceId}
-                            onChange={(e) => setSelectedServiceId(e.target.value)}
-                            className="h-10 w-full rounded-xl border border-slate-200 px-3 text-sm"
-                          >
-                            {(paymentInfo.services || []).map((service) => (
-                              <option key={service.service_id} value={service.service_id}>
-                                {service.name} · {formatMoney(service.amount_cents, service.currency || paymentInfo.default_currency || 'usd')}
-                              </option>
-                            ))}
-                          </select>
-                        ) : null}
                         {selectedPaymentService ? (
-                          <div className="text-sm text-gray-700">
-                            {selectedPaymentService.name}: {formatMoney(selectedPaymentService.amount_cents, selectedPaymentService.currency || paymentInfo.default_currency || 'usd')}
-                            <span className="ml-2 rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] text-slate-600">
-                              {selectedServiceBillingLabel}
-                            </span>
+                          <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                            <div className="flex items-start justify-between gap-3">
+                              <div>
+                                <p className="text-sm font-semibold text-slate-900">{selectedPaymentService.name}</p>
+                                {selectedPaymentService.description && (
+                                  <p className="text-xs text-slate-500 mt-0.5">{selectedPaymentService.description}</p>
+                                )}
+                              </div>
+                              <div className="text-right flex-shrink-0">
+                                <p className="text-sm font-bold text-slate-900">
+                                  {formatMoney(selectedPaymentService.amount_cents, selectedPaymentService.currency || paymentInfo.default_currency || 'usd')}
+                                </p>
+                                <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[11px] text-slate-500">
+                                  {selectedServiceBillingLabel}
+                                </span>
+                              </div>
+                            </div>
                           </div>
-                        ) : null}
-                        {paymentInfo?.preselected_service_id ? (
-                          <div className="text-xs text-slate-500">
-                            Preselected from your call: {paymentInfo.preselected_service_name || selectedPaymentService?.name || 'Service option'}
+                        ) : (paymentInfo.services || []).length > 0 ? (
+                          <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+                            {paymentInfo.services![0].name} · {formatMoney(paymentInfo.services![0].amount_cents, paymentInfo.services![0].currency || paymentInfo.default_currency || 'usd')}
                           </div>
                         ) : null}
                         {!paymentIntentSecret ? (

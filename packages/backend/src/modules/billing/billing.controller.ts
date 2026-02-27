@@ -16,6 +16,7 @@ import { BillingService } from './billing.service';
 import { UsageService } from './usage.service';
 import { StripeConnectService } from './stripe-connect.service';
 import { CustomerPaymentsService } from './customer-payments.service';
+import { ServiceProductsService } from './service-products.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CompanyId, UserRoleParam } from '../../common/decorators/auth.decorator';
 import { Public } from '../../common/decorators/public.decorator';
@@ -32,6 +33,7 @@ export class BillingController {
     private usageService: UsageService,
     private stripeConnectService: StripeConnectService,
     private customerPaymentsService: CustomerPaymentsService,
+    private serviceProductsService: ServiceProductsService,
   ) {}
 
   /**
@@ -262,6 +264,22 @@ export class BillingController {
   }
 
   /**
+   * Issue a refund for a customer payment
+   * POST /billing/customer-payments/:paymentId/refund
+   */
+  @Post('customer-payments/:paymentId/refund')
+  async refundCustomerPayment(
+    @CompanyId() companyId: string,
+    @Param('paymentId') paymentId: string,
+    @Body() body: { amount_cents?: number; reason?: 'duplicate' | 'fraudulent' | 'requested_by_customer' },
+  ) {
+    return this.stripeConnectService.refundPayment(companyId, paymentId, {
+      amount_cents: body?.amount_cents,
+      reason: body?.reason,
+    });
+  }
+
+  /**
    * Stripe webhook handler
    * POST /billing/webhook
    */
@@ -488,6 +506,134 @@ export class BillingController {
       throw new NotFoundException('pack_id is required');
     }
     return this.billingService.purchaseAddonPack(companyId, body.pack_id);
+  }
+
+  // ============================================================================
+  // Service Products (pricing catalog the pro offers to their customers)
+  // ============================================================================
+
+  /**
+   * List service products
+   * GET /billing/service-products
+   */
+  @Get('service-products')
+  async listServiceProducts(
+    @CompanyId() companyId: string,
+    @Query('includeInactive') includeInactive?: string,
+  ) {
+    const products = await this.serviceProductsService.list(companyId, {
+      includeInactive: includeInactive === 'true',
+    });
+    return { products };
+  }
+
+  /**
+   * Get a single service product
+   * GET /billing/service-products/:productId
+   */
+  @Get('service-products/:productId')
+  async getServiceProduct(
+    @CompanyId() companyId: string,
+    @Param('productId') productId: string,
+  ) {
+    const product = await this.serviceProductsService.getById(companyId, productId);
+    if (!product) {
+      throw new NotFoundException('Service product not found');
+    }
+    return { product };
+  }
+
+  /**
+   * Create a service product
+   * POST /billing/service-products
+   */
+  @Post('service-products')
+  async createServiceProduct(
+    @CompanyId() companyId: string,
+    @Body() body: any,
+  ) {
+    return this.serviceProductsService.create(companyId, body);
+  }
+
+  /**
+   * Update a service product
+   * PUT /billing/service-products/:productId
+   */
+  @Put('service-products/:productId')
+  async updateServiceProduct(
+    @CompanyId() companyId: string,
+    @Param('productId') productId: string,
+    @Body() body: any,
+  ) {
+    return this.serviceProductsService.update(companyId, productId, body);
+  }
+
+  /**
+   * Archive (soft-delete) a service product
+   * DELETE /billing/service-products/:productId
+   */
+  @Delete('service-products/:productId')
+  async deleteServiceProduct(
+    @CompanyId() companyId: string,
+    @Param('productId') productId: string,
+    @Query('hard') hard?: string,
+  ) {
+    if (hard === 'true') {
+      await this.serviceProductsService.hardDelete(companyId, productId);
+    } else {
+      await this.serviceProductsService.delete(companyId, productId);
+    }
+    return { success: true };
+  }
+
+  /**
+   * Create a checkout session for a service product (share with customer)
+   * POST /billing/service-products/:productId/checkout
+   */
+  @Post('service-products/:productId/checkout')
+  async createProductCheckout(
+    @CompanyId() companyId: string,
+    @Param('productId') productId: string,
+    @Body() body: { customer_email?: string; contact_id?: string; success_url?: string; cancel_url?: string },
+  ) {
+    const product = await this.serviceProductsService.getById(companyId, productId);
+    if (!product) {
+      throw new NotFoundException('Service product not found');
+    }
+    if (!product.active) {
+      throw new NotFoundException('Service product is not active');
+    }
+
+    const metadata: Record<string, string> = {
+      company_id: companyId,
+      product_id: productId,
+    };
+    if (body.contact_id) metadata.contact_id = body.contact_id;
+
+    if (product.price_type === 'SUBSCRIPTION') {
+      const session = await this.stripeConnectService.createSubscriptionCheckoutSession(companyId, {
+        amount_cents: product.amount_cents,
+        currency: product.currency,
+        service_name: product.name,
+        customer_email: body.customer_email,
+        interval: product.billing_interval as any,
+        interval_count: product.billing_interval_count,
+        trial_period_days: product.trial_period_days,
+        success_url: body.success_url,
+        cancel_url: body.cancel_url,
+        metadata,
+      });
+      return { checkout_url: session.url, session_id: session.id, type: 'subscription' };
+    } else {
+      const paymentIntent = await this.stripeConnectService.createPaymentIntent(companyId, {
+        amount_cents: product.amount_cents,
+        currency: product.currency,
+        description: product.name,
+        customer_email: body.customer_email,
+        metadata,
+      });
+      return { client_secret: paymentIntent.client_secret, payment_intent_id: paymentIntent.id, type: 'one_time' };
+    }
   }
 
 }

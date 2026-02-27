@@ -6,6 +6,7 @@ import { UsageService } from './usage.service';
 import { StripeConnectService } from './stripe-connect.service';
 import { CustomerPaymentsService } from './customer-payments.service';
 import { UsageGateService } from './usage-gate.service';
+import { ServiceProductsService } from './service-products.service';
 import { CompaniesModule } from '../companies/companies.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 
@@ -19,6 +20,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
     StripeConnectService,
     CustomerPaymentsService,
     UsageGateService,
+    ServiceProductsService,
   ],
   exports: [
     BillingService,
@@ -26,6 +28,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
     StripeConnectService,
     CustomerPaymentsService,
     UsageGateService,
+    ServiceProductsService,
   ],
 })
 export class BillingModule {}

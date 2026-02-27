@@ -729,6 +729,7 @@ export default function AppointmentsPage() {
       contact_email: appointment.contact_email || '',
       contact_phone: appointment.contact_phone || '',
       service_type: appointment.service_type || '',
+      selected_service_id: appointment.selected_service_id || '',
       date: ymd(startDate),
       start_time: `${String(startDate.getHours()).padStart(2, '0')}:${String(startDate.getMinutes()).padStart(2, '0')}`,
       duration_minutes: durationMinutes,
@@ -766,6 +767,7 @@ export default function AppointmentsPage() {
         contact_email: editDraft.contact_email || undefined,
         contact_phone: editDraft.contact_phone || undefined,
         service_type: editDraft.service_type || company?.service_type || 'Service',
+        selected_service_id: editDraft.selected_service_id || undefined,
         notes: editDraft.notes || undefined,
         address:
           editDraft.address_street || editDraft.address_city || editDraft.address_state || editDraft.address_zip
@@ -1697,7 +1699,33 @@ export default function AppointmentsPage() {
             </div>
             <div>
               <div className="text-xs text-slate-500 mb-1">Service</div>
-              <input className={inputCls} value={editDraft.service_type || ''} onChange={(e) => setEditDraft((p: any) => ({ ...p, service_type: e.target.value }))} placeholder={company?.service_type || 'Service'} />
+              {Array.isArray(company?.booking_services) && company.booking_services.filter((s: any) => s?.active !== false).length > 0 ? (
+                <select
+                  className={inputCls}
+                  value={editDraft.selected_service_id || ''}
+                  onChange={(e) => {
+                    const svc = (company.booking_services as any[]).find((s: any) => s.service_id === e.target.value);
+                    setEditDraft((p: any) => ({
+                      ...p,
+                      selected_service_id: svc?.service_id || '',
+                      service_type: svc?.name || p.service_type,
+                      price: svc ? String((svc.amount_cents / 100).toFixed(2)) : p.price,
+                    }));
+                  }}
+                >
+                  <option value="">— Pick a service —</option>
+                  {(company.booking_services as any[])
+                    .filter((s: any) => s?.active !== false)
+                    .map((s: any) => (
+                      <option key={s.service_id} value={s.service_id}>
+                        {s.name}
+                        {s.amount_cents ? ` · $${(s.amount_cents / 100).toFixed(2)}` : ''}
+                      </option>
+                    ))}
+                </select>
+              ) : (
+                <input className={inputCls} value={editDraft.service_type || ''} onChange={(e) => setEditDraft((p: any) => ({ ...p, service_type: e.target.value }))} placeholder={company?.service_type || 'Service'} />
+              )}
             </div>
             <div>
               <div className="text-xs text-slate-500 mb-1">Status</div>

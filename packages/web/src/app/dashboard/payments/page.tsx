@@ -49,6 +49,9 @@ function formatDate(ts?: number) {
   });
 }
 
+const canRefund = (status: string) =>
+  String(status || '').toUpperCase() === 'SUCCEEDED';
+
 export default function PaymentsPage() {
   const [payments, setPayments] = useState<Payment[]>([]);
   const [stats, setStats] = useState<any>(null);
@@ -57,8 +60,18 @@ export default function PaymentsPage() {
   const [typeFilter, setTypeFilter] = useState('ALL');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+
+  // Receipt modal
   const [receiptLoading, setReceiptLoading] = useState(false);
   const [selectedReceipt, setSelectedReceipt] = useState<Payment | null>(null);
+
+  // Refund modal
+  const [refundTarget, setRefundTarget] = useState<Payment | null>(null);
+  const [refundAmountDollars, setRefundAmountDollars] = useState('');
+  const [refundReason, setRefundReason] = useState<'requested_by_customer' | 'duplicate' | 'fraudulent'>('requested_by_customer');
+  const [refundLoading, setRefundLoading] = useState(false);
+  const [refundError, setRefundError] = useState('');
+  const [refundSuccess, setRefundSuccess] = useState('');
 
   const load = async () => {
     try {
@@ -158,11 +171,52 @@ export default function PaymentsPage() {
     popup.print();
   };
 
+  const openRefund = (payment: Payment) => {
+    setRefundTarget(payment);
+    setRefundAmountDollars((payment.amount_cents / 100).toFixed(2));
+    setRefundReason('requested_by_customer');
+    setRefundError('');
+    setRefundSuccess('');
+  };
+
+  const closeRefund = () => {
+    setRefundTarget(null);
+    setRefundError('');
+    setRefundSuccess('');
+  };
+
+  const submitRefund = async () => {
+    if (!refundTarget) return;
+    setRefundError('');
+    setRefundSuccess('');
+    setRefundLoading(true);
+    try {
+      const amountCents = Math.round(parseFloat(refundAmountDollars) * 100);
+      const fullRefundCents = refundTarget.amount_cents;
+      await apiClient.refundCustomerPayment(refundTarget.payment_id, {
+        amount_cents: amountCents < fullRefundCents ? amountCents : undefined,
+        reason: refundReason,
+      });
+      setRefundSuccess(`Refund of ${formatMoney(amountCents)} issued successfully.`);
+      // Refresh payments list
+      void load();
+    } catch (err: any) {
+      setRefundError(err?.message || 'Refund failed. Please try again.');
+    } finally {
+      setRefundLoading(false);
+    }
+  };
+
   const statusBadgeClass = (status: string) => {
     const normalized = String(status || '').toUpperCase();
     if (normalized === 'SUCCEEDED') return 'border-emerald-200 bg-emerald-50 text-emerald-700';
+    if (normalized === 'REFUNDED' || normalized === 'PARTIALLY_REFUNDED') return 'border-purple-200 bg-purple-50 text-purple-700';
     if (normalized === 'FAILED' || normalized === 'CANCELED') return 'border-red-200 bg-red-50 text-red-700';
-    if (normalized === 'PROCESSING' || normalized === 'REQUIRES_CONFIRMATION' || normalized === 'REQUIRES_PAYMENT_METHOD') {
+    if (
+      normalized === 'PROCESSING' ||
+      normalized === 'REQUIRES_CONFIRMATION' ||
+      normalized === 'REQUIRES_PAYMENT_METHOD'
+    ) {
       return 'border-amber-200 bg-amber-50 text-amber-700';
     }
     return 'border-slate-200 bg-slate-50 text-slate-700';
@@ -173,11 +227,16 @@ export default function PaymentsPage() {
       <PageHeader
         eyebrow="Payments"
         title="Customer payments"
-        subtitle="Track revenue, statuses, and payment activity from your booking flow."
+        subtitle="Track revenue, issue refunds, and manage all payment activity."
         actions={
-          <Button variant="outline" onClick={exportCsv}>
-            Export CSV
-          </Button>
+          <div className="flex items-center gap-2">
+            <Link href="/dashboard/payments/products">
+              <Button variant="outline">Manage pricing</Button>
+            </Link>
+            <Button variant="outline" onClick={exportCsv}>
+              Export CSV
+            </Button>
+          </div>
         }
       />
 
@@ -203,6 +262,7 @@ export default function PaymentsPage() {
             <option value="FAILED">Failed</option>
             <option value="CANCELED">Canceled</option>
             <option value="REFUNDED">Refunded</option>
+            <option value="PARTIALLY_REFUNDED">Partially refunded</option>
           </select>
           <select
             value={typeFilter}
@@ -234,7 +294,7 @@ export default function PaymentsPage() {
                 <th className="px-4 py-3 font-medium">Amount</th>
                 <th className="px-4 py-3 font-medium">Type</th>
                 <th className="px-4 py-3 font-medium">Status</th>
-                <th className="px-4 py-3 font-medium text-right">Receipt</th>
+                <th className="px-4 py-3 font-medium text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -252,7 +312,10 @@ export default function PaymentsPage() {
                     <td className="px-4 py-3">{formatDate(payment.created_at)}</td>
                     <td className="px-4 py-3">
                       {payment.contact_id ? (
-                        <Link href={`/dashboard/customers?contact=${payment.contact_id}`} className="font-medium text-emerald-700 hover:text-emerald-600">
+                        <Link
+                          href={`/dashboard/customers?contact=${payment.contact_id}`}
+                          className="font-medium text-emerald-700 hover:text-emerald-600"
+                        >
                           {payment.customer_name || 'Customer'}
                         </Link>
                       ) : (
@@ -260,25 +323,40 @@ export default function PaymentsPage() {
                       )}
                     </td>
                     <td className="px-4 py-3">{payment.service_name || '-'}</td>
-                    <td className="px-4 py-3 font-semibold text-slate-900">{formatMoney(payment.amount_cents, payment.currency)}</td>
+                    <td className="px-4 py-3 font-semibold text-slate-900">
+                      {formatMoney(payment.amount_cents, payment.currency)}
+                    </td>
                     <td className="px-4 py-3">
                       <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs font-medium text-slate-700">
                         {payment.payment_type || 'BOOKING'}
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      <span className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${statusBadgeClass(payment.payment_status)}`}>
+                      <span
+                        className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${statusBadgeClass(payment.payment_status)}`}
+                      >
                         {payment.payment_status || 'UNKNOWN'}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <button
-                        type="button"
-                        onClick={() => void openReceipt(payment.payment_id)}
-                        className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-                      >
-                        View receipt
-                      </button>
+                      <div className="flex items-center justify-end gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => void openReceipt(payment.payment_id)}
+                          className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                        >
+                          Receipt
+                        </button>
+                        {canRefund(payment.payment_status) && (
+                          <button
+                            type="button"
+                            onClick={() => openRefund(payment)}
+                            className="rounded-lg border border-red-200 bg-red-50 px-2.5 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-100"
+                          >
+                            Refund
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -288,6 +366,7 @@ export default function PaymentsPage() {
         </div>
       </div>
 
+      {/* Receipt Modal */}
       {(selectedReceipt || receiptLoading) && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
           <div className="w-full max-w-xl rounded-xl border border-slate-200 bg-white p-6 shadow-lg">
@@ -316,13 +395,10 @@ export default function PaymentsPage() {
                 {selectedReceipt.stripe_payment_intent_id ? (
                   <p><span className="font-semibold text-slate-900">Stripe Payment Intent:</span> {selectedReceipt.stripe_payment_intent_id}</p>
                 ) : null}
-                {selectedReceipt.stripe_checkout_session_id ? (
-                  <p><span className="font-semibold text-slate-900">Stripe Checkout Session:</span> {selectedReceipt.stripe_checkout_session_id}</p>
-                ) : null}
                 {selectedReceipt.stripe_subscription_id ? (
                   <p><span className="font-semibold text-slate-900">Stripe Subscription:</span> {selectedReceipt.stripe_subscription_id}</p>
                 ) : null}
-                <div className="pt-3">
+                <div className="flex items-center gap-2 pt-3">
                   <button
                     type="button"
                     onClick={printReceipt}
@@ -330,9 +406,113 @@ export default function PaymentsPage() {
                   >
                     Print receipt
                   </button>
+                  {canRefund(selectedReceipt.payment_status) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        closeReceipt();
+                        openRefund(selectedReceipt);
+                      }}
+                      className="rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-100"
+                    >
+                      Issue refund
+                    </button>
+                  )}
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Refund Modal */}
+      {refundTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
+          <div className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-6 shadow-lg">
+            <div className="mb-5 flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-slate-900">Issue refund</h3>
+              <button
+                type="button"
+                onClick={closeRefund}
+                className="rounded-lg border border-slate-200 px-2 py-1 text-xs text-slate-600 hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+            </div>
+
+            <div className="mb-4 rounded-xl bg-slate-50 p-3 text-sm text-slate-700">
+              <p><span className="font-semibold">Customer:</span> {refundTarget.customer_name || 'Customer'}</p>
+              <p><span className="font-semibold">Service:</span> {refundTarget.service_name || '-'}</p>
+              <p><span className="font-semibold">Original amount:</span> {formatMoney(refundTarget.amount_cents, refundTarget.currency)}</p>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="mb-1.5 block text-sm font-semibold text-slate-700">
+                  Refund amount ($)
+                </label>
+                <Input
+                  type="number"
+                  min="0.50"
+                  max={(refundTarget.amount_cents / 100).toFixed(2)}
+                  step="0.01"
+                  value={refundAmountDollars}
+                  onChange={(e) => setRefundAmountDollars(e.target.value)}
+                  placeholder="0.00"
+                />
+                <p className="mt-1 text-xs text-slate-400">
+                  Enter a partial amount or leave at full amount for a full refund.
+                </p>
+              </div>
+              <div>
+                <label className="mb-1.5 block text-sm font-semibold text-slate-700">
+                  Reason
+                </label>
+                <select
+                  value={refundReason}
+                  onChange={(e) => setRefundReason(e.target.value as any)}
+                  className="w-full h-10 rounded-xl border border-slate-200 px-3 text-sm"
+                >
+                  <option value="requested_by_customer">Requested by customer</option>
+                  <option value="duplicate">Duplicate charge</option>
+                  <option value="fraudulent">Fraudulent</option>
+                </select>
+              </div>
+
+              {refundError && (
+                <p className="rounded-xl bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-700">
+                  {refundError}
+                </p>
+              )}
+
+              {refundSuccess && (
+                <p className="rounded-xl bg-emerald-50 border border-emerald-200 px-3 py-2 text-sm text-emerald-700">
+                  {refundSuccess}
+                </p>
+              )}
+
+              {!refundSuccess && (
+                <Button
+                  onClick={() => void submitRefund()}
+                  disabled={refundLoading}
+                  className="w-full bg-red-600 hover:bg-red-700 text-white"
+                >
+                  {refundLoading
+                    ? 'Processing refund…'
+                    : `Refund ${formatMoney(Math.round(parseFloat(refundAmountDollars || '0') * 100))}`}
+                </Button>
+              )}
+
+              {refundSuccess && (
+                <Button
+                  onClick={closeRefund}
+                  variant="outline"
+                  className="w-full"
+                >
+                  Done
+                </Button>
+              )}
+            </div>
           </div>
         </div>
       )}

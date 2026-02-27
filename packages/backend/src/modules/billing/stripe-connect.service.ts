@@ -342,6 +342,81 @@ export class StripeConnectService {
     });
   }
 
+  async refundPayment(
+    companyId: string,
+    paymentId: string,
+    input: {
+      amount_cents?: number;
+      reason?: 'duplicate' | 'fraudulent' | 'requested_by_customer';
+    },
+  ): Promise<{ refund_id: string; status: string; amount_cents: number }> {
+    const payment = await this.customerPayments.getPaymentById(companyId, paymentId);
+    if (!payment) {
+      throw new NotFoundException('Payment not found');
+    }
+
+    const chargeId = payment.stripe_charge_id;
+    const paymentIntentId = payment.stripe_payment_intent_id;
+
+    if (!chargeId && !paymentIntentId) {
+      throw new BadRequestException('Payment has no Stripe charge or payment intent — cannot issue refund.');
+    }
+
+    if (payment.payment_status === 'REFUNDED') {
+      throw new BadRequestException('Payment has already been refunded.');
+    }
+
+    if (payment.payment_status !== 'SUCCEEDED') {
+      throw new BadRequestException('Only succeeded payments can be refunded.');
+    }
+
+    const refundParams: Stripe.RefundCreateParams = {
+      reason: input.reason || 'requested_by_customer',
+    };
+
+    if (chargeId) {
+      refundParams.charge = chargeId;
+    } else if (paymentIntentId) {
+      refundParams.payment_intent = paymentIntentId;
+    }
+
+    if (input.amount_cents !== undefined) {
+      if (!Number.isFinite(input.amount_cents) || input.amount_cents <= 0) {
+        throw new BadRequestException('amount_cents must be a positive number');
+      }
+      if (input.amount_cents > payment.amount_cents) {
+        throw new BadRequestException('Refund amount cannot exceed the original payment amount.');
+      }
+      refundParams.amount = Math.round(input.amount_cents);
+    }
+
+    let refund: Stripe.Refund;
+    try {
+      refund = await this.stripe.refunds.create(refundParams);
+    } catch (error: any) {
+      throw new BadRequestException(String(error?.message || 'Stripe refund failed'));
+    }
+
+    const isFullRefund =
+      !input.amount_cents || input.amount_cents >= payment.amount_cents;
+
+    await this.customerPayments.updatePayment(companyId, paymentId, {
+      payment_status: isFullRefund ? 'REFUNDED' : 'PARTIALLY_REFUNDED',
+      metadata: {
+        ...(payment.metadata || {}),
+        refund_id: refund.id,
+        refunded_amount_cents: String(refund.amount),
+        refunded_at: String(Date.now()),
+      },
+    });
+
+    return {
+      refund_id: refund.id,
+      status: refund.status || 'succeeded',
+      amount_cents: refund.amount,
+    };
+  }
+
   async handleConnectWebhook(signature: string, rawBody: Buffer): Promise<void> {
     const event = this.constructConnectWebhookEvent(rawBody, signature);
     if (event.type === 'account.updated') {

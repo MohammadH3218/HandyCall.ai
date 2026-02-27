@@ -308,7 +308,8 @@ export type CustomerPaymentStatus =
   | 'SUCCEEDED'
   | 'FAILED'
   | 'CANCELED'
-  | 'REFUNDED';
+  | 'REFUNDED'
+  | 'PARTIALLY_REFUNDED';
 
 export type CustomerPaymentType = 'BOOKING' | 'MANUAL' | 'DEPOSIT' | 'SUBSCRIPTION';
 
