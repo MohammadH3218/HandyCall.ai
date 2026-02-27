@@ -6,6 +6,10 @@ import { SSMClient, GetParameterCommand } from '@aws-sdk/client-ssm';
 import { toolsSchema } from './toolsSchema';
 import { PassThrough, Readable } from 'stream';
 import { spawn } from 'child_process';
+const { PollyClient, SynthesizeSpeechCommand } = require('@aws-sdk/client-polly') as {
+  PollyClient: new (config: { region: string }) => any;
+  SynthesizeSpeechCommand: new (input: Record<string, any>) => any;
+};
 
 function env(name: string): string | undefined {
   return process.env[name];
@@ -35,8 +39,6 @@ function envFlag(name: string, defaultValue = false): boolean {
 }
 
 const safeDiagEnabled = envFlag('VOICE_BRIDGE_SAFE_DIAG', false);
-// OpenAI audio is now the only supported runtime TTS path.
-const elevenLabsEnabled = false;
 
 function diag(event: string, payload?: Record<string, unknown>) {
   if (!safeDiagEnabled) return;
@@ -73,36 +75,40 @@ function base64ByteLength(value: string): number {
   return Math.max(0, Math.floor((clean.length * 3) / 4) - padding);
 }
 
-type ElevenLabsVoiceSettings = {
-  stability: number;
-  similarity_boost: number;
-  style: number;
-  use_speaker_boost: boolean;
+type PollyTtsConfig = {
+  voiceId: string;
+  engine: 'standard' | 'neural' | 'long-form' | 'generative';
+  languageCode?: string;
+  sampleRate: string;
+  outputFormat: 'mp3' | 'ogg_vorbis' | 'pcm';
+  textType: 'text' | 'ssml';
 };
 
-type ElevenLabsConfig = {
-  apiKey: string;
-  voiceId: string;
-  modelId: string;
-  optimizeStreamingLatency: number;
-  outputFormat: string;
-  voiceSettings: ElevenLabsVoiceSettings;
+type DeepgramSttConfig = {
+  model: string;
+  language: string;
+  endpointingMs: number;
+  utteranceEndMs: number;
+  interimResults: boolean;
+  punctuate: boolean;
+  smartFormat: boolean;
 };
 
 const awsRegion = process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION || 'us-east-1';
 const ssm = new SSMClient({ region: awsRegion });
+const pollyClient = new PollyClient({ region: awsRegion });
 
 type SecretName =
   | 'OPENAI_API_KEY'
   | 'TWILIO_AUTH_TOKEN'
   | 'TWILIO_ACCOUNT_SID'
-  | 'ELEVENLABS_API_KEY';
+  | 'DEEPGRAM_API_KEY';
 
 const ssmParamDefaults: Record<SecretName, string> = {
   OPENAI_API_KEY: '/handycall/prod/openai_api_key',
   TWILIO_AUTH_TOKEN: '/handycall/prod/twilio_auth_token',
   TWILIO_ACCOUNT_SID: '/handycall/prod/twilio_account_sid',
-  ELEVENLABS_API_KEY: '/handycall/prod/elevenlabs_api_key',
+  DEEPGRAM_API_KEY: '/handycall/prod/deepgram_api_key',
 };
 
 const secretCache = new Map<SecretName, string>();
@@ -301,52 +307,119 @@ async function postJson(url: string, headers: Record<string, string>, body: any)
   return text ? JSON.parse(text) : {};
 }
 
-async function elevenLabsStreamTts(
+function shouldUsePollyTts(): boolean {
+  const provider = (envFirst(['VOICE_TTS_PROVIDER', 'TTS_PROVIDER']) || 'openai').toLowerCase();
+  if (provider === 'openai') return false;
+  return envFlag('POLLY_TTS_ENABLED', true);
+}
+
+function resolvePollyTtsConfig(): PollyTtsConfig {
+  const engineRaw = (envFirst(['POLLY_ENGINE']) || 'neural').toLowerCase();
+  const engine: PollyTtsConfig['engine'] =
+    engineRaw === 'standard' || engineRaw === 'neural' || engineRaw === 'long-form' || engineRaw === 'generative'
+      ? engineRaw
+      : 'neural';
+
+  const outputRaw = (envFirst(['POLLY_OUTPUT_FORMAT']) || 'mp3').toLowerCase();
+  const outputFormat: PollyTtsConfig['outputFormat'] =
+    outputRaw === 'pcm' || outputRaw === 'ogg_vorbis' || outputRaw === 'mp3' ? outputRaw : 'mp3';
+
+  const textTypeRaw = (envFirst(['POLLY_TEXT_TYPE']) || 'text').toLowerCase();
+  const textType: PollyTtsConfig['textType'] = textTypeRaw === 'ssml' ? 'ssml' : 'text';
+
+  const languageCode = envFirst(['POLLY_LANGUAGE_CODE']) || 'en-US';
+  const voiceId = envFirst(['POLLY_VOICE_ID']) || 'Joanna';
+  const sampleRate = envFirst(['POLLY_SAMPLE_RATE']) || (outputFormat === 'pcm' ? '8000' : '16000');
+
+  return { voiceId, engine, languageCode, sampleRate, outputFormat, textType };
+}
+
+function shouldUseDeepgramStt(): boolean {
+  const provider = (envFirst(['VOICE_STT_PROVIDER', 'STT_PROVIDER']) || 'openai').toLowerCase();
+  if (provider === 'deepgram') return true;
+  if (provider === 'openai') return false;
+  return Boolean(env('DEEPGRAM_API_KEY'));
+}
+
+function resolveDeepgramSttConfig(): DeepgramSttConfig {
+  const model = envFirst(['DEEPGRAM_MODEL']) || 'nova-2-phonecall';
+  const language = envFirst(['DEEPGRAM_LANGUAGE']) || 'en-US';
+  const endpointingMs = Math.max(100, Math.min(1000, Number(envFirst(['DEEPGRAM_ENDPOINTING_MS']) || 300)));
+  // Deepgram requires utterance_end_ms >= 1000 for public endpoints.
+  const utteranceEndMs = Math.max(1000, Math.min(5000, Number(envFirst(['DEEPGRAM_UTTERANCE_END_MS']) || 1000)));
+  const interimResults = envFlag('DEEPGRAM_INTERIM_RESULTS', true);
+  const punctuate = envFlag('DEEPGRAM_PUNCTUATE', true);
+  const smartFormat = envFlag('DEEPGRAM_SMART_FORMAT', true);
+  return { model, language, endpointingMs, utteranceEndMs, interimResults, punctuate, smartFormat };
+}
+
+async function pollyStreamTts(
   params: {
-    apiKey: string;
-    voiceId: string;
-    modelId: string;
     text: string;
-    optimizeStreamingLatency: number;
-    outputFormat: string;
-    voiceSettings: ElevenLabsVoiceSettings;
-  }
+    voiceId: string;
+    engine: PollyTtsConfig['engine'];
+    languageCode?: string;
+    sampleRate: string;
+    outputFormat: PollyTtsConfig['outputFormat'];
+    textType: PollyTtsConfig['textType'];
+  },
+  abortSignal?: AbortSignal
 ): Promise<Readable> {
-  const { apiKey, voiceId, modelId, text, optimizeStreamingLatency, outputFormat, voiceSettings } = params;
-  const url = `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voiceId)}/stream`;
-  diag('elevenlabs.request', {
+  const { text, voiceId, engine, languageCode, sampleRate, outputFormat, textType } = params;
+  diag('polly.request', {
     voiceId,
-    modelId,
-    textChars: text.length,
-    optimizeStreamingLatency,
+    engine,
+    languageCode,
+    sampleRate,
     outputFormat,
-    voiceSettings,
+    textType,
+    textChars: text.length,
   });
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'xi-api-key': apiKey,
-      'Content-Type': 'application/json',
-      Accept: 'audio/mpeg',
-    },
-    body: JSON.stringify({
-      text,
-      model_id: modelId,
-      optimize_streaming_latency: optimizeStreamingLatency,
-      output_format: outputFormat,
-      voice_settings: voiceSettings,
-    }),
-  });
-  if (!res.ok || !res.body) {
-    const msg = await res.text();
-    throw new Error(`ElevenLabs TTS failed (${res.status}): ${msg}`);
+
+  const attempt = async (attemptEngine: PollyTtsConfig['engine']) => {
+    return pollyClient.send(
+      new SynthesizeSpeechCommand({
+        Text: text,
+        TextType: textType,
+        VoiceId: voiceId,
+        Engine: attemptEngine,
+        LanguageCode: languageCode,
+        OutputFormat: outputFormat,
+        SampleRate: sampleRate,
+      }),
+      abortSignal ? { abortSignal } : undefined
+    );
+  };
+
+  let response;
+  try {
+    response = await attempt(engine);
+  } catch (err: any) {
+    const message = String(err?.message ?? err);
+    if (engine !== 'standard' && /engine|voice|not supported|invalid/i.test(message)) {
+      response = await attempt('standard');
+    } else {
+      throw err;
+    }
   }
-  diag('elevenlabs.response', {
-    status: res.status,
-    contentType: res.headers.get('content-type') || '',
-    contentLength: res.headers.get('content-length') || '',
+
+  const stream = response.AudioStream as any;
+  if (!stream) throw new Error('Polly returned no audio stream');
+
+  diag('polly.response', {
+    requestCharacters: response.RequestCharacters,
+    contentType: response.ContentType,
+    sampleRate: response.SampleRate,
   });
-  return Readable.fromWeb(res.body as any);
+
+  if (typeof stream.pipe === 'function') return stream as Readable;
+  if (typeof stream.transformToWebStream === 'function') {
+    return Readable.fromWeb(stream.transformToWebStream());
+  }
+  if (Symbol.asyncIterator in stream) {
+    return Readable.from(stream as AsyncIterable<Buffer>);
+  }
+  throw new Error('Unsupported Polly audio stream type');
 }
 
 function transcodeToMulaw8k(input: Readable, abortSignal?: AbortSignal) {
@@ -947,6 +1020,9 @@ function buildInstructions(tenant: TenantInfo, options: { serviceAreaRequired: b
     `Greet the caller immediately and include the company name in the first sentence.`,
     `Be friendly, concise, and phone-like. Ask one question at a time.`,
     `Keep responses short by default. Use a brief filler phrase only when waiting on a tool call.`,
+    `Default to one short sentence per turn. Only expand if the caller asks for more detail.`,
+    `Do not add extra explanations, marketing language, or repeated confirmations.`,
+    `If explaining service options, give a very short summary and ask which option they want.`,
     `You can answer FAQs and help callers book appointments directly.`,
     `Never ask for the caller's phone number. Use the caller ID.`,
     serviceAreaRequired
@@ -1426,10 +1502,10 @@ const server = http.createServer(async (req, res) => {
       const wsBase = toWsBaseUrl(publicBaseUrl);
       const mediaWsUrl = `${wsBase}/twilio/media`;
       const streamStatusUrl = `${publicBaseUrl}/twilio/stream-status`;
-      const streamTrack = envFirst(['TWILIO_STREAM_TRACK']);
+      const streamTrack = envFirst(['TWILIO_STREAM_TRACK']) || 'inbound_track';
       const trackAttr = streamTrack ? ` track="${escapeXml(streamTrack)}"` : '';
 
-      console.log('[twilio] voice webhook', { callSid, from, to, mediaWsUrl, streamTrack: streamTrack || 'default' });
+      console.log('[twilio] voice webhook', { callSid, from, to, mediaWsUrl, streamTrack });
 
       let tenant: TenantInfo | null = null;
       if (to) {
@@ -1516,10 +1592,16 @@ const wss = new WebSocketServer({ server, path: '/twilio/media' });
 
 wss.on('connection', (twilioWs: WebSocket) => {
   let openaiWs: WebSocket | null = null;
+  let deepgramWs: WebSocket | null = null;
   let ctx: CallContext | null = null;
   let transcript: string[] = [];
-  let elevenLabsConfig: ElevenLabsConfig | null = null;
-  let useElevenLabs = false;
+  let pollyConfig: PollyTtsConfig | null = null;
+  let usePollyTts = false;
+  let useDeepgramStt = false;
+  let deepgramReady = false;
+  let deepgramOpenedOnce = false;
+  let deepgramBufferedFinal = '';
+  let deepgramKeepAliveTimer: ReturnType<typeof setInterval> | null = null;
   let openaiReady = false;
   let openaiResponding = false;
   let twilioReady = false;
@@ -1535,7 +1617,6 @@ wss.on('connection', (twilioWs: WebSocket) => {
   let lastAvailabilitySlots: string[] = [];
   let lastAvailabilityTimezone: string | null = null;
   let lastAvailabilityAt = 0;
-  let lastRequestedSlot: string | null = null;
   let lastAvailabilityDateKey: string | null = null;
   let pendingHangup = false;
   let waitingForHangupMark = false;
@@ -1583,8 +1664,82 @@ wss.on('connection', (twilioWs: WebSocket) => {
     createResponse(`Say: "${msg}"`);
   }
 
+  async function handleCallerTranscript(trimmed: string, source: 'openai' | 'deepgram') {
+    const now = Date.now();
+    const normalizedShortAck = normalizeShortAck(trimmed);
+    if (
+      isShortAcknowledgement(trimmed) &&
+      normalizedShortAck &&
+      normalizedShortAck === lastShortAckNormalized &&
+      now - lastShortAckAt < 2500
+    ) {
+      diag('caller.duplicate_short_ack_ignored', {
+        callSid: ctx?.callSid || '',
+        text: normalizedShortAck,
+        elapsed_ms: now - lastShortAckAt,
+      });
+      return;
+    }
+    if (isShortAcknowledgement(trimmed) && normalizedShortAck) {
+      lastShortAckNormalized = normalizedShortAck;
+      lastShortAckAt = now;
+    }
+
+    const recentSpeech = lastSpeechStartAt && Date.now() - lastSpeechStartAt < 3500;
+    if (!recentSpeech && trimmed.length < 6) {
+      return;
+    }
+
+    if (isLowSignalTranscript(trimmed) || isFillerUtterance(trimmed)) {
+      if (assistantSpeaking && Date.now() - lastAssistantAudioAt < 2500) {
+        return;
+      }
+      lowSignalAttempts += 1;
+      reprompt(lowSignalAttempts);
+      return;
+    }
+
+    transcript.push(`Caller: ${trimmed}`);
+    lastCallerUtterance = trimmed;
+    lowSignalAttempts = 0;
+
+    if (source === 'deepgram' && openaiWs && openaiReady) {
+      sendToOpenAI(openaiWs, {
+        type: 'conversation.item.create',
+        item: {
+          type: 'message',
+          role: 'user',
+          content: [{ type: 'input_text', text: trimmed }],
+        },
+      });
+    }
+
+    if (assistantSpeaking && Date.now() - lastAssistantAudioAt < 1500) {
+      const explicitInterrupt =
+        isExplicitBargeIn(trimmed) || wordCount(trimmed) >= 3 || isActionableShortUtterance(trimmed);
+      if (explicitInterrupt) {
+        interruptAssistant('transcript_explicit_interrupt');
+      }
+    }
+
+    if (appointmentCreated && lastAssistantAskedFollowUp && isNegativeResponse(trimmed) && ctx) {
+      lastAssistantAskedFollowUp = false;
+      pendingHangup = true;
+      const farewell = `Thanks for calling ${ctx.company_name || 'HandyCall'}. Have a great day.`;
+      createResponse(`Say: "${farewell}"`);
+      return;
+    }
+
+    if (openaiWs && openaiReady) {
+      if (openaiResponding) {
+        sendToOpenAI(openaiWs, { type: 'response.cancel' });
+      }
+      createResponse();
+    }
+  }
+
   function buildModalities() {
-    return useElevenLabs ? ['text'] : ['audio', 'text'];
+    return usePollyTts ? ['text'] : ['audio', 'text'];
   }
 
   function createResponse(instructions?: string) {
@@ -1607,7 +1762,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
     const now = Date.now();
     if (now - lastAssistantAudioAt > 5000) return;
 
-    if (useElevenLabs && ttsAbort) {
+    if (usePollyTts && ttsAbort) {
       try {
         ttsAbort.abort();
       } catch {
@@ -1637,8 +1792,8 @@ wss.on('connection', (twilioWs: WebSocket) => {
     return false;
   }
 
-  async function speakWithElevenLabs(text: string) {
-    if (!ctx?.streamSid || !elevenLabsConfig) return;
+  async function speakWithPolly(text: string) {
+    if (!ctx?.streamSid || !pollyConfig) return;
     const trimmed = normalizeSpeechText(text);
     if (!trimmed) return;
     if (ttsAbort) {
@@ -1660,26 +1815,29 @@ wss.on('connection', (twilioWs: WebSocket) => {
       textChars: trimmed.length,
     });
     try {
-      const ttsStream = await elevenLabsStreamTts({
-        apiKey: elevenLabsConfig.apiKey,
-        voiceId: elevenLabsConfig.voiceId,
-        modelId: elevenLabsConfig.modelId,
-        optimizeStreamingLatency: elevenLabsConfig.optimizeStreamingLatency,
-        outputFormat: elevenLabsConfig.outputFormat,
-        voiceSettings: elevenLabsConfig.voiceSettings,
-        text: trimmed,
-      });
+      const ttsStream = await pollyStreamTts(
+        {
+          text: trimmed,
+          voiceId: pollyConfig.voiceId,
+          engine: pollyConfig.engine,
+          languageCode: pollyConfig.languageCode,
+          outputFormat: pollyConfig.outputFormat,
+          sampleRate: pollyConfig.sampleRate,
+          textType: pollyConfig.textType,
+        },
+        controller.signal
+      );
       const ttsProbe = new PassThrough();
-      let elevenBytes = 0;
-      let elevenChunks = 0;
-      let elevenHeadLogged = false;
+      let pollyBytes = 0;
+      let pollyChunks = 0;
+      let pollyHeadLogged = false;
       ttsProbe.on('data', (chunk: Buffer) => {
         const data = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
-        elevenChunks += 1;
-        elevenBytes += data.length;
-        if (!elevenHeadLogged && data.length) {
-          elevenHeadLogged = true;
-          diag('tts.elevenlabs_head', {
+        pollyChunks += 1;
+        pollyBytes += data.length;
+        if (!pollyHeadLogged && data.length) {
+          pollyHeadLogged = true;
+          diag('tts.polly_head', {
             callSid: ctx?.callSid || '',
             ttsSeq,
             bytes: data.length,
@@ -1689,11 +1847,11 @@ wss.on('connection', (twilioWs: WebSocket) => {
         }
       });
       ttsProbe.on('end', () => {
-        diag('tts.elevenlabs_done', {
+        diag('tts.polly_done', {
           callSid: ctx?.callSid || '',
           ttsSeq,
-          chunks: elevenChunks,
-          bytes: elevenBytes,
+          chunks: pollyChunks,
+          bytes: pollyBytes,
         });
       });
 
@@ -1758,9 +1916,9 @@ wss.on('connection', (twilioWs: WebSocket) => {
         });
       });
     } catch (err: any) {
-      console.warn('[elevenlabs] TTS failed', err?.message ?? String(err));
+      console.warn('[polly] TTS failed', err?.message ?? String(err));
       if (!controller.signal.aborted && !emittedAudio && openaiWs) {
-        useElevenLabs = false;
+        usePollyTts = false;
         createResponse(`Say this naturally in one short sentence: ${trimmed}`);
       }
     } finally {
@@ -1787,18 +1945,22 @@ wss.on('connection', (twilioWs: WebSocket) => {
     if (!text) return;
     transcript.push(`Assistant: ${text}`);
     lastAssistantAskedFollowUp = askedAnythingElse(text);
-    void speakWithElevenLabs(text);
+    void speakWithPolly(text);
   }
 
   function shutdown(reason: string) {
     cancelPendingInterruptTimer();
+    if (deepgramKeepAliveTimer) {
+      clearInterval(deepgramKeepAliveTimer);
+      deepgramKeepAliveTimer = null;
+    }
     if (!diagShutdownLogged) {
       diagShutdownLogged = true;
       diag('call.shutdown', {
         reason,
         callSid: ctx?.callSid || '',
         streamSid: ctx?.streamSid || '',
-        useElevenLabs,
+        usePollyTts,
         twilioInboundChunks: diagTwilioInboundChunks,
         twilioInboundBytes: diagTwilioInboundBytes,
         openaiAudioChunks: diagOpenAIAudioChunks,
@@ -1817,7 +1979,56 @@ wss.on('connection', (twilioWs: WebSocket) => {
     } catch {
       // ignore
     }
+    try {
+      if (deepgramWs && deepgramWs.readyState === WebSocket.OPEN) {
+        deepgramWs.send(JSON.stringify({ type: 'CloseStream' }));
+      }
+      deepgramWs?.close();
+    } catch {
+      // ignore
+    }
     openaiWs = null;
+    deepgramWs = null;
+  }
+
+  function enableOpenAiSttFallback(reason: string) {
+    if (!useDeepgramStt) return;
+
+    useDeepgramStt = false;
+    deepgramReady = false;
+    deepgramBufferedFinal = '';
+
+    if (deepgramKeepAliveTimer) {
+      clearInterval(deepgramKeepAliveTimer);
+      deepgramKeepAliveTimer = null;
+    }
+
+    try {
+      if (deepgramWs && deepgramWs.readyState === WebSocket.OPEN) {
+        deepgramWs.send(JSON.stringify({ type: 'CloseStream' }));
+      }
+      deepgramWs?.close();
+    } catch {
+      // ignore
+    }
+    deepgramWs = null;
+
+    diag('stt.fallback_to_openai', { callSid: ctx?.callSid || '', reason });
+
+    if (openaiWs && openaiReady) {
+      sendToOpenAI(openaiWs, {
+        type: 'session.update',
+        session: {
+          input_audio_format: 'g711_ulaw',
+          input_audio_transcription: { model: 'gpt-4o-mini-transcribe' },
+          turn_detection: {
+            type: 'semantic_vad',
+            create_response: false,
+            interrupt_response: true,
+          },
+        },
+      });
+    }
   }
 
   function scheduleRecordingSync(reason: string) {
@@ -1856,6 +2067,176 @@ wss.on('connection', (twilioWs: WebSocket) => {
     }, 2500);
   }
 
+  async function flushDeepgramBuffered(source: string) {
+    const text = normalizeSpeechText(deepgramBufferedFinal);
+    deepgramBufferedFinal = '';
+    if (!text) return;
+    speechActive = false;
+    await handleCallerTranscript(text, 'deepgram');
+    diag('deepgram.flush', { callSid: ctx?.callSid || '', source, chars: text.length });
+  }
+
+  async function connectDeepgram() {
+    const deepgramApiKey = await getSecret('DEEPGRAM_API_KEY');
+    deepgramOpenedOnce = false;
+    const cfg = resolveDeepgramSttConfig();
+    const query = new URLSearchParams({
+      encoding: 'mulaw',
+      sample_rate: '8000',
+      channels: '1',
+      model: cfg.model,
+      language: cfg.language,
+      interim_results: String(cfg.interimResults),
+      punctuate: String(cfg.punctuate),
+      smart_format: String(cfg.smartFormat),
+      endpointing: String(cfg.endpointingMs),
+      utterance_end_ms: String(cfg.utteranceEndMs),
+      vad_events: 'true',
+    });
+    const wsUrl = `wss://api.deepgram.com/v1/listen?${query.toString()}`;
+    deepgramWs = new WebSocket(wsUrl, {
+      headers: {
+        Authorization: `Token ${deepgramApiKey}`,
+      },
+    });
+
+    await new Promise<void>((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        reject(new Error('Deepgram connect timeout'));
+      }, 7000);
+
+      const onOpen = () => {
+        clearTimeout(timeout);
+        deepgramReady = true;
+        deepgramOpenedOnce = true;
+        if (deepgramKeepAliveTimer) clearInterval(deepgramKeepAliveTimer);
+        deepgramKeepAliveTimer = setInterval(() => {
+          if (!deepgramWs || deepgramWs.readyState !== WebSocket.OPEN) return;
+          try {
+            deepgramWs.send(JSON.stringify({ type: 'KeepAlive' }));
+          } catch {
+            // ignore keepalive errors
+          }
+        }, 8000);
+        diag('deepgram.open', {
+          callSid: ctx?.callSid || '',
+          model: cfg.model,
+          endpointingMs: cfg.endpointingMs,
+          utteranceEndMs: cfg.utteranceEndMs,
+        });
+        resolve();
+      };
+
+      const onError = (err: any) => {
+        clearTimeout(timeout);
+        reject(new Error(err?.message ?? 'Deepgram websocket error'));
+      };
+
+      const onCloseBeforeOpen = () => {
+        clearTimeout(timeout);
+        if (!deepgramOpenedOnce) {
+          reject(new Error('Deepgram websocket closed before ready'));
+        }
+      };
+
+      deepgramWs!.once('open', onOpen);
+      deepgramWs!.once('error', onError);
+      deepgramWs!.once('close', onCloseBeforeOpen);
+    });
+
+    deepgramWs.on('message', async (raw) => {
+      let msg: any;
+      try {
+        msg = JSON.parse(raw.toString());
+      } catch {
+        return;
+      }
+
+      if (msg?.type === 'Results') {
+        const alt = msg?.channel?.alternatives?.[0];
+        const transcriptText = normalizeSpeechText(alt?.transcript || '');
+        const confidence = Number(alt?.confidence ?? 0);
+        const isFinal = msg?.is_final === true;
+        const speechFinal = msg?.speech_final === true;
+
+        if (transcriptText) {
+          const wc = wordCount(transcriptText);
+          const containsDigit = /\d/.test(transcriptText);
+          const hasTimeNeedle = Boolean(extractTimeNeedle(transcriptText));
+          const lowConfidenceNoise = confidence > 0 && confidence < 0.45 && wc <= 2 && !containsDigit && !hasTimeNeedle;
+          if (lowConfidenceNoise) {
+            return;
+          }
+
+          lastSpeechStartAt = Date.now();
+          if (!speechActive) {
+            speechActive = true;
+            speechActiveStartedAt = Date.now();
+          }
+
+          if (assistantSpeaking) {
+            const explicitInterrupt =
+              isExplicitBargeIn(transcriptText) ||
+              wordCount(transcriptText) >= 3 ||
+              isActionableShortUtterance(transcriptText);
+            if (explicitInterrupt) interruptAssistant('deepgram_transcript_interrupt');
+          }
+
+          if (isFinal) {
+            deepgramBufferedFinal = normalizeSpeechText(
+              `${deepgramBufferedFinal}${deepgramBufferedFinal ? ' ' : ''}${transcriptText}`
+            );
+          }
+        }
+
+        if (speechFinal) {
+          await flushDeepgramBuffered('speech_final');
+        }
+        return;
+      }
+
+      if (msg?.type === 'UtteranceEnd') {
+        await flushDeepgramBuffered('utterance_end');
+        return;
+      }
+
+      if (msg?.type === 'SpeechStarted') {
+        lastSpeechStartAt = Date.now();
+        if (!speechActive) {
+          speechActive = true;
+          speechActiveStartedAt = Date.now();
+        }
+        return;
+      }
+
+      if (msg?.type === 'Error') {
+        console.error('[deepgram] error', msg);
+      }
+    });
+
+    deepgramWs.on('close', () => {
+      deepgramReady = false;
+      speechActive = false;
+      if (deepgramKeepAliveTimer) {
+        clearInterval(deepgramKeepAliveTimer);
+        deepgramKeepAliveTimer = null;
+      }
+      deepgramWs = null;
+      diag('deepgram.close', { callSid: ctx?.callSid || '' });
+      if (useDeepgramStt) {
+        enableOpenAiSttFallback('deepgram_closed');
+      }
+    });
+
+    deepgramWs.on('error', (err) => {
+      console.error('[deepgram] ws error', (err as any)?.message ?? String(err));
+      deepgramReady = false;
+      if (useDeepgramStt) {
+        enableOpenAiSttFallback('deepgram_error');
+      }
+    });
+  }
+
   async function connectOpenAI(tenant: TenantInfo) {
     const model =
       tenant?.agent_config?.realtime_model ||
@@ -1888,14 +2269,18 @@ wss.on('connection', (twilioWs: WebSocket) => {
           instructions,
           tools: toolsSchema({ intakeFields: requiredIntakeFields }),
           tool_choice: 'auto',
-          input_audio_format: 'g711_ulaw',
-          output_audio_format: 'g711_ulaw',
-          input_audio_transcription: { model: 'gpt-4o-mini-transcribe' },
-          turn_detection: {
-            type: 'semantic_vad',
-            create_response: false,
-            interrupt_response: true,
-          },
+          ...(useDeepgramStt ? {} : { input_audio_format: 'g711_ulaw' }),
+          ...(usePollyTts ? {} : { output_audio_format: 'g711_ulaw' }),
+          ...(useDeepgramStt ? {} : { input_audio_transcription: { model: 'gpt-4o-mini-transcribe' } }),
+          ...(useDeepgramStt
+            ? {}
+            : {
+                turn_detection: {
+                  type: 'semantic_vad',
+                  create_response: false,
+                  interrupt_response: true,
+                },
+              }),
         },
       });
       openaiReady = true;
@@ -1903,7 +2288,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
         callSid: ctx?.callSid || '',
         model,
         voice,
-        useElevenLabs,
+        usePollyTts,
       });
       tryGreet();
     });
@@ -1918,7 +2303,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
       }
 
       if (msg?.type === 'response.audio.delta') {
-        if (useElevenLabs) return;
+        if (usePollyTts) return;
         const payload = msg?.delta;
         if (payload && ctx?.streamSid) {
           const payloadStr = String(payload);
@@ -1956,7 +2341,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
       }
 
       if (msg?.type === 'response.audio_transcript.done') {
-        if (useElevenLabs) return;
+        if (usePollyTts) return;
         const text = msg?.transcript;
         if (text) {
           transcript.push(`Assistant: ${text}`);
@@ -1966,7 +2351,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
       }
 
       if (
-        useElevenLabs &&
+        usePollyTts &&
         (msg?.type === 'response.text.delta' || msg?.type === 'response.output_text.delta')
       ) {
         const delta = msg?.delta || msg?.text;
@@ -1975,7 +2360,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
       }
 
       if (
-        useElevenLabs &&
+        usePollyTts &&
         (msg?.type === 'response.text.done' || msg?.type === 'response.output_text.done')
       ) {
         const text = msg?.text || msg?.output_text || assistantTextBuffer;
@@ -1984,85 +2369,25 @@ wss.on('connection', (twilioWs: WebSocket) => {
       }
 
       if (msg?.type === 'conversation.item.input_audio_transcription.completed') {
+        if (useDeepgramStt) return;
         const text = msg?.transcript || msg?.text;
         if (!text || !String(text).trim()) {
           return;
         }
-
-        const trimmed = String(text).trim();
-        const now = Date.now();
-        const normalizedShortAck = normalizeShortAck(trimmed);
-        if (
-          isShortAcknowledgement(trimmed) &&
-          normalizedShortAck &&
-          normalizedShortAck === lastShortAckNormalized &&
-          now - lastShortAckAt < 2500
-        ) {
-          diag('caller.duplicate_short_ack_ignored', {
-            callSid: ctx?.callSid || '',
-            text: normalizedShortAck,
-            elapsed_ms: now - lastShortAckAt,
-          });
-          return;
-        }
-        if (isShortAcknowledgement(trimmed) && normalizedShortAck) {
-          lastShortAckNormalized = normalizedShortAck;
-          lastShortAckAt = now;
-        }
-
-        const recentSpeech = lastSpeechStartAt && Date.now() - lastSpeechStartAt < 3500;
-        if (!recentSpeech && trimmed.length < 6) {
-          return;
-        }
-
-        if (isLowSignalTranscript(trimmed) || isFillerUtterance(trimmed)) {
-          if (assistantSpeaking && Date.now() - lastAssistantAudioAt < 2500) {
-            return;
-          }
-          lowSignalAttempts += 1;
-          reprompt(lowSignalAttempts);
-          return;
-        }
-
-        transcript.push(`Caller: ${trimmed}`);
-        lastCallerUtterance = trimmed;
-        lowSignalAttempts = 0;
-        if (assistantSpeaking && Date.now() - lastAssistantAudioAt < 1500) {
-          const explicitInterrupt =
-            isExplicitBargeIn(trimmed) || wordCount(trimmed) >= 3 || isActionableShortUtterance(trimmed);
-          if (!explicitInterrupt) {
-            return;
-          }
-          interruptAssistant('transcript_explicit_interrupt');
-        }
-
-        if (appointmentCreated && lastAssistantAskedFollowUp && isNegativeResponse(trimmed) && ctx) {
-          lastAssistantAskedFollowUp = false;
-          pendingHangup = true;
-          const farewell = `Thanks for calling ${ctx.company_name || 'HandyCall'}. Have a great day.`;
-          createResponse(`Say: "${farewell}"`);
-          return;
-        }
-
-        if (openaiWs && openaiReady) {
-          if (openaiResponding) {
-            sendToOpenAI(openaiWs, { type: 'response.cancel' });
-          }
-          createResponse();
-        }
+        await handleCallerTranscript(String(text).trim(), 'openai');
         return;
       }
 
       if (msg?.type === 'response.done') {
         openaiResponding = false;
-        if (useElevenLabs && assistantTextBuffer.trim()) {
+        if (usePollyTts && assistantTextBuffer.trim()) {
           flushAssistantText();
         }
         return;
       }
 
       if (msg?.type === 'response.audio.done') {
-        if (useElevenLabs) return;
+        if (usePollyTts) return;
         assistantSpeaking = false;
         openaiResponding = false;
         if (pendingHangup && !waitingForHangupMark) {
@@ -2197,8 +2522,6 @@ wss.on('connection', (twilioWs: WebSocket) => {
             if (availabilityFresh && Array.isArray(lastAvailabilitySlots) && lastAvailabilitySlots.length) {
               if (requestedText && looksLikeIso(requestedText) && lastAvailabilitySlots.includes(requestedText)) {
                 resolvedSlot = requestedText;
-              } else if (lastRequestedSlot) {
-                resolvedSlot = lastRequestedSlot;
               } else if (requestedText) {
                 let needleText = looksLikeIso(requestedText) ? isoToLocalNaive(requestedText) : requestedText;
                 if (isTimeOnlyText(needleText) && lastAvailabilityDateKey) {
@@ -2225,8 +2548,6 @@ wss.on('connection', (twilioWs: WebSocket) => {
                   lastAvailabilityTimezone =
                     typeof (availability as any)?.timezone === 'string' ? (availability as any).timezone : tz;
                   lastAvailabilityAt = Date.now();
-                  lastRequestedSlot =
-                    typeof (availability as any)?.requested_slot === 'string' ? (availability as any).requested_slot : null;
                   if (lastAvailabilitySlots.length && lastAvailabilityTimezone) {
                     try {
                       lastAvailabilityDateKey = new Intl.DateTimeFormat('en-CA', {
@@ -2253,6 +2574,19 @@ wss.on('connection', (twilioWs: WebSocket) => {
             if (resolvedSlot) {
               args = { ...args, start_time: resolvedSlot, timezone: tz };
             } else {
+              if (
+                !requestedText &&
+                availabilityFresh &&
+                Array.isArray(lastAvailabilitySlots) &&
+                lastAvailabilitySlots.length > 1
+              ) {
+                result = {
+                  ok: false,
+                  error: 'MissingSelectedSlot',
+                  message:
+                    'Ask the caller to choose one of the offered times, then call create_booking again with that exact start_time.',
+                };
+              }
               args = { ...args, timezone: tz };
             }
             if (typeof args?.confirmed !== 'boolean') {
@@ -2333,8 +2667,6 @@ wss.on('connection', (twilioWs: WebSocket) => {
                 lastAvailabilityTimezone =
                   typeof (result as any)?.timezone === 'string' ? (result as any).timezone : ctx.timezone || null;
                 lastAvailabilityAt = Date.now();
-                lastRequestedSlot =
-                  typeof (result as any)?.requested_slot === 'string' ? (result as any).requested_slot : null;
                 if (lastAvailabilitySlots.length && lastAvailabilityTimezone) {
                   try {
                     lastAvailabilityDateKey = new Intl.DateTimeFormat('en-CA', {
@@ -2352,7 +2684,6 @@ wss.on('connection', (twilioWs: WebSocket) => {
               } else {
                 lastAvailabilitySlots = [];
                 lastAvailabilityAt = Date.now();
-                lastRequestedSlot = null;
                 lastAvailabilityDateKey = null;
               }
             }
@@ -2466,15 +2797,32 @@ wss.on('connection', (twilioWs: WebSocket) => {
       }
 
       twilioReady = true;
-      elevenLabsConfig = null;
-      useElevenLabs = false;
+      pollyConfig = shouldUsePollyTts() ? resolvePollyTtsConfig() : null;
+      usePollyTts = Boolean(pollyConfig);
+      useDeepgramStt = shouldUseDeepgramStt();
+      if (useDeepgramStt) {
+        try {
+          await getSecret('DEEPGRAM_API_KEY');
+        } catch (err: any) {
+          console.warn('[deepgram] api key unavailable, falling back to OpenAI STT', err?.message ?? String(err));
+          useDeepgramStt = false;
+        }
+      }
       diag('call.audio_path', {
         callSid,
-        provider: 'openai_realtime',
-        useElevenLabs,
-        elevenLabsEnabled,
+        provider: usePollyTts ? 'aws_polly' : 'openai_realtime',
+        usePollyTts,
+        sttProvider: useDeepgramStt ? 'deepgram' : 'openai',
+        pollyVoiceId: pollyConfig?.voiceId ?? null,
+        pollyEngine: pollyConfig?.engine ?? null,
       });
       await connectOpenAI(resolvedTenant);
+      if (useDeepgramStt) {
+        await connectDeepgram().catch((err: any) => {
+          console.warn('[deepgram] connect failed, falling back to OpenAI STT', err?.message ?? String(err));
+          useDeepgramStt = false;
+        });
+      }
 
       callTool(ctx, 'start_call', {}).catch((err: any) =>
         console.warn('[bridge] start_call failed', err?.message ?? String(err))
@@ -2489,6 +2837,10 @@ wss.on('connection', (twilioWs: WebSocket) => {
 
     if (msg?.event === 'media') {
       const payload = msg?.media?.payload;
+      const mediaTrack = String(msg?.media?.track || '').toLowerCase();
+      if (mediaTrack && mediaTrack.includes('outbound')) {
+        return;
+      }
       if (payload && openaiWs && openaiReady) {
         const payloadStr = String(payload);
         diagTwilioInboundChunks += 1;
@@ -2517,12 +2869,29 @@ wss.on('connection', (twilioWs: WebSocket) => {
             bytes: diagTwilioInboundBytes,
           });
         }
-        sendToOpenAI(openaiWs, { type: 'input_audio_buffer.append', audio: payload });
+        if (useDeepgramStt) {
+          if (deepgramWs && deepgramReady && deepgramWs.readyState === WebSocket.OPEN) {
+            try {
+              deepgramWs.send(Buffer.from(payloadStr, 'base64'));
+            } catch (err: any) {
+              console.warn('[deepgram] media send failed', err?.message ?? String(err));
+              sendToOpenAI(openaiWs, { type: 'input_audio_buffer.append', audio: payload });
+            }
+          } else {
+            // Deepgram unavailable: do not drop caller audio.
+            sendToOpenAI(openaiWs, { type: 'input_audio_buffer.append', audio: payload });
+          }
+        } else {
+          sendToOpenAI(openaiWs, { type: 'input_audio_buffer.append', audio: payload });
+        }
       }
       return;
     }
 
     if (msg?.event === 'stop') {
+      if (useDeepgramStt) {
+        await flushDeepgramBuffered('twilio_stop');
+      }
       if (ctx) {
         const merged = transcript.join('\n');
         const durationSeconds = Math.max(1, Math.ceil((Date.now() - ctx.startedAt) / 1000));

@@ -246,6 +246,22 @@ export class BillingController {
   }
 
   /**
+   * Get customer payment by id
+   * GET /billing/customer-payments/:paymentId
+   */
+  @Get('customer-payments/:paymentId')
+  async getCustomerPaymentById(
+    @CompanyId() companyId: string,
+    @Param('paymentId') paymentId: string,
+  ) {
+    const payment = await this.customerPaymentsService.getPaymentById(companyId, paymentId);
+    if (!payment) {
+      throw new NotFoundException('Payment not found');
+    }
+    return { payment };
+  }
+
+  /**
    * Stripe webhook handler
    * POST /billing/webhook
    */

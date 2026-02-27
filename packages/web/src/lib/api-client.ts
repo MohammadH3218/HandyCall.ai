@@ -770,6 +770,13 @@ class ApiClient {
     return response.data ?? response;
   }
 
+  async getCustomerPaymentById(paymentId: string): Promise<any> {
+    const response = await this.request<any>(`/billing/customer-payments/${paymentId}`, {
+      method: 'GET',
+    });
+    return response.data ?? response;
+  }
+
   // Calendar Integration endpoints
   async getGoogleCalendarAuthUrl(): Promise<{ url: string }> {
     const response = await this.request<{ url: string }>('/calendar-integration/auth/google/url', {

@@ -35,6 +35,14 @@ export class PublicBookingController {
     return this.bookings.createBookingPayment(token, dto);
   }
 
+  @Post(':token/checkout-confirm')
+  confirmCheckoutSession(
+    @Param('token') token: string,
+    @Body() body: { session_id?: string },
+  ) {
+    return this.bookings.confirmCheckoutSession(token, String(body?.session_id || ''));
+  }
+
   @Post(':token/update')
   updateBooking(@Param('token') token: string, @Body() dto: PublicBookingUpdateDto) {
     return this.bookings.updateBooking(token, dto);

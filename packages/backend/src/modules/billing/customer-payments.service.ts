@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { DynamoDBService } from '../../infrastructure/database/dynamodb.service';
 import { CustomerPayment, CustomerPaymentStatus, CustomerPaymentType } from '@handycall/shared';
+import { NotificationsService } from '../notifications/notifications.service';
 import { v4 as uuidv4 } from 'uuid';
 import Stripe from 'stripe';
 
@@ -16,7 +17,10 @@ type PaymentFilters = {
 
 @Injectable()
 export class CustomerPaymentsService {
-  constructor(private readonly dynamodb: DynamoDBService) {}
+  constructor(
+    private readonly dynamodb: DynamoDBService,
+    private readonly notifications: NotificationsService,
+  ) {}
 
   private isResourceNotFoundError(error: unknown): boolean {
     if (!error || typeof error !== 'object') return false;
@@ -57,7 +61,23 @@ export class CustomerPaymentsService {
       ...(payment as any),
       company_contact: payment.contact_id ? `${companyId}#${payment.contact_id}` : undefined,
     });
+    await this.notifications.emitPaymentPosted(companyId, payment).catch((err) => {
+      console.warn('[CustomerPaymentsService] Failed to emit payment notification', err?.message || err);
+    });
     return payment;
+  }
+
+  async getPaymentById(companyId: string, paymentId: string): Promise<CustomerPayment | null> {
+    try {
+      const payment = await this.dynamodb.get('customer_payments', {
+        company_id: companyId,
+        payment_id: paymentId,
+      });
+      return (payment as CustomerPayment) || null;
+    } catch (error) {
+      if (!this.isResourceNotFoundError(error)) throw error;
+      return null;
+    }
   }
 
   async updatePayment(
@@ -228,6 +248,7 @@ export class CustomerPaymentsService {
     let thisMonth = 0;
 
     for (const payment of payments) {
+      const paidAt = Number(payment.paid_at || payment.created_at || 0);
       const createdAt = Number(payment.created_at || 0);
       if (createdAt < start || createdAt > end) continue;
 
@@ -235,8 +256,8 @@ export class CustomerPaymentsService {
       if (payment.payment_status === 'SUCCEEDED') {
         totalRevenue += amount;
         successCount += 1;
-        if (createdAt >= last30) last30Days += amount;
-        if (createdAt >= monthStart) thisMonth += amount;
+        if (paidAt >= last30) last30Days += amount;
+        if (paidAt >= monthStart) thisMonth += amount;
       } else if (
         payment.payment_status === 'PROCESSING' ||
         payment.payment_status === 'REQUIRES_CONFIRMATION' ||

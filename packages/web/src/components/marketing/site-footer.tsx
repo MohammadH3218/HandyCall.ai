@@ -16,6 +16,9 @@ export function SiteFooter() {
           <Link href="/contact" className="transition-colors hover:text-slate-900">
             Contact
           </Link>
+          <Link href="/sms-consent" className="transition-colors hover:text-slate-900">
+            SMS Consent
+          </Link>
           <Link href="/privacy-policy" className="transition-colors hover:text-slate-900">
             Privacy
           </Link>

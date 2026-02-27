@@ -155,10 +155,10 @@ export class DashboardService {
     }).length;
 
     const revenueThisMonth = payments.reduce((sum: number, payment: any) => {
-      const createdAt = Number(payment?.created_at || 0);
+      const effectiveTs = Number(payment?.paid_at || payment?.created_at || 0);
       const status = String(payment?.payment_status || '').toUpperCase();
       if (status !== 'SUCCEEDED') return sum;
-      if (createdAt < monthStart || createdAt > now) return sum;
+      if (effectiveTs < monthStart || effectiveTs > now) return sum;
       return sum + Number(payment?.amount_cents || 0);
     }, 0);
 

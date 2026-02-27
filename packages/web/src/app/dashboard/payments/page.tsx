@@ -11,12 +11,19 @@ type Payment = {
   payment_id: string;
   contact_id?: string;
   customer_name?: string;
+  customer_email?: string;
   service_name?: string;
   amount_cents: number;
   currency: string;
   payment_type: string;
   payment_status: string;
   created_at: number;
+  paid_at?: number;
+  stripe_payment_intent_id?: string;
+  stripe_checkout_session_id?: string;
+  stripe_subscription_id?: string;
+  stripe_charge_id?: string;
+  metadata?: Record<string, any>;
 };
 
 function formatMoney(cents: number, currency = 'usd') {
@@ -50,6 +57,8 @@ export default function PaymentsPage() {
   const [typeFilter, setTypeFilter] = useState('ALL');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+  const [receiptLoading, setReceiptLoading] = useState(false);
+  const [selectedReceipt, setSelectedReceipt] = useState<Payment | null>(null);
 
   const load = async () => {
     try {
@@ -111,6 +120,54 @@ export default function PaymentsPage() {
     URL.revokeObjectURL(url);
   };
 
+  const openReceipt = async (paymentId: string) => {
+    try {
+      setReceiptLoading(true);
+      const result = await apiClient.getCustomerPaymentById(paymentId);
+      setSelectedReceipt((result?.payment || result) as Payment);
+    } finally {
+      setReceiptLoading(false);
+    }
+  };
+
+  const closeReceipt = () => setSelectedReceipt(null);
+
+  const printReceipt = () => {
+    if (!selectedReceipt) return;
+    const popup = window.open('', '_blank', 'noopener,noreferrer,width=800,height=700');
+    if (!popup) return;
+    const html = `
+      <html>
+        <head><title>Payment Receipt</title></head>
+        <body style="font-family:Arial,sans-serif;padding:24px;color:#0f172a;">
+          <h2>HandyCall Payment Receipt</h2>
+          <p><strong>Receipt ID:</strong> ${selectedReceipt.payment_id}</p>
+          <p><strong>Date:</strong> ${formatDate(selectedReceipt.paid_at || selectedReceipt.created_at)}</p>
+          <p><strong>Customer:</strong> ${selectedReceipt.customer_name || 'Customer'}</p>
+          <p><strong>Service:</strong> ${selectedReceipt.service_name || '-'}</p>
+          <p><strong>Type:</strong> ${selectedReceipt.payment_type || '-'}</p>
+          <p><strong>Status:</strong> ${selectedReceipt.payment_status || '-'}</p>
+          <p><strong>Amount:</strong> ${formatMoney(selectedReceipt.amount_cents, selectedReceipt.currency)}</p>
+        </body>
+      </html>
+    `;
+    popup.document.open();
+    popup.document.write(html);
+    popup.document.close();
+    popup.focus();
+    popup.print();
+  };
+
+  const statusBadgeClass = (status: string) => {
+    const normalized = String(status || '').toUpperCase();
+    if (normalized === 'SUCCEEDED') return 'border-emerald-200 bg-emerald-50 text-emerald-700';
+    if (normalized === 'FAILED' || normalized === 'CANCELED') return 'border-red-200 bg-red-50 text-red-700';
+    if (normalized === 'PROCESSING' || normalized === 'REQUIRES_CONFIRMATION' || normalized === 'REQUIRES_PAYMENT_METHOD') {
+      return 'border-amber-200 bg-amber-50 text-amber-700';
+    }
+    return 'border-slate-200 bg-slate-50 text-slate-700';
+  };
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -141,6 +198,7 @@ export default function PaymentsPage() {
             <option value="ALL">All statuses</option>
             <option value="SUCCEEDED">Succeeded</option>
             <option value="PROCESSING">Processing</option>
+            <option value="REQUIRES_CONFIRMATION">Requires confirmation</option>
             <option value="REQUIRES_PAYMENT_METHOD">Requires payment method</option>
             <option value="FAILED">Failed</option>
             <option value="CANCELED">Canceled</option>
@@ -176,16 +234,17 @@ export default function PaymentsPage() {
                 <th className="px-4 py-3 font-medium">Amount</th>
                 <th className="px-4 py-3 font-medium">Type</th>
                 <th className="px-4 py-3 font-medium">Status</th>
+                <th className="px-4 py-3 font-medium text-right">Receipt</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td className="px-4 py-6 text-slate-500" colSpan={6}>Loading payments…</td>
+                  <td className="px-4 py-6 text-slate-500" colSpan={7}>Loading payments…</td>
                 </tr>
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td className="px-4 py-6 text-slate-500" colSpan={6}>No payments found.</td>
+                  <td className="px-4 py-6 text-slate-500" colSpan={7}>No payments found.</td>
                 </tr>
               ) : (
                 filtered.map((payment) => (
@@ -208,9 +267,18 @@ export default function PaymentsPage() {
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700">
+                      <span className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${statusBadgeClass(payment.payment_status)}`}>
                         {payment.payment_status || 'UNKNOWN'}
                       </span>
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <button
+                        type="button"
+                        onClick={() => void openReceipt(payment.payment_id)}
+                        className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                      >
+                        View receipt
+                      </button>
                     </td>
                   </tr>
                 ))
@@ -219,6 +287,55 @@ export default function PaymentsPage() {
           </table>
         </div>
       </div>
+
+      {(selectedReceipt || receiptLoading) && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
+          <div className="w-full max-w-xl rounded-xl border border-slate-200 bg-white p-6 shadow-lg">
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-slate-900">Payment receipt</h3>
+              <button
+                type="button"
+                onClick={closeReceipt}
+                className="rounded-lg border border-slate-200 px-2 py-1 text-xs text-slate-600 hover:bg-slate-50"
+              >
+                Close
+              </button>
+            </div>
+            {receiptLoading || !selectedReceipt ? (
+              <p className="text-sm text-slate-500">Loading receipt…</p>
+            ) : (
+              <div className="space-y-2 text-sm text-slate-700">
+                <p><span className="font-semibold text-slate-900">Receipt ID:</span> {selectedReceipt.payment_id}</p>
+                <p><span className="font-semibold text-slate-900">Date:</span> {formatDate(selectedReceipt.paid_at || selectedReceipt.created_at)}</p>
+                <p><span className="font-semibold text-slate-900">Customer:</span> {selectedReceipt.customer_name || 'Customer'}</p>
+                <p><span className="font-semibold text-slate-900">Email:</span> {selectedReceipt.customer_email || '-'}</p>
+                <p><span className="font-semibold text-slate-900">Service:</span> {selectedReceipt.service_name || '-'}</p>
+                <p><span className="font-semibold text-slate-900">Type:</span> {selectedReceipt.payment_type || '-'}</p>
+                <p><span className="font-semibold text-slate-900">Status:</span> {selectedReceipt.payment_status || '-'}</p>
+                <p><span className="font-semibold text-slate-900">Amount:</span> {formatMoney(selectedReceipt.amount_cents, selectedReceipt.currency)}</p>
+                {selectedReceipt.stripe_payment_intent_id ? (
+                  <p><span className="font-semibold text-slate-900">Stripe Payment Intent:</span> {selectedReceipt.stripe_payment_intent_id}</p>
+                ) : null}
+                {selectedReceipt.stripe_checkout_session_id ? (
+                  <p><span className="font-semibold text-slate-900">Stripe Checkout Session:</span> {selectedReceipt.stripe_checkout_session_id}</p>
+                ) : null}
+                {selectedReceipt.stripe_subscription_id ? (
+                  <p><span className="font-semibold text-slate-900">Stripe Subscription:</span> {selectedReceipt.stripe_subscription_id}</p>
+                ) : null}
+                <div className="pt-3">
+                  <button
+                    type="button"
+                    onClick={printReceipt}
+                    className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
+                  >
+                    Print receipt
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -15,6 +15,8 @@ export const NOTIFICATION_EVENT_KEYS = [
   'appointment_completed',
   'call_completed',
   'lead_created',
+  'payment_posted',
+  'subscription_posted',
   'usage_threshold_25',
   'usage_threshold_50',
   'usage_threshold_75',

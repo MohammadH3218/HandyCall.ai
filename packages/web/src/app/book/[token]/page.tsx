@@ -302,13 +302,30 @@ export default function BookingPage() {
 
   useEffect(() => {
     const checkoutStatus = searchParams?.get('checkout');
+    const checkoutSessionId = searchParams?.get('session_id');
     if (checkoutStatus === 'success') {
       setNotice('Payment checkout completed. We are syncing your payment status.');
-      void refreshInfo();
+      if (checkoutSessionId) {
+        void (async () => {
+          try {
+            await fetch(`${API_BASE}/public/booking/${token}/checkout-confirm`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ session_id: checkoutSessionId }),
+            });
+          } catch {
+            // Best effort reconciliation. Refresh will still re-read current state.
+          } finally {
+            await refreshInfo();
+          }
+        })();
+      } else {
+        void refreshInfo();
+      }
     } else if (checkoutStatus === 'cancel') {
       setPaymentError('Checkout was canceled. You can try again when ready.');
     }
-  }, [searchParams, refreshInfo]);
+  }, [searchParams, refreshInfo, token]);
 
   const monthLabel = useMemo(() => {
     return new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' }).format(calendarMonth);

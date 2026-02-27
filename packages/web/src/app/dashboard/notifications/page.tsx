@@ -22,6 +22,7 @@ const CATEGORY_FILTERS = [
   'APPOINTMENTS',
   'CALLS',
   'LEADS',
+  'ACCOUNT',
   'USAGE',
   'SYSTEM',
 ] as const;

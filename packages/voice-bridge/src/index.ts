@@ -1477,7 +1477,6 @@ const server = http.createServer(async (req, res) => {
   </Connect>
 </Response>`;
 
-      const transferEnabled = tenant?.transfer_enabled === true;
       const configuredTransfer = typeof tenant?.transfer_number === 'string' ? tenant.transfer_number.trim() : '';
       const businessNumber = typeof tenant?.phone_number === 'string' ? tenant.phone_number.trim() : '';
       const fallbackTransfer = resolveTransferTarget() || '';

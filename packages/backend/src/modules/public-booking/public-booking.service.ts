@@ -497,16 +497,7 @@ export class PublicBookingService {
         (appointment?.appointment_id && payment.appointment_id === appointment.appointment_id) ||
         (call?.contact_id && payment.contact_id === call.contact_id),
     );
-    const paid = relevant.some((payment) => {
-      if (payment.payment_status === 'SUCCEEDED') return true;
-      if (
-        payment.payment_type === 'SUBSCRIPTION' &&
-        (payment.payment_status === 'PROCESSING' || payment.payment_status === 'REQUIRES_CONFIRMATION')
-      ) {
-        return true;
-      }
-      return false;
-    });
+    const paid = relevant.some((payment) => payment.payment_status === 'SUCCEEDED');
 
     return {
       enabled,
@@ -704,6 +695,72 @@ export class PublicBookingService {
       stripe_payment_intent_id: paymentIntent.id,
       client_secret: paymentIntent.client_secret,
       publishable_key: this.config.get<string>('STRIPE_PUBLISHABLE_KEY') || null,
+    };
+  }
+
+  async confirmCheckoutSession(token: string, sessionId: string) {
+    const payload = verifyBookingToken(token, this.getBookingSecret());
+    const company = await this.companies.findById(payload.company_id);
+    if (!company) throw new NotFoundException('Company not found');
+    if (!sessionId?.trim()) {
+      throw new BadRequestException('session_id is required');
+    }
+
+    const session = await this.stripeConnect.getCheckoutSession(sessionId.trim());
+    const metadata = session.metadata || {};
+    const companyId = String(metadata.company_id || '').trim();
+    const paymentId = String(metadata.payment_id || '').trim();
+    const appointmentId = String(metadata.appointment_id || '').trim();
+
+    if (!companyId || companyId !== payload.company_id) {
+      throw new BadRequestException('Invalid checkout session for this booking link.');
+    }
+    if (!paymentId) {
+      throw new BadRequestException('Checkout session is missing payment metadata.');
+    }
+
+    const subscriptionId =
+      typeof session.subscription === 'string'
+        ? session.subscription
+        : session.subscription?.id;
+
+    const paymentStatus =
+      session.payment_status === 'paid'
+        ? 'SUCCEEDED'
+        : session.payment_status === 'unpaid'
+          ? 'FAILED'
+          : 'PROCESSING';
+
+    await this.customerPayments.updatePayment(company.company_id, paymentId, {
+      payment_status: paymentStatus,
+      stripe_checkout_session_id: session.id,
+      stripe_subscription_id: subscriptionId || undefined,
+      paid_at: paymentStatus === 'SUCCEEDED' ? Date.now() : undefined,
+    });
+
+    if (appointmentId) {
+      try {
+        await this.dynamodb.update(
+          'appointments',
+          { company_id: company.company_id, appointment_id: appointmentId },
+          {
+            payment_status: paymentStatus === 'SUCCEEDED' ? 'PAID' : paymentStatus === 'FAILED' ? 'FAILED' : 'PENDING',
+            payment_id: paymentId,
+            amount_paid_cents: paymentStatus === 'SUCCEEDED' ? Number(session.amount_total || 0) : 0,
+            updated_at: Date.now(),
+          },
+        );
+      } catch {
+        // Best effort appointment sync.
+      }
+    }
+
+    return {
+      ok: true,
+      payment_id: paymentId,
+      payment_status: paymentStatus,
+      checkout_session_id: session.id,
+      checkout_payment_status: session.payment_status || 'unknown',
     };
   }
 

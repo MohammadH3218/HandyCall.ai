@@ -8,6 +8,7 @@ import { v4 as uuidv4 } from 'uuid';
 import {
   NOTIFICATION_EVENT_KEYS,
   PLAN_LIMITS,
+  CustomerPayment,
   NotificationCategory,
   NotificationChannelPreference,
   NotificationDevice,
@@ -64,6 +65,18 @@ const EVENT_CATALOG: Record<NotificationEventKey, EventCatalogItem> = {
     category: 'LEADS',
     description: 'Sent when a new contact/lead is created.',
   },
+  payment_posted: {
+    event_key: 'payment_posted',
+    label: 'Payment posted',
+    category: 'ACCOUNT',
+    description: 'Sent when a new customer payment is posted.',
+  },
+  subscription_posted: {
+    event_key: 'subscription_posted',
+    label: 'Subscription posted',
+    category: 'ACCOUNT',
+    description: 'Sent when a new customer subscription payment is posted.',
+  },
   usage_threshold_25: {
     event_key: 'usage_threshold_25',
     label: 'Usage 25%',
@@ -115,6 +128,8 @@ const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferencesMap = {
   appointment_completed: { in_app: true, push: true },
   call_completed: { in_app: true, push: true },
   lead_created: { in_app: true, push: true },
+  payment_posted: { in_app: true, push: true },
+  subscription_posted: { in_app: true, push: true },
   usage_threshold_25: { in_app: true, push: false },
   usage_threshold_50: { in_app: true, push: false },
   usage_threshold_75: { in_app: true, push: true },
@@ -508,6 +523,31 @@ export class NotificationsService {
       body: `${baseBody}${reason}${resetNote}`.trim(),
       actionUrl: '/dashboard/usage',
       payload: payload || {},
+    });
+  }
+
+  async emitPaymentPosted(companyId: string, payment: CustomerPayment): Promise<void> {
+    const amount = Number(payment?.amount_cents || 0);
+    const currency = String(payment?.currency || 'usd').toUpperCase();
+    const amountLabel = Number.isFinite(amount) ? `${(amount / 100).toFixed(2)} ${currency}` : `0.00 ${currency}`;
+    const customer = payment?.customer_name || payment?.customer_email || 'Customer';
+    const service = payment?.service_name || 'Service';
+    const isSubscription = payment?.payment_type === 'SUBSCRIPTION';
+
+    await this.createForCompanyUsers(companyId, {
+      eventKey: isSubscription ? 'subscription_posted' : 'payment_posted',
+      category: 'ACCOUNT',
+      title: isSubscription ? 'New subscription payment posted' : 'New payment posted',
+      body: `${customer} · ${service} · ${amountLabel} · ${payment?.payment_status || 'UNKNOWN'}`,
+      actionUrl: '/dashboard/payments',
+      payload: {
+        payment_id: payment?.payment_id,
+        appointment_id: payment?.appointment_id,
+        payment_type: payment?.payment_type,
+        payment_status: payment?.payment_status,
+        amount_cents: amount,
+        currency: payment?.currency || 'usd',
+      },
     });
   }
 

@@ -8,7 +8,6 @@ import {
   IconCalendar,
   IconMessage,
   IconChartBar,
-  IconCircleCheck,
   IconArrowRight,
   IconClock,
   IconStar,
@@ -76,75 +75,6 @@ const steps = [
   },
 ];
 
-const plans = [
-  {
-    name: 'Starter',
-    price: '$19.99',
-    period: '/mo',
-    description: 'Perfect for solo pros just getting started.',
-    highlighted: false,
-    features: [
-      '100 AI minutes/month',
-      '200 SMS messages/month',
-      '250 contacts',
-      'Online booking page',
-      'Call transcripts',
-      'Email support',
-    ],
-  },
-  {
-    name: 'Pro',
-    price: '$39.99',
-    period: '/mo',
-    description: 'The most popular plan for growing businesses.',
-    highlighted: true,
-    badge: 'Most Popular',
-    features: [
-      '300 AI minutes/month',
-      '500 SMS messages/month',
-      '1,000 contacts',
-      'Automated follow-up sequences',
-      'Advanced analytics',
-      'Stripe payment collection',
-      'Priority support',
-    ],
-  },
-  {
-    name: 'Max',
-    price: '$99.99',
-    period: '/mo',
-    description: 'Built for high-volume pros and small teams.',
-    highlighted: false,
-    features: [
-      'Unlimited AI minutes',
-      '2,000 SMS messages/month',
-      'Unlimited contacts',
-      'Team management',
-      'Invoicing & Stripe payouts',
-      'API access',
-      'Dedicated priority support',
-    ],
-  },
-];
-
-const testimonials = [
-  {
-    quote: "I was losing $3,000+ a month in missed calls. HandyCall paid for itself in the first week.",
-    name: 'Mike R.',
-    role: 'Plumber · Austin, TX',
-  },
-  {
-    quote: "My booking rate went from 40% to 85%. The AI handles calls better than my old answering service.",
-    name: 'Sarah T.',
-    role: 'HVAC Technician · Dallas, TX',
-  },
-  {
-    quote: "I focus on the job. HandyCall handles everything else. Best investment I've made for my business.",
-    name: 'Carlos M.',
-    role: 'Electrician · Houston, TX',
-  },
-];
-
 export default function HomePage() {
   return (
     <div className="flex min-h-screen flex-col bg-white">
@@ -172,10 +102,10 @@ export default function HomePage() {
                 <IconArrowRight className="h-4 w-4" stroke={2} />
               </Link>
               <Link
-                href="/#how-it-works"
+                href="/pricing"
                 className="inline-flex items-center gap-2 rounded-xl border border-slate-300 px-8 py-3.5 text-base font-semibold text-slate-700 hover:bg-slate-50 transition"
               >
-                See how it works
+                View pricing
               </Link>
             </div>
             <p className="mt-4 text-sm text-slate-400">No credit card required · Cancel anytime</p>
@@ -260,129 +190,6 @@ export default function HomePage() {
               </FadeIn>
             ))}
           </div>
-        </div>
-      </section>
-
-      {/* ── Testimonials ─────────────────────────────────────── */}
-      <section className="border-t border-slate-100 bg-white py-20">
-        <div className="mx-auto max-w-5xl px-4">
-          <FadeIn>
-            <div className="mb-10">
-              <p className="text-xs font-bold uppercase tracking-widest text-emerald-600 mb-2">Reviews</p>
-              <h2 className="text-2xl font-bold text-slate-900 sm:text-3xl">Trusted by local pros</h2>
-            </div>
-          </FadeIn>
-          <div className="grid gap-5 sm:grid-cols-3">
-            {testimonials.map((t, i) => (
-              <FadeIn key={t.name} delay={i * 80}>
-                <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
-                  <div className="flex gap-0.5 mb-3">
-                    {[...Array(5)].map((_, j) => (
-                      <IconStar key={j} className="h-4 w-4 text-amber-400 fill-amber-400" stroke={1} />
-                    ))}
-                  </div>
-                  <p className="text-sm text-slate-700 leading-relaxed">"{t.quote}"</p>
-                  <div className="mt-4 flex items-center gap-2">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-xs font-bold text-slate-600">
-                      {t.name[0]}
-                    </div>
-                    <div>
-                      <p className="text-sm font-semibold text-slate-900">{t.name}</p>
-                      <p className="text-xs text-slate-400">{t.role}</p>
-                    </div>
-                  </div>
-                </div>
-              </FadeIn>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ── Pricing Preview ───────────────────────────────────── */}
-      <section className="border-t border-slate-100 bg-slate-50 py-20">
-        <div className="mx-auto max-w-5xl px-4">
-          <FadeIn>
-            <div className="mb-12">
-              <p className="text-xs font-bold uppercase tracking-widest text-emerald-600 mb-2">Pricing</p>
-              <h2 className="text-3xl font-bold text-slate-900 sm:text-4xl">
-                Simple, transparent pricing
-              </h2>
-              <p className="mt-3 max-w-xl text-slate-500">
-                Start free for 14 days. No credit card required. Upgrade or cancel anytime.
-              </p>
-            </div>
-          </FadeIn>
-
-          <div className="grid gap-5 sm:grid-cols-3">
-            {plans.map((plan, i) => (
-              <FadeIn key={plan.name} delay={i * 80}>
-                <div
-                  className={`relative flex h-full flex-col rounded-2xl border p-7 shadow-sm transition ${
-                    plan.highlighted
-                      ? 'border-slate-900 bg-slate-900 text-white shadow-xl'
-                      : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-md'
-                  }`}
-                >
-                  {plan.badge && (
-                    <div className="absolute -top-3.5 left-1/2 -translate-x-1/2">
-                      <span className="rounded-full bg-amber-400 px-3 py-1 text-xs font-bold text-amber-900">
-                        {plan.badge}
-                      </span>
-                    </div>
-                  )}
-
-                  <p className={`text-sm font-semibold mb-1 ${plan.highlighted ? 'text-slate-300' : 'text-slate-500'}`}>
-                    {plan.name}
-                  </p>
-                  <div className="flex items-end gap-1 mb-1">
-                    <span className={`text-4xl font-extrabold ${plan.highlighted ? 'text-white' : 'text-slate-900'}`}>
-                      {plan.price}
-                    </span>
-                    <span className={`mb-1.5 text-sm ${plan.highlighted ? 'text-slate-400' : 'text-slate-400'}`}>
-                      {plan.period}
-                    </span>
-                  </div>
-                  <p className={`mb-6 text-sm ${plan.highlighted ? 'text-slate-400' : 'text-slate-500'}`}>
-                    {plan.description}
-                  </p>
-
-                  <ul className="mb-8 flex-1 space-y-2.5">
-                    {plan.features.map((f) => (
-                      <li key={f} className="flex items-start gap-2 text-sm">
-                        <IconCircleCheck
-                          className={`mt-0.5 h-4 w-4 shrink-0 ${plan.highlighted ? 'text-emerald-400' : 'text-emerald-500'}`}
-                          stroke={1.5}
-                        />
-                        <span className={plan.highlighted ? 'text-slate-300' : 'text-slate-600'}>{f}</span>
-                      </li>
-                    ))}
-                  </ul>
-
-                  <Link
-                    href="/register"
-                    className={`block w-full text-center rounded-xl py-2.5 text-sm font-semibold transition ${
-                      plan.highlighted
-                        ? 'bg-white text-slate-900 hover:bg-slate-100'
-                        : 'border border-slate-300 text-slate-700 hover:bg-slate-50'
-                    }`}
-                  >
-                    Start Free Trial
-                  </Link>
-                </div>
-              </FadeIn>
-            ))}
-          </div>
-
-          <FadeIn>
-            <div className="mt-6">
-              <Link
-                href="/pricing"
-                className="inline-flex items-center gap-1 text-sm font-semibold text-emerald-600 hover:text-emerald-700"
-              >
-                View full pricing details <IconArrowRight className="h-4 w-4" stroke={2} />
-              </Link>
-            </div>
-          </FadeIn>
         </div>
       </section>
 

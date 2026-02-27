@@ -333,6 +333,15 @@ export class StripeConnectService {
     return session;
   }
 
+  async getCheckoutSession(sessionId: string): Promise<Stripe.Checkout.Session> {
+    if (!sessionId?.trim()) {
+      throw new BadRequestException('checkout session id is required');
+    }
+    return this.stripe.checkout.sessions.retrieve(sessionId, {
+      expand: ['subscription'],
+    });
+  }
+
   async handleConnectWebhook(signature: string, rawBody: Buffer): Promise<void> {
     const event = this.constructConnectWebhookEvent(rawBody, signature);
     if (event.type === 'account.updated') {
