@@ -25,6 +25,8 @@ function OnboardingShell({ children }: { children: React.ReactNode }) {
   const { logout } = useAuthStore();
   const [signingOut, setSigningOut] = useState(false);
 
+  const isSetupPage = pathname?.startsWith('/onboarding/setup') ?? false;
+
   const stepMap = useMemo(
     () => ({
       profile: status.profile,
@@ -62,11 +64,14 @@ function OnboardingShell({ children }: { children: React.ReactNode }) {
       return;
     }
 
+    // Don't redirect away from the chatbot setup page
+    if (isSetupPage) return;
+
     const fallbackIndex = firstIncompleteIndex === -1 ? 0 : firstIncompleteIndex;
     if (currentIndex === -1 || currentIndex > fallbackIndex) {
       router.replace(`/onboarding/${ONBOARDING_STEPS[fallbackIndex].id}`);
     }
-  }, [allComplete, currentIndex, firstIncompleteIndex, isAuthenticated, loading, router, userRole]);
+  }, [allComplete, currentIndex, firstIncompleteIndex, isAuthenticated, isSetupPage, loading, router, userRole]);
 
   if (loading) {
     return (
@@ -87,6 +92,35 @@ function OnboardingShell({ children }: { children: React.ReactNode }) {
       setSigningOut(false);
     }
   };
+
+  // Full-screen chatbot layout for the setup page
+  if (isSetupPage) {
+    return (
+      <div className="flex h-screen flex-col bg-white">
+        <header className="flex-none border-b border-slate-200 bg-white">
+          <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-3">
+            <Link href="/" className="flex items-center gap-3">
+              <Logo width={130} height={32} />
+            </Link>
+            <div className="flex items-center gap-3">
+              <span className="hidden items-center rounded-full border border-emerald-100 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 sm:inline-flex">
+                AI Setup Assistant
+              </span>
+              <button
+                type="button"
+                onClick={handleSignOut}
+                disabled={signingOut}
+                className="text-sm text-slate-500 transition hover:text-slate-700 disabled:opacity-60"
+              >
+                {signingOut ? 'Signing out...' : 'Sign out'}
+              </button>
+            </div>
+          </div>
+        </header>
+        <main className="flex flex-1 flex-col overflow-hidden">{children}</main>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-white">
