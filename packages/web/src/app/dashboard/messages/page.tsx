@@ -2,13 +2,10 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { PageHeader } from '@/components/portal/page-header';
 import { apiClient } from '@/lib/api-client';
 import { usePortalBasePath } from '@/lib/portal';
-import { MessageCircle, Search, ChevronLeft, ChevronRight } from 'lucide-react';
+import { IconMessage, IconSearch, IconChevronLeft, IconChevronRight } from '@tabler/icons-react';
 
 type MessageThread = {
   id: string;
@@ -37,8 +34,8 @@ const getInitials = (name: string) => {
 
 const getAvatarColor = (name: string) => {
   const colors = [
-    'bg-emerald-500', 'bg-blue-500', 'bg-violet-500', 'bg-rose-500',
-    'bg-amber-500', 'bg-teal-500', 'bg-indigo-500', 'bg-pink-500',
+    'bg-slate-700', 'bg-slate-600', 'bg-slate-500', 'bg-slate-800',
+    'bg-slate-700', 'bg-slate-600', 'bg-slate-500', 'bg-slate-800',
   ];
   let hash = 0;
   for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
@@ -129,7 +126,7 @@ export default function MessagesPage() {
           disabled={!canGoPrev}
           className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
         >
-          <ChevronLeft className="h-4 w-4" />
+          <IconChevronLeft className="h-4 w-4" stroke={1.5} />
         </button>
         {visiblePages.map((page) => (
           <button
@@ -149,7 +146,7 @@ export default function MessagesPage() {
           disabled={!canGoNext}
           className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
         >
-          <ChevronRight className="h-4 w-4" />
+          <IconChevronRight className="h-4 w-4" stroke={1.5} />
         </button>
       </div>
     </div>
@@ -166,19 +163,23 @@ export default function MessagesPage() {
       {/* Search */}
       <div className="flex gap-3">
         <div className="relative flex-1">
-          <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-          <Input
+          <IconSearch className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" stroke={1.5} />
+          <input
             type="text"
             placeholder="Search by name, phone, or message…"
             value={searchQuery}
             onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
             onKeyDown={(e) => e.key === 'Enter' && handleSearchSubmit()}
-            className="h-10 pl-10"
+            className="h-10 w-full rounded-lg border border-slate-200 bg-white pl-10 pr-3 text-sm text-slate-900 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
           />
         </div>
-        <Button onClick={handleSearchSubmit} className="h-10 px-5">
+        <button
+          type="button"
+          onClick={handleSearchSubmit}
+          className="h-10 rounded-lg bg-emerald-600 px-5 text-sm font-semibold text-white transition hover:bg-emerald-700"
+        >
           Search
-        </Button>
+        </button>
       </div>
 
       {/* Pagination — top */}
@@ -198,12 +199,12 @@ export default function MessagesPage() {
           ))}
         </div>
       ) : error ? (
-        <div className="rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700">
+            <div className="rounded-xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700">
           {error}
         </div>
       ) : pageThreads.length === 0 ? (
-        <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-slate-50/50 py-16 text-center">
-          <MessageCircle className="h-10 w-10 text-slate-300" />
+        <div className="flex flex-col items-center justify-center rounded-xl border border-slate-200 bg-white py-16 text-center">
+          <IconMessage className="h-10 w-10 text-slate-300" stroke={1.5} />
           <p className="mt-3 text-sm font-semibold text-slate-700">No messages yet</p>
           <p className="mt-1 text-sm text-slate-500">SMS conversations will appear here once your AI starts texting.</p>
         </div>
@@ -219,7 +220,7 @@ export default function MessagesPage() {
                 key={thread.id}
                 type="button"
                 onClick={() => router.push(`${basePath}/messages/${thread.id}`)}
-                className="group w-full rounded-2xl border border-slate-100 bg-white p-4 text-left transition-all hover:border-emerald-100 hover:shadow-sm"
+                className="group w-full rounded-xl border border-slate-200 bg-white p-4 text-left transition-colors hover:border-slate-300"
               >
                 <div className="flex items-start gap-4">
                   {/* Avatar */}
@@ -234,9 +235,9 @@ export default function MessagesPage() {
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex min-w-0 items-center gap-2">
                         <span className="truncate font-semibold text-slate-900">{thread.contact_name}</span>
-                        <Badge variant="outline" className={`${lead.className} shrink-0 text-xs`}>
+                        <span className={`inline-flex shrink-0 items-center rounded-full border px-2 py-0.5 text-xs font-medium ${lead.className}`}>
                           {lead.label}
-                        </Badge>
+                        </span>
                       </div>
                       <span className="shrink-0 text-xs text-slate-400">{relativeTime(thread.last_at)}</span>
                     </div>
@@ -245,7 +246,7 @@ export default function MessagesPage() {
                   </div>
 
                   {/* Arrow */}
-                  <ChevronRight className="mt-0.5 h-5 w-5 shrink-0 text-slate-300 transition-colors group-hover:text-emerald-500" />
+                  <IconChevronRight className="mt-0.5 h-5 w-5 shrink-0 text-slate-300 transition-colors group-hover:text-slate-500" stroke={1.5} />
                 </div>
               </button>
             );

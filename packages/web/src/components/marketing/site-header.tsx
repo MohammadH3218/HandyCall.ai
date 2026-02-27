@@ -43,9 +43,9 @@ export function SiteHeader({
 
   const isPro = resolvedVariant === 'pro';
   const links = isPro ? PRO_LINKS : CONSUMER_LINKS;
-  const loginHref = isPro ? '/pros/login' : '/customer/login';
+  const loginHref = isPro ? '/login?audience=pro' : '/customer/login';
   const loginLabel = isPro ? 'Log In' : 'Customer Login';
-  const resolvedCtaHref = ctaHref ?? (isPro ? '/pros/signup' : '/signup');
+  const resolvedCtaHref = ctaHref ?? (isPro ? '/register?audience=pro' : '/register?audience=customer');
   const resolvedCtaLabel = ctaLabel ?? (isPro ? 'Get Started Free' : 'Sign Up');
 
   return (
@@ -107,17 +107,11 @@ export function SiteHeader({
               {!hideLoginLink && (
                 <Link
                   href={loginHref}
-                  className="text-sm font-medium text-slate-700 hover:text-slate-900 px-3 py-2 transition-colors"
+                  className="ml-1 rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition"
                 >
                   {loginLabel}
                 </Link>
               )}
-              <Link
-                href={resolvedCtaHref}
-                className="ml-1 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 transition"
-              >
-                {resolvedCtaLabel}
-              </Link>
             </>
           )}
           </div>
@@ -179,19 +173,12 @@ export function SiteHeader({
                 {!hideLoginLink && (
                   <Link
                     href={loginHref}
-                    className="block w-full text-center rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                    className="block w-full text-center rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700"
                     onClick={() => setMobileOpen(false)}
                   >
                     {loginLabel}
                   </Link>
                 )}
-                <Link
-                  href={resolvedCtaHref}
-                  className="block w-full text-center rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700"
-                  onClick={() => setMobileOpen(false)}
-                >
-                  {resolvedCtaLabel}
-                </Link>
               </>
             )}
             </div>

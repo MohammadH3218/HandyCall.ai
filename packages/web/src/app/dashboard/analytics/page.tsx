@@ -3,9 +3,14 @@
 import { useEffect, useState } from 'react';
 import { apiClient } from '@/lib/api-client';
 import { PageHeader } from '@/components/portal/page-header';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Phone, TrendingUp, Users, Calendar, MessageSquare, Clock } from 'lucide-react';
+import {
+  IconPhone,
+  IconTrendingUp,
+  IconUsers,
+  IconCalendar,
+  IconMessage,
+  IconClock,
+} from '@tabler/icons-react';
 
 type CallMetrics = {
   period_days: number;
@@ -28,14 +33,14 @@ function formatDuration(secs: number) {
   return m > 0 ? `${m}m ${s}s` : `${s}s`;
 }
 
-function MetricCard({ label, value, detail, icon, color = 'emerald' }: {
-  label: string; value: string; detail: string; icon: React.ReactNode; color?: string;
+function MetricCard({ label, value, detail, icon }: {
+  label: string; value: string; detail: string; icon: React.ReactNode;
 }) {
   return (
-    <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
+    <div className="rounded-xl border border-slate-200 bg-white p-5">
       <div className="flex items-center justify-between">
         <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">{label}</p>
-        <div className={`flex h-8 w-8 items-center justify-center rounded-lg bg-${color}-50 border border-${color}-100`}>
+        <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-slate-50">
           {icon}
         </div>
       </div>
@@ -73,14 +78,14 @@ export default function AnalyticsPage() {
       <div className="space-y-4">
         <div className="h-8 w-48 animate-pulse rounded bg-slate-100" />
         <div className="grid gap-4 md:grid-cols-3">
-          {[1,2,3,4,5,6].map((i) => <div key={i} className="h-28 animate-pulse rounded-2xl bg-slate-100" />)}
+          {[1,2,3,4,5,6].map((i) => <div key={i} className="h-28 animate-pulse rounded-xl bg-slate-100" />)}
         </div>
       </div>
     );
   }
 
   if (error) {
-    return <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div>;
+    return <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div>;
   }
 
   return (
@@ -92,14 +97,17 @@ export default function AnalyticsPage() {
         actions={
           <div className="flex items-center gap-2">
             {[7, 30, 90].map((d) => (
-              <Button
+              <button
                 key={d}
-                size="sm"
-                variant={days === d ? 'default' : 'outline'}
                 onClick={() => setDays(d)}
+                className={`rounded-lg border px-3 py-1.5 text-sm font-medium transition ${
+                  days === d
+                    ? 'border-emerald-600 bg-emerald-600 text-white'
+                    : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                }`}
               >
                 {d}d
-              </Button>
+              </button>
             ))}
           </div>
         }
@@ -110,46 +118,42 @@ export default function AnalyticsPage() {
           label="Total calls"
           value={String(metrics?.total_calls || 0)}
           detail={`${metrics?.inbound_calls || 0} inbound · ${metrics?.outbound_calls || 0} outbound`}
-          icon={<Phone className="h-4 w-4 text-emerald-600" />}
+          icon={<IconPhone stroke={1.5} className="h-4 w-4 text-slate-500" />}
         />
         <MetricCard
           label="Completion rate"
           value={`${metrics?.completion_rate || 0}%`}
           detail={`${metrics?.completed_calls || 0} of ${metrics?.total_calls || 0} calls completed`}
-          icon={<TrendingUp className="h-4 w-4 text-blue-600" />}
-          color="blue"
+          icon={<IconTrendingUp stroke={1.5} className="h-4 w-4 text-slate-500" />}
         />
         <MetricCard
           label="Lead capture rate"
           value={`${metrics?.lead_capture_rate || 0}%`}
           detail="Calls that generated a lead"
-          icon={<Users className="h-4 w-4 text-violet-600" />}
-          color="violet"
+          icon={<IconUsers stroke={1.5} className="h-4 w-4 text-slate-500" />}
         />
         <MetricCard
           label="Booking conversion"
           value={`${metrics?.booking_conversion_rate || 0}%`}
           detail="Calls that resulted in a booking"
-          icon={<Calendar className="h-4 w-4 text-amber-600" />}
-          color="amber"
+          icon={<IconCalendar stroke={1.5} className="h-4 w-4 text-slate-500" />}
         />
         <MetricCard
           label="Avg call duration"
           value={formatDuration(metrics?.avg_duration_seconds || 0)}
           detail="Per completed call"
-          icon={<Clock className="h-4 w-4 text-slate-600" />}
-          color="slate"
+          icon={<IconClock stroke={1.5} className="h-4 w-4 text-slate-500" />}
         />
         <MetricCard
           label="Positive sentiment"
           value={`${Math.round(((metrics?.sentiment.positive || 0) / Math.max(metrics?.total_calls || 1, 1)) * 100)}%`}
           detail={`${metrics?.sentiment.negative || 0} negative · ${metrics?.sentiment.neutral || 0} neutral`}
-          icon={<MessageSquare className="h-4 w-4 text-emerald-600" />}
+          icon={<IconMessage stroke={1.5} className="h-4 w-4 text-slate-500" />}
         />
       </div>
 
       {/* Sentiment breakdown */}
-      <div className="rounded-2xl border border-slate-100 bg-white shadow-sm">
+      <div className="rounded-xl border border-slate-200 bg-white">
         <div className="border-b border-slate-100 px-5 py-4">
           <h2 className="text-sm font-semibold text-slate-900">Sentiment distribution</h2>
         </div>
@@ -164,7 +168,7 @@ export default function AnalyticsPage() {
             const pct = metrics?.total_calls ? Math.round((count / metrics.total_calls) * 100) : 0;
             return (
               <div key={item.key} className="flex-1 text-center">
-                <div className="mx-auto mb-2 h-16 w-16 overflow-hidden rounded-full bg-slate-100 flex items-end justify-center">
+                <div className="mx-auto mb-2 flex h-16 w-16 items-end justify-center overflow-hidden rounded-full bg-slate-100">
                   <div className={`w-full ${item.color}`} style={{ height: `${pct}%`, minHeight: count > 0 ? 4 : 0 }} />
                 </div>
                 <p className="text-lg font-bold text-slate-900">{pct}%</p>
@@ -177,24 +181,31 @@ export default function AnalyticsPage() {
 
       {/* Daily trend */}
       {(metrics?.daily_breakdown || []).length > 0 && (
-        <div className="rounded-2xl border border-slate-100 bg-white shadow-sm">
+        <div className="rounded-xl border border-slate-200 bg-white">
           <div className="border-b border-slate-100 px-5 py-4">
             <h2 className="text-sm font-semibold text-slate-900">Daily call volume</h2>
             <p className="text-xs text-slate-500">Last {days} days</p>
           </div>
           <div className="p-5">
-            <div className="flex items-end gap-1 h-32 overflow-x-auto">
+            <div className="flex h-32 items-end gap-1 overflow-x-auto">
               {(metrics?.daily_breakdown || []).slice(-30).map((d) => {
                 const height = Math.max(4, Math.round((d.calls / maxCalls) * 100));
                 return (
-                  <div key={d.date} className="flex flex-col items-center gap-1 min-w-[20px] flex-1" title={`${d.date}: ${d.calls} calls, ${d.leads} leads, ${d.bookings} bookings`}>
-                    <div className="w-full bg-emerald-500 rounded-t" style={{ height: `${height}%` }} />
+                  <div
+                    key={d.date}
+                    className="flex min-w-[20px] flex-1 flex-col items-center gap-1"
+                    title={`${d.date}: ${d.calls} calls, ${d.leads} leads, ${d.bookings} bookings`}
+                  >
+                    <div className="w-full rounded-t bg-emerald-500" style={{ height: `${height}%` }} />
                   </div>
                 );
               })}
             </div>
             <div className="mt-2 flex items-center gap-4 text-xs text-slate-500">
-              <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full bg-emerald-500" /> Calls</span>
+              <span className="flex items-center gap-1">
+                <span className="inline-block h-2 w-2 rounded-full bg-emerald-500" />
+                Calls
+              </span>
             </div>
           </div>
         </div>

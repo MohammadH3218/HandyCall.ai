@@ -12,6 +12,13 @@ const PUBLIC_PATHS = [
   "auth/resend-confirmation",
   "auth/refresh",
   "auth/change-password", // Allow password changes without auth
+  // Marketplace is public — consumers browse without an account
+  "marketplace/search",
+  "marketplace/ai-search",
+  "marketplace/ai-suggestions",
+  "marketplace/categories",
+  "marketplace/providers/",
+  "marketplace/provider-by-id/",
 ];
 
 export async function GET(

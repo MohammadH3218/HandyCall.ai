@@ -2,11 +2,17 @@
 
 import { type ReactNode, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { AlertTriangle, ArrowRight, CalendarClock, Clock3, DollarSign, MessageSquare, Phone, Users } from 'lucide-react';
+import {
+  IconAlertTriangle,
+  IconArrowRight,
+  IconCalendar,
+  IconClock,
+  IconCurrencyDollar,
+  IconUsers,
+} from '@tabler/icons-react';
 import { apiClient } from '@/lib/api-client';
 import { useAuthStore } from '@/stores/auth-store';
 import { PageHeader } from '@/components/portal/page-header';
-import { Button } from '@/components/ui/button';
 
 type DashboardOverview = {
   metrics: {
@@ -100,7 +106,7 @@ export default function DashboardPage() {
       <div className="space-y-4">
         <div className="h-8 w-48 animate-pulse rounded bg-slate-100" />
         <div className="grid gap-4 md:grid-cols-4">
-          {[1, 2, 3, 4].map((i) => <div key={i} className="h-24 animate-pulse rounded-2xl bg-slate-100" />)}
+          {[1, 2, 3, 4].map((i) => <div key={i} className="h-24 animate-pulse rounded-xl bg-slate-100" />)}
         </div>
       </div>
     );
@@ -108,7 +114,7 @@ export default function DashboardPage() {
 
   if (error) {
     return (
-      <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+      <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
         {error}
       </div>
     );
@@ -120,21 +126,31 @@ export default function DashboardPage() {
         eyebrow="Dashboard"
         title={`Welcome back, ${company?.company_name || 'HandyCall'}`}
         subtitle="Track usage, leads, appointments, revenue, and what needs attention next."
-        actions={<Button onClick={() => void load()}>Refresh</Button>}
+        actions={
+          <button
+            onClick={() => void load()}
+            className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+          >
+            Refresh
+          </button>
+        }
       />
 
       {usageBlocked && (
-        <div className="rounded-2xl border border-red-200 bg-red-50 px-5 py-4">
+        <div className="rounded-xl border border-red-200 bg-red-50 px-5 py-4">
           <div className="flex items-start gap-3">
-            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-red-600" />
+            <IconAlertTriangle stroke={1.5} className="mt-0.5 h-4 w-4 shrink-0 text-red-600" />
             <div>
               <p className="text-sm font-semibold text-red-800">Plan limit reached</p>
               <p className="mt-1 text-sm text-red-700">
                 AI handling may be paused until your next billing reset. Upgrade to restore full coverage immediately.
               </p>
-              <Button asChild size="sm" className="mt-3">
-                <Link href="/dashboard/billing/plans">Upgrade plan</Link>
-              </Button>
+              <Link
+                href="/dashboard/billing/plans"
+                className="mt-3 inline-block rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-emerald-700"
+              >
+                Upgrade plan
+              </Link>
             </div>
           </div>
         </div>
@@ -145,29 +161,29 @@ export default function DashboardPage() {
           label="Minutes used"
           value={`${Math.round(overview?.usage_summary.minutes.percent || 0)}%`}
           detail={`${Math.round(overview?.usage_summary.minutes.used || 0)} / ${Math.round(overview?.usage_summary.minutes.limit || 0)}`}
-          icon={<Clock3 className="h-4 w-4 text-blue-600" />}
+          icon={<IconClock stroke={1.5} className="h-4 w-4 text-slate-500" />}
         />
         <StatCard
           label="Active leads"
           value={String(overview?.metrics.active_leads || 0)}
           detail={`${overview?.metrics.total_customers || 0} total customers`}
-          icon={<Users className="h-4 w-4 text-emerald-600" />}
+          icon={<IconUsers stroke={1.5} className="h-4 w-4 text-slate-500" />}
         />
         <StatCard
           label="Appointments this week"
           value={String(overview?.metrics.appointments_this_week || 0)}
           detail={`${overview?.quick_insights.appointments_next_24h || 0} in next 24h`}
-          icon={<CalendarClock className="h-4 w-4 text-violet-600" />}
+          icon={<IconCalendar stroke={1.5} className="h-4 w-4 text-slate-500" />}
         />
         <StatCard
           label="Revenue this month"
           value={connectStatus?.connected ? formatMoney(overview?.metrics.revenue_this_month_cents || 0) : '—'}
           detail={connectStatus?.connected ? 'From customer payments' : 'Connect Stripe to view'}
-          icon={<DollarSign className="h-4 w-4 text-amber-600" />}
+          icon={<IconCurrencyDollar stroke={1.5} className="h-4 w-4 text-slate-500" />}
         />
       </div>
 
-      <div className="rounded-2xl border border-slate-100 bg-white shadow-sm">
+      <div className="rounded-xl border border-slate-200 bg-white">
         <div className="border-b border-slate-100 px-5 py-4">
           <h2 className="text-sm font-semibold text-slate-900">Usage summary</h2>
           <p className="text-xs text-slate-500">
@@ -200,7 +216,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <div className="rounded-2xl border border-slate-100 bg-white shadow-sm">
+      <div className="rounded-xl border border-slate-200 bg-white">
         <div className="border-b border-slate-100 px-5 py-4">
           <h2 className="text-sm font-semibold text-slate-900">Quick actions</h2>
           <p className="text-xs text-slate-500">Prioritized items that need attention right now.</p>
@@ -211,15 +227,15 @@ export default function DashboardPage() {
               <Link
                 key={action.id}
                 href={action.action_url}
-                className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4 transition hover:border-emerald-200 hover:bg-white"
+                className="rounded-xl border border-slate-200 bg-slate-50 p-4 transition hover:border-emerald-200 hover:bg-white"
               >
                 <p className="text-sm font-semibold text-slate-900">{action.title}</p>
                 <p className="mt-1 text-xs text-slate-600">{action.description}</p>
                 <div className="mt-3 flex items-center justify-between">
-                  <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-700">
+                  <span className="rounded-full border border-emerald-200 bg-white px-2 py-0.5 text-xs font-semibold text-emerald-700">
                     {action.count}
                   </span>
-                  <ArrowRight className="h-4 w-4 text-slate-400" />
+                  <IconArrowRight stroke={1.5} className="h-4 w-4 text-slate-400" />
                 </div>
               </Link>
             ))
@@ -229,7 +245,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <div className="rounded-2xl border border-slate-100 bg-white shadow-sm">
+      <div className="rounded-xl border border-slate-200 bg-white">
         <div className="border-b border-slate-100 px-5 py-4">
           <h2 className="text-sm font-semibold text-slate-900">Activity feed</h2>
           <p className="text-xs text-slate-500">Latest events across calls, leads, appointments, and payments.</p>
@@ -269,7 +285,7 @@ function StatCard({
   icon: ReactNode;
 }) {
   return (
-    <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
+    <div className="rounded-xl border border-slate-200 bg-white p-4">
       <div className="flex items-center justify-between">
         <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">{label}</p>
         <div className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-slate-50">

@@ -6,12 +6,11 @@ import { SiteFooter } from '@/components/marketing/site-footer';
 
 export default function PrivacyPolicyPage() {
   return (
-    <div className="min-h-screen bg-white text-foreground">
+    <div className="min-h-screen bg-white">
       <SiteHeader />
       <main className="mx-auto max-w-4xl px-4 pb-20 pt-12">
         <div className="space-y-6">
           <div className="space-y-3">
-            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-emerald-600">Privacy policy</p>
             <h1 className="text-3xl font-semibold text-slate-900 md:text-4xl">Privacy Policy</h1>
             <p className="text-sm text-slate-500">Last updated: February 9, 2026</p>
           </div>

@@ -8,7 +8,7 @@ declare module "next-auth" {
     refreshToken?: string;
     error?: string;
     userRole?: UserRole;
-    poolType?: "users" | "admin";
+    poolType?: "users" | "admin" | "customer";
     user: {
       id?: string;
       email?: string | null;
@@ -27,7 +27,7 @@ declare module "next-auth" {
     idToken?: string;
     refreshToken?: string;
     userRole?: UserRole;
-    poolType?: "users" | "admin";
+    poolType?: "users" | "admin" | "customer";
     name?: string | null;
     given_name?: string | null;
     family_name?: string | null;
@@ -43,10 +43,9 @@ declare module "next-auth/jwt" {
     sub?: string;
     email?: string;
     userRole?: UserRole;
-    poolType?: "users" | "admin";
+    poolType?: "users" | "admin" | "customer";
     name?: string;
     given_name?: string;
     family_name?: string;
   }
 }
-

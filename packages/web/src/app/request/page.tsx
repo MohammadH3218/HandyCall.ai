@@ -4,11 +4,16 @@ import { Suspense, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Logo } from '@/components/ui/logo';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { apiClient } from '@/lib/api-client';
-import { ChevronRight, ChevronLeft, CheckCircle, Wrench, MapPin, User, Send } from 'lucide-react';
+import {
+  IconChevronRight,
+  IconChevronLeft,
+  IconCircleCheck,
+  IconTool,
+  IconMapPin,
+  IconUser,
+  IconSend,
+} from '@tabler/icons-react';
 
 const SERVICE_CATEGORIES = [
   'Plumbing',
@@ -30,10 +35,10 @@ const SERVICE_CATEGORIES = [
 ];
 
 const URGENCY_OPTIONS = [
-  { value: 'emergency', label: 'Emergency', description: 'Need help within hours', color: 'border-red-300 text-red-700 bg-red-50' },
-  { value: 'urgent', label: 'Within 1–2 days', description: 'Need it done soon', color: 'border-amber-300 text-amber-700 bg-amber-50' },
-  { value: 'this_week', label: 'This week', description: 'Flexible but soon', color: 'border-blue-300 text-blue-700 bg-blue-50' },
-  { value: 'flexible', label: "I'm flexible", description: 'No rush, just get it done', color: 'border-slate-300 text-slate-700 bg-slate-50' },
+  { value: 'emergency', label: 'Emergency', description: 'Need help within hours' },
+  { value: 'urgent', label: 'Within 1–2 days', description: 'Need it done soon' },
+  { value: 'this_week', label: 'This week', description: 'Flexible but soon' },
+  { value: 'flexible', label: "I'm flexible", description: 'No rush, just get it done' },
 ];
 
 type Step = 1 | 2 | 3 | 4;
@@ -55,6 +60,16 @@ const STEP_LABELS: Record<Step, string> = {
   3: 'Location',
   4: 'Contact',
 };
+
+const STEP_ICONS: Record<Step, React.ElementType> = {
+  1: IconTool,
+  2: IconTool,
+  3: IconMapPin,
+  4: IconUser,
+};
+
+const INPUT_CLS =
+  'w-full rounded-lg border border-slate-200 px-3.5 py-2.5 text-sm text-slate-900 placeholder-slate-400 outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100';
 
 function RequestPageContent() {
   const router = useRouter();
@@ -103,36 +118,44 @@ function RequestPageContent() {
 
   if (submitted) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-slate-50 px-4">
-        <div className="w-full max-w-md rounded-2xl border border-slate-100 bg-white p-10 shadow-sm text-center">
+      <div className="flex min-h-screen flex-col items-center justify-center bg-white px-4">
+        <div className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-10 text-center">
           <div className="flex justify-center mb-4">
-            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-50">
-              <CheckCircle className="h-8 w-8 text-emerald-500" />
+            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-slate-100">
+              <IconCircleCheck className="h-7 w-7 text-slate-900" stroke={2} />
             </div>
           </div>
           <h1 className="text-2xl font-bold text-slate-900">Request Sent!</h1>
-          <p className="mt-2 text-slate-600">
+          <p className="mt-2 text-sm text-slate-600">
             Pros in your area have been notified. You'll receive quotes via email at{' '}
             <strong>{form.contact_email}</strong>.
           </p>
-          <p className="mt-3 text-sm text-slate-500">
+          <p className="mt-2 text-xs text-slate-400">
             Most customers receive their first response within 2 hours.
           </p>
           <div className="mt-6 flex flex-col gap-3">
-            <Button asChild className="w-full">
-              <Link href="/find-pros">Browse Pros Now</Link>
-            </Button>
-            <Button asChild variant="outline" className="w-full">
-              <Link href="/">Back to Home</Link>
-            </Button>
+            <Link
+              href="/find-pros"
+              className="block w-full rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 transition text-center"
+            >
+              Browse Pros Now
+            </Link>
+            <Link
+              href="/"
+              className="block w-full rounded-lg border border-slate-300 px-5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition text-center"
+            >
+              Back to Home
+            </Link>
           </div>
         </div>
       </div>
     );
   }
 
+  const StepIcon = STEP_ICONS[step];
+
   return (
-    <div className="flex min-h-screen flex-col bg-slate-50">
+    <div className="flex min-h-screen flex-col bg-white">
       {/* Top Bar */}
       <header className="border-b border-slate-200 bg-white px-4 py-3">
         <div className="mx-auto flex max-w-2xl items-center justify-between">
@@ -147,43 +170,43 @@ function RequestPageContent() {
 
       <main className="flex-1 px-4 py-10">
         <div className="mx-auto w-full max-w-xl">
-          {/* Progress */}
+          {/* Step Progress */}
           <div className="mb-8">
-            <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center justify-between mb-3">
               {([1, 2, 3, 4] as Step[]).map((s) => (
                 <div key={s} className="flex flex-col items-center gap-1">
                   <div
                     className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-semibold transition-colors ${
                       s < step
-                        ? 'bg-emerald-500 text-white'
+                        ? 'bg-slate-900 text-white'
                         : s === step
-                        ? 'bg-emerald-600 text-white ring-4 ring-emerald-100'
-                        : 'bg-slate-100 text-slate-400'
+                        ? 'bg-slate-900 text-white ring-4 ring-slate-100'
+                        : 'border border-slate-200 bg-white text-slate-400'
                     }`}
                   >
-                    {s < step ? <CheckCircle className="h-4 w-4" /> : s}
+                    {s < step ? <IconCircleCheck className="h-4 w-4" stroke={2} /> : s}
                   </div>
-                  <span className={`text-xs font-medium ${s === step ? 'text-emerald-700' : 'text-slate-400'}`}>
+                  <span className={`text-xs font-medium ${s === step ? 'text-slate-900' : 'text-slate-400'}`}>
                     {STEP_LABELS[s]}
                   </span>
                 </div>
               ))}
             </div>
-            <div className="relative h-1 rounded-full bg-slate-100">
+            <div className="relative h-0.5 rounded-full bg-slate-100">
               <div
-                className="absolute left-0 top-0 h-1 rounded-full bg-emerald-500 transition-all"
+                className="absolute left-0 top-0 h-0.5 rounded-full bg-slate-900 transition-all"
                 style={{ width: `${((step - 1) / 3) * 100}%` }}
               />
             </div>
           </div>
 
           {/* Card */}
-          <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
+          <div className="rounded-xl border border-slate-200 bg-white p-6">
             {/* Step 1: Service Category */}
             {step === 1 && (
               <div>
                 <div className="flex items-center gap-2 mb-1">
-                  <Wrench className="h-5 w-5 text-emerald-600" />
+                  <IconTool className="h-5 w-5 text-slate-600" stroke={1.5} />
                   <h2 className="text-xl font-bold text-slate-900">What service do you need?</h2>
                 </div>
                 <p className="text-sm text-slate-500 mb-5">Select the category that best matches your job.</p>
@@ -192,10 +215,10 @@ function RequestPageContent() {
                     <button
                       key={cat}
                       onClick={() => set('service_category', cat)}
-                      className={`rounded-xl border px-3 py-2.5 text-sm font-medium text-left transition-colors ${
+                      className={`rounded-lg border px-3 py-2.5 text-sm font-medium text-left transition-colors ${
                         form.service_category === cat
-                          ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
-                          : 'border-slate-200 bg-white text-slate-700 hover:border-emerald-300 hover:bg-emerald-50/50'
+                          ? 'border-slate-900 bg-slate-900 text-white'
+                          : 'border-slate-200 bg-white text-slate-700 hover:border-slate-400'
                       }`}
                     >
                       {cat}
@@ -209,7 +232,7 @@ function RequestPageContent() {
             {step === 2 && (
               <div>
                 <div className="flex items-center gap-2 mb-1">
-                  <Wrench className="h-5 w-5 text-emerald-600" />
+                  <IconTool className="h-5 w-5 text-slate-600" stroke={1.5} />
                   <h2 className="text-xl font-bold text-slate-900">Describe your job</h2>
                 </div>
                 <p className="text-sm text-slate-500 mb-5">
@@ -218,11 +241,12 @@ function RequestPageContent() {
 
                 <div className="space-y-5">
                   <div className="space-y-1.5">
-                    <Label htmlFor="desc">Job Description <span className="text-red-500">*</span></Label>
+                    <label className="block text-sm font-medium text-slate-700">
+                      Job Description <span className="text-red-500">*</span>
+                    </label>
                     <textarea
-                      id="desc"
                       rows={4}
-                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-100 resize-none"
+                      className={`${INPUT_CLS} resize-none`}
                       placeholder="E.g. My kitchen sink is leaking under the cabinet. I need someone to fix the P-trap and check for any water damage..."
                       value={form.job_description}
                       onChange={(e) => set('job_description', e.target.value)}
@@ -233,20 +257,24 @@ function RequestPageContent() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label>How soon do you need this? <span className="text-red-500">*</span></Label>
+                    <label className="block text-sm font-medium text-slate-700">
+                      How soon do you need this? <span className="text-red-500">*</span>
+                    </label>
                     <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                       {URGENCY_OPTIONS.map((opt) => (
                         <button
                           key={opt.value}
                           onClick={() => set('urgency', opt.value)}
-                          className={`rounded-xl border px-4 py-3 text-left transition-colors ${
+                          className={`rounded-lg border px-4 py-3 text-left transition-colors ${
                             form.urgency === opt.value
-                              ? opt.color + ' border-2'
-                              : 'border-slate-200 bg-white hover:border-slate-300'
+                              ? 'border-slate-900 bg-slate-900 text-white'
+                              : 'border-slate-200 bg-white text-slate-700 hover:border-slate-400'
                           }`}
                         >
                           <p className="font-semibold text-sm">{opt.label}</p>
-                          <p className="text-xs text-slate-500 mt-0.5">{opt.description}</p>
+                          <p className={`text-xs mt-0.5 ${form.urgency === opt.value ? 'text-slate-300' : 'text-slate-400'}`}>
+                            {opt.description}
+                          </p>
                         </button>
                       ))}
                     </div>
@@ -259,7 +287,7 @@ function RequestPageContent() {
             {step === 3 && (
               <div>
                 <div className="flex items-center gap-2 mb-1">
-                  <MapPin className="h-5 w-5 text-emerald-600" />
+                  <IconMapPin className="h-5 w-5 text-slate-600" stroke={1.5} />
                   <h2 className="text-xl font-bold text-slate-900">Where is the job?</h2>
                 </div>
                 <p className="text-sm text-slate-500 mb-5">
@@ -268,9 +296,12 @@ function RequestPageContent() {
 
                 <div className="space-y-4">
                   <div className="space-y-1.5">
-                    <Label htmlFor="zipcode">ZIP Code <span className="text-red-500">*</span></Label>
-                    <Input
-                      id="zipcode"
+                    <label className="block text-sm font-medium text-slate-700">
+                      ZIP Code <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      className={INPUT_CLS}
                       placeholder="e.g. 90210"
                       maxLength={10}
                       value={form.location_zipcode}
@@ -278,9 +309,12 @@ function RequestPageContent() {
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <Label htmlFor="city">City <span className="text-slate-400 text-xs font-normal">(optional)</span></Label>
-                    <Input
-                      id="city"
+                    <label className="block text-sm font-medium text-slate-700">
+                      City <span className="text-slate-400 text-xs font-normal">(optional)</span>
+                    </label>
+                    <input
+                      type="text"
+                      className={INPUT_CLS}
                       placeholder="e.g. Los Angeles, CA"
                       value={form.location_city}
                       onChange={(e) => set('location_city', e.target.value)}
@@ -294,7 +328,7 @@ function RequestPageContent() {
             {step === 4 && (
               <div>
                 <div className="flex items-center gap-2 mb-1">
-                  <User className="h-5 w-5 text-emerald-600" />
+                  <IconUser className="h-5 w-5 text-slate-600" stroke={1.5} />
                   <h2 className="text-xl font-bold text-slate-900">Your contact info</h2>
                 </div>
                 <p className="text-sm text-slate-500 mb-5">
@@ -303,19 +337,24 @@ function RequestPageContent() {
 
                 <div className="space-y-4">
                   <div className="space-y-1.5">
-                    <Label htmlFor="name">Full Name <span className="text-red-500">*</span></Label>
-                    <Input
-                      id="name"
+                    <label className="block text-sm font-medium text-slate-700">
+                      Full Name <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      className={INPUT_CLS}
                       placeholder="Jane Smith"
                       value={form.contact_name}
                       onChange={(e) => set('contact_name', e.target.value)}
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <Label htmlFor="email">Email <span className="text-red-500">*</span></Label>
-                    <Input
-                      id="email"
+                    <label className="block text-sm font-medium text-slate-700">
+                      Email <span className="text-red-500">*</span>
+                    </label>
+                    <input
                       type="email"
+                      className={INPUT_CLS}
                       placeholder="jane@example.com"
                       value={form.contact_email}
                       onChange={(e) => set('contact_email', e.target.value)}
@@ -323,10 +362,12 @@ function RequestPageContent() {
                     <p className="text-xs text-slate-400">We'll send quote responses to this address.</p>
                   </div>
                   <div className="space-y-1.5">
-                    <Label htmlFor="phone">Phone <span className="text-slate-400 text-xs font-normal">(optional)</span></Label>
-                    <Input
-                      id="phone"
+                    <label className="block text-sm font-medium text-slate-700">
+                      Phone <span className="text-slate-400 text-xs font-normal">(optional)</span>
+                    </label>
+                    <input
                       type="tel"
+                      className={INPUT_CLS}
                       placeholder="+1 555 000 0000"
                       value={form.contact_phone}
                       onChange={(e) => set('contact_phone', e.target.value)}
@@ -335,7 +376,7 @@ function RequestPageContent() {
                 </div>
 
                 {/* Summary */}
-                <div className="mt-5 rounded-xl bg-slate-50 p-4 text-sm space-y-1.5">
+                <div className="mt-5 rounded-lg bg-slate-50 border border-slate-200 p-4 text-sm space-y-1.5">
                   <p className="font-semibold text-slate-700 mb-2">Your Request Summary</p>
                   <div className="flex justify-between">
                     <span className="text-slate-500">Service</span>
@@ -358,7 +399,7 @@ function RequestPageContent() {
             )}
 
             {error && (
-              <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                 {error}
               </div>
             )}
@@ -366,42 +407,41 @@ function RequestPageContent() {
             {/* Navigation */}
             <div className="mt-6 flex items-center justify-between">
               {step > 1 ? (
-                <Button
-                  variant="outline"
+                <button
                   onClick={() => setStep((s) => (s - 1) as Step)}
-                  className="gap-1"
+                  className="flex items-center gap-1 rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition"
                 >
-                  <ChevronLeft className="h-4 w-4" />
+                  <IconChevronLeft className="h-4 w-4" stroke={2} />
                   Back
-                </Button>
+                </button>
               ) : (
                 <div />
               )}
 
               {step < 4 ? (
-                <Button
+                <button
                   onClick={() => setStep((s) => (s + 1) as Step)}
                   disabled={!canAdvance()}
-                  className="gap-1"
+                  className="flex items-center gap-1 rounded-lg bg-emerald-600 px-5 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50 transition"
                 >
                   Continue
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
+                  <IconChevronRight className="h-4 w-4" stroke={2} />
+                </button>
               ) : (
-                <Button
+                <button
                   onClick={handleSubmit}
                   disabled={!canAdvance() || submitting}
-                  className="gap-2"
+                  className="flex items-center gap-2 rounded-lg bg-emerald-600 px-5 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50 transition"
                 >
                   {submitting ? (
-                    'Submitting...'
+                    'Submitting…'
                   ) : (
                     <>
-                      <Send className="h-4 w-4" />
+                      <IconSend className="h-4 w-4" stroke={1.5} />
                       Send Request
                     </>
                   )}
-                </Button>
+                </button>
               )}
             </div>
           </div>
@@ -420,7 +460,7 @@ function RequestPageContent() {
 
 export default function RequestPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-slate-50" />}>
+    <Suspense fallback={<div className="min-h-screen bg-white" />}>
       <RequestPageContent />
     </Suspense>
   );

@@ -5,6 +5,7 @@ import { UsersService } from '../users/users.service';
 import { CompaniesService } from '../companies/companies.service';
 import { AgentConfigService } from '../agent-config/agent-config.service';
 import { CognitoService } from './cognito.service';
+import { CustomerProfilesService } from '../customer-profiles/customer-profiles.service';
 import {
   LoginResponse,
   RegisterResponse,
@@ -27,7 +28,8 @@ export class AuthService {
     private usersService: UsersService,
     private companiesService: CompaniesService,
     private agentConfigService: AgentConfigService,
-    private cognitoService: CognitoService
+    private cognitoService: CognitoService,
+    private customerProfilesService: CustomerProfilesService,
   ) {}
 
   async register(
@@ -164,7 +166,49 @@ export class AuthService {
     };
   }
 
-  async confirmSignUp(email: string, code: string) {
+  async registerCustomer(
+    email: string,
+    password: string,
+    phoneNumber?: string,
+    firstName?: string,
+    lastName?: string,
+  ): Promise<RegisterResponse> {
+    if (!isValidEmail(email)) {
+      throw new BadRequestException('Invalid email format');
+    }
+
+    const resolvedPhone = phoneNumber?.trim() || undefined;
+    if (resolvedPhone && !isValidPhoneNumber(resolvedPhone)) {
+      throw new BadRequestException('Invalid phone number format (use E.164: +1234567890)');
+    }
+
+    const cognitoUserExists = await this.cognitoService.userExists(email, 'customer').catch(() => false);
+    if (cognitoUserExists) {
+      throw new ConflictException({
+        message: 'User with this email already exists',
+        fields: { email: 'User with this email already exists' },
+      });
+    }
+
+    const derivedFirstName = firstName?.trim() || email.split('@')[0] || 'Customer';
+    const derivedLastName = lastName?.trim() || 'User';
+    const attributes: Record<string, string> = {
+      name: `${derivedFirstName} ${derivedLastName}`.trim(),
+      given_name: derivedFirstName,
+      family_name: derivedLastName,
+      ...(resolvedPhone ? { phone_number: formatPhoneNumber(resolvedPhone) } : {}),
+    };
+
+    await this.cognitoService.signUpUser(email, password, attributes, 'customer');
+
+    return {
+      ok: true,
+      email,
+      requires_email_verification: true,
+    };
+  }
+
+  async confirmSignUp(email: string, code: string, poolType: 'users' | 'customer' = 'users') {
     const trimmedEmail = String(email || '').trim();
     const trimmedCode = String(code || '').trim();
     if (!isValidEmail(trimmedEmail)) {
@@ -174,17 +218,17 @@ export class AuthService {
       throw new BadRequestException('Verification code is required');
     }
 
-    await this.cognitoService.confirmSignUp(trimmedEmail, trimmedCode);
+    await this.cognitoService.confirmSignUpForPool(trimmedEmail, trimmedCode, poolType);
     return { ok: true };
   }
 
-  async resendSignUpCode(email: string) {
+  async resendSignUpCode(email: string, poolType: 'users' | 'customer' = 'users') {
     const trimmedEmail = String(email || '').trim();
     if (!isValidEmail(trimmedEmail)) {
       throw new BadRequestException('Invalid email format');
     }
 
-    await this.cognitoService.resendConfirmationCode(trimmedEmail);
+    await this.cognitoService.resendConfirmationCodeForPool(trimmedEmail, poolType);
     return { ok: true };
   }
 
@@ -323,24 +367,28 @@ export class AuthService {
   // COGNITO-BASED AUTHENTICATION
   // ========================================================================
 
-  async loginWithCognito(email: string, password: string) {
+  async loginWithCognito(
+    email: string,
+    password: string,
+    poolType: 'auto' | 'users' | 'admin' | 'customer' = 'auto',
+  ) {
     let result;
 
     try {
-      result = await this.cognitoService.login(email, password, 'auto');
+      result = await this.cognitoService.login(email, password, poolType);
 
       // Check if user needs to change password
       if (result.challengeName === 'NEW_PASSWORD_REQUIRED') {
         // Determine if this is an admin user based on pool type only
-        const poolType = result.poolType || 'users';
-        const isAdmin = poolType === 'admin';
+        const resolvedPoolType = result.poolType || 'users';
+        const isAdmin = resolvedPoolType === 'admin';
 
         return {
           requiresPasswordChange: true,
           session: result.session,
           email,
           userRole: isAdmin ? UserRole.ADMIN : UserRole.OWNER,
-          poolType: poolType, // Include pool type so we can use it for password change
+          poolType: resolvedPoolType, // Include pool type so we can use it for password change
         };
       }
     } catch (error: any) {
@@ -362,11 +410,11 @@ export class AuthService {
 
     // Get company and user info from DynamoDB using custom attributes
     const companyId = result.userAttributes?.['custom:company_id'];
-    const poolType = result.poolType || 'users';
+    const resolvedPoolType = result.poolType || 'users';
 
     // Determine user role based on poolType - this is the source of truth
-    // Admin pool users are admins, users pool users are customers
-    if (poolType === 'admin') {
+    // Admin pool users are admins.
+    if (resolvedPoolType === 'admin') {
       // Admin users - return admin role
       return {
         requiresPasswordChange: false,
@@ -376,10 +424,40 @@ export class AuthService {
         email,
         userRole: UserRole.ADMIN,
         isAdmin: true,
+        poolType: 'admin',
       };
     }
 
-    // Users pool = customer user, even if company_id is not yet set
+    // Dedicated customer pool users are customer-side accounts.
+    if (resolvedPoolType === 'customer') {
+      const customerId =
+        result.userAttributes?.['sub'] ||
+        result.userAttributes?.['cognito:username'] ||
+        email;
+
+      await this.customerProfilesService.getOrCreate(customerId, {
+        email,
+        name:
+          result.userAttributes?.['name'] ||
+          [result.userAttributes?.['given_name'], result.userAttributes?.['family_name']]
+            .filter(Boolean)
+            .join(' ') ||
+          undefined,
+        phone: result.userAttributes?.['phone_number'],
+      });
+
+      return {
+        requiresPasswordChange: false,
+        access_token: result.accessToken,
+        id_token: result.idToken,
+        refresh_token: result.refreshToken,
+        email,
+        userRole: UserRole.OWNER,
+        poolType: 'customer',
+      };
+    }
+
+    // Users pool = pro/business user.
     // Try to fetch company if company_id exists
     if (companyId) {
       const company = await this.companiesService.findById(companyId);
@@ -393,7 +471,7 @@ export class AuthService {
       }
 
       if (!company) {
-        // Company ID exists in Cognito but not in DynamoDB - still customer but missing company
+        // Company ID exists in Cognito but not in DynamoDB - still users-pool account
         return {
           requiresPasswordChange: false,
           access_token: result.accessToken,
@@ -403,6 +481,7 @@ export class AuthService {
           email,
           company_id: companyId,
           userRole: UserRole.OWNER,
+          poolType: 'users',
         };
       }
 
@@ -416,10 +495,11 @@ export class AuthService {
         email,
         company_id: companyId,
         userRole: UserRole.OWNER,
+        poolType: 'users',
       };
     }
 
-    // Customer user from users pool but no company_id set yet
+    // Users-pool account without company yet.
     return {
       requiresPasswordChange: false,
       access_token: result.accessToken,
@@ -427,6 +507,7 @@ export class AuthService {
       refresh_token: result.refreshToken,
       email,
       userRole: UserRole.OWNER,
+      poolType: 'users',
     };
   }
 
@@ -434,7 +515,7 @@ export class AuthService {
     email: string,
     newPassword: string,
     session: string,
-    poolType: 'users' | 'admin' = 'users',
+    poolType: 'users' | 'admin' | 'customer' = 'users',
     firstName?: string,
     lastName?: string
   ) {
@@ -464,6 +545,30 @@ export class AuthService {
           refresh_token: result.refreshToken,
           email,
           userRole: UserRole.ADMIN,
+          poolType: 'admin',
+        };
+      }
+
+      if (poolType === 'customer') {
+        const customerId =
+          result.userAttributes?.['sub'] ||
+          result.userAttributes?.['cognito:username'] ||
+          email;
+        await this.customerProfilesService.getOrCreate(customerId, {
+          email,
+          name:
+            result.userAttributes?.['name'] ||
+            [firstName, lastName].filter(Boolean).join(' ') ||
+            undefined,
+          phone: result.userAttributes?.['phone_number'],
+        });
+        return {
+          access_token: result.accessToken,
+          id_token: result.idToken,
+          refresh_token: result.refreshToken,
+          email,
+          userRole: UserRole.OWNER,
+          poolType: 'customer',
         };
       }
 
@@ -479,6 +584,7 @@ export class AuthService {
           email,
           userRole: UserRole.OWNER,
           requiresCompanySetup: true, // Users need company setup if no company_id
+          poolType: 'users',
         };
       }
 
@@ -523,6 +629,7 @@ export class AuthService {
           email,
           userRole: UserRole.OWNER,
           requiresCompanySetup: true,
+          poolType: 'users',
         };
       }
 
@@ -543,6 +650,7 @@ export class AuthService {
         email,
         company_id: companyId,
         userRole: UserRole.OWNER,
+        poolType: 'users',
       };
     } catch (error: any) {
       console.error('[AuthService] Password change error:', error);
@@ -560,8 +668,12 @@ export class AuthService {
     }
   }
 
-  async refreshWithCognito(refreshToken: string, email: string) {
-    const result = await this.cognitoService.refreshAccessToken(refreshToken, email, 'auto');
+  async refreshWithCognito(
+    refreshToken: string,
+    email: string,
+    poolType: 'auto' | 'users' | 'admin' | 'customer' = 'auto',
+  ) {
+    const result = await this.cognitoService.refreshAccessToken(refreshToken, email, poolType);
     const tokenClaims = this.decodeJwtClaims(result.idToken);
     const normalizedEmail = (tokenClaims?.email as string | undefined) || email;
 
@@ -572,6 +684,39 @@ export class AuthService {
         email: normalizedEmail,
         userRole: UserRole.ADMIN,
         isAdmin: true,
+        poolType: 'admin',
+      };
+    }
+
+    if (result.poolType === 'customer') {
+      const userAttributes: Record<string, string> = await this.cognitoService
+        .getUserAttributes(normalizedEmail, 'customer')
+        .catch(() => ({} as Record<string, string>));
+      const customerId =
+        userAttributes?.['sub'] ||
+        userAttributes?.['cognito:username'] ||
+        ((tokenClaims?.sub as string | undefined) ?? normalizedEmail);
+
+      await this.customerProfilesService.getOrCreate(customerId, {
+        email: normalizedEmail,
+        name:
+          (userAttributes?.['name'] as string | undefined) ||
+          [
+            userAttributes?.['given_name'] as string | undefined,
+            userAttributes?.['family_name'] as string | undefined,
+          ]
+            .filter(Boolean)
+            .join(' ') ||
+          undefined,
+        phone: userAttributes?.['phone_number'] as string | undefined,
+      });
+
+      return {
+        access_token: result.accessToken,
+        id_token: result.idToken,
+        email: normalizedEmail,
+        userRole: UserRole.OWNER,
+        poolType: 'customer',
       };
     }
 
@@ -602,6 +747,7 @@ export class AuthService {
       email: normalizedEmail,
       company_id: companyId,
       userRole: UserRole.OWNER,
+      poolType: 'users',
     };
   }
 

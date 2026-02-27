@@ -16,13 +16,13 @@ interface AuthState {
   isLoading: boolean;
   requiresPasswordChange: boolean;
   passwordChangeSession: string | null;
-  passwordChangePoolType: 'users' | 'admin' | null;
+  passwordChangePoolType: 'users' | 'admin' | 'customer' | null;
   _checkAuthInProgress: boolean;
   _lastAuthCheckAt: number | null;
 
   // Actions
   login: (email: string, password: string) => Promise<{ requiresPasswordChange: boolean; userRole: UserRole | null }>;
-  changePassword: (email: string, newPassword: string, session: string, poolType?: 'users' | 'admin', firstName?: string, lastName?: string) => Promise<void>;
+  changePassword: (email: string, newPassword: string, session: string, poolType?: 'users' | 'admin' | 'customer', firstName?: string, lastName?: string) => Promise<void>;
   register: (data: any) => Promise<void>;
   logout: () => Promise<void>;
   setTokens: (accessToken: string, idToken: string, refreshToken: string) => void;
@@ -52,7 +52,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     return { requiresPasswordChange: false, userRole: null };
   },
 
-  changePassword: async (email: string, newPassword: string, session: string, poolType?: 'users' | 'admin', firstName?: string, lastName?: string) => {
+  changePassword: async (
+    email: string,
+    newPassword: string,
+    session: string,
+    poolType?: 'users' | 'admin' | 'customer',
+    firstName?: string,
+    lastName?: string,
+  ) => {
     try {
       // Use provided poolType or get from store
       const poolTypeToUse = poolType || get().passwordChangePoolType || 'users';
@@ -190,7 +197,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const sessionRole =
         ((session as any)?.user?.role as UserRole | undefined) ||
         ((session as any)?.userRole as UserRole | undefined);
-      const sessionPoolType = (session as any)?.poolType as 'users' | 'admin' | undefined;
+      const sessionPoolType = (session as any)?.poolType as 'users' | 'admin' | 'customer' | undefined;
       const derivedRole =
         sessionRole ||
         (sessionPoolType === 'admin' ? UserRole.ADMIN : undefined) ||

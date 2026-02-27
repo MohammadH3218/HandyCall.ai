@@ -10,7 +10,27 @@ import { Logo } from '@/components/ui/logo';
 import { ProfileDropdown } from '@/components/profile-dropdown';
 import { NotificationBell } from '@/components/notifications/notification-bell';
 import { Button } from '@/components/ui/button';
-import { BarChart2, BarChart3, Calendar, CreditCard, DollarSign, FileText, Globe, Home, Menu, MessageCircle, MessageSquare, Phone, PhoneOutgoing, Send, Settings, Users, Users2, X, Zap } from 'lucide-react';
+import {
+  IconHome,
+  IconPhone,
+  IconMessageCircle,
+  IconUsers,
+  IconCalendar,
+  IconMessageDots,
+  IconFileText,
+  IconGlobe,
+  IconSettings,
+  IconChartBar,
+  IconCreditCard,
+  IconBolt,
+  IconCurrencyDollar,
+  IconUsersGroup,
+  IconChartBarPopular,
+  IconSend,
+  IconPhoneOutgoing,
+  IconMenu2,
+  IconX,
+} from '@tabler/icons-react';
 import { UserRole } from '@handycall/shared';
 
 function hasPricingProfileData(company: any | null) {
@@ -195,21 +215,21 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   if (status === 'loading' || isLoading || status === 'unauthenticated') {
     return (
-      <div className="flex h-screen items-center justify-center bg-background">
+      <div className="flex h-screen items-center justify-center bg-white">
         <div className="text-center">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent mx-auto"></div>
-          <p className="mt-4 text-sm text-muted-foreground">Loading...</p>
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-emerald-600 border-t-transparent mx-auto"></div>
+          <p className="mt-4 text-sm text-slate-500">Loading...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="flex h-screen bg-transparent overflow-hidden">
+    <div className="flex h-screen bg-slate-50 overflow-hidden">
       {/* Mobile overlay */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 bg-foreground/50 z-40 lg:hidden transition-opacity duration-200"
+          className="fixed inset-0 bg-slate-900/40 z-40 lg:hidden transition-opacity duration-200"
           onClick={() => setSidebarOpen(false)}
         />
       )}
@@ -218,7 +238,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <aside
         className={`
           fixed lg:sticky lg:top-0 inset-y-0 left-0 z-50
-          h-screen w-72 bg-white/85 backdrop-blur-xl border-r border-border/60 flex flex-col
+          h-screen w-64 bg-white border-r border-slate-200 flex flex-col
           transform transition-transform duration-200 ease-in-out
           ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
         `}
@@ -229,26 +249,26 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             variant="ghost"
             size="sm"
             onClick={() => setSidebarOpen(false)}
-            className="h-8 w-8 p-0"
+            className="h-8 w-8 p-0 text-slate-500 hover:text-slate-900 hover:bg-slate-100"
           >
-            <X className="h-5 w-5" />
+            <IconX stroke={1.5} className="h-5 w-5" />
           </Button>
         </div>
 
-        <div className="p-6 flex flex-col items-start justify-center border-b border-border/60 bg-white/70">
+        <div className="px-5 py-5 flex flex-col items-start justify-center border-b border-slate-100">
           <Logo variant="words" width={150} height={36} />
           {company?.company_name && (
-            <p className="mt-1 text-sm font-semibold text-foreground/80 leading-tight">
+            <p className="mt-1 text-sm font-semibold text-slate-700 leading-tight">
               {company.company_name}
             </p>
           )}
         </div>
 
-        <nav className="flex-1 px-4 py-5 space-y-5 overflow-y-auto">
-          <div className="space-y-1">
+        <nav className="flex-1 px-3 py-4 space-y-5 overflow-y-auto">
+          <div className="space-y-0.5">
             <NavLink
               href="/dashboard"
-              icon={<Home className="h-5 w-5" />}
+              icon={<IconHome stroke={1.5} className="h-5 w-5" />}
               active={pathname === '/dashboard'}
               onClick={() => setSidebarOpen(false)}
             >
@@ -256,7 +276,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </NavLink>
             <NavLink
               href="/dashboard/calls"
-              icon={<Phone className="h-5 w-5" />}
+              icon={<IconPhone stroke={1.5} className="h-5 w-5" />}
               active={pathname?.startsWith('/dashboard/calls')}
               onClick={() => setSidebarOpen(false)}
             >
@@ -264,7 +284,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </NavLink>
             <NavLink
               href="/dashboard/messages"
-              icon={<MessageCircle className="h-5 w-5" />}
+              icon={<IconMessageCircle stroke={1.5} className="h-5 w-5" />}
               active={pathname?.startsWith('/dashboard/messages')}
               onClick={() => setSidebarOpen(false)}
             >
@@ -272,7 +292,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </NavLink>
             <NavLink
               href="/dashboard/customers"
-              icon={<Users className="h-5 w-5" />}
+              icon={<IconUsers stroke={1.5} className="h-5 w-5" />}
               active={pathname?.startsWith('/dashboard/customers')}
               onClick={() => setSidebarOpen(false)}
             >
@@ -280,15 +300,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </NavLink>
             <NavLink
               href="/dashboard/lead-inbox"
-              icon={<Users className="h-5 w-5" />}
+              icon={<IconUsers stroke={1.5} className="h-5 w-5" />}
               active={pathname?.startsWith('/dashboard/lead-inbox')}
               onClick={() => setSidebarOpen(false)}
             >
               Lead Inbox
             </NavLink>
-                        <NavLink
+            <NavLink
               href="/dashboard/appointments"
-              icon={<Calendar className="h-5 w-5" />}
+              icon={<IconCalendar stroke={1.5} className="h-5 w-5" />}
               active={pathname?.startsWith('/dashboard/appointments')}
               onClick={() => setSidebarOpen(false)}
             >
@@ -296,11 +316,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </NavLink>
           </div>
 
-          <div className="pt-2 border-t border-border space-y-1">
-            <p className="px-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Company</p>
+          <div className="pt-3 border-t border-slate-100 space-y-0.5">
+            <p className="px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Company</p>
             <NavLink
               href="/dashboard/knowledge"
-              icon={<MessageSquare className="h-5 w-5" />}
+              icon={<IconMessageDots stroke={1.5} className="h-5 w-5" />}
               active={pathname?.startsWith('/dashboard/knowledge')}
               onClick={() => setSidebarOpen(false)}
             >
@@ -308,15 +328,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </NavLink>
             <NavLink
               href="/dashboard/invoices"
-              icon={<FileText className="h-5 w-5" />}
+              icon={<IconFileText stroke={1.5} className="h-5 w-5" />}
               active={pathname?.startsWith('/dashboard/invoices')}
               onClick={() => setSidebarOpen(false)}
             >
               Invoices
             </NavLink>
-                        <NavLink
+            <NavLink
               href="/dashboard/marketplace"
-              icon={<Globe className="h-5 w-5" />}
+              icon={<IconGlobe stroke={1.5} className="h-5 w-5" />}
               active={pathname?.startsWith('/dashboard/marketplace')}
               onClick={() => setSidebarOpen(false)}
             >
@@ -324,7 +344,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </NavLink>
             <NavLink
               href="/dashboard/settings"
-              icon={<Settings className="h-5 w-5" />}
+              icon={<IconSettings stroke={1.5} className="h-5 w-5" />}
               active={pathname?.startsWith('/dashboard/settings')}
               onClick={() => setSidebarOpen(false)}
             >
@@ -332,11 +352,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </NavLink>
           </div>
 
-          <div className="pt-2 border-t border-border space-y-1">
-            <p className="px-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Account</p>
+          <div className="pt-3 border-t border-slate-100 space-y-0.5">
+            <p className="px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Account</p>
             <NavLink
               href="/dashboard/usage"
-              icon={<BarChart3 className="h-5 w-5" />}
+              icon={<IconChartBar stroke={1.5} className="h-5 w-5" />}
               active={pathname?.startsWith('/dashboard/usage')}
               onClick={() => setSidebarOpen(false)}
             >
@@ -344,7 +364,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </NavLink>
             <NavLink
               href="/dashboard/billing"
-              icon={<CreditCard className="h-5 w-5" />}
+              icon={<IconCreditCard stroke={1.5} className="h-5 w-5" />}
               active={pathname?.startsWith('/dashboard/billing') && !pathname?.startsWith('/dashboard/billing/addons')}
               onClick={() => setSidebarOpen(false)}
             >
@@ -352,7 +372,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </NavLink>
             <NavLink
               href="/dashboard/billing/addons"
-              icon={<Zap className="h-5 w-5" />}
+              icon={<IconBolt stroke={1.5} className="h-5 w-5" />}
               active={pathname?.startsWith('/dashboard/billing/addons')}
               onClick={() => setSidebarOpen(false)}
             >
@@ -360,7 +380,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </NavLink>
             <NavLink
               href="/dashboard/payments"
-              icon={<DollarSign className="h-5 w-5" />}
+              icon={<IconCurrencyDollar stroke={1.5} className="h-5 w-5" />}
               active={pathname?.startsWith('/dashboard/payments')}
               onClick={() => setSidebarOpen(false)}
             >
@@ -368,7 +388,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </NavLink>
             <NavLink
               href="/dashboard/team"
-              icon={<Users2 className="h-5 w-5" />}
+              icon={<IconUsersGroup stroke={1.5} className="h-5 w-5" />}
               active={pathname?.startsWith('/dashboard/team')}
               onClick={() => setSidebarOpen(false)}
             >
@@ -376,11 +396,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </NavLink>
           </div>
 
-          <div className="pt-2 border-t border-border space-y-1">
-            <p className="px-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Automation</p>
+          <div className="pt-3 border-t border-slate-100 space-y-0.5">
+            <p className="px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Automation</p>
             <NavLink
               href="/dashboard/analytics"
-              icon={<BarChart2 className="h-5 w-5" />}
+              icon={<IconChartBarPopular stroke={1.5} className="h-5 w-5" />}
               active={pathname?.startsWith('/dashboard/analytics')}
               onClick={() => setSidebarOpen(false)}
             >
@@ -388,7 +408,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </NavLink>
             <NavLink
               href="/dashboard/sms-automation"
-              icon={<MessageSquare className="h-5 w-5" />}
+              icon={<IconMessageDots stroke={1.5} className="h-5 w-5" />}
               active={pathname?.startsWith('/dashboard/sms-automation')}
               onClick={() => setSidebarOpen(false)}
             >
@@ -396,7 +416,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </NavLink>
             <NavLink
               href="/dashboard/follow-ups"
-              icon={<Send className="h-5 w-5" />}
+              icon={<IconSend stroke={1.5} className="h-5 w-5" />}
               active={pathname?.startsWith('/dashboard/follow-ups')}
               onClick={() => setSidebarOpen(false)}
             >
@@ -404,7 +424,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </NavLink>
             <NavLink
               href="/dashboard/outbound-calls"
-              icon={<PhoneOutgoing className="h-5 w-5" />}
+              icon={<IconPhoneOutgoing stroke={1.5} className="h-5 w-5" />}
               active={pathname?.startsWith('/dashboard/outbound-calls')}
               onClick={() => setSidebarOpen(false)}
             >
@@ -417,16 +437,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Top bar */}
-        <div className="border-b border-border/60 bg-white/80 px-4 py-3 backdrop-blur sm:px-6">
+        <div className="border-b border-slate-200 bg-white px-4 py-3 sm:px-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-10 w-10 p-0 lg:hidden"
+                className="h-10 w-10 p-0 lg:hidden text-slate-600 hover:text-slate-900 hover:bg-slate-100"
                 onClick={() => setSidebarOpen(true)}
               >
-                <Menu className="h-5 w-5" />
+                <IconMenu2 stroke={1.5} className="h-5 w-5" />
               </Button>
             </div>
             <div className="flex items-center gap-3">
@@ -441,7 +461,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <div className="animate-fade-up">{children}</div>
         </main>
       </div>
-
     </div>
   );
 }
@@ -463,15 +482,15 @@ function NavLink({
     <Link
       href={href}
       onClick={onClick}
-      className={`group flex items-center px-4 py-3 text-sm rounded-xl transition-all duration-200 ${
+      className={`group flex items-center px-3 py-2 text-sm rounded-lg transition-colors duration-150 ${
         active
-          ? 'bg-emerald-50 text-emerald-900 shadow-sm border border-emerald-100'
-          : 'text-foreground/80 hover:bg-secondary/70 hover:text-foreground'
+          ? 'bg-emerald-50 text-emerald-700'
+          : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
       }`}
     >
       <span
-        className={`mr-3 transition-colors duration-200 ${
-          active ? 'text-emerald-600' : 'text-muted-foreground group-hover:text-emerald-600'
+        className={`mr-3 transition-colors duration-150 ${
+          active ? 'text-emerald-600' : 'text-slate-400 group-hover:text-slate-600'
         }`}
       >
         {icon}

@@ -1,9 +1,7 @@
 'use client';
 
 import { useEffect, useState, useRef } from 'react';
-import { MessageSquare, Send, ChevronLeft, Inbox } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { IconMessage, IconSend, IconChevronLeft, IconInbox } from '@tabler/icons-react';
 import { apiClient } from '@/lib/api-client';
 
 interface Thread {
@@ -128,27 +126,30 @@ export default function PortalMessagesPage() {
       <div className="max-w-md">
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-slate-900">Messages</h1>
-          <p className="mt-1 text-muted-foreground">View your conversations with service pros.</p>
+          <p className="mt-1 text-slate-500">View your conversations with service pros.</p>
         </div>
-        <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
+        <div className="rounded-xl border border-slate-200 bg-white p-6">
           <div className="flex justify-center mb-4">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-50">
-              <MessageSquare className="h-6 w-6 text-emerald-600" />
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-slate-200 bg-slate-50">
+              <IconMessage className="h-6 w-6 text-slate-600" stroke={1.5} />
             </div>
           </div>
           <h2 className="text-center font-semibold text-slate-900">Enter your email to continue</h2>
-          <p className="mt-1 text-center text-sm text-muted-foreground">
+          <p className="mt-1 text-center text-sm text-slate-500">
             We use your email to find your message threads.
           </p>
           <form onSubmit={handleEmailSubmit} className="mt-4 space-y-3">
-            <Input
+            <input
               type="email"
               placeholder="you@example.com"
               value={emailInput}
               onChange={(e) => setEmailInput(e.target.value)}
               required
+              className="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm text-slate-900 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
             />
-            <Button type="submit" className="w-full">View My Messages</Button>
+            <button type="submit" className="w-full rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700">
+              View My Messages
+            </button>
           </form>
         </div>
       </div>
@@ -160,12 +161,11 @@ export default function PortalMessagesPage() {
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Messages</h1>
-          <p className="mt-1 text-sm text-muted-foreground">{email}</p>
+          <p className="mt-1 text-sm text-slate-500">{email}</p>
         </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="text-xs text-muted-foreground"
+        <button
+          type="button"
+          className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600 transition hover:bg-slate-50"
           onClick={() => {
             if (typeof window !== 'undefined') sessionStorage.removeItem(emailKey);
             setEmail('');
@@ -175,7 +175,7 @@ export default function PortalMessagesPage() {
           }}
         >
           Switch email
-        </Button>
+        </button>
       </div>
 
       {error && (
@@ -184,11 +184,11 @@ export default function PortalMessagesPage() {
         </div>
       )}
 
-      <div className="rounded-2xl border border-slate-100 bg-white shadow-sm overflow-hidden">
+      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
         <div className="flex h-[500px]">
           {/* Thread List */}
-          <div className={`w-full border-r border-slate-100 flex flex-col ${selectedThread ? 'hidden sm:flex sm:w-64' : 'flex'}`}>
-            <div className="border-b border-slate-100 px-4 py-3">
+          <div className={`w-full border-r border-slate-200 flex flex-col ${selectedThread ? 'hidden sm:flex sm:w-64' : 'flex'}`}>
+            <div className="border-b border-slate-200 px-4 py-3">
               <p className="text-sm font-semibold text-slate-700">Conversations</p>
             </div>
 
@@ -203,29 +203,29 @@ export default function PortalMessagesPage() {
               </div>
             ) : threads.length === 0 ? (
               <div className="flex-1 flex flex-col items-center justify-center p-6 text-center">
-                <Inbox className="h-10 w-10 text-muted-foreground/30 mb-3" />
+                <IconInbox className="mb-3 h-10 w-10 text-slate-300" stroke={1.5} />
                 <p className="text-sm font-medium text-slate-600">No conversations yet</p>
-                <p className="mt-1 text-xs text-muted-foreground">
+                <p className="mt-1 text-xs text-slate-500">
                   Messages from pros will appear here after you book or request a quote.
                 </p>
               </div>
             ) : (
-              <div className="flex-1 overflow-y-auto divide-y divide-slate-50">
+              <div className="flex-1 overflow-y-auto divide-y divide-slate-100">
                 {threads.map((t) => (
                   <button
                     key={t.thread_id}
                     onClick={() => setSelectedThread(t)}
                     className={`w-full text-left px-4 py-3 hover:bg-slate-50 transition-colors ${
-                      selectedThread?.thread_id === t.thread_id ? 'bg-emerald-50' : ''
+                      selectedThread?.thread_id === t.thread_id ? 'bg-slate-50' : ''
                     }`}
                   >
                     <div className="flex items-start justify-between gap-2">
                       <p className={`text-sm font-medium truncate ${t.unread ? 'text-slate-900' : 'text-slate-700'}`}>
                         {t.company_name || 'Service Pro'}
                       </p>
-                      <span className="text-xs text-muted-foreground shrink-0">{formatTime(t.last_message_at)}</span>
+                      <span className="text-xs text-slate-500 shrink-0">{formatTime(t.last_message_at)}</span>
                     </div>
-                    <p className="mt-0.5 text-xs text-muted-foreground truncate">{t.last_message}</p>
+                    <p className="mt-0.5 text-xs text-slate-500 truncate">{t.last_message}</p>
                     {t.unread && (
                       <span className="mt-1 inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" />
                     )}
@@ -239,18 +239,18 @@ export default function PortalMessagesPage() {
           {selectedThread ? (
             <div className="flex-1 flex flex-col min-w-0">
               {/* Thread header */}
-              <div className="border-b border-slate-100 px-4 py-3 flex items-center gap-3">
+              <div className="border-b border-slate-200 px-4 py-3 flex items-center gap-3">
                 <button
                   className="sm:hidden text-slate-500 hover:text-slate-700"
                   onClick={() => setSelectedThread(null)}
                 >
-                  <ChevronLeft className="h-5 w-5" />
+                  <IconChevronLeft className="h-5 w-5" stroke={1.5} />
                 </button>
                 <div>
                   <p className="font-semibold text-slate-900">
                     {selectedThread.company_name || 'Service Pro'}
                   </p>
-                  <p className="text-xs text-muted-foreground">Secure message thread</p>
+                  <p className="text-xs text-slate-500">Secure message thread</p>
                 </div>
               </div>
 
@@ -261,7 +261,7 @@ export default function PortalMessagesPage() {
                     <div className="h-5 w-5 animate-spin rounded-full border-2 border-emerald-500 border-t-transparent" />
                   </div>
                 ) : messages.length === 0 ? (
-                  <div className="text-center py-8 text-sm text-muted-foreground">
+                  <div className="text-center py-8 text-sm text-slate-500">
                     No messages yet. Start the conversation below.
                   </div>
                 ) : (
@@ -292,9 +292,9 @@ export default function PortalMessagesPage() {
               </div>
 
               {/* Composer */}
-              <div className="border-t border-slate-100 px-4 py-3">
+              <div className="border-t border-slate-200 px-4 py-3">
                 <div className="flex gap-2">
-                  <Input
+                  <input
                     placeholder="Type a message..."
                     value={newMessage}
                     onChange={(e) => setNewMessage(e.target.value)}
@@ -304,25 +304,25 @@ export default function PortalMessagesPage() {
                         void handleSend();
                       }
                     }}
-                    className="flex-1"
+                    className="h-10 flex-1 rounded-lg border border-slate-200 px-3 text-sm text-slate-900 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
                   />
-                  <Button
-                    size="sm"
+                  <button
+                    type="button"
                     onClick={handleSend}
                     disabled={!newMessage.trim() || sending}
-                    className="shrink-0"
+                    className="shrink-0 rounded-lg bg-emerald-600 px-3 text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    <Send className="h-4 w-4" />
-                  </Button>
+                    <IconSend className="h-4 w-4" stroke={1.5} />
+                  </button>
                 </div>
               </div>
             </div>
           ) : (
             <div className="hidden sm:flex flex-1 items-center justify-center text-center p-8">
               <div>
-                <MessageSquare className="mx-auto h-10 w-10 text-muted-foreground/30 mb-3" />
+                <IconMessage className="mx-auto mb-3 h-10 w-10 text-slate-300" stroke={1.5} />
                 <p className="text-sm font-medium text-slate-600">Select a conversation</p>
-                <p className="mt-1 text-xs text-muted-foreground">Choose a thread from the left to read messages.</p>
+                <p className="mt-1 text-xs text-slate-500">Choose a thread from the left to read messages.</p>
               </div>
             </div>
           )}

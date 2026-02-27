@@ -245,7 +245,7 @@ export default function ProsPricingPage() {
                     }`}
                     variant={plan.highlighted ? 'default' : 'outline'}
                   >
-                    <Link href="/register">
+                    <Link href="/register?audience=pro">
                       {plan.highlighted ? 'Start Free Trial' : 'Get Started'}
                     </Link>
                   </Button>
@@ -363,7 +363,7 @@ export default function ProsPricingPage() {
                 size="lg"
                 className="h-12 gap-2 rounded-xl bg-white px-10 text-base font-bold text-emerald-700 hover:bg-emerald-50 shadow-xl"
               >
-                <Link href="/register">
+                <Link href="/register?audience=pro">
                   Start Free 14-Day Trial
                   <ArrowRight className="h-4 w-4" />
                 </Link>

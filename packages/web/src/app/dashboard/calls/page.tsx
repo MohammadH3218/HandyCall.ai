@@ -4,12 +4,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiClient } from '@/lib/api-client';
 import { usePortalBasePath } from '@/lib/portal';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
 import { PageHeader } from '@/components/portal/page-header';
-import { EmptyState } from '@/components/portal/empty-state';
-import { Phone, Search, ChevronRight, ChevronLeft } from 'lucide-react';
+import { IconPhone, IconSearch, IconChevronRight, IconChevronLeft } from '@tabler/icons-react';
 
 interface Call {
   call_id: string;
@@ -181,7 +177,6 @@ export default function CallsPage() {
       return {
         label: 'In Progress',
         badgeClass: 'bg-indigo-50 text-indigo-700 border-indigo-200',
-        avatarClass: 'bg-indigo-500',
       };
     }
     const outcome = String(call.outcome || '').toUpperCase();
@@ -189,20 +184,17 @@ export default function CallsPage() {
       return {
         label: 'Booked',
         badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-        avatarClass: 'bg-emerald-500',
       };
     }
     if (outcome === 'LEAD' || call.lead_captured) {
       return {
         label: 'Lead',
         badgeClass: 'bg-amber-50 text-amber-800 border-amber-200',
-        avatarClass: 'bg-amber-500',
       };
     }
     return {
       label: 'No Lead',
       badgeClass: 'bg-slate-50 text-slate-600 border-slate-200',
-      avatarClass: 'bg-slate-400',
     };
   };
 
@@ -242,7 +234,7 @@ export default function CallsPage() {
           disabled={!canGoPrev || isPaging}
           className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
         >
-          <ChevronLeft className="h-4 w-4" />
+          <IconChevronLeft className="h-4 w-4" stroke={1.5} />
         </button>
         {visiblePages.map((page) => (
           <button
@@ -263,7 +255,7 @@ export default function CallsPage() {
           disabled={!canGoNext || isPaging}
           className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
         >
-          <ChevronRight className="h-4 w-4" />
+          <IconChevronRight className="h-4 w-4" stroke={1.5} />
         </button>
       </div>
     </div>
@@ -296,19 +288,23 @@ export default function CallsPage() {
       {/* Search */}
       <div className="flex gap-3">
         <div className="relative flex-1">
-          <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-          <Input
+          <IconSearch className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" stroke={1.5} />
+          <input
             type="text"
             placeholder="Search by name, phone, or summary…"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && void handleSearch()}
-            className="h-10 pl-10"
+            className="h-10 w-full rounded-lg border border-slate-200 bg-white pl-10 pr-3 text-sm text-slate-900 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
           />
         </div>
-        <Button onClick={() => void handleSearch()} className="h-10 px-5">
+        <button
+          type="button"
+          onClick={() => void handleSearch()}
+          className="h-10 rounded-lg bg-emerald-600 px-5 text-sm font-semibold text-white transition hover:bg-emerald-700"
+        >
           Search
-        </Button>
+        </button>
       </div>
 
       {/* Pagination — top */}
@@ -318,7 +314,7 @@ export default function CallsPage() {
       {isLoading ? (
         <div className="space-y-2">
           {[1, 2, 3, 4, 5].map((i) => (
-            <div key={i} className="flex items-center gap-4 rounded-2xl border border-slate-100 bg-white p-4">
+            <div key={i} className="flex items-center gap-4 rounded-xl border border-slate-200 bg-white p-4">
               <div className="h-10 w-10 animate-pulse rounded-full bg-slate-100" />
               <div className="flex-1 space-y-2">
                 <div className="h-4 w-1/3 animate-pulse rounded bg-slate-100" />
@@ -340,12 +336,10 @@ export default function CallsPage() {
               <div
                 key={call.call_id}
                 onClick={() => handleViewCall(call.call_id)}
-                className="group flex cursor-pointer items-center gap-4 rounded-2xl border border-slate-100 bg-white p-4 transition-all hover:border-emerald-100 hover:shadow-sm"
+                className="group flex cursor-pointer items-center gap-4 rounded-xl border border-slate-200 bg-white p-4 transition-colors hover:border-slate-300"
               >
                 {/* Avatar */}
-                <div
-                  className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white ${tag.avatarClass}`}
-                >
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-slate-100 text-sm font-bold text-slate-700">
                   {getInitials(call.caller_name)}
                 </div>
 
@@ -353,9 +347,9 @@ export default function CallsPage() {
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="truncate font-semibold text-slate-900">{displayName}</span>
-                    <Badge variant="outline" className={`${tag.badgeClass} text-xs`}>
+                    <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${tag.badgeClass}`}>
                       {tag.label}
-                    </Badge>
+                    </span>
                   </div>
                   {showPhone && (
                     <p className="mt-0.5 text-sm text-slate-500">{formatPhone(call.caller_phone)}</p>
@@ -367,18 +361,18 @@ export default function CallsPage() {
                 </div>
 
                 {/* Arrow */}
-                <ChevronRight className="h-5 w-5 shrink-0 text-slate-300 transition-colors group-hover:text-emerald-500" />
+                <IconChevronRight className="h-5 w-5 shrink-0 text-slate-300 transition-colors group-hover:text-slate-500" stroke={1.5} />
               </div>
             );
           })}
         </div>
       ) : (
-        <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/50">
-          <EmptyState
-            icon={<Phone className="h-10 w-10" />}
-            title="No calls yet"
-            description="Your AI receptionist will handle calls automatically when your business is unavailable."
-          />
+        <div className="rounded-xl border border-slate-200 bg-white p-12 text-center">
+          <IconPhone className="mx-auto h-10 w-10 text-slate-300" stroke={1.5} />
+          <p className="mt-3 text-sm font-semibold text-slate-900">No calls yet</p>
+          <p className="mt-1 text-sm text-slate-500">
+            Your AI receptionist will handle calls automatically when your business is unavailable.
+          </p>
         </div>
       )}
 

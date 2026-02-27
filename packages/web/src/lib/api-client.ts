@@ -193,7 +193,14 @@ class ApiClient {
     return response.data ?? response;
   }
 
-  async changePassword(email: string, newPassword: string, session: string, poolType: 'users' | 'admin' = 'users', firstName?: string, lastName?: string): Promise<any> {
+  async changePassword(
+    email: string,
+    newPassword: string,
+    session: string,
+    poolType: 'users' | 'admin' | 'customer' = 'users',
+    firstName?: string,
+    lastName?: string,
+  ): Promise<any> {
     const body: any = { email, new_password: newPassword, session, pool_type: poolType };
     // Include first_name and last_name if provided
     if (firstName) {
@@ -218,10 +225,14 @@ class ApiClient {
     return response.data ?? response;
   }
 
-  async refreshToken(refreshToken: string, email: string): Promise<{ access_token: string; id_token: string }> {
+  async refreshToken(
+    refreshToken: string,
+    email: string,
+    poolType: 'auto' | 'users' | 'admin' | 'customer' = 'auto',
+  ): Promise<{ access_token: string; id_token: string }> {
     const response = await this.request<{ access_token: string; id_token: string }>('/auth/refresh', {
       method: 'POST',
-      body: JSON.stringify({ refresh_token: refreshToken, email }),
+      body: JSON.stringify({ refresh_token: refreshToken, email, pool_type: poolType }),
     });
     return response.data!;
   }

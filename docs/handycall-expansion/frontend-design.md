@@ -2,6 +2,9 @@
 
 > Comprehensive design system spec for the expanded platform: consumer marketplace + pro business OS + customer portal.
 
+> **Update (Current UI Direction):** This spec now follows the landing-page style baseline:
+> white/slate-first surfaces, sparse emerald accents, no decorative gradients/glows, and consistent iconography.
+
 ---
 
 ## 1. Design Principles
@@ -27,28 +30,18 @@
 
 ---
 
-## 2. Color System (Extended)
+## 2. Color System (Current Baseline)
 
 ### 2.1 Semantic Color Tokens
 
 Building on the existing CSS custom property system, extend with semantic tokens:
 
 ```css
-/* Existing — keep as-is */
---primary: 160 84% 34%;          /* Emerald #059669 */
+/* Core */
+--primary: 160 84% 34%;          /* Emerald #059669 (CTA only) */
 --primary-foreground: 0 0% 100%;
---background: 150 40% 98%;
---foreground: 160 18% 12%;
-
-/* Extended — new tokens for expansion */
-
-/* Customer accent (warmer variant for consumer pages) */
---customer-accent: 160 72% 38%;     /* Slightly lighter emerald */
---customer-accent-bg: 160 40% 96%;  /* Very light emerald wash */
-
-/* Pro accent (deeper, more authoritative) */
---pro-accent: 160 84% 30%;          /* Deeper emerald */
---pro-accent-bg: 160 20% 96%;       /* Neutral light */
+--background: 0 0% 100%;         /* White */
+--foreground: 222 47% 11%;       /* Slate-900-ish */
 
 /* Status colors (formalize existing usage) */
 --success: 142 71% 45%;             /* Green-500 */
@@ -57,16 +50,16 @@ Building on the existing CSS custom property system, extend with semantic tokens
 --error: 0 84% 60%;                 /* Red-500 (existing destructive) */
 
 /* Surface hierarchy */
---surface-0: 0 0% 100%;             /* White — cards, modals */
---surface-1: 150 40% 98%;           /* Light mint — page background */
---surface-2: 160 20% 96%;           /* Slightly tinted — nested sections */
---surface-3: 160 15% 93%;           /* Deeper — sidebar, wells */
+--surface-0: 0 0% 100%;             /* White */
+--surface-1: 210 20% 98%;           /* Slate-50 */
+--surface-2: 210 17% 95%;           /* Slate-100 */
+--surface-3: 210 16% 90%;           /* Slate-200 */
 
 /* Text hierarchy */
---text-primary: 160 18% 12%;        /* Main text */
---text-secondary: 160 10% 40%;      /* Secondary / muted */
---text-tertiary: 160 8% 55%;        /* Captions, timestamps */
---text-disabled: 160 5% 70%;        /* Disabled states */
+--text-primary: 222 47% 11%;        /* Slate-900 */
+--text-secondary: 215 16% 47%;      /* Slate-600 */
+--text-tertiary: 215 14% 60%;       /* Slate-500 */
+--text-disabled: 215 14% 70%;
 ```
 
 ### 2.2 Color Usage Rules
@@ -80,8 +73,21 @@ Building on the existing CSS custom property system, extend with semantic tokens
 | Success | `--success` | Completed appointments, payments received |
 | Warning | `--warning` | Usage at 75%+, pending items |
 | Error | `--error` | Failed payments, blocked features |
-| Backgrounds | `--surface-0` to `--surface-3` | Card → page → sidebar nesting |
+| Backgrounds | `--surface-0` to `--surface-2` | White/slate layering only |
 | Borders | `--border` | 1px solid, consistent everywhere |
+
+### 2.3 Hard Rules
+- No decorative gradient sections for standard content blocks
+- No glow/blur background effects
+- No colored icon containers by default (use bordered neutral containers)
+- Emerald is reserved for actions, links, and active/selection emphasis
+
+### 2.4 Iconography
+
+- Standard icon library: **Tabler Icons** (`@tabler/icons-react`)
+- Default stroke: `1.5`
+- Avoid mixing icon systems within the same page
+- Prefer neutral icon containers (`border-slate-200`, `bg-white`/`bg-slate-50`)
 
 ---
 

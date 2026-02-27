@@ -81,9 +81,12 @@ export interface DateRangeFilter {
 // Auth Endpoints
 // ============================================================================
 
+export type AuthPoolType = 'users' | 'admin' | 'customer';
+
 export interface LoginRequest {
   email: string;
   password: string;
+  pool_type?: AuthPoolType | 'auto';
 }
 
 export interface LoginResponse {
@@ -103,6 +106,7 @@ export interface RegisterRequest {
   first_name?: string;
   last_name?: string;
   timezone?: string;
+  pool_type?: 'users' | 'customer';
 }
 
 export interface RegisterResponse {
@@ -114,6 +118,7 @@ export interface RegisterResponse {
 export interface ConfirmSignUpRequest {
   email: string;
   code: string;
+  pool_type?: 'users' | 'customer';
 }
 
 export interface ConfirmSignUpResponse {
@@ -122,6 +127,7 @@ export interface ConfirmSignUpResponse {
 
 export interface ResendConfirmationRequest {
   email: string;
+  pool_type?: 'users' | 'customer';
 }
 
 export interface ResendConfirmationResponse {
@@ -130,6 +136,8 @@ export interface ResendConfirmationResponse {
 
 export interface RefreshTokenRequest {
   refresh_token: string;
+  email?: string;
+  pool_type?: AuthPoolType | 'auto';
 }
 
 export interface RefreshTokenResponse {

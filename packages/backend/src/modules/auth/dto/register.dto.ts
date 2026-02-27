@@ -1,4 +1,4 @@
-import { IsEmail, IsString, MinLength, IsNotEmpty, IsEnum, IsOptional } from 'class-validator';
+import { IsEmail, IsString, MinLength, IsNotEmpty, IsEnum, IsOptional, IsIn } from 'class-validator';
 import { ServiceType } from '@handycall/shared';
 
 export class RegisterDto {
@@ -33,4 +33,9 @@ export class RegisterDto {
   @IsOptional()
   @IsString()
   timezone?: string;
+
+  @IsOptional()
+  @IsString()
+  @IsIn(['users', 'customer'])
+  pool_type?: 'users' | 'customer';
 }

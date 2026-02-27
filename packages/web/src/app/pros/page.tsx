@@ -166,7 +166,7 @@ export default function ProsPage() {
 
             <div className="mt-10 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
               <Link
-                href="/register"
+                href="/register?audience=pro"
                 className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-8 py-3.5 text-base font-semibold text-white hover:bg-emerald-700 transition"
               >
                 Start Free 14-Day Trial
@@ -360,7 +360,7 @@ export default function ProsPage() {
                   </ul>
 
                   <Link
-                    href="/register"
+                    href="/register?audience=pro"
                     className={`block w-full text-center rounded-xl py-2.5 text-sm font-semibold transition ${
                       plan.highlighted
                         ? 'bg-white text-slate-900 hover:bg-slate-100'
@@ -400,7 +400,7 @@ export default function ProsPage() {
             </p>
             <div className="mt-10 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
               <Link
-                href="/register"
+                href="/register?audience=pro"
                 className="inline-flex items-center gap-2 rounded-xl bg-white px-10 py-3.5 text-base font-bold text-slate-900 hover:bg-slate-100 transition"
               >
                 Start Free 14-Day Trial

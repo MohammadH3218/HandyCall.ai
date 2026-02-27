@@ -21,6 +21,16 @@ export class AuthController {
   @Public()
   @Post('register')
   async register(@Body() dto: RegisterDto): Promise<RegisterResponse> {
+    if (dto.pool_type === 'customer') {
+      return this.authService.registerCustomer(
+        dto.email,
+        dto.password,
+        dto.phone_number,
+        dto.first_name,
+        dto.last_name,
+      );
+    }
+
     return this.authService.register(
       dto.company_name,
       dto.service_type,
@@ -37,7 +47,7 @@ export class AuthController {
   @Post('login')
   @HttpCode(HttpStatus.OK)
   async login(@Body() dto: LoginDto) {
-    return this.authService.loginWithCognito(dto.email, dto.password);
+    return this.authService.loginWithCognito(dto.email, dto.password, dto.pool_type || 'auto');
   }
 
   @Public()
@@ -58,7 +68,7 @@ export class AuthController {
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
   async refreshToken(@Body() dto: RefreshTokenDto) {
-    return this.authService.refreshWithCognito(dto.refresh_token, dto.email);
+    return this.authService.refreshWithCognito(dto.refresh_token, dto.email, dto.pool_type || 'auto');
   }
 
   @Public()
@@ -79,14 +89,14 @@ export class AuthController {
   @Post('confirm-signup')
   @HttpCode(HttpStatus.OK)
   async confirmSignUp(@Body() dto: ConfirmSignUpDto) {
-    return this.authService.confirmSignUp(dto.email, dto.code);
+    return this.authService.confirmSignUp(dto.email, dto.code, dto.pool_type || 'users');
   }
 
   @Public()
   @Post('resend-confirmation')
   @HttpCode(HttpStatus.OK)
   async resendConfirmation(@Body() dto: ResendConfirmationDto) {
-    return this.authService.resendSignUpCode(dto.email);
+    return this.authService.resendSignUpCode(dto.email, dto.pool_type || 'users');
   }
 
   @UseGuards(JwtAuthGuard)

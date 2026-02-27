@@ -28,7 +28,7 @@ export interface CognitoLoginResult {
   challengeName?: string;
   session?: string;
   userAttributes?: Record<string, string>;
-  poolType?: 'users' | 'admin'; // Track which pool was used
+  poolType?: 'users' | 'admin' | 'customer'; // Track which pool was used
 }
 
 @Injectable()
@@ -40,6 +40,9 @@ export class CognitoService {
   private adminPoolId: string;
   private adminClientId: string;
   private adminClientSecret: string;
+  private customerPoolId: string;
+  private customerClientId: string;
+  private customerClientSecret: string;
 
   constructor(private configService: ConfigService) {
     const region =
@@ -56,6 +59,19 @@ export class CognitoService {
     this.adminPoolId = this.configService.get<string>('AWS_COGNITO_ADMIN_POOL_ID') || '';
     this.adminClientId = this.configService.get<string>('AWS_COGNITO_ADMIN_CLIENT_ID') || '';
     this.adminClientSecret = this.configService.get<string>('AWS_COGNITO_ADMIN_CLIENT_SECRET') || '';
+
+    this.customerPoolId =
+      this.configService.get<string>('AWS_COGNITO_CUSTOMER_POOL_ID') ||
+      this.configService.get<string>('AWS_COGNITO_CUSTOMERS_POOL_ID') ||
+      '';
+    this.customerClientId =
+      this.configService.get<string>('AWS_COGNITO_CUSTOMER_CLIENT_ID') ||
+      this.configService.get<string>('AWS_COGNITO_CUSTOMERS_CLIENT_ID') ||
+      '';
+    this.customerClientSecret =
+      this.configService.get<string>('AWS_COGNITO_CUSTOMER_CLIENT_SECRET') ||
+      this.configService.get<string>('AWS_COGNITO_CUSTOMERS_CLIENT_SECRET') ||
+      '';
   }
 
   private calculateSecretHash(username: string, clientId: string, clientSecret: string): string {
@@ -65,8 +81,35 @@ export class CognitoService {
     return hmac.digest('base64');
   }
 
-  async login(email: string, password: string, poolType: 'auto' | 'users' | 'admin' = 'auto'): Promise<CognitoLoginResult> {
-    const poolsToTry: Array<'users' | 'admin'> = poolType === 'auto' ? ['users', 'admin'] : [poolType];
+  private resolvePoolConfig(poolType: 'users' | 'admin' | 'customer') {
+    if (poolType === 'admin') {
+      return {
+        poolId: this.adminPoolId,
+        clientId: this.adminClientId,
+        clientSecret: this.adminClientSecret,
+      };
+    }
+    if (poolType === 'customer') {
+      return {
+        poolId: this.customerPoolId,
+        clientId: this.customerClientId,
+        clientSecret: this.customerClientSecret,
+      };
+    }
+    return {
+      poolId: this.usersPoolId,
+      clientId: this.usersClientId,
+      clientSecret: this.usersClientSecret,
+    };
+  }
+
+  async login(
+    email: string,
+    password: string,
+    poolType: 'auto' | 'users' | 'admin' | 'customer' = 'auto',
+  ): Promise<CognitoLoginResult> {
+    const poolsToTry: Array<'users' | 'admin' | 'customer'> =
+      poolType === 'auto' ? ['users', 'customer', 'admin'] : [poolType];
 
     let lastError: any = null;
 
@@ -108,10 +151,12 @@ export class CognitoService {
     throw lastError || new UnauthorizedException('Authentication failed');
   }
 
-  private async loginWithPool(email: string, password: string, poolType: 'users' | 'admin'): Promise<CognitoLoginResult> {
-    const poolId = poolType === 'admin' ? this.adminPoolId : this.usersPoolId;
-    const clientId = poolType === 'admin' ? this.adminClientId : this.usersClientId;
-    const clientSecret = poolType === 'admin' ? this.adminClientSecret : this.usersClientSecret;
+  private async loginWithPool(
+    email: string,
+    password: string,
+    poolType: 'users' | 'admin' | 'customer',
+  ): Promise<CognitoLoginResult> {
+    const { poolId, clientId, clientSecret } = this.resolvePoolConfig(poolType);
 
     if (!poolId || !clientId || !clientSecret) {
       throw new UnauthorizedException(`Pool ${poolType} not configured`);
@@ -164,11 +209,9 @@ export class CognitoService {
     email: string,
     newPassword: string,
     session: string,
-    poolType: 'users' | 'admin' = 'users'
+    poolType: 'users' | 'admin' | 'customer' = 'users'
   ): Promise<CognitoLoginResult> {
-    const poolId = poolType === 'admin' ? this.adminPoolId : this.usersPoolId;
-    const clientId = poolType === 'admin' ? this.adminClientId : this.usersClientId;
-    const clientSecret = poolType === 'admin' ? this.adminClientSecret : this.usersClientSecret;
+    const { poolId, clientId, clientSecret } = this.resolvePoolConfig(poolType);
 
     if (!poolId || !clientId || !clientSecret) {
       throw new BadRequestException(`Pool ${poolType} not configured`);
@@ -223,8 +266,8 @@ export class CognitoService {
     }
   }
 
-  async userExists(email: string, poolType: 'users' | 'admin' = 'users'): Promise<boolean> {
-    const poolId = poolType === 'admin' ? this.adminPoolId : this.usersPoolId;
+  async userExists(email: string, poolType: 'users' | 'admin' | 'customer' = 'users'): Promise<boolean> {
+    const { poolId } = this.resolvePoolConfig(poolType);
     if (!poolId) return false;
 
     try {
@@ -244,8 +287,11 @@ export class CognitoService {
     }
   }
 
-  async getUserAttributes(email: string, poolType: 'users' | 'admin' = 'users'): Promise<Record<string, string>> {
-    const poolId = poolType === 'admin' ? this.adminPoolId : this.usersPoolId;
+  async getUserAttributes(
+    email: string,
+    poolType: 'users' | 'admin' | 'customer' = 'users',
+  ): Promise<Record<string, string>> {
+    const { poolId } = this.resolvePoolConfig(poolType);
     
     if (!poolId) {
       console.warn(`[CognitoService] Pool ${poolType} not configured, cannot get user attributes`);
@@ -277,9 +323,9 @@ export class CognitoService {
   async updateUserAttributes(
     email: string,
     attributes: Record<string, string>,
-    poolType: 'users' | 'admin' = 'users'
+    poolType: 'users' | 'admin' | 'customer' = 'users'
   ): Promise<void> {
-    const poolId = poolType === 'admin' ? this.adminPoolId : this.usersPoolId;
+    const { poolId } = this.resolvePoolConfig(poolType);
 
     if (!poolId) {
       throw new BadRequestException(`Pool ${poolType} not configured`);
@@ -307,15 +353,14 @@ export class CognitoService {
   async refreshAccessToken(
     refreshToken: string,
     username: string,
-    poolType: 'auto' | 'users' | 'admin' = 'auto'
-  ): Promise<{ accessToken: string; idToken: string; poolType: 'users' | 'admin' }> {
-    const poolsToTry: Array<'users' | 'admin'> = poolType === 'auto' ? ['users', 'admin'] : [poolType];
+    poolType: 'auto' | 'users' | 'admin' | 'customer' = 'auto'
+  ): Promise<{ accessToken: string; idToken: string; poolType: 'users' | 'admin' | 'customer' }> {
+    const poolsToTry: Array<'users' | 'admin' | 'customer'> =
+      poolType === 'auto' ? ['users', 'customer', 'admin'] : [poolType];
     let lastError: any = null;
 
     for (const pool of poolsToTry) {
-      const poolId = pool === 'admin' ? this.adminPoolId : this.usersPoolId;
-      const clientId = pool === 'admin' ? this.adminClientId : this.usersClientId;
-      const clientSecret = pool === 'admin' ? this.adminClientSecret : this.usersClientSecret;
+      const { poolId, clientId, clientSecret } = this.resolvePoolConfig(pool);
 
       if (!poolId || !clientId || !clientSecret) {
         continue;
@@ -361,12 +406,12 @@ export class CognitoService {
     tempPassword: string,
     companyId?: string,
     name?: string,
-    poolType: 'users' | 'admin' = 'users',
+    poolType: 'users' | 'admin' | 'customer' = 'users',
     options?: {
       makePasswordPermanent?: boolean;
     }
   ): Promise<void> {
-    const poolId = poolType === 'admin' ? this.adminPoolId : this.usersPoolId;
+    const { poolId } = this.resolvePoolConfig(poolType);
 
     if (!poolId) {
       throw new BadRequestException(`Pool ${poolType} not configured`);
@@ -438,13 +483,15 @@ export class CognitoService {
   async signUpUser(
     email: string,
     password: string,
-    attributes?: Record<string, string>
+    attributes?: Record<string, string>,
+    poolType: 'users' | 'customer' = 'users',
   ): Promise<void> {
-    if (!this.usersClientId || !this.usersClientSecret) {
-      throw new BadRequestException('Users pool client not configured');
+    const { clientId, clientSecret } = this.resolvePoolConfig(poolType);
+    if (!clientId || !clientSecret) {
+      throw new BadRequestException(`${poolType} pool client not configured`);
     }
 
-    const secretHash = this.calculateSecretHash(email, this.usersClientId, this.usersClientSecret);
+    const secretHash = this.calculateSecretHash(email, clientId, clientSecret);
 
     const userAttributes = [
       { Name: 'email', Value: email },
@@ -459,7 +506,7 @@ export class CognitoService {
 
     try {
       const command = new SignUpCommand({
-        ClientId: this.usersClientId,
+        ClientId: clientId,
         Username: email,
         Password: password,
         SecretHash: secretHash,
@@ -477,15 +524,24 @@ export class CognitoService {
    * Confirm a user's sign-up using the emailed code.
    */
   async confirmSignUp(email: string, code: string): Promise<void> {
-    if (!this.usersClientId || !this.usersClientSecret) {
-      throw new BadRequestException('Users pool client not configured');
+    return this.confirmSignUpForPool(email, code, 'users');
+  }
+
+  async confirmSignUpForPool(
+    email: string,
+    code: string,
+    poolType: 'users' | 'customer' = 'users',
+  ): Promise<void> {
+    const { clientId, clientSecret } = this.resolvePoolConfig(poolType);
+    if (!clientId || !clientSecret) {
+      throw new BadRequestException(`${poolType} pool client not configured`);
     }
 
-    const secretHash = this.calculateSecretHash(email, this.usersClientId, this.usersClientSecret);
+    const secretHash = this.calculateSecretHash(email, clientId, clientSecret);
 
     try {
       const command = new ConfirmSignUpCommand({
-        ClientId: this.usersClientId,
+        ClientId: clientId,
         Username: email,
         ConfirmationCode: code,
         SecretHash: secretHash,
@@ -502,15 +558,23 @@ export class CognitoService {
    * Resend the confirmation code email for sign-up.
    */
   async resendConfirmationCode(email: string): Promise<void> {
-    if (!this.usersClientId || !this.usersClientSecret) {
-      throw new BadRequestException('Users pool client not configured');
+    return this.resendConfirmationCodeForPool(email, 'users');
+  }
+
+  async resendConfirmationCodeForPool(
+    email: string,
+    poolType: 'users' | 'customer' = 'users',
+  ): Promise<void> {
+    const { clientId, clientSecret } = this.resolvePoolConfig(poolType);
+    if (!clientId || !clientSecret) {
+      throw new BadRequestException(`${poolType} pool client not configured`);
     }
 
-    const secretHash = this.calculateSecretHash(email, this.usersClientId, this.usersClientSecret);
+    const secretHash = this.calculateSecretHash(email, clientId, clientSecret);
 
     try {
       const command = new ResendConfirmationCodeCommand({
-        ClientId: this.usersClientId,
+        ClientId: clientId,
         Username: email,
         SecretHash: secretHash,
       });
@@ -525,8 +589,8 @@ export class CognitoService {
   /**
    * Delete a user from Cognito
    */
-  async deleteUser(email: string, poolType: 'users' | 'admin' = 'users'): Promise<void> {
-    const poolId = poolType === 'admin' ? this.adminPoolId : this.usersPoolId;
+  async deleteUser(email: string, poolType: 'users' | 'admin' | 'customer' = 'users'): Promise<void> {
+    const { poolId } = this.resolvePoolConfig(poolType);
 
     if (!poolId) {
       throw new BadRequestException(`Pool ${poolType} not configured`);
@@ -548,8 +612,8 @@ export class CognitoService {
   /**
    * Disable a user account
    */
-  async disableUser(email: string, poolType: 'users' | 'admin' = 'users'): Promise<void> {
-    const poolId = poolType === 'admin' ? this.adminPoolId : this.usersPoolId;
+  async disableUser(email: string, poolType: 'users' | 'admin' | 'customer' = 'users'): Promise<void> {
+    const { poolId } = this.resolvePoolConfig(poolType);
 
     if (!poolId) {
       throw new BadRequestException(`Pool ${poolType} not configured`);
@@ -571,8 +635,8 @@ export class CognitoService {
   /**
    * Enable a user account
    */
-  async enableUser(email: string, poolType: 'users' | 'admin' = 'users'): Promise<void> {
-    const poolId = poolType === 'admin' ? this.adminPoolId : this.usersPoolId;
+  async enableUser(email: string, poolType: 'users' | 'admin' | 'customer' = 'users'): Promise<void> {
+    const { poolId } = this.resolvePoolConfig(poolType);
 
     if (!poolId) {
       throw new BadRequestException(`Pool ${poolType} not configured`);
@@ -594,13 +658,14 @@ export class CognitoService {
   async setUserPassword(
     email: string,
     newPassword: string,
-    poolType: 'auto' | 'users' | 'admin' = 'auto'
+    poolType: 'auto' | 'users' | 'admin' | 'customer' = 'auto'
   ): Promise<void> {
-    const poolsToTry: Array<'users' | 'admin'> = poolType === 'auto' ? ['users', 'admin'] : [poolType];
+    const poolsToTry: Array<'users' | 'admin' | 'customer'> =
+      poolType === 'auto' ? ['users', 'customer', 'admin'] : [poolType];
     let lastError: any = null;
 
     for (const pool of poolsToTry) {
-      const poolId = pool === 'admin' ? this.adminPoolId : this.usersPoolId;
+      const { poolId } = this.resolvePoolConfig(pool);
       if (!poolId) {
         continue;
       }
@@ -624,8 +689,8 @@ export class CognitoService {
   /**
    * List all users in a pool (with pagination)
    */
-  async listUsers(poolType: 'users' | 'admin' = 'users', limit = 60): Promise<any[]> {
-    const poolId = poolType === 'admin' ? this.adminPoolId : this.usersPoolId;
+  async listUsers(poolType: 'users' | 'admin' | 'customer' = 'users', limit = 60): Promise<any[]> {
+    const { poolId } = this.resolvePoolConfig(poolType);
 
     if (!poolId) {
       throw new BadRequestException(`Pool ${poolType} not configured`);

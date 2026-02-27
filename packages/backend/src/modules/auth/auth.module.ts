@@ -5,6 +5,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { UsersModule } from '../users/users.module';
 import { CompaniesModule } from '../companies/companies.module';
 import { AgentConfigModule } from '../agent-config/agent-config.module';
+import { CustomerProfilesModule } from '../customer-profiles/customer-profiles.module';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { CognitoService } from './cognito.service';
@@ -18,6 +19,7 @@ import { AdminJwtStrategy } from './strategies/admin-jwt.strategy';
     forwardRef(() => UsersModule),
     CompaniesModule,
     AgentConfigModule,
+    CustomerProfilesModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => ({

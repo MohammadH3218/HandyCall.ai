@@ -2,6 +2,9 @@
 
 > Detailed layout, copywriting, and section-by-section specifications for all marketing pages. Thumbtack-inspired, non-derivative.
 
+> **Current Style Alignment (Required):** Match the live landing-page language:
+> white/slate-first UI, subtle borders, minimal emerald accents, no glow/blur effects, no heavy gradient sections.
+
 ---
 
 ## 1. Top Navigation (Shared Across Marketing Pages)
@@ -35,7 +38,7 @@
 - "Pricing" → `/pros/pricing`
 - "For Customers" → `/` (reverse of consumer nav)
 - "Pro Login" → `/pros/login` (ghost)
-- "Get Started" → `/pros/signup` (primary button, emerald)
+- "Get Started" → `/register?audience=pro` (primary button, emerald)
 
 ---
 
@@ -70,10 +73,10 @@
 - Popular links: clickable, pre-fill search
 
 **Design Notes:**
-- Clean white/light mint background (no busy imagery)
+- Clean white/slate background (no busy imagery)
 - Headline: `display-xl` (64px), Space Grotesk, bold
 - Subheadline: `body-lg` (18px), Manrope, slate-600
-- SearchBar: max-w-2xl, centered, prominent shadow, rounded-full
+- SearchBar: max-w-2xl, centered, subtle border + minimal shadow, rounded-xl
 - Popular tags: `caption` size, slate-500, underline on hover
 
 ### Section 2: Trust Strip
@@ -101,7 +104,7 @@
 └─────────┘ └─────────┘ └─────────┘ └─────────┘
 ```
 
-**Design:** 2-row × 4-col grid (responsive: 2-col on mobile). CategoryCards with illustration/icon + name. Hover: emerald border + slight lift. Links to `/categories/[slug]`.
+**Design:** 2-row × 4-col grid (responsive: 2-col on mobile). CategoryCards with neutral icon container + name. Hover: slate border darkening + slight lift. Links to `/categories/[slug]`.
 
 ### Section 4: How It Works
 
@@ -116,7 +119,7 @@
                             availability.             Done.
 ```
 
-**Design:** 3-column (stacked on mobile). Numbered circles with emerald fill. Icon above, bold step title, 1-line description below. Connecting dotted line between steps (desktop only).
+**Design:** 3-column (stacked on mobile). Numbered circles use slate/emerald only for active emphasis. Icon above, bold step title, 1-line description below. Connecting dotted line between steps (desktop only).
 
 ### Section 5: Featured Providers / Popular Services
 
@@ -147,7 +150,7 @@
 └──────────────────────────────────────────────────────────────┘
 ```
 
-**Design:** Two-column layout (illustration left, bullet points right). Light emerald-50 background section. This section bridges consumer and pro value — shows customers WHY response times are fast.
+**Design:** Two-column layout (illustration left, bullet points right). White/slate-50 section with bordered content card. This section bridges consumer and pro value — shows customers WHY response times are fast.
 
 ### Section 7: Testimonials
 
@@ -173,7 +176,7 @@
 
 ```
 ┌────────────────────────────────────────────────────────────────────────┐
-│  [Emerald-700 background]                                              │
+│  [Bordered white/slate card]                                           │
 │                                                                        │
 │  Are you a service pro?                                                │
 │  Grow your business with AI-powered call handling,                     │
@@ -184,7 +187,7 @@
 └────────────────────────────────────────────────────────────────────────┘
 ```
 
-**Design:** Full-width emerald-700 background, white text. Centered. "Learn More" links to `/pros`. Secondary visual — keep minimal.
+**Design:** Centered bordered card (`bg-white`, `border-slate-200`) on neutral section background. "Learn More" links to `/pros`. Keep visuals minimal.
 
 ### Section 9: Final CTA
 

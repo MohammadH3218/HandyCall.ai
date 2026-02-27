@@ -1,3 +1,6 @@
-'use client';
+import { redirect } from 'next/navigation';
 
-export { default } from '@/app/login/page';
+export default function AdminLoginPage() {
+  redirect('/login?audience=admin');
+}
+

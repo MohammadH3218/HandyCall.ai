@@ -78,7 +78,7 @@ export default function SignUpPage() {
           </ul>
           <p className="mt-12 text-xs text-slate-400">
             Are you a service professional?{' '}
-            <Link href="/pros" className="font-semibold text-slate-600 hover:text-slate-900 underline underline-offset-2">
+            <Link href="/register?audience=pro" className="font-semibold text-slate-600 hover:text-slate-900 underline underline-offset-2">
               Join as a Pro instead
             </Link>
           </p>
@@ -187,7 +187,7 @@ export default function SignUpPage() {
           {/* Mobile pro link */}
           <p className="mt-6 text-center text-xs text-slate-400 lg:hidden">
             Service professional?{' '}
-            <Link href="/pros" className="font-semibold text-slate-600 hover:text-slate-900 underline underline-offset-2">
+            <Link href="/register?audience=pro" className="font-semibold text-slate-600 hover:text-slate-900 underline underline-offset-2">
               Join as a Pro
             </Link>
           </p>

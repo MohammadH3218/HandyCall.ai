@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiClient } from '@/lib/api-client';
-import { Button } from '@/components/ui/button';
 import { useAuthStore } from '@/stores/auth-store';
 import { SubscriptionPlan, SubscriptionStatus } from '@handycall/shared';
 import { PLAN_CATALOG, getPlanPriceDisplay } from '@/constants/plans';
@@ -18,7 +17,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Clock3, CreditCard, FileText, MessageSquare, ShieldCheck, Sparkles, Users } from 'lucide-react';
+import {
+  IconCreditCard,
+  IconClock,
+  IconMessage,
+  IconUsers,
+  IconShieldCheck,
+  IconSparkles,
+  IconFileText,
+} from '@tabler/icons-react';
 
 type PaymentMethod = {
   id: string;
@@ -186,7 +193,7 @@ export default function BillingPage() {
     if (!managedPaymentsEnabled) {
       toast({
         title: 'Payments are self-managed',
-        description: 'Switch to “Managed in HandyCall” to connect Stripe.',
+        description: 'Switch to "Managed in HandyCall" to connect Stripe.',
       });
       return;
     }
@@ -302,8 +309,8 @@ export default function BillingPage() {
       <div className="space-y-5">
         <div className="h-8 w-48 animate-pulse rounded-lg bg-slate-100" />
         <div className="grid gap-5 md:grid-cols-2">
-          <div className="h-72 animate-pulse rounded-2xl bg-slate-100" />
-          <div className="h-72 animate-pulse rounded-2xl bg-slate-100" />
+          <div className="h-72 animate-pulse rounded-xl bg-slate-100" />
+          <div className="h-72 animate-pulse rounded-xl bg-slate-100" />
         </div>
       </div>
     );
@@ -318,25 +325,25 @@ export default function BillingPage() {
       />
 
       {limitReached && (
-        <div className="rounded-2xl border border-red-200 bg-red-50 px-5 py-4">
+        <div className="rounded-xl border border-red-200 bg-red-50 px-5 py-4">
           <p className="text-sm font-semibold text-red-800">Usage limit reached</p>
           <p className="mt-1 text-sm text-red-700">
             AI call/SMS handling may be paused until your next reset on {formatDate(subscription?.current_period_end)}.
           </p>
-          <Button size="sm" className="mt-3" onClick={() => router.push('/dashboard/billing/plans')}>
+          <button
+            onClick={() => router.push('/dashboard/billing/plans')}
+            className="mt-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg px-4 py-2 text-sm font-medium"
+          >
             Upgrade plan
-          </Button>
+          </button>
         </div>
       )}
 
       <div className="grid gap-5 md:grid-cols-2">
         {/* Current Plan */}
-        <div className="relative overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm">
-          <div className="pointer-events-none absolute -right-16 -top-16 h-40 w-40 rounded-full bg-emerald-100/50 blur-3xl" />
+        <div className="rounded-xl border border-slate-200 bg-white">
           <div className="border-b border-slate-100 px-5 py-4 flex items-center gap-3">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-emerald-100 bg-emerald-50">
-              <Sparkles className="h-3.5 w-3.5 text-emerald-600" />
-            </div>
+            <IconSparkles stroke={1.5} className="h-4 w-4 text-emerald-600" />
             <div>
               <h2 className="text-sm font-semibold text-slate-900">Current plan</h2>
               <p className="text-xs text-slate-500">Your active subscription and monthly limits.</p>
@@ -361,7 +368,7 @@ export default function BillingPage() {
 
                 <div className="grid grid-cols-3 gap-2">
                   {planHighlights.map((item) => (
-                    <div key={item.label} className="rounded-xl border border-slate-100 bg-slate-50/70 p-3">
+                    <div key={item.label} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
                       <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">{item.label}</p>
                       <p className="mt-1 text-sm font-semibold text-slate-900">{item.value}</p>
                     </div>
@@ -369,7 +376,7 @@ export default function BillingPage() {
                 </div>
 
                 {subscription?.current_period_start && (
-                  <div className="rounded-xl border border-slate-100 bg-slate-50/70 px-4 py-3 text-xs text-slate-500">
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-500">
                     Period: {formatDate(subscription.current_period_start)} – {formatDate(subscription.current_period_end)}
                   </div>
                 )}
@@ -382,13 +389,23 @@ export default function BillingPage() {
 
                 <div className="flex flex-wrap gap-2">
                   {status === SubscriptionStatus.CANCELED || subscription?.cancel_at_period_end ? (
-                    <Button onClick={() => router.push('/dashboard/billing/plans')}>Reactivate plan</Button>
+                    <button
+                      onClick={() => router.push('/dashboard/billing/plans')}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg px-4 py-2 text-sm font-medium"
+                    >
+                      Reactivate plan
+                    </button>
                   ) : (
                     <>
-                      <Button onClick={() => router.push('/dashboard/billing/plans')}>Manage plan</Button>
+                      <button
+                        onClick={() => router.push('/dashboard/billing/plans')}
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg px-4 py-2 text-sm font-medium"
+                      >
+                        Manage plan
+                      </button>
                       <button
                         onClick={() => setShowCancelDialog(true)}
-                        className="rounded-xl border border-red-200 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"
+                        className="border border-red-200 text-red-600 hover:bg-red-50 rounded-lg px-4 py-2 text-sm font-medium transition-colors"
                       >
                         Cancel plan
                       </button>
@@ -399,20 +416,22 @@ export default function BillingPage() {
             ) : (
               <div className="flex flex-col items-center py-8 text-center">
                 <p className="text-sm text-slate-500 mb-4">No active subscription</p>
-                <Button onClick={() => router.push('/dashboard/billing/plans')}>Choose a plan</Button>
+                <button
+                  onClick={() => router.push('/dashboard/billing/plans')}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg px-4 py-2 text-sm font-medium"
+                >
+                  Choose a plan
+                </button>
               </div>
             )}
           </div>
         </div>
 
         {/* Payment Methods */}
-        <div className="relative overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm">
-          <div className="pointer-events-none absolute -left-16 top-8 h-32 w-32 rounded-full bg-emerald-100/40 blur-3xl" />
+        <div className="rounded-xl border border-slate-200 bg-white">
           <div className="border-b border-slate-100 px-5 py-4 flex items-center justify-between gap-3">
             <div className="flex items-center gap-3">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-emerald-100 bg-emerald-50">
-                <CreditCard className="h-3.5 w-3.5 text-emerald-600" />
-              </div>
+              <IconCreditCard stroke={1.5} className="h-4 w-4 text-emerald-600" />
               <div>
                 <h2 className="text-sm font-semibold text-slate-900">Payment methods</h2>
                 <p className="text-xs text-slate-500">Manage how your subscription is billed.</p>
@@ -420,7 +439,7 @@ export default function BillingPage() {
             </div>
             <button
               onClick={() => router.push('/dashboard/billing/payment-method')}
-              className="shrink-0 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 transition-colors"
+              className="shrink-0 border border-slate-200 text-slate-700 hover:bg-slate-50 rounded-lg px-4 py-2 text-sm"
             >
               Add card
             </button>
@@ -434,12 +453,10 @@ export default function BillingPage() {
                   return (
                     <div
                       key={method.id}
-                      className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-100 bg-slate-50/50 p-4"
+                      className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4"
                     >
                       <div className="flex items-center gap-3">
-                        <div className="flex h-9 w-11 items-center justify-center rounded-lg border border-emerald-100 bg-emerald-50">
-                          <CreditCard className="h-4 w-4 text-emerald-600" />
-                        </div>
+                        <IconCreditCard stroke={1.5} className="h-5 w-5 text-slate-500" />
                         <div>
                           <div className="flex items-center gap-2">
                             <p className="text-sm font-semibold text-slate-900">{(method.brand || 'Card').toUpperCase()}</p>
@@ -461,7 +478,7 @@ export default function BillingPage() {
                             <button
                               onClick={() => handleMakeDefault(method.id)}
                               disabled={paymentActionId === method.id}
-                              className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 transition-colors"
+                              className="border border-slate-200 text-slate-700 hover:bg-slate-50 rounded-lg px-3 py-1 text-xs font-medium disabled:opacity-50 transition-colors"
                             >
                               Make default
                             </button>
@@ -470,7 +487,7 @@ export default function BillingPage() {
                             <button
                               onClick={() => handleDeleteClick(method)}
                               disabled={paymentActionId === method.id}
-                              className="rounded-lg px-2.5 py-1 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50 transition-colors"
+                              className="rounded-lg px-3 py-1 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50 transition-colors"
                             >
                               Remove
                             </button>
@@ -487,16 +504,21 @@ export default function BillingPage() {
             ) : (
               <div className="flex flex-col items-center py-8 text-center">
                 <p className="text-sm text-slate-500 mb-4">No payment method on file</p>
-                <Button onClick={() => router.push('/dashboard/billing/payment-method')}>Add payment method</Button>
+                <button
+                  onClick={() => router.push('/dashboard/billing/payment-method')}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg px-4 py-2 text-sm font-medium"
+                >
+                  Add payment method
+                </button>
               </div>
             )}
 
-            <div className="rounded-xl border border-emerald-100 bg-emerald-50/70 px-4 py-3">
+            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
               <div className="flex items-start gap-3">
-                <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-700" />
+                <IconShieldCheck stroke={1.5} className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
                 <div>
-                  <p className="text-xs font-semibold text-emerald-900">Secure billing</p>
-                  <p className="text-xs text-emerald-700/80 mt-0.5">
+                  <p className="text-xs font-semibold text-slate-900">Secure billing</p>
+                  <p className="text-xs text-slate-500 mt-0.5">
                     Card details are encrypted and stored by Stripe. HandyCall never stores full card numbers.
                   </p>
                 </div>
@@ -508,18 +530,18 @@ export default function BillingPage() {
 
       {/* Usage meters */}
       {usage && planDetails && (
-        <div className="rounded-2xl border border-slate-100 bg-white shadow-sm">
+        <div className="rounded-xl border border-slate-200 bg-white">
           <div className="border-b border-slate-100 px-5 py-4">
             <h2 className="text-sm font-semibold text-slate-900">Current period usage</h2>
             <p className="text-xs text-slate-500">
               {usage.period_start ? formatDate(usage.period_start) : 'N/A'} – {usage.period_end ? formatDate(usage.period_end) : 'N/A'}
             </p>
           </div>
-          <div className="grid divide-y divide-slate-50 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+          <div className="grid divide-y divide-slate-100 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
             {[
-              { label: 'Call minutes', used: usage?.call_minutes || 0, limit: planLimits?.minutes, icon: <Clock3 className="h-4 w-4 text-blue-600" />, iconBg: 'border-blue-100 bg-blue-50', barColor: 'bg-blue-500' },
-              { label: 'SMS messages', used: usage?.sms_count || 0, limit: planLimits?.sms, icon: <MessageSquare className="h-4 w-4 text-emerald-600" />, iconBg: 'border-emerald-100 bg-emerald-50', barColor: 'bg-emerald-500' },
-              { label: 'Active contacts', used: usage?.active_contacts || 0, limit: planLimits?.contacts, icon: <Users className="h-4 w-4 text-violet-600" />, iconBg: 'border-violet-100 bg-violet-50', barColor: 'bg-violet-500' },
+              { label: 'Call minutes', used: usage?.call_minutes || 0, limit: planLimits?.minutes, icon: <IconClock stroke={1.5} className="h-4 w-4 text-slate-500" />, barColor: 'bg-emerald-500' },
+              { label: 'SMS messages', used: usage?.sms_count || 0, limit: planLimits?.sms, icon: <IconMessage stroke={1.5} className="h-4 w-4 text-slate-500" />, barColor: 'bg-emerald-500' },
+              { label: 'Active contacts', used: usage?.active_contacts || 0, limit: planLimits?.contacts, icon: <IconUsers stroke={1.5} className="h-4 w-4 text-slate-500" />, barColor: 'bg-emerald-500' },
             ].map((m) => {
               const pct = calculateUsagePercentage(m.used, m.limit || 0);
               const bar = pct >= 90 ? 'bg-red-500' : pct >= 75 ? 'bg-amber-500' : m.barColor;
@@ -528,7 +550,7 @@ export default function BillingPage() {
                 <div key={m.label} className="px-5 py-5">
                   <div className="flex items-start justify-between gap-3 mb-3">
                     <div className="flex items-center gap-3">
-                      <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border ${m.iconBg}`}>{m.icon}</div>
+                      {m.icon}
                       <div>
                         <p className="text-xs font-semibold text-slate-700">{m.label}</p>
                         <p className="text-[11px] text-slate-400">Limit: {limitLabel}</p>
@@ -546,19 +568,19 @@ export default function BillingPage() {
         </div>
       )}
 
-      <div className="rounded-2xl border border-slate-100 bg-white shadow-sm">
+      <div className="rounded-xl border border-slate-200 bg-white">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
           <div>
             <h2 className="text-sm font-semibold text-slate-900">Customer payments</h2>
             <p className="text-xs text-slate-500">Collect payments from booking links with Stripe Connect.</p>
           </div>
           <div className="flex items-center gap-2">
-            <div className="flex items-center rounded-xl border border-slate-200 bg-slate-50 p-0.5">
+            <div className="flex items-center rounded-lg border border-slate-200 bg-slate-50 p-0.5">
               <button
                 type="button"
                 disabled={paymentModeSaving}
                 onClick={() => handleSwitchPaymentMode('HANDYCALL_MANAGED')}
-                className={`rounded-lg px-3 py-1 text-xs font-semibold transition ${
+                className={`rounded-md px-3 py-1 text-xs font-semibold transition ${
                   bookingPaymentMode === 'HANDYCALL_MANAGED'
                     ? 'bg-white text-emerald-700 shadow-sm'
                     : 'text-slate-600 hover:text-slate-800'
@@ -570,7 +592,7 @@ export default function BillingPage() {
                 type="button"
                 disabled={paymentModeSaving}
                 onClick={() => handleSwitchPaymentMode('SELF_MANAGED')}
-                className={`rounded-lg px-3 py-1 text-xs font-semibold transition ${
+                className={`rounded-md px-3 py-1 text-xs font-semibold transition ${
                   bookingPaymentMode === 'SELF_MANAGED'
                     ? 'bg-white text-slate-700 shadow-sm'
                     : 'text-slate-600 hover:text-slate-800'
@@ -588,46 +610,63 @@ export default function BillingPage() {
                 <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-700">
                   Setup incomplete
                 </span>
-                <Button size="sm" onClick={handleConnectSetup}>Complete setup</Button>
+                <button
+                  onClick={handleConnectSetup}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg px-4 py-2 text-sm font-medium"
+                >
+                  Complete setup
+                </button>
               </>
             ) : managedPaymentsEnabled ? (
-              <Button size="sm" onClick={handleConnectSetup}>Set up Connect</Button>
+              <button
+                onClick={handleConnectSetup}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg px-4 py-2 text-sm font-medium"
+              >
+                Set up Connect
+              </button>
             ) : null}
-            <Button variant="outline" size="sm" onClick={() => router.push('/dashboard/payments')}>
+            <button
+              onClick={() => router.push('/dashboard/payments')}
+              className="border border-slate-200 text-slate-700 hover:bg-slate-50 rounded-lg px-4 py-2 text-sm"
+            >
               View all payments
-            </Button>
+            </button>
           </div>
         </div>
         <div className="space-y-4 px-5 py-5">
           {!managedPaymentsEnabled ? (
-            <div className="rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-4">
+            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-4">
               <p className="text-sm text-slate-700">
                 Your company is set to handle payments outside HandyCall. AI can still send booking links, but customers will pay through your own process.
               </p>
-              <Button size="sm" className="mt-3" onClick={() => handleSwitchPaymentMode('HANDYCALL_MANAGED')} disabled={paymentModeSaving}>
+              <button
+                onClick={() => handleSwitchPaymentMode('HANDYCALL_MANAGED')}
+                disabled={paymentModeSaving}
+                className="mt-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50"
+              >
                 Switch to HandyCall-managed payments
-              </Button>
+              </button>
             </div>
           ) : connectFullyReady ? (
             <>
               <div className="grid gap-3 sm:grid-cols-4">
-                <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-3">
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
                   <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Revenue</p>
                   <p className="mt-1 text-base font-bold text-slate-900">
                     {formatMoney(customerPaymentStats?.total_revenue_cents || 0)}
                   </p>
                 </div>
-                <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-3">
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
                   <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">This month</p>
                   <p className="mt-1 text-base font-bold text-slate-900">
                     {formatMoney(customerPaymentStats?.this_month_revenue_cents || 0)}
                   </p>
                 </div>
-                <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-3">
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
                   <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Successful</p>
                   <p className="mt-1 text-base font-bold text-slate-900">{customerPaymentStats?.successful_payments || 0}</p>
                 </div>
-                <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-3">
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
                   <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Avg ticket</p>
                   <p className="mt-1 text-base font-bold text-slate-900">
                     {formatMoney(customerPaymentStats?.average_ticket_cents || 0)}
@@ -638,7 +677,7 @@ export default function BillingPage() {
               {recentCustomerPayments.length > 0 ? (
                 <div className="space-y-2">
                   {recentCustomerPayments.slice(0, 5).map((payment) => (
-                    <div key={payment.payment_id} className="flex items-center justify-between rounded-xl border border-slate-100 bg-white px-4 py-3">
+                    <div key={payment.payment_id} className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3">
                       <div>
                         <p className="text-sm font-semibold text-slate-900">{payment.customer_name || payment.service_name || 'Payment'}</p>
                         <p className="text-xs text-slate-500">{formatDate(payment.created_at)}</p>
@@ -655,27 +694,30 @@ export default function BillingPage() {
               )}
             </>
           ) : connectSetupIncomplete ? (
-            <div className="rounded-xl border border-amber-200 bg-amber-50/70 px-4 py-4">
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-4">
               <p className="text-sm text-amber-800">
                 Stripe account exists, but onboarding is not complete yet.
                 {!connectCanCharge ? ' Enable charges in Stripe Connect.' : ''}
                 {!connectCanPayout ? ' Add bank/payout details to enable payouts.' : ''}
               </p>
-              <Button size="sm" className="mt-3" onClick={handleConnectSetup}>
+              <button
+                onClick={handleConnectSetup}
+                className="mt-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg px-4 py-2 text-sm font-medium"
+              >
                 Complete Stripe setup
-              </Button>
+              </button>
             </div>
           ) : (
-            <div className="rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-4">
+            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-4">
               <p className="text-sm text-slate-700">
                 Connect Stripe to start collecting customer payments from booking links.
               </p>
             </div>
           )}
 
-          <div className="rounded-xl border border-emerald-100 bg-emerald-50/70 px-4 py-3">
-            <p className="text-xs font-semibold text-emerald-900">Security</p>
-            <p className="mt-1 text-xs text-emerald-700">We never store your bank information.</p>
+          <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+            <p className="text-xs font-semibold text-slate-900">Security</p>
+            <p className="mt-1 text-xs text-slate-500">We never store your bank information.</p>
           </div>
         </div>
       </div>
@@ -683,19 +725,17 @@ export default function BillingPage() {
       {/* Quick links */}
       <div className="grid gap-3 sm:grid-cols-3">
         {[
-          { icon: <Sparkles className="h-4 w-4 text-emerald-600" />, title: 'View all plans', desc: 'Compare plans and upgrade your subscription.', path: '/dashboard/billing/plans' },
-          { icon: <FileText className="h-4 w-4 text-emerald-600" />, title: 'Invoice history', desc: 'View and download past invoices.', path: '/dashboard/billing/invoices' },
-          { icon: <CreditCard className="h-4 w-4 text-emerald-600" />, title: 'Payment settings', desc: 'Update your payment information.', path: '/dashboard/billing/payment-method' },
+          { icon: <IconSparkles stroke={1.5} className="h-4 w-4 text-emerald-600" />, title: 'View all plans', desc: 'Compare plans and upgrade your subscription.', path: '/dashboard/billing/plans' },
+          { icon: <IconFileText stroke={1.5} className="h-4 w-4 text-emerald-600" />, title: 'Invoice history', desc: 'View and download past invoices.', path: '/dashboard/billing/invoices' },
+          { icon: <IconCreditCard stroke={1.5} className="h-4 w-4 text-emerald-600" />, title: 'Payment settings', desc: 'Update your payment information.', path: '/dashboard/billing/payment-method' },
         ].map((item) => (
           <button
             key={item.title}
             type="button"
             onClick={() => router.push(item.path)}
-            className="group flex items-start gap-3 rounded-2xl border border-slate-100 bg-white p-4 text-left shadow-sm transition-all hover:border-emerald-100 hover:shadow-md"
+            className="group flex items-start gap-3 rounded-xl border border-slate-200 bg-white p-4 text-left transition-all hover:border-emerald-200"
           >
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-emerald-100 bg-emerald-50">
-              {item.icon}
-            </div>
+            {item.icon}
             <div>
               <p className="text-sm font-semibold text-slate-900 group-hover:text-emerald-700 transition-colors">{item.title}</p>
               <p className="mt-0.5 text-xs text-slate-500">{item.desc}</p>
@@ -714,10 +754,20 @@ export default function BillingPage() {
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteDialogOpen(false)} disabled={paymentActionId === deleteTarget?.id}>Keep card</Button>
-            <Button variant="destructive" onClick={handleConfirmDelete} disabled={paymentActionId === deleteTarget?.id}>
+            <button
+              onClick={() => setDeleteDialogOpen(false)}
+              disabled={paymentActionId === deleteTarget?.id}
+              className="border border-slate-200 text-slate-700 hover:bg-slate-50 rounded-lg px-4 py-2 text-sm disabled:opacity-50"
+            >
+              Keep card
+            </button>
+            <button
+              onClick={handleConfirmDelete}
+              disabled={paymentActionId === deleteTarget?.id}
+              className="bg-red-600 hover:bg-red-700 text-white rounded-lg px-4 py-2 text-sm disabled:opacity-50"
+            >
               {paymentActionId === deleteTarget?.id ? 'Removing…' : 'Remove card'}
-            </Button>
+            </button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -732,10 +782,20 @@ export default function BillingPage() {
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowCancelDialog(false)} disabled={cancelling}>Keep subscription</Button>
-            <Button variant="destructive" onClick={handleCancelSubscription} disabled={cancelling}>
+            <button
+              onClick={() => setShowCancelDialog(false)}
+              disabled={cancelling}
+              className="border border-slate-200 text-slate-700 hover:bg-slate-50 rounded-lg px-4 py-2 text-sm disabled:opacity-50"
+            >
+              Keep subscription
+            </button>
+            <button
+              onClick={handleCancelSubscription}
+              disabled={cancelling}
+              className="bg-red-600 hover:bg-red-700 text-white rounded-lg px-4 py-2 text-sm disabled:opacity-50"
+            >
               {cancelling ? 'Cancelling…' : 'Yes, cancel'}
-            </Button>
+            </button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

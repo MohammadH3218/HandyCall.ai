@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Logo } from '@/components/ui/logo';
 import { useAuthStore } from '@/stores/auth-store';
 import { SiteFooter } from '@/components/marketing/site-footer';
-import { Phone, CheckCircle2, ArrowRight } from 'lucide-react';
+import { IconCircleCheck, IconArrowRight } from '@tabler/icons-react';
 
 /* ── SVG brand icons ── */
 const GoogleIcon = ({ className }: { className?: string }) => (
@@ -61,15 +61,22 @@ function LoginPageInner() {
   const [isLoading, setIsLoading] = useState(false);
   const [socialLoading, setSocialLoading] = useState<'cognito-google' | 'cognito-apple' | null>(null);
   const [showPasswordChangeModal, setShowPasswordChangeModal] = useState(false);
-  const isAdminLogin = typeof window !== 'undefined' && window.location.pathname.startsWith('/admin');
+  const isAdminPath = typeof window !== 'undefined' && window.location.pathname.startsWith('/admin');
+  const isAdminAudience = audienceParam === 'admin' || isAdminPath;
   const isProAudience =
     audienceParam === 'pro' ||
-    isAdminLogin ||
+    isAdminAudience ||
     Boolean(callbackUrl?.startsWith('/dashboard') || callbackUrl?.startsWith('/admin'));
-  const defaultCallbackUrl = callbackUrl || (isAdminLogin ? '/admin' : isProAudience ? '/dashboard' : '/find-pros');
-  const primaryCtaHref = isProAudience ? '/pros/signup' : '/customer/signup';
-  const primaryCtaLabel = isProAudience ? 'Create a pro account' : 'Create a customer account';
-  const activeFeatures = isProAudience ? PRO_FEATURES : CUSTOMER_FEATURES;
+  const isCustomerAudience = !isProAudience && !isAdminAudience;
+  const loginPoolType: 'users' | 'admin' | 'customer' = isAdminAudience
+    ? 'admin'
+    : isProAudience
+    ? 'users'
+    : 'customer';
+  const defaultCallbackUrl = callbackUrl || (isAdminAudience ? '/admin' : isProAudience ? '/dashboard' : '/find-pros');
+  const primaryCtaHref = isCustomerAudience ? '/register?audience=customer' : '/register?audience=pro';
+  const primaryCtaLabel = isCustomerAudience ? 'Create a customer account' : 'Create a pro account';
+  const activeFeatures = isCustomerAudience ? CUSTOMER_FEATURES : PRO_FEATURES;
 
   const parsePasswordChangeError = (message: string) => {
     if (!message?.startsWith('NEW_PASSWORD_REQUIRED:')) return null;
@@ -82,21 +89,6 @@ function LoginPageInner() {
       return JSON.parse(decoded);
     } catch { return null; }
   };
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    if (window.location.pathname !== '/login') return;
-    const userPortalUrl = process.env.NEXT_PUBLIC_USER_PORTAL_URL;
-    if (!userPortalUrl) return;
-    try {
-      const target = new URL(userPortalUrl);
-      if (window.location.host === target.host) return;
-      const nextUrl = new URL(window.location.href);
-      nextUrl.protocol = target.protocol;
-      nextUrl.host = target.host;
-      window.location.replace(nextUrl.toString());
-    } catch { /* ignore invalid portal URL */ }
-  }, []);
 
   useEffect(() => { if (storeEmail) setEmail(storeEmail); }, [storeEmail]);
   useEffect(() => { if (requiresPasswordChange) setShowPasswordChangeModal(true); }, [requiresPasswordChange]);
@@ -125,7 +117,7 @@ function LoginPageInner() {
     setIsLoading(true);
     try {
       const result = await signIn('credentials', {
-        email, password, redirect: false,
+        email, password, pool_type: loginPoolType, redirect: false,
         callbackUrl: defaultCallbackUrl,
       });
       if (result?.error) {
@@ -164,7 +156,11 @@ function LoginPageInner() {
     try {
       await changePassword(email, newPassword, passwordChangeSession!, passwordChangePoolType || undefined);
       const loginResult = await signIn('credentials', {
-        email, password: newPassword, redirect: false, callbackUrl: defaultCallbackUrl,
+        email,
+        password: newPassword,
+        pool_type: passwordChangePoolType || loginPoolType,
+        redirect: false,
+        callbackUrl: defaultCallbackUrl,
       });
       if (loginResult?.error) { setError(loginResult.error); return; }
       setShowPasswordChangeModal(false);
@@ -195,7 +191,7 @@ function LoginPageInner() {
           </Link>
           <p className="text-sm text-slate-500">
             New here?{' '}
-            <Link href={primaryCtaHref} className="font-semibold text-emerald-700 hover:text-emerald-600">
+            <Link href={primaryCtaHref} className="font-semibold text-emerald-600 hover:text-emerald-700">
               {primaryCtaLabel}
             </Link>
           </p>
@@ -206,10 +202,7 @@ function LoginPageInner() {
         {/* ── Left: product context ── */}
         <div className="space-y-8">
           <div>
-            <span className="text-xs font-bold uppercase tracking-widest text-emerald-700">
-              {isProAudience ? 'HandyCall Dashboard' : 'HandyCall Customers'}
-            </span>
-            <h1 className="mt-3 text-[2.6rem] font-bold leading-[1.08] tracking-tight text-slate-900 md:text-5xl">
+            <h1 className="text-[2.6rem] font-bold leading-[1.08] tracking-tight text-slate-900 md:text-5xl">
               {isProAudience ? 'Your AI receptionist is ready.' : 'Manage your home services in one place.'}
             </h1>
             <p className="mt-4 max-w-md text-lg text-slate-500">
@@ -222,7 +215,7 @@ function LoginPageInner() {
           <div className="space-y-4">
             {activeFeatures.map((item) => (
               <div key={item.title} className="flex items-start gap-3">
-                <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-500" />
+                <IconCircleCheck className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" stroke={1.5} />
                 <div>
                   <p className="text-sm font-semibold text-slate-900">{item.title}</p>
                   <p className="text-sm text-slate-500">{item.desc}</p>
@@ -281,103 +274,108 @@ function LoginPageInner() {
         </div>
 
         {/* ── Right: form ── */}
-        <div className="relative">
-          <div className="pointer-events-none absolute -inset-6 rounded-3xl bg-emerald-50/50 blur-2xl" />
-          <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-8 shadow-xl shadow-slate-200/60">
-            <div className="mb-6 text-center">
-              <h2 className="text-lg font-semibold text-slate-900">Sign in</h2>
-              <p className="mt-1 text-sm text-slate-500">
-                {isProAudience ? 'Access your HandyCall pro workspace' : 'Access your HandyCall customer account'}
-              </p>
-            </div>
-
-            {error && (
-              <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                {error}
-                {needsVerification && (
-                  <span className="mt-1.5 block">
-                    <Link href={`/verify-email?email=${encodeURIComponent(email)}`} className="font-semibold underline">
-                      Verify your email →
-                    </Link>
-                  </span>
-                )}
-              </div>
-            )}
-
-            {/* Social buttons */}
-            <div className="space-y-2.5">
-              <button
-                type="button"
-                onClick={() => handleSocialSignIn('cognito-google')}
-                disabled={isLoading || Boolean(socialLoading)}
-                className="flex h-11 w-full items-center justify-center gap-3 rounded-xl border border-slate-200 bg-white text-sm font-medium text-slate-700 shadow-sm transition-all hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <GoogleIcon className="h-4 w-4" />
-                {socialLoading === 'cognito-google' ? 'Connecting to Google…' : 'Continue with Google'}
-              </button>
-              <button
-                type="button"
-                onClick={() => handleSocialSignIn('cognito-apple')}
-                disabled={isLoading || Boolean(socialLoading)}
-                className="flex h-11 w-full items-center justify-center gap-3 rounded-xl border border-slate-200 bg-white text-sm font-medium text-slate-700 shadow-sm transition-all hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <AppleIcon className="h-4 w-4" />
-                {socialLoading === 'cognito-apple' ? 'Connecting to Apple…' : 'Continue with Apple'}
-              </button>
-            </div>
-
-            <div className="my-5 flex items-center gap-3">
-              <span className="h-px flex-1 bg-slate-200" />
-              <span className="text-xs text-slate-400">or sign in with email</span>
-              <span className="h-px flex-1 bg-slate-200" />
-            </div>
-
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-1.5">
-                <Label htmlFor="email" className="text-xs font-semibold text-slate-700">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder={isProAudience ? 'you@business.com' : 'you@example.com'}
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                  disabled={isLoading}
-                  className="h-11"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="password" className="text-xs font-semibold text-slate-700">Password</Label>
-                  <Link href="/forgot-password" className="text-xs font-medium text-emerald-700 hover:text-emerald-600">
-                    Forgot password?
-                  </Link>
-                </div>
-                <Input
-                  id="password"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  disabled={isLoading}
-                  className="h-11"
-                />
-              </div>
-
-              <Button type="submit" className="h-11 w-full gap-2 text-sm" disabled={isLoading}>
-                {isLoading ? 'Signing in…' : 'Sign in'}
-                {!isLoading && <ArrowRight className="h-4 w-4" />}
-              </Button>
-            </form>
-
-            <p className="mt-5 text-center text-sm text-slate-500">
-              New to HandyCall?{' '}
-              <Link href={primaryCtaHref} className="font-semibold text-emerald-700 hover:text-emerald-600">
-                {primaryCtaLabel}
-              </Link>
+        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white p-8">
+          <div className="mb-6 text-center">
+            <h2 className="text-lg font-semibold text-slate-900">Sign in</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              {isProAudience ? 'Access your HandyCall pro workspace' : 'Access your HandyCall customer account'}
             </p>
           </div>
+
+          {error && (
+            <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {error}
+              {needsVerification && (
+                <span className="mt-1.5 block">
+                  <Link href={`/verify-email?email=${encodeURIComponent(email)}`} className="font-semibold underline">
+                    Verify your email →
+                  </Link>
+                </span>
+              )}
+            </div>
+          )}
+
+          {!isCustomerAudience && (
+            <>
+              {/* Social buttons */}
+              <div className="space-y-2.5">
+                <button
+                  type="button"
+                  onClick={() => handleSocialSignIn('cognito-google')}
+                  disabled={isLoading || Boolean(socialLoading)}
+                  className="flex h-11 w-full items-center justify-center gap-3 rounded-xl border border-slate-200 bg-white text-sm font-medium text-slate-700 shadow-sm transition-all hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <GoogleIcon className="h-4 w-4" />
+                  {socialLoading === 'cognito-google' ? 'Connecting to Google…' : 'Continue with Google'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSocialSignIn('cognito-apple')}
+                  disabled={isLoading || Boolean(socialLoading)}
+                  className="flex h-11 w-full items-center justify-center gap-3 rounded-xl border border-slate-200 bg-white text-sm font-medium text-slate-700 shadow-sm transition-all hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <AppleIcon className="h-4 w-4" />
+                  {socialLoading === 'cognito-apple' ? 'Connecting to Apple…' : 'Continue with Apple'}
+                </button>
+              </div>
+
+              <div className="my-5 flex items-center gap-3">
+                <span className="h-px flex-1 bg-slate-200" />
+                <span className="text-xs text-slate-400">or sign in with email</span>
+                <span className="h-px flex-1 bg-slate-200" />
+              </div>
+            </>
+          )}
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="email" className="text-xs font-semibold text-slate-700">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder={isProAudience ? 'you@business.com' : 'you@example.com'}
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                disabled={isLoading}
+                className="h-11"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="password" className="text-xs font-semibold text-slate-700">Password</Label>
+                <Link href="/forgot-password" className="text-xs font-medium text-emerald-600 hover:text-emerald-700">
+                  Forgot password?
+                </Link>
+              </div>
+              <Input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                disabled={isLoading}
+                className="h-11"
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-emerald-600 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60 transition"
+            >
+              {isLoading ? 'Signing in…' : 'Sign in'}
+              {!isLoading && <IconArrowRight className="h-4 w-4" stroke={1.5} />}
+            </button>
+          </form>
+
+          <p className="mt-5 text-center text-sm text-slate-500">
+            New to HandyCall?{' '}
+            <Link href={primaryCtaHref} className="font-semibold text-emerald-600 hover:text-emerald-700">
+              {primaryCtaLabel}
+            </Link>
+          </p>
         </div>
       </main>
 

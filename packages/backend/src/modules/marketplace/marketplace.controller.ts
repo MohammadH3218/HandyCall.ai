@@ -18,6 +18,21 @@ export class MarketplaceController {
     return this.service.searchProviders({ query, category, zipcode, limit: limit ? Number(limit) : undefined });
   }
 
+  @Get('ai-search')
+  @Public()
+  aiSearch(
+    @Query('q') q: string,
+    @Query('zip') zip?: string,
+  ) {
+    return this.service.aiSearch({ q: q || '', zip });
+  }
+
+  @Get('ai-suggestions')
+  @Public()
+  aiSuggestions(@Query('q') q: string) {
+    return this.service.suggestQueries(q || '');
+  }
+
   @Get('categories')
   @Public()
   getCategories() {

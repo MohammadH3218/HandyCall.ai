@@ -26,6 +26,14 @@ export async function middleware(request: NextRequest) {
   const userHost =
     (process.env.NEXT_PUBLIC_USER_PORTAL_HOST || process.env.USER_PORTAL_HOST || '').toLowerCase();
 
+  // Some hosting rewrites can map /login -> /dashboard/login.
+  // Rewriting (not redirecting) prevents infinite 307 loops.
+  if (pathname === '/dashboard/login') {
+    const loginUrl = new URL('/login', request.url);
+    loginUrl.search = request.nextUrl.search;
+    return NextResponse.rewrite(loginUrl);
+  }
+
   // Host-based routing for user/admin portals.
   if (adminHost && host === adminHost) {
     if (!pathname.startsWith('/admin')) {
@@ -43,7 +51,11 @@ export async function middleware(request: NextRequest) {
   // Only guard dashboard/admin; everything else is public
   const isAdminRoute = pathname.startsWith('/admin');
   const isDashboardRoute = pathname.startsWith('/dashboard');
-  if (!isAdminRoute && !isDashboardRoute) {
+  const isProviderProfileRoute =
+    pathname.startsWith('/find-pros/') &&
+    pathname !== '/find-pros' &&
+    !pathname.startsWith('/find-pros/search');
+  if (!isAdminRoute && !isDashboardRoute && !isProviderProfileRoute) {
     return NextResponse.next();
   }
 
@@ -54,23 +66,52 @@ export async function middleware(request: NextRequest) {
   const userRole = (token as any)?.userRole as string | undefined;
   const tokenError = (token as any)?.error as string | undefined;
   const hasBearer = Boolean((token as any)?.idToken || (token as any)?.accessToken);
+  const poolType = ((token as any)?.poolType as string | undefined) || '';
 
-  // Not signed in -> send to login with callback
+  // Not signed in -> send to audience-specific login with callback
   if (!token || tokenError || !hasBearer) {
-    const loginPath = isDashboardRoute ? '/pros/login' : '/login';
-    const loginUrl = new URL(loginPath, request.url);
+    const loginUrl = new URL('/login', request.url);
+    if (isDashboardRoute) {
+      loginUrl.searchParams.set('audience', 'pro');
+    } else if (isProviderProfileRoute) {
+      loginUrl.searchParams.set('audience', 'customer');
+    }
+    const safeCallback =
+      pathname === '/dashboard/login' || pathname === '/dashboard'
+        ? '/dashboard'
+        : pathname;
+    loginUrl.searchParams.set('callbackUrl', safeCallback);
+    return NextResponse.redirect(loginUrl);
+  }
+
+  if (isProviderProfileRoute) {
+    if (poolType !== 'customer') {
+      const loginUrl = new URL('/login', request.url);
+      loginUrl.searchParams.set('audience', 'customer');
+      loginUrl.searchParams.set('callbackUrl', pathname);
+      return NextResponse.redirect(loginUrl);
+    }
+  }
+
+  // Admin pool must stay in admin portal.
+  if (poolType === 'admin' && isDashboardRoute) {
+    return NextResponse.redirect(new URL('/admin', request.url));
+  }
+
+  // Dashboard is for pro/users pool only.
+  if (isDashboardRoute && poolType !== 'users') {
+    const loginUrl = new URL('/login', request.url);
+    loginUrl.searchParams.set('audience', 'pro');
     loginUrl.searchParams.set('callbackUrl', pathname);
     return NextResponse.redirect(loginUrl);
   }
 
-  // Admin user hitting customer dashboard -> send to admin
-  if (userRole === UserRole.ADMIN && isDashboardRoute) {
-    return NextResponse.redirect(new URL('/admin', request.url));
-  }
-
-  // Customer hitting admin -> redirect to dashboard
-  if (userRole !== UserRole.ADMIN && isAdminRoute) {
-    return NextResponse.redirect(new URL('/dashboard', request.url));
+  // Admin routes must use admin pool only.
+  if (isAdminRoute && poolType !== 'admin' && userRole !== UserRole.ADMIN) {
+    const loginUrl = new URL('/login', request.url);
+    loginUrl.searchParams.set('audience', 'admin');
+    loginUrl.searchParams.set('callbackUrl', pathname);
+    return NextResponse.redirect(loginUrl);
   }
 
   return NextResponse.next();

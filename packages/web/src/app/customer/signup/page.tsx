@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
 
 export default function CustomerSignupPage() {
-  redirect('/signup');
+  redirect('/register?audience=customer');
 }

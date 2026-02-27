@@ -4,23 +4,23 @@ import { SiteHeader } from '@/components/marketing/site-header';
 import { SiteFooter } from '@/components/marketing/site-footer';
 import { HOME_SERVICE_GROUPS } from '@/constants/home-services';
 import {
-  Wrench,
-  Wind,
-  Zap,
-  Bug,
-  Sparkles,
-  TreePine,
-  Home,
-  Paintbrush,
-  Hammer,
-  Truck,
-  Droplets,
-  Flame,
-  Shield,
-  Monitor,
-  Layers,
-  Scissors,
-} from 'lucide-react';
+  IconTool,
+  IconWind,
+  IconBolt,
+  IconBug,
+  IconSparkles,
+  IconTree,
+  IconHome,
+  IconPaint,
+  IconHammer,
+  IconTruck,
+  IconDroplet,
+  IconFlame,
+  IconShield,
+  IconDeviceDesktop,
+  IconStack2,
+  IconScissors,
+} from '@tabler/icons-react';
 
 export const metadata: Metadata = {
   title: 'Browse Home Service Categories',
@@ -33,22 +33,22 @@ export const metadata: Metadata = {
 };
 
 const primaryCategories = [
-  { slug: 'plumbing', name: 'Plumbing', icon: Wrench, color: 'bg-blue-50 text-blue-600', description: 'Pipes, leaks, water heaters, drain work' },
-  { slug: 'hvac', name: 'HVAC', icon: Wind, color: 'bg-sky-50 text-sky-600', description: 'Heating, cooling, and ventilation services' },
-  { slug: 'electrical', name: 'Electrical', icon: Zap, color: 'bg-yellow-50 text-yellow-600', description: 'Panels, wiring, outlets, and upgrades' },
-  { slug: 'pest-control', name: 'Pest Control', icon: Bug, color: 'bg-orange-50 text-orange-600', description: 'Extermination, treatment, and prevention' },
-  { slug: 'cleaning', name: 'Cleaning', icon: Sparkles, color: 'bg-violet-50 text-violet-600', description: 'Standard, deep, and specialty cleaning' },
-  { slug: 'landscaping', name: 'Landscaping', icon: TreePine, color: 'bg-emerald-50 text-emerald-600', description: 'Lawn, gardens, and outdoor care' },
-  { slug: 'roofing', name: 'Roofing', icon: Home, color: 'bg-red-50 text-red-600', description: 'Repairs, replacement, gutters, inspections' },
-  { slug: 'painting', name: 'Painting', icon: Paintbrush, color: 'bg-pink-50 text-pink-600', description: 'Interior, exterior, and finishing' },
-  { slug: 'handyman', name: 'Handyman', icon: Hammer, color: 'bg-amber-50 text-amber-600', description: 'General fixes and small projects' },
-  { slug: 'moving', name: 'Moving', icon: Truck, color: 'bg-slate-100 text-slate-600', description: 'Moving labor, packing, and relocation' },
-  { slug: 'waterproofing', name: 'Waterproofing', icon: Droplets, color: 'bg-cyan-50 text-cyan-600', description: 'Basement, foundation, and drainage protection' },
-  { slug: 'chimney', name: 'Chimney & Fireplace', icon: Flame, color: 'bg-orange-50 text-orange-700', description: 'Cleaning, repair, and safety inspections' },
-  { slug: 'home-security', name: 'Home Security', icon: Shield, color: 'bg-indigo-50 text-indigo-600', description: 'Alarms, cameras, and smart locks' },
-  { slug: 'smart-home', name: 'Smart Home', icon: Monitor, color: 'bg-teal-50 text-teal-600', description: 'Automation, devices, and integrations' },
-  { slug: 'flooring', name: 'Flooring', icon: Layers, color: 'bg-amber-50 text-amber-700', description: 'Hardwood, tile, carpet, and refinishing' },
-  { slug: 'lawn-care', name: 'Lawn Care', icon: Scissors, color: 'bg-lime-50 text-lime-600', description: 'Mowing, edging, fertilizing, and maintenance' },
+  { slug: 'plumbing', name: 'Plumbing', icon: IconTool, description: 'Pipes, leaks, water heaters, drain work' },
+  { slug: 'hvac', name: 'HVAC', icon: IconWind, description: 'Heating, cooling, and ventilation services' },
+  { slug: 'electrical', name: 'Electrical', icon: IconBolt, description: 'Panels, wiring, outlets, and upgrades' },
+  { slug: 'pest-control', name: 'Pest Control', icon: IconBug, description: 'Extermination, treatment, and prevention' },
+  { slug: 'cleaning', name: 'Cleaning', icon: IconSparkles, description: 'Standard, deep, and specialty cleaning' },
+  { slug: 'landscaping', name: 'Landscaping', icon: IconTree, description: 'Lawn, gardens, and outdoor care' },
+  { slug: 'roofing', name: 'Roofing', icon: IconHome, description: 'Repairs, replacement, gutters, inspections' },
+  { slug: 'painting', name: 'Painting', icon: IconPaint, description: 'Interior, exterior, and finishing' },
+  { slug: 'handyman', name: 'Handyman', icon: IconHammer, description: 'General fixes and small projects' },
+  { slug: 'moving', name: 'Moving', icon: IconTruck, description: 'Moving labor, packing, and relocation' },
+  { slug: 'waterproofing', name: 'Waterproofing', icon: IconDroplet, description: 'Basement, foundation, and drainage protection' },
+  { slug: 'chimney', name: 'Chimney & Fireplace', icon: IconFlame, description: 'Cleaning, repair, and safety inspections' },
+  { slug: 'home-security', name: 'Home Security', icon: IconShield, description: 'Alarms, cameras, and smart locks' },
+  { slug: 'smart-home', name: 'Smart Home', icon: IconDeviceDesktop, description: 'Automation, devices, and integrations' },
+  { slug: 'flooring', name: 'Flooring', icon: IconStack2, description: 'Hardwood, tile, carpet, and refinishing' },
+  { slug: 'lawn-care', name: 'Lawn Care', icon: IconScissors, description: 'Mowing, edging, fertilizing, and maintenance' },
 ];
 
 export default function CategoriesPage() {
@@ -57,10 +57,10 @@ export default function CategoriesPage() {
       <SiteHeader />
 
       <main className="flex-1">
-        <section className="bg-gradient-to-br from-emerald-50 via-white to-slate-50 py-14 text-center">
+        <section className="bg-slate-50 border-b border-slate-100 py-12 text-center">
           <div className="mx-auto max-w-3xl px-4">
-            <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 sm:text-4xl">Browse Home Service Categories</h1>
-            <p className="mt-3 text-lg text-slate-600">
+            <h1 className="text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">Browse Home Service Categories</h1>
+            <p className="mt-3 text-lg text-slate-700">
               Browse common and niche services, then jump into search to find the right pro.
             </p>
           </div>
@@ -76,14 +76,14 @@ export default function CategoriesPage() {
                   <Link
                     key={cat.slug}
                     href={`/categories/${cat.slug}`}
-                    className="group flex flex-col gap-3 rounded-2xl border border-slate-100 bg-white p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:border-emerald-200 hover:shadow-md"
+                    className="group flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-5 transition-all hover:-translate-y-0.5 hover:border-slate-300"
                   >
-                    <div className={`flex h-12 w-12 items-center justify-center rounded-xl ${cat.color}`}>
-                      <Icon className="h-6 w-6" />
+                    <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-slate-200 bg-white">
+                      <Icon className="h-6 w-6 text-slate-600" stroke={1.5} />
                     </div>
                     <div>
-                      <h3 className="font-semibold text-slate-900 group-hover:text-emerald-700">{cat.name}</h3>
-                      <p className="mt-0.5 text-sm text-muted-foreground line-clamp-2">{cat.description}</p>
+                      <h3 className="font-semibold text-slate-900 group-hover:text-emerald-600">{cat.name}</h3>
+                      <p className="mt-0.5 text-sm text-slate-500 line-clamp-2">{cat.description}</p>
                     </div>
                   </Link>
                 );
@@ -100,7 +100,7 @@ export default function CategoriesPage() {
             </p>
             <div className="grid gap-5 lg:grid-cols-2">
               {HOME_SERVICE_GROUPS.map((group) => (
-                <div key={group.key} className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
+                <div key={group.key} className="rounded-xl border border-slate-200 bg-white p-5">
                   <h3 className="text-base font-semibold text-slate-900">{group.title}</h3>
                   <p className="mt-1 text-sm text-slate-500">{group.description}</p>
                   <div className="mt-4 flex flex-wrap gap-2">
@@ -108,7 +108,7 @@ export default function CategoriesPage() {
                       <Link
                         key={`${group.key}-${service}`}
                         href={`/find-pros?category=${encodeURIComponent(service)}`}
-                        className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs text-slate-700 hover:border-emerald-300 hover:text-emerald-700"
+                        className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs text-slate-700 hover:border-slate-300 hover:text-slate-900"
                       >
                         {service}
                       </Link>
@@ -120,16 +120,18 @@ export default function CategoriesPage() {
           </div>
         </section>
 
-        <section className="bg-emerald-600 py-12 text-center">
+        <section className="border-t border-slate-100 py-12">
           <div className="mx-auto max-w-2xl px-4">
-            <h2 className="text-2xl font-bold text-white">Need something specific?</h2>
-            <p className="mt-2 text-emerald-100">Search by job type, brand, or problem and we will surface matching providers.</p>
-            <Link
-              href="/find-pros"
-              className="mt-6 inline-block rounded-xl bg-white px-8 py-3 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-50"
-            >
-              Search all services
-            </Link>
+            <div className="rounded-xl border border-slate-200 bg-white p-8 text-center">
+              <h2 className="text-2xl font-bold text-slate-900">Need something specific?</h2>
+              <p className="mt-2 text-slate-500">Search by job type, brand, or problem and we will surface matching providers.</p>
+              <Link
+                href="/find-pros"
+                className="mt-6 inline-block rounded-lg bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white hover:bg-slate-800 transition"
+              >
+                Search all services
+              </Link>
+            </div>
           </div>
         </section>
       </main>

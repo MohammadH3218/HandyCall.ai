@@ -89,13 +89,18 @@ export default function HomePage() {
               Find trusted local pros for any project — plumbing, electrical, cleaning, and more.
             </p>
 
-            {/* Search bar */}
+            {/* Search bar — native GET form so no client component needed */}
             <div className="mt-10 mx-auto max-w-2xl">
-              <div className="flex flex-col sm:flex-row gap-0 rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+              <form
+                method="get"
+                action="/find-pros"
+                className="flex flex-col sm:flex-row gap-0 rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden"
+              >
                 <div className="relative flex-1 border-b sm:border-b-0 sm:border-r border-slate-200">
                   <IconSearch className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" stroke={1.5} />
                   <input
                     type="text"
+                    name="q"
                     placeholder="Describe your project or problem"
                     className="w-full py-4 pl-11 pr-4 text-sm text-slate-800 placeholder-slate-400 outline-none"
                   />
@@ -104,17 +109,18 @@ export default function HomePage() {
                   <IconMapPin className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" stroke={1.5} />
                   <input
                     type="text"
-                    placeholder="ZIP or city"
+                    name="zip"
+                    placeholder="ZIP code"
                     className="w-full py-4 pl-11 pr-4 text-sm text-slate-800 placeholder-slate-400 outline-none"
                   />
                 </div>
-                <Link
-                  href="/find-pros"
+                <button
+                  type="submit"
                   className="bg-emerald-600 px-8 py-4 text-sm font-semibold text-white hover:bg-emerald-700 transition whitespace-nowrap text-center"
                 >
                   Search
-                </Link>
-              </div>
+                </button>
+              </form>
             </div>
 
             {/* Trust badges */}
@@ -209,13 +215,13 @@ export default function HomePage() {
               </div>
               <div className="flex flex-col sm:flex-row gap-3 shrink-0">
                 <Link
-                  href="/pros"
+                  href="/register?audience=pro"
                   className="rounded-xl bg-slate-900 px-6 py-2.5 text-sm font-semibold text-white hover:bg-slate-800 transition text-center"
                 >
                   Join as a Pro
                 </Link>
                 <Link
-                  href="/login"
+                  href="/login?audience=pro"
                   className="rounded-xl border border-slate-300 px-6 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition text-center"
                 >
                   Pro Login

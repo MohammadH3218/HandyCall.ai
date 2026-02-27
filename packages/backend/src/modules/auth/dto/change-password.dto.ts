@@ -15,8 +15,8 @@ export class ChangePasswordDto {
 
   @IsOptional()
   @IsString()
-  @IsIn(['users', 'admin'])
-  pool_type?: 'users' | 'admin';
+  @IsIn(['users', 'admin', 'customer'])
+  pool_type?: 'users' | 'admin' | 'customer';
 
   @IsOptional()
   @IsString()

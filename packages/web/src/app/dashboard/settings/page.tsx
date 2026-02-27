@@ -15,7 +15,7 @@ import { PageHeader } from '@/components/portal/page-header';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { usePlanFeatures } from '@/hooks/use-plan-features';
-import { Copy, Phone, RefreshCw, Settings2, ShieldCheck, Webhook } from 'lucide-react';
+import { IconCopy, IconPhone, IconRefresh, IconSettings, IconShield, IconLink } from '@tabler/icons-react';
 
 export default function SettingsPage() {
   const { toast } = useToast();
@@ -652,7 +652,7 @@ export default function SettingsPage() {
               </div>
               <div className="rounded-xl border border-emerald-100 bg-emerald-50/70 p-4">
                 <div className="flex items-center gap-2">
-                  <Phone className="h-3.5 w-3.5 text-emerald-600" />
+                  <IconPhone className="h-3.5 w-3.5 text-emerald-600" stroke={1.5} />
                   <p className="text-xs font-bold uppercase tracking-widest text-emerald-700">Inbound number</p>
                 </div>
                 <p className="mt-2 text-sm font-semibold text-slate-900">{inboundSummary}</p>
@@ -724,7 +724,7 @@ export default function SettingsPage() {
               <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
                 <div className="flex items-center gap-3">
                   <div className="rounded-full bg-emerald-100 p-2 text-emerald-700">
-                    <Settings2 className="h-4 w-4" />
+                    <IconSettings className="h-4 w-4" stroke={1.5} />
                   </div>
                   <div>
                     <p className="text-sm font-semibold text-slate-900">Enable call transfer</p>
@@ -1259,7 +1259,7 @@ export default function SettingsPage() {
               <div className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50/70 p-4">
                 <div className="flex items-center gap-3">
                   <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-emerald-100 bg-emerald-50">
-                    <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" />
+                    <IconShield className="h-3.5 w-3.5 text-emerald-600" stroke={1.5} />
                   </div>
                   <div>
                     <p className="text-sm font-semibold text-slate-900">Account status</p>
@@ -1366,7 +1366,7 @@ export default function SettingsPage() {
 
               <div className="rounded-2xl border border-slate-200 bg-white p-4">
                 <div className="flex items-center gap-2">
-                  <Webhook className="h-4 w-4 text-emerald-600" />
+                  <IconLink className="h-4 w-4 text-emerald-600" stroke={1.5} />
                   <p className="text-sm font-semibold text-slate-900">Events to send</p>
                 </div>
                 <p className="mt-1 text-xs text-slate-600">Select which CRM events you want delivered.</p>
@@ -1424,7 +1424,7 @@ export default function SettingsPage() {
                       }
                       disabled={!webhookConfig?.signing_secret}
                     >
-                      <Copy className="mr-2 h-4 w-4" /> Copy
+                      <IconCopy className="mr-2 h-4 w-4" stroke={1.5} /> Copy
                     </Button>
                     <Button
                       type="button"
@@ -1432,7 +1432,7 @@ export default function SettingsPage() {
                       onClick={handleRotateSecret}
                       disabled={!webhookConfig?.signing_secret || webhookRotating}
                     >
-                      <RefreshCw className="mr-2 h-4 w-4" />
+                      <IconRefresh className="mr-2 h-4 w-4" stroke={1.5} />
                       {webhookRotating ? 'Rotating...' : 'Rotate'}
                     </Button>
                   </div>

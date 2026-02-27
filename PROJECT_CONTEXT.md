@@ -214,16 +214,25 @@ HandyCall/
 
 ## 🎨 UI/UX DESIGN RULES
 
+### 2026 Style Baseline (Current)
+- Primary visual language: **white + slate neutrals**
+- Accent usage: **emerald only for key CTAs/active states** (not page backgrounds)
+- Icons: prefer **Tabler Icons** with consistent stroke weight
+- Surfaces: flat cards with subtle borders (`border-slate-200`), minimal shadows
+- Marketing and app pages should match the landing page style direction
+
 ### ❌ FORBIDDEN
 - Robot icons / AI mascots
 - Emoji-heavy UI
 - "Chatbot" aesthetics
 - Tacky gradients
+- Full-width solid emerald sections for generic content blocks
+- Glow/blur background effects used as decoration
 - Overly technical jargon
 
 ### ✅ REQUIRED
 - Clean, professional SaaS look
-- Calm color palette (blues, grays, whites)
+- Calm color palette (whites, slates, neutral grays)
 - **Trades-friendly**: big buttons, minimal text, clear CTAs
 - Mobile-first design patterns
 - Subtle animations (Framer Motion allowed)

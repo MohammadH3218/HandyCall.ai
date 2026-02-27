@@ -79,7 +79,11 @@ async function refreshCognitoTokens(token: JWT): Promise<JWT> {
     const response = await fetch(`${API_URL}/auth/refresh`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ refresh_token: refreshToken, email }),
+      body: JSON.stringify({
+        refresh_token: refreshToken,
+        email,
+        pool_type: (token.poolType as string | undefined) || 'auto',
+      }),
     });
 
     if (!response.ok) {
@@ -170,6 +174,7 @@ export const authOptions: NextAuthOptions = {
       credentials: {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
+        pool_type: { label: "Pool", type: "text" },
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) {
@@ -187,6 +192,7 @@ export const authOptions: NextAuthOptions = {
             body: JSON.stringify({
               email: credentials.email,
               password: credentials.password,
+              pool_type: (credentials as any).pool_type || 'auto',
             }),
           });
 
@@ -232,6 +238,8 @@ export const authOptions: NextAuthOptions = {
           const poolType =
             poolTypeFromResponse === 'admin' || resolvedUserRole === UserRole.ADMIN
               ? 'admin'
+              : poolTypeFromResponse === 'customer'
+              ? 'customer'
               : 'users';
           const decoded = idToken ? decodeJWT(idToken) : null;
           const resolvedName =

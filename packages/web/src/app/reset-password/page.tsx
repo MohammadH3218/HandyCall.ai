@@ -2,10 +2,6 @@
 
 import { Suspense, useEffect, useMemo, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { SiteHeader } from '@/components/marketing/site-header';
 
 const maskEmail = (value: string) => {
@@ -72,30 +68,50 @@ function ResetPasswordForm() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-white via-emerald-50/25 to-white text-foreground">
+    <div className="min-h-screen bg-white">
       <SiteHeader />
       <main className="mx-auto max-w-xl px-4 pb-16 pt-12">
-        <Card className="shadow-xl shadow-emerald-100 border-emerald-100">
-          <CardHeader>
-            <CardTitle>Choose a new password</CardTitle>
-          </CardHeader>
-          <CardContent>
+        <div className="rounded-xl border border-slate-200 bg-white p-6">
+          <h1 className="text-xl font-semibold text-slate-900">Choose a new password</h1>
+          <div className="mt-4">
             <form className="space-y-4" onSubmit={handleSubmit}>
               <div className="space-y-2">
-                <Label>Email</Label>
-                <Input value={maskedEmail || 'Unknown'} readOnly />
+                <label className="block text-sm font-medium text-slate-700">Email</label>
+                <input
+                  value={maskedEmail || 'Unknown'}
+                  readOnly
+                  className="h-10 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm text-slate-700"
+                />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="password">New password</Label>
-                <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+                <label htmlFor="password" className="block text-sm font-medium text-slate-700">New password</label>
+                <input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  className="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm text-slate-900 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
+                />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="confirm">Confirm password</Label>
-                <Input id="confirm" type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} required />
+                <label htmlFor="confirm" className="block text-sm font-medium text-slate-700">Confirm password</label>
+                <input
+                  id="confirm"
+                  type="password"
+                  value={confirm}
+                  onChange={(e) => setConfirm(e.target.value)}
+                  required
+                  className="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm text-slate-900 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
+                />
               </div>
-              <Button type="submit" className="w-full" disabled={status === 'sending'}>
+              <button
+                type="submit"
+                className="w-full rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={status === 'sending'}
+              >
                 {status === 'sending' ? 'Updating...' : 'Update password'}
-              </Button>
+              </button>
               {status === 'sent' ? (
                 <p className="text-xs text-emerald-700">Password updated. Redirecting to sign in...</p>
               ) : null}
@@ -103,8 +119,8 @@ function ResetPasswordForm() {
                 <p className="text-xs text-red-600">{errorMessage}</p>
               ) : null}
             </form>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </main>
     </div>
   );

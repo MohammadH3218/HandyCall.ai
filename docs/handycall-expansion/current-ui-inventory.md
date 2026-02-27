@@ -159,14 +159,17 @@
 
 ## 3. Style Tokens
 
+> **Current Direction Update:** Standardize toward a landing-page-consistent system:
+> white/slate surfaces, subtle borders, minimal emerald accents, and no decorative gradient/glow treatments.
+
 ### 3.1 Color Palette
 
 #### CSS Custom Properties (HSL)
 
 ```css
 /* Light Theme (default) */
---background: 150 40% 98%;       /* Very light mint */
---foreground: 160 18% 12%;       /* Dark blue-gray */
+--background: 0 0% 100%;         /* White */
+--foreground: 222 47% 11%;       /* Slate-900 */
 --card: 0 0% 100%;               /* White */
 --card-foreground: 160 18% 12%;  /* Dark blue-gray */
 --popover: 0 0% 100%;            /* White */
@@ -177,12 +180,12 @@
 --secondary-foreground: 160 30% 20%;
 --muted: 160 22% 94%;            /* Muted gray-teal */
 --muted-foreground: 160 10% 40%;
---accent: 160 60% 90%;           /* Light emerald */
---accent-foreground: 160 60% 20%;
+--accent: 210 20% 96%;           /* Slate-100 */
+--accent-foreground: 222 47% 11%;
 --destructive: 0 84% 60%;        /* Red */
 --destructive-foreground: 0 0% 100%;
---border: 160 16% 86%;           /* Light gray */
---input: 160 20% 90%;            /* Light input border */
+--border: 214 32% 91%;           /* Slate-200 */
+--input: 214 32% 91%;            /* Slate-200 */
 --ring: 160 84% 34%;             /* Emerald focus ring */
 --radius: 0.75rem;               /* 12px */
 ```
@@ -191,12 +194,12 @@
 
 | Color Scale | Usage | Shades Used |
 |------------|-------|-------------|
-| `emerald` | Primary actions, CTAs, active states, links | 50, 100, 600, 700 |
+| `emerald` | Primary actions, selected/active states, links | 50, 100, 600, 700 |
 | `slate` | Neutrals, backgrounds, text, borders | 50, 100, 200, 400, 500, 600, 700, 900 |
 | `red` | Errors, destructive actions, warnings | 50, 200, 600, 700 |
 | `amber` | Warnings, usage alerts (75%+ threshold) | 400, 500, 600 |
-| `blue` | Informational badges | 600 |
-| `violet` | Occasional accent | 600 |
+| `blue` | Informational badges (limited) | 600 |
+| `violet` | Avoid in new UI unless product-critical | 600 |
 | `green` | Success indicators | 500, 600 |
 | `white` | Card backgrounds, text on primary | — |
 
@@ -240,7 +243,7 @@
 |-------|---------------|
 | Cards | `shadow-sm` |
 | Dropdowns/popovers | `shadow-md` / `shadow-lg` |
-| Hero glows | Custom radial gradients (emerald, teal) |
+| Hero glows | Deprecated in current UI direction |
 
 ### 3.5 Animations
 

@@ -4,15 +4,30 @@ import Link from 'next/link';
 import { SiteHeader } from '@/components/marketing/site-header';
 import { SiteFooter } from '@/components/marketing/site-footer';
 import {
-  Wrench, Wind, Zap, Bug, Sparkles, TreePine, Home, Paintbrush,
-  Hammer, Truck, Droplets, Flame, Shield, Monitor, Layers, Scissors,
-  Star, CheckCircle, ArrowRight,
-} from 'lucide-react';
+  IconTool,
+  IconWind,
+  IconBolt,
+  IconBug,
+  IconSparkles,
+  IconTree,
+  IconHome,
+  IconPaint,
+  IconHammer,
+  IconTruck,
+  IconDroplet,
+  IconFlame,
+  IconShield,
+  IconDeviceDesktop,
+  IconStack2,
+  IconScissors,
+  IconStar,
+  IconCircleCheck,
+  IconArrowRight,
+} from '@tabler/icons-react';
 
 const CATEGORY_DATA: Record<string, {
   name: string;
   icon: any;
-  color: string;
   description: string;
   longDescription: string;
   services: string[];
@@ -22,8 +37,7 @@ const CATEGORY_DATA: Record<string, {
 }> = {
   plumbing: {
     name: 'Plumbing',
-    icon: Wrench,
-    color: 'bg-blue-50 text-blue-600',
+    icon: IconTool,
     description: 'Expert plumbers for any repair or installation',
     longDescription: 'From leaky faucets to full pipe replacements, our verified plumbers handle every job with speed and care. Available for emergency and scheduled appointments.',
     services: ['Leak repair', 'Drain cleaning', 'Water heater installation', 'Pipe replacement', 'Toilet repair', 'Sump pump installation', 'Gas line services'],
@@ -37,8 +51,7 @@ const CATEGORY_DATA: Record<string, {
   },
   hvac: {
     name: 'HVAC',
-    icon: Wind,
-    color: 'bg-sky-50 text-sky-600',
+    icon: IconWind,
     description: 'AC, heating, and ventilation experts',
     longDescription: 'Keep your home comfortable year-round with our certified HVAC technicians. We handle installation, maintenance, and emergency repairs for all major brands.',
     services: ['AC repair & installation', 'Furnace service', 'Duct cleaning', 'Heat pump service', 'Thermostat installation', 'Indoor air quality', 'Seasonal tune-ups'],
@@ -52,8 +65,7 @@ const CATEGORY_DATA: Record<string, {
   },
   electrical: {
     name: 'Electrical',
-    icon: Zap,
-    color: 'bg-yellow-50 text-yellow-600',
+    icon: IconBolt,
     description: 'Licensed electricians for safe, reliable work',
     longDescription: 'Don\'t risk DIY electrical work. Our licensed electricians handle everything from outlet installation to full panel upgrades, all up to code.',
     services: ['Outlet & switch installation', 'Panel upgrades', 'Ceiling fan installation', 'EV charger installation', 'Lighting installation', 'Safety inspections', 'Generator hookup'],
@@ -67,8 +79,7 @@ const CATEGORY_DATA: Record<string, {
   },
   cleaning: {
     name: 'Cleaning',
-    icon: Sparkles,
-    color: 'bg-violet-50 text-violet-600',
+    icon: IconSparkles,
     description: 'Professional house cleaning services',
     longDescription: 'Vetted, reliable cleaning professionals for regular housekeeping, deep cleans, move-in/out service, and everything in between.',
     services: ['Standard house cleaning', 'Deep cleaning', 'Move-in/move-out cleaning', 'Post-construction cleanup', 'Recurring weekly/biweekly service', 'Carpet cleaning', 'Window washing'],
@@ -82,8 +93,7 @@ const CATEGORY_DATA: Record<string, {
   },
   landscaping: {
     name: 'Landscaping',
-    icon: TreePine,
-    color: 'bg-emerald-50 text-emerald-600',
+    icon: IconTree,
     description: 'Lawn care, landscaping, and outdoor services',
     longDescription: 'Transform your outdoor space with our experienced landscapers. From routine lawn maintenance to complete landscape redesigns.',
     services: ['Lawn mowing', 'Tree trimming & removal', 'Garden design & planting', 'Irrigation installation', 'Mulching & edging', 'Leaf removal', 'Hardscaping'],
@@ -97,8 +107,7 @@ const CATEGORY_DATA: Record<string, {
   },
   handyman: {
     name: 'Handyman',
-    icon: Hammer,
-    color: 'bg-amber-50 text-amber-600',
+    icon: IconHammer,
     description: 'Reliable handymen for any home repair',
     longDescription: 'Got a list of repairs piling up? Our handymen tackle any project — from hanging shelves to patching drywall — quickly and affordably.',
     services: ['Furniture assembly', 'Drywall repair', 'Shelf & TV mounting', 'Door & lock repair', 'Caulking & weatherstripping', 'Deck repair', 'Pressure washing'],
@@ -112,8 +121,7 @@ const CATEGORY_DATA: Record<string, {
   },
   'pest-control': {
     name: 'Pest Control',
-    icon: Bug,
-    color: 'bg-orange-50 text-orange-600',
+    icon: IconBug,
     description: 'Expert extermination and pest prevention',
     longDescription: 'Protect your home from ants, rodents, termites, and more. Our licensed pest control pros use safe, effective treatments with guaranteed results.',
     services: ['General pest treatment', 'Termite inspection & treatment', 'Rodent control', 'Bed bug treatment', 'Mosquito control', 'Wildlife removal', 'Preventive treatments'],
@@ -127,8 +135,7 @@ const CATEGORY_DATA: Record<string, {
   },
   roofing: {
     name: 'Roofing',
-    icon: Home,
-    color: 'bg-red-50 text-red-600',
+    icon: IconHome,
     description: 'Trusted roofers for repairs and replacements',
     longDescription: 'From minor leak repairs to complete roof replacements, our licensed roofers deliver quality workmanship backed by warranties.',
     services: ['Roof inspection', 'Leak repair', 'Shingle replacement', 'Full roof replacement', 'Gutter installation & repair', 'Flat roof repair', 'Emergency tarping'],
@@ -142,8 +149,7 @@ const CATEGORY_DATA: Record<string, {
   },
   painting: {
     name: 'Painting',
-    icon: Paintbrush,
-    color: 'bg-pink-50 text-pink-600',
+    icon: IconPaint,
     description: 'Professional interior and exterior painters',
     longDescription: 'Refresh your home with a professional paint job. Our painters provide flawless results with premium materials and clean, efficient service.',
     services: ['Interior painting', 'Exterior painting', 'Cabinet painting', 'Deck staining', 'Drywall repair & texture', 'Commercial painting', 'Wallpaper removal'],
@@ -187,33 +193,33 @@ export default function CategoryPage({ params }: { params: { slug: string } }) {
 
       <main className="flex-1">
         {/* Hero */}
-        <section className="bg-gradient-to-br from-emerald-50 via-white to-slate-50 py-14">
+        <section className="bg-white border-b border-slate-100 py-12">
           <div className="mx-auto max-w-5xl px-4">
-            <div className="flex items-center gap-2 text-sm text-muted-foreground mb-4">
+            <div className="flex items-center gap-2 text-sm text-slate-500 mb-4">
               <Link href="/categories" className="hover:text-emerald-600">Categories</Link>
               <span>/</span>
               <span className="text-slate-900">{cat.name}</span>
             </div>
 
             <div className="flex items-start gap-6">
-              <div className={`flex h-16 w-16 items-center justify-center rounded-2xl shrink-0 ${cat.color}`}>
-                <Icon className="h-8 w-8" />
+              <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 shrink-0">
+                <Icon className="h-8 w-8 text-slate-600" stroke={1.5} />
               </div>
               <div>
-                <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 sm:text-4xl">
+                <h1 className="text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
                   {cat.name} Services Near You
                 </h1>
-                <p className="mt-2 text-lg text-slate-600 max-w-2xl">{cat.longDescription}</p>
+                <p className="mt-2 text-lg text-slate-700 max-w-2xl">{cat.longDescription}</p>
                 <div className="mt-4 flex flex-wrap gap-3">
                   <Link
                     href={`/find-pros?category=${cat.name}`}
-                    className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-6 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 transition"
+                    className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 transition"
                   >
-                    Find {cat.name} Pros <ArrowRight className="h-4 w-4" />
+                    Find {cat.name} Pros <IconArrowRight className="h-4 w-4" stroke={1.5} />
                   </Link>
                   <Link
                     href={`/request?category=${cat.name}`}
-                    className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-6 py-2.5 text-sm font-semibold text-slate-700 hover:border-emerald-300 transition"
+                    className="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition"
                   >
                     Request a Quote
                   </Link>
@@ -226,12 +232,12 @@ export default function CategoryPage({ params }: { params: { slug: string } }) {
         <div className="mx-auto max-w-5xl px-4 py-12 grid grid-cols-1 gap-8 lg:grid-cols-3">
           <div className="lg:col-span-2 space-y-8">
             {/* Services offered */}
-            <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
+            <div className="rounded-xl border border-slate-200 bg-white p-5">
               <h2 className="text-xl font-bold text-slate-900 mb-4">Services Included</h2>
               <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 {cat.services.map((s) => (
                   <li key={s} className="flex items-center gap-2 text-sm text-slate-700">
-                    <CheckCircle className="h-4 w-4 text-emerald-500 shrink-0" />
+                    <IconCircleCheck className="h-4 w-4 text-emerald-500 shrink-0" stroke={1.5} />
                     {s}
                   </li>
                 ))}
@@ -239,13 +245,13 @@ export default function CategoryPage({ params }: { params: { slug: string } }) {
             </div>
 
             {/* FAQ */}
-            <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
+            <div className="rounded-xl border border-slate-200 bg-white p-5">
               <h2 className="text-xl font-bold text-slate-900 mb-5">Frequently Asked Questions</h2>
               <div className="space-y-5">
                 {cat.faqs.map((faq) => (
                   <div key={faq.q}>
                     <h3 className="font-semibold text-slate-900">{faq.q}</h3>
-                    <p className="mt-1 text-sm text-slate-600">{faq.a}</p>
+                    <p className="mt-1 text-sm text-slate-700">{faq.a}</p>
                   </div>
                 ))}
               </div>
@@ -255,14 +261,14 @@ export default function CategoryPage({ params }: { params: { slug: string } }) {
           {/* Sidebar */}
           <div className="space-y-4">
             {/* Cost card */}
-            <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-5">
-              <p className="text-xs font-semibold uppercase tracking-wide text-emerald-600 mb-1">Typical Cost Range</p>
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-5">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1">Typical Cost Range</p>
               <p className="text-2xl font-bold text-slate-900">{cat.avgCost}</p>
-              <p className="mt-1 text-xs text-emerald-700">Get a free custom quote from local pros</p>
+              <p className="mt-1 text-xs text-slate-500">Get a free custom quote from local pros</p>
             </div>
 
             {/* Trust */}
-            <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm space-y-3">
+            <div className="rounded-xl border border-slate-200 bg-white p-5 space-y-3">
               <h3 className="font-semibold text-slate-900">Why HandyCall?</h3>
               {[
                 'Background-checked professionals',
@@ -271,7 +277,7 @@ export default function CategoryPage({ params }: { params: { slug: string } }) {
                 'Satisfaction guaranteed',
               ].map((item) => (
                 <div key={item} className="flex items-center gap-2 text-sm text-slate-700">
-                  <Star className="h-3.5 w-3.5 text-amber-400 fill-amber-400 shrink-0" />
+                  <IconStar className="h-3.5 w-3.5 text-amber-400 fill-amber-400 shrink-0" stroke={1.5} />
                   {item}
                 </div>
               ))}
@@ -279,7 +285,7 @@ export default function CategoryPage({ params }: { params: { slug: string } }) {
 
             <Link
               href={`/find-pros?category=${cat.name}`}
-              className="block text-center rounded-xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white hover:bg-emerald-700 transition"
+              className="block text-center rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 transition"
             >
               Find {cat.name} Pros Now
             </Link>
