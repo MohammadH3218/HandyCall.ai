@@ -34,6 +34,7 @@ export class ParameterStoreService implements OnModuleInit {
         '/handycall/oauth/microsoft/client-secret',
         '/handycall/oauth/microsoft/redirect-uri',
         '/handycall/oauth/microsoft/tenant-id',
+        '/handycall/api/openai-key',
       ];
 
       const command = new GetParametersCommand({
@@ -138,5 +139,10 @@ export class ParameterStoreService implements OnModuleInit {
   async getAppleAppSpecificPassword(): Promise<string | null> {
     return this.getParameter('/handycall/oauth/apple/app-specific-password', true) ||
            this.configService.get<string>('APPLE_APP_SPECIFIC_PASSWORD') || null;
+  }
+
+  async getOpenAIApiKey(): Promise<string | null> {
+    return (await this.getParameter('/handycall/api/openai-key')) ||
+           this.configService.get<string>('OPENAI_API_KEY') || null;
   }
 }

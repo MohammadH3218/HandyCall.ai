@@ -1,10 +1,11 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { DynamoDBService } from '../../infrastructure/database/dynamodb.service';
 import { RagService } from '../rag/rag.service';
 import { v4 as uuidv4 } from 'uuid';
 import OpenAI from 'openai';
 import { CompaniesService } from '../companies/companies.service';
+import { ParameterStoreService } from '../../infrastructure/config/parameter-store.service';
 
 export interface KnowledgeItem {
   company_id: string;
@@ -58,7 +59,7 @@ export type GeneratedKnowledgeDraft = {
 };
 
 @Injectable()
-export class KnowledgeService {
+export class KnowledgeService implements OnModuleInit {
   private tableName: string;
   private openai: OpenAI;
   private knowledgeAssistantModelId: string;
@@ -68,18 +69,33 @@ export class KnowledgeService {
     private ragService: RagService,
     private configService: ConfigService,
     private companiesService: CompaniesService,
+    private parameterStore: ParameterStoreService,
   ) {
     // Use the base table name and let the shared DynamoDB service prepend the configured prefix
     this.tableName = 'knowledge_items';
     const apiKey = this.configService.get<string>('OPENAI_API_KEY');
     if (!apiKey) {
       console.warn(
-        '[KnowledgeService] OPENAI_API_KEY not found. Knowledge setup assistant will not be available.',
+        '[KnowledgeService] OPENAI_API_KEY not in env — will attempt to load from Parameter Store on init.',
       );
     }
     this.openai = new OpenAI({ apiKey: apiKey || 'dummy' });
     this.knowledgeAssistantModelId =
       this.configService.get<string>('KNOWLEDGE_SETUP_MODEL_ID') || 'gpt-4.1-nano';
+  }
+
+  async onModuleInit() {
+    // Env var takes priority; only fetch from SSM if not already set
+    const envKey = this.configService.get<string>('OPENAI_API_KEY');
+    if (!envKey) {
+      const ssmKey = await this.parameterStore.getOpenAIApiKey();
+      if (ssmKey) {
+        this.openai = new OpenAI({ apiKey: ssmKey });
+        console.log('[KnowledgeService] OpenAI client initialized from Parameter Store.');
+      } else {
+        console.error('[KnowledgeService] OPENAI_API_KEY not found in env or Parameter Store. Knowledge AI will be unavailable.');
+      }
+    }
   }
 
   /**
