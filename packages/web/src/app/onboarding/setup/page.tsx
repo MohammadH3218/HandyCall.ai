@@ -20,6 +20,7 @@ import {
   IconBrandGoogle,
   IconBrandWindows,
   IconBrandApple,
+  IconPencil,
 } from '@tabler/icons-react';
 import { useOnboarding } from '@/components/onboarding/onboarding-context';
 import { useAuthStore } from '@/stores/auth-store';
@@ -52,7 +53,13 @@ type Phase =
   | 'billing_payment'
   | 'complete';
 
-type ChatMessage = { id: string; role: 'bot' | 'user'; content: string };
+type ChatMessage = {
+  id: string;
+  role: 'bot' | 'user';
+  content: string;
+  /** If set, an edit pencil appears on this user message */
+  onEdit?: () => void;
+};
 type KnowledgeMsg = { role: 'user' | 'assistant'; content: string };
 type DayRow = { closed: boolean; open: string; close: string };
 type CalendarHours = Record<string, DayRow>;
@@ -201,6 +208,7 @@ function ActionButton({
 }) {
   return (
     <button
+      type="button"
       onClick={() => void onClick()}
       disabled={disabled || loading}
       className="flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-50"
@@ -222,6 +230,7 @@ function ChipButton({
 }) {
   return (
     <button
+      type="button"
       onClick={() => void onClick()}
       disabled={disabled}
       className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:border-emerald-400 hover:bg-emerald-50 hover:text-emerald-700 disabled:opacity-50"
@@ -244,6 +253,7 @@ function ChoiceButton({
 }) {
   return (
     <button
+      type="button"
       onClick={() => void onClick()}
       disabled={disabled}
       className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-emerald-400 hover:bg-emerald-50 disabled:opacity-50"
@@ -288,6 +298,10 @@ export default function OnboardingSetupPage() {
   const [searchingNums, setSearchingNums] = useState(false);
   const [forwardNumber, setForwardNumber] = useState('');
 
+  // "Other / Not listed" service type
+  const [showOtherInput, setShowOtherInput] = useState(false);
+  const [otherServiceInput, setOtherServiceInput] = useState('');
+
   // Knowledge AI state
   const [kbMessages, setKbMessages] = useState<KnowledgeMsg[]>([]);
   const [kbInput, setKbInput] = useState('');
@@ -317,8 +331,8 @@ export default function OnboardingSetupPage() {
     setMessages((prev) => [...prev, { id: mkId(), role: 'bot', content: text }]);
   }, []);
 
-  const userSay = useCallback((text: string) => {
-    setMessages((prev) => [...prev, { id: mkId(), role: 'user', content: text }]);
+  const userSay = useCallback((text: string, onEdit?: () => void) => {
+    setMessages((prev) => [...prev, { id: mkId(), role: 'user', content: text, onEdit }]);
   }, []);
 
   const goTo = useCallback(
@@ -326,6 +340,22 @@ export default function OnboardingSetupPage() {
       setErrMsg(null);
       for (const m of msgs) await botSay(m);
       setPhase(next);
+    },
+    [botSay],
+  );
+
+  /**
+   * Re-opens a previous step for editing.
+   * Adds a bot re-prompt message and jumps back to that phase.
+   */
+  const editStep = useCallback(
+    (prompt: string, targetPhase: Phase, prefill?: () => void) => {
+      setErrMsg(null);
+      if (prefill) prefill();
+      void (async () => {
+        await botSay(prompt);
+        setPhase(targetPhase);
+      })();
     },
     [botSay],
   );
@@ -385,35 +415,46 @@ export default function OnboardingSetupPage() {
   const handleProfileName = async () => {
     const name = nameInput.trim();
     if (!name) return;
-    userSay(name);
+    const captured = name;
+    userSay(captured, () =>
+      editStep("What name would you like to use?", 'profile_name', () => setNameInput(captured)),
+    );
     setNameInput('');
     setIsSaving(true);
     try {
-      await apiClient.updateMyCompany({ owner_name: name });
+      await apiClient.updateMyCompany({ owner_name: captured });
       await refreshAll();
     } catch {
       // Non-blocking
     } finally {
       setIsSaving(false);
     }
-    await goTo('company_name', `Nice to meet you, ${name}! What's the name of your business?`);
+    await goTo('company_name', `Nice to meet you, ${captured}! What's the name of your business?`);
   };
 
   const handleCompanyName = async () => {
     const name = companyInput.trim();
     if (!name) return;
-    userSay(name);
+    userSay(name, () => editStep("What's the correct business name?", 'company_name'));
     await goTo('service_type', `Got it — ${name}! What type of service do you provide?`);
   };
 
   const handleServiceType = async (value: string, label: string) => {
-    userSay(label);
+    setShowOtherInput(false);
+    setOtherServiceInput('');
+    const displayLabel = label;
+    userSay(displayLabel, () =>
+      editStep('Which service type best describes your business?', 'service_type', () => {
+        setShowOtherInput(false);
+        setOtherServiceInput('');
+      }),
+    );
     setIsSaving(true);
     try {
       await apiClient.updateMyCompany({ service_type: value });
       await refreshAll();
       await goTo('timezone', 'What timezone are you in?');
-    } catch (err: any) {
+    } catch {
       setErrMsg('Could not save service type. Try again.');
     } finally {
       setIsSaving(false);
@@ -421,7 +462,7 @@ export default function OnboardingSetupPage() {
   };
 
   const handleTimezone = async (value: string, label: string) => {
-    userSay(label);
+    userSay(label, () => editStep('Which timezone are you in?', 'timezone'));
     setCalendarTimezone(value);
     setIsSaving(true);
     try {
@@ -436,7 +477,7 @@ export default function OnboardingSetupPage() {
         'service_area_choice',
         "Company details saved! Now let's set your service area. Do you serve all areas, or specific zip codes and cities?",
       );
-    } catch (err: any) {
+    } catch {
       setErrMsg('Could not save company profile. Try again.');
     } finally {
       setIsSaving(false);
@@ -455,7 +496,7 @@ export default function OnboardingSetupPage() {
       setCompany(updated);
       await refreshAll();
       await goTo('calendar_mode', "Got it — you cover all areas. Now let's set up your booking calendar.");
-    } catch (err: any) {
+    } catch {
       setErrMsg('Could not save service area.');
     } finally {
       setIsSaving(false);
@@ -501,9 +542,11 @@ export default function OnboardingSetupPage() {
       });
       setCompany(updated);
       await refreshAll();
-      userSay(`${zipCodes.length} zip code${zipCodes.length !== 1 ? 's' : ''}, ${cities.length} ${cities.length !== 1 ? 'cities' : 'city'} saved`);
+      userSay(
+        `${zipCodes.length} zip code${zipCodes.length !== 1 ? 's' : ''}, ${cities.length} ${cities.length !== 1 ? 'cities' : 'city'} saved`,
+      );
       await goTo('calendar_mode', "Service area saved! Let's set up your booking calendar.");
-    } catch (err: any) {
+    } catch {
       setErrMsg('Could not save service area.');
     } finally {
       setIsSaving(false);
@@ -542,7 +585,7 @@ export default function OnboardingSetupPage() {
       await refreshAll();
       userSay('Business hours saved ✓');
       await goTo('phone_choice', "Calendar is all set! Now let's get your phone ready. How do you want customers to reach you?");
-    } catch (err: any) {
+    } catch {
       setErrMsg('Could not save calendar settings.');
     } finally {
       setIsSaving(false);
@@ -574,7 +617,7 @@ export default function OnboardingSetupPage() {
           ? await apiClient.getGoogleCalendarAuthUrl()
           : await apiClient.getMicrosoftCalendarAuthUrl();
       if (res?.url) window.location.href = res.url;
-    } catch (err: any) {
+    } catch {
       setErrMsg('Could not start calendar connection. Try again.');
     } finally {
       setIsSaving(false);
@@ -597,7 +640,7 @@ export default function OnboardingSetupPage() {
       await apiClient.connectAppleCalendar(appleEmail, applePass);
       await refreshAll();
       userSay('Apple Calendar connected ✓');
-      await goTo("phone_choice", "Calendar connected! Let's set up your phone.");
+      await goTo('phone_choice', "Calendar connected! Let's set up your phone.");
     } catch (err: any) {
       setErrMsg(err?.message || 'Could not connect Apple Calendar.');
     } finally {
@@ -628,7 +671,7 @@ export default function OnboardingSetupPage() {
           'knowledge_intro',
           `Demo number ready${num ? ` (${num})` : ''}! Now let's build your AI knowledge base.`,
         );
-      } catch (err: any) {
+      } catch {
         setErrMsg('Could not assign demo number.');
       } finally {
         setIsSaving(false);
@@ -687,7 +730,7 @@ export default function OnboardingSetupPage() {
         'knowledge_intro',
         `Got it! When ready, forward calls from ${forwardNumber.trim()} to your HandyCall number in your carrier settings. Now let's build your knowledge base!`,
       );
-    } catch (err: any) {
+    } catch {
       setErrMsg('Could not save number.');
     } finally {
       setIsSaving(false);
@@ -713,9 +756,9 @@ export default function OnboardingSetupPage() {
         setKbMessages([...history, { role: 'assistant', content: msg }]);
       }
       setKbDone(res?.done === true);
-    } catch (err: any) {
+    } catch {
       setKbError(
-        'The AI interview is temporarily unavailable. You can still generate a knowledge base with what you\'ve answered, or skip and add entries manually from the dashboard.',
+        "The AI interview is temporarily unavailable. You can still generate a knowledge base with what you've answered, or skip and add entries manually from the dashboard.",
       );
     } finally {
       setKbLoading(false);
@@ -825,12 +868,52 @@ export default function OnboardingSetupPage() {
 
         {/* Service type */}
         {phase === 'service_type' && (
-          <div className="flex flex-wrap gap-2">
-            {SERVICE_TYPE_OPTIONS.map((opt) => (
-              <ChipButton key={opt.value} onClick={() => void handleServiceType(opt.value, opt.label)} disabled={isSaving}>
-                {opt.label}
+          <div className="space-y-3">
+            <div className="flex flex-wrap gap-2">
+              {SERVICE_TYPE_OPTIONS.filter((opt) => (opt.value as string) !== 'OTHER').map((opt) => (
+                <ChipButton
+                  key={opt.value}
+                  onClick={() => void handleServiceType(opt.value, opt.label)}
+                  disabled={isSaving}
+                >
+                  {opt.label}
+                </ChipButton>
+              ))}
+              <ChipButton
+                onClick={() => {
+                  setShowOtherInput(true);
+                  setOtherServiceInput('');
+                }}
+                disabled={isSaving || showOtherInput}
+              >
+                Other / Not listed →
               </ChipButton>
-            ))}
+            </div>
+            {showOtherInput && (
+              <div className="flex gap-2">
+                <input
+                  autoFocus
+                  type="text"
+                  value={otherServiceInput}
+                  onChange={(e) => setOtherServiceInput(e.target.value)}
+                  onKeyDown={(e) =>
+                    e.key === 'Enter' &&
+                    otherServiceInput.trim() &&
+                    void handleServiceType('OTHER', otherServiceInput.trim())
+                  }
+                  placeholder="e.g. Septic tank cleaning, Foundation repair..."
+                  disabled={isSaving}
+                  className="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 disabled:opacity-50"
+                />
+                <ActionButton
+                  onClick={() => void handleServiceType('OTHER', otherServiceInput.trim())}
+                  disabled={!otherServiceInput.trim() || isSaving}
+                  loading={isSaving}
+                >
+                  <IconSend className="h-4 w-4" stroke={1.5} />
+                </ActionButton>
+              </div>
+            )}
           </div>
         )}
 
@@ -886,6 +969,7 @@ export default function OnboardingSetupPage() {
                   className="flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
                 />
                 <button
+                  type="button"
                   onClick={addZip}
                   className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
                 >
@@ -900,6 +984,7 @@ export default function OnboardingSetupPage() {
                   >
                     {z}
                     <button
+                      type="button"
                       onClick={() => setZipCodes((p) => p.filter((x) => x !== z))}
                       className="text-emerald-600 hover:text-red-500"
                     >
@@ -928,6 +1013,7 @@ export default function OnboardingSetupPage() {
                   className="flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
                 />
                 <button
+                  type="button"
                   onClick={addCity}
                   className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
                 >
@@ -942,6 +1028,7 @@ export default function OnboardingSetupPage() {
                   >
                     {c}
                     <button
+                      type="button"
                       onClick={() => setCities((p) => p.filter((x) => x !== c))}
                       className="text-slate-500 hover:text-red-500"
                     >
@@ -995,6 +1082,7 @@ export default function OnboardingSetupPage() {
                   >
                     <span className="w-8 text-xs font-bold text-slate-500">{day.label}</span>
                     <button
+                      type="button"
                       onClick={() =>
                         setCalendarHours((prev) => ({ ...prev, [day.key]: { ...row, closed: !row.closed } }))
                       }
@@ -1148,6 +1236,7 @@ export default function OnboardingSetupPage() {
                 className="flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-emerald-400"
               />
               <button
+                type="button"
                 onClick={() => void handleSearchNumbers()}
                 disabled={searchingNums || isSaving}
                 className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
@@ -1159,6 +1248,7 @@ export default function OnboardingSetupPage() {
               <div className="grid gap-2 sm:grid-cols-2">
                 {availableNumbers.map((num) => (
                   <button
+                    type="button"
                     key={num.phoneNumber}
                     onClick={() => void handleClaimNumber(num.phoneNumber)}
                     disabled={isSaving}
@@ -1202,6 +1292,7 @@ export default function OnboardingSetupPage() {
               Build my knowledge base
             </ChoiceButton>
             <button
+              type="button"
               onClick={() => void handleSkipKnowledge()}
               className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-500 transition hover:bg-slate-50"
             >
@@ -1263,6 +1354,7 @@ export default function OnboardingSetupPage() {
                   className="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 disabled:opacity-50"
                 />
                 <button
+                  type="button"
                   onClick={() => void sendKbMessage()}
                   disabled={!kbInput.trim() || kbLoading}
                   className="rounded-xl bg-emerald-600 px-4 py-2.5 text-white transition hover:bg-emerald-700 disabled:opacity-50"
@@ -1284,6 +1376,7 @@ export default function OnboardingSetupPage() {
                 </ActionButton>
               )}
               <button
+                type="button"
                 onClick={() => void handleSkipKnowledge()}
                 className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-500 hover:bg-slate-50"
               >
@@ -1301,6 +1394,7 @@ export default function OnboardingSetupPage() {
               const price = getPlanPriceDisplay(planKey);
               return (
                 <button
+                  type="button"
                   key={plan}
                   onClick={() => void handlePlanSelect(planKey)}
                   disabled={isSaving}
@@ -1353,7 +1447,11 @@ export default function OnboardingSetupPage() {
       <div className="flex-1 overflow-y-auto px-4 py-6 sm:px-8">
         <div className="mx-auto max-w-2xl space-y-4">
           {messages.map((msg) => (
-            <div key={msg.id} className={`flex items-start gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
+            <div
+              key={msg.id}
+              className={`group flex items-start gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}
+            >
+              {/* Avatar */}
               <div
                 className={`mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full ${
                   msg.role === 'bot' ? 'bg-emerald-600' : 'bg-slate-200'
@@ -1365,6 +1463,8 @@ export default function OnboardingSetupPage() {
                   <IconUser className="h-4 w-4 text-slate-500" stroke={1.5} />
                 )}
               </div>
+
+              {/* Bubble */}
               <div
                 className={`max-w-md rounded-2xl px-4 py-3 text-sm leading-relaxed ${
                   msg.role === 'bot'
@@ -1374,6 +1474,18 @@ export default function OnboardingSetupPage() {
               >
                 {msg.content}
               </div>
+
+              {/* Edit pencil — appears on hover for editable user messages */}
+              {msg.role === 'user' && msg.onEdit && (
+                <button
+                  type="button"
+                  onClick={msg.onEdit}
+                  title="Edit this answer"
+                  className="mt-2 flex-shrink-0 self-center rounded-lg p-1 text-slate-400 opacity-0 transition hover:bg-slate-100 hover:text-slate-600 group-hover:opacity-100"
+                >
+                  <IconPencil className="h-3.5 w-3.5" stroke={1.5} />
+                </button>
+              )}
             </div>
           ))}
 
@@ -1401,6 +1513,7 @@ export default function OnboardingSetupPage() {
           {phase === 'complete' && !isTyping && (
             <div className="flex justify-start pl-11">
               <button
+                type="button"
                 onClick={() => router.replace('/dashboard')}
                 className="flex items-center gap-2 rounded-xl bg-emerald-600 px-6 py-3 text-sm font-bold text-white transition hover:bg-emerald-700"
               >

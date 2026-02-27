@@ -73,7 +73,8 @@ function OnboardingShell({ children }: { children: React.ReactNode }) {
     }
   }, [allComplete, currentIndex, firstIncompleteIndex, isAuthenticated, isSetupPage, loading, router, userRole]);
 
-  if (loading) {
+  // Never replace children with a spinner on the setup page — that would unmount and restart the chat.
+  if (loading && !isSetupPage) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-white">
         <div className="text-center">
