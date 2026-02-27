@@ -131,11 +131,26 @@ export class CognitoService {
         if (error.name === 'NotAuthorizedException' && !isLastPool) {
           continue;
         }
-        
+
+        // Auth flow not enabled on the app client (e.g. ADMIN_USER_PASSWORD_AUTH disabled in AWS console)
+        if (error.name === 'InvalidParameterException') {
+          console.error(`[CognitoService] Auth flow not enabled for pool "${pool}":`, error.message);
+          throw new UnauthorizedException(
+            'Authentication is not configured for this account type. Please contact support.',
+          );
+        }
+
+        // Pool or client does not exist in AWS
+        if (error.name === 'ResourceNotFoundException') {
+          console.error(`[CognitoService] Pool or client not found for pool "${pool}":`, error.message);
+          throw new UnauthorizedException('Authentication service unavailable. Please contact support.');
+        }
+
         // For non-NotAuthorizedException errors, throw immediately
         // For NotAuthorizedException on the last pool, fall through to handle after loop
         if (error.name !== 'NotAuthorizedException' && error.name !== 'UserNotFoundException') {
-          throw error;
+          console.error(`[CognitoService] Unexpected auth error for pool "${pool}":`, error.name, error.message);
+          throw new UnauthorizedException('Authentication failed. Please try again later.');
         }
       }
     }

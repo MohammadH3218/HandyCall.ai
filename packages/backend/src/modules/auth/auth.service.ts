@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException, BadRequestException, ConflictException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, BadRequestException, ConflictException, HttpException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { UsersService } from '../users/users.service';
@@ -399,12 +399,12 @@ export class AuthService {
         stack: error.stack
       });
 
-      // Re-throw known errors
-      if (error instanceof UnauthorizedException || error instanceof BadRequestException) {
+      // Re-throw all NestJS HTTP exceptions (UnauthorizedException, BadRequestException, etc.)
+      if (error instanceof HttpException) {
         throw error;
       }
 
-      // For unknown errors, throw a generic error with logging
+      // For truly unknown errors, throw a generic message (cognito.service already handles known AWS errors)
       throw new UnauthorizedException('Authentication failed. Please try again later.');
     }
 
