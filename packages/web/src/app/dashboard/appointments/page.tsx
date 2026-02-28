@@ -214,7 +214,7 @@ export default function AppointmentsPage() {
 
   const [monthCursor, setMonthCursor] = useState(() => {
     const now = new Date();
-    return new Date(now.getFullYear(), now.getMonth(), 1);
+    return new Date(Date.UTC(now.getFullYear(), now.getMonth(), 1, 12, 0, 0));
   });
 
   const [calendarView, setCalendarView] = useState<'day' | 'week' | 'month' | 'list'>('week');
@@ -1126,7 +1126,7 @@ export default function AppointmentsPage() {
                           }`}
                           onClick={() => {
                             if (view === 'month') {
-                              setMonthCursor(new Date(focusDate.getFullYear(), focusDate.getMonth(), 1));
+                              setMonthCursor(new Date(Date.UTC(focusDate.getFullYear(), focusDate.getMonth(), 1, 12, 0, 0)));
                             }
                             setCalendarView(view);
                           }}
