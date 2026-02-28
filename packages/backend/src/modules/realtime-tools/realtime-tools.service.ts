@@ -463,7 +463,10 @@ export class RealtimeToolsService {
     let month = Number(start.get?.('month'));
     let day = Number(start.get?.('day'));
 
-    if (!(year && month && day) && dayAnchor) {
+    // Keep requested-time matching aligned with the same day used for availability windowing.
+    // This avoids contradictions like "time unavailable" while suggesting the same time on the
+    // target day (e.g., "next week Friday at 1 PM").
+    if (dayAnchor) {
       const parts = getLocalDateParts(dayAnchor, timeZone);
       year = parts.year;
       month = parts.month;
