@@ -1661,6 +1661,9 @@ wss.on('connection', (twilioWs: WebSocket) => {
   let outboundAudioQueue: string[] = [];
   let outboundAudioTimer: ReturnType<typeof setTimeout> | null = null;
   let outboundNextSendAt = 0;
+  let outboundFramesSent = 0;
+  let pollyTtsStreaming = false;
+  let activePollyTtsSeq = 0;
 
   function tryGreet() {
     if (!openaiWs || !openaiReady || !twilioReady || greeted) return;
@@ -1793,6 +1796,13 @@ wss.on('connection', (twilioWs: WebSocket) => {
       }
       outboundAudioQueue.push(frame.toString('base64'));
     }
+    if (outboundAudioQueue.length % 100 === 0) {
+      diag('twilio.outbound.queue_progress', {
+        callSid: ctx?.callSid || '',
+        queuedFrames: outboundAudioQueue.length,
+        framesSent: outboundFramesSent,
+      });
+    }
     if (!outboundNextSendAt) outboundNextSendAt = Date.now();
     if (!outboundAudioTimer) scheduleTwilioAudioDrain();
   }
@@ -1820,16 +1830,35 @@ wss.on('connection', (twilioWs: WebSocket) => {
       streamSid: ctx.streamSid,
       media: { payload },
     });
+    outboundFramesSent += 1;
+    lastAssistantAudioAt = Date.now();
     outboundNextSendAt = Math.max(outboundNextSendAt + 20, Date.now() + 20);
-    if (outboundAudioQueue.length > 0) scheduleTwilioAudioDrain();
+    if (outboundAudioQueue.length > 0) {
+      scheduleTwilioAudioDrain();
+      return;
+    }
+    if (!pollyTtsStreaming) {
+      assistantSpeaking = false;
+      diag('assistant.playback_complete', {
+        callSid: ctx?.callSid || '',
+        framesSent: outboundFramesSent,
+      });
+    }
   }
 
   function clearTwilioAudioBuffer() {
+    const droppedFrames = outboundAudioQueue.length;
     outboundAudioQueue = [];
     outboundNextSendAt = 0;
     if (outboundAudioTimer) {
       clearTimeout(outboundAudioTimer);
       outboundAudioTimer = null;
+    }
+    if (droppedFrames > 0) {
+      diag('twilio.outbound.cleared', {
+        callSid: ctx?.callSid || '',
+        droppedFrames,
+      });
     }
     if (ctx?.streamSid) {
       sendToTwilio(twilioWs, { event: 'clear', streamSid: ctx.streamSid });
@@ -1843,9 +1872,22 @@ wss.on('connection', (twilioWs: WebSocket) => {
   }
 
   function interruptAssistant(reason: string) {
-    if (!assistantSpeaking) return;
+    if (!assistantSpeaking) {
+      diag('barge_in.skip_not_speaking', {
+        callSid: ctx?.callSid || '',
+        reason,
+      });
+      return;
+    }
     const now = Date.now();
-    if (now - lastAssistantAudioAt > 5000) return;
+    if (now - lastAssistantAudioAt > 5000) {
+      diag('barge_in.skip_stale_audio', {
+        callSid: ctx?.callSid || '',
+        reason,
+        msSinceAssistantAudio: now - lastAssistantAudioAt,
+      });
+      return;
+    }
 
     if (usePollyTts && ttsAbort) {
       try {
@@ -1891,8 +1933,10 @@ wss.on('connection', (twilioWs: WebSocket) => {
     const controller = new AbortController();
     ttsAbort = controller;
     assistantSpeaking = true;
+    pollyTtsStreaming = true;
     lastAssistantAudioAt = Date.now();
     const ttsSeq = ++diagTtsSeq;
+    activePollyTtsSeq = ttsSeq;
     let emittedAudio = false;
     diag('tts.start', {
       callSid: ctx.callSid,
@@ -2005,7 +2049,18 @@ wss.on('connection', (twilioWs: WebSocket) => {
       if (ttsAbort === controller) {
         ttsAbort = null;
       }
-      assistantSpeaking = false;
+      if (activePollyTtsSeq === ttsSeq) {
+        pollyTtsStreaming = false;
+        if (outboundAudioQueue.length === 0 && !outboundAudioTimer) {
+          assistantSpeaking = false;
+        } else {
+          diag('tts.waiting_for_playback_drain', {
+            callSid: ctx?.callSid || '',
+            ttsSeq,
+            queuedFrames: outboundAudioQueue.length,
+          });
+        }
+      }
       if (pendingHangup && !waitingForHangupMark && !controller.signal.aborted) {
         setTimeout(() => {
           if (pendingHangup && !waitingForHangupMark) queueHangupMark();
@@ -2293,6 +2348,12 @@ wss.on('connection', (twilioWs: WebSocket) => {
           speechActive = true;
           speechActiveStartedAt = Date.now();
         }
+        diag('deepgram.speech_started', {
+          callSid: ctx?.callSid || '',
+          assistantSpeaking,
+          queuedFrames: outboundAudioQueue.length,
+          msSinceAssistantAudio: Date.now() - lastAssistantAudioAt,
+        });
         cancelPendingInterruptTimer();
         pendingInterruptTimer = setTimeout(() => {
           if (!speechActive) return;
