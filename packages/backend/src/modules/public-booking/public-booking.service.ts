@@ -725,6 +725,101 @@ export class PublicBookingService {
       typeof session.subscription === 'string'
         ? session.subscription
         : session.subscription?.id;
+    const extractInvoicePaymentIds = (invoice: any): { paymentIntentId?: string; chargeId?: string } => {
+      let paymentIntentId =
+        typeof invoice?.payment_intent === 'string'
+          ? invoice.payment_intent
+          : invoice?.payment_intent?.id;
+      let chargeId = typeof invoice?.charge === 'string' ? invoice.charge : invoice?.charge?.id;
+      const payments = Array.isArray(invoice?.payments?.data) ? invoice.payments.data : [];
+      for (const invoicePayment of payments) {
+        const payment = invoicePayment?.payment;
+        if (!payment || typeof payment !== 'object') continue;
+
+        const nestedPi =
+          typeof payment.payment_intent === 'string'
+            ? payment.payment_intent
+            : payment.payment_intent?.id;
+        paymentIntentId = paymentIntentId || nestedPi;
+
+        const nestedCharge =
+          typeof payment.charge === 'string'
+            ? payment.charge
+            : payment.charge?.id;
+        chargeId = chargeId || nestedCharge;
+
+        if (!chargeId && payment.payment_intent && typeof payment.payment_intent === 'object') {
+          chargeId =
+            (typeof payment.payment_intent.latest_charge === 'string'
+              ? payment.payment_intent.latest_charge
+              : payment.payment_intent.latest_charge?.id) || chargeId;
+        }
+
+        if (paymentIntentId && chargeId) break;
+      }
+      return { paymentIntentId, chargeId };
+    };
+    let paymentIntentId =
+      typeof (session as any).payment_intent === 'string'
+        ? (session as any).payment_intent
+        : (session as any).payment_intent?.id;
+    let chargeId: string | undefined;
+    if (!paymentIntentId) {
+      const latestInvoice =
+        session.subscription && typeof session.subscription === 'object'
+          ? (session.subscription as any).latest_invoice
+          : null;
+      const extracted = latestInvoice ? extractInvoicePaymentIds(latestInvoice) : {};
+      paymentIntentId = extracted.paymentIntentId;
+      if (!paymentIntentId && (session as any).invoice) {
+        try {
+          const hydratedInvoice = await this.stripeConnect.getInvoice(
+            typeof (session as any).invoice === 'string'
+              ? (session as any).invoice
+              : (session as any).invoice?.id,
+          );
+          const fromInvoice = extractInvoicePaymentIds(hydratedInvoice);
+          paymentIntentId = fromInvoice.paymentIntentId;
+          chargeId = fromInvoice.chargeId;
+        } catch {
+          // best-effort only; refund flow has additional fallback lookup.
+        }
+      }
+    }
+    if (paymentIntentId) {
+      try {
+        const pi = await this.stripeConnect.getPaymentIntent(paymentIntentId);
+        chargeId =
+          typeof (pi as any).latest_charge === 'string'
+            ? (pi as any).latest_charge
+            : (pi as any).latest_charge?.id;
+      } catch {
+        // best-effort only; refund flow has additional fallback lookup.
+      }
+    }
+    if (!paymentIntentId || !chargeId) {
+      const latestInvoice =
+        session.subscription && typeof session.subscription === 'object'
+          ? (session.subscription as any).latest_invoice
+          : null;
+      const extracted = latestInvoice ? extractInvoicePaymentIds(latestInvoice) : {};
+      paymentIntentId = paymentIntentId || extracted.paymentIntentId;
+      chargeId = chargeId || extracted.chargeId;
+      if ((!paymentIntentId || !chargeId) && (session as any).invoice) {
+        try {
+          const hydratedInvoice = await this.stripeConnect.getInvoice(
+            typeof (session as any).invoice === 'string'
+              ? (session as any).invoice
+              : (session as any).invoice?.id,
+          );
+          const fromInvoice = extractInvoicePaymentIds(hydratedInvoice);
+          paymentIntentId = paymentIntentId || fromInvoice.paymentIntentId;
+          chargeId = chargeId || fromInvoice.chargeId;
+        } catch {
+          // best-effort only; refund flow has additional fallback lookup.
+        }
+      }
+    }
 
     const paymentStatus =
       session.payment_status === 'paid'
@@ -737,6 +832,8 @@ export class PublicBookingService {
       payment_status: paymentStatus,
       stripe_checkout_session_id: session.id,
       stripe_subscription_id: subscriptionId || undefined,
+      stripe_payment_intent_id: paymentIntentId || undefined,
+      stripe_charge_id: chargeId || undefined,
       paid_at: paymentStatus === 'SUCCEEDED' ? Date.now() : undefined,
     });
 
