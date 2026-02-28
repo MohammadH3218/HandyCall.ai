@@ -313,6 +313,10 @@ function shouldUsePollyTts(): boolean {
   return envFlag('POLLY_TTS_ENABLED', true);
 }
 
+function shouldAllowPollyOpenAiFallback(): boolean {
+  return envFlag('POLLY_FALLBACK_TO_OPENAI', false);
+}
+
 function resolvePollyTtsConfig(): PollyTtsConfig {
   const engineRaw = (envFirst(['POLLY_ENGINE']) || 'neural').toLowerCase();
   const engine: PollyTtsConfig['engine'] =
@@ -551,6 +555,12 @@ const shortAcknowledgements = new Set([
 const shortIntentKeywords = new Set([
   'yes',
   'no',
+  'yeah',
+  'yep',
+  'yup',
+  'ok',
+  'okay',
+  'sure',
   'book',
   'booking',
   'appointment',
@@ -784,6 +794,10 @@ function wordCount(text?: string) {
 function isActionableShortUtterance(text?: string) {
   const t = normalizeSpeech(text);
   if (!t) return false;
+  if (extractTimeNeedle(t)) return true;
+  if (/\b\d{1,2}(?::\d{2})?\b/.test(t)) return true;
+  if (/\b(first|second|third|last)\b/.test(t)) return true;
+  if (/\b(monthly|quarterly|weekly|annual|yearly)\b/.test(t)) return true;
   const words = t.split(' ').filter(Boolean);
   if (words.length > 3) return true;
   if (shortIntentKeywords.has(t)) return true;
@@ -803,12 +817,13 @@ function looksLikeFalseStart(text?: string) {
 function isLowSignalTranscript(text?: string) {
   const raw = String(text || '').trim();
   if (!raw) return true;
-  if (raw.length < 3) return true;
+  if (raw.length < 3 && !isActionableShortUtterance(raw)) return true;
   if (/^[\W_]+$/.test(raw)) return true;
   const nonLatin = (raw.match(/[^\u0000-\u024F\s]/g) || []).length;
   if (nonLatin / Math.max(1, raw.length) > 0.25) return true;
+  if (isActionableShortUtterance(raw)) return false;
   if (looksLikeFalseStart(raw)) return true;
-  if (wordCount(raw) <= 3 && !isActionableShortUtterance(raw)) return true;
+  if (wordCount(raw) <= 3) return true;
   return false;
 }
 
@@ -1643,6 +1658,9 @@ wss.on('connection', (twilioWs: WebSocket) => {
   let diagOpenAIAudioChunks = 0;
   let diagOpenAIAudioBytes = 0;
   let diagShutdownLogged = false;
+  let outboundAudioQueue: string[] = [];
+  let outboundAudioTimer: ReturnType<typeof setTimeout> | null = null;
+  let outboundNextSendAt = 0;
 
   function tryGreet() {
     if (!openaiWs || !openaiReady || !twilioReady || greeted) return;
@@ -1686,12 +1704,18 @@ wss.on('connection', (twilioWs: WebSocket) => {
     }
 
     const recentSpeech = lastSpeechStartAt && Date.now() - lastSpeechStartAt < 3500;
-    if (!recentSpeech && trimmed.length < 6) {
+    const actionableShort = isActionableShortUtterance(trimmed);
+    if (!recentSpeech && trimmed.length < 6 && !actionableShort) {
       return;
     }
 
-    if (isLowSignalTranscript(trimmed) || isFillerUtterance(trimmed)) {
+    if (isLowSignalTranscript(trimmed) || (isFillerUtterance(trimmed) && !actionableShort)) {
       if (assistantSpeaking && Date.now() - lastAssistantAudioAt < 2500) {
+        diag('caller.low_signal_ignored_while_assistant', {
+          callSid: ctx?.callSid || '',
+          source,
+          chars: trimmed.length,
+        });
         return;
       }
       lowSignalAttempts += 1;
@@ -1715,8 +1739,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
     }
 
     if (assistantSpeaking && Date.now() - lastAssistantAudioAt < 1500) {
-      const explicitInterrupt =
-        isExplicitBargeIn(trimmed) || wordCount(trimmed) >= 3 || isActionableShortUtterance(trimmed);
+      const explicitInterrupt = isExplicitBargeIn(trimmed) || wordCount(trimmed) >= 3 || actionableShort;
       if (explicitInterrupt) {
         interruptAssistant('transcript_explicit_interrupt');
       }
@@ -1751,6 +1774,68 @@ wss.on('connection', (twilioWs: WebSocket) => {
     openaiResponding = true;
   }
 
+  function enqueueTwilioAudio(payloadBase64: string) {
+    if (twilioWs.readyState !== twilioWs.OPEN) return;
+    let audio: Buffer;
+    try {
+      audio = Buffer.from(payloadBase64, 'base64');
+    } catch {
+      return;
+    }
+    const frameSize = 160; // 20ms @ 8kHz mu-law
+    const silenceByte = 0xff;
+    for (let i = 0; i < audio.length; i += frameSize) {
+      let frame = audio.subarray(i, i + frameSize);
+      if (frame.length < frameSize) {
+        const padded = Buffer.alloc(frameSize, silenceByte);
+        frame.copy(padded, 0, 0, frame.length);
+        frame = padded;
+      }
+      outboundAudioQueue.push(frame.toString('base64'));
+    }
+    if (!outboundNextSendAt) outboundNextSendAt = Date.now();
+    if (!outboundAudioTimer) scheduleTwilioAudioDrain();
+  }
+
+  function scheduleTwilioAudioDrain() {
+    if (outboundAudioTimer) return;
+    const delay = Math.max(0, outboundNextSendAt - Date.now());
+    outboundAudioTimer = setTimeout(drainTwilioAudio, delay);
+  }
+
+  function drainTwilioAudio() {
+    outboundAudioTimer = null;
+    if (twilioWs.readyState !== twilioWs.OPEN) {
+      outboundAudioQueue = [];
+      outboundNextSendAt = 0;
+      return;
+    }
+    const payload = outboundAudioQueue.shift();
+    if (!payload || !ctx?.streamSid) {
+      outboundNextSendAt = 0;
+      return;
+    }
+    sendToTwilio(twilioWs, {
+      event: 'media',
+      streamSid: ctx.streamSid,
+      media: { payload },
+    });
+    outboundNextSendAt = Math.max(outboundNextSendAt + 20, Date.now() + 20);
+    if (outboundAudioQueue.length > 0) scheduleTwilioAudioDrain();
+  }
+
+  function clearTwilioAudioBuffer() {
+    outboundAudioQueue = [];
+    outboundNextSendAt = 0;
+    if (outboundAudioTimer) {
+      clearTimeout(outboundAudioTimer);
+      outboundAudioTimer = null;
+    }
+    if (ctx?.streamSid) {
+      sendToTwilio(twilioWs, { event: 'clear', streamSid: ctx.streamSid });
+    }
+  }
+
   function cancelPendingInterruptTimer() {
     if (!pendingInterruptTimer) return;
     clearTimeout(pendingInterruptTimer);
@@ -1769,7 +1854,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
         // ignore
       }
     }
-    if (ctx?.streamSid) sendToTwilio(twilioWs, { event: 'clear', streamSid: ctx.streamSid });
+    clearTwilioAudioBuffer();
     if (openaiWs) sendToOpenAI(openaiWs, { type: 'response.cancel' });
     assistantSpeaking = false;
     openaiResponding = false;
@@ -1861,9 +1946,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
         let mulawChunks = 0;
         let mulawHeadLogged = false;
         const onAbort = () => {
-          if (ctx?.streamSid) {
-            sendToTwilio(twilioWs, { event: 'clear', streamSid: ctx.streamSid });
-          }
+          clearTwilioAudioBuffer();
           try {
             mulaw.destroy();
           } catch {
@@ -1894,11 +1977,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
             });
           }
           lastAssistantAudioAt = Date.now();
-          sendToTwilio(twilioWs, {
-            event: 'media',
-            streamSid: ctx.streamSid,
-            media: { payload: chunk.toString('base64') },
-          });
+          enqueueTwilioAudio(chunk.toString('base64'));
         });
         mulaw.on('end', () => {
           controller.signal.removeEventListener('abort', onAbort);
@@ -1917,8 +1996,9 @@ wss.on('connection', (twilioWs: WebSocket) => {
       });
     } catch (err: any) {
       console.warn('[polly] TTS failed', err?.message ?? String(err));
-      if (!controller.signal.aborted && !emittedAudio && openaiWs) {
+      if (!controller.signal.aborted && !emittedAudio && openaiWs && shouldAllowPollyOpenAiFallback()) {
         usePollyTts = false;
+        console.warn('[polly] Falling back to OpenAI TTS because POLLY_FALLBACK_TO_OPENAI is enabled');
         createResponse(`Say this naturally in one short sentence: ${trimmed}`);
       }
     } finally {
@@ -1950,6 +2030,12 @@ wss.on('connection', (twilioWs: WebSocket) => {
 
   function shutdown(reason: string) {
     cancelPendingInterruptTimer();
+    if (outboundAudioTimer) {
+      clearTimeout(outboundAudioTimer);
+      outboundAudioTimer = null;
+    }
+    outboundAudioQueue = [];
+    outboundNextSendAt = 0;
     if (deepgramKeepAliveTimer) {
       clearInterval(deepgramKeepAliveTimer);
       deepgramKeepAliveTimer = null;
@@ -2068,6 +2154,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
   }
 
   async function flushDeepgramBuffered(source: string) {
+    cancelPendingInterruptTimer();
     const text = normalizeSpeechText(deepgramBufferedFinal);
     deepgramBufferedFinal = '';
     if (!text) return;
@@ -2206,6 +2293,12 @@ wss.on('connection', (twilioWs: WebSocket) => {
           speechActive = true;
           speechActiveStartedAt = Date.now();
         }
+        cancelPendingInterruptTimer();
+        pendingInterruptTimer = setTimeout(() => {
+          if (!speechActive) return;
+          if (!assistantSpeaking) return;
+          interruptAssistant('deepgram_speech_started_debounced');
+        }, 220);
         return;
       }
 
@@ -2333,7 +2426,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
               bytes: diagOpenAIAudioBytes,
             });
           }
-          sendToTwilio(twilioWs, { event: 'media', streamSid: ctx.streamSid, media: { payload } });
+          enqueueTwilioAudio(payload);
           assistantSpeaking = true;
           lastAssistantAudioAt = Date.now();
         }
