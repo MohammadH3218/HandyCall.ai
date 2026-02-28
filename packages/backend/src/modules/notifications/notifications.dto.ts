@@ -9,25 +9,16 @@ import {
   IsString,
   Max,
   Min,
-  ValidateNested,
 } from 'class-validator';
 import { NOTIFICATION_EVENT_KEYS, NotificationEventKey } from '@handycall/shared';
 
-export class NotificationChannelPreferenceDto {
-  @IsOptional()
-  @IsBoolean()
-  in_app?: boolean;
-
-  @IsOptional()
-  @IsBoolean()
-  push?: boolean;
-}
-
 export class UpdateNotificationPreferencesDto {
+  // Accept the preferences map as a plain object without deep validation.
+  // Deep @ValidateNested causes the global forbidNonWhitelisted pipe to reject
+  // the event-key names (appointment_created, call_completed, etc.) as unknown
+  // properties on NotificationChannelPreferenceDto.
   @IsObject()
-  @ValidateNested({ each: true })
-  @Type(() => NotificationChannelPreferenceDto)
-  preferences!: Partial<Record<NotificationEventKey, NotificationChannelPreferenceDto>>;
+  preferences!: Record<string, { in_app?: boolean; push?: boolean }>;
 }
 
 export class RegisterDeviceDto {

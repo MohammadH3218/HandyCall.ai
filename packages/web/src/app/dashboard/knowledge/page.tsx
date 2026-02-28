@@ -20,7 +20,6 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Label } from '@/components/ui/label';
 import { ServiceAreaTab } from './service-area-tab';
 import { useToast } from '@/hooks/use-toast';
-import { KnowledgeSetupAssistant } from '@/components/knowledge/knowledge-setup-assistant';
 
 interface KnowledgeItem {
   knowledge_id: string;
@@ -217,8 +216,6 @@ export default function KnowledgePage() {
               </button>
             </div>
           )}
-
-          <KnowledgeSetupAssistant onImported={loadItems} />
 
           <Card>
             <CardHeader>
