@@ -198,7 +198,10 @@ export default function BookingPage() {
   const [cancelReason, setCancelReason] = useState('');
   const [availabilityDays, setAvailabilityDays] = useState<Record<string, { slots: string[]; readable_slots: string[]; available: boolean }>>({});
   const [availabilityLoading, setAvailabilityLoading] = useState(false);
-  const [calendarMonth, setCalendarMonth] = useState<Date>(new Date());
+  const [calendarMonth, setCalendarMonth] = useState<Date>(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 1);
+  });
   const [daySlots, setDaySlots] = useState<string[]>([]);
   const [paymentInfo, setPaymentInfo] = useState<BookingPaymentInfo | null>(null);
   const [paymentLoading, setPaymentLoading] = useState(false);
@@ -331,6 +334,24 @@ export default function BookingPage() {
     return new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' }).format(calendarMonth);
   }, [calendarMonth]);
 
+  const todayKey = useMemo(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  }, []);
+
+  const todayMonthMs = useMemo(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+  }, []);
+
+  const maxCalendarMonthMs = useMemo(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth() + 2, 1).getTime();
+  }, []);
+
+  const canGoPrev = calendarMonth.getTime() > todayMonthMs;
+  const canGoNext = calendarMonth.getTime() < maxCalendarMonthMs;
+
   const monthRange = useMemo(() => {
     const start = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), 1);
     const end = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 0);
@@ -362,6 +383,7 @@ export default function BookingPage() {
     if (!token || !API_BASE) return;
     try {
       setAvailabilityLoading(true);
+      setAvailabilityDays({});
       const res = await fetch(`${API_BASE}/public/booking/${token}/availability`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -783,14 +805,16 @@ export default function BookingPage() {
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1, 1))}
+                            disabled={!canGoPrev}
+                            onClick={() => canGoPrev && setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1, 1))}
                           >
                             Prev
                           </Button>
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 1))}
+                            disabled={!canGoNext}
+                            onClick={() => canGoNext && setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 1))}
                           >
                             Next
                           </Button>
@@ -806,8 +830,9 @@ export default function BookingPage() {
                           if (day.muted) {
                             return <div key={day.dateKey} className="h-9" />;
                           }
+                          const isPast = day.dateKey < todayKey;
                           const availability = availabilityDays[day.dateKey];
-                          const isAvailable = availability?.available;
+                          const isAvailable = !isPast && availability?.available;
                           const isSelected = date === day.dateKey;
                           return (
                             <button

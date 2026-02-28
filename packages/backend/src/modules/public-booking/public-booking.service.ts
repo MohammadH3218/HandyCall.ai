@@ -1081,7 +1081,7 @@ export class PublicBookingService {
       ? zonedTimeToUtcMs({ ...endParts, hour: 23, minute: 59 }, timeZone)
       : startMs + 30 * 24 * 60 * 60 * 1000;
 
-    const daysCount = Math.ceil((endMs - startMs) / (24 * 60 * 60 * 1000)) + 1;
+    const daysCount = Math.ceil((endMs - startMs) / (24 * 60 * 60 * 1000));
     if (daysCount > 31) {
       throw new BadRequestException('Availability range is too large (max 31 days).');
     }
