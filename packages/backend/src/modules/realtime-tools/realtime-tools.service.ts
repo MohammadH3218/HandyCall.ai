@@ -18,8 +18,6 @@ import {
   CallDirection,
   CallStatus,
   Contact,
-  ContactSource,
-  LeadStatus,
   AppointmentStatus,
   CompanyStatus,
   CallHandlingMode,
@@ -947,7 +945,9 @@ Service selection and billing rules:
     const address = typeof collected.address === 'string' ? collected.address : undefined;
     const legacyName = [first_name, last_name].filter(Boolean).join(' ').trim() || fullName?.trim();
 
-    let contact_id: string;
+    // Only update existing contacts — do NOT create new contacts from calls alone.
+    // Contacts are created when a customer books an appointment.
+    let contact_id: string | undefined;
     if (existing.items.length > 0) {
       const contact = existing.items[0] as Contact;
       contact_id = contact.contact_id;
@@ -965,34 +965,12 @@ Service selection and billing rules:
       await this.dynamodb.update('contacts', { company_id, contact_id }, contactUpdates);
       const updatedContact = { ...contact, ...contactUpdates };
       void this.webhooks.emitEvent(company_id, 'contact.updated', { contact: updatedContact });
-    } else {
-      contact_id = uuidv4();
-      const contact: Contact = {
-        company_id,
-        contact_id,
-        phone_number: from_number,
-        email,
-        first_name,
-        last_name,
-        address,
-        zipcode,
-        ...(legacyName ? { name: legacyName } : {}),
-        ...(from_number ? { phone: from_number } : {}),
-        source: ContactSource.INBOUND_CALL,
-        source_call_id: call_id,
-        lead_status: LeadStatus.NEW,
-        created_at: now,
-        updated_at: now,
-        last_contact_at: now,
-      };
-      await this.dynamodb.put('contacts', contact);
-      void this.webhooks.emitEvent(company_id, 'contact.created', { contact });
     }
 
     const call: Call = {
       company_id,
       call_id,
-      contact_id,
+      ...(contact_id ? { contact_id } : {}),
       direction: CallDirection.INBOUND,
       from_number,
       to_number,
@@ -1174,27 +1152,8 @@ Service selection and billing rules:
           contact_id = scan.items?.[0]?.contact_id;
         }
 
-        if (!contact_id && fromNumber) {
-          contact_id = uuidv4();
-          const contact: Contact = {
-            company_id,
-            contact_id,
-            phone_number: fromNumber,
-            email: email || undefined,
-            first_name: first || undefined,
-            last_name: last || undefined,
-            address: address || undefined,
-            zipcode: zip || undefined,
-            source: ContactSource.INBOUND_CALL,
-            source_call_id: call_id,
-            lead_status: LeadStatus.NEW,
-            created_at: now,
-            updated_at: now,
-            last_contact_at: now,
-          };
-          await this.dynamodb.put('contacts', contact);
-          void this.webhooks.emitEvent(company_id, 'contact.created', { contact });
-        }
+        // Do NOT create a new contact from a call alone.
+        // Contacts are only created when a customer books an appointment.
 
         if (contact_id) {
           updates.contact_id = contact_id as any;
