@@ -422,6 +422,15 @@ type TenantInfo = {
   account_status?: string;
   call_handling_mode?: 'ALWAYS' | 'MISSED' | 'AFTER_HOURS' | string;
   service_area_zipcodes?: string[];
+  booking_services?: Array<{
+    service_id?: string;
+    name?: string;
+    amount_cents?: number;
+    currency?: string;
+    billing_type?: 'ONE_TIME' | 'SUBSCRIPTION' | string;
+    billing_interval?: 'day' | 'week' | 'month' | 'year' | string;
+    billing_interval_count?: number;
+  }>;
   pricing_profile?: {
     model?: string;
     currency?: string;
@@ -931,6 +940,47 @@ function formatPricingProfileForPrompt(profile: TenantInfo['pricing_profile']): 
   return lines.length > 0 ? lines.join('; ') : null;
 }
 
+function formatMoneyCents(amountCents: number, currency?: string): string {
+  const c = (currency || 'usd').toUpperCase();
+  const dollars = (amountCents / 100).toFixed(2);
+  return c === 'USD' ? `$${dollars}` : `${dollars} ${c}`;
+}
+
+function buildServiceOptionsBrief(tenant: TenantInfo): string | null {
+  const services = Array.isArray(tenant.booking_services) ? tenant.booking_services : [];
+  if (!services.length) return null;
+
+  const oneTime =
+    services.find((s) => String(s?.billing_type || '').toUpperCase() === 'ONE_TIME') || null;
+  const monthly =
+    services.find(
+      (s) =>
+        String(s?.billing_type || '').toUpperCase() === 'SUBSCRIPTION' &&
+        String(s?.billing_interval || '').toLowerCase() === 'month' &&
+        Number(s?.billing_interval_count || 1) === 1
+    ) || null;
+  const quarterly =
+    services.find(
+      (s) =>
+        String(s?.billing_type || '').toUpperCase() === 'SUBSCRIPTION' &&
+        String(s?.billing_interval || '').toLowerCase() === 'month' &&
+        Number(s?.billing_interval_count || 1) === 3
+    ) || null;
+
+  const items = [oneTime, monthly, quarterly]
+    .filter(Boolean)
+    .map((s) => {
+      const name = String(s?.name || '').trim();
+      const cents = Number(s?.amount_cents);
+      const price = Number.isFinite(cents) ? formatMoneyCents(cents, s?.currency) : '';
+      return [name, price].filter(Boolean).join(' ');
+    })
+    .filter(Boolean);
+
+  if (!items.length) return null;
+  return items.join(' | ');
+}
+
 function buildInstructions(tenant: TenantInfo, options: { serviceAreaRequired: boolean }) {
   const name = tenant.company_name || 'our company';
   const extra = tenant.agent_config?.realtime_instructions;
@@ -939,6 +989,7 @@ function buildInstructions(tenant: TenantInfo, options: { serviceAreaRequired: b
     : null;
   const renderedTemplatePrompt = templatePrompt ? templatePrompt.replace(/\{company_name\}/g, name) : null;
   const pricingProfileSummary = formatPricingProfileForPrompt(tenant.pricing_profile);
+  const briefServiceOptions = buildServiceOptionsBrief(tenant);
   const serviceAreaRequired = options.serviceAreaRequired;
   const requiredFields = formatFieldList(tenant.service_template?.intake_schema?.required);
   const optionalFields = formatFieldList(tenant.service_template?.intake_schema?.optional);
@@ -958,20 +1009,20 @@ function buildInstructions(tenant: TenantInfo, options: { serviceAreaRequired: b
     pricingProfileSummary
       ? `Company pricing context: ${pricingProfileSummary}. Use this for pricing questions first. If unsure, use knowledge_search and never invent rates or guarantees.`
       : null,
+    briefServiceOptions
+      ? `When discussing service plans, keep it very brief in one sentence with basic options and price: ${briefServiceOptions}. Then ask which option they want. Only give detailed explanations if the caller asks.`
+      : `When discussing service plans, keep it very brief: monthly, quarterly, or one-time with price, then ask which option they want. Only give detailed explanations if asked.`,
     `You MUST collect EVERY required intake field before asking about scheduling. Do not skip any. Ask one missing field at a time.`,
     `Do NOT ask for preferred date/time until all non-time required fields are collected (including address when required).`,
-    `After all non-time required fields are collected, give ONE short natural recap in 1-2 sentences (no labels), then ask for preferred day/time.`,
-    `Never use checklist labels like "Name:" or "Address:" when recapping details.`,
+    `Do not provide recap/summary of collected details unless the caller explicitly asks for one.`,
     `Then call get_availability and offer available slots.`,
     `Never claim a time is available unless get_availability returns it. If a requested time is unavailable, say so and offer available slots from get_availability.`,
     `If get_availability returns closed_day=true, tell the caller that day is closed and ask for another day.`,
     `If get_availability includes suggested_time_only, ONLY offer those times (max 3). Do not invent times.`,
     `If a requested time is available, say exactly: "That time is available. Let me book it for you." Then continue.`,
     `If the caller shares a time early, acknowledge it briefly and continue collecting missing required fields first.`,
-    `Do not give another recap after availability. Keep moving forward.`,
-    `Never provide more than one summary per call.`,
-    `If the caller says yes after your recap, call create_booking immediately. Do not repeat the same recap or confirmation question.`,
-    `Before booking, ask for confirmation once, then call create_booking with confirmed=true.`,
+    `If requested_time_available is true, proceed directly to create_booking with confirmed=true. Do not ask the caller to re-confirm the same date/time.`,
+    `Do not ask for general confirmation of previously collected details; only ask for missing fields.`,
     `When calling create_booking, you MUST include ALL collected intake fields in the details object—not just the most recent ones. Include every field you gathered during the conversation (name, address, zip, service details, etc.).`,
     `If create_booking returns a MissingRequiredFields error, ask ONLY for the specific fields listed in missing_fields. Do NOT re-ask for information you already collected. Then retry create_booking with ALL collected fields (old and new) in the details object.`,
     `After create_booking succeeds, ask for the best email to send the confirmation link.`,
