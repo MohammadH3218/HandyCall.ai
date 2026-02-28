@@ -39,6 +39,7 @@ function envFlag(name: string, defaultValue = false): boolean {
 }
 
 const safeDiagEnabled = envFlag('VOICE_BRIDGE_SAFE_DIAG', false);
+const verboseVoiceDebug = envFlag('VOICE_BRIDGE_VERBOSE_DEBUG', false);
 
 function diag(event: string, payload?: Record<string, unknown>) {
   if (!safeDiagEnabled) return;
@@ -47,6 +48,11 @@ function diag(event: string, payload?: Record<string, unknown>) {
     return;
   }
   console.log('[diag]', event);
+}
+
+function diagVerbose(event: string, payload?: Record<string, unknown>) {
+  if (!safeDiagEnabled || !verboseVoiceDebug) return;
+  diag(event, payload);
 }
 
 function headHex(data: Buffer, size = 16): string {
@@ -1021,6 +1027,13 @@ function formatPricingProfileForPrompt(profile: TenantInfo['pricing_profile']): 
 
 function buildInstructions(tenant: TenantInfo, options: { serviceAreaRequired: boolean }) {
   const name = tenant.company_name || 'our company';
+  const serviceType = String(tenant.service_type || '').trim().toUpperCase();
+  const serviceTypeLabel =
+    serviceType === 'PEST_CONTROL'
+      ? 'pest control'
+      : serviceType
+        ? serviceType.toLowerCase().replace(/_/g, ' ')
+        : 'the company\'s core services';
   const extra = tenant.agent_config?.realtime_instructions;
   const templatePrompt = typeof tenant.service_template?.base_system_prompt === 'string'
     ? tenant.service_template.base_system_prompt
@@ -1034,6 +1047,7 @@ function buildInstructions(tenant: TenantInfo, options: { serviceAreaRequired: b
     renderedTemplatePrompt || `You are the phone receptionist for ${name}.`,
     `Greet the caller immediately and include the company name in the first sentence.`,
     `Be friendly, concise, and phone-like. Ask one question at a time.`,
+    `You are handling calls for a ${serviceTypeLabel} business. Do not mention unrelated industries or services unless the caller explicitly asks about them.`,
     `Keep responses short by default. Use a brief filler phrase only when waiting on a tool call.`,
     `Default to one short sentence per turn. Only expand if the caller asks for more detail.`,
     `Do not add extra explanations, marketing language, or repeated confirmations.`,
@@ -2213,6 +2227,11 @@ wss.on('connection', (twilioWs: WebSocket) => {
     const text = normalizeSpeechText(deepgramBufferedFinal);
     deepgramBufferedFinal = '';
     if (!text) return;
+    diagVerbose('deepgram.flush_text', {
+      callSid: ctx?.callSid || '',
+      source,
+      text,
+    });
     speechActive = false;
     await handleCallerTranscript(text, 'deepgram');
     diag('deepgram.flush', { callSid: ctx?.callSid || '', source, chars: text.length });
@@ -2443,6 +2462,12 @@ wss.on('connection', (twilioWs: WebSocket) => {
         model,
         voice,
         usePollyTts,
+      });
+      diagVerbose('openai.instructions_preview', {
+        callSid: ctx?.callSid || '',
+        company: tenant.company_name,
+        serviceType: tenant.service_type,
+        firstLines: instructions.split('\n').slice(0, 6).join(' | '),
       });
       tryGreet();
     });
