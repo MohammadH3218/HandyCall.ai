@@ -29,7 +29,14 @@ export class CalendarIntegrationService {
       undefined;
     if (this.kmsKeyId) {
       const region = this.configService.get<string>('AWS_REGION') || 'us-east-1';
-      this.kms = new KMSClient({ region });
+      const endpoint =
+        this.configService.get<string>('KMS_ENDPOINT') ||
+        this.configService.get<string>('AWS_ENDPOINT_URL_KMS') ||
+        this.configService.get<string>('AWS_LOCALSTACK_ENDPOINT');
+      this.kms = new KMSClient({
+        region,
+        ...(endpoint ? { endpoint } : {}),
+      });
     }
   }
 

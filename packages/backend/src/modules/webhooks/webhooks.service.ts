@@ -54,14 +54,29 @@ export class WebhooksService {
     private readonly notifications: NotificationsService,
   ) {
     this.sqsUrl = this.config.get<string>('WEBHOOK_SQS_URL') || undefined;
+    const localstackEndpoint = this.config.get<string>('AWS_LOCALSTACK_ENDPOINT') || undefined;
     if (this.sqsUrl) {
       const region = this.config.get<string>('AWS_REGION') || 'us-east-1';
-      this.sqs = new SQSClient({ region });
+      const endpoint =
+        this.config.get<string>('SQS_ENDPOINT') ||
+        this.config.get<string>('AWS_ENDPOINT_URL_SQS') ||
+        localstackEndpoint;
+      this.sqs = new SQSClient({
+        region,
+        ...(endpoint ? { endpoint } : {}),
+      });
     }
     this.kmsKeyId = this.config.get<string>('WEBHOOK_KMS_KEY_ID') || undefined;
     if (this.kmsKeyId) {
       const region = this.config.get<string>('AWS_REGION') || 'us-east-1';
-      this.kms = new KMSClient({ region });
+      const endpoint =
+        this.config.get<string>('KMS_ENDPOINT') ||
+        this.config.get<string>('AWS_ENDPOINT_URL_KMS') ||
+        localstackEndpoint;
+      this.kms = new KMSClient({
+        region,
+        ...(endpoint ? { endpoint } : {}),
+      });
     }
   }
 

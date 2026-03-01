@@ -13,7 +13,14 @@ export class ParameterStoreService implements OnModuleInit {
     this.useParameterStore = this.configService.get<string>('USE_PARAMETER_STORE') === 'true';
     
     if (this.useParameterStore) {
-      this.ssmClient = new SSMClient({ region });
+      const endpoint =
+        this.configService.get<string>('SSM_ENDPOINT') ||
+        this.configService.get<string>('AWS_ENDPOINT_URL_SSM') ||
+        this.configService.get<string>('AWS_LOCALSTACK_ENDPOINT');
+      this.ssmClient = new SSMClient({
+        region,
+        ...(endpoint ? { endpoint } : {}),
+      });
     }
   }
 
