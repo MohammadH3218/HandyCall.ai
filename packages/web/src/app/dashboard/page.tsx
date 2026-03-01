@@ -245,30 +245,59 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <div className="rounded-xl border border-slate-200 bg-white">
-        <div className="border-b border-slate-100 px-5 py-4">
-          <h2 className="text-sm font-semibold text-slate-900">Activity feed</h2>
-          <p className="text-xs text-slate-500">Latest events across calls, leads, appointments, and payments.</p>
-        </div>
-        <div className="divide-y divide-slate-100">
-          {(overview?.activity_feed || []).slice(0, 20).map((item) => (
-            <Link
-              key={item.id}
-              href={item.action_url || '/dashboard'}
-              className="flex items-center justify-between gap-3 px-5 py-3 transition hover:bg-slate-50"
-            >
-              <div className="min-w-0">
-                <p className="truncate text-sm font-semibold text-slate-900">{item.title}</p>
-                <p className="truncate text-xs text-slate-600">{item.description}</p>
-              </div>
-              <span className="shrink-0 text-xs text-slate-400">{formatDate(item.created_at)}</span>
-            </Link>
-          ))}
-          {(overview?.activity_feed || []).length === 0 && (
-            <p className="px-5 py-5 text-sm text-slate-500">No activity yet.</p>
-          )}
-        </div>
+      <ActivityFeed feed={overview?.activity_feed || []} />
+    </div>
+  );
+}
+
+const ACTIVITY_PREVIEW = 5;
+
+function ActivityFeed({ feed }: { feed: DashboardOverview['activity_feed'] }) {
+  const [expanded, setExpanded] = useState(false);
+  const visible = expanded ? feed : feed.slice(0, ACTIVITY_PREVIEW);
+  const hasMore = feed.length > ACTIVITY_PREVIEW;
+
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white">
+      <div className="border-b border-slate-100 px-5 py-4">
+        <h2 className="text-sm font-semibold text-slate-900">Activity feed</h2>
+        <p className="text-xs text-slate-500">Latest events across calls, leads, appointments, and payments.</p>
       </div>
+      <div className="divide-y divide-slate-100">
+        {visible.map((item) => (
+          <Link
+            key={item.id}
+            href={item.action_url || '/dashboard'}
+            className="flex items-center justify-between gap-3 px-5 py-3 transition hover:bg-slate-50"
+          >
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold text-slate-900">{item.title}</p>
+              <p className="truncate text-xs text-slate-600">{item.description}</p>
+            </div>
+            <span className="shrink-0 text-xs text-slate-400">{formatDate(item.created_at)}</span>
+          </Link>
+        ))}
+        {feed.length === 0 && (
+          <p className="px-5 py-5 text-sm text-slate-500">No activity yet.</p>
+        )}
+      </div>
+      {hasMore && (
+        <div className="border-t border-slate-100 px-5 py-3">
+          <button
+            onClick={() => setExpanded((v) => !v)}
+            className="flex items-center gap-1.5 text-sm font-medium text-emerald-600 transition hover:text-emerald-700"
+          >
+            {expanded ? (
+              <>Show less</>
+            ) : (
+              <>
+                See all {feed.length} events
+                <IconArrowRight stroke={1.5} className="h-3.5 w-3.5" />
+              </>
+            )}
+          </button>
+        </div>
+      )}
     </div>
   );
 }
