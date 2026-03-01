@@ -73,6 +73,14 @@ export class KnowledgeController {
     );
   }
 
+  @Post('assistant/extract-products')
+  async assistantExtractProducts(
+    @CompanyId() companyId: string,
+    @Body() data: KnowledgeAssistantRespondDto,
+  ) {
+    return this.knowledgeService.extractAndCreateProducts(companyId, data.messages || []);
+  }
+
   @Post('bulk-import')
   async bulkImport(
     @CompanyId() companyId: string,

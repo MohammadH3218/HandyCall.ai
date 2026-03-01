@@ -522,6 +522,16 @@ class ApiClient {
     return response.data ?? response;
   }
 
+  async knowledgeExtractProducts(
+    messages: Array<{ role: 'user' | 'assistant'; content: string }>,
+  ): Promise<{ created_count: number; skipped_count: number }> {
+    const response = await this.request<any>('/knowledge-items/assistant/extract-products', {
+      method: 'POST',
+      body: JSON.stringify({ messages }),
+    });
+    return response.data ?? response;
+  }
+
   // Flagged Questions endpoints
   async getFlaggedQuestions(status?: string, callId?: string, limit?: number): Promise<any> {
     const params = new URLSearchParams();

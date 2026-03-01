@@ -740,7 +740,7 @@ export default function OnboardingSetupPage() {
   const handleStartKnowledge = async () => {
     userSay("Let's build it!");
     await botSay(
-      "I'll ask you a few questions about your business. Your answers help me build accurate knowledge entries for your AI receptionist.",
+      "I'll ask you a few targeted questions about your business — services, pricing, policies, and what customers typically ask. Your answers become your AI's knowledge base. You can always add more entries from your dashboard later.",
     );
     setPhase('knowledge_chat');
     void fetchKbReply([]);
@@ -778,14 +778,21 @@ export default function OnboardingSetupPage() {
     setKbGenerating(true);
     setKbError(null);
     try {
-      const res = await apiClient.knowledgeAssistantGenerate(kbMessages, true);
-      const created = Number(res?.created_count || 0);
+      const [kbRes, prodRes] = await Promise.all([
+        apiClient.knowledgeAssistantGenerate(kbMessages, true),
+        apiClient.knowledgeExtractProducts(kbMessages).catch(() => ({ created_count: 0, skipped_count: 0 })),
+      ]);
+      const created = Number(kbRes?.created_count || 0);
+      const productsCreated = Number(prodRes?.created_count || 0);
       await refreshKnowledge();
       await refreshAll();
       userSay(`Knowledge base generated: ${created} entries created`);
+      const productNote = productsCreated > 0
+        ? ` I also created ${productsCreated} service product${productsCreated === 1 ? '' : 's'} in your Payments page.`
+        : '';
       await goTo(
         'billing_plan',
-        `Done! I created ${created} knowledge entr${created === 1 ? 'y' : 'ies'} for your AI receptionist.`,
+        `Done! I created ${created} knowledge entr${created === 1 ? 'y' : 'ies'} for your AI receptionist.${productNote} You can always add more from your dashboard.`,
         "Now for the last step — let's activate your HandyCall subscription. Which plan fits your business?",
       );
     } catch (err: any) {

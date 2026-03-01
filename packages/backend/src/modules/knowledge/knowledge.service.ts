@@ -6,6 +6,7 @@ import { v4 as uuidv4 } from 'uuid';
 import OpenAI from 'openai';
 import { CompaniesService } from '../companies/companies.service';
 import { ParameterStoreService } from '../../infrastructure/config/parameter-store.service';
+import { ServiceProductsService } from '../billing/service-products.service';
 
 export interface KnowledgeItem {
   company_id: string;
@@ -70,6 +71,7 @@ export class KnowledgeService implements OnModuleInit {
     private configService: ConfigService,
     private companiesService: CompaniesService,
     private parameterStore: ParameterStoreService,
+    private serviceProductsService: ServiceProductsService,
   ) {
     // Use the base table name and let the shared DynamoDB service prepend the configured prefix
     this.tableName = 'knowledge_items';
@@ -672,6 +674,75 @@ export class KnowledgeService implements OnModuleInit {
     }
 
     return normalized.slice(0, 24);
+  }
+
+  /**
+   * Extract pricing/service data from the setup conversation and auto-create service products.
+   */
+  async extractAndCreateProducts(
+    companyId: string,
+    messages: KnowledgeAssistantMessage[],
+  ): Promise<{ created_count: number; skipped_count: number }> {
+    const cleanMessages = this.sanitizeAssistantMessages(messages);
+    const companyContext = await this.buildAssistantCompanyContext(companyId);
+
+    const systemPrompt = [
+      'You extract structured service product definitions from a business setup conversation.',
+      'Return ONLY products that have a clear price mentioned (numeric value, range, or "starting at").',
+      'For price ranges, use the midpoint or lowest value in cents.',
+      'Each product needs: name, description (1-2 sentences), price_type (ONE_TIME or SUBSCRIPTION), amount_cents (integer, min 50), billing_interval (month/year, only if SUBSCRIPTION).',
+      'Generate between 0 and 8 products. If no pricing is discussed, return an empty array.',
+      'Return strict JSON: {"products":[{"name":"string","description":"string","price_type":"ONE_TIME|SUBSCRIPTION","amount_cents":integer,"billing_interval":"month|year|null"}]}',
+      'Never include markdown code fences.',
+    ].join('\n');
+
+    const payload = {
+      company_context: companyContext,
+      conversation: cleanMessages,
+    };
+
+    let raw: any;
+    try {
+      raw = await this.callJsonModel(systemPrompt, payload);
+    } catch {
+      return { created_count: 0, skipped_count: 0 };
+    }
+
+    const products: any[] = Array.isArray(raw?.products) ? raw.products : [];
+    let created_count = 0;
+    let skipped_count = 0;
+
+    // Fetch existing products to avoid duplicates
+    const existing = await this.serviceProductsService.list(companyId, { includeInactive: true });
+    const existingNames = new Set(existing.map((p) => p.name.trim().toLowerCase()));
+
+    for (const p of products) {
+      const name = String(p?.name || '').trim();
+      const amountCents = typeof p?.amount_cents === 'number' ? Math.round(p.amount_cents) : 0;
+      const priceType: 'ONE_TIME' | 'SUBSCRIPTION' =
+        p?.price_type === 'SUBSCRIPTION' ? 'SUBSCRIPTION' : 'ONE_TIME';
+      const billingInterval = priceType === 'SUBSCRIPTION' ? (p?.billing_interval || 'month') : undefined;
+
+      if (!name || amountCents < 50) { skipped_count++; continue; }
+      if (existingNames.has(name.toLowerCase())) { skipped_count++; continue; }
+
+      try {
+        await this.serviceProductsService.create(companyId, {
+          name,
+          description: String(p?.description || '').trim() || undefined,
+          price_type: priceType,
+          amount_cents: amountCents,
+          currency: 'usd',
+          ...(billingInterval ? { billing_interval: billingInterval as any } : {}),
+        });
+        existingNames.add(name.toLowerCase());
+        created_count++;
+      } catch {
+        skipped_count++;
+      }
+    }
+
+    return { created_count, skipped_count };
   }
 
   /**

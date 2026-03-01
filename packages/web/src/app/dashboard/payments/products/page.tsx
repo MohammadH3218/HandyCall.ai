@@ -4,7 +4,9 @@ import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { PageHeader } from '@/components/portal/page-header';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { apiClient } from '@/lib/api-client';
+import { useToast } from '@/hooks/use-toast';
 
 type PriceType = 'ONE_TIME' | 'SUBSCRIPTION';
 type BillingInterval = 'day' | 'week' | 'month' | 'year';
@@ -53,6 +55,7 @@ function intervalLabel(p: ServiceProduct) {
 }
 
 export default function ServiceProductsPage() {
+  const { toast } = useToast();
   const [products, setProducts] = useState<ServiceProduct[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -61,6 +64,10 @@ export default function ServiceProductsPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [showInactive, setShowInactive] = useState(false);
+
+  // Delete confirmation dialog
+  const [deleteTarget, setDeleteTarget] = useState<ServiceProduct | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Checkout link modal
   const [checkoutTarget, setCheckoutTarget] = useState<ServiceProduct | null>(null);
@@ -141,8 +148,10 @@ export default function ServiceProductsPage() {
 
       if (editingId) {
         await apiClient.updateServiceProduct(editingId, payload);
+        toast({ title: 'Product updated', description: `"${form.name.trim()}" has been saved.` });
       } else {
         await apiClient.createServiceProduct(payload as any);
+        toast({ title: 'Product created', description: `"${form.name.trim()}" is now active.` });
       }
 
       closeForm();
@@ -154,22 +163,28 @@ export default function ServiceProductsPage() {
     }
   };
 
-  const archive = async (productId: string) => {
-    if (!confirm('Archive this product? It will no longer be shown to customers.')) return;
+  const confirmArchive = async () => {
+    if (!deleteTarget) return;
+    setIsDeleting(true);
     try {
-      await apiClient.deleteServiceProduct(productId);
+      await apiClient.deleteServiceProduct(deleteTarget.product_id);
+      toast({ title: 'Product archived', description: `"${deleteTarget.name}" has been archived.` });
+      setDeleteTarget(null);
       void load();
     } catch (err: any) {
-      alert(err?.message || 'Failed to archive product.');
+      toast({ title: 'Archive failed', description: err?.message || 'Failed to archive product.', variant: 'destructive' });
+    } finally {
+      setIsDeleting(false);
     }
   };
 
   const restore = async (product: ServiceProduct) => {
     try {
       await apiClient.updateServiceProduct(product.product_id, { active: true });
+      toast({ title: 'Product restored', description: `"${product.name}" is active again.` });
       void load();
     } catch (err: any) {
-      alert(err?.message || 'Failed to restore product.');
+      toast({ title: 'Restore failed', description: err?.message || 'Failed to restore product.', variant: 'destructive' });
     }
   };
 
@@ -299,7 +314,7 @@ export default function ServiceProductsPage() {
                 {product.active ? (
                   <button
                     type="button"
-                    onClick={() => void archive(product.product_id)}
+                    onClick={() => setDeleteTarget(product)}
                     className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-500 hover:bg-slate-50"
                   >
                     Archive
@@ -463,6 +478,26 @@ export default function ServiceProductsPage() {
         </div>
       )}
 
+      {/* Archive Confirmation Dialog */}
+      <Dialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Archive product</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to archive &quot;{deleteTarget?.name}&quot;? It will no longer be shown to customers. You can restore it anytime.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteTarget(null)} disabled={isDeleting}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={() => void confirmArchive()} disabled={isDeleting}>
+              {isDeleting ? 'Archiving…' : 'Archive'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Checkout Link Modal */}
       {checkoutTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
@@ -524,7 +559,10 @@ export default function ServiceProductsPage() {
                 </div>
                 <div className="flex gap-2">
                   <Button
-                    onClick={() => navigator.clipboard.writeText(checkoutUrl)}
+                    onClick={() => {
+                      navigator.clipboard.writeText(checkoutUrl);
+                      toast({ title: 'Copied!', description: 'Payment link copied to clipboard.' });
+                    }}
                     variant="outline"
                     className="flex-1"
                   >
@@ -551,7 +589,10 @@ export default function ServiceProductsPage() {
                   <p className="text-xs font-mono break-all text-slate-600">{checkoutClientSecret}</p>
                 </div>
                 <Button
-                  onClick={() => navigator.clipboard.writeText(checkoutClientSecret)}
+                  onClick={() => {
+                    navigator.clipboard.writeText(checkoutClientSecret);
+                    toast({ title: 'Copied!', description: 'Client secret copied to clipboard.' });
+                  }}
                   variant="outline"
                   className="w-full"
                 >
