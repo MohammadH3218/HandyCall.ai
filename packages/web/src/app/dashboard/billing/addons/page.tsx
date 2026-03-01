@@ -5,7 +5,16 @@ import { apiClient } from '@/lib/api-client';
 import { PageHeader } from '@/components/portal/page-header';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Zap, Phone, MessageSquare, CheckCircle, AlertCircle } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { useToast } from '@/components/ui/use-toast';
+import { Zap, Phone, MessageSquare } from 'lucide-react';
 
 interface AddonPack {
   id: string;
@@ -18,11 +27,11 @@ interface AddonPack {
 }
 
 export default function AddonsPage() {
+  const { toast } = useToast();
   const [addons, setAddons] = useState<AddonPack[]>([]);
   const [loading, setLoading] = useState(true);
   const [purchasing, setPurchasing] = useState<string | null>(null);
-  const [successPack, setSuccessPack] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [confirmPack, setConfirmPack] = useState<AddonPack | null>(null);
 
   useEffect(() => {
     const load = async () => {
@@ -30,7 +39,11 @@ export default function AddonsPage() {
         const data = await apiClient.getAddonCatalog();
         setAddons(Array.isArray(data) ? data : []);
       } catch (err: any) {
-        setError(err?.message || 'Failed to load add-on packs');
+        toast({
+          title: 'Failed to load add-ons',
+          description: err?.message || 'Could not load add-on packs. Please try again.',
+          variant: 'destructive',
+        });
       } finally {
         setLoading(false);
       }
@@ -38,16 +51,23 @@ export default function AddonsPage() {
     void load();
   }, []);
 
-  const handlePurchase = async (packId: string) => {
-    setPurchasing(packId);
-    setError(null);
-    setSuccessPack(null);
+  const handlePurchase = async () => {
+    if (!confirmPack) return;
+    const pack = confirmPack;
+    setConfirmPack(null);
+    setPurchasing(pack.id);
     try {
-      await apiClient.purchaseAddonPack(packId);
-      setSuccessPack(packId);
-      setTimeout(() => setSuccessPack(null), 4000);
+      await apiClient.purchaseAddonPack(pack.id);
+      toast({
+        title: 'Purchase successful!',
+        description: `${pack.name} credits have been applied to your account.`,
+      });
     } catch (err: any) {
-      setError(err?.message || 'Purchase failed. Please check your payment method.');
+      toast({
+        title: 'Purchase failed',
+        description: err?.message || 'Please check your payment method and try again.',
+        variant: 'destructive',
+      });
     } finally {
       setPurchasing(null);
     }
@@ -74,25 +94,10 @@ export default function AddonsPage() {
     <div>
       <PageHeader title="Add-on Packs" subtitle="Purchase extra minutes or SMS to top up your current plan limit" />
 
-      {error && (
-        <div className="mt-4 flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-          <p>{error}</p>
-        </div>
-      )}
-
-      {successPack && (
-        <div className="mt-4 flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-700">
-          <CheckCircle className="mt-0.5 h-4 w-4 shrink-0" />
-          <p>Purchase successful! Your credits have been applied.</p>
-        </div>
-      )}
-
       <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2">
         {addons.map((pack) => {
           const isMinutes = pack.minutes > 0;
           const isPurchasing = purchasing === pack.id;
-          const isSuccess = successPack === pack.id;
 
           return (
             <div
@@ -103,9 +108,9 @@ export default function AddonsPage() {
                 <div className="flex items-center gap-3">
                   <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${isMinutes ? 'bg-blue-50' : 'bg-violet-50'}`}>
                     {isMinutes ? (
-                      <Phone className={`h-5 w-5 text-blue-600`} />
+                      <Phone className="h-5 w-5 text-blue-600" />
                     ) : (
-                      <MessageSquare className={`h-5 w-5 text-violet-600`} />
+                      <MessageSquare className="h-5 w-5 text-violet-600" />
                     )}
                   </div>
                   <div>
@@ -129,15 +134,10 @@ export default function AddonsPage() {
 
               <Button
                 className="mt-5 w-full"
-                onClick={() => handlePurchase(pack.id)}
+                onClick={() => setConfirmPack(pack)}
                 disabled={isPurchasing || !!purchasing}
-                variant={isSuccess ? 'secondary' : 'default'}
               >
-                {isPurchasing
-                  ? 'Processing...'
-                  : isSuccess
-                  ? 'Purchased!'
-                  : `Buy for ${pack.price_display}`}
+                {isPurchasing ? 'Processing...' : `Buy for ${pack.price_display}`}
               </Button>
             </div>
           );
@@ -151,6 +151,28 @@ export default function AddonsPage() {
           your current billing cycle.
         </p>
       </div>
+
+      {/* Purchase confirmation dialog */}
+      <Dialog open={!!confirmPack} onOpenChange={(open) => { if (!open) setConfirmPack(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm Purchase</DialogTitle>
+            <DialogDescription>
+              You are about to purchase{' '}
+              <strong>{confirmPack?.name}</strong> for{' '}
+              <strong>{confirmPack?.price_display}</strong>. This will be charged immediately to your saved payment method.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmPack(null)}>
+              Cancel
+            </Button>
+            <Button onClick={handlePurchase} disabled={!!purchasing}>
+              Confirm Purchase
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
