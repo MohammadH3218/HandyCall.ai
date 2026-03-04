@@ -3,6 +3,8 @@ export const WEBHOOK_PUBLIC_EVENTS = [
   'contact.updated',
   'appointment.created',
   'appointment.updated',
+  'appointment.confirmed',
+  'appointment.declined',
   'appointment.cancelled',
   'appointment.completed',
   'call.completed',
