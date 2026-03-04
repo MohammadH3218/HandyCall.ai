@@ -6,10 +6,12 @@ import { signOut, useSession } from 'next-auth/react';
 import Link from 'next/link';
 import { useAuthStore } from '@/stores/auth-store';
 import { apiClient } from '@/lib/api-client';
+import { computeOnboardingStatus } from '@/lib/setup-status';
 import { Logo } from '@/components/ui/logo';
 import { ProfileDropdown } from '@/components/profile-dropdown';
 import { NotificationBell } from '@/components/notifications/notification-bell';
 import { Button } from '@/components/ui/button';
+import { usePlanFeatures } from '@/hooks/use-plan-features';
 import {
   IconHome,
   IconPhone,
@@ -29,20 +31,9 @@ import {
   IconPhoneOutgoing,
   IconMenu2,
   IconX,
+  IconClipboardList,
 } from '@tabler/icons-react';
 import { UserRole } from '@handycall/shared';
-
-function hasPricingProfileData(company: any | null) {
-  const profile = company?.pricing_profile;
-  if (!profile || typeof profile !== 'object') return false;
-  return Object.values(profile).some((value) => {
-    if (Array.isArray(value)) return value.length > 0;
-    if (typeof value === 'string') return value.trim().length > 0;
-    if (typeof value === 'number') return Number.isFinite(value);
-    if (typeof value === 'boolean') return true;
-    return false;
-  });
-}
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -53,33 +44,19 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [knowledgeCount, setKnowledgeCount] = useState<number | null>(null);
   const [companyNumber, setCompanyNumber] = useState<string | null>(null);
   const [companyNumberLoaded, setCompanyNumberLoaded] = useState(false);
+  const { hasFeature } = usePlanFeatures();
+  const canUseAutomation = hasFeature('follow_up_sequences');
 
-  const knowledgeComplete = (knowledgeCount !== null ? knowledgeCount > 0 : false) || hasPricingProfileData(company);
   const setupStatus = useMemo(() => {
-    if (!company) {
-      return {
-        billing: false,
-        companyProfile: false,
-        serviceArea: false,
-        calendar: false,
-        knowledge: false,
-        phone: false,
-      };
-    }
-    const billing = Boolean(
-      company.subscription_plan ||
-      company.stripe_subscription_id ||
-      (company.subscription_status &&
-        (company.subscription_status === 'ACTIVE' || company.subscription_status === 'TRIALING')) ||
-      (company.trial_ends_at && company.trial_ends_at > Date.now())
-    );
-    const companyProfile = company.company_profile_completed === true;
-    const serviceArea = company.service_area_completed === true;
-    const calendar = company.calendar_setup_completed === true;
-    const knowledge = knowledgeComplete;
-    const phone = Boolean(companyNumber);
-    return { billing, companyProfile, serviceArea, calendar, knowledge, phone };
-  }, [company, knowledgeComplete, companyNumber]);
+    return computeOnboardingStatus({
+      company,
+      userFirstName: null,
+      userLastName: null,
+      userEmail: null,
+      knowledgeCount,
+      companyNumber,
+    });
+  }, [company, knowledgeCount, companyNumber]);
 
   const needsSetup = useMemo(() => {
     if (!company) return false;
@@ -308,10 +285,18 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <NavLink
               href="/dashboard/appointments"
               icon={<IconCalendar stroke={1.5} className="h-5 w-5" />}
-              active={pathname?.startsWith('/dashboard/appointments')}
+              active={pathname === '/dashboard/appointments' || (pathname?.startsWith('/dashboard/appointments') && !pathname?.startsWith('/dashboard/appointments/requests'))}
               onClick={() => setSidebarOpen(false)}
             >
               Appointments
+            </NavLink>
+            <NavLink
+              href="/dashboard/appointments/requests"
+              icon={<IconClipboardList stroke={1.5} className="h-5 w-5" />}
+              active={pathname?.startsWith('/dashboard/appointments/requests')}
+              onClick={() => setSidebarOpen(false)}
+            >
+              Booking Requests
             </NavLink>
           </div>
 
@@ -387,41 +372,43 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </NavLink>
           </div>
 
-          <div className="pt-3 border-t border-slate-100 space-y-0.5">
-            <p className="px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Automation</p>
-            <NavLink
-              href="/dashboard/analytics"
-              icon={<IconChartBarPopular stroke={1.5} className="h-5 w-5" />}
-              active={pathname?.startsWith('/dashboard/analytics')}
-              onClick={() => setSidebarOpen(false)}
-            >
-              Analytics
-            </NavLink>
-            <NavLink
-              href="/dashboard/sms-automation"
-              icon={<IconMessageDots stroke={1.5} className="h-5 w-5" />}
-              active={pathname?.startsWith('/dashboard/sms-automation')}
-              onClick={() => setSidebarOpen(false)}
-            >
-              SMS Automation
-            </NavLink>
-            <NavLink
-              href="/dashboard/follow-ups"
-              icon={<IconSend stroke={1.5} className="h-5 w-5" />}
-              active={pathname?.startsWith('/dashboard/follow-ups')}
-              onClick={() => setSidebarOpen(false)}
-            >
-              Follow-ups
-            </NavLink>
-            <NavLink
-              href="/dashboard/outbound-calls"
-              icon={<IconPhoneOutgoing stroke={1.5} className="h-5 w-5" />}
-              active={pathname?.startsWith('/dashboard/outbound-calls')}
-              onClick={() => setSidebarOpen(false)}
-            >
-              Outbound Calls
-            </NavLink>
-          </div>
+          {canUseAutomation && (
+            <div className="pt-3 border-t border-slate-100 space-y-0.5">
+              <p className="px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Automation</p>
+              <NavLink
+                href="/dashboard/analytics"
+                icon={<IconChartBarPopular stroke={1.5} className="h-5 w-5" />}
+                active={pathname?.startsWith('/dashboard/analytics')}
+                onClick={() => setSidebarOpen(false)}
+              >
+                Analytics
+              </NavLink>
+              <NavLink
+                href="/dashboard/sms-automation"
+                icon={<IconMessageDots stroke={1.5} className="h-5 w-5" />}
+                active={pathname?.startsWith('/dashboard/sms-automation')}
+                onClick={() => setSidebarOpen(false)}
+              >
+                SMS Automation
+              </NavLink>
+              <NavLink
+                href="/dashboard/follow-ups"
+                icon={<IconSend stroke={1.5} className="h-5 w-5" />}
+                active={pathname?.startsWith('/dashboard/follow-ups')}
+                onClick={() => setSidebarOpen(false)}
+              >
+                Follow-ups
+              </NavLink>
+              <NavLink
+                href="/dashboard/outbound-calls"
+                icon={<IconPhoneOutgoing stroke={1.5} className="h-5 w-5" />}
+                active={pathname?.startsWith('/dashboard/outbound-calls')}
+                onClick={() => setSidebarOpen(false)}
+              >
+                Outbound Calls
+              </NavLink>
+            </div>
+          )}
         </nav>
       </aside>
 

@@ -954,6 +954,7 @@ export class PublicBookingService {
       notes,
       address: address.street || address.city || address.state || address.zip ? address : undefined,
       created_by: 'WEB',
+      status: AppointmentStatus.PENDING_ACCEPTANCE,
     });
 
     if (call?.call_id) {
@@ -984,18 +985,19 @@ export class PublicBookingService {
     const toEmail = dto.email?.trim() || (call as any)?.lead_email;
     if (toEmail && isValidEmail(toEmail)) {
       const label = formatSlotLabel(startIso, timeZone);
-      const subject = `${company.company_name} booking confirmation`;
+      const subject = `${company.company_name} — booking request received`;
       const manageLink = `${this.getFrontendBaseUrl()}/book/${token}`;
       const body =
-        `You're confirmed with ${company.company_name} for ${label}.\n\n` +
-        `Manage or update your appointment here: ${manageLink}`;
+        `Your booking request with ${company.company_name} for ${label} has been received.\n\n` +
+        `The business will review and confirm your appointment shortly. You'll receive another message once it's confirmed.\n\n` +
+        `View your request here: ${manageLink}`;
       const html = renderHandycallEmail({
-        title: 'Booking confirmed',
-        preheader: `Your ${company.company_name} appointment is scheduled.`,
+        title: 'Booking request received',
+        preheader: `Your ${company.company_name} booking request is pending confirmation.`,
         greeting: `Hi there,`,
-        body: `<p style="margin:0 0 16px;">You're confirmed with <strong>${company.company_name}</strong> for <strong>${label}</strong>.</p>
-               <p style="margin:0 0 16px;">Use the link below to view, reschedule, or cancel this appointment.</p>`,
-        cta: { label: 'View appointment', url: manageLink },
+        body: `<p style="margin:0 0 16px;">Your booking request with <strong>${company.company_name}</strong> for <strong>${label}</strong> has been received.</p>
+               <p style="margin:0 0 16px;">The business will review and confirm your appointment shortly. You'll receive another message once it's confirmed.</p>`,
+        cta: { label: 'View request', url: manageLink },
         footer: `If you did not request this booking, just reply to this email and we'll take care of it.`,
       });
       try {

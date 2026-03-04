@@ -96,15 +96,31 @@ export class DashboardService {
     usage_summary: UsageSummary;
     quick_insights: QuickInsights;
     activity_feed: ActivityFeedItem[];
+    pending_booking_requests: any[];
   }> {
-    const [metrics, usage_summary, quick_insights, activity_feed] = await Promise.all([
+    const [metrics, usage_summary, quick_insights, activity_feed, pending_booking_requests] = await Promise.all([
       this.getBusinessMetrics(companyId),
       this.getUsageSummary(companyId),
       this.getQuickInsights(companyId),
       this.getActivityFeed(companyId, 30),
+      this.getPendingBookingRequests(companyId),
     ]);
 
-    return { metrics, usage_summary, quick_insights, activity_feed };
+    return { metrics, usage_summary, quick_insights, activity_feed, pending_booking_requests };
+  }
+
+  async getPendingBookingRequests(companyId: string): Promise<any[]> {
+    try {
+      const result = await this.dynamodb.scan('appointments', {
+        filterExpression: '#company_id = :company_id AND #status = :status',
+        expressionAttributeNames: { '#company_id': 'company_id', '#status': 'status' },
+        expressionAttributeValues: { ':company_id': companyId, ':status': 'PENDING_ACCEPTANCE' },
+        limit: 20,
+      });
+      return (result.items || []).sort((a: any, b: any) => (a.created_at || 0) - (b.created_at || 0));
+    } catch {
+      return [];
+    }
   }
 
   async getBusinessMetrics(companyId: string): Promise<BusinessMetrics> {
@@ -248,6 +264,8 @@ export class DashboardService {
       this.scanByCompany('appointments', companyId, 1000),
     ]);
 
+    const pendingRequests = appointments.filter((a: any) => String(a?.status || '').toUpperCase() === 'PENDING_ACCEPTANCE');
+
     const unanswered = flaggedQuestions.filter((item: any) => {
       const status = String(item?.status || '').toUpperCase();
       return status === 'PENDING' || status === 'OPEN';
@@ -270,6 +288,16 @@ export class DashboardService {
       : null;
 
     const actions: QuickAction[] = [];
+    if (pendingRequests.length > 0) {
+      actions.push({
+        id: 'pending_booking_requests',
+        title: 'Booking requests need review',
+        description: 'New booking requests are waiting for your acceptance.',
+        severity: 'HIGH',
+        count: pendingRequests.length,
+        action_url: '/dashboard/appointments/requests',
+      });
+    }
     if (unanswered > 0) {
       actions.push({
         id: 'unanswered_questions',

@@ -376,6 +376,7 @@ export class AppointmentsService {
         until?: number;
       };
       created_by?: string;
+      status?: AppointmentStatus;
     }
   ) {
     if (!Number.isFinite(input.scheduled_start) || !Number.isFinite(input.scheduled_end)) {
@@ -397,7 +398,7 @@ export class AppointmentsService {
 
     const base = {
       company_id: companyId,
-      status: AppointmentStatus.SCHEDULED,
+      status: input.status ?? AppointmentStatus.SCHEDULED,
       service_type: input.service_type ?? 'Service',
       contact_id,
       contact_name: input.contact_name,
@@ -473,12 +474,14 @@ export class AppointmentsService {
       void this.persistAddressNormalization(companyId, appointment_id, input.address);
     }
 
-    // Sync to external calendar if connected
-    try {
-      await this.calendarIntegration.pushEventToExternalCalendar(companyId, appointment);
-    } catch (err) {
-      console.error('Error syncing appointment to external calendar:', err);
-      // Don't fail appointment creation if sync fails
+    // Sync to external calendar only if the appointment is confirmed (not pending acceptance)
+    if (appointment.status !== AppointmentStatus.PENDING_ACCEPTANCE) {
+      try {
+        await this.calendarIntegration.pushEventToExternalCalendar(companyId, appointment);
+      } catch (err) {
+        console.error('Error syncing appointment to external calendar:', err);
+        // Don't fail appointment creation if sync fails
+      }
     }
 
     return appointment;
@@ -574,6 +577,96 @@ export class AppointmentsService {
     const cancelled = updated ?? { ...appt, status: AppointmentStatus.CANCELLED, updated_at: now };
     void this.webhooks.emitEvent(companyId, 'appointment.cancelled', { appointment: cancelled });
     return cancelled;
+  }
+
+  async listPendingRequests(companyId: string): Promise<any[]> {
+    try {
+      const result = await this.dynamodb.scan('appointments', {
+        filterExpression: '#company_id = :company_id AND #status = :status',
+        expressionAttributeNames: { '#company_id': 'company_id', '#status': 'status' },
+        expressionAttributeValues: { ':company_id': companyId, ':status': AppointmentStatus.PENDING_ACCEPTANCE },
+        limit: 50,
+      });
+      return (result.items || []).sort((a: any, b: any) => (a.created_at || 0) - (b.created_at || 0));
+    } catch {
+      return [];
+    }
+  }
+
+  private async sendTwilioSms(to: string, body: string): Promise<void> {
+    const accountSid = this.configService.get<string>('TWILIO_ACCOUNT_SID');
+    const authToken = this.configService.get<string>('TWILIO_AUTH_TOKEN');
+    const from = this.configService.get<string>('TWILIO_FROM_NUMBER') || this.configService.get<string>('TWILIO_PHONE_NUMBER');
+    if (!accountSid || !authToken || !from) return;
+    const basic = Buffer.from(`${accountSid}:${authToken}`, 'utf8').toString('base64');
+    const form = new URLSearchParams({ To: to, From: from, Body: body });
+    const url = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;
+    try {
+      await fetch(url, {
+        method: 'POST',
+        headers: { Authorization: `Basic ${basic}`, 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: form.toString(),
+      });
+    } catch (err) {
+      console.warn('[appointments] SMS send failed', err);
+    }
+  }
+
+  async acceptAppointment(companyId: string, appointmentId: string): Promise<any> {
+    const appt = await this.getAppointment(companyId, appointmentId);
+    if (appt.status !== AppointmentStatus.PENDING_ACCEPTANCE) {
+      throw new BadRequestException('Only pending requests can be accepted');
+    }
+    const now = Date.now();
+    await this.dynamodb.update(
+      'appointments',
+      { company_id: companyId, appointment_id: appointmentId },
+      { status: AppointmentStatus.CONFIRMED, updated_at: now }
+    );
+    const confirmed = { ...appt, status: AppointmentStatus.CONFIRMED, updated_at: now };
+    void this.webhooks.emitEvent(companyId, 'appointment.confirmed', { appointment: confirmed });
+
+    // Sync to external calendar now that it's confirmed
+    try {
+      await this.calendarIntegration.pushEventToExternalCalendar(companyId, confirmed);
+    } catch (err) {
+      console.warn('[appointments] calendar sync failed on accept', err);
+    }
+
+    // Send SMS confirmation to customer
+    const phone = appt.contact_phone || appt.contact_phone_number;
+    if (phone) {
+      const start = appt.scheduled_start ? new Date(appt.scheduled_start).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : 'your scheduled time';
+      void this.sendTwilioSms(phone, `Your booking has been confirmed for ${start}. We look forward to seeing you!`);
+    }
+
+    return confirmed;
+  }
+
+  async declineAppointment(companyId: string, appointmentId: string, reason?: string): Promise<any> {
+    const appt = await this.getAppointment(companyId, appointmentId);
+    if (appt.status !== AppointmentStatus.PENDING_ACCEPTANCE) {
+      throw new BadRequestException('Only pending requests can be declined');
+    }
+    const now = Date.now();
+    await this.dynamodb.update(
+      'appointments',
+      { company_id: companyId, appointment_id: appointmentId },
+      { status: AppointmentStatus.CANCELLED, decline_reason: reason || null, updated_at: now }
+    );
+    const declined = { ...appt, status: AppointmentStatus.CANCELLED, decline_reason: reason, updated_at: now };
+    void this.webhooks.emitEvent(companyId, 'appointment.declined', { appointment: declined, reason });
+
+    // Send SMS to customer
+    const phone = appt.contact_phone || appt.contact_phone_number;
+    if (phone) {
+      const msg = reason
+        ? `We're unable to accept your booking request at this time. Reason: ${reason}`
+        : `We're unable to accept your booking request at this time. Please reach out to schedule a new time.`;
+      void this.sendTwilioSms(phone, msg);
+    }
+
+    return declined;
   }
 
   async deleteAppointment(companyId: string, appointmentId: string) {

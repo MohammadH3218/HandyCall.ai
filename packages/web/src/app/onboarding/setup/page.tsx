@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import {
@@ -51,6 +51,8 @@ type Phase =
   | 'knowledge_chat'
   | 'billing_plan'
   | 'billing_payment'
+  | 'billing_payment_mode'
+  | 'billing_connect'
   | 'complete';
 
 type ChatMessage = {
@@ -271,6 +273,7 @@ export default function OnboardingSetupPage() {
     useOnboarding();
   const { setCompany } = useAuthStore();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const chatEndRef = useRef<HTMLDivElement>(null);
   const initialized = useRef(false);
 
@@ -310,11 +313,35 @@ export default function OnboardingSetupPage() {
   const [kbGenerating, setKbGenerating] = useState(false);
   const [kbError, setKbError] = useState<string | null>(null);
 
+  // Structured knowledge form state
+  const [kbForm, setKbForm] = useState({
+    pricingModel: '' as 'fixed' | 'hourly' | 'quote' | 'mixed' | '',
+    basePrice: '',
+    whatsIncluded: '',
+    emergencyCharge: '',
+    depositRequired: '',
+    cancellationPolicy: '',
+    warranty: '',
+    faq1Question: '',
+    faq1Answer: '',
+    faq2Question: '',
+    faq2Answer: '',
+    serviceProducts: '' as string, // comma-separated: "name:price" pairs
+  });
+
   // Billing state
   const [selectedPlan, setSelectedPlan] = useState<SubscriptionPlan | null>(null);
+  const [paymentModeSaving, setPaymentModeSaving] = useState(false);
+  const [connectBusy, setConnectBusy] = useState(false);
+  const [connectStatus, setConnectStatus] = useState<any>(null);
   const stripePromise = useMemo(() => {
     const key = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
-    return key ? loadStripe(key) : null;
+    const invalidPlaceholder =
+      !key ||
+      key === 'pk_test_xxx' ||
+      key.includes('local_dev_placeholder') ||
+      key.endsWith('_xxx');
+    return invalidPlaceholder ? null : loadStripe(key);
   }, []);
 
   // Auto-scroll on new messages
@@ -381,6 +408,9 @@ export default function OnboardingSetupPage() {
   }, [loading]);
 
   const startChat = async (s: typeof status) => {
+    const paymentsFlow = searchParams?.get('payments');
+    const connectState = searchParams?.get('state');
+
     await botSay(
       "👋 Hi! I'm your HandyCall setup assistant. Let's get your AI receptionist ready — it only takes a few minutes.",
     );
@@ -404,6 +434,14 @@ export default function OnboardingSetupPage() {
       );
     } else if (!s.billing) {
       await goTo('billing_plan', "Last step — let's activate your HandyCall subscription.");
+    } else if (paymentsFlow === 'connect' && (connectState === 'return' || connectState === 'refresh')) {
+      await goTo(
+        'billing_connect',
+        connectState === 'return'
+          ? "Welcome back. Let's verify your Stripe Connect setup."
+          : 'Stripe setup was refreshed. Let’s continue and verify your Connect status.',
+      );
+      await refreshConnectStatusAndContinue();
     } else {
       await botSay('🎉 Setup complete! Redirecting to your dashboard...');
       setTimeout(() => router.replace('/dashboard'), 2000);
@@ -671,8 +709,8 @@ export default function OnboardingSetupPage() {
           'knowledge_intro',
           `Demo number ready${num ? ` (${num})` : ''}! Now let's build your AI knowledge base.`,
         );
-      } catch {
-        setErrMsg('Could not assign demo number.');
+      } catch (err: any) {
+        setErrMsg(err?.message || 'Could not assign demo number.');
       } finally {
         setIsSaving(false);
       }
@@ -740,10 +778,40 @@ export default function OnboardingSetupPage() {
   const handleStartKnowledge = async () => {
     userSay("Let's build it!");
     await botSay(
-      "I'll ask you a few targeted questions about your business — services, pricing, policies, and what customers typically ask. Your answers become your AI's knowledge base. You can always add more entries from your dashboard later.",
+      "Fill in the details below — your pricing, policies, and top customer questions. This becomes your AI receptionist's knowledge base. You can always add more from your dashboard later.",
     );
     setPhase('knowledge_chat');
-    void fetchKbReply([]);
+  };
+
+  const handleBuildFromForm = async () => {
+    const f = kbForm;
+    const parts: string[] = [];
+    if (f.pricingModel) {
+      const labels: Record<string, string> = { fixed: 'fixed price', hourly: 'hourly rate', quote: 'quote after inspection', mixed: 'mixed pricing' };
+      parts.push(`My pricing model is ${labels[f.pricingModel] || f.pricingModel}.`);
+    }
+    if (f.basePrice.trim()) parts.push(`My base price or rate is: ${f.basePrice.trim()}.`);
+    if (f.whatsIncluded.trim()) parts.push(`What's included in the base price: ${f.whatsIncluded.trim()}.`);
+    if (f.emergencyCharge.trim()) parts.push(`Emergency or after-hours charge: ${f.emergencyCharge.trim()}.`);
+    if (f.depositRequired.trim()) parts.push(`Deposit or upfront payment policy: ${f.depositRequired.trim()}.`);
+    if (f.cancellationPolicy.trim()) parts.push(`Cancellation policy: ${f.cancellationPolicy.trim()}.`);
+    if (f.warranty.trim()) parts.push(`Warranty or guarantee: ${f.warranty.trim()}.`);
+    if (f.faq1Question.trim() && f.faq1Answer.trim()) {
+      parts.push(`Common question 1: "${f.faq1Question.trim()}" — Answer: ${f.faq1Answer.trim()}.`);
+    }
+    if (f.faq2Question.trim() && f.faq2Answer.trim()) {
+      parts.push(`Common question 2: "${f.faq2Question.trim()}" — Answer: ${f.faq2Answer.trim()}.`);
+    }
+    if (f.serviceProducts.trim()) {
+      parts.push(`Services and pricing offered: ${f.serviceProducts.trim()}.`);
+    }
+    if (parts.length === 0) {
+      setKbError('Please fill in at least one field before generating your knowledge base.');
+      return;
+    }
+    const messages: KnowledgeMsg[] = [{ role: 'user', content: parts.join('\n') }];
+    setKbMessages(messages);
+    await handleGenerateKnowledge(messages);
   };
 
   const fetchKbReply = async (history: KnowledgeMsg[]) => {
@@ -774,13 +842,14 @@ export default function OnboardingSetupPage() {
     await fetchKbReply(next);
   };
 
-  const handleGenerateKnowledge = async () => {
+  const handleGenerateKnowledge = async (overrideMessages?: KnowledgeMsg[]) => {
     setKbGenerating(true);
     setKbError(null);
+    const msgs = overrideMessages ?? kbMessages;
     try {
       const [kbRes, prodRes] = await Promise.all([
-        apiClient.knowledgeAssistantGenerate(kbMessages, true),
-        apiClient.knowledgeExtractProducts(kbMessages).catch(() => ({ created_count: 0, skipped_count: 0 })),
+        apiClient.knowledgeAssistantGenerate(msgs, true),
+        apiClient.knowledgeExtractProducts(msgs).catch(() => ({ created_count: 0, skipped_count: 0 })),
       ]);
       const created = Number(kbRes?.created_count || 0);
       const productsCreated = Number(prodRes?.created_count || 0);
@@ -818,7 +887,77 @@ export default function OnboardingSetupPage() {
 
   const handleBillingSuccess = async () => {
     await refreshAll();
-    await goTo('complete', "🎉 You're all set! Your HandyCall AI receptionist is live and ready to take calls.");
+    await goTo(
+      'billing_payment_mode',
+      'Subscription activated. Final setup: choose how you want to handle customer payments.',
+    );
+  };
+
+  const refreshConnectStatusAndContinue = async () => {
+    try {
+      const latest = await apiClient.getConnectStatus();
+      setConnectStatus(latest);
+      if (latest?.connected && latest?.charges_enabled && latest?.payouts_enabled) {
+        await goTo(
+          'complete',
+          "🎉 You're all set! Stripe Connect is fully configured and your HandyCall AI receptionist is ready.",
+        );
+      }
+    } catch (err: any) {
+      setErrMsg(err?.message || 'Could not verify Stripe Connect status.');
+    }
+  };
+
+  const handlePaymentModeChoice = async (mode: 'HANDYCALL_MANAGED' | 'SELF_MANAGED') => {
+    setPaymentModeSaving(true);
+    setErrMsg(null);
+    try {
+      await apiClient.updateMyCompany({
+        booking_payment_mode: mode,
+        booking_payment_enabled: mode === 'HANDYCALL_MANAGED',
+      });
+      await refreshAll();
+
+      if (mode === 'SELF_MANAGED') {
+        userSay('I handle payments myself');
+        await goTo(
+          'complete',
+          "🎉 You're all set! HandyCall will handle calls and bookings, and your team handles customer payments.",
+        );
+        return;
+      }
+
+      userSay('Managed in HandyCall');
+      await goTo(
+        'billing_connect',
+        'Great choice. Connect Stripe to receive payouts and let customers pay through HandyCall booking links.',
+      );
+      await refreshConnectStatusAndContinue();
+    } catch (err: any) {
+      setErrMsg(err?.message || 'Could not save payment mode.');
+    } finally {
+      setPaymentModeSaving(false);
+    }
+  };
+
+  const handleStartConnectOnboarding = async () => {
+    setConnectBusy(true);
+    setErrMsg(null);
+    try {
+      const origin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3001';
+      const link = await apiClient.setupConnectAccount({
+        return_url: `${origin}/onboarding/setup?payments=connect&state=return`,
+        refresh_url: `${origin}/onboarding/setup?payments=connect&state=refresh`,
+      });
+      if (!link?.url) {
+        throw new Error('Stripe Connect onboarding URL was not returned.');
+      }
+      window.location.href = link.url;
+    } catch (err: any) {
+      setErrMsg(err?.message || 'Could not start Stripe Connect onboarding.');
+    } finally {
+      setConnectBusy(false);
+    }
   };
 
   // ─── Active zone ───────────────────────────────────────────────────────────
@@ -1308,39 +1447,155 @@ export default function OnboardingSetupPage() {
           </div>
         )}
 
-        {/* Knowledge AI chat */}
+        {/* Knowledge structured form */}
         {phase === 'knowledge_chat' && (
-          <div className="space-y-3">
-            <div className="max-h-56 space-y-2 overflow-y-auto rounded-xl border border-slate-200 bg-white p-3">
-              {kbMessages.length === 0 && kbLoading && (
-                <p className="text-sm text-slate-400">Loading first question...</p>
-              )}
-              {kbMessages.map((m, i) => (
-                <div
-                  key={i}
-                  className={`rounded-xl px-3 py-2 text-sm ${
-                    m.role === 'assistant'
-                      ? 'border border-emerald-100 bg-emerald-50 text-emerald-900'
-                      : 'border border-slate-200 bg-slate-50 text-slate-800'
-                  }`}
-                >
-                  <p className="mb-1 text-[10px] font-bold uppercase tracking-wider opacity-50">
-                    {m.role === 'assistant' ? 'AI Assistant' : 'You'}
-                  </p>
-                  <p className="whitespace-pre-wrap leading-relaxed">{m.content}</p>
-                </div>
-              ))}
-              {kbLoading && (
-                <div className="flex gap-1 px-1 py-1">
-                  {[0, 150, 300].map((delay) => (
-                    <span
-                      key={delay}
-                      className="h-2 w-2 animate-bounce rounded-full bg-slate-300"
-                      style={{ animationDelay: `${delay}ms` }}
-                    />
-                  ))}
-                </div>
-              )}
+          <div className="space-y-4 rounded-xl border border-slate-200 bg-white p-4">
+            {/* Pricing model */}
+            <div>
+              <label className="mb-1.5 block text-xs font-semibold text-slate-700">Pricing model <span className="text-slate-400">(required)</span></label>
+              <div className="flex flex-wrap gap-2">
+                {([
+                  { value: 'fixed', label: 'Fixed price' },
+                  { value: 'hourly', label: 'Hourly rate' },
+                  { value: 'quote', label: 'Quote after inspection' },
+                  { value: 'mixed', label: 'Mixed' },
+                ] as const).map(({ value, label }) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setKbForm((f) => ({ ...f, pricingModel: value }))}
+                    className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition ${
+                      kbForm.pricingModel === value
+                        ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
+                        : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Base price */}
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-slate-700">Starting price or rate <span className="text-slate-400">(required)</span></label>
+              <input
+                type="text"
+                value={kbForm.basePrice}
+                onChange={(e) => setKbForm((f) => ({ ...f, basePrice: e.target.value }))}
+                placeholder="e.g. $150 flat rate, $85/hour with 1hr minimum"
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
+              />
+            </div>
+
+            {/* What's included */}
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-slate-700">What's included in your base price</label>
+              <textarea
+                value={kbForm.whatsIncluded}
+                onChange={(e) => setKbForm((f) => ({ ...f, whatsIncluded: e.target.value }))}
+                placeholder="e.g. Labor, standard parts, travel within 20 miles"
+                rows={2}
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
+              />
+            </div>
+
+            {/* Services / pricing for payment page */}
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-slate-700">Services you offer with pricing <span className="text-slate-400">(will also be added to your Payments page)</span></label>
+              <textarea
+                value={kbForm.serviceProducts}
+                onChange={(e) => setKbForm((f) => ({ ...f, serviceProducts: e.target.value }))}
+                placeholder="e.g. Basic drain cleaning - $129, Water heater install - $450, HVAC tune-up - $89"
+                rows={2}
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
+              />
+            </div>
+
+            {/* Emergency charge */}
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-slate-700">Emergency / after-hours charge <span className="text-slate-400">(optional)</span></label>
+              <input
+                type="text"
+                value={kbForm.emergencyCharge}
+                onChange={(e) => setKbForm((f) => ({ ...f, emergencyCharge: e.target.value }))}
+                placeholder="e.g. $75 surcharge after 6pm and on weekends"
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
+              />
+            </div>
+
+            {/* Deposit */}
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-slate-700">Deposit or upfront payment <span className="text-slate-400">(optional)</span></label>
+              <input
+                type="text"
+                value={kbForm.depositRequired}
+                onChange={(e) => setKbForm((f) => ({ ...f, depositRequired: e.target.value }))}
+                placeholder="e.g. 50% deposit required to book, balance due on completion"
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
+              />
+            </div>
+
+            {/* Cancellation policy */}
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-slate-700">Cancellation policy <span className="text-slate-400">(optional)</span></label>
+              <input
+                type="text"
+                value={kbForm.cancellationPolicy}
+                onChange={(e) => setKbForm((f) => ({ ...f, cancellationPolicy: e.target.value }))}
+                placeholder="e.g. Free cancellation up to 24 hours before appointment"
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
+              />
+            </div>
+
+            {/* Warranty */}
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-slate-700">Warranty or guarantee <span className="text-slate-400">(optional)</span></label>
+              <input
+                type="text"
+                value={kbForm.warranty}
+                onChange={(e) => setKbForm((f) => ({ ...f, warranty: e.target.value }))}
+                placeholder="e.g. 30-day labor warranty on all repairs"
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
+              />
+            </div>
+
+            {/* FAQ 1 */}
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-slate-700">Top customer question #1 <span className="text-slate-400">(optional)</span></label>
+              <input
+                type="text"
+                value={kbForm.faq1Question}
+                onChange={(e) => setKbForm((f) => ({ ...f, faq1Question: e.target.value }))}
+                placeholder="Question customers often ask..."
+                className="mb-1.5 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
+              />
+              <input
+                type="text"
+                value={kbForm.faq1Answer}
+                onChange={(e) => setKbForm((f) => ({ ...f, faq1Answer: e.target.value }))}
+                placeholder="Your answer..."
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
+              />
+            </div>
+
+            {/* FAQ 2 */}
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-slate-700">Top customer question #2 <span className="text-slate-400">(optional)</span></label>
+              <input
+                type="text"
+                value={kbForm.faq2Question}
+                onChange={(e) => setKbForm((f) => ({ ...f, faq2Question: e.target.value }))}
+                placeholder="Question customers often ask..."
+                className="mb-1.5 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
+              />
+              <input
+                type="text"
+                value={kbForm.faq2Answer}
+                onChange={(e) => setKbForm((f) => ({ ...f, faq2Answer: e.target.value }))}
+                placeholder="Your answer..."
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
+              />
             </div>
 
             {kbError && (
@@ -1349,39 +1604,15 @@ export default function OnboardingSetupPage() {
               </div>
             )}
 
-            {!kbDone && !kbError && (
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={kbInput}
-                  onChange={(e) => setKbInput(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && !kbLoading && void sendKbMessage()}
-                  placeholder="Type your answer..."
-                  disabled={kbLoading}
-                  className="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 disabled:opacity-50"
-                />
-                <button
-                  type="button"
-                  onClick={() => void sendKbMessage()}
-                  disabled={!kbInput.trim() || kbLoading}
-                  className="rounded-xl bg-emerald-600 px-4 py-2.5 text-white transition hover:bg-emerald-700 disabled:opacity-50"
-                >
-                  <IconSend className="h-4 w-4" stroke={1.5} />
-                </button>
-              </div>
-            )}
-
             <div className="flex flex-wrap gap-2">
-              {(kbDone || kbMessages.some((m) => m.role === 'user') || kbError) && (
-                <ActionButton
-                  onClick={handleGenerateKnowledge}
-                  disabled={kbGenerating}
-                  loading={kbGenerating}
-                >
-                  <IconBrain className="h-4 w-4" stroke={1.5} />
-                  {kbGenerating ? 'Generating...' : kbDone ? 'Generate knowledge base' : 'Generate with current answers'}
-                </ActionButton>
-              )}
+              <ActionButton
+                onClick={handleBuildFromForm}
+                disabled={kbGenerating || (!kbForm.pricingModel && !kbForm.basePrice.trim())}
+                loading={kbGenerating}
+              >
+                <IconBrain className="h-4 w-4" stroke={1.5} />
+                {kbGenerating ? 'Building knowledge base...' : 'Build knowledge base'}
+              </ActionButton>
               <button
                 type="button"
                 onClick={() => void handleSkipKnowledge()}
@@ -1431,6 +1662,62 @@ export default function OnboardingSetupPage() {
           ) : (
             <p className="text-sm text-red-600">Payment provider not configured. Contact support.</p>
           ))}
+
+        {/* Payment mode choice */}
+        {phase === 'billing_payment_mode' && (
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+            <ChoiceButton
+              icon={<IconCreditCard className="h-4 w-4 text-emerald-500" stroke={1.5} />}
+              onClick={() => void handlePaymentModeChoice('HANDYCALL_MANAGED')}
+              disabled={paymentModeSaving}
+            >
+              Managed in HandyCall (Recommended)
+            </ChoiceButton>
+            <ChoiceButton
+              icon={<IconCreditCard className="h-4 w-4 text-slate-500" stroke={1.5} />}
+              onClick={() => void handlePaymentModeChoice('SELF_MANAGED')}
+              disabled={paymentModeSaving}
+            >
+              I handle payments myself
+            </ChoiceButton>
+          </div>
+        )}
+
+        {/* Stripe Connect onboarding */}
+        {phase === 'billing_connect' && (
+          <div className="space-y-3">
+            <div className="rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-700">
+              {connectStatus?.connected
+                ? `Connect account linked (${connectStatus?.account_id || 'account found'}).`
+                : 'Connect account not linked yet.'}
+              {connectStatus?.connected && !connectStatus?.charges_enabled && (
+                <p className="mt-1 text-xs text-amber-600">
+                  Complete onboarding in Stripe to enable charges and payouts.
+                </p>
+              )}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <ActionButton onClick={handleStartConnectOnboarding} disabled={connectBusy} loading={connectBusy}>
+                <IconCreditCard className="h-4 w-4" stroke={1.5} />
+                Connect bank account (Stripe)
+              </ActionButton>
+              <button
+                type="button"
+                onClick={() => void refreshConnectStatusAndContinue()}
+                className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
+              >
+                I completed this, check again
+              </button>
+              <button
+                type="button"
+                onClick={() => void handlePaymentModeChoice('SELF_MANAGED')}
+                className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-500 transition hover:bg-slate-50"
+              >
+                Skip and handle payments myself
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     );
   };

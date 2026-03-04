@@ -486,6 +486,7 @@ export interface CallHighlight {
 // ============================================================================
 
 export enum AppointmentStatus {
+  PENDING_ACCEPTANCE = 'PENDING_ACCEPTANCE', // Waiting for provider to accept/decline
   SCHEDULED = 'SCHEDULED',
   CONFIRMED = 'CONFIRMED',
   IN_PROGRESS = 'IN_PROGRESS',

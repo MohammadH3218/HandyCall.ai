@@ -46,7 +46,7 @@ class ApiClient {
   }
 
   private isAuthFailureResponse(response: Response, data: any, message: string): boolean {
-    if (response.status === 401 || response.status === 403) return true;
+    if (response.status === 401) return true;
 
     const text = [
       message,
@@ -59,15 +59,22 @@ class ApiClient {
       .join(' ')
       .toLowerCase();
 
-    return (
+    const tokenAuthFailure = (
       text.includes('invalid or expired token') ||
       text.includes('invalid token') ||
       text.includes('expired token') ||
       text.includes('token expired') ||
       text.includes('jwt expired') ||
-      text.includes('unauthorized') ||
-      text.includes('not authorized')
+      text.includes('invalid signature') ||
+      text.includes('token is not valid yet')
     );
+
+    if (response.status === 403) {
+      // Do not force logout for feature/plan gates (forbidden without auth expiry).
+      return tokenAuthFailure;
+    }
+
+    return tokenAuthFailure;
   }
 
   private async forceLogoutToLogin() {
@@ -142,7 +149,12 @@ class ApiClient {
       }
 
       if (!response.ok) {
-        const errorMessage = data?.error?.message || data?.message || `Request failed with status ${response.status}`;
+        const errorMessage =
+          (typeof data?.error === 'string' ? data.error : undefined) ||
+          data?.error?.message ||
+          data?.message ||
+          data?.raw ||
+          `Request failed with status ${response.status}`;
         if (this.isAuthFailureResponse(response, data, errorMessage)) {
           await this.forceLogoutToLogin();
         }
@@ -157,6 +169,46 @@ class ApiClient {
       }
       throw new Error('An unexpected error occurred');
     }
+  }
+
+  async get<T = any>(endpoint: string, options: RequestInit = {}): Promise<T> {
+    const response = await this.request<T>(endpoint, {
+      ...options,
+      method: 'GET',
+    });
+    return (response as any)?.data ?? (response as any);
+  }
+
+  async post<T = any>(endpoint: string, body?: any, options: RequestInit = {}): Promise<T> {
+    const requestOptions: RequestInit = {
+      ...options,
+      method: 'POST',
+    };
+    if (body !== undefined) {
+      requestOptions.body = typeof body === 'string' ? body : JSON.stringify(body);
+    }
+    const response = await this.request<T>(endpoint, requestOptions);
+    return (response as any)?.data ?? (response as any);
+  }
+
+  async put<T = any>(endpoint: string, body?: any, options: RequestInit = {}): Promise<T> {
+    const requestOptions: RequestInit = {
+      ...options,
+      method: 'PUT',
+    };
+    if (body !== undefined) {
+      requestOptions.body = typeof body === 'string' ? body : JSON.stringify(body);
+    }
+    const response = await this.request<T>(endpoint, requestOptions);
+    return (response as any)?.data ?? (response as any);
+  }
+
+  async delete<T = any>(endpoint: string, options: RequestInit = {}): Promise<T> {
+    const response = await this.request<T>(endpoint, {
+      ...options,
+      method: 'DELETE',
+    });
+    return (response as any)?.data ?? (response as any);
   }
 
   // Auth endpoints
@@ -341,6 +393,24 @@ class ApiClient {
 
   async deleteAppointment(appointmentId: string): Promise<any> {
     const response = await this.request<any>(`/appointments/${appointmentId}`, { method: 'DELETE' });
+    return response.data ?? response;
+  }
+
+  async getPendingBookingRequests(): Promise<{ appointments: any[] }> {
+    const response = await this.request<{ appointments: any[] }>('/appointments/pending', { method: 'GET' });
+    return (response.data ?? response) as { appointments: any[] };
+  }
+
+  async acceptAppointment(appointmentId: string): Promise<any> {
+    const response = await this.request<any>(`/appointments/${appointmentId}/accept`, { method: 'POST' });
+    return response.data ?? response;
+  }
+
+  async declineAppointment(appointmentId: string, reason?: string): Promise<any> {
+    const response = await this.request<any>(`/appointments/${appointmentId}/decline`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    });
     return response.data ?? response;
   }
 
@@ -724,16 +794,18 @@ class ApiClient {
     return response.data ?? response;
   }
 
-  async setupConnectAccount(): Promise<any> {
+  async setupConnectAccount(options?: { refresh_url?: string; return_url?: string }): Promise<any> {
     const response = await this.request<any>('/billing/connect/setup', {
       method: 'POST',
+      body: JSON.stringify(options || {}),
     });
     return response.data ?? response;
   }
 
-  async createConnectOnboardingLink(): Promise<any> {
+  async createConnectOnboardingLink(options?: { refresh_url?: string; return_url?: string }): Promise<any> {
     const response = await this.request<any>('/billing/connect/onboarding-link', {
       method: 'POST',
+      body: JSON.stringify(options || {}),
     });
     return response.data ?? response;
   }
