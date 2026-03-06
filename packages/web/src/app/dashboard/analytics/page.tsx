@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import { apiClient } from '@/lib/api-client';
 import { PageHeader } from '@/components/portal/page-header';
+import { Button } from '@/components/ui/button';
+import { usePlanFeatures } from '@/hooks/use-plan-features';
 import {
   IconPhone,
   IconTrendingUp,
@@ -51,6 +53,7 @@ function MetricCard({ label, value, detail, icon }: {
 }
 
 export default function AnalyticsPage() {
+  const { hasFeature } = usePlanFeatures();
   const [metrics, setMetrics] = useState<CallMetrics | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -72,6 +75,20 @@ export default function AnalyticsPage() {
   useEffect(() => { void load(); }, [days]);
 
   const maxCalls = Math.max(...(metrics?.daily_breakdown || []).map((d) => d.calls), 1);
+
+  if (!hasFeature('follow_up_sequences')) {
+    return (
+      <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6">
+        <h2 className="text-lg font-semibold text-amber-900">Analytics is available on Pro and Max</h2>
+        <p className="mt-1 text-sm text-amber-800">
+          Upgrade your plan to access automation analytics and performance dashboards.
+        </p>
+        <Button className="mt-4" onClick={() => (window.location.href = '/dashboard/billing/plans')}>
+          Upgrade to Pro
+        </Button>
+      </div>
+    );
+  }
 
   if (loading) {
     return (

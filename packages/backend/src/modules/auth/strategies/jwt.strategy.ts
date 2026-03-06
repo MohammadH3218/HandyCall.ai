@@ -36,7 +36,6 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   async validate(payload: any): Promise<AuthContext> {
     // CRITICAL: We need to find the user in YOUR database to get the company_id.
     // We try to find the user by email (from ID Token) or username (from Access Token).
-    this.logger.log('[JwtStrategy] validate() called with payload:', JSON.stringify(payload));
     const email = payload.email || payload['cognito:username'] || payload.username;
     const companyIdFromToken =
       payload['custom:company_id'] || payload.company_id || payload['company_id'];
@@ -45,8 +44,6 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       this.logger.error('Token is valid but contains no email/username claim');
       throw new UnauthorizedException('Invalid token claims');
     }
-
-    this.logger.log(`[JwtStrategy] Looking up user by email: ${email}`);
 
     // Look up user in database (prefer company-scoped query when company_id is present)
     let user = null;
@@ -72,8 +69,6 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         throw new UnauthorizedException('User not found in system');
       }
     }
-
-    this.logger.log(`[JwtStrategy] User found: ${user.email}, company_id: ${user.company_id}, role: ${user.role}`);
 
     // Attach user context to the Request object
     return {

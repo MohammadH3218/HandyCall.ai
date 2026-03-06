@@ -7,6 +7,7 @@ import { EmptyState } from '@/components/portal/empty-state';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
+import { usePlanFeatures } from '@/hooks/use-plan-features';
 import { Phone, PhoneOutgoing, X } from 'lucide-react';
 
 type OutboundCall = {
@@ -28,6 +29,7 @@ const CONTEXT_OPTIONS = [
 
 export default function OutboundCallsPage() {
   const { toast } = useToast();
+  const { hasFeature } = usePlanFeatures();
   const [calls, setCalls] = useState<OutboundCall[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -44,6 +46,20 @@ export default function OutboundCallsPage() {
   };
 
   useEffect(() => { void load(); }, []);
+
+  if (!hasFeature('follow_up_sequences')) {
+    return (
+      <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6">
+        <h2 className="text-lg font-semibold text-amber-900">Outbound Calls are available on Pro and Max</h2>
+        <p className="mt-1 text-sm text-amber-800">
+          Upgrade your plan to initiate automation-driven outbound call campaigns.
+        </p>
+        <Button className="mt-4" onClick={() => (window.location.href = '/dashboard/billing/plans')}>
+          Upgrade to Pro
+        </Button>
+      </div>
+    );
+  }
 
   const handleCall = async () => {
     if (!form.to_number) return;

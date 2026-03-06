@@ -117,3 +117,9 @@ test-*.json
 
 # Claude settings (may contain secrets)
 .claude/settings.local.json
+
+# Local agent/tooling artifacts
+.claude/skills/
+.local/
+node_modules_corrupt_backup_*/
+**/node_modules_corrupt_backup_*/

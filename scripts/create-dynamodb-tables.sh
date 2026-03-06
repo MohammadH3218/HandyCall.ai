@@ -963,6 +963,28 @@ else
   wait_for_table "$TABLE_NAME"
 fi
 
+# =============================================================================
+# 32. SERVICE PRODUCTS TABLE
+# =============================================================================
+TABLE_NAME="${TABLE_PREFIX}service_products"
+if [ -n "$(table_exists $TABLE_NAME)" ]; then
+  echo "⚠️  Table $TABLE_NAME already exists, skipping..."
+else
+  echo "📦 Creating table: $TABLE_NAME"
+  aws dynamodb create-table \
+    --table-name "$TABLE_NAME" \
+    --region "$REGION" \
+    --billing-mode "$BILLING_MODE" \
+    --attribute-definitions \
+      AttributeName=company_id,AttributeType=S \
+      AttributeName=product_id,AttributeType=S \
+    --key-schema \
+      AttributeName=company_id,KeyType=HASH \
+      AttributeName=product_id,KeyType=RANGE \
+    --tags Key=Environment,Value="$ENV" Key=Project,Value=HandyCall
+  wait_for_table "$TABLE_NAME"
+fi
+
 echo ""
 echo "=================================================="
 echo "✅ All DynamoDB tables created successfully!"

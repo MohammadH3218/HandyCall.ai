@@ -1,14 +1,17 @@
-import { Body, Controller, Get, Post, Query, Request } from '@nestjs/common';
+import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
 import { OutboundCallsService } from './outbound-calls.service';
 import { CreateOutboundCallDto } from './dto/create-outbound-call.dto';
 import { CompanyId } from '../../common/decorators/auth.decorator';
 import { Public } from '../../common/decorators/public.decorator';
+import { PlanFeature, PlanFeatureGuard } from '../../common/guards/plan-feature.guard';
 
 @Controller('outbound-calls')
 export class OutboundCallsController {
   constructor(private readonly service: OutboundCallsService) {}
 
   @Post()
+  @UseGuards(PlanFeatureGuard)
+  @PlanFeature('follow_up_sequences')
   createOutboundCall(
     @CompanyId() companyId: string,
     @Body() dto: CreateOutboundCallDto,
@@ -17,6 +20,8 @@ export class OutboundCallsController {
   }
 
   @Get()
+  @UseGuards(PlanFeatureGuard)
+  @PlanFeature('follow_up_sequences')
   listOutboundCalls(
     @CompanyId() companyId: string,
     @Query('limit') limit?: string,

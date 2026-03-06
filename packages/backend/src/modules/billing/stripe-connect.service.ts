@@ -81,6 +81,23 @@ export class StripeConnectService {
     );
   }
 
+  private getFrontendBaseUrl(): string {
+    const explicit =
+      this.config.get<string>('FRONTEND_URL') ||
+      this.config.get<string>('NEXT_PUBLIC_APP_URL');
+
+    if (explicit && String(explicit).trim()) {
+      return String(explicit).replace(/\/$/, '');
+    }
+
+    const env = String(this.config.get<string>('NODE_ENV') || '').toLowerCase();
+    if (env === 'development') {
+      return 'http://localhost:3001';
+    }
+
+    return 'https://handycall.org';
+  }
+
   async createConnectedAccount(companyId: string): Promise<{ account_id: string }> {
     const company = await this.companies.findById(companyId);
     if (!company) throw new NotFoundException('Company not found');
@@ -130,7 +147,7 @@ export class StripeConnectService {
   ): Promise<{ account_id: string; url: string; expires_at: number }> {
     let { account_id } = await this.createConnectedAccount(companyId);
 
-    const frontendBase = (this.config.get<string>('FRONTEND_URL') || 'https://handycall.org').replace(/\/$/, '');
+    const frontendBase = this.getFrontendBaseUrl();
     const refresh_url =
       options?.refresh_url || `${frontendBase}/dashboard/settings?payments=connect&state=refresh`;
     const return_url =
@@ -289,7 +306,7 @@ export class StripeConnectService {
     const interval = input.interval || 'month';
     const intervalCount = Math.max(1, Math.floor(Number(input.interval_count || 1)));
     const trialPeriodDays = Math.max(0, Math.floor(Number(input.trial_period_days || 0)));
-    const frontendBase = (this.config.get<string>('FRONTEND_URL') || 'https://handycall.org').replace(/\/$/, '');
+    const frontendBase = this.getFrontendBaseUrl();
     const successUrl = input.success_url || `${frontendBase}/dashboard/payments?checkout=success`;
     const cancelUrl = input.cancel_url || `${frontendBase}/dashboard/payments?checkout=cancel`;
 
@@ -338,8 +355,65 @@ export class StripeConnectService {
       throw new BadRequestException('checkout session id is required');
     }
     return this.stripe.checkout.sessions.retrieve(sessionId, {
-      expand: ['subscription'],
+      expand: [
+        'payment_intent',
+        'subscription',
+        'subscription.latest_invoice.payment_intent',
+      ],
     });
+  }
+
+  async getInvoice(invoiceId: string): Promise<Stripe.Invoice> {
+    if (!invoiceId?.trim()) {
+      throw new BadRequestException('invoice id is required');
+    }
+    return this.stripe.invoices.retrieve(invoiceId, {
+      expand: [
+        'payment_intent',
+        'payments.data.payment.payment_intent',
+      ],
+    });
+  }
+
+  async getPaymentIntent(paymentIntentId: string): Promise<Stripe.PaymentIntent> {
+    if (!paymentIntentId?.trim()) {
+      throw new BadRequestException('payment intent id is required');
+    }
+    return this.stripe.paymentIntents.retrieve(paymentIntentId, {
+      expand: ['latest_charge'],
+    });
+  }
+
+  private extractStripeId(value: any): string | undefined {
+    if (!value) return undefined;
+    if (typeof value === 'string') return value;
+    if (typeof value?.id === 'string') return value.id;
+    return undefined;
+  }
+
+  private extractInvoicePaymentIds(invoice: any): { paymentIntentId?: string; chargeId?: string } {
+    let paymentIntentId = this.extractStripeId(invoice?.payment_intent);
+    let chargeId = this.extractStripeId(invoice?.charge);
+
+    const payments = Array.isArray(invoice?.payments?.data) ? invoice.payments.data : [];
+    for (const invoicePayment of payments) {
+      const payment = invoicePayment?.payment;
+      if (!payment || typeof payment !== 'object') continue;
+
+      const nestedPi = this.extractStripeId(payment.payment_intent);
+      paymentIntentId = paymentIntentId || nestedPi;
+
+      const nestedCharge = this.extractStripeId(payment.charge);
+      chargeId = chargeId || nestedCharge;
+
+      if (!chargeId && payment?.payment_intent && typeof payment.payment_intent === 'object') {
+        chargeId = this.extractStripeId(payment.payment_intent.latest_charge) || chargeId;
+      }
+
+      if (paymentIntentId && chargeId) break;
+    }
+
+    return { paymentIntentId, chargeId };
   }
 
   async refundPayment(
@@ -355,8 +429,69 @@ export class StripeConnectService {
       throw new NotFoundException('Payment not found');
     }
 
-    const chargeId = payment.stripe_charge_id;
-    const paymentIntentId = payment.stripe_payment_intent_id;
+    let chargeId = payment.stripe_charge_id;
+    let paymentIntentId = payment.stripe_payment_intent_id;
+
+    if (!chargeId && !paymentIntentId && payment.stripe_checkout_session_id) {
+      try {
+        const session = await this.getCheckoutSession(payment.stripe_checkout_session_id);
+        paymentIntentId = this.extractStripeId((session as any).payment_intent) || paymentIntentId;
+        const sessionInvoiceId = this.extractStripeId((session as any).invoice);
+        const subscription = (session as any).subscription;
+        const latestInvoice = subscription && typeof subscription === 'object' ? (subscription as any).latest_invoice : null;
+        const invoicePaymentIntentId = latestInvoice ? this.extractStripeId(latestInvoice.payment_intent) : undefined;
+        const latestInvoiceId = latestInvoice ? this.extractStripeId(latestInvoice.id || latestInvoice) : undefined;
+        paymentIntentId = paymentIntentId || invoicePaymentIntentId;
+        const invoiceIdForLookup = sessionInvoiceId || latestInvoiceId;
+        if ((!paymentIntentId || !chargeId) && invoiceIdForLookup) {
+          try {
+            const hydratedInvoice = await this.getInvoice(invoiceIdForLookup);
+            const fromInvoicePayments = this.extractInvoicePaymentIds(hydratedInvoice);
+            paymentIntentId = paymentIntentId || fromInvoicePayments.paymentIntentId;
+            chargeId = chargeId || fromInvoicePayments.chargeId;
+          } catch {
+            // best-effort fallback only
+          }
+        }
+      } catch {
+        // best-effort fallback only
+      }
+    }
+
+    if (!chargeId && !paymentIntentId && payment.stripe_subscription_id) {
+      try {
+        const subscription = await this.stripe.subscriptions.retrieve(payment.stripe_subscription_id, {
+          expand: [
+            'latest_invoice.payment_intent',
+          ],
+        });
+        const latestInvoice = (subscription as any).latest_invoice;
+        const invoicePaymentIntentId = latestInvoice ? this.extractStripeId(latestInvoice.payment_intent) : undefined;
+        const latestInvoiceId = latestInvoice ? this.extractStripeId(latestInvoice.id || latestInvoice) : undefined;
+        paymentIntentId = paymentIntentId || invoicePaymentIntentId;
+        if ((!paymentIntentId || !chargeId) && latestInvoiceId) {
+          try {
+            const hydratedInvoice = await this.getInvoice(latestInvoiceId);
+            const fromInvoicePayments = this.extractInvoicePaymentIds(hydratedInvoice);
+            paymentIntentId = paymentIntentId || fromInvoicePayments.paymentIntentId;
+            chargeId = chargeId || fromInvoicePayments.chargeId;
+          } catch {
+            // best-effort fallback only
+          }
+        }
+      } catch {
+        // best-effort fallback only
+      }
+    }
+
+    if (!chargeId && paymentIntentId) {
+      try {
+        const paymentIntent = await this.getPaymentIntent(paymentIntentId);
+        chargeId = this.extractStripeId((paymentIntent as any).latest_charge) || chargeId;
+      } catch {
+        // best-effort fallback only
+      }
+    }
 
     if (!chargeId && !paymentIntentId) {
       throw new BadRequestException('Payment has no Stripe charge or payment intent — cannot issue refund.');
@@ -402,6 +537,8 @@ export class StripeConnectService {
 
     await this.customerPayments.updatePayment(companyId, paymentId, {
       payment_status: isFullRefund ? 'REFUNDED' : 'PARTIALLY_REFUNDED',
+      ...(paymentIntentId ? { stripe_payment_intent_id: paymentIntentId } : {}),
+      ...(chargeId ? { stripe_charge_id: chargeId } : {}),
       metadata: {
         ...(payment.metadata || {}),
         refund_id: refund.id,
@@ -541,6 +678,16 @@ export class StripeConnectService {
     let companyId = invoiceMetadata.company_id;
     let paymentId = invoiceMetadata.payment_id;
     let subscriptionMetadata: Record<string, string> = {};
+    let hydratedInvoice: Stripe.Invoice = invoice;
+    try {
+      hydratedInvoice = await this.getInvoice(invoice.id);
+    } catch {
+      // If retrieve fails, continue with webhook payload as best-effort.
+    }
+
+    const extractedInvoiceIds = this.extractInvoicePaymentIds(hydratedInvoice as any);
+    let paymentIntentId = extractedInvoiceIds.paymentIntentId;
+    let chargeId = extractedInvoiceIds.chargeId;
 
     if ((!companyId || !paymentId) && subscriptionId) {
       try {
@@ -553,12 +700,23 @@ export class StripeConnectService {
       }
     }
 
+    if (!chargeId && paymentIntentId) {
+      try {
+        const paymentIntent = await this.getPaymentIntent(paymentIntentId);
+        chargeId = this.extractStripeId((paymentIntent as any).latest_charge);
+      } catch {
+        // best-effort
+      }
+    }
+
     if (!companyId) return;
 
     const paymentIdForInvoice = paymentId || `inv_${invoice.id}`;
     const updated = await this.customerPayments.updatePayment(companyId, paymentIdForInvoice, {
       payment_status: status,
       stripe_subscription_id: subscriptionId || undefined,
+      ...(paymentIntentId ? { stripe_payment_intent_id: paymentIntentId } : {}),
+      ...(chargeId ? { stripe_charge_id: chargeId } : {}),
       paid_at: status === 'SUCCEEDED' ? Date.now() : undefined,
     });
 
@@ -578,6 +736,8 @@ export class StripeConnectService {
         amount_cents: Math.max(0, Math.round(Number(invoice.amount_paid || invoice.amount_due || 0))),
         currency: String(invoice.currency || 'usd').toLowerCase(),
         stripe_subscription_id: subscriptionId || undefined,
+        stripe_payment_intent_id: paymentIntentId || undefined,
+        stripe_charge_id: chargeId || undefined,
         metadata: {
           source: 'stripe_invoice',
           invoice_id: invoice.id,

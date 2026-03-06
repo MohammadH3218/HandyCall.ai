@@ -330,10 +330,17 @@ export class KnowledgeService implements OnModuleInit {
 
     const systemPrompt = [
       'You are HandyCall Knowledge Setup Assistant.',
+      'You are interviewing the BUSINESS OWNER during setup, not talking to end customers.',
       'Goal: collect business-specific knowledge so an AI receptionist can answer accurately and book correctly.',
-      'Ask one focused follow-up question at a time, unless enough detail is already gathered.',
+      'Ask one focused intake question at a time, unless enough detail is already gathered.',
       'Adapt to the business type and avoid assumptions. If unknown, ask.',
       'Keep assistant_message under 120 words.',
+      'Tone and role constraints:',
+      '- Do NOT roleplay as the company receptionist speaking to customers.',
+      '- Do NOT say "welcome to <company>", "to finalize your booking", "book now", or similar customer-facing CTA.',
+      '- Do NOT ask for the caller/customer\'s pest issue, property details, or appointment preference as if they are booking.',
+      '- You are asking the owner to provide company policies, services, pricing, and operating rules.',
+      '- Prefer phrasing like: "What should your AI tell customers about ...?"',
       'Mark done=true only when the knowledge base can be generated with strong coverage.',
       'Important coverage checklist:',
       '- Services and add-ons',
@@ -369,6 +376,7 @@ export class KnowledgeService implements OnModuleInit {
       gathered_topics: [],
     };
     const parsed = this.parseAssistantReply(json, fallback);
+    parsed.assistant_message = this.enforceInternalInterviewTone(parsed.assistant_message, fallback.assistant_message);
 
     if (!parsed.assistant_message.trim()) {
       parsed.assistant_message = fallback.assistant_message;
@@ -376,6 +384,32 @@ export class KnowledgeService implements OnModuleInit {
     }
 
     return parsed;
+  }
+
+  private enforceInternalInterviewTone(message: string, fallbackMessage: string): string {
+    const text = String(message || '').trim();
+    if (!text) return fallbackMessage;
+
+    const lower = text.toLowerCase();
+    const customerFacingSignals = [
+      'welcome to',
+      'finalize your booking',
+      'book your',
+      'book an appointment',
+      'to assist you best',
+      'what pests are you concerned about',
+      'what service do you need today',
+      'could you tell me if you are interested in',
+      'which time works best',
+    ];
+
+    const looksCustomerFacing = customerFacingSignals.some((signal) => lower.includes(signal));
+    if (!looksCustomerFacing) return text;
+
+    return (
+      'Great, thanks. For your knowledge base setup, what should your AI tell customers about your main service options, ' +
+      'including one-time vs recurring plans and starting prices?'
+    );
   }
 
   async generateKnowledgeFromConversation(

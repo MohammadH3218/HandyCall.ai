@@ -87,7 +87,7 @@ export class BillingService {
     }
 
     // Get price ID for plan
-    const priceId = this.stripeService.getPriceIdForPlan(plan);
+    const priceId = await this.stripeService.getPriceIdForPlan(plan);
 
     const eligibleForProTrial = plan === SubscriptionPlan.PRO && !company.trial_used_at;
     const trialDays = eligibleForProTrial ? 14 : 0;
@@ -218,7 +218,7 @@ export class BillingService {
       };
     }
 
-    const newPriceId = this.stripeService.getPriceIdForPlan(newPlan);
+    const newPriceId = await this.stripeService.getPriceIdForPlan(newPlan);
     const subscription = await this.stripeService.updateSubscription(
       company.stripe_subscription_id,
       newPriceId

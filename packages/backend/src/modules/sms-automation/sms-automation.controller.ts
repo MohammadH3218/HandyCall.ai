@@ -1,10 +1,13 @@
-import { Body, Controller, Delete, Get, Param, Post, Put, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { SmsAutomationService } from './sms-automation.service';
 import { CreateTemplateDto, UpdateTemplateDto } from './dto/create-template.dto';
 import { SendCampaignDto, SendSingleSmsDto } from './dto/send-campaign.dto';
 import { CompanyId } from '../../common/decorators/auth.decorator';
+import { PlanFeature, PlanFeatureGuard } from '../../common/guards/plan-feature.guard';
 
 @Controller('sms-automation')
+@UseGuards(PlanFeatureGuard)
+@PlanFeature('follow_up_sequences')
 export class SmsAutomationController {
   constructor(private readonly service: SmsAutomationService) {}
 

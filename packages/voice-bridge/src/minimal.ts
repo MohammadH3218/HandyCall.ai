@@ -981,7 +981,7 @@ function buildServiceOptionsBrief(tenant: TenantInfo): string | null {
   return items.join(' | ');
 }
 
-function buildInstructions(tenant: TenantInfo, options: { serviceAreaRequired: boolean }) {
+function buildInstructions(tenant: TenantInfo, options: { serviceAreaRequired: boolean; existingCustomer?: { contact_id: string; name?: string; email?: string; address?: string; zip?: string } | null; startupAppointments?: Array<{ appointment_id: string; start_time: string; end_time?: string; service_type?: string; status?: string }> }) {
   const name = tenant.company_name || 'our company';
   const extra = tenant.agent_config?.realtime_instructions;
   const templatePrompt = typeof tenant.service_template?.base_system_prompt === 'string'
@@ -998,8 +998,11 @@ function buildInstructions(tenant: TenantInfo, options: { serviceAreaRequired: b
     `Greet the caller immediately and include the company name in the first sentence.`,
     `Be friendly, concise, and phone-like. Ask one question at a time.`,
     `Keep responses short by default. Use a brief filler phrase only when waiting on a tool call.`,
+    `Speak in English only. Do not switch languages.`,
+    `If the caller speaks another language, apologize briefly and continue in English.`,
     `You can answer FAQs and help callers book appointments directly.`,
     `Never ask for the caller's phone number. Use the caller ID.`,
+    `Never ask the caller for their timezone. Use the company timezone (${tenant.timezone || 'America/Chicago'}) for all scheduling and when calling get_availability.`,
     serviceAreaRequired
       ? `If the caller wants to book, ask for their 5-digit ZIP code first and call check_service_area(zip) before anything else.`
       : `If service-area checks are enabled or the caller provides a ZIP, call check_service_area(zip) before booking.`,
@@ -1030,7 +1033,61 @@ function buildInstructions(tenant: TenantInfo, options: { serviceAreaRequired: b
     `If the caller declines email, confirm the booking without a link.`,
     `Do not repeat questions or confirm details except for the email address. Confirm the email once; do not spell it out unless the caller asks.`,
     `Never read or say the booking link/URL aloud. After send_booking_link succeeds, just say the email was sent.`,
-    `If the caller is an existing customer, ask if they want to manage an existing booking or create a new booking.`,
+    `When asking for email: say "What's the best email to send your confirmation to?" — do NOT read email addresses back letter by letter unless the caller explicitly asks you to spell it.`,
+    `If an email looks like a placeholder or test address (contains 'placeholder', 'noreply', 'no-reply', '@handycall', 'example.com', 'fake', 'test@'), ask for a real email instead of offering it.`,
+    options.existingCustomer
+      ? (() => {
+          const cust = options.existingCustomer!;
+          const hasSubscription = Array.isArray(tenant.booking_services) &&
+            tenant.booking_services.some(s => s.billing_type === 'SUBSCRIPTION');
+          const streetOnly = cust.address
+            ? cust.address.replace(/,.*$/, '').trim()  // strip ", City, ST ZIP" — keep street number+name only
+            : null;
+          // Intent question to ask after address confirmed, based on service type
+          const intentQ = hasSubscription
+            ? `"Are you calling about your current service, wanting to schedule a visit, or do you have a question?"`
+            : `"Are you calling about a previous job, want to book something new, or do you have a question I can help with?"`;
+          // Email: only show if it looks real (not a placeholder/test address)
+          const emailOnFile = cust.email && !/placeholder|noreply|no-reply|@handycall|example\.com|test@|fake/i.test(cust.email)
+            ? cust.email : null;
+          // Format any pre-loaded appointments as a brief summary
+          const appts = options.startupAppointments ?? [];
+          const apptSummary = appts.length > 0
+            ? `Their existing appointments on file (${appts.length} total):\n` + appts.slice(0, 5).map(a => {
+                const dt = new Date(a.start_time);
+                const dateStr = dt.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric', timeZone: tenant.timezone || 'America/Chicago' });
+                const timeStr = dt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: tenant.timezone || 'America/Chicago' });
+                return `  - [${a.appointment_id}] ${a.service_type || 'Appointment'} on ${dateStr} at ${timeStr} (status: ${a.status || 'SCHEDULED'})`;
+              }).join('\n')
+            : null;
+          return [
+            `[RETURNING CUSTOMER] This caller's phone number is linked to an existing customer profile on file.`,
+            `Their name on file: "${cust.name || 'Unknown'}".`,
+            cust.address ? `Their address on file (full, for use in booking): "${cust.address}".` : '',
+            cust.zip ? `Their ZIP on file: "${cust.zip}".` : '',
+            emailOnFile ? `Their email on file: "${emailOnFile}".` : '',
+            apptSummary || null,
+            `The caller has ALREADY been greeted with "Am I speaking with ${cust.name}?" — do NOT repeat that question.`,
+            `If they said YES (confirmed identity):`,
+            `  - Thank them warmly and briefly: "Great, welcome back!"`,
+            `  - IMMEDIATELY call list_appointments_by_phone to retrieve their full appointment history (range_days=365) — do this in the background before asking the next question.`,
+            `  - PRIVACY: When confirming address aloud, say ONLY the street number and street name — NEVER say city, state, or ZIP. Say: "Is your address still ${streetOnly || '[street on file]'}?" (nothing more).`,
+            `  - If they confirm the address, their ZIP is ALSO confirmed — do NOT ask for ZIP separately.`,
+            `  - PRE-FILLED DATA: The address "${cust.address || ''}" and ZIP "${cust.zip || ''}" are already locked in as collected intake fields. When calling create_booking, include address="${cust.address || ''}" and zip="${cust.zip || ''}" directly in the details object — do NOT ask for these again under any circumstance.`,
+            `  - After confirming address, ask what brought them in today: ${intentQ}`,
+            `  - They can ask about their appointments, reschedule, cancel, or book new — use the appointment IDs from list_appointments_by_phone for reschedule_appointment/cancel_appointment.`,
+            `  - They can also update info on file: if they mention a new address, email, etc., update it in the booking.`,
+            emailOnFile ? `  - For the confirmation email, offer the email on file: "Should I send the confirmation to ${emailOnFile}?"` : `  - No valid email on file — ask the caller: "What's the best email to send your confirmation to?"`,
+            `If they said NO (different person — number was reassigned/reused):`,
+            `  - Apologize briefly: "I'm sorry about that — I'll start fresh for you."`,
+            `  - Immediately call mark_number_reused with old_contact_id="${cust.contact_id}".`,
+            `  - Treat them as a brand-new customer and collect all required intake fields from scratch.`,
+          ].filter(Boolean).join('\n');
+        })()
+      : null,
+    !options.existingCustomer
+      ? `If the caller is an existing customer, ask if they want to manage an existing booking or create a new booking.`
+      : null,
     `If they want to manage an existing booking: explain they can use the confirmation link, or you can help by phone. Ask if they want to reschedule or cancel, then use list_appointments_by_phone and reschedule_appointment/cancel_appointment.`,
     `If the caller asks about prior appointments, use list_appointments_by_phone.`,
     `Use knowledge_search for company-specific questions (services, pricing, policies, service areas).`,
@@ -1217,6 +1274,21 @@ async function callTool(ctx: CallContext, name: string, args: any) {
     const twiml = `<Response><Dial>${escapeXml(target)}</Dial></Response>`;
     await client.calls(ctx.callSid).update({ twiml });
     return { ok: true, target };
+  }
+
+  if (name === 'get_customer_by_phone') {
+    return timed(() => postJson(`${toolsBase}/tools/get_customer_by_phone`, headers, {
+      company_id: ctx.company_id,
+      phone: ctx.from,
+    }));
+  }
+
+  if (name === 'mark_number_reused') {
+    return timed(() => postJson(`${toolsBase}/tools/mark_number_reused`, headers, {
+      company_id: ctx.company_id,
+      contact_id: args?.old_contact_id,
+      phone: ctx.from,
+    }));
   }
 
   if (name === 'start_call') {
@@ -1594,7 +1666,10 @@ wss.on('connection', (twilioWs: WebSocket) => {
   let appointmentCreated = false;
   let hasExistingAppointments = false;
   let existingAppointmentsChecked = false;
+  let startupAppointments: Array<{ appointment_id: string; start_time: string; end_time?: string; service_type?: string; status?: string; notes?: string }> = [];
   let lastAssistantAskedFollowUp = false;
+  let existingCustomer: { contact_id: string; name?: string; email?: string; address?: string; zip?: string } | null = null;
+  let greetedAt = 0; // timestamp when first greeting was sent — used to suppress early VAD noise
   let lowSignalAttempts = 0;
   let lastSpeechStartAt = 0;
   let speechActive = false;
@@ -1613,15 +1688,23 @@ wss.on('connection', (twilioWs: WebSocket) => {
   let diagOpenAIAudioChunks = 0;
   let diagOpenAIAudioBytes = 0;
   let diagShutdownLogged = false;
+  let callPersisted = false;
+  let shutdownPersistStarted = false;
 
   function tryGreet() {
     if (!openaiWs || !openaiReady || !twilioReady || greeted) return;
     const name = ctx?.company_name || 'our company';
-    const greeting = hasExistingAppointments
-      ? `Hi there, thanks for calling ${name}. Would you like to manage an existing booking, or book a new appointment?`
-      : `Hi there, thanks for calling ${name}. How can I help you today?`;
+    let greeting: string;
+    if (existingCustomer?.name) {
+      greeting = `Hi, thanks for calling ${name}! Am I speaking with ${existingCustomer.name}?`;
+    } else if (hasExistingAppointments) {
+      greeting = `Hi there, thanks for calling ${name}. Would you like to manage an existing booking, or book a new appointment?`;
+    } else {
+      greeting = `Hi there, thanks for calling ${name}. How can I help you today?`;
+    }
     createResponse(`Say exactly: "${greeting}" Then stop. Do not add any follow-up question.`);
     greeted = true;
+    greetedAt = Date.now();
   }
 
   function reprompt(attempt: number) {
@@ -1630,7 +1713,6 @@ wss.on('connection', (twilioWs: WebSocket) => {
       attempt <= 1
         ? "Sorry, didn't catch that. Are you calling to book an appointment, or do you have a quick question?"
         : "I'm still having trouble hearing you. If you'd like, I can take a message for a callback - what's your name?";
-    sendToOpenAI(openaiWs, { type: 'response.cancel' });
     createResponse(`Say: "${msg}"`);
   }
 
@@ -1658,6 +1740,10 @@ wss.on('connection', (twilioWs: WebSocket) => {
     const now = Date.now();
     if (now - lastAssistantAudioAt > 5000) return;
 
+    // Suppress interrupts during the first 2.5s of the call — ambient noise at call connect
+    // frequently triggers false VAD events before the caller has a chance to speak.
+    if (greetedAt && now - greetedAt < 2500) return;
+
     if (useElevenLabs && ttsAbort) {
       try {
         ttsAbort.abort();
@@ -1666,7 +1752,8 @@ wss.on('connection', (twilioWs: WebSocket) => {
       }
     }
     if (ctx?.streamSid) sendToTwilio(twilioWs, { event: 'clear', streamSid: ctx.streamSid });
-    if (openaiWs) sendToOpenAI(openaiWs, { type: 'response.cancel' });
+    // Do NOT send response.cancel — OpenAI auto-cancels via interrupt_response:true.
+    // Sending it manually causes response_cancel_not_active errors.
     assistantSpeaking = false;
     openaiResponding = false;
     diag('barge_in.interrupt', {
@@ -1841,8 +1928,32 @@ wss.on('connection', (twilioWs: WebSocket) => {
     void speakWithElevenLabs(text);
   }
 
+  async function persistCallOnShutdown(reason: string) {
+    if (!ctx || shutdownPersistStarted || callPersisted) return;
+    shutdownPersistStarted = true;
+    try {
+      const merged = transcript.join('\n');
+      const durationSeconds = ctx.startedAt ? Math.max(1, Math.ceil((Date.now() - ctx.startedAt) / 1000)) : undefined;
+      const collectedInfo =
+        Object.keys(collectedDetails).some((key) => `${(collectedDetails as any)[key] ?? ''}`.trim() !== '')
+          ? { ...collectedDetails }
+          : undefined;
+      await callTool(ctx, 'save_call', {
+        transcript: merged || undefined,
+        summary: reason === 'twilio_stop' ? 'Call ended.' : 'Call ended unexpectedly.',
+        duration_seconds: durationSeconds,
+        collected_info: collectedInfo,
+        skip_contact_update: !merged && !collectedInfo,
+      });
+      callPersisted = true;
+    } catch (err: any) {
+      console.warn('[bridge] shutdown save_call failed', err?.message ?? String(err));
+    }
+  }
+
   function shutdown(reason: string) {
     cancelPendingInterruptTimer();
+    void persistCallOnShutdown(reason);
     if (!diagShutdownLogged) {
       diagShutdownLogged = true;
       diag('call.shutdown', {
@@ -1898,13 +2009,16 @@ wss.on('connection', (twilioWs: WebSocket) => {
     sendToTwilio(twilioWs, { event: 'mark', streamSid: ctx.streamSid, mark: { name: 'hangup_now' } });
     waitingForHangupMark = true;
     if (hangupFallbackTimer) clearTimeout(hangupFallbackTimer);
+    // Twilio playback can lag behind response generation. Keep fallback long enough
+    // to avoid clipping the final spoken sentence.
+    const hangupFallbackMs = Math.max(3000, Number(process.env.HANGUP_FALLBACK_MS || 8000));
     hangupFallbackTimer = setTimeout(() => {
       if (!ctx) return;
       callTool(ctx, 'end_call', {}).catch((err: any) =>
         console.warn('[bridge] end_call fallback failed', err?.message ?? String(err))
       );
       shutdown('hangup_fallback');
-    }, 2500);
+    }, hangupFallbackMs);
   }
 
   async function connectOpenAI(tenant: TenantInfo) {
@@ -1920,6 +2034,8 @@ wss.on('connection', (twilioWs: WebSocket) => {
       'marin';
     const instructions = buildInstructions(tenant, {
       serviceAreaRequired,
+      existingCustomer,
+      startupAppointments,
     });
     const openaiKey = await getSecret('OPENAI_API_KEY');
     const openaiUrl = `wss://api.openai.com/v1/realtime?model=${encodeURIComponent(model)}`;
@@ -1944,6 +2060,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
           input_audio_transcription: { model: 'gpt-4o-mini-transcribe' },
           turn_detection: {
             type: 'semantic_vad',
+            eagerness: 'medium',     // 'low' was too slow for barge-in; startup guard handles false triggers
             create_response: false,
             interrupt_response: true,
           },
@@ -2042,6 +2159,11 @@ wss.on('connection', (twilioWs: WebSocket) => {
 
         const trimmed = String(text).trim();
         const now = Date.now();
+
+        // Ignore any transcription that arrives within 2.5s of the greeting — it's almost
+        // always call-connect audio artifacts or the caller's own phone ringing.
+        if (greetedAt && now - greetedAt < 2500) return;
+
         const normalizedShortAck = normalizeShortAck(trimmed);
         if (
           isShortAcknowledgement(trimmed) &&
@@ -2096,9 +2218,6 @@ wss.on('connection', (twilioWs: WebSocket) => {
         }
 
         if (openaiWs && openaiReady) {
-          if (openaiResponding) {
-            sendToOpenAI(openaiWs, { type: 'response.cancel' });
-          }
           createResponse();
         }
         return;
@@ -2125,31 +2244,28 @@ wss.on('connection', (twilioWs: WebSocket) => {
       }
 
       if (msg?.type === 'input_audio_buffer.speech_started') {
-        lastSpeechStartAt = Date.now();
+        const now = Date.now();
+        lastSpeechStartAt = now;
         speechActive = true;
-        speechActiveStartedAt = Date.now();
+        speechActiveStartedAt = now;
         cancelPendingInterruptTimer();
-        pendingInterruptTimer = setTimeout(() => {
-          if (!speechActive) return;
-          interruptAssistant('speech_started_debounced');
-        }, 280);
+        // Suppress barge-in during the startup quiet period
+        if (greetedAt && now - greetedAt < 2500) return;
+        // ChatGPT-like barge-in: immediately cut AI audio when caller speaks.
+        // Check lastAssistantAudioAt (not assistantSpeaking) — by the time user speaks,
+        // OpenAI may have finished generating but Twilio may still be playing buffered audio.
+        const hadRecentAudio = lastAssistantAudioAt > 0 && now - lastAssistantAudioAt < 8000;
+        if (hadRecentAudio && ctx?.streamSid) {
+          sendToTwilio(twilioWs, { event: 'clear', streamSid: ctx.streamSid });
+          assistantSpeaking = false;
+          openaiResponding = false;
+        }
         return;
       }
 
       if (msg?.type === 'input_audio_buffer.speech_stopped') {
-        const now = Date.now();
-        const startedAt = speechActiveStartedAt;
-        const speechMs = startedAt ? now - startedAt : 0;
         speechActive = false;
         cancelPendingInterruptTimer();
-        if (speechMs >= 280) {
-          interruptAssistant('speech_stopped');
-        } else {
-          diag('barge_in.ignored_short_speech', {
-            callSid: ctx?.callSid || '',
-            speechMs,
-          });
-        }
         return;
       }
 
@@ -2165,6 +2281,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
 
         openaiResponding = false;
         let result: any;
+        let customToolResponseIssued = false;
         try {
           if (!ctx) throw new Error('Missing call context');
           const normalizedTimezone = ctx.timezone || lastAvailabilityTimezone || 'UTC';
@@ -2374,6 +2491,18 @@ wss.on('connection', (twilioWs: WebSocket) => {
               if (args?.zip) {
                 collectedDetails.zip = args.zip;
               }
+              if ((result as any)?.eligible === false && ctx && openaiWs) {
+                pendingHangup = true;
+                waitingForHangupMark = false;
+                const rawZip = String(args?.zip || collectedDetails.zip || '').trim();
+                const zipForSpeech = /\b\d{5}\b/.test(rawZip) ? rawZip : 'that ZIP code';
+                const companyName = ctx.company_name || 'our company';
+                // Deterministic close avoids repeated/hallucinated ZIP re-checks.
+                createResponse(
+                  `Say exactly: "Sorry, we don't service ZIP code ${zipForSpeech}. We won't be able to book an appointment in that area. Thanks for calling ${companyName}, and have a great day." Then stop.`
+                );
+                customToolResponseIssued = true;
+              }
             }
             if (toolName === 'get_availability') {
               if ((result as any)?.requested_time_available === true) {
@@ -2420,7 +2549,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
             output: JSON.stringify(result),
           },
         });
-        if (toolName !== 'end_call') {
+        if (toolName !== 'end_call' && !customToolResponseIssued) {
           createResponse();
         }
       }
@@ -2505,14 +2634,32 @@ wss.on('connection', (twilioWs: WebSocket) => {
         ended: false,
       });
 
+      // Run appointment history + customer profile lookups in parallel to minimize startup delay
       if (!existingAppointmentsChecked) {
         existingAppointmentsChecked = true;
-        try {
-          const existing = await callTool(ctx, 'list_appointments_by_phone', { range_days: 365 });
-          const appts = Array.isArray((existing as any)?.appointments) ? (existing as any).appointments : [];
+        const [appointmentsResult, customerResult] = await Promise.allSettled([
+          callTool(ctx, 'list_appointments_by_phone', { range_days: 365 }),
+          callTool(ctx, 'get_customer_by_phone', {}),
+        ]);
+        if (appointmentsResult.status === 'fulfilled') {
+          const appts = Array.isArray((appointmentsResult.value as any)?.appointments)
+            ? (appointmentsResult.value as any).appointments : [];
           hasExistingAppointments = appts.length > 0;
-        } catch (err: any) {
-          console.warn('[bridge] list_appointments_by_phone failed', err?.message ?? String(err));
+          startupAppointments = appts;
+        } else {
+          console.warn('[bridge] list_appointments_by_phone failed', appointmentsResult.reason?.message ?? String(appointmentsResult.reason));
+        }
+        if (customerResult.status === 'fulfilled') {
+          const customer = customerResult.value;
+          if (customer && (customer as any)?.contact_id) {
+            existingCustomer = customer as { contact_id: string; name?: string; email?: string; address?: string; zip?: string };
+            // Pre-populate collected details so create_booking won't re-ask for confirmed fields
+            if (existingCustomer.address) collectedDetails.address = existingCustomer.address;
+            if (existingCustomer.zip) collectedDetails.zip = existingCustomer.zip;
+            if (existingCustomer.name) collectedDetails.full_name = existingCustomer.name;
+          }
+        } else {
+          console.warn('[bridge] get_customer_by_phone failed', customerResult.reason?.message ?? String(customerResult.reason));
         }
       }
 
@@ -2575,6 +2722,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
 
     if (msg?.event === 'stop') {
       if (ctx) {
+        shutdownPersistStarted = true;
         const merged = transcript.join('\n');
         const durationSeconds = Math.max(1, Math.ceil((Date.now() - ctx.startedAt) / 1000));
         const collectedInfo =
@@ -2587,7 +2735,11 @@ wss.on('connection', (twilioWs: WebSocket) => {
           duration_seconds: durationSeconds,
           collected_info: collectedInfo,
           skip_contact_update: !merged && !collectedInfo,
-        }).catch((err: any) => console.warn('[bridge] save_call failed', err?.message ?? String(err)));
+        })
+          .then(() => {
+            callPersisted = true;
+          })
+          .catch((err: any) => console.warn('[bridge] save_call failed', err?.message ?? String(err)));
 
         scheduleRecordingSync('twilio_stop');
       }

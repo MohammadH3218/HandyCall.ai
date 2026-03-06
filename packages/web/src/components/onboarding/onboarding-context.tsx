@@ -3,6 +3,7 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { useAuthStore } from '@/stores/auth-store';
 import { apiClient } from '@/lib/api-client';
+import { computeOnboardingStatus } from '@/lib/setup-status';
 import { UserRole } from '@handycall/shared';
 
 type OnboardingStatus = {
@@ -29,29 +30,6 @@ type OnboardingContextValue = {
 };
 
 const OnboardingContext = createContext<OnboardingContextValue | null>(null);
-
-function hasActiveSubscription(company: any | null) {
-  if (!company) return false;
-  return Boolean(
-    company.subscription_plan ||
-      company.stripe_subscription_id ||
-      (company.subscription_status &&
-        (company.subscription_status === 'ACTIVE' || company.subscription_status === 'TRIALING')) ||
-      (company.trial_ends_at && company.trial_ends_at > Date.now())
-  );
-}
-
-function hasPricingProfileData(company: any | null) {
-  const profile = company?.pricing_profile;
-  if (!profile || typeof profile !== 'object') return false;
-  return Object.values(profile).some((value) => {
-    if (Array.isArray(value)) return value.length > 0;
-    if (typeof value === 'string') return value.trim().length > 0;
-    if (typeof value === 'number') return Number.isFinite(value);
-    if (typeof value === 'boolean') return true;
-    return false;
-  });
-}
 
 export function OnboardingProvider({ children }: { children: React.ReactNode }) {
   const { company, isAuthenticated, isLoading, checkAuth, userRole, user, email } = useAuthStore();
@@ -107,27 +85,14 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
   }, [isAuthenticated, isLoading, userRole]);
 
   const status = useMemo<OnboardingStatus>(() => {
-    if (!company) {
-      return {
-        profile: false,
-        billing: false,
-        companyProfile: false,
-        serviceArea: false,
-        knowledge: false,
-        calendar: false,
-        phone: false,
-      };
-    }
-
-    return {
-      profile: Boolean((user?.first_name || user?.last_name) && (email || company.email)),
-      billing: hasActiveSubscription(company),
-      companyProfile: company.company_profile_completed === true,
-      serviceArea: company.service_area_completed === true,
-      knowledge: (knowledgeCount !== null ? knowledgeCount > 0 : false) || hasPricingProfileData(company),
-      calendar: company.calendar_setup_completed === true,
-      phone: Boolean(companyNumber),
-    };
+    return computeOnboardingStatus({
+      company,
+      userFirstName: user?.first_name,
+      userLastName: user?.last_name,
+      userEmail: email,
+      knowledgeCount,
+      companyNumber,
+    });
   }, [company, knowledgeCount, companyNumber, email, user?.first_name, user?.last_name]);
 
   const loading = isLoading || dataLoading;

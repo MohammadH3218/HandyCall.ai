@@ -1,24 +1,31 @@
-import { Body, Controller, Get, NotFoundException, Post, Put } from '@nestjs/common';
+import { Body, Controller, Get, NotFoundException, Post, Put, UseGuards } from '@nestjs/common';
 import { UserRole } from '@handycall/shared';
 import { UserRoleParam } from '../../common/decorators/auth.decorator';
 import { CompanyId } from '../../common/decorators/auth.decorator';
 import { FollowUpSequencesService } from './follow-up-sequences.service';
+import { PlanFeature, PlanFeatureGuard } from '../../common/guards/plan-feature.guard';
 
 @Controller('follow-up-sequences')
 export class FollowUpSequencesController {
   constructor(private readonly followUps: FollowUpSequencesService) {}
 
   @Get()
+  @UseGuards(PlanFeatureGuard)
+  @PlanFeature('follow_up_sequences')
   listSequences(@CompanyId() companyId: string) {
     return this.followUps.listSequences(companyId);
   }
 
   @Get('settings')
+  @UseGuards(PlanFeatureGuard)
+  @PlanFeature('follow_up_sequences')
   getSettings(@CompanyId() companyId: string) {
     return this.followUps.getSettings(companyId);
   }
 
   @Put('settings')
+  @UseGuards(PlanFeatureGuard)
+  @PlanFeature('follow_up_sequences')
   updateSettings(
     @CompanyId() companyId: string,
     @Body() body: {

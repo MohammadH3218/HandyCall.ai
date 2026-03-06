@@ -398,6 +398,7 @@ export class AppointmentsService {
 
     const base = {
       company_id: companyId,
+      company_contact: `${companyId}#${contact_id}`,
       status: input.status ?? AppointmentStatus.SCHEDULED,
       service_type: input.service_type ?? 'Service',
       contact_id,

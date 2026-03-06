@@ -169,8 +169,14 @@ export class BillingController {
    * POST /billing/connect/setup
    */
   @Post('connect/setup')
-  async setupConnectAccount(@CompanyId() companyId: string) {
-    const link = await this.stripeConnectService.createAccountLink(companyId);
+  async setupConnectAccount(
+    @CompanyId() companyId: string,
+    @Body() body?: { refresh_url?: string; return_url?: string },
+  ) {
+    const link = await this.stripeConnectService.createAccountLink(companyId, {
+      refresh_url: body?.refresh_url,
+      return_url: body?.return_url,
+    });
     const status = await this.stripeConnectService.getAccountStatus(companyId);
     return {
       ...link,
@@ -183,8 +189,14 @@ export class BillingController {
    * POST /billing/connect/onboarding-link
    */
   @Post('connect/onboarding-link')
-  async createConnectOnboardingLink(@CompanyId() companyId: string) {
-    return this.stripeConnectService.createAccountLink(companyId);
+  async createConnectOnboardingLink(
+    @CompanyId() companyId: string,
+    @Body() body?: { refresh_url?: string; return_url?: string },
+  ) {
+    return this.stripeConnectService.createAccountLink(companyId, {
+      refresh_url: body?.refresh_url,
+      return_url: body?.return_url,
+    });
   }
 
   /**

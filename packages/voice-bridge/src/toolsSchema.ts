@@ -173,6 +173,18 @@ export function toolsSchema(options?: { intakeFields?: string[] }) {
                 type: 'object',
                 properties: {}
             }
+        },
+        {
+            type: 'function',
+            name: 'mark_number_reused',
+            description: 'Call this ONLY when the caller has explicitly confirmed they are NOT the person on file for this phone number (i.e. the number has been reassigned to a new person). This marks the old customer profile as having a reused number and creates a fresh profile for the current caller.',
+            parameters: {
+                type: 'object',
+                properties: {
+                    old_contact_id: { type: 'string', description: 'The contact_id of the previous customer whose profile is being retired.' }
+                },
+                required: ['old_contact_id']
+            }
         }
     ];
 }

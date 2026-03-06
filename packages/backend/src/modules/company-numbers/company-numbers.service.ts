@@ -22,14 +22,41 @@ export class CompanyNumbersService {
   }
 
   async listCompanyNumbers(companyId: string): Promise<CompanyNumber[]> {
-    const result = await this.dynamodb.query(
-      this.tableName,
-      '#company_id = :company_id',
-      { '#company_id': 'company_id' },
-      { ':company_id': companyId },
-      { indexName: 'company-index' }
-    );
-    return result.items as CompanyNumber[];
+    try {
+      const result = await this.dynamodb.query(
+        this.tableName,
+        '#company_id = :company_id',
+        { '#company_id': 'company_id' },
+        { ':company_id': companyId },
+        { indexName: 'company-index' }
+      );
+      return result.items as CompanyNumber[];
+    } catch (error: any) {
+      const message = String(error?.message || '');
+      const name = String(error?.name || '');
+
+      if (name === 'ResourceNotFoundException' || message.includes('Requested resource not found')) {
+        // Local/dev bootstrap may not have this table yet; treat as "no numbers".
+        return [];
+      }
+
+      // Local/test environments may not have the optional GSI yet.
+      // Fall back to a filtered scan so onboarding can still assign demo numbers.
+      const isMissingCompanyIndex =
+        message.includes('company-index') &&
+        (message.includes('does not have the specified index') || message.includes('ValidationException'));
+
+      if (!isMissingCompanyIndex) {
+        throw error;
+      }
+
+      const scanned = await this.dynamodb.scan(this.tableName, {
+        filterExpression: '#company_id = :company_id',
+        expressionAttributeNames: { '#company_id': 'company_id' },
+        expressionAttributeValues: { ':company_id': companyId },
+      });
+      return scanned.items as CompanyNumber[];
+    }
   }
 
   async assignDidToCompany(input: {
@@ -42,7 +69,20 @@ export class CompanyNumbersService {
       throw new BadRequestException('did_e164 must be E.164 (e.g., +15551234567)');
     }
 
-    const existing = await this.dynamodb.get(this.tableName, { did_e164: input.did_e164 });
+    let existing: Record<string, any> | undefined;
+    try {
+      existing = await this.dynamodb.get(this.tableName, { did_e164: input.did_e164 });
+    } catch (error: any) {
+      const message = String(error?.message || '');
+      const name = String(error?.name || '');
+      if (name === 'ResourceNotFoundException' || message.includes('Requested resource not found')) {
+        throw new BadRequestException(
+          'Phone number storage is not initialized. Run the company-numbers table setup script and retry.',
+        );
+      }
+      throw error;
+    }
+
     if (existing && existing.company_id && existing.company_id !== input.company_id) {
       throw new BadRequestException('DID is already assigned to another company');
     }
@@ -57,7 +97,19 @@ export class CompanyNumbersService {
       updated_at: timestamp,
     };
 
-    await this.dynamodb.put(this.tableName, next);
+    try {
+      await this.dynamodb.put(this.tableName, next);
+    } catch (error: any) {
+      const message = String(error?.message || '');
+      const name = String(error?.name || '');
+      if (name === 'ResourceNotFoundException' || message.includes('Requested resource not found')) {
+        throw new BadRequestException(
+          'Phone number storage is not initialized. Run the company-numbers table setup script and retry.',
+        );
+      }
+      throw error;
+    }
+
     return next;
   }
 
@@ -70,4 +122,3 @@ export class CompanyNumbersService {
     await this.dynamodb.delete(this.tableName, { did_e164: input.did_e164 });
   }
 }
-

@@ -2077,4 +2077,79 @@ Service selection and billing rules:
       end_time: new Date(endMs).toISOString(),
     };
   }
+
+  async getContactByPhone(companyId: string, phone: string) {
+    if (!companyId || !phone) return null;
+    const normalized = asE164(phone);
+    if (!normalized) return null;
+
+    let items: any[] = [];
+    try {
+      const result = await this.dynamodb.queryByCompany(
+        'contacts',
+        companyId,
+        {
+          keyCondition: '#phone_number = :phone_number',
+          expressionAttributeNames: { '#phone_number': 'phone_number' },
+          expressionAttributeValues: { ':phone_number': normalized },
+        },
+        { indexName: 'phone-lookup', limit: 10 }
+      );
+      items = result.items || [];
+    } catch {
+      const scan = await this.dynamodb.scan('contacts', {
+        filterExpression: '#company_id = :company_id AND #phone_number = :phone_number',
+        expressionAttributeNames: { '#company_id': 'company_id', '#phone_number': 'phone_number' },
+        expressionAttributeValues: { ':company_id': companyId, ':phone_number': normalized },
+      });
+      items = scan.items || [];
+    }
+
+    // Return the most recent active (non-reused) contact
+    const active = items
+      .filter((c) => c.number_status !== 'reused')
+      .sort((a, b) => (b.created_at ?? 0) - (a.created_at ?? 0));
+
+    if (!active.length) return null;
+
+    const contact = active[0];
+    return {
+      contact_id: contact.contact_id,
+      name: contact.name || [contact.first_name, contact.last_name].filter(Boolean).join(' ') || undefined,
+      email: contact.email || undefined,
+      address: contact.address || undefined,
+      zip: contact.zipcode || contact.zip || undefined,
+      phone: contact.phone_number || contact.phone || undefined,
+    };
+  }
+
+  async markNumberReused(companyId: string, contactId: string, phone: string) {
+    if (!companyId || !contactId || !phone) {
+      throw new BadRequestException('company_id, contact_id, and phone are required');
+    }
+    const normalized = asE164(phone);
+    const now = Date.now();
+
+    // Mark old contact as reused
+    await this.dynamodb.update('contacts', { company_id: companyId, contact_id: contactId }, {
+      number_status: 'reused',
+      phone_reuse_date: now,
+      updated_at: now,
+    });
+
+    // Create new blank contact for the new owner of this number
+    const newContactId = uuidv4();
+    await this.dynamodb.put('contacts', {
+      company_id: companyId,
+      contact_id: newContactId,
+      phone: normalized,
+      phone_number: normalized,
+      number_status: 'new_owner',
+      created_at: now,
+      updated_at: now,
+      last_contact_at: now,
+    });
+
+    return { ok: true, new_contact_id: newContactId };
+  }
 }

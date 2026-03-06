@@ -7,6 +7,7 @@ import { EmptyState } from '@/components/portal/empty-state';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
+import { usePlanFeatures } from '@/hooks/use-plan-features';
 import { MessageSquare, Settings } from 'lucide-react';
 
 type FollowUpSettings = {
@@ -33,6 +34,7 @@ type Sequence = {
 
 export default function FollowUpsPage() {
   const { toast } = useToast();
+  const { hasFeature } = usePlanFeatures();
   const [settings, setSettings] = useState<FollowUpSettings | null>(null);
   const [sequences, setSequences] = useState<Sequence[]>([]);
   const [loading, setLoading] = useState(true);
@@ -70,6 +72,20 @@ export default function FollowUpsPage() {
   };
 
   useEffect(() => { void load(); }, []);
+
+  if (!hasFeature('follow_up_sequences')) {
+    return (
+      <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6">
+        <h2 className="text-lg font-semibold text-amber-900">Follow-ups are available on Pro and Max</h2>
+        <p className="mt-1 text-sm text-amber-800">
+          Upgrade your plan to enable automated follow-up sequences and review requests.
+        </p>
+        <Button className="mt-4" onClick={() => (window.location.href = '/dashboard/billing/plans')}>
+          Upgrade to Pro
+        </Button>
+      </div>
+    );
+  }
 
   const handleSave = async () => {
     if (!editSettings) return;

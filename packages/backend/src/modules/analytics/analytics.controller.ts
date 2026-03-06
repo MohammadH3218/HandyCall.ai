@@ -1,8 +1,11 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { AnalyticsService } from './analytics.service';
 import { CompanyId } from '../../common/decorators/auth.decorator';
+import { PlanFeature, PlanFeatureGuard } from '../../common/guards/plan-feature.guard';
 
 @Controller('analytics')
+@UseGuards(PlanFeatureGuard)
+@PlanFeature('follow_up_sequences')
 export class AnalyticsController {
   constructor(private readonly service: AnalyticsService) {}
 

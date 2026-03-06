@@ -48,8 +48,8 @@ export class RagService {
       // Split text into chunks (500 chars with 50 char overlap)
       const chunks = this.splitTextIntoChunks(text, 500, 50);
 
-      const tablePrefix = this.configService.get<string>('DYNAMODB_TABLE_PREFIX');
-      const tableName = `${tablePrefix}knowledge_chunks`;
+      // DynamoDBService already applies DYNAMODB_TABLE_PREFIX.
+      const tableName = 'knowledge_chunks';
 
       for (let i = 0; i < chunks.length; i++) {
         const embedding = await this.generateEmbedding(chunks[i]);
@@ -83,8 +83,8 @@ export class RagService {
       // Generate query embedding
       const queryEmbedding = await this.generateEmbedding(query);
 
-      const tablePrefix = this.configService.get<string>('DYNAMODB_TABLE_PREFIX');
-      const tableName = `${tablePrefix}knowledge_chunks`;
+      // DynamoDBService already applies DYNAMODB_TABLE_PREFIX.
+      const tableName = 'knowledge_chunks';
 
       // Get all chunks for company (in production, use vector DB for efficiency)
       const result = await this.dynamodb.scan(tableName, {
@@ -161,8 +161,8 @@ export class RagService {
     knowledgeId: string,
   ): Promise<void> {
     try {
-      const tablePrefix = this.configService.get<string>('DYNAMODB_TABLE_PREFIX');
-      const tableName = `${tablePrefix}knowledge_chunks`;
+      // DynamoDBService already applies DYNAMODB_TABLE_PREFIX.
+      const tableName = 'knowledge_chunks';
 
       // Query all chunks for this knowledge item
       const result = await this.dynamodb.query(

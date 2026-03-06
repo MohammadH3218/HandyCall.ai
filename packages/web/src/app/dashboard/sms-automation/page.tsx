@@ -6,8 +6,8 @@ import { PageHeader } from '@/components/portal/page-header';
 import { EmptyState } from '@/components/portal/empty-state';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
+import { usePlanFeatures } from '@/hooks/use-plan-features';
 import { MessageSquare, Plus, Trash2, X } from 'lucide-react';
 
 type SmsTemplate = {
@@ -53,6 +53,7 @@ function CategoryBadge({ category }: { category: string }) {
 
 export default function SmsAutomationPage() {
   const { toast } = useToast();
+  const { hasFeature } = usePlanFeatures();
   const [tab, setTab] = useState<'templates' | 'scheduled'>('templates');
   const [templates, setTemplates] = useState<SmsTemplate[]>([]);
   const [scheduled, setScheduled] = useState<ScheduledMessage[]>([]);
@@ -82,6 +83,20 @@ export default function SmsAutomationPage() {
   };
 
   useEffect(() => { void load(); }, []);
+
+  if (!hasFeature('follow_up_sequences')) {
+    return (
+      <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6">
+        <h2 className="text-lg font-semibold text-amber-900">SMS Automation is available on Pro and Max</h2>
+        <p className="mt-1 text-sm text-amber-800">
+          Upgrade your plan to create templates and run automated SMS campaigns.
+        </p>
+        <Button className="mt-4" onClick={() => (window.location.href = '/dashboard/billing/plans')}>
+          Upgrade to Pro
+        </Button>
+      </div>
+    );
+  }
 
   const handleCreate = async () => {
     if (!form.name || !form.body) return;

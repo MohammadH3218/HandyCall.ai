@@ -6,6 +6,7 @@ import Stripe from 'stripe';
 @Injectable()
 export class StripeService {
   private stripe: Stripe;
+  private resolvedPriceIds = new Map<string, string>();
 
   constructor(private configService: ConfigService) {
     const secretKey = this.configService.get<string>('STRIPE_SECRET_KEY');
@@ -243,19 +244,74 @@ export class StripeService {
   /**
    * Get price ID for a plan
    */
-  getPriceIdForPlan(plan: string): string {
+  async getPriceIdForPlan(plan: string): Promise<string> {
+    const normalizedPlan = String(plan || '').toUpperCase();
+    const cached = this.resolvedPriceIds.get(normalizedPlan);
+    if (cached) return cached;
+
     const priceIds = {
       STARTER: this.configService.get<string>('STRIPE_PRICE_STARTER'),
       PRO: this.configService.get<string>('STRIPE_PRICE_PRO'),
       MAX: this.configService.get<string>('STRIPE_PRICE_MAX'),
     };
 
-    const priceId = priceIds[plan as keyof typeof priceIds];
-    if (!priceId) {
-      throw new Error(`Price ID not configured for plan: ${plan}`);
+    const configured = priceIds[normalizedPlan as keyof typeof priceIds];
+    if (configured) {
+      this.resolvedPriceIds.set(normalizedPlan, configured);
+      return configured;
     }
 
-    return priceId;
+    // Fallback for local/dev: resolve a monthly recurring price directly from Stripe.
+    const planLower = normalizedPlan.toLowerCase();
+    const lookupKeys = [
+      planLower,
+      `${planLower}_monthly`,
+      `handycall_${planLower}`,
+      `handycall_${planLower}_monthly`,
+      `plan_${planLower}`,
+      `plan_${planLower}_monthly`,
+    ];
+
+    for (const lookupKey of lookupKeys) {
+      const res = await this.stripe.prices.list({
+        lookup_keys: [lookupKey],
+        active: true,
+        limit: 3,
+      });
+      const monthly = res.data.find((price) => price.recurring?.interval === 'month');
+      if (monthly?.id) {
+        this.resolvedPriceIds.set(normalizedPlan, monthly.id);
+        return monthly.id;
+      }
+    }
+
+    const all = await this.stripe.prices.list({
+      active: true,
+      limit: 100,
+      expand: ['data.product'],
+    });
+    const hints = [
+      planLower,
+      `${planLower} plan`,
+      `${planLower} monthly`,
+      `handycall ${planLower}`,
+    ];
+    const heuristic = all.data.find((price) => {
+      if (price.recurring?.interval !== 'month') return false;
+      const productObj = typeof price.product === 'object' ? (price.product as any) : null;
+      const productName = productObj?.deleted ? '' : String(productObj?.name || '').toLowerCase();
+      const lk = String(price.lookup_key || '').toLowerCase();
+      return hints.some((hint) => productName.includes(hint) || lk.includes(hint));
+    });
+
+    if (heuristic?.id) {
+      this.resolvedPriceIds.set(normalizedPlan, heuristic.id);
+      return heuristic.id;
+    }
+
+    throw new Error(
+      `Price ID not configured for plan: ${normalizedPlan}. Set STRIPE_PRICE_${normalizedPlan} or configure Stripe lookup keys.`,
+    );
   }
 
   /**

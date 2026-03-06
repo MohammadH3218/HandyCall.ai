@@ -69,7 +69,6 @@ async function refreshCognitoTokens(token: JWT): Promise<JWT> {
   if (!refreshToken || !email) {
     return {
       ...token,
-      accessToken: undefined,
       idToken: undefined,
       error: "RefreshAccessTokenError",
     };
@@ -89,20 +88,17 @@ async function refreshCognitoTokens(token: JWT): Promise<JWT> {
     if (!response.ok) {
       return {
         ...token,
-        accessToken: undefined,
         idToken: undefined,
         error: "RefreshAccessTokenError",
       };
     }
 
     const data = await response.json();
-    const accessToken = data.access_token || data.accessToken;
     const idToken = data.id_token || data.idToken;
     const nextRefreshToken = data.refresh_token || data.refreshToken || refreshToken;
 
     return {
       ...token,
-      accessToken: accessToken || token.accessToken,
       idToken: idToken || token.idToken,
       refreshToken: nextRefreshToken,
       error: undefined,
@@ -110,7 +106,6 @@ async function refreshCognitoTokens(token: JWT): Promise<JWT> {
   } catch {
     return {
       ...token,
-      accessToken: undefined,
       idToken: undefined,
       error: "RefreshAccessTokenError",
     };
@@ -219,7 +214,6 @@ export const authOptions: NextAuthOptions = {
           // Backend returns Cognito tokens via loginWithCognito
           // Extract tokens from response
           const idToken = data.id_token || data.idToken;
-          const accessToken = data.access_token || data.accessToken;
           const refreshToken = data.refresh_token || data.refreshToken;
           const nameFromResponse = (data.name as string | undefined) || (data.fullName as string | undefined);
           const givenNameFromResponse = (data.first_name as string | undefined) || (data.given_name as string | undefined);
@@ -252,7 +246,7 @@ export const authOptions: NextAuthOptions = {
           const resolvedGivenName = givenNameFromResponse || (decoded?.given_name as string | undefined);
           const resolvedFamilyName = familyNameFromResponse || (decoded?.family_name as string | undefined);
 
-          if (!idToken || !accessToken) {
+          if (!idToken) {
             throw new Error("Invalid response from authentication server");
           }
 
@@ -260,7 +254,6 @@ export const authOptions: NextAuthOptions = {
           return {
             id: credentials.email,
             email: credentials.email,
-            accessToken: accessToken,
             idToken: idToken,
             refreshToken: refreshToken,
             userRole: resolvedUserRole,
@@ -283,10 +276,8 @@ export const authOptions: NextAuthOptions = {
     async jwt({ token, user, account, profile }) {
       if (account && account.provider !== "credentials") {
         const idToken = (account as any).id_token as string | undefined;
-        const accessToken = (account as any).access_token as string | undefined;
         const refreshToken = (account as any).refresh_token as string | undefined;
 
-        if (accessToken) token.accessToken = accessToken;
         if (idToken) token.idToken = idToken;
         if (refreshToken) token.refreshToken = refreshToken;
 
@@ -313,8 +304,7 @@ export const authOptions: NextAuthOptions = {
 
       // Persist tokens from credentials provider without clobbering OAuth tokens
       if (user) {
-        if ((user as any).accessToken || (user as any).idToken) {
-          token.accessToken = (user as any).accessToken ?? token.accessToken;
+        if ((user as any).idToken) {
           token.idToken = (user as any).idToken ?? token.idToken;
           token.refreshToken = (user as any).refreshToken ?? token.refreshToken;
         }
@@ -338,8 +328,7 @@ export const authOptions: NextAuthOptions = {
       }
 
       const expiryMs =
-        getTokenExpiryMs(token.idToken as string | undefined) ??
-        getTokenExpiryMs(token.accessToken as string | undefined);
+        getTokenExpiryMs(token.idToken as string | undefined);
       if (expiryMs && Date.now() > expiryMs - TOKEN_REFRESH_BUFFER_MS) {
         token = await refreshCognitoTokens(token);
       }
@@ -349,9 +338,7 @@ export const authOptions: NextAuthOptions = {
     async session({ session, token }) {
       // Store tokens and role in session for server-side proxy to use
       if (token) {
-        (session as any).accessToken = token.accessToken as string;
         (session as any).idToken = token.idToken as string;
-        (session as any).refreshToken = token.refreshToken as string;
         const email = (token.email as string | undefined) || session.user?.email;
         const derivedRole =
           (token.userRole as UserRole | undefined) ||
@@ -373,8 +360,6 @@ export const authOptions: NextAuthOptions = {
         };
 
         (session.user as any).role = derivedRole;
-        (session.user as any).given_name = token.given_name;
-        (session.user as any).family_name = token.family_name;
         (session as any).userRole = derivedRole;
         (session as any).poolType = poolType;
         (session as any).error = token.error;
@@ -395,7 +380,7 @@ export const authOptions: NextAuthOptions = {
   },
   // Set the base URL for NextAuth callbacks
   useSecureCookies: process.env.NODE_ENV === 'production',
-  debug: process.env.NODE_ENV === 'development' || process.env.NEXTAUTH_DEBUG === 'true',
+  debug: process.env.NEXTAUTH_DEBUG === 'true',
   logger: {
     error(code, metadata) {
       console.error('[NextAuth Error]', code, metadata);

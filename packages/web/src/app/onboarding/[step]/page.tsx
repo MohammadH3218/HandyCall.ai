@@ -549,7 +549,12 @@ function BillingStep({ nextStep }: { nextStep?: OnboardingStepId }) {
   const { status, refreshAll, company } = useOnboarding();
   const { toast } = useToast();
   const publishableKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
-  const stripePromise = publishableKey ? loadStripe(publishableKey) : null;
+  const stripeKeyMissingOrInvalid =
+    !publishableKey ||
+    publishableKey === 'pk_test_xxx' ||
+    publishableKey.includes('local_dev_placeholder') ||
+    publishableKey.endsWith('_xxx');
+  const stripePromise = stripeKeyMissingOrInvalid ? null : loadStripe(publishableKey);
 
   const currentPlan = (company?.subscription_plan as SubscriptionPlan | undefined) || undefined;
   const [selectedPlan, setSelectedPlan] = useState<SubscriptionPlan | null>(currentPlan || null);
@@ -801,7 +806,8 @@ function BillingStep({ nextStep }: { nextStep?: OnboardingStepId }) {
         <CardContent>
           {!stripePromise ? (
             <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
-              Stripe publishable key is missing. Add NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY to continue.
+              Stripe publishable key is missing or invalid. Set a real test/live key in
+              NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY and restart the web app.
             </div>
           ) : (
             <Elements stripe={stripePromise}>

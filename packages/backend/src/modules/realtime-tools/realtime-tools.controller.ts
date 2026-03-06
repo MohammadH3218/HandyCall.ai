@@ -94,4 +94,14 @@ export class RealtimeToolsController {
   sendBookingLink(@Body() dto: SendBookingLinkDto) {
     return this.tools.sendBookingLink(dto);
   }
+
+  @Post('tools/get_customer_by_phone')
+  getCustomerByPhone(@Body() dto: { company_id: string; phone: string }) {
+    return this.tools.getContactByPhone(dto.company_id, dto.phone);
+  }
+
+  @Post('tools/mark_number_reused')
+  markNumberReused(@Body() dto: { company_id: string; contact_id: string; phone: string }) {
+    return this.tools.markNumberReused(dto.company_id, dto.contact_id, dto.phone);
+  }
 }

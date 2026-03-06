@@ -10,6 +10,15 @@ export class UsageService {
     private notifications: NotificationsService,
   ) {}
 
+  private isResourceNotFoundError(error: unknown): boolean {
+    if (!error || typeof error !== 'object') return false;
+    const e = error as { name?: string; message?: string };
+    return (
+      e.name === 'ResourceNotFoundException' ||
+      String(e.message || '').includes('Requested resource not found')
+    );
+  }
+
   /**
    * Increment call minutes for today
    */
@@ -133,22 +142,32 @@ export class UsageService {
     const endDate = new Date().toISOString().split('T')[0];
 
     // Use scan with filters to get usage records (more reliable across table structures)
-    const result = await this.dynamodb.scan('usage_metrics', {
-      filterExpression: '#company_id = :company_id AND #date BETWEEN :start_date AND :end_date',
-      expressionAttributeNames: {
-        '#company_id': 'company_id',
-        '#date': 'date',
-      },
-      expressionAttributeValues: {
-        ':company_id': companyId,
-        ':start_date': startDate,
-        ':end_date': endDate,
-      },
-      limit: 100,
-    });
+    let items: any[] = [];
+    try {
+      const result = await this.dynamodb.scan('usage_metrics', {
+        filterExpression: '#company_id = :company_id AND #date BETWEEN :start_date AND :end_date',
+        expressionAttributeNames: {
+          '#company_id': 'company_id',
+          '#date': 'date',
+        },
+        expressionAttributeValues: {
+          ':company_id': companyId,
+          ':start_date': startDate,
+          ':end_date': endDate,
+        },
+        limit: 100,
+      });
+      items = (result.items || []) as any[];
+    } catch (error) {
+      if (!this.isResourceNotFoundError(error)) {
+        throw error;
+      }
+      console.warn('[UsageService] usage_metrics table missing. Returning zero usage.');
+      items = [];
+    }
 
     // Aggregate totals
-    const totals = (result.items as any[]).reduce(
+    const totals = items.reduce(
       (acc, item: any) => ({
         minutes_used: acc.minutes_used + (item.minutes_used || 0),
         calls_count: acc.calls_count + (item.calls_count || 0),
@@ -178,21 +197,28 @@ export class UsageService {
     const end = endDate || new Date().toISOString().split('T')[0];
     const start = startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]; // Default 30 days
 
-    const result = await this.dynamodb.scan('usage_metrics', {
-      filterExpression: '#company_id = :company_id AND #date BETWEEN :start_date AND :end_date',
-      expressionAttributeNames: {
-        '#company_id': 'company_id',
-        '#date': 'date',
-      },
-      expressionAttributeValues: {
-        ':company_id': companyId,
-        ':start_date': start,
-        ':end_date': end,
-      },
-      limit: 100,
-    });
-
-    return result.items as UsageMetrics[];
+    try {
+      const result = await this.dynamodb.scan('usage_metrics', {
+        filterExpression: '#company_id = :company_id AND #date BETWEEN :start_date AND :end_date',
+        expressionAttributeNames: {
+          '#company_id': 'company_id',
+          '#date': 'date',
+        },
+        expressionAttributeValues: {
+          ':company_id': companyId,
+          ':start_date': start,
+          ':end_date': end,
+        },
+        limit: 100,
+      });
+      return result.items as UsageMetrics[];
+    } catch (error) {
+      if (!this.isResourceNotFoundError(error)) {
+        throw error;
+      }
+      console.warn('[UsageService] usage_metrics table missing. Returning empty usage history.');
+      return [];
+    }
   }
 
   /**
