@@ -342,6 +342,29 @@ export class StripeConnectService {
     });
   }
 
+  async getPaymentIntent(paymentIntentId: string): Promise<Stripe.PaymentIntent> {
+    if (!paymentIntentId?.trim()) {
+      throw new BadRequestException('payment intent id is required');
+    }
+    return this.stripe.paymentIntents.retrieve(paymentIntentId.trim(), {
+      expand: ['latest_charge'],
+    });
+  }
+
+  async getInvoice(invoiceId: string): Promise<Stripe.Invoice> {
+    if (!invoiceId?.trim()) {
+      throw new BadRequestException('invoice id is required');
+    }
+    return this.stripe.invoices.retrieve(invoiceId.trim(), {
+      expand: [
+        'payment_intent',
+        'charge',
+        'payments.data.payment.charge',
+        'payments.data.payment.payment_intent',
+      ],
+    });
+  }
+
   async refundPayment(
     companyId: string,
     paymentId: string,

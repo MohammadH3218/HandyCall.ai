@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
@@ -268,7 +268,7 @@ function ChoiceButton({
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export default function OnboardingSetupPage() {
+function OnboardingSetupContent() {
   const { loading, company, status, refreshAll, refreshKnowledge, companyNumber, refreshCompanyNumber } =
     useOnboarding();
   const { setCompany } = useAuthStore();
@@ -1828,5 +1828,22 @@ export default function OnboardingSetupPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function OnboardingSetupPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex h-full items-center justify-center">
+          <div className="flex flex-col items-center gap-3 text-center">
+            <div className="h-8 w-8 animate-spin rounded-full border-4 border-emerald-600 border-t-transparent" />
+            <p className="text-sm text-slate-500">Preparing your setup...</p>
+          </div>
+        </div>
+      }
+    >
+      <OnboardingSetupContent />
+    </Suspense>
   );
 }
