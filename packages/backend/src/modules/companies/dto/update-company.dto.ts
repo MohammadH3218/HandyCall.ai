@@ -45,6 +45,73 @@ const normalizeScheduleOverrides = (value: any) => {
   return value;
 };
 
+const normalizeCallFlowQuestions = (value: any) => {
+  if (!value) return value;
+
+  const normalizeEntry = (entry: any, index: number) => {
+    if (!entry) return null;
+
+    if (typeof entry === 'string') {
+      try {
+        entry = JSON.parse(entry);
+      } catch {
+        return null;
+      }
+    }
+
+    if (typeof entry !== 'object' || Array.isArray(entry)) {
+      return null;
+    }
+
+    const prompt = typeof entry.prompt === 'string' ? entry.prompt.trim() : '';
+    if (!prompt) return null;
+
+    const label =
+      typeof entry.label === 'string' && entry.label.trim()
+        ? entry.label.trim()
+        : `Question ${index + 1}`;
+
+    const fieldKeyRaw =
+      typeof entry.field_key === 'string' && entry.field_key.trim()
+        ? entry.field_key.trim()
+        : `custom_question_${index + 1}`;
+
+    const fieldKey = fieldKeyRaw
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '') || `custom_question_${index + 1}`;
+
+    return {
+      id:
+        typeof entry.id === 'string' && entry.id.trim()
+          ? entry.id.trim()
+          : `${fieldKey}-${index + 1}`,
+      field_key: fieldKey,
+      label,
+      prompt,
+      helper_text: typeof entry.helper_text === 'string' ? entry.helper_text : undefined,
+      required: entry.required !== false,
+      enabled: entry.enabled !== false,
+      order: Number.isFinite(Number(entry.order)) ? Number(entry.order) : index,
+    };
+  };
+
+  if (Array.isArray(value)) {
+    return value.map(normalizeEntry).filter(Boolean);
+  }
+
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed.map(normalizeEntry).filter(Boolean) : value;
+    } catch {
+      return value;
+    }
+  }
+
+  return value;
+};
+
 export class UpdateCompanyDto {
   @IsOptional()
   @IsString()
@@ -167,6 +234,7 @@ export class UpdateCompanyDto {
   @IsOptional()
   @IsArray()
   @IsObject({ each: true })
+  @Transform(({ value }) => normalizeCallFlowQuestions(value))
   call_flow_questions?: Array<{
     id: string;
     field_key: string;
