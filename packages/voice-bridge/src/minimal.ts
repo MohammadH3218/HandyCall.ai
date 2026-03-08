@@ -994,8 +994,59 @@ function buildRequiredBookingFields(tenant: TenantInfo): string[] {
     if (requiresBillingTypeSelection(tenant)) {
       required.push('selected_billing_type');
     }
+  } else if (
+    !required.some((field) => normalizeFieldKey(field) === 'selected_billing_type') &&
+    String(tenant?.service_type || '').toUpperCase() === 'PEST_CONTROL'
+  ) {
+    required.push('selected_billing_type');
   }
   return uniqueNormalizedFields(required);
+}
+
+function looksLikeBookingIntent(text?: string): boolean {
+  const normalized = normalizeSpeech(text);
+  if (!normalized) return false;
+  return [
+    'book',
+    'booking',
+    'appointment',
+    'schedule',
+    'service visit',
+    'come out',
+    'set up service',
+  ].some((phrase) => normalized.includes(phrase));
+}
+
+function buildIntakeQuestion(field: string, tenant: TenantInfo | null, details: Record<string, any>): string {
+  const key = normalizeFieldKey(field);
+  if (key === 'zip') return 'Could you give me your 5-digit ZIP code?';
+  if (key === 'full_name') return 'What is your full name?';
+  if (key === 'address') return 'What is the service address?';
+  if (key === 'email') return 'What is the best email for your confirmation?';
+  if (key === 'preferred_time') return 'What day and time would you like for the appointment?';
+  if (key === 'selected_billing_type') {
+    if (Array.isArray(tenant?.booking_services) && tenant!.booking_services!.length > 0) {
+      return 'Would you like a one-time service or a subscription plan?';
+    }
+    if (String(tenant?.service_type || '').toUpperCase() === 'PEST_CONTROL') {
+      return 'Would you like a one-time treatment or recurring monthly service?';
+    }
+    return 'Is this for a one-time service or an ongoing plan?';
+  }
+  if (key === 'selected_service_name') {
+    return tenant?.service_selection_guide?.default_question || 'Which service option would you like to book?';
+  }
+  if (key.includes('severity')) return 'How severe would you say the problem is: mild, moderate, or severe?';
+  if (key.includes('where') || key.includes('seen') || key.includes('area') || key.includes('location')) {
+    return 'Where have you seen the issue?';
+  }
+  if (key.includes('pest') || key.includes('symptom') || key.includes('issue') || key.includes('problem')) {
+    return 'What pest type or symptoms are you dealing with?';
+  }
+  if (details[key] && String(details[key]).trim()) {
+    return `Please confirm your ${titleizeField(field)}.`;
+  }
+  return `Could you tell me your ${titleizeField(field)}?`;
 }
 
 function inferRequestedFieldFromPrompt(prompt: string, fields: string[]): string | null {
@@ -1875,6 +1926,8 @@ wss.on('connection', (twilioWs: WebSocket) => {
   let collectedDetails: Record<string, any> = {};
   let lastCallerUtterance: string | null = null;
   let lastAssistantPromptText = '';
+  let bookingIntentActive = false;
+  let activeTenant: TenantInfo | null = null;
   let lastShortAckNormalized = '';
   let lastShortAckAt = 0;
   let diagTtsSeq = 0;
@@ -1911,6 +1964,60 @@ wss.on('connection', (twilioWs: WebSocket) => {
         ? "Sorry, didn't catch that. Are you calling to book an appointment, or do you have a quick question?"
         : "I'm still having trouble hearing you. If you'd like, I can take a message for a callback - what's your name?";
     createResponse(`Say: "${msg}"`);
+  }
+
+  function maybeDriveBookingIntake(): boolean {
+    if (!bookingIntentActive || !ctx || !openaiReady || !openaiWs || appointmentCreated) return false;
+
+    const intakeArgs = { details: { ...collectedDetails } };
+    if (serviceAreaRequired) {
+      const zipValue = String(collectedDetails.zip || '').trim();
+      if (zipValue && serviceAreaEligible === null) {
+        createResponse(
+          `The caller is booking and already gave ZIP code ${zipValue}. Call check_service_area now using that ZIP. Do not ask another question until you have the result.`
+        );
+        return true;
+      }
+      if (!zipValue) {
+        const zipQuestion = buildIntakeQuestion('zip', activeTenant, collectedDetails);
+        createResponse(`Ask ONLY this next question in one short sentence: "${zipQuestion}"`);
+        return true;
+      }
+      if (serviceAreaEligible === false) {
+        return false;
+      }
+    }
+
+    const nonSchedulingFields = requiredIntakeFields.filter((field) => !isSchedulingField(field));
+    const missingNonScheduling = findMissingRequired(nonSchedulingFields, intakeArgs);
+    if (missingNonScheduling.length > 0) {
+      const nextField = missingNonScheduling[0];
+      const question = buildIntakeQuestion(nextField, activeTenant, collectedDetails);
+      createResponse(
+        `The caller is booking. Ask ONLY this next intake question in one short natural sentence: "${question}" Do not ask about date or time yet. Do not recap previously collected details.`
+      );
+      return true;
+    }
+
+    const schedulingFields = requiredIntakeFields.filter((field) => isSchedulingField(field));
+    const missingScheduling = findMissingRequired(schedulingFields, intakeArgs);
+    if (missingScheduling.length > 0) {
+      const nextField = missingScheduling[0];
+      const question = buildIntakeQuestion(nextField, activeTenant, collectedDetails);
+      createResponse(
+        `All required non-scheduling intake fields are already collected. Ask ONLY this next scheduling question in one short natural sentence: "${question}" Do not recap prior details.`
+      );
+      return true;
+    }
+
+    if (collectedDetails.preferred_time && String(collectedDetails.preferred_time).trim()) {
+      createResponse(
+        `All required intake fields are already collected. The caller requested "${String(collectedDetails.preferred_time).trim()}". Do not ask any more intake questions. Call get_availability now using that preferred time.`
+      );
+      return true;
+    }
+
+    return false;
   }
 
   function buildModalities() {
@@ -2358,6 +2465,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
 
         const trimmed = String(text).trim();
         const now = Date.now();
+        const recentSpeech = lastSpeechStartAt && Date.now() - lastSpeechStartAt < 3500;
 
         // Ignore any transcription that arrives within 3.5s of the greeting — it's almost
         // always call-connect audio artifacts or the caller's own phone ringing.
@@ -2382,12 +2490,14 @@ wss.on('connection', (twilioWs: WebSocket) => {
           lastShortAckAt = now;
         }
 
-        const recentSpeech = lastSpeechStartAt && Date.now() - lastSpeechStartAt < 3500;
         if (!recentSpeech && trimmed.length < 6) {
           return;
         }
 
         if (isLowSignalTranscript(trimmed) || isFillerUtterance(trimmed)) {
+          if (!recentSpeech) {
+            return;
+          }
           if (assistantSpeaking && Date.now() - lastAssistantAudioAt < 2500) {
             return;
           }
@@ -2399,6 +2509,9 @@ wss.on('connection', (twilioWs: WebSocket) => {
         transcript.push(`Caller: ${trimmed}`);
         lastCallerUtterance = trimmed;
         lowSignalAttempts = 0;
+        if (looksLikeBookingIntent(trimmed)) {
+          bookingIntentActive = true;
+        }
         const inferredField = inferRequestedFieldFromPrompt(lastAssistantPromptText, requiredIntakeFields);
         if (inferredField) {
           const normalizedValue = stripFieldLeadIn(inferredField, trimmed);
@@ -2429,6 +2542,10 @@ wss.on('connection', (twilioWs: WebSocket) => {
           pendingHangup = true;
           const farewell = `Thanks for calling ${ctx.company_name || 'HandyCall'}. Have a great day.`;
           createResponse(`Say: "${farewell}"`);
+          return;
+        }
+
+        if (maybeDriveBookingIntake()) {
           return;
         }
 
@@ -2710,7 +2827,8 @@ wss.on('connection', (twilioWs: WebSocket) => {
                 }
               }
             }
-            if (toolName === 'check_service_area') {
+          if (toolName === 'check_service_area') {
+              bookingIntentActive = true;
               if (typeof (result as any)?.eligible === 'boolean') {
                 serviceAreaEligible = (result as any).eligible;
               }
@@ -2777,6 +2895,9 @@ wss.on('connection', (twilioWs: WebSocket) => {
           },
         });
         if (toolName !== 'end_call' && !customToolResponseIssued) {
+          if (toolName === 'check_service_area' && maybeDriveBookingIntake()) {
+            return;
+          }
           createResponse();
         }
       }
@@ -2829,6 +2950,8 @@ wss.on('connection', (twilioWs: WebSocket) => {
       serviceAreaRequired = templateRequiresZip || hasServiceZips;
       serviceAreaEligible = null;
       requiredIntakeFields = buildRequiredBookingFields(resolvedTenant);
+      activeTenant = resolvedTenant;
+      bookingIntentActive = false;
 
       ctx = {
         callSid,
