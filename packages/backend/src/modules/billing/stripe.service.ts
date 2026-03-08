@@ -19,6 +19,10 @@ export class StripeService {
     });
   }
 
+  getPublishableKey(): string | null {
+    return this.configService.get<string>('STRIPE_PUBLISHABLE_KEY') || null;
+  }
+
   /**
    * Create a Stripe customer
    */

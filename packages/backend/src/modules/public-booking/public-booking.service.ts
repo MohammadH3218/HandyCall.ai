@@ -19,9 +19,24 @@ import { renderHandycallEmail } from '../../common/email-templates';
 import { AppointmentStatus, isValidEmail } from '@handycall/shared';
 import { signBookingToken, verifyBookingToken } from './booking-link.util';
 import { v4 as uuidv4 } from 'uuid';
+import { applyCompanyCallFlowToTemplate } from '../companies/company-call-flow.util';
 
 type BookingTemplate = {
-  intake_schema?: { required?: string[]; optional?: string[] };
+  intake_schema?: {
+    required?: string[];
+    optional?: string[];
+    labels?: Record<string, string>;
+    questions?: Array<{
+      id?: string;
+      field_key?: string;
+      label?: string;
+      prompt?: string;
+      helper_text?: string;
+      required?: boolean;
+      enabled?: boolean;
+      order?: number;
+    }>;
+  };
   booking_defaults?: { duration_minutes?: number };
 };
 
@@ -284,7 +299,7 @@ export class PublicBookingService {
     const templateId = (company as any).service_template_id || 'tmpl_handyman_v1';
     try {
       const template = await this.dynamodb.get('service_templates', { template_id: templateId });
-      return template as BookingTemplate;
+      return applyCompanyCallFlowToTemplate(template as BookingTemplate, (company as any).call_flow_questions) as BookingTemplate;
     } catch {
       return undefined;
     }
@@ -319,11 +334,14 @@ export class PublicBookingService {
   private extractRequiredFields(template?: BookingTemplate) {
     const required = Array.isArray(template?.intake_schema?.required) ? template!.intake_schema!.required! : [];
     const optional = Array.isArray(template?.intake_schema?.optional) ? template!.intake_schema!.optional! : [];
+    const configuredLabels = template?.intake_schema && typeof (template.intake_schema as any).labels === 'object'
+      ? ((template.intake_schema as any).labels as Record<string, string>)
+      : {};
     return {
       required,
       optional,
       labels: [...required, ...optional].reduce<Record<string, string>>((acc, key) => {
-        acc[key] = titleize(key);
+        acc[key] = configuredLabels[key] || titleize(key);
         return acc;
       }, {}),
     };

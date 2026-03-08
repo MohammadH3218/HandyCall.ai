@@ -26,9 +26,15 @@ import { useOnboarding } from '@/components/onboarding/onboarding-context';
 import { useAuthStore } from '@/stores/auth-store';
 import { apiClient } from '@/lib/api-client';
 import { SERVICE_TYPE_OPTIONS } from '@/constants/service-types';
+import {
+  COMPANY_TEMPLATE_OPTIONS,
+  createDefaultCallFlowQuestions,
+  getKnowledgeBasePromptSuggestions,
+} from '@/constants/company-templates';
 import { TIMEZONE_OPTIONS, DEFAULT_TIMEZONE } from '@/constants/timezones';
 import { PLAN_CATALOG, getPlanPriceDisplay } from '@/constants/plans';
-import { SubscriptionPlan } from '@handycall/shared';
+import { CompanyCallFlowQuestion, ServiceType, SubscriptionPlan } from '@handycall/shared';
+import { CallFlowEditor } from '@/components/company/call-flow-editor';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -49,6 +55,7 @@ type Phase =
   | 'phone_forward'
   | 'knowledge_intro'
   | 'knowledge_chat'
+  | 'call_flow_editor'
   | 'billing_plan'
   | 'billing_payment'
   | 'billing_payment_mode'
@@ -99,6 +106,26 @@ function compactHours(hours: CalendarHours) {
     if (!row.closed) out[day] = { open: row.open, close: row.close };
   }
   return out;
+}
+
+function normalizeCallFlowQuestions(
+  questions: CompanyCallFlowQuestion[] | undefined | null,
+): CompanyCallFlowQuestion[] {
+  if (!Array.isArray(questions)) return [];
+  return questions
+    .map((question, index) => ({
+      ...question,
+      id: String(question?.id || `${question?.field_key || 'question'}-${index + 1}`),
+      field_key: String(question?.field_key || '').trim(),
+      label: String(question?.label || '').trim(),
+      prompt: String(question?.prompt || '').trim(),
+      required: question?.required !== false,
+      enabled: question?.enabled !== false,
+      order: Number.isFinite(Number(question?.order)) ? Number(question?.order) : index,
+    }))
+    .filter((question) => question.field_key && question.label && question.prompt)
+    .sort((a, b) => Number(a.order || 0) - Number(b.order || 0))
+    .map((question, index) => ({ ...question, order: index }));
 }
 
 function normalizeHours(source: any): CalendarHours {
@@ -304,45 +331,44 @@ function OnboardingSetupContent() {
   // "Other / Not listed" service type
   const [showOtherInput, setShowOtherInput] = useState(false);
   const [otherServiceInput, setOtherServiceInput] = useState('');
+  const [callFlowQuestions, setCallFlowQuestions] = useState<CompanyCallFlowQuestion[]>([]);
 
   // Knowledge AI state
   const [kbMessages, setKbMessages] = useState<KnowledgeMsg[]>([]);
   const [kbInput, setKbInput] = useState('');
   const [kbLoading, setKbLoading] = useState(false);
-  const [kbDone, setKbDone] = useState(false);
   const [kbGenerating, setKbGenerating] = useState(false);
   const [kbError, setKbError] = useState<string | null>(null);
-
-  // Structured knowledge form state
-  const [kbForm, setKbForm] = useState({
-    pricingModel: '' as 'fixed' | 'hourly' | 'quote' | 'mixed' | '',
-    basePrice: '',
-    whatsIncluded: '',
-    emergencyCharge: '',
-    depositRequired: '',
-    cancellationPolicy: '',
-    warranty: '',
-    faq1Question: '',
-    faq1Answer: '',
-    faq2Question: '',
-    faq2Answer: '',
-    serviceProducts: '' as string, // comma-separated: "name:price" pairs
-  });
 
   // Billing state
   const [selectedPlan, setSelectedPlan] = useState<SubscriptionPlan | null>(null);
   const [paymentModeSaving, setPaymentModeSaving] = useState(false);
   const [connectBusy, setConnectBusy] = useState(false);
   const [connectStatus, setConnectStatus] = useState<any>(null);
+  const [stripePublishableKey, setStripePublishableKey] = useState<string | null>(
+    process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || null,
+  );
   const stripePromise = useMemo(() => {
-    const key = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
+    const key = stripePublishableKey;
     const invalidPlaceholder =
       !key ||
       key === 'pk_test_xxx' ||
       key.includes('local_dev_placeholder') ||
       key.endsWith('_xxx');
     return invalidPlaceholder ? null : loadStripe(key);
-  }, []);
+  }, [stripePublishableKey]);
+
+  useEffect(() => {
+    if (stripePublishableKey && !stripePublishableKey.includes('local_dev_placeholder') && !stripePublishableKey.endsWith('_xxx')) {
+      return;
+    }
+    apiClient
+      .getBillingConfig()
+      .then((config) => {
+        if (config?.publishable_key) setStripePublishableKey(config.publishable_key);
+      })
+      .catch(() => null);
+  }, [stripePublishableKey]);
 
   // Auto-scroll on new messages
   useEffect(() => {
@@ -402,6 +428,11 @@ function OnboardingSetupContent() {
       setCities(company.service_area_cities as string[]);
     if (company?.business_hours) setCalendarHours(normalizeHours(company.business_hours));
     if (company?.phone_number) setForwardNumber(company.phone_number as string);
+    if (Array.isArray((company as any)?.call_flow_questions) && (company as any).call_flow_questions.length > 0) {
+      setCallFlowQuestions(normalizeCallFlowQuestions((company as any).call_flow_questions));
+    } else if (company?.service_type) {
+      setCallFlowQuestions(createDefaultCallFlowQuestions(company.service_type as ServiceType));
+    }
 
     void startChat(status);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -431,6 +462,11 @@ function OnboardingSetupContent() {
       await goTo(
         'knowledge_intro',
         "Now let's build your AI receptionist's knowledge base so it can answer caller questions accurately.",
+      );
+    } else if (!((company as any)?.call_flow_questions?.length)) {
+      await goTo(
+        'call_flow_editor',
+        "Next, review the questions your AI should ask before it ever asks for a date and time. You can edit the wording, remove questions, add new ones, and control the order here.",
       );
     } else if (!s.billing) {
       await goTo('billing_plan', "Last step — let's activate your HandyCall subscription.");
@@ -481,6 +517,7 @@ function OnboardingSetupContent() {
     setShowOtherInput(false);
     setOtherServiceInput('');
     const displayLabel = label;
+    const defaultQuestions = createDefaultCallFlowQuestions(value as ServiceType);
     userSay(displayLabel, () =>
       editStep('Which service type best describes your business?', 'service_type', () => {
         setShowOtherInput(false);
@@ -489,7 +526,8 @@ function OnboardingSetupContent() {
     );
     setIsSaving(true);
     try {
-      await apiClient.updateMyCompany({ service_type: value });
+      await apiClient.updateMyCompany({ service_type: value, call_flow_questions: defaultQuestions });
+      setCallFlowQuestions(defaultQuestions);
       await refreshAll();
       await goTo('timezone', 'What timezone are you in?');
     } catch {
@@ -777,41 +815,24 @@ function OnboardingSetupContent() {
 
   const handleStartKnowledge = async () => {
     userSay("Let's build it!");
+    const suggestions = getKnowledgeBasePromptSuggestions((company?.service_type as ServiceType | undefined) || undefined);
+    setKbMessages([
+      {
+        role: 'assistant',
+        content:
+          'Tell me the company-specific facts you want your AI receptionist to answer confidently. Focus on what is unique to your business, not general small-talk or generic customer service answers.',
+      },
+      {
+        role: 'assistant',
+        content:
+          `Use this chat like you're briefing a new receptionist. Add the company-specific answers you want the AI to know before it starts taking real calls.\n\n` +
+          suggestions.map((item, index) => `${index + 1}. ${item}`).join('\n'),
+      },
+    ]);
     await botSay(
-      "Fill in the details below — your pricing, policies, and top customer questions. This becomes your AI receptionist's knowledge base. You can always add more from your dashboard later.",
+      "Use the chat below to tell HandyCall what customers should hear about your services, pricing, policies, and anything specific to your business.",
     );
     setPhase('knowledge_chat');
-  };
-
-  const handleBuildFromForm = async () => {
-    const f = kbForm;
-    const parts: string[] = [];
-    if (f.pricingModel) {
-      const labels: Record<string, string> = { fixed: 'fixed price', hourly: 'hourly rate', quote: 'quote after inspection', mixed: 'mixed pricing' };
-      parts.push(`My pricing model is ${labels[f.pricingModel] || f.pricingModel}.`);
-    }
-    if (f.basePrice.trim()) parts.push(`My base price or rate is: ${f.basePrice.trim()}.`);
-    if (f.whatsIncluded.trim()) parts.push(`What's included in the base price: ${f.whatsIncluded.trim()}.`);
-    if (f.emergencyCharge.trim()) parts.push(`Emergency or after-hours charge: ${f.emergencyCharge.trim()}.`);
-    if (f.depositRequired.trim()) parts.push(`Deposit or upfront payment policy: ${f.depositRequired.trim()}.`);
-    if (f.cancellationPolicy.trim()) parts.push(`Cancellation policy: ${f.cancellationPolicy.trim()}.`);
-    if (f.warranty.trim()) parts.push(`Warranty or guarantee: ${f.warranty.trim()}.`);
-    if (f.faq1Question.trim() && f.faq1Answer.trim()) {
-      parts.push(`Common question 1: "${f.faq1Question.trim()}" — Answer: ${f.faq1Answer.trim()}.`);
-    }
-    if (f.faq2Question.trim() && f.faq2Answer.trim()) {
-      parts.push(`Common question 2: "${f.faq2Question.trim()}" — Answer: ${f.faq2Answer.trim()}.`);
-    }
-    if (f.serviceProducts.trim()) {
-      parts.push(`Services and pricing offered: ${f.serviceProducts.trim()}.`);
-    }
-    if (parts.length === 0) {
-      setKbError('Please fill in at least one field before generating your knowledge base.');
-      return;
-    }
-    const messages: KnowledgeMsg[] = [{ role: 'user', content: parts.join('\n') }];
-    setKbMessages(messages);
-    await handleGenerateKnowledge(messages);
   };
 
   const fetchKbReply = async (history: KnowledgeMsg[]) => {
@@ -823,7 +844,6 @@ function OnboardingSetupContent() {
       if (msg) {
         setKbMessages([...history, { role: 'assistant', content: msg }]);
       }
-      setKbDone(res?.done === true);
     } catch {
       setKbError(
         "The AI interview is temporarily unavailable. You can still generate a knowledge base with what you've answered, or skip and add entries manually from the dashboard.",
@@ -845,7 +865,13 @@ function OnboardingSetupContent() {
   const handleGenerateKnowledge = async (overrideMessages?: KnowledgeMsg[]) => {
     setKbGenerating(true);
     setKbError(null);
-    const msgs = overrideMessages ?? kbMessages;
+    const draft = kbInput.trim();
+    const baseMessages = overrideMessages ?? kbMessages;
+    const msgs = draft ? [...baseMessages, { role: 'user' as const, content: draft }] : baseMessages;
+    if (draft) {
+      setKbMessages(msgs);
+      setKbInput('');
+    }
     try {
       const [kbRes, prodRes] = await Promise.all([
         apiClient.knowledgeAssistantGenerate(msgs, true),
@@ -860,9 +886,9 @@ function OnboardingSetupContent() {
         ? ` I also created ${productsCreated} service product${productsCreated === 1 ? '' : 's'} in your Payments page.`
         : '';
       await goTo(
-        'billing_plan',
+        'call_flow_editor',
         `Done! I created ${created} knowledge entr${created === 1 ? 'y' : 'ies'} for your AI receptionist.${productNote} You can always add more from your dashboard.`,
-        "Now for the last step — let's activate your HandyCall subscription. Which plan fits your business?",
+        'Now review the exact intake questions your AI should ask before it ever asks for a date and time.',
       );
     } catch (err: any) {
       setKbError(err?.message || 'Could not generate knowledge base. Try again.');
@@ -874,9 +900,31 @@ function OnboardingSetupContent() {
   const handleSkipKnowledge = async () => {
     userSay('Skip for now');
     await goTo(
-      'billing_plan',
-      "No problem! You can add knowledge entries anytime from your dashboard. Let's activate your subscription.",
+      'call_flow_editor',
+      'No problem! You can add knowledge entries anytime from your dashboard. Before we finish, review the intake questions your AI should ask before scheduling.',
     );
+  };
+
+  const handleSaveCallFlow = async () => {
+    const normalized = normalizeCallFlowQuestions(callFlowQuestions).filter((question) => question.enabled !== false);
+    if (normalized.length === 0) {
+      setErrMsg('Keep at least one intake question enabled before continuing.');
+      return;
+    }
+    setIsSaving(true);
+    try {
+      await apiClient.updateMyCompany({ call_flow_questions: normalized });
+      await refreshAll();
+      userSay(`Saved ${normalized.length} intake question${normalized.length === 1 ? '' : 's'}`);
+      await goTo(
+        'billing_plan',
+        'Call flow saved. Last step: choose a plan and set up payments if you want HandyCall to handle customer payments.',
+      );
+    } catch (err: any) {
+      setErrMsg(err?.message || 'Could not save your AI call flow.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handlePlanSelect = async (plan: SubscriptionPlan) => {
@@ -1015,25 +1063,52 @@ function OnboardingSetupContent() {
         {/* Service type */}
         {phase === 'service_type' && (
           <div className="space-y-3">
-            <div className="flex flex-wrap gap-2">
-              {SERVICE_TYPE_OPTIONS.filter((opt) => (opt.value as string) !== 'OTHER').map((opt) => (
-                <ChipButton
-                  key={opt.value}
-                  onClick={() => void handleServiceType(opt.value, opt.label)}
+            <div className="grid gap-3 md:grid-cols-2">
+              {COMPANY_TEMPLATE_OPTIONS.map((option) => (
+                <button
+                  key={option.serviceType}
+                  type="button"
+                  onClick={() => void handleServiceType(option.serviceType, option.title)}
                   disabled={isSaving}
+                  className="rounded-2xl border border-slate-200 bg-white p-4 text-left transition hover:border-emerald-400 hover:bg-emerald-50/60"
                 >
-                  {opt.label}
-                </ChipButton>
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">{option.category}</p>
+                      <h3 className="mt-1 text-lg font-semibold text-slate-900">{option.title}</h3>
+                    </div>
+                    <IconArrowRight className="h-5 w-5 text-slate-300" stroke={1.5} />
+                  </div>
+                  <p className="mt-2 text-sm text-slate-600">{option.description}</p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {option.highlights.map((highlight) => (
+                      <span key={highlight} className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">
+                        {highlight}
+                      </span>
+                    ))}
+                  </div>
+                </button>
               ))}
-              <ChipButton
-                onClick={() => {
-                  setShowOtherInput(true);
-                  setOtherServiceInput('');
-                }}
-                disabled={isSaving || showOtherInput}
-              >
-                Other / Not listed →
-              </ChipButton>
+            </div>
+            <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-4">
+              <p className="text-sm font-semibold text-slate-900">Need something custom?</p>
+              <p className="mt-1 text-sm text-slate-600">
+                Pick the closest template. You can edit every intake question and its order in the next step.
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {SERVICE_TYPE_OPTIONS.filter((opt) => (opt.value as string) === 'OTHER').map((opt) => (
+                  <ChipButton
+                    key={opt.value}
+                    onClick={() => {
+                      setShowOtherInput(true);
+                      setOtherServiceInput('');
+                    }}
+                    disabled={isSaving || showOtherInput}
+                  >
+                    {opt.label}
+                  </ChipButton>
+                ))}
+              </div>
             </div>
             {showOtherInput && (
               <div className="flex gap-2">
@@ -1047,7 +1122,7 @@ function OnboardingSetupContent() {
                     otherServiceInput.trim() &&
                     void handleServiceType('OTHER', otherServiceInput.trim())
                   }
-                  placeholder="e.g. Septic tank cleaning, Foundation repair..."
+                  placeholder="e.g. Septic tank cleaning, foundation repair..."
                   disabled={isSaving}
                   className="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 disabled:opacity-50"
                 />
@@ -1449,177 +1524,96 @@ function OnboardingSetupContent() {
 
         {/* Knowledge structured form */}
         {phase === 'knowledge_chat' && (
-          <div className="space-y-4 rounded-xl border border-slate-200 bg-white p-4">
-            {/* Pricing model */}
-            <div>
-              <label className="mb-1.5 block text-xs font-semibold text-slate-700">Pricing model <span className="text-slate-400">(required)</span></label>
-              <div className="flex flex-wrap gap-2">
-                {([
-                  { value: 'fixed', label: 'Fixed price' },
-                  { value: 'hourly', label: 'Hourly rate' },
-                  { value: 'quote', label: 'Quote after inspection' },
-                  { value: 'mixed', label: 'Mixed' },
-                ] as const).map(({ value, label }) => (
+          <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-4">
+            <div className="rounded-2xl border border-emerald-100 bg-emerald-50/70 p-4">
+              <p className="text-sm font-semibold text-slate-900">What to include here</p>
+              <p className="mt-1 text-sm text-slate-600">
+                Put in the business-specific answers customers ask before they book: services, pricing rules, what is included, service area details, deposits, cancellation policy, warranties, timing expectations, and anything else your receptionist should answer consistently.
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {getKnowledgeBasePromptSuggestions((company?.service_type as ServiceType | undefined) || undefined).map((item) => (
                   <button
-                    key={value}
+                    key={item}
                     type="button"
-                    onClick={() => setKbForm((f) => ({ ...f, pricingModel: value }))}
-                    className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition ${
-                      kbForm.pricingModel === value
-                        ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
-                        : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
-                    }`}
+                    onClick={() => setKbInput((prev) => (prev ? `${prev}\n- ${item}` : item))}
+                    className="rounded-full border border-emerald-200 bg-white px-3 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-100"
                   >
-                    {label}
+                    {item}
                   </button>
                 ))}
               </div>
             </div>
 
-            {/* Base price */}
-            <div>
-              <label className="mb-1 block text-xs font-semibold text-slate-700">Starting price or rate <span className="text-slate-400">(required)</span></label>
-              <input
-                type="text"
-                value={kbForm.basePrice}
-                onChange={(e) => setKbForm((f) => ({ ...f, basePrice: e.target.value }))}
-                placeholder="e.g. $150 flat rate, $85/hour with 1hr minimum"
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
-              />
+            <div className="max-h-80 space-y-3 overflow-y-auto rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
+              {kbMessages.map((msg, index) => (
+                <div key={`${msg.role}-${index}`} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                  <div
+                    className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm ${
+                      msg.role === 'user' ? 'bg-emerald-600 text-white' : 'bg-white text-slate-700 shadow-sm'
+                    }`}
+                  >
+                    <div className="whitespace-pre-wrap">{msg.content}</div>
+                  </div>
+                </div>
+              ))}
+              {kbLoading && <p className="text-sm text-slate-500">Assistant is thinking…</p>}
             </div>
 
-            {/* What's included */}
-            <div>
-              <label className="mb-1 block text-xs font-semibold text-slate-700">What's included in your base price</label>
+            <div className="space-y-3">
               <textarea
-                value={kbForm.whatsIncluded}
-                onChange={(e) => setKbForm((f) => ({ ...f, whatsIncluded: e.target.value }))}
-                placeholder="e.g. Labor, standard parts, travel within 20 miles"
-                rows={2}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
+                value={kbInput}
+                onChange={(e) => setKbInput(e.target.value)}
+                placeholder="Example: We offer one-time and monthly pest plans. Our one-time treatment starts at $149. Monthly plans start at $39/month. We service Fulshear, Katy, and Richmond. Customers often ask if pets need to stay outside during treatment..."
+                rows={5}
+                className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
               />
-            </div>
-
-            {/* Services / pricing for payment page */}
-            <div>
-              <label className="mb-1 block text-xs font-semibold text-slate-700">Services you offer with pricing <span className="text-slate-400">(will also be added to your Payments page)</span></label>
-              <textarea
-                value={kbForm.serviceProducts}
-                onChange={(e) => setKbForm((f) => ({ ...f, serviceProducts: e.target.value }))}
-                placeholder="e.g. Basic drain cleaning - $129, Water heater install - $450, HVAC tune-up - $89"
-                rows={2}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
-              />
-            </div>
-
-            {/* Emergency charge */}
-            <div>
-              <label className="mb-1 block text-xs font-semibold text-slate-700">Emergency / after-hours charge <span className="text-slate-400">(optional)</span></label>
-              <input
-                type="text"
-                value={kbForm.emergencyCharge}
-                onChange={(e) => setKbForm((f) => ({ ...f, emergencyCharge: e.target.value }))}
-                placeholder="e.g. $75 surcharge after 6pm and on weekends"
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
-              />
-            </div>
-
-            {/* Deposit */}
-            <div>
-              <label className="mb-1 block text-xs font-semibold text-slate-700">Deposit or upfront payment <span className="text-slate-400">(optional)</span></label>
-              <input
-                type="text"
-                value={kbForm.depositRequired}
-                onChange={(e) => setKbForm((f) => ({ ...f, depositRequired: e.target.value }))}
-                placeholder="e.g. 50% deposit required to book, balance due on completion"
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
-              />
-            </div>
-
-            {/* Cancellation policy */}
-            <div>
-              <label className="mb-1 block text-xs font-semibold text-slate-700">Cancellation policy <span className="text-slate-400">(optional)</span></label>
-              <input
-                type="text"
-                value={kbForm.cancellationPolicy}
-                onChange={(e) => setKbForm((f) => ({ ...f, cancellationPolicy: e.target.value }))}
-                placeholder="e.g. Free cancellation up to 24 hours before appointment"
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
-              />
-            </div>
-
-            {/* Warranty */}
-            <div>
-              <label className="mb-1 block text-xs font-semibold text-slate-700">Warranty or guarantee <span className="text-slate-400">(optional)</span></label>
-              <input
-                type="text"
-                value={kbForm.warranty}
-                onChange={(e) => setKbForm((f) => ({ ...f, warranty: e.target.value }))}
-                placeholder="e.g. 30-day labor warranty on all repairs"
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
-              />
-            </div>
-
-            {/* FAQ 1 */}
-            <div>
-              <label className="mb-1 block text-xs font-semibold text-slate-700">Top customer question #1 <span className="text-slate-400">(optional)</span></label>
-              <input
-                type="text"
-                value={kbForm.faq1Question}
-                onChange={(e) => setKbForm((f) => ({ ...f, faq1Question: e.target.value }))}
-                placeholder="Question customers often ask..."
-                className="mb-1.5 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
-              />
-              <input
-                type="text"
-                value={kbForm.faq1Answer}
-                onChange={(e) => setKbForm((f) => ({ ...f, faq1Answer: e.target.value }))}
-                placeholder="Your answer..."
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
-              />
-            </div>
-
-            {/* FAQ 2 */}
-            <div>
-              <label className="mb-1 block text-xs font-semibold text-slate-700">Top customer question #2 <span className="text-slate-400">(optional)</span></label>
-              <input
-                type="text"
-                value={kbForm.faq2Question}
-                onChange={(e) => setKbForm((f) => ({ ...f, faq2Question: e.target.value }))}
-                placeholder="Question customers often ask..."
-                className="mb-1.5 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
-              />
-              <input
-                type="text"
-                value={kbForm.faq2Answer}
-                onChange={(e) => setKbForm((f) => ({ ...f, faq2Answer: e.target.value }))}
-                placeholder="Your answer..."
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
-              />
-            </div>
-
-            {kbError && (
-              <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-800">
-                {kbError}
+              {kbError && (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-800">
+                  {kbError}
+                </div>
+              )}
+              <div className="flex flex-wrap gap-2">
+                <ActionButton onClick={sendKbMessage} disabled={!kbInput.trim() || kbLoading} loading={kbLoading}>
+                  <IconSend className="h-4 w-4" stroke={1.5} />
+                  Ask assistant to guide me
+                </ActionButton>
+                <ActionButton
+                  onClick={() => void handleGenerateKnowledge()}
+                  disabled={kbGenerating || (kbMessages.filter((msg) => msg.role === 'user').length === 0 && !kbInput.trim())}
+                  loading={kbGenerating}
+                >
+                  <IconBrain className="h-4 w-4" stroke={1.5} />
+                  {kbGenerating ? 'Building knowledge base...' : 'Build knowledge base'}
+                </ActionButton>
+                <button
+                  type="button"
+                  onClick={() => void handleSkipKnowledge()}
+                  className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-500 hover:bg-slate-50"
+                >
+                  Skip for now
+                </button>
               </div>
-            )}
+            </div>
+          </div>
+        )}
 
+        {phase === 'call_flow_editor' && (
+          <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-4">
+            <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+              <p className="text-sm font-semibold text-slate-900">Control the questions your AI asks before scheduling</p>
+              <p className="mt-1 text-sm text-slate-600">
+                Edit the exact wording, remove anything unnecessary, add custom company questions, and set the order. The scheduling question stays automatic and always comes last.
+              </p>
+            </div>
+            <CallFlowEditor
+              questions={callFlowQuestions}
+              onChange={setCallFlowQuestions}
+            />
             <div className="flex flex-wrap gap-2">
-              <ActionButton
-                onClick={handleBuildFromForm}
-                disabled={kbGenerating || (!kbForm.pricingModel && !kbForm.basePrice.trim())}
-                loading={kbGenerating}
-              >
-                <IconBrain className="h-4 w-4" stroke={1.5} />
-                {kbGenerating ? 'Building knowledge base...' : 'Build knowledge base'}
+              <ActionButton onClick={handleSaveCallFlow} disabled={isSaving} loading={isSaving}>
+                <IconCheck className="h-4 w-4" stroke={1.5} />
+                Save call flow
               </ActionButton>
-              <button
-                type="button"
-                onClick={() => void handleSkipKnowledge()}
-                className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-500 hover:bg-slate-50"
-              >
-                Skip for now
-              </button>
             </div>
           </div>
         )}

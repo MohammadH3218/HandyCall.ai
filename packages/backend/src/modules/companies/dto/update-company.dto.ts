@@ -165,6 +165,20 @@ export class UpdateCompanyDto {
   pricing_profile?: Record<string, any>;
 
   @IsOptional()
+  @IsArray()
+  @IsObject({ each: true })
+  call_flow_questions?: Array<{
+    id: string;
+    field_key: string;
+    label: string;
+    prompt: string;
+    helper_text?: string;
+    required?: boolean;
+    enabled?: boolean;
+    order?: number;
+  }>;
+
+  @IsOptional()
   @IsBoolean()
   company_profile_completed?: boolean;
 

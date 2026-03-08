@@ -272,6 +272,16 @@ export class CompaniesService {
       service_area_zipcodes?: string[];
       service_area_cities?: string[];
       pricing_profile?: Record<string, any>;
+      call_flow_questions?: Array<{
+        id: string;
+        field_key: string;
+        label: string;
+        prompt: string;
+        helper_text?: string;
+        required?: boolean;
+        enabled?: boolean;
+        order?: number;
+      }>;
       company_profile_completed?: boolean;
       service_area_completed?: boolean;
       service_template_id?: string;

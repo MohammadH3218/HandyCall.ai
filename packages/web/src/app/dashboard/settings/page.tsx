@@ -9,13 +9,15 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { CALL_HANDLING_OPTIONS } from '@/constants/call-handling';
 import { DEFAULT_TIMEZONE, TIMEZONE_OPTIONS, hasTimezoneOption } from '@/constants/timezones';
-import { CallHandlingMode } from '@handycall/shared';
+import { CallHandlingMode, CompanyCallFlowQuestion, ServiceType } from '@handycall/shared';
 import { CallForwardingGuide } from '@/components/telephony/call-forwarding-guide';
 import { PageHeader } from '@/components/portal/page-header';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { usePlanFeatures } from '@/hooks/use-plan-features';
 import { IconCopy, IconPhone, IconRefresh, IconSettings, IconShield, IconLink } from '@tabler/icons-react';
+import { CallFlowEditor } from '@/components/company/call-flow-editor';
+import { createDefaultCallFlowQuestions } from '@/constants/company-templates';
 
 export default function SettingsPage() {
   const { toast } = useToast();
@@ -34,7 +36,8 @@ export default function SettingsPage() {
   const [isSavingBusiness, setIsSavingBusiness] = useState(false);
   const [isSavingCall, setIsSavingCall] = useState(false);
   const [myNumber, setMyNumber] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'business' | 'call' | 'payments' | 'integrations' | 'notifications' | 'account'>('business');
+  const [activeTab, setActiveTab] = useState<'business' | 'call' | 'call_flow' | 'payments' | 'integrations' | 'notifications' | 'account'>('business');
+  const [callFlowQuestions, setCallFlowQuestions] = useState<CompanyCallFlowQuestion[]>([]);
   const [editOpen, setEditOpen] = useState(false);
   const [editDraft, setEditDraft] = useState({
     company_name: '',
@@ -152,6 +155,11 @@ export default function SettingsPage() {
     setReviewRequestDelayMinutes(String((company as any).review_request_delay_minutes ?? 120));
     setReviewPlatformUrl((company as any).review_platform_url || '');
     setReviewRequestTemplate((company as any).review_request_template || '');
+    setCallFlowQuestions(
+      Array.isArray((company as any).call_flow_questions) && (company as any).call_flow_questions.length > 0
+        ? ((company as any).call_flow_questions as CompanyCallFlowQuestion[])
+        : createDefaultCallFlowQuestions(((company as any).service_type || ServiceType.HANDYMAN) as ServiceType),
+    );
   }, [company]);
 
   useEffect(() => {
@@ -303,6 +311,35 @@ export default function SettingsPage() {
       toast({
         title: 'Update failed',
         description: error?.message || 'Failed to save call handling settings.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSavingCall(false);
+    }
+  };
+
+  const handleSaveCallFlow = async () => {
+    try {
+      setIsSavingCall(true);
+      await apiClient.updateMyCompany({
+        call_flow_questions: callFlowQuestions.map((question, index) => ({
+          ...question,
+          field_key: String(question.field_key || '').trim(),
+          label: String(question.label || '').trim(),
+          prompt: String(question.prompt || '').trim(),
+          required: question.required !== false,
+          enabled: question.enabled !== false,
+          order: index,
+        })).filter((question) => question.field_key && question.label && question.prompt),
+      });
+      toast({
+        title: 'Call flow updated',
+        description: 'Your AI intake questions and order were saved.',
+      });
+    } catch (error: any) {
+      toast({
+        title: 'Update failed',
+        description: error?.message || 'Failed to save AI call flow settings.',
         variant: 'destructive',
       });
     } finally {
@@ -593,15 +630,16 @@ export default function SettingsPage() {
   return (
     <div className="space-y-6 animate-fade-up max-w-4xl mx-auto">
       <PageHeader
-        eyebrow="Settings"
-        title="Business settings"
-        subtitle="Manage your business information and preferences."
+        eyebrow="Company settings"
+        title="Company settings"
+        subtitle="Manage your company profile, AI call flow, payments, routing, and integrations from one place."
       />
 
       <div className="flex flex-wrap gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
         {[
-          { key: 'business', label: 'Business info' },
+          { key: 'business', label: 'Company profile' },
           { key: 'call', label: 'Call handling' },
+          { key: 'call_flow', label: 'AI call flow' },
           { key: 'payments', label: 'Payments' },
           { key: 'integrations', label: 'CRM integrations' },
           { key: 'notifications', label: 'Notifications' },
@@ -643,6 +681,10 @@ export default function SettingsPage() {
                 <p className="mt-2 text-sm font-semibold text-slate-900">{formData.company_name || 'Not set'}</p>
               </div>
               <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-4">
+                <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Company type</p>
+                <p className="mt-2 text-sm font-semibold text-slate-900">{String((company as any)?.service_type || 'Not set').replace(/_/g, ' ')}</p>
+              </div>
+              <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-4">
                 <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Business contact phone</p>
                 <p className="mt-2 text-sm font-semibold text-slate-900">{formData.phone_number || 'Not set'}</p>
               </div>
@@ -661,6 +703,22 @@ export default function SettingsPage() {
                     HandyCall assigns this number. Contact support if you need a specific area code.
                   </p>
                 )}
+              </div>
+            </div>
+            <div className="border-t border-slate-100 px-5 py-4">
+              <div className="grid gap-3 md:grid-cols-3">
+                <button type="button" onClick={() => setActiveTab('call_flow')} className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 text-left hover:border-emerald-200 hover:bg-emerald-50/60">
+                  <p className="text-sm font-semibold text-slate-900">AI call flow</p>
+                  <p className="mt-1 text-xs text-slate-600">Edit the exact intake questions and their order.</p>
+                </button>
+                <a href="/dashboard/knowledge" className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 text-left hover:border-emerald-200 hover:bg-emerald-50/60">
+                  <p className="text-sm font-semibold text-slate-900">Knowledge base</p>
+                  <p className="mt-1 text-xs text-slate-600">Manage business-specific answers, FAQs, and service details.</p>
+                </a>
+                <button type="button" onClick={() => setActiveTab('payments')} className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 text-left hover:border-emerald-200 hover:bg-emerald-50/60">
+                  <p className="text-sm font-semibold text-slate-900">Payments and subscriptions</p>
+                  <p className="mt-1 text-xs text-slate-600">Manage Stripe Connect, booking payments, and billing setup.</p>
+                </button>
               </div>
             </div>
           </div>
@@ -788,6 +846,33 @@ export default function SettingsPage() {
           </div>
 
           <CallForwardingGuide forwardToNumber={myNumber} callHandlingMode={formData.call_handling_mode} />
+        </div>
+      )}
+
+      {activeTab === 'call_flow' && (
+        <div className="space-y-5">
+          <div className="rounded-2xl border border-slate-100 bg-white shadow-sm">
+            <div className="border-b border-slate-100 px-5 py-4">
+              <h2 className="text-sm font-semibold text-slate-900">AI intake flow</h2>
+              <p className="text-xs text-slate-500">
+                Control which questions HandyCall asks before it ever asks for a date and time.
+              </p>
+            </div>
+            <div className="space-y-4 p-5">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+                <p className="text-sm font-semibold text-slate-900">How this works</p>
+                <p className="mt-1 text-sm text-slate-600">
+                  These are the exact intake questions the AI will use for this company. Reorder them, edit the wording, disable ones you do not need, or add custom questions. Scheduling stays automatic and always comes last.
+                </p>
+              </div>
+              <CallFlowEditor questions={callFlowQuestions} onChange={setCallFlowQuestions} />
+              <div className="flex justify-end">
+                <Button onClick={handleSaveCallFlow} disabled={isSavingCall}>
+                  {isSavingCall ? 'Saving…' : 'Save call flow'}
+                </Button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 

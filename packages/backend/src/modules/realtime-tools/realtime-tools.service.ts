@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { v4 as uuidv4 } from 'uuid';
 import { CompaniesService } from '../companies/companies.service';
 import { resolveServiceTemplateId } from '../companies/service-template-map';
+import { applyCompanyCallFlowToTemplate } from '../companies/company-call-flow.util';
 import { AgentConfigService } from '../agent-config/agent-config.service';
 import { CompanyNumbersService } from '../company-numbers/company-numbers.service';
 import { DynamoDBService } from '../../infrastructure/database/dynamodb.service';
@@ -970,6 +971,8 @@ export class RealtimeToolsService {
         .update('companies', { company_id: effectiveCompany.company_id }, { service_template_id })
         .catch(() => null);
     }
+
+    service_template = applyCompanyCallFlowToTemplate(service_template, (effectiveCompany as any).call_flow_questions);
 
     const activeBookingServices = this.resolveActiveBookingServices(effectiveCompany);
     const serviceSelectionGuide = this.buildServiceSelectionGuide(effectiveCompany, activeBookingServices);

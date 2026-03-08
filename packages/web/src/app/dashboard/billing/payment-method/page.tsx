@@ -164,7 +164,21 @@ export default function PaymentMethodPage() {
   const searchParams = useSearchParams();
   const { company } = useAuthStore();
   const selectedPlan = searchParams.get('plan') as SubscriptionPlan | null;
-  const publishableKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
+  const [publishableKey, setPublishableKey] = useState<string | null>(
+    process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || null,
+  );
+
+  useEffect(() => {
+    if (publishableKey && !publishableKey.includes('local_dev_placeholder') && !publishableKey.endsWith('_xxx')) {
+      return;
+    }
+    apiClient
+      .getBillingConfig()
+      .then((config) => {
+        if (config?.publishable_key) setPublishableKey(config.publishable_key);
+      })
+      .catch(() => null);
+  }, [publishableKey]);
 
   // Only create the Stripe promise when we actually have a key.
   const stripePromise = publishableKey ? loadStripe(publishableKey) : null;
@@ -224,7 +238,7 @@ export default function PaymentMethodPage() {
         <CardContent>
           {!stripePromise ? (
             <div className="p-3 bg-red-50 border border-red-200 rounded-md text-sm text-red-800">
-              Stripe publishable key is not configured. Please set NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY and redeploy.
+              Stripe publishable key is not configured on the server yet.
             </div>
           ) : (
             <Elements stripe={stripePromise}>

@@ -17,6 +17,7 @@ import { UsageService } from './usage.service';
 import { StripeConnectService } from './stripe-connect.service';
 import { CustomerPaymentsService } from './customer-payments.service';
 import { ServiceProductsService } from './service-products.service';
+import { StripeService } from './stripe.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CompanyId, UserRoleParam } from '../../common/decorators/auth.decorator';
 import { Public } from '../../common/decorators/public.decorator';
@@ -34,7 +35,15 @@ export class BillingController {
     private stripeConnectService: StripeConnectService,
     private customerPaymentsService: CustomerPaymentsService,
     private serviceProductsService: ServiceProductsService,
+    private stripeService: StripeService,
   ) {}
+
+  @Get('config')
+  async getBillingConfig() {
+    return {
+      publishable_key: this.stripeService.getPublishableKey(),
+    };
+  }
 
   /**
    * Create setup intent for collecting payment method

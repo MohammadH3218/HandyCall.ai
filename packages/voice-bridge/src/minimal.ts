@@ -1056,6 +1056,28 @@ function requiresBillingTypeSelection(tenant: TenantInfo): boolean {
   return billingTypes.size > 1;
 }
 
+function getConfiguredQuestion(
+  tenant: TenantInfo | null | undefined,
+  field: string,
+): {
+  field_key?: string;
+  label?: string;
+  prompt?: string;
+  helper_text?: string;
+  required?: boolean;
+  enabled?: boolean;
+  order?: number;
+} | null {
+  const questions = Array.isArray(tenant?.service_template?.intake_schema?.questions)
+    ? tenant!.service_template!.intake_schema!.questions!
+    : [];
+  const key = normalizeFieldKey(field);
+  const match = questions.find(
+    (question: any) => normalizeFieldKey(String(question?.field_key || '')) === key && question?.enabled !== false,
+  );
+  return match || null;
+}
+
 function buildRequiredBookingFields(tenant: TenantInfo): string[] {
   const templateRequired = Array.isArray(tenant?.service_template?.intake_schema?.required)
     ? tenant.service_template.intake_schema.required
@@ -1096,6 +1118,24 @@ function intakeFieldPriority(field: string, tenant: TenantInfo, serviceAreaRequi
 }
 
 function buildCanonicalIntakeOrder(tenant: TenantInfo, serviceAreaRequired: boolean): string[] {
+  const configuredQuestions = Array.isArray(tenant?.service_template?.intake_schema?.questions)
+    ? tenant.service_template.intake_schema.questions
+        .filter((question: any) => question?.enabled !== false)
+        .sort((a: any, b: any) => Number(a?.order || 0) - Number(b?.order || 0))
+        .map((question: any) => normalizeFieldKey(String(question?.field_key || '')))
+        .filter(Boolean)
+    : [];
+  if (configuredQuestions.length > 0) {
+    const nonScheduling = configuredQuestions.filter((field: string) => !isSchedulingField(field));
+    const scheduling = configuredQuestions.filter((field: string) => isSchedulingField(field));
+    const ordered = [
+      ...(serviceAreaRequired && !nonScheduling.some((field: string) => isZipField(field)) ? ['zip'] : []),
+      ...nonScheduling,
+      ...scheduling,
+    ];
+    return ordered.filter((field, index, arr) => arr.indexOf(field) === index);
+  }
+
   const required = buildRequiredBookingFields(tenant);
   const source = [...required];
   if (serviceAreaRequired && !source.some((field) => isZipField(field))) {
@@ -1131,6 +1171,10 @@ function looksLikeBookingIntent(text?: string): boolean {
 
 function buildIntakeQuestion(field: string, tenant: TenantInfo | null, details: Record<string, any>): string {
   const key = normalizeFieldKey(field);
+  const configuredQuestion = getConfiguredQuestion(tenant, key);
+  if (typeof configuredQuestion?.prompt === 'string' && configuredQuestion.prompt.trim()) {
+    return configuredQuestion.prompt.trim();
+  }
   if (isZipField(key)) return 'Could you give me your 5-digit ZIP code?';
   if (isNameField(key)) return 'What is your full name?';
   if (isAddressField(key)) return 'What is the service address?';

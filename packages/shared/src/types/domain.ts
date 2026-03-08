@@ -111,6 +111,17 @@ export interface BookingService {
   trial_period_days?: number;
 }
 
+export interface CompanyCallFlowQuestion {
+  id: UUID;
+  field_key: string;
+  label: string;
+  prompt: string;
+  helper_text?: string;
+  required?: boolean;
+  enabled?: boolean;
+  order?: number;
+}
+
 export interface Company {
   company_id: UUID;
   company_name: string;
@@ -154,6 +165,7 @@ export interface Company {
   service_area_zipcodes?: string[];
   service_area_cities?: string[];
   pricing_profile?: CompanyPricingProfile;
+  call_flow_questions?: CompanyCallFlowQuestion[];
   company_profile_completed?: boolean;
   service_area_completed?: boolean;
 

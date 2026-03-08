@@ -714,6 +714,13 @@ class ApiClient {
     return (response.data ?? response) as { client_secret: string };
   }
 
+  async getBillingConfig(): Promise<{ publishable_key: string | null }> {
+    const response = await this.request<{ publishable_key: string | null }>('/billing/config', {
+      method: 'GET',
+    });
+    return (response.data ?? response) as { publishable_key: string | null };
+  }
+
   async createSubscription(data: { plan: string; payment_method_id: string }): Promise<any> {
     const response = await this.request<any>('/billing/subscription', {
       method: 'POST',

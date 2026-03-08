@@ -32,6 +32,17 @@ export interface TenantResolveResponse {
             required?: string[];
             optional?: string[];
             conditional?: Record<string, any>;
+            labels?: Record<string, string>;
+            questions?: Array<{
+                id?: string;
+                field_key?: string;
+                label?: string;
+                prompt?: string;
+                helper_text?: string;
+                required?: boolean;
+                enabled?: boolean;
+                order?: number;
+            }>;
         };
         booking_defaults?: {
             duration_minutes?: number;
