@@ -8,6 +8,15 @@ type OnboardingStatus = {
   phone: boolean;
 };
 
+function resolveBooleanStep(
+  explicitValue: boolean | undefined,
+  fallbackValue: boolean,
+) {
+  if (explicitValue === true) return true;
+  if (explicitValue === false) return false;
+  return fallbackValue;
+}
+
 function hasPricingProfileData(company: any | null) {
   const profile = company?.pricing_profile;
   if (!profile || typeof profile !== 'object') return false;
@@ -78,12 +87,18 @@ export function computeOnboardingStatus(input: {
       (company.trial_ends_at && company.trial_ends_at > Date.now()),
   );
 
-  const companyProfile = company.company_profile_completed === true || hasCompanyProfileEntry(company);
-  const serviceArea = company.service_area_completed === true || hasServiceAreaEntry(company);
-  const calendar =
-    company.calendar_setup_completed === true ||
-    hasInternalCalendarEntry(company) ||
-    hasExternalCalendarEntry(company);
+  const companyProfile = resolveBooleanStep(
+    company.company_profile_completed,
+    hasCompanyProfileEntry(company),
+  );
+  const serviceArea = resolveBooleanStep(
+    company.service_area_completed,
+    hasServiceAreaEntry(company),
+  );
+  const calendar = resolveBooleanStep(
+    company.calendar_setup_completed,
+    hasInternalCalendarEntry(company) || hasExternalCalendarEntry(company),
+  );
   const knowledge = (knowledgeCount !== null ? knowledgeCount > 0 : false) || hasPricingProfileData(company);
   const phone = Boolean(companyNumber || String(company.phone_number || '').trim());
 
@@ -97,4 +112,3 @@ export function computeOnboardingStatus(input: {
     phone,
   };
 }
-
