@@ -1381,6 +1381,7 @@ function buildInstructions(tenant: TenantInfo, options: { serviceAreaRequired: b
     `Never ask about insurance, payment responsibility, or coverage unless that exact field is required for this tenant.`,
     `You MUST collect EVERY required intake field before asking about scheduling. Do not skip any. Ask one missing field at a time.`,
     `Do NOT ask for preferred date/time until all non-time required fields are collected (including address when required).`,
+    `When the bridge gives you an exact intake question, say that exact question only. Do not paraphrase it, do not add context, and do not ask a second question.`,
     `Do not provide recap/summary of collected details unless the caller explicitly asks for one.`,
     `Then call get_availability and offer available slots.`,
     `Never claim a time is available unless get_availability returns it. If a requested time is unavailable, say so and offer available slots from get_availability.`,
@@ -1389,6 +1390,7 @@ function buildInstructions(tenant: TenantInfo, options: { serviceAreaRequired: b
     `If a requested time is available, say exactly: "That time is available. Let me book it for you." Then continue.`,
     `If the caller shares a time early, acknowledge it briefly and continue collecting missing required fields first.`,
     `If requested_time_available is true, proceed directly to create_booking with confirmed=true. Do not ask the caller to re-confirm the same date/time.`,
+    `Do not ask the caller to reconfirm severity, address, service choice, or billing choice once they already provided those answers.`,
     `Do not ask for general confirmation of previously collected details; only ask for missing fields.`,
     `When calling create_booking, you MUST include ALL collected intake fields in the details object—not just the most recent ones. Include every field you gathered during the conversation (name, address, zip, service details, etc.).`,
     `If create_booking returns a MissingRequiredFields error, ask ONLY for the specific fields listed in missing_fields. Do NOT re-ask for information you already collected. Then retry create_booking with ALL collected fields (old and new) in the details object.`,
@@ -2085,6 +2087,12 @@ wss.on('connection', (twilioWs: WebSocket) => {
     createResponse(`Say: "${msg}"`);
   }
 
+  function askExactQuestion(question: string) {
+    const safe = String(question || '').replace(/"/g, '\\"').trim();
+    if (!safe) return;
+    createResponse(`Say exactly: "${safe}" Then stop. Do not add any other sentence.`);
+  }
+
   function maybeDriveBookingIntake(): boolean {
     if (!bookingIntentActive || !ctx || !openaiReady || !openaiWs || appointmentCreated) return false;
 
@@ -2102,7 +2110,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
       if (!zipValue) {
         activeIntakeField = 'zip';
         const zipQuestion = buildIntakeQuestion(activeIntakeField, activeTenant, collectedDetails);
-        createResponse(`Ask ONLY this next question in one short sentence: "${zipQuestion}"`);
+        askExactQuestion(zipQuestion);
         return true;
       }
       if (serviceAreaEligible === false) {
@@ -2116,9 +2124,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
       const nextField = missingNonScheduling[0];
       activeIntakeField = nextField;
       const question = buildIntakeQuestion(nextField, activeTenant, collectedDetails);
-      createResponse(
-        `The caller is booking. Ask ONLY this next intake question in one short natural sentence: "${question}" Do not ask about date or time yet. Do not recap previously collected details.`
-      );
+      askExactQuestion(question);
       return true;
     }
 
@@ -2128,9 +2134,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
       const nextField = missingScheduling[0];
       activeIntakeField = nextField;
       const question = buildIntakeQuestion(nextField, activeTenant, collectedDetails);
-      createResponse(
-        `All required non-scheduling intake fields are already collected. Ask ONLY this next scheduling question in one short natural sentence: "${question}" Do not recap prior details.`
-      );
+      askExactQuestion(question);
       return true;
     }
 
