@@ -315,9 +315,7 @@ function OnboardingSetupContent() {
   const [nameInput, setNameInput] = useState('');
   const [companyInput, setCompanyInput] = useState('');
   const [zipInput, setZipInput] = useState('');
-  const [cityInput, setCityInput] = useState('');
   const [zipCodes, setZipCodes] = useState<string[]>([]);
-  const [cities, setCities] = useState<string[]>([]);
   const [calendarHours, setCalendarHours] = useState<CalendarHours>(defaultHours());
   const [calendarTimezone, setCalendarTimezone] = useState(DEFAULT_TIMEZONE);
   const [appleEmail, setAppleEmail] = useState('');
@@ -424,8 +422,6 @@ function OnboardingSetupContent() {
     if (company?.timezone) setCalendarTimezone(company.timezone as string);
     if ((company?.service_area_zipcodes as string[])?.length)
       setZipCodes(company.service_area_zipcodes as string[]);
-    if ((company?.service_area_cities as string[])?.length)
-      setCities(company.service_area_cities as string[]);
     if (company?.business_hours) setCalendarHours(normalizeHours(company.business_hours));
     if (company?.phone_number) setForwardNumber(company.phone_number as string);
     if (Array.isArray((company as any)?.call_flow_questions) && (company as any).call_flow_questions.length > 0) {
@@ -452,7 +448,7 @@ function OnboardingSetupContent() {
     } else if (!s.serviceArea) {
       await goTo(
         'service_area_choice',
-        'Where do you provide service? Do you cover all areas, or specific zip codes and cities?',
+        'Where do you provide service? Do you cover all areas, or specific ZIP codes?',
       );
     } else if (!s.calendar) {
       await goTo('calendar_mode', "Let's set up your booking calendar. How do you want to manage appointments?");
@@ -551,7 +547,7 @@ function OnboardingSetupContent() {
       await refreshAll();
       await goTo(
         'service_area_choice',
-        "Company details saved! Now let's set your service area. Do you serve all areas, or specific zip codes and cities?",
+        "Company details saved! Now let's set your service area. Do you serve all areas, or specific ZIP codes?",
       );
     } catch {
       setErrMsg('Could not save company profile. Try again.');
@@ -580,8 +576,8 @@ function OnboardingSetupContent() {
   };
 
   const handleServiceAreaSpecific = async () => {
-    userSay('Specific zip codes & cities');
-    await goTo('service_area_input', "Add your zip codes and cities below. Click 'Save' when done.");
+    userSay('Specific ZIP codes');
+    await goTo('service_area_input', "Add the ZIP codes you serve below, then save to continue.");
   };
 
   const addZip = () => {
@@ -594,32 +590,22 @@ function OnboardingSetupContent() {
     setZipInput('');
   };
 
-  const addCity = () => {
-    const v = cityInput.trim();
-    if (!v || cities.includes(v)) {
-      setCityInput('');
-      return;
-    }
-    setCities((prev) => [...prev, v]);
-    setCityInput('');
-  };
-
   const handleSaveServiceArea = async () => {
-    if (zipCodes.length === 0 && cities.length === 0) {
-      setErrMsg('Add at least one zip code or city.');
+    if (zipCodes.length === 0) {
+      setErrMsg('Add at least one ZIP code.');
       return;
     }
     setIsSaving(true);
     try {
       const updated = await apiClient.updateMyCompany({
         service_area_zipcodes: zipCodes,
-        service_area_cities: cities,
+        service_area_cities: [],
         service_area_completed: true,
       });
       setCompany(updated);
       await refreshAll();
       userSay(
-        `${zipCodes.length} zip code${zipCodes.length !== 1 ? 's' : ''}, ${cities.length} ${cities.length !== 1 ? 'cities' : 'city'} saved`,
+        `${zipCodes.length} ZIP code${zipCodes.length !== 1 ? 's' : ''} saved`,
       );
       await goTo('calendar_mode', "Service area saved! Let's set up your booking calendar.");
     } catch {
@@ -1164,16 +1150,22 @@ function OnboardingSetupContent() {
               onClick={handleServiceAreaSpecific}
               disabled={isSaving}
             >
-              Specific zip codes & cities
+              Specific ZIP codes
             </ChoiceButton>
           </div>
         )}
 
         {/* Service area input */}
         {phase === 'service_area_input' && (
-          <div className="space-y-4">
+          <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+              <p className="text-sm font-semibold text-slate-900">Add the ZIP codes you actually serve</p>
+              <p className="mt-1 text-sm text-slate-600">
+                HandyCall uses this to qualify calls before booking, so keep it limited to the areas you want appointments from.
+              </p>
+            </div>
             <div>
-              <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">Zip codes</p>
+              <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">ZIP codes</p>
               <div className="flex gap-2">
                 <input
                   type="text"
@@ -1215,53 +1207,9 @@ function OnboardingSetupContent() {
                 ))}
               </div>
             </div>
-            <div>
-              <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Cities <span className="font-normal normal-case text-slate-400">(optional)</span>
-              </p>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={cityInput}
-                  onChange={(e) => setCityInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      addCity();
-                      e.preventDefault();
-                    }
-                  }}
-                  placeholder="Austin, TX"
-                  className="flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
-                />
-                <button
-                  type="button"
-                  onClick={addCity}
-                  className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-                >
-                  Add
-                </button>
-              </div>
-              <div className="mt-2 flex flex-wrap gap-1.5">
-                {cities.map((c) => (
-                  <span
-                    key={c}
-                    className="flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-700"
-                  >
-                    {c}
-                    <button
-                      type="button"
-                      onClick={() => setCities((p) => p.filter((x) => x !== c))}
-                      className="text-slate-500 hover:text-red-500"
-                    >
-                      <IconX className="h-3 w-3" />
-                    </button>
-                  </span>
-                ))}
-              </div>
-            </div>
             <ActionButton
               onClick={handleSaveServiceArea}
-              disabled={isSaving || (zipCodes.length === 0 && cities.length === 0)}
+              disabled={isSaving || zipCodes.length === 0}
               loading={isSaving}
             >
               <IconCheck className="h-4 w-4" stroke={2} />
@@ -1524,10 +1472,10 @@ function OnboardingSetupContent() {
 
         {/* Knowledge structured form */}
         {phase === 'knowledge_chat' && (
-          <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-4">
-            <div className="rounded-2xl border border-emerald-100 bg-emerald-50/70 p-4">
-              <p className="text-sm font-semibold text-slate-900">What to include here</p>
-              <p className="mt-1 text-sm text-slate-600">
+          <div className="space-y-4 rounded-[26px] border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="rounded-[24px] border border-emerald-100 bg-[linear-gradient(180deg,rgba(236,253,245,0.9),rgba(255,255,255,1))] p-5">
+              <p className="text-base font-semibold text-slate-900">What to include here</p>
+              <p className="mt-2 text-sm leading-6 text-slate-600">
                 Put in the business-specific answers customers ask before they book: services, pricing rules, what is included, service area details, deposits, cancellation policy, warranties, timing expectations, and anything else your receptionist should answer consistently.
               </p>
               <div className="mt-3 flex flex-wrap gap-2">
@@ -1598,9 +1546,9 @@ function OnboardingSetupContent() {
         )}
 
         {phase === 'call_flow_editor' && (
-          <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-4">
-            <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
-              <p className="text-sm font-semibold text-slate-900">Control the questions your AI asks before scheduling</p>
+          <div className="space-y-4 rounded-[26px] border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="rounded-[24px] border border-slate-200 bg-[linear-gradient(180deg,rgba(248,250,252,0.9),rgba(255,255,255,1))] p-5">
+              <p className="text-base font-semibold text-slate-900">Control the questions your AI asks before scheduling</p>
               <p className="mt-1 text-sm text-slate-600">
                 Edit the exact wording, remove anything unnecessary, add custom company questions, and set the order. The scheduling question stays automatic and always comes last.
               </p>
@@ -1720,7 +1668,7 @@ function OnboardingSetupContent() {
 
   if (loading && messages.length === 0) {
     return (
-      <div className="flex h-full items-center justify-center">
+      <div className="flex min-h-screen items-center justify-center">
         <div className="flex flex-col items-center gap-3 text-center">
           <div className="h-8 w-8 animate-spin rounded-full border-4 border-emerald-600 border-t-transparent" />
           <p className="text-sm text-slate-500">Preparing your setup...</p>
@@ -1730,10 +1678,8 @@ function OnboardingSetupContent() {
   }
 
   return (
-    <div className="flex h-full flex-col">
-      {/* Chat transcript */}
-      <div className="flex-1 overflow-y-auto px-4 py-6 sm:px-8">
-        <div className="mx-auto max-w-2xl space-y-4">
+    <div className="min-h-screen bg-[linear-gradient(180deg,#f8fafc_0%,#f8fafc_18%,#ffffff_18%,#ffffff_100%)] px-4 py-6 sm:px-8">
+      <div className="mx-auto max-w-3xl space-y-4">
           {messages.map((msg) => (
             <div
               key={msg.id}
@@ -1811,16 +1757,16 @@ function OnboardingSetupContent() {
             </div>
           )}
 
+          {!isTyping && phase !== 'loading' && phase !== 'complete' && (
+            <div className="pl-11">
+              <div className="max-h-[72vh] overflow-y-auto rounded-[28px] border border-slate-200 bg-slate-50/80 p-4 shadow-sm">
+                {renderActiveZone()}
+              </div>
+            </div>
+          )}
+
           <div ref={chatEndRef} />
         </div>
-      </div>
-
-      {/* Active input zone */}
-      {!isTyping && phase !== 'loading' && phase !== 'complete' && (
-        <div className="border-t border-slate-200 bg-slate-50/80 px-4 py-4 sm:px-8">
-          <div className="mx-auto max-w-2xl">{renderActiveZone()}</div>
-        </div>
-      )}
     </div>
   );
 }
