@@ -742,6 +742,23 @@ function looksLikeFalseStart(text?: string) {
   return false;
 }
 
+function isGenericConfirmation(text?: string) {
+  const t = normalizeSpeech(text);
+  if (!t) return false;
+  return [
+    'yes',
+    'yeah',
+    'yep',
+    'correct',
+    'thats right',
+    "that's right",
+    'right',
+    'exactly',
+    'uh huh',
+    'sure',
+  ].includes(t);
+}
+
 function isLowSignalTranscript(text?: string) {
   const raw = String(text || '').trim();
   if (!raw) return true;
@@ -803,6 +820,52 @@ function normalizeFieldKey(field: string): string {
     .trim()
     .toLowerCase()
     .replace(/\s+/g, '_');
+}
+
+function stripFieldLeadIn(field: string, text: string): string {
+  const raw = String(text || '').trim();
+  if (!raw) return raw;
+  const key = normalizeFieldKey(field);
+
+  if (key === 'full_name') {
+    return raw
+      .replace(/^(my name is|this is|i am|i'm|im)\s+/i, '')
+      .trim();
+  }
+
+  if (key === 'zip') {
+    const match = raw.match(/\b(\d{5})(?:-\d{4})?\b/);
+    return match?.[1] || raw;
+  }
+
+  if (key === 'address') {
+    return raw.replace(/^(my|the)\s+(service\s+)?address\s+is\s+/i, '').trim();
+  }
+
+  if (key === 'email') {
+    return raw.replace(/^(my|the)\s+email\s+(address\s+)?is\s+/i, '').trim();
+  }
+
+  if (key === 'selected_billing_type') {
+    const normalized = normalizeSpeech(raw);
+    if (normalized.includes('subscription') || normalized.includes('monthly') || normalized.includes('plan')) {
+      return 'SUBSCRIPTION';
+    }
+    if (normalized.includes('one time') || normalized.includes('one-time') || normalized.includes('single visit')) {
+      return 'ONE_TIME';
+    }
+  }
+
+  if (key === 'preferred_time') {
+    return raw
+      .replace(/^(can we do|can i do|how about|let'?s do|i'?d like|i would like)\s+/i, '')
+      .trim();
+  }
+
+  return raw
+    .replace(/^(my|the)\s+[a-z\s]{1,40}\s+is\s+/i, '')
+    .replace(/^(it is|it's|i would say|i'd say|just)\s+/i, '')
+    .trim();
 }
 
 // Universal aliases that apply across ALL company types
@@ -933,6 +996,66 @@ function buildRequiredBookingFields(tenant: TenantInfo): string[] {
     }
   }
   return uniqueNormalizedFields(required);
+}
+
+function inferRequestedFieldFromPrompt(prompt: string, fields: string[]): string | null {
+  const normalizedPrompt = normalizeSpeech(prompt);
+  if (!normalizedPrompt) return null;
+  const normalizedFields = fields.map((field) => normalizeFieldKey(field));
+
+  const findFieldByHint = (matcher: (field: string) => boolean): string | null => {
+    const match = normalizedFields.find(matcher);
+    return match || null;
+  };
+
+  const explicitMatches: Array<[RegExp, string[]]> = [
+    [/\b(zip|zipcode|postal code)\b/i, ['zip']],
+    [/\b(full name|your name|speaking with)\b/i, ['full_name']],
+    [/\b(address|service address|property address|home address)\b/i, ['address']],
+    [/\b(email)\b/i, ['email']],
+    [/\b(phone number|best number|callback number)\b/i, ['phone', 'phone_number']],
+    [/\b(preferred time|what time|what day|what date|availability|next monday|appointment time)\b/i, ['preferred_time']],
+    [/\b(subscription|one time|one-time|plan type|billing type)\b/i, ['selected_billing_type']],
+    [/\b(service|plan|which option|which package)\b/i, ['selected_service_name']],
+  ];
+
+  for (const [pattern, candidates] of explicitMatches) {
+    if (!pattern.test(normalizedPrompt)) continue;
+    for (const candidate of candidates) {
+      const match = fields.find((field) => normalizeFieldKey(field) === candidate);
+      if (match) return normalizeFieldKey(match);
+    }
+  }
+
+  if (/\b(where have you seen|where are you seeing|which area|what area|where is it located)\b/i.test(normalizedPrompt)) {
+    const match = findFieldByHint((field) => field.includes('where') || field.includes('seen') || field.includes('area') || field.includes('location'));
+    if (match) return match;
+  }
+
+  if (/\b(how severe|severity|how bad|minor moderate|moderate or severe)\b/i.test(normalizedPrompt)) {
+    const match = findFieldByHint((field) => field.includes('severity') || field.includes('severe'));
+    if (match) return match;
+  }
+
+  if (/\b(pest type|what kind of pest|what kind of issue|symptoms|what are you dealing with)\b/i.test(normalizedPrompt)) {
+    const match = findFieldByHint((field) => field.includes('pest') || field.includes('symptom') || field.includes('issue') || field.includes('problem'));
+    if (match) return match;
+  }
+
+  let bestField: string | null = null;
+  let bestScore = 0;
+  for (const field of fields) {
+    const normalizedField = normalizeFieldKey(field);
+    const words = keyWords(normalizedField);
+    if (!words.length) continue;
+    const overlap = words.filter((word) => normalizedPrompt.includes(word)).length;
+    if (overlap > bestScore && overlap >= Math.min(2, words.length)) {
+      bestScore = overlap;
+      bestField = normalizedField;
+    }
+  }
+
+  return bestField;
 }
 
 function isSchedulingField(field: string): boolean {
@@ -1751,6 +1874,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
   let requiredIntakeFields: string[] = [];
   let collectedDetails: Record<string, any> = {};
   let lastCallerUtterance: string | null = null;
+  let lastAssistantPromptText = '';
   let lastShortAckNormalized = '';
   let lastShortAckAt = 0;
   let diagTtsSeq = 0;
@@ -1809,13 +1933,14 @@ wss.on('connection', (twilioWs: WebSocket) => {
   }
 
   function interruptAssistant(reason: string) {
+    cancelPendingInterruptTimer();
     if (!assistantSpeaking) return;
     const now = Date.now();
     if (now - lastAssistantAudioAt > 5000) return;
 
-    // Suppress interrupts during the first 2.5s of the call — ambient noise at call connect
+    // Suppress interrupts during the first 3.5s of the call — ambient noise at call connect
     // frequently triggers false VAD events before the caller has a chance to speak.
-    if (greetedAt && now - greetedAt < 2500) return;
+    if (greetedAt && now - greetedAt < 3500) return;
 
     if (useElevenLabs && ttsAbort) {
       try {
@@ -2202,6 +2327,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
         if (text) {
           transcript.push(`Assistant: ${text}`);
           lastAssistantAskedFollowUp = askedAnythingElse(text);
+          lastAssistantPromptText = text;
         }
         return;
       }
@@ -2233,9 +2359,9 @@ wss.on('connection', (twilioWs: WebSocket) => {
         const trimmed = String(text).trim();
         const now = Date.now();
 
-        // Ignore any transcription that arrives within 2.5s of the greeting — it's almost
+        // Ignore any transcription that arrives within 3.5s of the greeting — it's almost
         // always call-connect audio artifacts or the caller's own phone ringing.
-        if (greetedAt && now - greetedAt < 2500) return;
+        if (greetedAt && now - greetedAt < 3500) return;
 
         const normalizedShortAck = normalizeShortAck(trimmed);
         if (
@@ -2273,6 +2399,22 @@ wss.on('connection', (twilioWs: WebSocket) => {
         transcript.push(`Caller: ${trimmed}`);
         lastCallerUtterance = trimmed;
         lowSignalAttempts = 0;
+        const inferredField = inferRequestedFieldFromPrompt(lastAssistantPromptText, requiredIntakeFields);
+        if (inferredField) {
+          const normalizedValue = stripFieldLeadIn(inferredField, trimmed);
+          const existingValue = collectedDetails[inferredField];
+          const shouldStore =
+            normalizedValue &&
+            !isGenericConfirmation(normalizedValue) &&
+            (
+              !existingValue ||
+              String(existingValue).trim() === '' ||
+              String(normalizedValue).trim().length > String(existingValue).trim().length
+            );
+          if (shouldStore) {
+            collectedDetails[inferredField] = normalizedValue;
+          }
+        }
         if (assistantSpeaking && Date.now() - lastAssistantAudioAt < 1500) {
           const explicitInterrupt =
             isExplicitBargeIn(trimmed) || wordCount(trimmed) >= 3 || isActionableShortUtterance(trimmed);
@@ -2323,15 +2465,15 @@ wss.on('connection', (twilioWs: WebSocket) => {
         speechActiveStartedAt = now;
         cancelPendingInterruptTimer();
         // Suppress barge-in during the startup quiet period
-        if (greetedAt && now - greetedAt < 2500) return;
-        // ChatGPT-like barge-in: immediately cut AI audio when caller speaks.
-        // Check lastAssistantAudioAt (not assistantSpeaking) — by the time user speaks,
-        // OpenAI may have finished generating but Twilio may still be playing buffered audio.
-        const hadRecentAudio = lastAssistantAudioAt > 0 && now - lastAssistantAudioAt < 8000;
-        if (hadRecentAudio && ctx?.streamSid) {
-          sendToTwilio(twilioWs, { event: 'clear', streamSid: ctx.streamSid });
-          assistantSpeaking = false;
-          openaiResponding = false;
+        if (greetedAt && now - greetedAt < 3500) return;
+        // Delay interruption slightly so brief noise / false VAD spikes do not cut off TTS.
+        const hadRecentAudio = lastAssistantAudioAt > 0 && now - lastAssistantAudioAt < 4000;
+        if (hadRecentAudio) {
+          pendingInterruptTimer = setTimeout(() => {
+            pendingInterruptTimer = null;
+            if (!speechActive) return;
+            interruptAssistant('speech_started_confirmed');
+          }, 220);
         }
         return;
       }
