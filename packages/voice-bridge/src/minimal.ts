@@ -822,6 +822,80 @@ function normalizeFieldKey(field: string): string {
     .replace(/\s+/g, '_');
 }
 
+function isZipField(field: string): boolean {
+  const key = normalizeFieldKey(field);
+  return key === 'zip' || key === 'zipcode' || key === 'zip_code' || key === 'postal_code';
+}
+
+function isNameField(field: string): boolean {
+  const key = normalizeFieldKey(field);
+  return key === 'full_name' || key === 'name' || key === 'customer_name' || key === 'caller_name';
+}
+
+function isAddressField(field: string): boolean {
+  const key = normalizeFieldKey(field);
+  return ['address', 'service_address', 'location_address', 'street_address', 'service_location', 'home_address'].includes(key);
+}
+
+function isEmailField(field: string): boolean {
+  return normalizeFieldKey(field) === 'email';
+}
+
+function isBillingChoiceField(field: string): boolean {
+  const key = normalizeFieldKey(field);
+  return ['selected_billing_type', 'billing_type', 'plan_type', 'subscription_type', 'selected_plan_type'].includes(key);
+}
+
+function isServiceChoiceField(field: string): boolean {
+  const key = normalizeFieldKey(field);
+  return ['selected_service_name', 'service_name', 'service_type', 'service', 'plan_name', 'selected_service_id'].includes(key);
+}
+
+function isIssueDiscoveryField(field: string): boolean {
+  const key = normalizeFieldKey(field);
+  return [
+    'issue_summary',
+    'issue_type',
+    'pest_type_or_symptoms',
+    'symptoms',
+    'problem',
+    'problem_type',
+    'service_request_type',
+    'service_list',
+    'visit_reason',
+    'reason_for_visit',
+    'case_type',
+    'brief_summary',
+    'situation',
+    'treatment_interest',
+  ].includes(key);
+}
+
+function isFollowupDetailField(field: string): boolean {
+  const key = normalizeFieldKey(field);
+  return [
+    'where_seen',
+    'severity',
+    'urgency',
+    'system_type',
+    'vehicle_make',
+    'vehicle_model',
+    'vehicle_year',
+    'pickup_location',
+    'dropoff_location',
+    'lot_approx_size',
+    'home_size_sqft',
+    'num_beds',
+    'num_baths',
+    'roof_age_approx',
+    'is_new_patient',
+    'is_new_client',
+    'is_emergency',
+    'is_safe',
+    'stylist_pref',
+  ].includes(key);
+}
+
 function stripFieldLeadIn(field: string, text: string): string {
   const raw = String(text || '').trim();
   if (!raw) return raw;
@@ -838,15 +912,15 @@ function stripFieldLeadIn(field: string, text: string): string {
     return match?.[1] || raw;
   }
 
-  if (key === 'address') {
+  if (isAddressField(key)) {
     return raw.replace(/^(my|the)\s+(service\s+)?address\s+is\s+/i, '').trim();
   }
 
-  if (key === 'email') {
+  if (isEmailField(key)) {
     return raw.replace(/^(my|the)\s+email\s+(address\s+)?is\s+/i, '').trim();
   }
 
-  if (key === 'selected_billing_type') {
+  if (isBillingChoiceField(key)) {
     const normalized = normalizeSpeech(raw);
     if (normalized.includes('subscription') || normalized.includes('monthly') || normalized.includes('plan')) {
       return 'SUBSCRIPTION';
@@ -1003,6 +1077,44 @@ function buildRequiredBookingFields(tenant: TenantInfo): string[] {
   return uniqueNormalizedFields(required);
 }
 
+function intakeFieldPriority(field: string, tenant: TenantInfo, serviceAreaRequired: boolean): number {
+  const key = normalizeFieldKey(field);
+  const serviceType = String(tenant?.service_type || '').toUpperCase();
+
+  if (isSchedulingField(key)) return 1000;
+  if (isEmailField(key)) return 900;
+  if (isZipField(key)) return serviceAreaRequired ? 10 : 120;
+  if (isNameField(key)) return 20;
+  if (isIssueDiscoveryField(key)) return 30;
+  if (serviceType === 'PEST_CONTROL' && key === 'where_seen') return 40;
+  if (serviceType === 'PEST_CONTROL' && key === 'severity') return 50;
+  if (isFollowupDetailField(key)) return 60;
+  if (isAddressField(key)) return 70;
+  if (isServiceChoiceField(key)) return 80;
+  if (isBillingChoiceField(key)) return 90;
+  return 100;
+}
+
+function buildCanonicalIntakeOrder(tenant: TenantInfo, serviceAreaRequired: boolean): string[] {
+  const required = buildRequiredBookingFields(tenant);
+  const source = [...required];
+  if (serviceAreaRequired && !source.some((field) => isZipField(field))) {
+    source.unshift('zip');
+  }
+
+  return source
+    .map((field, index) => ({ field: normalizeFieldKey(field), index }))
+    .sort((a, b) => {
+      const byPriority =
+        intakeFieldPriority(a.field, tenant, serviceAreaRequired) -
+        intakeFieldPriority(b.field, tenant, serviceAreaRequired);
+      if (byPriority !== 0) return byPriority;
+      return a.index - b.index;
+    })
+    .map((entry) => entry.field)
+    .filter((field, index, arr) => arr.indexOf(field) === index);
+}
+
 function looksLikeBookingIntent(text?: string): boolean {
   const normalized = normalizeSpeech(text);
   if (!normalized) return false;
@@ -1019,12 +1131,12 @@ function looksLikeBookingIntent(text?: string): boolean {
 
 function buildIntakeQuestion(field: string, tenant: TenantInfo | null, details: Record<string, any>): string {
   const key = normalizeFieldKey(field);
-  if (key === 'zip') return 'Could you give me your 5-digit ZIP code?';
-  if (key === 'full_name') return 'What is your full name?';
-  if (key === 'address') return 'What is the service address?';
-  if (key === 'email') return 'What is the best email for your confirmation?';
+  if (isZipField(key)) return 'Could you give me your 5-digit ZIP code?';
+  if (isNameField(key)) return 'What is your full name?';
+  if (isAddressField(key)) return 'What is the service address?';
+  if (isEmailField(key)) return 'What is the best email for your confirmation?';
   if (key === 'preferred_time') return 'What day and time would you like for the appointment?';
-  if (key === 'selected_billing_type') {
+  if (isBillingChoiceField(key)) {
     if (Array.isArray(tenant?.booking_services) && tenant!.booking_services!.length > 0) {
       return 'Would you like a one-time service or a subscription plan?';
     }
@@ -1033,7 +1145,7 @@ function buildIntakeQuestion(field: string, tenant: TenantInfo | null, details: 
     }
     return 'Is this for a one-time service or an ongoing plan?';
   }
-  if (key === 'selected_service_name') {
+  if (isServiceChoiceField(key)) {
     return tenant?.service_selection_guide?.default_question || 'Which service option would you like to book?';
   }
   if (key.includes('severity')) return 'How severe would you say the problem is: mild, moderate, or severe?';
@@ -1234,6 +1346,7 @@ function buildInstructions(tenant: TenantInfo, options: { serviceAreaRequired: b
   const briefServiceOptions = buildServiceOptionsBrief(tenant);
   const serviceAreaRequired = options.serviceAreaRequired;
   const requiredBookingFields = buildRequiredBookingFields(tenant);
+  const billingChoiceRequired = requiredBookingFields.some((field) => isBillingChoiceField(field));
   const requiredFields = formatFieldList(requiredBookingFields);
   const optionalFields = formatFieldList(tenant.service_template?.intake_schema?.optional);
   const serviceSelectionQuestion = tenant.service_selection_guide?.default_question;
@@ -1258,10 +1371,14 @@ function buildInstructions(tenant: TenantInfo, options: { serviceAreaRequired: b
       : null,
     briefServiceOptions
       ? `When discussing service plans, keep it very brief in one sentence with basic options and price: ${briefServiceOptions}. Then ask which option they want. Only give detailed explanations if the caller asks.`
-      : `When discussing service plans, keep it very brief: monthly, quarterly, or one-time with price, then ask which option they want. Only give detailed explanations if asked.`,
+      : billingChoiceRequired
+        ? `Only ask about one-time versus recurring plans if the scripted intake requires a billing choice. Keep it brief and do not invent pricing.`
+        : null,
     requiresServiceSelection(tenant)
       ? `Service or plan selection is REQUIRED before scheduling. Confirm the caller's exact choice and save it in details before asking for date/time. Use this question when needed: "${serviceSelectionQuestion || 'Which service option would you like to book?'}"`
       : null,
+    `Do not invent extra intake questions. Only ask for fields that are in the required intake list or explicitly requested by the scripted intake flow.`,
+    `Never ask about insurance, payment responsibility, or coverage unless that exact field is required for this tenant.`,
     `You MUST collect EVERY required intake field before asking about scheduling. Do not skip any. Ask one missing field at a time.`,
     `Do NOT ask for preferred date/time until all non-time required fields are collected (including address when required).`,
     `Do not provide recap/summary of collected details unless the caller explicitly asks for one.`,
@@ -1923,11 +2040,13 @@ wss.on('connection', (twilioWs: WebSocket) => {
   let speechActiveStartedAt = 0;
   let pendingInterruptTimer: ReturnType<typeof setTimeout> | null = null;
   let requiredIntakeFields: string[] = [];
+  let orderedIntakeFields: string[] = [];
   let collectedDetails: Record<string, any> = {};
   let lastCallerUtterance: string | null = null;
   let lastAssistantPromptText = '';
   let bookingIntentActive = false;
   let activeTenant: TenantInfo | null = null;
+  let activeIntakeField: string | null = null;
   let lastShortAckNormalized = '';
   let lastShortAckAt = 0;
   let diagTtsSeq = 0;
@@ -1970,16 +2089,19 @@ wss.on('connection', (twilioWs: WebSocket) => {
     if (!bookingIntentActive || !ctx || !openaiReady || !openaiWs || appointmentCreated) return false;
 
     const intakeArgs = { details: { ...collectedDetails } };
+    const plannedFields = orderedIntakeFields.length ? orderedIntakeFields : requiredIntakeFields;
     if (serviceAreaRequired) {
       const zipValue = String(collectedDetails.zip || '').trim();
       if (zipValue && serviceAreaEligible === null) {
+        activeIntakeField = null;
         createResponse(
           `The caller is booking and already gave ZIP code ${zipValue}. Call check_service_area now using that ZIP. Do not ask another question until you have the result.`
         );
         return true;
       }
       if (!zipValue) {
-        const zipQuestion = buildIntakeQuestion('zip', activeTenant, collectedDetails);
+        activeIntakeField = 'zip';
+        const zipQuestion = buildIntakeQuestion(activeIntakeField, activeTenant, collectedDetails);
         createResponse(`Ask ONLY this next question in one short sentence: "${zipQuestion}"`);
         return true;
       }
@@ -1988,10 +2110,11 @@ wss.on('connection', (twilioWs: WebSocket) => {
       }
     }
 
-    const nonSchedulingFields = requiredIntakeFields.filter((field) => !isSchedulingField(field));
+    const nonSchedulingFields = plannedFields.filter((field) => !isSchedulingField(field));
     const missingNonScheduling = findMissingRequired(nonSchedulingFields, intakeArgs);
     if (missingNonScheduling.length > 0) {
       const nextField = missingNonScheduling[0];
+      activeIntakeField = nextField;
       const question = buildIntakeQuestion(nextField, activeTenant, collectedDetails);
       createResponse(
         `The caller is booking. Ask ONLY this next intake question in one short natural sentence: "${question}" Do not ask about date or time yet. Do not recap previously collected details.`
@@ -1999,10 +2122,11 @@ wss.on('connection', (twilioWs: WebSocket) => {
       return true;
     }
 
-    const schedulingFields = requiredIntakeFields.filter((field) => isSchedulingField(field));
+    const schedulingFields = plannedFields.filter((field) => isSchedulingField(field));
     const missingScheduling = findMissingRequired(schedulingFields, intakeArgs);
     if (missingScheduling.length > 0) {
       const nextField = missingScheduling[0];
+      activeIntakeField = nextField;
       const question = buildIntakeQuestion(nextField, activeTenant, collectedDetails);
       createResponse(
         `All required non-scheduling intake fields are already collected. Ask ONLY this next scheduling question in one short natural sentence: "${question}" Do not recap prior details.`
@@ -2011,6 +2135,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
     }
 
     if (collectedDetails.preferred_time && String(collectedDetails.preferred_time).trim()) {
+      activeIntakeField = null;
       createResponse(
         `All required intake fields are already collected. The caller requested "${String(collectedDetails.preferred_time).trim()}". Do not ask any more intake questions. Call get_availability now using that preferred time.`
       );
@@ -2512,7 +2637,12 @@ wss.on('connection', (twilioWs: WebSocket) => {
         if (looksLikeBookingIntent(trimmed)) {
           bookingIntentActive = true;
         }
-        const inferredField = inferRequestedFieldFromPrompt(lastAssistantPromptText, requiredIntakeFields);
+        const inferredField =
+          activeIntakeField ||
+          inferRequestedFieldFromPrompt(lastAssistantPromptText, orderedIntakeFields.length ? orderedIntakeFields : requiredIntakeFields);
+        if (inferredField) {
+          bookingIntentActive = true;
+        }
         if (inferredField) {
           const normalizedValue = stripFieldLeadIn(inferredField, trimmed);
           const existingValue = collectedDetails[inferredField];
@@ -2523,9 +2653,12 @@ wss.on('connection', (twilioWs: WebSocket) => {
               !existingValue ||
               String(existingValue).trim() === '' ||
               String(normalizedValue).trim().length > String(existingValue).trim().length
-            );
+          );
           if (shouldStore) {
             collectedDetails[inferredField] = normalizedValue;
+            if (activeIntakeField && normalizeFieldKey(activeIntakeField) === normalizeFieldKey(inferredField)) {
+              activeIntakeField = null;
+            }
           }
         }
         if (assistantSpeaking && Date.now() - lastAssistantAudioAt < 1500) {
@@ -2546,6 +2679,21 @@ wss.on('connection', (twilioWs: WebSocket) => {
         }
 
         if (maybeDriveBookingIntake()) {
+          return;
+        }
+
+        const pendingScriptedIntake =
+          bookingIntentActive &&
+          !appointmentCreated &&
+          (
+            (serviceAreaRequired && String(collectedDetails.zip || '').trim() && serviceAreaEligible === null) ||
+            findMissingRequired(
+              orderedIntakeFields.length ? orderedIntakeFields : requiredIntakeFields,
+              { details: { ...collectedDetails } }
+            ).length > 0
+          );
+
+        if (pendingScriptedIntake) {
           return;
         }
 
@@ -2950,8 +3098,10 @@ wss.on('connection', (twilioWs: WebSocket) => {
       serviceAreaRequired = templateRequiresZip || hasServiceZips;
       serviceAreaEligible = null;
       requiredIntakeFields = buildRequiredBookingFields(resolvedTenant);
+      orderedIntakeFields = buildCanonicalIntakeOrder(resolvedTenant, serviceAreaRequired);
       activeTenant = resolvedTenant;
       bookingIntentActive = false;
+      activeIntakeField = null;
 
       ctx = {
         callSid,
