@@ -9,8 +9,6 @@ import {
   IconClock,
   IconCurrencyDollar,
   IconUsers,
-  IconCheck,
-  IconX,
 } from '@tabler/icons-react';
 import { apiClient } from '@/lib/api-client';
 import { useAuthStore } from '@/stores/auth-store';
@@ -53,15 +51,6 @@ type DashboardOverview = {
     created_at: number;
     action_url?: string;
   }>;
-  pending_booking_requests?: Array<{
-    appointment_id: string;
-    contact_name?: string;
-    contact_phone?: string;
-    service_type?: string;
-    scheduled_start?: number;
-    notes?: string;
-    created_at?: number;
-  }>;
 };
 
 function formatMoney(cents = 0) {
@@ -84,8 +73,6 @@ export default function DashboardPage() {
   const [connectStatus, setConnectStatus] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [acceptingId, setAcceptingId] = useState<string | null>(null);
-  const [decliningId, setDecliningId] = useState<string | null>(null);
 
   const load = async () => {
     try {
@@ -113,30 +100,6 @@ export default function DashboardPage() {
     if (!usage) return false;
     return usage.minutes.blocked || usage.sms.blocked || usage.contacts.blocked;
   }, [overview]);
-
-  const handleAccept = async (appointmentId: string) => {
-    setAcceptingId(appointmentId);
-    try {
-      await apiClient.acceptAppointment(appointmentId);
-      await load();
-    } catch {
-      // ignore, page will still reload
-    } finally {
-      setAcceptingId(null);
-    }
-  };
-
-  const handleDecline = async (appointmentId: string) => {
-    setDecliningId(appointmentId);
-    try {
-      await apiClient.declineAppointment(appointmentId);
-      await load();
-    } catch {
-      // ignore
-    } finally {
-      setDecliningId(null);
-    }
-  };
 
   if (loading) {
     return (
@@ -219,50 +182,6 @@ export default function DashboardPage() {
           icon={<IconCurrencyDollar stroke={1.5} className="h-4 w-4 text-slate-500" />}
         />
       </div>
-
-      {(overview?.pending_booking_requests || []).length > 0 && (
-        <div className="rounded-xl border border-amber-200 bg-amber-50">
-          <div className="flex items-center justify-between border-b border-amber-100 px-5 py-4">
-            <div>
-              <h2 className="text-sm font-semibold text-amber-900">Pending booking requests</h2>
-              <p className="text-xs text-amber-700">These customers are waiting for you to accept or decline their request.</p>
-            </div>
-            <Link href="/dashboard/appointments/requests" className="text-xs font-medium text-amber-700 hover:text-amber-900 underline">
-              View all
-            </Link>
-          </div>
-          <div className="divide-y divide-amber-100">
-            {(overview?.pending_booking_requests || []).slice(0, 3).map((req) => (
-              <div key={req.appointment_id} className="flex items-center justify-between gap-3 px-5 py-3">
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-slate-900">{req.contact_name || req.contact_phone || 'Customer'}</p>
-                  <p className="truncate text-xs text-slate-600">
-                    {req.service_type || 'Service'}{req.scheduled_start ? ` · ${formatDate(req.scheduled_start)}` : ''}
-                  </p>
-                </div>
-                <div className="flex shrink-0 gap-2">
-                  <button
-                    onClick={() => void handleAccept(req.appointment_id)}
-                    disabled={acceptingId === req.appointment_id || !!decliningId}
-                    className="flex items-center gap-1 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-50"
-                  >
-                    <IconCheck stroke={2} className="h-3.5 w-3.5" />
-                    Accept
-                  </button>
-                  <button
-                    onClick={() => void handleDecline(req.appointment_id)}
-                    disabled={decliningId === req.appointment_id || !!acceptingId}
-                    className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
-                  >
-                    <IconX stroke={2} className="h-3.5 w-3.5" />
-                    Decline
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       <div className="rounded-xl border border-slate-200 bg-white">
         <div className="border-b border-slate-100 px-5 py-4">

@@ -46,7 +46,7 @@ const {
 const { S3Client, ListObjectsV2Command, DeleteObjectsCommand } = require('@aws-sdk/client-s3');
 
 const REGION = process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION || 'us-east-1';
-const TABLE_PREFIX = process.env.DYNAMODB_TABLE_PREFIX || 'handycall_prod_';
+const TABLE_PREFIX = process.env.DYNAMODB_TABLE_PREFIX || 'handycall_dev_';
 const COMPANY_ID_OVERRIDE = process.env.COMPANY_ID || '';
 const COMPANY_NAME = process.env.COMPANY_NAME || 'EncryptGate';
 
@@ -55,8 +55,16 @@ const RESET_SUBSCRIPTION = process.env.RESET_SUBSCRIPTION === '1';
 const RESET_SCHEDULING = process.env.RESET_SCHEDULING === '1';
 const DRY_RUN = process.env.DRY_RUN === '1' || process.env.DRY_RUN === 'true';
 
-const RECORDINGS_BUCKET = process.env.RECORDINGS_BUCKET || 'handycall-recordings-prod';
-const TRANSCRIPTS_BUCKET = process.env.TRANSCRIPTS_BUCKET || 'handycall-transcripts-prod';
+const RECORDINGS_BUCKET =
+  process.env.RECORDINGS_BUCKET ||
+  (TABLE_PREFIX.startsWith('handycall_dev_')
+    ? 'handycall-recordings-dev-982081079378'
+    : 'handycall-recordings-prod');
+const TRANSCRIPTS_BUCKET =
+  process.env.TRANSCRIPTS_BUCKET ||
+  (TABLE_PREFIX.startsWith('handycall_dev_')
+    ? 'handycall-transcripts-dev-982081079378'
+    : 'handycall-transcripts-prod');
 
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({ region: REGION }), {
   marshallOptions: { removeUndefinedValues: true, convertClassInstanceToMap: true },

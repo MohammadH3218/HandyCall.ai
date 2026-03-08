@@ -16,6 +16,7 @@ import { AppointmentsService } from '../appointments/appointments.service';
 import {
   Call,
   CallDirection,
+  CallOutcome,
   CallStatus,
   Contact,
   AppointmentStatus,
@@ -129,6 +130,181 @@ export class RealtimeToolsService {
     }
 
     return undefined;
+  }
+
+  private normalizeLeadText(value?: string): string {
+    return (value || '')
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  private countCollectedLeadFields(collected?: Record<string, any>): number {
+    if (!collected || typeof collected !== 'object') return 0;
+    const candidateKeys = [
+      'name',
+      'full_name',
+      'first_name',
+      'last_name',
+      'email',
+      'address',
+      'zip',
+      'zipcode',
+      'city',
+      'state',
+      'service',
+      'service_type',
+      'selected_service_name',
+      'plan',
+      'plan_name',
+      'billing_type',
+      'issue',
+      'problem',
+      'notes',
+      'preferred_day',
+      'preferred_time',
+    ];
+    return candidateKeys.reduce((count, key) => {
+      const raw = collected[key];
+      return typeof raw === 'string' && raw.trim() ? count + 1 : count;
+    }, 0);
+  }
+
+  private classifyLeadFromConversation(input: {
+    transcript?: string;
+    summary?: string;
+    collectedInfo?: Record<string, any>;
+    durationSeconds?: number;
+    appointmentId?: string;
+    bookingLinkSent?: boolean;
+  }): {
+    leadCaptured: boolean;
+    outcome: CallOutcome;
+    leadReason?: string;
+    leadProgressStage?: 'INTERESTED' | 'INTAKE_STARTED' | 'READY_TO_BOOK';
+  } {
+    if (input.appointmentId) {
+      return {
+        leadCaptured: false,
+        outcome: CallOutcome.APPOINTMENT_BOOKED,
+        leadReason: 'Appointment was booked during the call.',
+        leadProgressStage: 'READY_TO_BOOK',
+      };
+    }
+
+    const transcript = this.normalizeLeadText(input.transcript);
+    const summary = this.normalizeLeadText(input.summary);
+    const text = `${summary} ${transcript}`.trim();
+    const collectedCount = this.countCollectedLeadFields(input.collectedInfo);
+    const durationSeconds = Number(input.durationSeconds || 0);
+
+    const explicitInterestPhrases = [
+      'interested',
+      'wants service',
+      'looking for',
+      'needs service',
+      'needs help',
+      'quote',
+      'estimate',
+      'pricing',
+      'price',
+      'cost',
+      'subscription',
+      'one time',
+      'monthly',
+      'plan',
+      'package',
+      'available',
+      'availability',
+      'appointment',
+      'schedule',
+      'book',
+      'booking',
+      'talk to the owner',
+      'call me back',
+      'follow up',
+      'send me',
+      'text me',
+      'email me',
+    ];
+
+    const intakePhrases = [
+      'address',
+      'zip',
+      'email',
+      'phone number',
+      'full name',
+      'service address',
+      'what day works',
+      'what time works',
+      'preferred day',
+      'preferred time',
+    ];
+
+    const noInterestPhrases = [
+      'not interested',
+      'no thanks',
+      'stop calling',
+      'wrong number',
+      'already handled',
+      'just checking hours',
+      'just needed information',
+      'just wanted to ask',
+      'just had a question',
+      'spam',
+    ];
+
+    const interestHits = explicitInterestPhrases.filter((phrase) => text.includes(phrase)).length;
+    const intakeHits = intakePhrases.filter((phrase) => text.includes(phrase)).length;
+    const noInterestHits = noInterestPhrases.filter((phrase) => text.includes(phrase)).length;
+
+    const signals = [
+      input.bookingLinkSent ? 'booking_link_sent' : '',
+      interestHits > 0 ? 'service_interest' : '',
+      intakeHits > 0 ? 'intake_progress' : '',
+      collectedCount >= 2 ? 'customer_details_collected' : '',
+      durationSeconds >= 45 ? 'meaningful_call_length' : '',
+    ].filter(Boolean);
+
+    const isInterested =
+      input.bookingLinkSent ||
+      interestHits >= 2 ||
+      intakeHits >= 2 ||
+      (interestHits >= 1 && collectedCount >= 2) ||
+      (collectedCount >= 3 && durationSeconds >= 45) ||
+      (durationSeconds >= 90 && interestHits >= 1);
+
+    if (!isInterested || noInterestHits >= 2) {
+      return {
+        leadCaptured: false,
+        outcome: noInterestHits > 0 ? CallOutcome.NO_INTEREST : CallOutcome.INFO_ONLY,
+        leadReason: noInterestHits > 0 ? 'Caller did not show buying intent.' : 'Caller asked questions but did not progress into a real sales conversation.',
+      };
+    }
+
+    let leadProgressStage: 'INTERESTED' | 'INTAKE_STARTED' | 'READY_TO_BOOK' = 'INTERESTED';
+    if (input.bookingLinkSent || intakeHits >= 2 || collectedCount >= 4) {
+      leadProgressStage = 'READY_TO_BOOK';
+    } else if (intakeHits >= 1 || collectedCount >= 2 || durationSeconds >= 60) {
+      leadProgressStage = 'INTAKE_STARTED';
+    }
+
+    const leadReason =
+      input.bookingLinkSent
+        ? 'Caller showed clear intent and requested or received a booking follow-up.'
+        : leadProgressStage === 'READY_TO_BOOK'
+          ? 'Caller showed clear intent and progressed far enough in intake to be ready for a follow-up close.'
+          : leadProgressStage === 'INTAKE_STARTED'
+            ? 'Caller showed real service interest and moved into intake details.'
+            : 'Caller showed genuine service interest and should be followed up as a lead.';
+
+    return {
+      leadCaptured: true,
+      outcome: CallOutcome.LEAD,
+      leadReason: signals.length ? `${leadReason} (${signals.join(', ').replace(/_/g, ' ')})` : leadReason,
+      leadProgressStage,
+    };
   }
 
   private getScheduleForDay(company: any, weekdayKey: string): any | undefined {
@@ -977,7 +1153,7 @@ Service selection and billing rules:
       status: CallStatus.IN_PROGRESS,
       ai_handled: true,
       escalated: false,
-      lead_captured: true,
+      lead_captured: false,
       started_at: now,
       created_at: now,
     };
@@ -1078,6 +1254,20 @@ Service selection and billing rules:
       summary = fallbackSummary || (dtoSummary || undefined);
     }
 
+    const mergedCollectedInfo: Record<string, any> = {
+      ...(typeof existing?.collected_info === 'object' && existing.collected_info ? existing.collected_info : {}),
+      ...(extractedHasAny ? extractedCollected : {}),
+      ...(incomingHasAny ? incomingCollected : {}),
+    };
+    const leadClassification = this.classifyLeadFromConversation({
+      transcript: transcriptText,
+      summary,
+      collectedInfo: mergedCollectedInfo,
+      durationSeconds: derivedDuration,
+      appointmentId: existing?.appointment_id,
+      bookingLinkSent: Boolean(existing?.booking_link || existing?.booking_link_sent_at),
+    });
+
     const updates: Partial<Call> & Record<string, any> = {
       ...(summary && { summary }),
       ...(transcript_url && { transcript_url }),
@@ -1089,16 +1279,16 @@ Service selection and billing rules:
       }),
       ...(typeof derivedDuration === 'number' && { duration_seconds: derivedDuration }),
       status: CallStatus.COMPLETED,
+      lead_captured: leadClassification.leadCaptured,
+      outcome: leadClassification.outcome,
+      ...(leadClassification.leadReason ? { lead_reason: leadClassification.leadReason } : {}),
+      ...(leadClassification.leadProgressStage ? { lead_progress_stage: leadClassification.leadProgressStage } : {}),
       ended_at: now,
       updated_at: now,
     };
 
     if (incomingHasAny || extractedHasAny) {
-      updates.collected_info = {
-        ...(typeof existing?.collected_info === 'object' && existing.collected_info ? existing.collected_info : {}),
-        ...(extractedHasAny ? extractedCollected : {}),
-        ...(incomingHasAny ? incomingCollected : {}),
-      };
+      updates.collected_info = mergedCollectedInfo;
 
       // Normalize phone if present (always store E.164 if we can).
       const phoneValue = (updates.collected_info as any)?.phone;
@@ -1163,6 +1353,7 @@ Service selection and billing rules:
             ...(email ? { email } : {}),
             ...(address ? { address } : {}),
             ...(zip ? { zipcode: zip } : {}),
+            ...(leadClassification.leadCaptured ? { lead_status: 'NEW' } : {}),
             last_contact_at: now,
             updated_at: now,
           };
@@ -1228,7 +1419,10 @@ Service selection and billing rules:
         started_at: existing?.started_at,
         ended_at: updates.ended_at ?? existing?.ended_at ?? now,
         appointment_id: updates.appointment_id ?? existing?.appointment_id,
-        lead_captured: existing?.lead_captured,
+        lead_captured: updates.lead_captured ?? existing?.lead_captured,
+        outcome: updates.outcome ?? existing?.outcome,
+        lead_reason: updates.lead_reason ?? existing?.lead_reason,
+        lead_progress_stage: updates.lead_progress_stage ?? existing?.lead_progress_stage,
         ai_handled: existing?.ai_handled,
         transcript_url: updates.transcript_url ?? existing?.transcript_url,
         recording_url: existing?.recording_url,

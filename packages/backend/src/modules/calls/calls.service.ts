@@ -27,6 +27,8 @@ export interface Call {
   appointment_id?: string;
   outcome?: string;
   lead_quality?: string;
+  lead_reason?: string;
+  lead_progress_stage?: string;
   collected_info?: any;
 }
 
@@ -213,6 +215,8 @@ export class CallsService {
       appointment_id: item.appointment_id,
       outcome: item.outcome,
       lead_quality: item.lead_quality,
+      lead_reason: item.lead_reason,
+      lead_progress_stage: item.lead_progress_stage,
       collected_info: item.collected_info,
     };
   }

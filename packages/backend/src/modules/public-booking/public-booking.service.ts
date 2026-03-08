@@ -954,7 +954,7 @@ export class PublicBookingService {
       notes,
       address: address.street || address.city || address.state || address.zip ? address : undefined,
       created_by: 'WEB',
-      status: AppointmentStatus.PENDING_ACCEPTANCE,
+      status: AppointmentStatus.CONFIRMED,
     });
 
     if (call?.call_id) {
@@ -985,19 +985,18 @@ export class PublicBookingService {
     const toEmail = dto.email?.trim() || (call as any)?.lead_email;
     if (toEmail && isValidEmail(toEmail)) {
       const label = formatSlotLabel(startIso, timeZone);
-      const subject = `${company.company_name} — booking request received`;
+      const subject = `${company.company_name} — booking confirmed`;
       const manageLink = `${this.getFrontendBaseUrl()}/book/${token}`;
       const body =
-        `Your booking request with ${company.company_name} for ${label} has been received.\n\n` +
-        `The business will review and confirm your appointment shortly. You'll receive another message once it's confirmed.\n\n` +
-        `View your request here: ${manageLink}`;
+        `Your booking with ${company.company_name} for ${label} is confirmed.\n\n` +
+        `Manage your booking here: ${manageLink}`;
       const html = renderHandycallEmail({
-        title: 'Booking request received',
-        preheader: `Your ${company.company_name} booking request is pending confirmation.`,
+        title: 'Booking confirmed',
+        preheader: `Your ${company.company_name} booking is confirmed.`,
         greeting: `Hi there,`,
-        body: `<p style="margin:0 0 16px;">Your booking request with <strong>${company.company_name}</strong> for <strong>${label}</strong> has been received.</p>
-               <p style="margin:0 0 16px;">The business will review and confirm your appointment shortly. You'll receive another message once it's confirmed.</p>`,
-        cta: { label: 'View request', url: manageLink },
+        body: `<p style="margin:0 0 16px;">Your booking with <strong>${company.company_name}</strong> for <strong>${label}</strong> is confirmed.</p>
+               <p style="margin:0 0 16px;">You can manage your appointment any time from the link below.</p>`,
+        cta: { label: 'Manage booking', url: manageLink },
         footer: `If you did not request this booking, just reply to this email and we'll take care of it.`,
       });
       try {

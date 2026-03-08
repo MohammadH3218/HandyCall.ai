@@ -214,7 +214,6 @@ export const authOptions: NextAuthOptions = {
           // Backend returns Cognito tokens via loginWithCognito
           // Extract tokens from response
           const idToken = data.id_token || data.idToken;
-          const refreshToken = data.refresh_token || data.refreshToken;
           const nameFromResponse = (data.name as string | undefined) || (data.fullName as string | undefined);
           const givenNameFromResponse = (data.first_name as string | undefined) || (data.given_name as string | undefined);
           const familyNameFromResponse = (data.last_name as string | undefined) || (data.family_name as string | undefined);
@@ -255,7 +254,6 @@ export const authOptions: NextAuthOptions = {
             id: credentials.email,
             email: credentials.email,
             idToken: idToken,
-            refreshToken: refreshToken,
             userRole: resolvedUserRole,
             poolType: poolType,
             name: resolvedName,
@@ -276,10 +274,7 @@ export const authOptions: NextAuthOptions = {
     async jwt({ token, user, account, profile }) {
       if (account && account.provider !== "credentials") {
         const idToken = (account as any).id_token as string | undefined;
-        const refreshToken = (account as any).refresh_token as string | undefined;
-
         if (idToken) token.idToken = idToken;
-        if (refreshToken) token.refreshToken = refreshToken;
 
         const decoded = idToken ? decodeJWT(idToken) : null;
         const derivedRole = idToken ? extractUserRole(idToken) : null;
@@ -306,7 +301,6 @@ export const authOptions: NextAuthOptions = {
       if (user) {
         if ((user as any).idToken) {
           token.idToken = (user as any).idToken ?? token.idToken;
-          token.refreshToken = (user as any).refreshToken ?? token.refreshToken;
         }
         token.sub = token.sub || user.id;
         token.email = token.email || user.email;

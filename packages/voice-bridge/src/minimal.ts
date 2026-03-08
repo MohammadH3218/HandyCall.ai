@@ -431,6 +431,12 @@ type TenantInfo = {
     billing_interval?: 'day' | 'week' | 'month' | 'year' | string;
     billing_interval_count?: number;
   }>;
+  service_selection_guide?: {
+    require_selection_before_booking?: boolean;
+    ask_when_unsure?: boolean;
+    default_question?: string;
+    summary?: string;
+  };
   pricing_profile?: {
     model?: string;
     currency?: string;
@@ -805,6 +811,8 @@ const UNIVERSAL_ALIASES: Record<string, string[]> = {
   address: ['service_address', 'location_address', 'street_address', 'service_location', 'home_address'],
   zip: ['zipcode', 'zip_code', 'postal_code'],
   preferred_time: ['time', 'appointment_time', 'schedule_time', 'preferred_date'],
+  selected_service_name: ['service_name', 'plan_name', 'service_type', 'service', 'selected_plan_name'],
+  selected_billing_type: ['billing_type', 'plan_type', 'subscription_type', 'selected_plan_type'],
 };
 
 // Split a snake_case key into meaningful words, dropping connectors like "or", "and", "of"
@@ -881,6 +889,66 @@ function findMatchingDetailKey(requiredField: string, details: Record<string, an
 function findMissingRequired(fields: string[], args: any): string[] {
   if (!Array.isArray(fields) || fields.length === 0) return [];
   return fields.filter((field) => !isFieldPresent(field, args));
+}
+
+function uniqueNormalizedFields(fields: string[]): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const field of fields) {
+    const raw = String(field || '').trim();
+    if (!raw) continue;
+    const normalized = normalizeFieldKey(raw);
+    if (seen.has(normalized)) continue;
+    seen.add(normalized);
+    out.push(normalized);
+  }
+  return out;
+}
+
+function requiresServiceSelection(tenant: TenantInfo): boolean {
+  return tenant?.service_selection_guide?.require_selection_before_booking === true;
+}
+
+function requiresBillingTypeSelection(tenant: TenantInfo): boolean {
+  const services = Array.isArray(tenant?.booking_services) ? tenant.booking_services : [];
+  const billingTypes = new Set(
+    services
+      .map((service) => String(service?.billing_type || '').toUpperCase())
+      .filter((billingType) => billingType === 'ONE_TIME' || billingType === 'SUBSCRIPTION'),
+  );
+  return billingTypes.size > 1;
+}
+
+function buildRequiredBookingFields(tenant: TenantInfo): string[] {
+  const templateRequired = Array.isArray(tenant?.service_template?.intake_schema?.required)
+    ? tenant.service_template.intake_schema.required
+        .map((field: any) => String(field || '').trim())
+        .filter(Boolean)
+    : [];
+  const required = [...templateRequired];
+  if (requiresServiceSelection(tenant)) {
+    required.push('selected_service_name');
+    if (requiresBillingTypeSelection(tenant)) {
+      required.push('selected_billing_type');
+    }
+  }
+  return uniqueNormalizedFields(required);
+}
+
+function isSchedulingField(field: string): boolean {
+  const normalized = normalizeFieldKey(field);
+  return [
+    'preferred_time',
+    'preferred_date',
+    'appointment_time',
+    'appointment_date',
+    'schedule_time',
+    'schedule_date',
+    'start_time',
+    'end_time',
+    'date',
+    'time',
+  ].includes(normalized);
 }
 
 function formatPricingProfileForPrompt(profile: TenantInfo['pricing_profile']): string | null {
@@ -991,8 +1059,10 @@ function buildInstructions(tenant: TenantInfo, options: { serviceAreaRequired: b
   const pricingProfileSummary = formatPricingProfileForPrompt(tenant.pricing_profile);
   const briefServiceOptions = buildServiceOptionsBrief(tenant);
   const serviceAreaRequired = options.serviceAreaRequired;
-  const requiredFields = formatFieldList(tenant.service_template?.intake_schema?.required);
+  const requiredBookingFields = buildRequiredBookingFields(tenant);
+  const requiredFields = formatFieldList(requiredBookingFields);
   const optionalFields = formatFieldList(tenant.service_template?.intake_schema?.optional);
+  const serviceSelectionQuestion = tenant.service_selection_guide?.default_question;
   const lines = [
     renderedTemplatePrompt || `You are the phone receptionist for ${name}.`,
     `Greet the caller immediately and include the company name in the first sentence.`,
@@ -1015,6 +1085,9 @@ function buildInstructions(tenant: TenantInfo, options: { serviceAreaRequired: b
     briefServiceOptions
       ? `When discussing service plans, keep it very brief in one sentence with basic options and price: ${briefServiceOptions}. Then ask which option they want. Only give detailed explanations if the caller asks.`
       : `When discussing service plans, keep it very brief: monthly, quarterly, or one-time with price, then ask which option they want. Only give detailed explanations if asked.`,
+    requiresServiceSelection(tenant)
+      ? `Service or plan selection is REQUIRED before scheduling. Confirm the caller's exact choice and save it in details before asking for date/time. Use this question when needed: "${serviceSelectionQuestion || 'Which service option would you like to book?'}"`
+      : null,
     `You MUST collect EVERY required intake field before asking about scheduling. Do not skip any. Ask one missing field at a time.`,
     `Do NOT ask for preferred date/time until all non-time required fields are collected (including address when required).`,
     `Do not provide recap/summary of collected details unless the caller explicitly asks for one.`,
@@ -1588,7 +1661,7 @@ const server = http.createServer(async (req, res) => {
       const aiTwiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Connect>
-    <Stream url="${escapeXml(mediaWsUrl)}"${trackAttr} statusCallback="${escapeXml(streamStatusUrl)}" statusCallbackEvent="start end">
+    <Stream url="${escapeXml(mediaWsUrl)}"${trackAttr} statusCallback="${escapeXml(streamStatusUrl)}">
       <Parameter name="callSid" value="${escapeXml(callSid)}" />
       <Parameter name="to" value="${escapeXml(to)}" />
       <Parameter name="from" value="${escapeXml(from)}" />
@@ -1615,7 +1688,7 @@ const server = http.createServer(async (req, res) => {
 <Response>
   <Dial timeout="${safeTimeout}">${escapeXml(routingTarget)}</Dial>
   <Connect>
-    <Stream url="${escapeXml(mediaWsUrl)}"${trackAttr} statusCallback="${escapeXml(streamStatusUrl)}" statusCallbackEvent="start end">
+    <Stream url="${escapeXml(mediaWsUrl)}"${trackAttr} statusCallback="${escapeXml(streamStatusUrl)}">
       <Parameter name="callSid" value="${escapeXml(callSid)}" />
       <Parameter name="to" value="${escapeXml(to)}" />
       <Parameter name="from" value="${escapeXml(from)}" />
@@ -2305,16 +2378,26 @@ wss.on('connection', (twilioWs: WebSocket) => {
             }
             args = { ...args, start_time: startTime, timezone: normalizedTimezone };
 
-            const requiresAddress = requiredIntakeFields.some((field) => normalizeFieldKey(field) === 'address');
-            const hasAddressInState = isFieldPresent('address', { details: collectedDetails });
-            const hasAddressInArgs = isFieldPresent('address', args);
-            if (requiresAddress && !hasAddressInState && !hasAddressInArgs && !callerLikelyProvidedAddress()) {
+            const availabilityArgs = {
+              ...args,
+              details: {
+                ...(collectedDetails || {}),
+                ...((args?.details && typeof args.details === 'object') ? args.details : {}),
+              },
+            };
+            const missingBeforeScheduling = findMissingRequired(
+              requiredIntakeFields.filter((field) => !isSchedulingField(field)),
+              availabilityArgs,
+            );
+            if (missingBeforeScheduling.length) {
+              const nextMissingField = missingBeforeScheduling[0];
               result = {
                 ok: false,
-                error: 'AddressRequiredBeforeScheduling',
-                missing_fields: ['address'],
+                error: 'MissingRequiredFieldsBeforeScheduling',
+                missing_fields: [nextMissingField],
+                remaining_missing_fields: missingBeforeScheduling.slice(1),
                 message:
-                  'Before checking availability, ask ONLY for the service address. Do not recap details yet. After collecting address, then check availability.',
+                  `Before checking availability, ask ONLY for ${titleizeField(nextMissingField)}. Do not ask for date/time yet. Do not recap details. After collecting it, continue gathering any other missing required intake fields before checking availability.`,
               };
             }
           }
@@ -2352,13 +2435,15 @@ wss.on('connection', (twilioWs: WebSocket) => {
             const tz = normalizedTimezone;
             const missingFields = findMissingRequired(requiredIntakeFields, args);
             if (missingFields.length) {
+              const nextMissingField = missingFields[0];
               const presentFields = requiredIntakeFields.filter((f) => !missingFields.includes(f));
               result = {
                 ok: false,
                 error: 'MissingRequiredFields',
-                missing_fields: missingFields,
+                missing_fields: [nextMissingField],
+                remaining_missing_fields: missingFields.slice(1),
                 already_collected: presentFields,
-                message: `The details object is missing: ${missingFields.map((f) => titleizeField(f)).join(', ')}. Ask ONLY for these missing fields in one short sentence. Do NOT recap or summarize yet. Do NOT use label-style wording like "Name:" or "Address:". Do NOT re-ask fields already collected (${presentFields.map((f) => titleizeField(f)).join(', ')}). When retrying create_booking, include ALL collected fields in details.`,
+                message: `The details object is missing ${titleizeField(nextMissingField)}. Ask ONLY for that field now in one short sentence. Do NOT recap or summarize yet. Do NOT use label-style wording like "Name:" or "Address:". Do NOT re-ask fields already collected (${presentFields.map((f) => titleizeField(f)).join(', ')}). After the caller answers, retry create_booking with ALL collected fields in details. If more fields are still missing, the tool will tell you the next one.`,
               };
             }
             let resolvedSlot: string | null = null;
@@ -2601,11 +2686,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
         Array.isArray(resolvedTenant?.service_area_zipcodes) && resolvedTenant.service_area_zipcodes.length > 0;
       serviceAreaRequired = templateRequiresZip || hasServiceZips;
       serviceAreaEligible = null;
-      requiredIntakeFields = Array.isArray(resolvedTenant?.service_template?.intake_schema?.required)
-        ? resolvedTenant.service_template.intake_schema.required
-            .map((field: any) => String(field || '').trim())
-            .filter(Boolean)
-        : [];
+      requiredIntakeFields = buildRequiredBookingFields(resolvedTenant);
 
       ctx = {
         callSid,

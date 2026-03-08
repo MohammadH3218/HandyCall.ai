@@ -469,6 +469,8 @@ export interface Call {
   outcome_confidence?: number; // 0-1
   appointment_id?: UUID; // Link to created appointment
   lead_quality?: LeadQuality;
+  lead_reason?: string;
+  lead_progress_stage?: 'INTERESTED' | 'INTAKE_STARTED' | 'READY_TO_BOOK';
 }
 
 export interface CallHighlight {

@@ -45,9 +45,20 @@ class ApiClient {
     // Tokens are handled server-side via NextAuth cookies
   }
 
-  private isAuthFailureResponse(response: Response, data: any, message: string): boolean {
-    if (response.status === 401) return true;
+  private async hasActiveSession(): Promise<boolean> {
+    if (typeof window === 'undefined') return false;
 
+    try {
+      const response = await fetch('/api/auth/session', { cache: 'no-store' });
+      if (!response.ok) return false;
+      const session = await response.json();
+      return Boolean((session as any)?.idToken || (session as any)?.accessToken);
+    } catch {
+      return false;
+    }
+  }
+
+  private isAuthFailureResponse(response: Response, data: any, message: string): boolean {
     const text = [
       message,
       data?.error?.message,
@@ -155,7 +166,13 @@ class ApiClient {
           data?.message ||
           data?.raw ||
           `Request failed with status ${response.status}`;
-        if (this.isAuthFailureResponse(response, data, errorMessage)) {
+
+        const isTokenAuthFailure = this.isAuthFailureResponse(response, data, errorMessage);
+        const shouldForceLogout =
+          isTokenAuthFailure ||
+          (response.status === 401 && !(await this.hasActiveSession()));
+
+        if (shouldForceLogout) {
           await this.forceLogoutToLogin();
         }
         throw new Error(errorMessage);
@@ -393,24 +410,6 @@ class ApiClient {
 
   async deleteAppointment(appointmentId: string): Promise<any> {
     const response = await this.request<any>(`/appointments/${appointmentId}`, { method: 'DELETE' });
-    return response.data ?? response;
-  }
-
-  async getPendingBookingRequests(): Promise<{ appointments: any[] }> {
-    const response = await this.request<{ appointments: any[] }>('/appointments/pending', { method: 'GET' });
-    return (response.data ?? response) as { appointments: any[] };
-  }
-
-  async acceptAppointment(appointmentId: string): Promise<any> {
-    const response = await this.request<any>(`/appointments/${appointmentId}/accept`, { method: 'POST' });
-    return response.data ?? response;
-  }
-
-  async declineAppointment(appointmentId: string, reason?: string): Promise<any> {
-    const response = await this.request<any>(`/appointments/${appointmentId}/decline`, {
-      method: 'POST',
-      body: JSON.stringify({ reason }),
-    });
     return response.data ?? response;
   }
 
@@ -1192,15 +1191,10 @@ class ApiClient {
     return this.request<any>(`/team/${memberId}`, { method: 'DELETE' });
   }
 
-  // Lead Scoring
-  async getLeadScores(): Promise<any[]> {
-    const res = await this.request<any>('/leads/scores');
-    return (res as any)?.scores ?? res ?? [];
-  }
-
-  async getLeadScore(contactId: string): Promise<any> {
-    const res = await this.request<any>(`/leads/${contactId}/score`);
-    return (res as any)?.data ?? res;
+  // Leads
+  async getLeads(): Promise<any[]> {
+    const res = await this.request<any>('/leads');
+    return (res as any)?.leads ?? res ?? [];
   }
 
   // Marketplace / Provider Search

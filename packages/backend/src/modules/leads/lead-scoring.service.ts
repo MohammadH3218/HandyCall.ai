@@ -1,113 +1,125 @@
 import { Injectable } from '@nestjs/common';
 import { DynamoDBService } from '../../infrastructure/database/dynamodb.service';
 
-export interface LeadScoringFactors {
-  hasEmail: boolean;
-  hasPhone: boolean;
-  hasAddress: boolean;
-  callCount: number;
-  appointmentCount: number;
-  recentActivity: boolean;
-  leadStatus: string;
-}
+export type LeadInboxItem = {
+  call_id: string;
+  contact_id?: string;
+  phone_number: string;
+  contact_name?: string;
+  summary?: string;
+  lead_reason?: string;
+  lead_progress_stage?: 'INTERESTED' | 'INTAKE_STARTED' | 'READY_TO_BOOK';
+  created_at?: number;
+  last_contact_at?: number;
+  duration_seconds?: number;
+};
 
 @Injectable()
 export class LeadScoringService {
   constructor(private readonly dynamodb: DynamoDBService) {}
 
-  calculateScore(factors: LeadScoringFactors): number {
-    let score = 0;
-
-    // Contact completeness (max 20 pts)
-    if (factors.hasPhone) score += 10;
-    if (factors.hasEmail) score += 5;
-    if (factors.hasAddress) score += 5;
-
-    // Engagement (max 40 pts)
-    score += Math.min(20, factors.callCount * 5);
-    score += Math.min(20, factors.appointmentCount * 10);
-
-    // Recency (max 20 pts)
-    if (factors.recentActivity) score += 20;
-
-    // Status (max 20 pts)
-    const statusScores: Record<string, number> = {
-      HOT: 20,
-      WARM: 15,
-      QUOTED: 10,
-      FOLLOW_UP: 5,
-      COLD: 0,
-      LOST: 0,
-    };
-    score += statusScores[factors.leadStatus?.toUpperCase()] || 0;
-
-    return Math.min(100, score);
+  private normalizeText(value?: string): string {
+    return (value || '')
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
   }
 
-  getScoreLabel(score: number): 'hot' | 'warm' | 'cold' {
-    if (score >= 70) return 'hot';
-    if (score >= 40) return 'warm';
-    return 'cold';
+  private isLead(call: any): boolean {
+    if (!call || call.appointment_created === true || call.outcome === 'APPOINTMENT_BOOKED') {
+      return false;
+    }
+    if (call.lead_captured === true || call.outcome === 'LEAD') {
+      return true;
+    }
+
+    const text = this.normalizeText(`${call.summary || ''} ${call.lead_reason || ''}`);
+    const interestSignals = [
+      'interested',
+      'quote',
+      'estimate',
+      'pricing',
+      'price',
+      'availability',
+      'appointment',
+      'schedule',
+      'book',
+      'service interest',
+      'follow up',
+      'talk to the owner',
+      'call me back',
+    ];
+
+    const hits = interestSignals.filter((signal) => text.includes(signal)).length;
+    const collected = call.collected_info && typeof call.collected_info === 'object' ? call.collected_info : {};
+    const collectedCount = Object.values(collected).filter((value) => typeof value === 'string' && value.trim()).length;
+    const duration = Number(call.duration_seconds || call.duration || 0);
+    return hits >= 2 || (hits >= 1 && collectedCount >= 2) || (collectedCount >= 3 && duration >= 45);
   }
 
-  async scoreContact(companyId: string, contactId: string): Promise<{
-    score: number;
-    label: 'hot' | 'warm' | 'cold';
-    factors: LeadScoringFactors;
-  }> {
-    const contact = await this.dynamodb.get('contacts', { company_id: companyId, contact_id: contactId }) as any;
-    if (!contact) return { score: 0, label: 'cold', factors: {} as any };
+  async listLeads(companyId: string): Promise<LeadInboxItem[]> {
+    const [callsResult, contactsResult] = await Promise.all([
+      this.dynamodb.queryByCompany('calls', companyId, {}, {
+        indexName: 'date-index',
+        limit: 250,
+        scanIndexForward: false,
+      }).catch(() =>
+        this.dynamodb.scan('calls', {
+          filterExpression: '#company_id = :company_id',
+          expressionAttributeNames: { '#company_id': 'company_id' },
+          expressionAttributeValues: { ':company_id': companyId },
+          limit: 250,
+        }),
+      ),
+      this.dynamodb.queryByCompany('contacts', companyId, undefined, { limit: 500 }).catch(() =>
+        this.dynamodb.scan('contacts', {
+          filterExpression: '#company_id = :company_id',
+          expressionAttributeNames: { '#company_id': 'company_id' },
+          expressionAttributeValues: { ':company_id': companyId },
+          limit: 500,
+        }),
+      ),
+    ]);
 
-    // Count calls
-    const callsResult = await this.dynamodb.scan('calls', {
-      filterExpression: '#company_id = :cid AND #contact_id = :contact_id',
-      expressionAttributeNames: { '#company_id': 'company_id', '#contact_id': 'contact_id' },
-      expressionAttributeValues: { ':cid': companyId, ':contact_id': contactId },
-      limit: 20,
-    });
+    const contactsById = new Map<string, any>();
+    const contactsByPhone = new Map<string, any>();
+    for (const contact of contactsResult.items || []) {
+      contactsById.set(contact.contact_id, contact);
+      const phone = String(contact.phone_number || contact.phone || '').trim();
+      if (phone) contactsByPhone.set(phone, contact);
+    }
 
-    // Count appointments
-    const apptResult = await this.dynamodb.scan('appointments', {
-      filterExpression: '#company_id = :cid AND #contact_id = :contact_id',
-      expressionAttributeNames: { '#company_id': 'company_id', '#contact_id': 'contact_id' },
-      expressionAttributeValues: { ':cid': companyId, ':contact_id': contactId },
-      limit: 20,
-    });
+    const leadMap = new Map<string, LeadInboxItem>();
+    for (const call of callsResult.items || []) {
+      if (!this.isLead(call)) continue;
 
-    const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
-    const recentActivity = (contact.last_contact_at || contact.updated_at || 0) > thirtyDaysAgo;
+      const contact =
+        (call.contact_id ? contactsById.get(call.contact_id) : undefined) ||
+        contactsByPhone.get(String(call.from_number || '').trim());
 
-    const factors: LeadScoringFactors = {
-      hasEmail: Boolean(contact.email),
-      hasPhone: Boolean(contact.phone_number || contact.phone),
-      hasAddress: Boolean(contact.address),
-      callCount: callsResult.items?.length || 0,
-      appointmentCount: apptResult.items?.length || 0,
-      recentActivity,
-      leadStatus: contact.lead_status || 'UNKNOWN',
-    };
+      const key = String(contact?.contact_id || call.contact_id || call.from_number || call.call_id);
+      if (leadMap.has(key)) continue;
 
-    const score = this.calculateScore(factors);
-    const label = this.getScoreLabel(score);
+      const first = String(contact?.first_name || '').trim();
+      const last = String(contact?.last_name || '').trim();
+      const legacyName = String(contact?.name || '').trim();
+      const contactName = legacyName || [first, last].filter(Boolean).join(' ').trim() || undefined;
 
-    return { score, label, factors };
-  }
+      leadMap.set(key, {
+        call_id: call.call_id,
+        contact_id: contact?.contact_id || call.contact_id,
+        phone_number: String(call.from_number || contact?.phone_number || contact?.phone || '').trim(),
+        contact_name: contactName,
+        summary: call.summary,
+        lead_reason: call.lead_reason || 'Customer showed enough service interest to follow up.',
+        lead_progress_stage: call.lead_progress_stage || 'INTERESTED',
+        created_at: Number(call.created_at || call.started_at || 0) || undefined,
+        last_contact_at: Number(contact?.last_contact_at || contact?.updated_at || 0) || undefined,
+        duration_seconds: Number(call.duration_seconds || call.duration || 0) || undefined,
+      });
+    }
 
-  async scoreAllContacts(companyId: string): Promise<Array<{ contact_id: string; score: number; label: string }>> {
-    const result = await this.dynamodb.scan('contacts', {
-      filterExpression: '#company_id = :company_id',
-      expressionAttributeNames: { '#company_id': 'company_id' },
-      expressionAttributeValues: { ':company_id': companyId },
-      limit: 500,
-    });
-
-    const scores = await Promise.all(
-      (result.items || []).map(async (c: any) => {
-        const scored = await this.scoreContact(companyId, c.contact_id);
-        return { contact_id: c.contact_id, ...scored };
-      }),
-    );
-
-    return scores.sort((a, b) => b.score - a.score);
+    return Array.from(leadMap.values()).sort((a, b) => Number(b.created_at || 0) - Number(a.created_at || 0));
   }
 }

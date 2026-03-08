@@ -31,7 +31,6 @@ import {
   IconPhoneOutgoing,
   IconMenu2,
   IconX,
-  IconClipboardList,
 } from '@tabler/icons-react';
 import { UserRole } from '@handycall/shared';
 
@@ -285,18 +284,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <NavLink
               href="/dashboard/appointments"
               icon={<IconCalendar stroke={1.5} className="h-5 w-5" />}
-              active={pathname === '/dashboard/appointments' || (pathname?.startsWith('/dashboard/appointments') && !pathname?.startsWith('/dashboard/appointments/requests'))}
+              active={pathname?.startsWith('/dashboard/appointments')}
               onClick={() => setSidebarOpen(false)}
             >
               Appointments
-            </NavLink>
-            <NavLink
-              href="/dashboard/appointments/requests"
-              icon={<IconClipboardList stroke={1.5} className="h-5 w-5" />}
-              active={pathname?.startsWith('/dashboard/appointments/requests')}
-              onClick={() => setSidebarOpen(false)}
-            >
-              Booking Requests
             </NavLink>
           </div>
 

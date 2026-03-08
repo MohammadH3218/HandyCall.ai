@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Post, Put, Query, HttpCode } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Put, Query } from '@nestjs/common';
 import { CompanyId } from '../../common/decorators/auth.decorator';
 import { AppointmentsService } from './appointments.service';
 
@@ -31,11 +31,6 @@ export class AppointmentsController {
     }));
   }
 
-  @Get('pending')
-  listPendingRequests(@CompanyId() companyId: string) {
-    return this.appointments.listPendingRequests(companyId).then((appointments) => ({ appointments }));
-  }
-
   @Post()
   createAppointment(@CompanyId() companyId: string, @Body() body: any) {
     return this.appointments.createAppointment(companyId, body);
@@ -61,21 +56,5 @@ export class AppointmentsController {
   @Delete(':appointmentId')
   deleteAppointment(@CompanyId() companyId: string, @Param('appointmentId') appointmentId: string) {
     return this.appointments.deleteAppointment(companyId, appointmentId);
-  }
-
-  @Post(':appointmentId/accept')
-  @HttpCode(200)
-  acceptAppointment(@CompanyId() companyId: string, @Param('appointmentId') appointmentId: string) {
-    return this.appointments.acceptAppointment(companyId, appointmentId);
-  }
-
-  @Post(':appointmentId/decline')
-  @HttpCode(200)
-  declineAppointment(
-    @CompanyId() companyId: string,
-    @Param('appointmentId') appointmentId: string,
-    @Body() body: { reason?: string },
-  ) {
-    return this.appointments.declineAppointment(companyId, appointmentId, body?.reason);
   }
 }
