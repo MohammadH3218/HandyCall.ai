@@ -128,6 +128,33 @@ function normalizeCallFlowQuestions(
     .map((question, index) => ({ ...question, order: index }));
 }
 
+function sanitizeCallFlowQuestions(questions: CompanyCallFlowQuestion[]): CompanyCallFlowQuestion[] {
+  return normalizeCallFlowQuestions(questions)
+    .filter((question) => question.enabled !== false)
+    .map((question, index) => {
+      const prompt = String(question.prompt || '').trim();
+      const label = String(question.label || `Question ${index + 1}`).trim() || `Question ${index + 1}`;
+      const fieldKey =
+        String(question.field_key || '')
+          .trim()
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '_')
+          .replace(/^_+|_+$/g, '') || `custom_question_${index + 1}`;
+
+      return {
+        id: String(question.id || `${fieldKey}-${index + 1}`),
+        field_key: fieldKey,
+        label,
+        prompt,
+        helper_text: question.helper_text ? String(question.helper_text) : undefined,
+        required: true,
+        enabled: true,
+        order: index,
+      };
+    })
+    .filter((question) => question.prompt.length > 0);
+}
+
 function normalizeHours(source: any): CalendarHours {
   const base = defaultHours();
   if (!source || typeof source !== 'object') return base;
@@ -892,14 +919,25 @@ function OnboardingSetupContent() {
   };
 
   const handleSaveCallFlow = async () => {
-    const normalized = normalizeCallFlowQuestions(callFlowQuestions).filter((question) => question.enabled !== false);
+    const normalized = sanitizeCallFlowQuestions(callFlowQuestions);
     if (normalized.length === 0) {
-      setErrMsg('Keep at least one intake question enabled before continuing.');
+      setErrMsg('Keep at least one question before continuing.');
       return;
     }
     setIsSaving(true);
     try {
-      await apiClient.updateMyCompany({ call_flow_questions: normalized });
+      await apiClient.updateMyCompany({
+        call_flow_questions: normalized.map((question) => ({
+          id: question.id,
+          field_key: question.field_key,
+          label: question.label,
+          prompt: question.prompt,
+          helper_text: question.helper_text,
+          required: true,
+          enabled: true,
+          order: question.order,
+        })),
+      });
       await refreshAll();
       userSay(`Saved ${normalized.length} intake question${normalized.length === 1 ? '' : 's'}`);
       await goTo(
@@ -1550,7 +1588,7 @@ function OnboardingSetupContent() {
             <div className="rounded-[24px] border border-slate-200 bg-[linear-gradient(180deg,rgba(248,250,252,0.9),rgba(255,255,255,1))] p-5">
               <p className="text-base font-semibold text-slate-900">Control the questions your AI asks before scheduling</p>
               <p className="mt-1 text-sm text-slate-600">
-                Edit the exact wording, remove anything unnecessary, add custom company questions, and set the order. The scheduling question stays automatic and always comes last.
+                Reword the questions, remove anything unnecessary, add your own, and set the order. The scheduling question stays automatic and always comes last.
               </p>
             </div>
             <CallFlowEditor
