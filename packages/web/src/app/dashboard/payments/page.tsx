@@ -247,12 +247,12 @@ export default function PaymentsPage() {
         <StatCard label="Avg ticket" value={formatMoney(Number(stats?.average_ticket_cents || 0), 'usd')} />
       </div>
 
-      <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
+      <div className="rounded-2xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm">
         <div className="grid gap-3 md:grid-cols-5">
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="h-10 rounded-xl border border-slate-200 px-3 text-sm"
+            className="h-10 rounded-xl border border-slate-200 dark:border-slate-700 px-3 text-sm bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100"
           >
             <option value="ALL">All statuses</option>
             <option value="SUCCEEDED">Succeeded</option>
@@ -267,7 +267,7 @@ export default function PaymentsPage() {
           <select
             value={typeFilter}
             onChange={(e) => setTypeFilter(e.target.value)}
-            className="h-10 rounded-xl border border-slate-200 px-3 text-sm"
+            className="h-10 rounded-xl border border-slate-200 dark:border-slate-700 px-3 text-sm bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100"
           >
             <option value="ALL">All types</option>
             <option value="BOOKING">Booking</option>
@@ -283,10 +283,10 @@ export default function PaymentsPage() {
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm">
+      <div className="overflow-hidden rounded-2xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="bg-slate-50 text-left text-slate-500">
+            <thead className="bg-slate-50 dark:bg-slate-800/50 text-left text-slate-500 dark:text-slate-500">
               <tr>
                 <th className="px-4 py-3 font-medium">Date</th>
                 <th className="px-4 py-3 font-medium">Customer</th>
@@ -300,15 +300,15 @@ export default function PaymentsPage() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td className="px-4 py-6 text-slate-500" colSpan={7}>Loading payments…</td>
+                  <td className="px-4 py-6 text-slate-500 dark:text-slate-500" colSpan={7}>Loading payments…</td>
                 </tr>
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td className="px-4 py-6 text-slate-500" colSpan={7}>No payments found.</td>
+                  <td className="px-4 py-6 text-slate-500 dark:text-slate-500" colSpan={7}>No payments found.</td>
                 </tr>
               ) : (
                 filtered.map((payment) => (
-                  <tr key={payment.payment_id} className="border-t border-slate-100">
+                  <tr key={payment.payment_id} className="border-t border-slate-100 dark:border-slate-800">
                     <td className="px-4 py-3">{formatDate(payment.created_at)}</td>
                     <td className="px-4 py-3">
                       {payment.contact_id ? (
@@ -323,11 +323,11 @@ export default function PaymentsPage() {
                       )}
                     </td>
                     <td className="px-4 py-3">{payment.service_name || '-'}</td>
-                    <td className="px-4 py-3 font-semibold text-slate-900">
+                    <td className="px-4 py-3 font-semibold text-slate-900 dark:text-slate-100">
                       {formatMoney(payment.amount_cents, payment.currency)}
                     </td>
                     <td className="px-4 py-3">
-                      <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs font-medium text-slate-700">
+                      <span className="rounded-full border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 text-xs font-medium text-slate-700 dark:text-slate-300">
                         {payment.payment_type || 'BOOKING'}
                       </span>
                     </td>
@@ -343,7 +343,7 @@ export default function PaymentsPage() {
                         <button
                           type="button"
                           onClick={() => void openReceipt(payment.payment_id)}
-                          className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                          className="rounded-lg border border-slate-200 dark:border-slate-700 px-2.5 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
                         >
                           Receipt
                         </button>
@@ -369,34 +369,34 @@ export default function PaymentsPage() {
       {/* Receipt Modal */}
       {(selectedReceipt || receiptLoading) && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
-          <div className="w-full max-w-xl rounded-xl border border-slate-200 bg-white p-6 shadow-lg">
+          <div className="w-full max-w-xl rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-6 shadow-lg">
             <div className="mb-4 flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-slate-900">Payment receipt</h3>
+              <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Payment receipt</h3>
               <button
                 type="button"
                 onClick={closeReceipt}
-                className="rounded-lg border border-slate-200 px-2 py-1 text-xs text-slate-600 hover:bg-slate-50"
+                className="rounded-lg border border-slate-200 dark:border-slate-700 px-2 py-1 text-xs text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800"
               >
                 Close
               </button>
             </div>
             {receiptLoading || !selectedReceipt ? (
-              <p className="text-sm text-slate-500">Loading receipt…</p>
+              <p className="text-sm text-slate-500 dark:text-slate-500">Loading receipt…</p>
             ) : (
-              <div className="space-y-2 text-sm text-slate-700">
-                <p><span className="font-semibold text-slate-900">Receipt ID:</span> {selectedReceipt.payment_id}</p>
-                <p><span className="font-semibold text-slate-900">Date:</span> {formatDate(selectedReceipt.paid_at || selectedReceipt.created_at)}</p>
-                <p><span className="font-semibold text-slate-900">Customer:</span> {selectedReceipt.customer_name || 'Customer'}</p>
-                <p><span className="font-semibold text-slate-900">Email:</span> {selectedReceipt.customer_email || '-'}</p>
-                <p><span className="font-semibold text-slate-900">Service:</span> {selectedReceipt.service_name || '-'}</p>
-                <p><span className="font-semibold text-slate-900">Type:</span> {selectedReceipt.payment_type || '-'}</p>
-                <p><span className="font-semibold text-slate-900">Status:</span> {selectedReceipt.payment_status || '-'}</p>
-                <p><span className="font-semibold text-slate-900">Amount:</span> {formatMoney(selectedReceipt.amount_cents, selectedReceipt.currency)}</p>
+              <div className="space-y-2 text-sm text-slate-700 dark:text-slate-300">
+                <p><span className="font-semibold text-slate-900 dark:text-slate-100">Receipt ID:</span> {selectedReceipt.payment_id}</p>
+                <p><span className="font-semibold text-slate-900 dark:text-slate-100">Date:</span> {formatDate(selectedReceipt.paid_at || selectedReceipt.created_at)}</p>
+                <p><span className="font-semibold text-slate-900 dark:text-slate-100">Customer:</span> {selectedReceipt.customer_name || 'Customer'}</p>
+                <p><span className="font-semibold text-slate-900 dark:text-slate-100">Email:</span> {selectedReceipt.customer_email || '-'}</p>
+                <p><span className="font-semibold text-slate-900 dark:text-slate-100">Service:</span> {selectedReceipt.service_name || '-'}</p>
+                <p><span className="font-semibold text-slate-900 dark:text-slate-100">Type:</span> {selectedReceipt.payment_type || '-'}</p>
+                <p><span className="font-semibold text-slate-900 dark:text-slate-100">Status:</span> {selectedReceipt.payment_status || '-'}</p>
+                <p><span className="font-semibold text-slate-900 dark:text-slate-100">Amount:</span> {formatMoney(selectedReceipt.amount_cents, selectedReceipt.currency)}</p>
                 {selectedReceipt.stripe_payment_intent_id ? (
-                  <p><span className="font-semibold text-slate-900">Stripe Payment Intent:</span> {selectedReceipt.stripe_payment_intent_id}</p>
+                  <p><span className="font-semibold text-slate-900 dark:text-slate-100">Stripe Payment Intent:</span> {selectedReceipt.stripe_payment_intent_id}</p>
                 ) : null}
                 {selectedReceipt.stripe_subscription_id ? (
-                  <p><span className="font-semibold text-slate-900">Stripe Subscription:</span> {selectedReceipt.stripe_subscription_id}</p>
+                  <p><span className="font-semibold text-slate-900 dark:text-slate-100">Stripe Subscription:</span> {selectedReceipt.stripe_subscription_id}</p>
                 ) : null}
                 <div className="flex items-center gap-2 pt-3">
                   <button
@@ -428,19 +428,19 @@ export default function PaymentsPage() {
       {/* Refund Modal */}
       {refundTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
-          <div className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-6 shadow-lg">
+          <div className="w-full max-w-md rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-6 shadow-lg">
             <div className="mb-5 flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-slate-900">Issue refund</h3>
+              <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Issue refund</h3>
               <button
                 type="button"
                 onClick={closeRefund}
-                className="rounded-lg border border-slate-200 px-2 py-1 text-xs text-slate-600 hover:bg-slate-50"
+                className="rounded-lg border border-slate-200 dark:border-slate-700 px-2 py-1 text-xs text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800"
               >
                 Cancel
               </button>
             </div>
 
-            <div className="mb-4 rounded-xl bg-slate-50 p-3 text-sm text-slate-700">
+            <div className="mb-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 p-3 text-sm text-slate-700 dark:text-slate-300">
               <p><span className="font-semibold">Customer:</span> {refundTarget.customer_name || 'Customer'}</p>
               <p><span className="font-semibold">Service:</span> {refundTarget.service_name || '-'}</p>
               <p><span className="font-semibold">Original amount:</span> {formatMoney(refundTarget.amount_cents, refundTarget.currency)}</p>
@@ -448,7 +448,7 @@ export default function PaymentsPage() {
 
             <div className="space-y-4">
               <div>
-                <label className="mb-1.5 block text-sm font-semibold text-slate-700">
+                <label className="mb-1.5 block text-sm font-semibold text-slate-700 dark:text-slate-300">
                   Refund amount ($)
                 </label>
                 <Input
@@ -460,18 +460,18 @@ export default function PaymentsPage() {
                   onChange={(e) => setRefundAmountDollars(e.target.value)}
                   placeholder="0.00"
                 />
-                <p className="mt-1 text-xs text-slate-400">
+                <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
                   Enter a partial amount or leave at full amount for a full refund.
                 </p>
               </div>
               <div>
-                <label className="mb-1.5 block text-sm font-semibold text-slate-700">
+                <label className="mb-1.5 block text-sm font-semibold text-slate-700 dark:text-slate-300">
                   Reason
                 </label>
                 <select
                   value={refundReason}
                   onChange={(e) => setRefundReason(e.target.value as any)}
-                  className="w-full h-10 rounded-xl border border-slate-200 px-3 text-sm"
+                  className="w-full h-10 rounded-xl border border-slate-200 dark:border-slate-700 px-3 text-sm bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100"
                 >
                   <option value="requested_by_customer">Requested by customer</option>
                   <option value="duplicate">Duplicate charge</option>
@@ -486,7 +486,7 @@ export default function PaymentsPage() {
               )}
 
               {refundSuccess && (
-                <p className="rounded-xl bg-emerald-50 border border-emerald-200 px-3 py-2 text-sm text-emerald-700">
+                <p className="rounded-xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900 px-3 py-2 text-sm text-emerald-700 dark:text-emerald-300">
                   {refundSuccess}
                 </p>
               )}
@@ -522,9 +522,9 @@ export default function PaymentsPage() {
 
 function StatCard({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
-      <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">{label}</p>
-      <p className="mt-2 text-xl font-bold text-slate-900">{value}</p>
+    <div className="rounded-2xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm">
+      <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">{label}</p>
+      <p className="mt-2 text-xl font-bold text-slate-900 dark:text-slate-100">{value}</p>
     </div>
   );
 }

@@ -15,7 +15,7 @@ import { PageHeader } from '@/components/portal/page-header';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { usePlanFeatures } from '@/hooks/use-plan-features';
-import { IconCopy, IconPhone, IconRefresh, IconSettings, IconShield, IconLink } from '@tabler/icons-react';
+import { IconCopy, IconPhone, IconRefresh, IconSettings, IconShield, IconLink, IconBuilding, IconPhoneCall, IconBrain, IconCreditCard, IconWebhook, IconBell, IconUser } from '@tabler/icons-react';
 import { CallFlowEditor } from '@/components/company/call-flow-editor';
 import { createDefaultCallFlowQuestions } from '@/constants/company-templates';
 
@@ -603,15 +603,15 @@ export default function SettingsPage() {
         subtitle="Manage your company profile, AI call flow, payments, routing, and integrations from one place."
       />
 
-      <div className="flex flex-wrap gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
+      <div className="flex flex-wrap gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm dark:border-slate-700 dark:bg-slate-900">
         {[
-          { key: 'business', label: 'Company profile' },
-          { key: 'call', label: 'Call handling' },
-          { key: 'call_flow', label: 'AI call flow' },
-          { key: 'payments', label: 'Payments' },
-          { key: 'integrations', label: 'CRM integrations' },
-          { key: 'notifications', label: 'Notifications' },
-          { key: 'account', label: 'Account' },
+          { key: 'business', label: 'Company profile', Icon: IconBuilding },
+          { key: 'call', label: 'Call handling', Icon: IconPhoneCall },
+          { key: 'call_flow', label: 'AI call flow', Icon: IconBrain },
+          { key: 'payments', label: 'Payments', Icon: IconCreditCard },
+          { key: 'integrations', label: 'CRM integrations', Icon: IconWebhook },
+          { key: 'notifications', label: 'Notifications', Icon: IconBell },
+          { key: 'account', label: 'Account', Icon: IconUser },
         ].map((tab) => (
           <button
             key={tab.key}
@@ -620,52 +620,55 @@ export default function SettingsPage() {
             className={`rounded-full px-4 py-2 text-sm font-medium transition ${
               activeTab === tab.key
                 ? 'bg-emerald-600 text-white shadow-sm'
-                : 'text-slate-600 hover:bg-slate-100'
+                : 'text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800'
             }`}
           >
-            {tab.label}
+            <span className="flex items-center gap-1.5">
+              <tab.Icon className="h-3.5 w-3.5" stroke={1.5} />
+              {tab.label}
+            </span>
           </button>
         ))}
       </div>
 
       {activeTab === 'business' && (
         <div className="space-y-5">
-          <div className="rounded-2xl border border-slate-100 bg-white shadow-sm">
-            <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+          <div className="rounded-2xl border border-slate-100 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4 dark:border-slate-800">
               <div>
-                <h2 className="text-sm font-semibold text-slate-900">Business information</h2>
+                <h2 className="text-base font-semibold text-slate-900 pl-3 border-l-2 border-emerald-500 dark:text-slate-100">Business information</h2>
                 <p className="text-xs text-slate-500">Review your core company details.</p>
               </div>
               <button
                 onClick={() => setEditOpen(true)}
-                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50 transition-colors"
+                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50 transition-colors dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
               >
                 Edit details
               </button>
             </div>
             <div className="grid gap-4 p-5 sm:grid-cols-2">
-              <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-4">
-                <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Business name</p>
-                <p className="mt-2 text-sm font-semibold text-slate-900">{formData.company_name || 'Not set'}</p>
+              <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-4 hover:border-slate-200 dark:hover:border-slate-700 transition dark:border-slate-800 dark:bg-slate-800/50">
+                <p className="text-xs font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">Business name</p>
+                <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-slate-100">{formData.company_name || 'Not set'}</p>
               </div>
-              <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-4">
-                <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Company type</p>
-                <p className="mt-2 text-sm font-semibold text-slate-900">{String((company as any)?.service_type || 'Not set').replace(/_/g, ' ')}</p>
+              <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-4 hover:border-slate-200 dark:hover:border-slate-700 transition dark:border-slate-800 dark:bg-slate-800/50">
+                <p className="text-xs font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">Company type</p>
+                <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-slate-100">{String((company as any)?.service_type || 'Not set').replace(/_/g, ' ')}</p>
               </div>
-              <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-4">
-                <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Business contact phone</p>
-                <p className="mt-2 text-sm font-semibold text-slate-900">{formData.phone_number || 'Not set'}</p>
+              <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-4 hover:border-slate-200 dark:hover:border-slate-700 transition dark:border-slate-800 dark:bg-slate-800/50">
+                <p className="text-xs font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">Business contact phone</p>
+                <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-slate-100">{formData.phone_number || 'Not set'}</p>
               </div>
-              <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-4">
-                <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Timezone</p>
-                <p className="mt-2 text-sm font-semibold text-slate-900">{formData.timezone || 'Not set'}</p>
+              <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-4 hover:border-slate-200 dark:hover:border-slate-700 transition dark:border-slate-800 dark:bg-slate-800/50">
+                <p className="text-xs font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">Timezone</p>
+                <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-slate-100">{formData.timezone || 'Not set'}</p>
               </div>
-              <div className="rounded-xl border border-emerald-100 bg-emerald-50/70 p-4">
+              <div className="rounded-xl border border-emerald-100 bg-emerald-50/70 p-4 hover:border-slate-200 dark:hover:border-slate-700 transition dark:border-emerald-900 dark:bg-emerald-950/30">
                 <div className="flex items-center gap-2">
                   <IconPhone className="h-3.5 w-3.5 text-emerald-600" stroke={1.5} />
-                  <p className="text-xs font-bold uppercase tracking-widest text-emerald-700">Inbound number</p>
+                  <p className="text-xs font-bold uppercase tracking-widest text-emerald-700 dark:text-emerald-300">Inbound number</p>
                 </div>
-                <p className="mt-2 text-sm font-semibold text-slate-900">{inboundSummary}</p>
+                <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-slate-100">{inboundSummary}</p>
                 {!myNumber && (
                   <p className="mt-1.5 text-xs text-slate-500">
                     HandyCall assigns this number. Contact support if you need a specific area code.
@@ -673,19 +676,19 @@ export default function SettingsPage() {
                 )}
               </div>
             </div>
-            <div className="border-t border-slate-100 px-5 py-4">
+            <div className="border-t border-slate-100 px-5 py-4 dark:border-slate-800">
               <div className="grid gap-3 md:grid-cols-3">
-                <button type="button" onClick={() => setActiveTab('call_flow')} className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 text-left hover:border-emerald-200 hover:bg-emerald-50/60">
-                  <p className="text-sm font-semibold text-slate-900">AI call flow</p>
-                  <p className="mt-1 text-xs text-slate-600">Edit the exact intake questions and their order.</p>
+                <button type="button" onClick={() => setActiveTab('call_flow')} className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 text-left hover:border-emerald-200 hover:bg-emerald-50/60 dark:border-slate-700 dark:bg-slate-800/50 dark:hover:border-emerald-700 dark:hover:bg-emerald-950/40">
+                  <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">AI call flow</p>
+                  <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">Edit the exact intake questions and their order.</p>
                 </button>
-                <a href="/dashboard/knowledge" className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 text-left hover:border-emerald-200 hover:bg-emerald-50/60">
-                  <p className="text-sm font-semibold text-slate-900">Knowledge base</p>
-                  <p className="mt-1 text-xs text-slate-600">Manage business-specific answers, FAQs, and service details.</p>
+                <a href="/dashboard/knowledge" className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 text-left hover:border-emerald-200 hover:bg-emerald-50/60 dark:border-slate-700 dark:bg-slate-800/50 dark:hover:border-emerald-700 dark:hover:bg-emerald-950/40">
+                  <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Knowledge base</p>
+                  <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">Manage business-specific answers, FAQs, and service details.</p>
                 </a>
-                <button type="button" onClick={() => setActiveTab('payments')} className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 text-left hover:border-emerald-200 hover:bg-emerald-50/60">
-                  <p className="text-sm font-semibold text-slate-900">Payments and subscriptions</p>
-                  <p className="mt-1 text-xs text-slate-600">Manage Stripe Connect, booking payments, and billing setup.</p>
+                <button type="button" onClick={() => setActiveTab('payments')} className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 text-left hover:border-emerald-200 hover:bg-emerald-50/60 dark:border-slate-700 dark:bg-slate-800/50 dark:hover:border-emerald-700 dark:hover:bg-emerald-950/40">
+                  <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Payments and subscriptions</p>
+                  <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">Manage Stripe Connect, booking payments, and billing setup.</p>
                 </button>
               </div>
             </div>
@@ -695,9 +698,9 @@ export default function SettingsPage() {
 
       {activeTab === 'call' && (
         <div className="space-y-5">
-          <div className="rounded-2xl border border-slate-100 bg-white shadow-sm">
-            <div className="border-b border-slate-100 px-5 py-4">
-              <h2 className="text-sm font-semibold text-slate-900">Call handling</h2>
+          <div className="rounded-2xl border border-slate-100 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <div className="border-b border-slate-100 px-5 py-4 dark:border-slate-800">
+              <h2 className="text-base font-semibold text-slate-900 pl-3 border-l-2 border-emerald-500 dark:text-slate-100">Call handling</h2>
               <p className="text-xs text-slate-500">Choose how HandyCall answers and routes calls.</p>
             </div>
             <div className="space-y-4 p-5">
@@ -716,8 +719,8 @@ export default function SettingsPage() {
                       }
                       className={`rounded-2xl border p-4 text-left text-sm transition ${
                         selected
-                          ? 'border-emerald-400 bg-emerald-50/70 shadow-sm'
-                          : 'border-slate-200 bg-white hover:border-emerald-200'
+                          ? 'border-emerald-400 bg-emerald-50/70 shadow-sm dark:bg-emerald-950/30 dark:border-emerald-700'
+                          : 'border-slate-200 bg-white hover:border-emerald-200 dark:border-slate-700 dark:bg-slate-900'
                       }`}
                     >
                       <div className="flex items-start gap-3">
@@ -727,8 +730,8 @@ export default function SettingsPage() {
                           }`}
                         />
                         <div>
-                          <div className="font-semibold text-slate-900">{option.label}</div>
-                          <div className="text-xs text-slate-600">{option.description}</div>
+                          <div className="font-semibold text-slate-900 dark:text-slate-100">{option.label}</div>
+                          <div className="text-xs text-slate-600 dark:text-slate-400">{option.description}</div>
                         </div>
                       </div>
                     </button>
@@ -741,20 +744,20 @@ export default function SettingsPage() {
             </div>
           </div>
 
-          <div className="rounded-2xl border border-slate-100 bg-white shadow-sm">
-            <div className="border-b border-slate-100 px-5 py-4">
-              <h2 className="text-sm font-semibold text-slate-900">Human transfer</h2>
+          <div className="rounded-2xl border border-slate-100 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <div className="border-b border-slate-100 px-5 py-4 dark:border-slate-800">
+              <h2 className="text-base font-semibold text-slate-900 pl-3 border-l-2 border-emerald-500 dark:text-slate-100">Human transfer</h2>
               <p className="text-xs text-slate-500">Let callers reach a person when needed.</p>
             </div>
             <div className="space-y-4 p-5">
-              <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+              <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50/70 p-4 dark:border-slate-700 dark:bg-slate-800/50">
                 <div className="flex items-center gap-3">
-                  <div className="rounded-full bg-emerald-100 p-2 text-emerald-700">
+                  <div className="rounded-full bg-emerald-100 p-2 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
                     <IconSettings className="h-4 w-4" stroke={1.5} />
                   </div>
                   <div>
-                    <p className="text-sm font-semibold text-slate-900">Enable call transfer</p>
-                    <p className="text-xs text-slate-600">Route urgent calls to a human team member.</p>
+                    <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Enable call transfer</p>
+                    <p className="text-xs text-slate-600 dark:text-slate-400">Route urgent calls to a human team member.</p>
                   </div>
                 </div>
                 <button
@@ -767,7 +770,7 @@ export default function SettingsPage() {
                     }))
                   }
                   className={`relative h-7 w-12 rounded-full transition ${
-                    formData.transfer_enabled ? 'bg-emerald-600' : 'bg-slate-300'
+                    formData.transfer_enabled ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-600'
                   }`}
                 >
                   <span
@@ -779,7 +782,7 @@ export default function SettingsPage() {
               </div>
 
               {formData.transfer_enabled && (
-                <div className="rounded-2xl border border-emerald-100 bg-emerald-50/50 p-4">
+                <div className="rounded-2xl border border-emerald-100 bg-emerald-50/50 p-4 dark:border-emerald-900 dark:bg-emerald-950/30">
                   <Label htmlFor="transfer_number">Forwarding number</Label>
                   <div className="mt-2 flex flex-col gap-2 sm:flex-row">
                     <Input
@@ -819,17 +822,17 @@ export default function SettingsPage() {
 
       {activeTab === 'call_flow' && (
         <div className="space-y-5">
-          <div className="rounded-2xl border border-slate-100 bg-white shadow-sm">
-            <div className="border-b border-slate-100 px-5 py-4">
-              <h2 className="text-sm font-semibold text-slate-900">AI intake flow</h2>
+          <div className="rounded-2xl border border-slate-100 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <div className="border-b border-slate-100 px-5 py-4 dark:border-slate-800">
+              <h2 className="text-base font-semibold text-slate-900 pl-3 border-l-2 border-emerald-500 dark:text-slate-100">AI intake flow</h2>
               <p className="text-xs text-slate-500">
                 Control which questions HandyCall asks before it ever asks for a date and time.
               </p>
             </div>
             <div className="space-y-4 p-5">
-              <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
-                <p className="text-sm font-semibold text-slate-900">How this works</p>
-                <p className="mt-1 text-sm text-slate-600">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 dark:border-slate-700 dark:bg-slate-800/50">
+                <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">How this works</p>
+                <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
                   These are the exact intake questions the AI will use for this company. Reorder them, edit the wording, disable ones you do not need, or add custom questions. Scheduling stays automatic and always comes last.
                 </p>
               </div>
@@ -846,9 +849,9 @@ export default function SettingsPage() {
 
       {activeTab === 'payments' && (
         <div className="space-y-5">
-          <div className="rounded-2xl border border-slate-100 bg-white shadow-sm">
-            <div className="border-b border-slate-100 px-5 py-4">
-              <h2 className="text-sm font-semibold text-slate-900">How you want to handle customer payments</h2>
+          <div className="rounded-2xl border border-slate-100 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <div className="border-b border-slate-100 px-5 py-4 dark:border-slate-800">
+              <h2 className="text-base font-semibold text-slate-900 pl-3 border-l-2 border-emerald-500 dark:text-slate-100">How you want to handle customer payments</h2>
               <p className="text-xs text-slate-500">
                 Pick a payment mode. You can change this later.
               </p>
@@ -857,23 +860,23 @@ export default function SettingsPage() {
               {!paymentsEditMode ? (
                 <>
                   <div className="grid gap-3 md:grid-cols-3">
-                    <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 dark:border-slate-700 dark:bg-slate-800/50">
                       <p className="text-xs uppercase tracking-wide text-slate-500">Payment mode</p>
-                      <p className="mt-2 text-sm font-semibold text-slate-900">
+                      <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
                         {bookingPaymentMode === 'HANDYCALL_MANAGED' ? 'Managed in HandyCall' : 'Handled outside HandyCall'}
                       </p>
-                      <p className="mt-1 text-xs text-slate-600">
+                      <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
                         {bookingPaymentMode === 'HANDYCALL_MANAGED'
                           ? 'Customers can pay through HandyCall booking links.'
                           : 'You collect payment outside HandyCall.'}
                       </p>
                     </div>
-                    <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 dark:border-slate-700 dark:bg-slate-800/50">
                       <p className="text-xs uppercase tracking-wide text-slate-500">Stripe Connect</p>
-                      <p className="mt-2 text-sm font-semibold text-slate-900">
+                      <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
                         {connectStatus?.connected ? 'Connected' : 'Not connected'}
                       </p>
-                      <p className="mt-1 text-xs text-slate-600">
+                      <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
                         {connectStatus?.connected
                           ? connectStatus?.charges_enabled && connectStatus?.payouts_enabled
                             ? 'Ready to collect and pay out.'
@@ -881,12 +884,12 @@ export default function SettingsPage() {
                           : 'Connect Stripe only if you want HandyCall-managed payments.'}
                       </p>
                     </div>
-                    <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 dark:border-slate-700 dark:bg-slate-800/50">
                       <p className="text-xs uppercase tracking-wide text-slate-500">Booking payments</p>
-                      <p className="mt-2 text-sm font-semibold text-slate-900">
+                      <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
                         {bookingPaymentEnabled && bookingPaymentMode === 'HANDYCALL_MANAGED' ? 'Enabled' : 'Disabled'}
                       </p>
-                      <p className="mt-1 text-xs text-slate-600">
+                      <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
                         {bookingServices.length > 0
                           ? `${bookingServices.length} service${bookingServices.length === 1 ? '' : 's'} configured`
                           : 'No paid services configured yet.'}
@@ -894,23 +897,23 @@ export default function SettingsPage() {
                     </div>
                   </div>
 
-                  <div className="rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-3 text-sm text-slate-600">
+                  <div className="rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-3 text-sm text-slate-600 dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-400">
                     Choose whether HandyCall collects customer payments for you or if your team handles billing manually.
                   </div>
 
                   {bookingServices.length > 0 ? (
-                    <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                      <p className="text-sm font-semibold text-slate-900">Configured services</p>
+                    <div className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
+                      <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Configured services</p>
                       <div className="mt-3 grid gap-3 md:grid-cols-2">
                         {bookingServices.map((service) => (
-                          <div key={service.service_id} className="rounded-xl border border-slate-200 bg-slate-50/60 p-3">
+                          <div key={service.service_id} className="rounded-xl border border-slate-200 bg-slate-50/60 p-3 dark:border-slate-700 dark:bg-slate-800/50">
                             <div className="flex items-center justify-between gap-3">
-                              <p className="text-sm font-semibold text-slate-900">{service.name || 'Untitled service'}</p>
-                              <span className={`rounded-full px-2 py-1 text-[11px] font-semibold ${service.active ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600'}`}>
+                              <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{service.name || 'Untitled service'}</p>
+                              <span className={`rounded-full px-2 py-1 text-[11px] font-semibold ${service.active ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300' : 'bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-400'}`}>
                                 {service.active ? 'Active' : 'Paused'}
                               </span>
                             </div>
-                            <p className="mt-1 text-xs text-slate-600">
+                            <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
                               {service.billing_type === 'SUBSCRIPTION'
                                 ? `Subscription · ${(service.amount_cents / 100).toFixed(2)} ${service.currency.toUpperCase()} every ${service.billing_interval_count} ${service.billing_interval}${service.billing_interval_count > 1 ? 's' : ''}`
                                 : `One-time · ${(service.amount_cents / 100).toFixed(2)} ${service.currency.toUpperCase()}`}
@@ -943,12 +946,12 @@ export default function SettingsPage() {
                   onClick={() => setBookingPaymentMode('HANDYCALL_MANAGED')}
                   className={`rounded-xl border p-4 text-left transition ${
                     bookingPaymentMode === 'HANDYCALL_MANAGED'
-                      ? 'border-emerald-300 bg-emerald-50/70'
-                      : 'border-slate-200 bg-white hover:border-emerald-200'
+                      ? 'border-emerald-300 bg-emerald-50/70 dark:bg-emerald-950/30 dark:border-emerald-700'
+                      : 'border-slate-200 bg-white hover:border-emerald-200 dark:border-slate-700 dark:bg-slate-900'
                   }`}
                 >
-                  <p className="text-sm font-semibold text-slate-900">Managed in HandyCall (Recommended)</p>
-                  <p className="mt-1 text-xs text-slate-600">
+                  <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Managed in HandyCall (Recommended)</p>
+                  <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
                     Connect Stripe once. When AI sends booking links, customers can pay there and everything is tracked in one place.
                   </p>
                 </button>
@@ -957,22 +960,22 @@ export default function SettingsPage() {
                   onClick={() => setBookingPaymentMode('SELF_MANAGED')}
                   className={`rounded-xl border p-4 text-left transition ${
                     bookingPaymentMode === 'SELF_MANAGED'
-                      ? 'border-slate-400 bg-slate-50'
-                      : 'border-slate-200 bg-white hover:border-slate-300'
+                      ? 'border-slate-400 bg-slate-50 dark:border-slate-500 dark:bg-slate-800'
+                      : 'border-slate-200 bg-white hover:border-slate-300 dark:border-slate-700 dark:bg-slate-900'
                   }`}
                 >
-                  <p className="text-sm font-semibold text-slate-900">I handle payments myself</p>
-                  <p className="mt-1 text-xs text-slate-600">
+                  <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">I handle payments myself</p>
+                  <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
                     HandyCall books jobs and collects lead details, but payment happens outside HandyCall.
                   </p>
                 </button>
               </div>
 
-              <div className="rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-3 text-xs text-slate-600">
+              <div className="rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-3 text-xs text-slate-600 dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-400">
                 You can keep booking links and disable in-link payment anytime if your team prefers manual invoicing.
               </div>
 
-              <div className="rounded-xl border border-slate-100 bg-white p-4">
+              <div className="rounded-xl border border-slate-100 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
                 <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Stripe Connect</p>
               {(() => {
                 const connectAccountExists = Boolean(connectStatus?.connected && connectStatus?.account_id);
@@ -995,7 +998,7 @@ export default function SettingsPage() {
                     {!connectCanPayout ? ' Add bank/payout details to enable payouts.' : ''}
                   </div>
               ) : (
-                  <div className="mt-2 rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-3 text-sm text-slate-700">
+                  <div className="mt-2 rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-3 text-sm text-slate-700 dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-300">
                     Stripe Connect is not set up yet.
                   </div>
               )}
@@ -1009,39 +1012,39 @@ export default function SettingsPage() {
               })()}
               {bookingPaymentMode !== 'HANDYCALL_MANAGED' ? (
                 <p className="mt-2 text-xs text-slate-500">
-                  Enable “Managed in HandyCall” to connect Stripe and collect payments from booking links.
+                  Enable "Managed in HandyCall" to connect Stripe and collect payments from booking links.
                 </p>
               ) : null}
               </div>
-              <div className="rounded-xl border border-emerald-100 bg-emerald-50/70 px-4 py-3">
-                <p className="text-xs font-semibold text-emerald-900">Security</p>
-                <p className="mt-1 text-xs text-emerald-700">We don't store bank info. Payout details are handled directly by Stripe.</p>
+              <div className="rounded-xl border border-emerald-100 bg-emerald-50/70 px-4 py-3 dark:border-emerald-900 dark:bg-emerald-950/30">
+                <p className="text-xs font-semibold text-emerald-900 dark:text-emerald-300">Security</p>
+                <p className="mt-1 text-xs text-emerald-700 dark:text-emerald-300">We don't store bank info. Payout details are handled directly by Stripe.</p>
               </div>
                 </>
               )}
             </div>
           </div>
 
-          <div className="rounded-2xl border border-slate-100 bg-white shadow-sm">
-            <div className="border-b border-slate-100 px-5 py-4">
-              <h2 className="text-sm font-semibold text-slate-900">Booking payment configuration</h2>
+          <div className="rounded-2xl border border-slate-100 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <div className="border-b border-slate-100 px-5 py-4 dark:border-slate-800">
+              <h2 className="text-base font-semibold text-slate-900 pl-3 border-l-2 border-emerald-500 dark:text-slate-100">Booking payment configuration</h2>
               <p className="text-xs text-slate-500">
                 Define service types and whether each is a one-time charge or recurring subscription.
               </p>
             </div>
             <div className="space-y-4 p-5">
               {!paymentsEditMode ? (
-                <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 text-sm text-slate-600">
+                <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 text-sm text-slate-600 dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-400">
                   {bookingPaymentEnabled && bookingPaymentMode === 'HANDYCALL_MANAGED'
                     ? 'Customers will see a payment step on public booking links for eligible services.'
                     : 'Public booking links currently collect appointment details only.'}
                 </div>
               ) : (
                 <>
-                  <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+                  <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50/70 p-4 dark:border-slate-700 dark:bg-slate-800/50">
                     <div>
-                      <p className="text-sm font-semibold text-slate-900">Enable booking payments</p>
-                      <p className="text-xs text-slate-600">Show a payment step on public booking links.</p>
+                      <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Enable booking payments</p>
+                      <p className="text-xs text-slate-600 dark:text-slate-400">Show a payment step on public booking links.</p>
                     </div>
                     <button
                       type="button"
@@ -1049,7 +1052,7 @@ export default function SettingsPage() {
                       onClick={() => setBookingPaymentEnabled((prev) => !prev)}
                       disabled={bookingPaymentMode !== 'HANDYCALL_MANAGED'}
                       className={`relative h-7 w-12 rounded-full transition ${
-                        bookingPaymentEnabled ? 'bg-emerald-600' : 'bg-slate-300'
+                        bookingPaymentEnabled ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-600'
                       }`}
                     >
                       <span
@@ -1062,7 +1065,7 @@ export default function SettingsPage() {
 
                   <div className="space-y-3">
                     {bookingServices.map((service) => (
-                      <div key={service.service_id} className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4">
+                      <div key={service.service_id} className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
                         <div className="grid gap-3 md:grid-cols-4">
                           <div className="space-y-2 md:col-span-2">
                             <Label>Service name</Label>
@@ -1151,7 +1154,7 @@ export default function SettingsPage() {
                             <button
                               type="button"
                               onClick={() => handleUpdateBookingService(service.service_id, 'collect_payment', !service.collect_payment)}
-                              className={`rounded-full px-3 py-1.5 text-xs font-semibold ${service.collect_payment ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-700'}`}
+                              className={`rounded-full px-3 py-1.5 text-xs font-semibold ${service.collect_payment ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300' : 'bg-slate-200 text-slate-700'}`}
                             >
                               {service.collect_payment ? 'Collect payment' : 'Booking only'}
                             </button>
@@ -1190,9 +1193,9 @@ export default function SettingsPage() {
             </div>
           </div>
 
-          <div className="rounded-2xl border border-slate-100 bg-white shadow-sm">
-            <div className="border-b border-slate-100 px-5 py-4">
-              <h2 className="text-sm font-semibold text-slate-900">Follow-ups and review requests</h2>
+          <div className="rounded-2xl border border-slate-100 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <div className="border-b border-slate-100 px-5 py-4 dark:border-slate-800">
+              <h2 className="text-base font-semibold text-slate-900 pl-3 border-l-2 border-emerald-500 dark:text-slate-100">Follow-ups and review requests</h2>
               <p className="text-xs text-slate-500">Automate post-call and post-appointment outreach.</p>
             </div>
             <div className="space-y-4 p-5">
@@ -1202,10 +1205,10 @@ export default function SettingsPage() {
                 </div>
               ) : null}
 
-              <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+              <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50/70 p-4 dark:border-slate-700 dark:bg-slate-800/50">
                 <div>
-                  <p className="text-sm font-semibold text-slate-900">Enable follow-up SMS sequence</p>
-                  <p className="text-xs text-slate-600">Send immediate, 24-hour, and 3-day follow-ups after calls.</p>
+                  <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Enable follow-up SMS sequence</p>
+                  <p className="text-xs text-slate-600 dark:text-slate-400">Send immediate, 24-hour, and 3-day follow-ups after calls.</p>
                 </div>
                 <button
                   type="button"
@@ -1213,7 +1216,7 @@ export default function SettingsPage() {
                   onClick={() => canUseFollowUps && setFollowUpEnabled((prev) => !prev)}
                   disabled={!canUseFollowUps}
                   className={`relative h-7 w-12 rounded-full transition ${
-                    canUseFollowUps && followUpEnabled ? 'bg-emerald-600' : 'bg-slate-300'
+                    canUseFollowUps && followUpEnabled ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-600'
                   } ${!canUseFollowUps ? 'opacity-60' : ''}`}
                 >
                   <span
@@ -1225,7 +1228,7 @@ export default function SettingsPage() {
               </div>
 
               {canUseFollowUps && followUpEnabled ? (
-                <div className="grid gap-3 rounded-xl border border-slate-200 bg-white p-4">
+                <div className="grid gap-3 rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
                   <div className="grid gap-3 md:grid-cols-3">
                     <div className="space-y-2">
                       <Label htmlFor="follow_up_initial_delay">Initial delay (minutes)</Label>
@@ -1266,7 +1269,7 @@ export default function SettingsPage() {
                       value={followUpInitialTemplate}
                       onChange={(e) => setFollowUpInitialTemplate(e.target.value)}
                       rows={2}
-                      className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 outline-none ring-emerald-200 transition focus:ring"
+                      className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 outline-none ring-emerald-200 transition focus:ring dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
                       placeholder="Thanks for calling {{company_name}}! Here's your booking link: {{booking_link}}"
                     />
                   </div>
@@ -1278,7 +1281,7 @@ export default function SettingsPage() {
                       value={followUpSecondTemplate}
                       onChange={(e) => setFollowUpSecondTemplate(e.target.value)}
                       rows={2}
-                      className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 outline-none ring-emerald-200 transition focus:ring"
+                      className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 outline-none ring-emerald-200 transition focus:ring dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
                       placeholder="Haven't booked yet? We'd love to help. {{booking_link}}"
                     />
                   </div>
@@ -1290,7 +1293,7 @@ export default function SettingsPage() {
                       value={followUpFinalTemplate}
                       onChange={(e) => setFollowUpFinalTemplate(e.target.value)}
                       rows={2}
-                      className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 outline-none ring-emerald-200 transition focus:ring"
+                      className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 outline-none ring-emerald-200 transition focus:ring dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
                       placeholder="Final follow-up from {{company_name}}. Reply here if you'd like us to reserve a time for you."
                     />
                   </div>
@@ -1301,17 +1304,17 @@ export default function SettingsPage() {
                 </div>
               ) : null}
 
-              <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+              <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50/70 p-4 dark:border-slate-700 dark:bg-slate-800/50">
                 <div>
-                  <p className="text-sm font-semibold text-slate-900">Enable review request SMS</p>
-                  <p className="text-xs text-slate-600">Send a review request automatically after completed appointments.</p>
+                  <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Enable review request SMS</p>
+                  <p className="text-xs text-slate-600 dark:text-slate-400">Send a review request automatically after completed appointments.</p>
                 </div>
                 <button
                   type="button"
                   aria-pressed={reviewRequestEnabled}
                   onClick={() => setReviewRequestEnabled((prev) => !prev)}
                   className={`relative h-7 w-12 rounded-full transition ${
-                    reviewRequestEnabled ? 'bg-emerald-600' : 'bg-slate-300'
+                    reviewRequestEnabled ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-600'
                   }`}
                 >
                   <span
@@ -1353,7 +1356,7 @@ export default function SettingsPage() {
                       value={reviewRequestTemplate}
                       onChange={(e) => setReviewRequestTemplate(e.target.value)}
                       rows={3}
-                      className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 outline-none ring-emerald-200 transition focus:ring"
+                      className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 outline-none ring-emerald-200 transition focus:ring dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
                       placeholder="Thanks for choosing [Company]! We'd love your feedback: [review_link]"
                     />
                   </div>
@@ -1372,9 +1375,9 @@ export default function SettingsPage() {
 
       {activeTab === 'notifications' && (
         <div className="space-y-5">
-          <div className="rounded-2xl border border-slate-100 bg-white shadow-sm">
-            <div className="border-b border-slate-100 px-5 py-4">
-              <h2 className="text-sm font-semibold text-slate-900">Notification preferences</h2>
+          <div className="rounded-2xl border border-slate-100 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <div className="border-b border-slate-100 px-5 py-4 dark:border-slate-800">
+              <h2 className="text-base font-semibold text-slate-900 pl-3 border-l-2 border-emerald-500 dark:text-slate-100">Notification preferences</h2>
               <p className="text-xs text-slate-500">Choose which events should trigger in-app and push notifications.</p>
             </div>
             <div className="space-y-4 p-5">
@@ -1383,9 +1386,9 @@ export default function SettingsPage() {
               ) : (
                 <div className="space-y-2">
                   {notificationEvents.map((event) => (
-                    <div key={event.event_key} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-3">
+                    <div key={event.event_key} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-3 dark:border-slate-700 dark:bg-slate-800/50">
                       <div>
-                        <p className="text-sm font-semibold text-slate-900">{event.label}</p>
+                        <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{event.label}</p>
                         <p className="text-xs text-slate-500">{event.description}</p>
                       </div>
                       <div className="flex items-center gap-2">
@@ -1428,28 +1431,28 @@ export default function SettingsPage() {
 
       {activeTab === 'account' && (
         <div className="space-y-5">
-          <div className="rounded-2xl border border-slate-100 bg-white shadow-sm">
-            <div className="border-b border-slate-100 px-5 py-4">
-              <h2 className="text-sm font-semibold text-slate-900">Account status</h2>
+          <div className="rounded-2xl border border-slate-100 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <div className="border-b border-slate-100 px-5 py-4 dark:border-slate-800">
+              <h2 className="text-base font-semibold text-slate-900 pl-3 border-l-2 border-emerald-500 dark:text-slate-100">Account status</h2>
               <p className="text-xs text-slate-500">Your subscription information.</p>
             </div>
             <div className="space-y-3 p-5">
-              <div className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50/70 p-4">
+              <div className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50/70 p-4 hover:border-slate-200 dark:hover:border-slate-700 transition dark:border-slate-800 dark:bg-slate-800/50">
                 <div className="flex items-center gap-3">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-emerald-100 bg-emerald-50">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-emerald-100 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/30">
                     <IconShield className="h-3.5 w-3.5 text-emerald-600" stroke={1.5} />
                   </div>
                   <div>
-                    <p className="text-sm font-semibold text-slate-900">Account status</p>
+                    <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Account status</p>
                     <p className="text-xs text-slate-500">Current subscription state</p>
                   </div>
                 </div>
-                <span className="text-sm font-semibold text-slate-900">{statusLabel}</span>
+                <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">{statusLabel}</span>
               </div>
               {company?.trial_ends_at && (
-                <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-4">
-                  <span className="text-sm font-medium text-slate-700">Trial ends</span>
-                  <span className="text-sm text-slate-600">
+                <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
+                  <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Trial ends</span>
+                  <span className="text-sm text-slate-600 dark:text-slate-400">
                     {new Date(company.trial_ends_at).toLocaleDateString()}
                   </span>
                 </div>
@@ -1473,62 +1476,62 @@ export default function SettingsPage() {
             </div>
           ) : (
             <>
-          <div className="rounded-2xl border border-slate-100 bg-white shadow-sm">
-            <div className="border-b border-slate-100 px-5 py-4">
-              <h2 className="text-sm font-semibold text-slate-900">Connect your CRM</h2>
+          <div className="rounded-2xl border border-slate-100 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <div className="border-b border-slate-100 px-5 py-4 dark:border-slate-800">
+              <h2 className="text-base font-semibold text-slate-900 pl-3 border-l-2 border-emerald-500 dark:text-slate-100">Connect your CRM</h2>
               <p className="text-xs text-slate-500">Send HandyCall events to Zapier, Make, n8n, or any CRM that accepts webhooks.</p>
             </div>
             <div className="space-y-5 p-5">
               <div className="grid gap-4 md:grid-cols-3">
-                <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 dark:border-slate-700 dark:bg-slate-800/50">
                   <p className="text-xs uppercase tracking-wide text-slate-500">Step 1</p>
-                  <p className="mt-2 text-sm font-semibold text-slate-900">Create a webhook</p>
-                  <p className="mt-2 text-xs text-slate-600">
+                  <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-slate-100">Create a webhook</p>
+                  <p className="mt-2 text-xs text-slate-600 dark:text-slate-400">
                     In Zapier, choose Webhooks → Catch Hook. In Make or n8n, choose Custom Webhook.
                   </p>
                 </div>
-                <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 dark:border-slate-700 dark:bg-slate-800/50">
                   <p className="text-xs uppercase tracking-wide text-slate-500">Step 2</p>
-                  <p className="mt-2 text-sm font-semibold text-slate-900">Paste the URL</p>
-                  <p className="mt-2 text-xs text-slate-600">
+                  <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-slate-100">Paste the URL</p>
+                  <p className="mt-2 text-xs text-slate-600 dark:text-slate-400">
                     Drop your webhook URL below and choose which events to send.
                   </p>
                 </div>
-                <div className="rounded-2xl border border-emerald-100 bg-emerald-50/70 p-4">
-                  <p className="text-xs uppercase tracking-wide text-emerald-700">Step 3</p>
-                  <p className="mt-2 text-sm font-semibold text-slate-900">Test & map fields</p>
-                  <p className="mt-2 text-xs text-slate-600">
-                    Use “Test webhook” to send a payload, then map fields to your CRM.
+                <div className="rounded-2xl border border-emerald-100 bg-emerald-50/70 p-4 dark:border-emerald-900 dark:bg-emerald-950/30">
+                  <p className="text-xs uppercase tracking-wide text-emerald-700 dark:text-emerald-300">Step 3</p>
+                  <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-slate-100">Test & map fields</p>
+                  <p className="mt-2 text-xs text-slate-600 dark:text-slate-400">
+                    Use "Test webhook" to send a payload, then map fields to your CRM.
                   </p>
                 </div>
               </div>
               {!integrationsEditMode ? (
                 <div className="space-y-4">
                   <div className="grid gap-3 md:grid-cols-3">
-                    <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 dark:border-slate-700 dark:bg-slate-800/50">
                       <p className="text-xs uppercase tracking-wide text-slate-500">Connection</p>
-                      <p className="mt-2 text-sm font-semibold text-slate-900">
+                      <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
                         {webhookDraft.webhook_url ? 'Webhook configured' : 'Not configured'}
                       </p>
-                      <p className="mt-1 break-all text-xs text-slate-600">
+                      <p className="mt-1 break-all text-xs text-slate-600 dark:text-slate-400">
                         {webhookDraft.webhook_url || 'Paste a Zapier, Make, or n8n webhook URL to start syncing.'}
                       </p>
                     </div>
-                    <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 dark:border-slate-700 dark:bg-slate-800/50">
                       <p className="text-xs uppercase tracking-wide text-slate-500">Delivery</p>
-                      <p className="mt-2 text-sm font-semibold text-slate-900">
+                      <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
                         {webhookDraft.is_enabled ? 'Enabled' : 'Paused'}
                       </p>
-                      <p className="mt-1 text-xs text-slate-600">
+                      <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
                         {webhookDraft.enabled_events.length} event{webhookDraft.enabled_events.length === 1 ? '' : 's'} selected
                       </p>
                     </div>
-                    <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 dark:border-slate-700 dark:bg-slate-800/50">
                       <p className="text-xs uppercase tracking-wide text-slate-500">Last delivery</p>
-                      <p className="mt-2 text-sm font-semibold text-slate-900">
+                      <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
                         {formatTimestamp(webhookConfig?.last_delivery_at)}
                       </p>
-                      <p className="mt-1 text-xs text-slate-600">
+                      <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
                         {webhookConfig?.last_status_code ? `Status ${webhookConfig.last_status_code}` : 'No deliveries yet'}
                       </p>
                     </div>
@@ -1549,11 +1552,11 @@ export default function SettingsPage() {
                 </div>
               ) : (
                 <>
-                  <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                  <div className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
                     <div className="flex items-center justify-between gap-3">
                       <div>
-                        <p className="text-sm font-semibold text-slate-900">Webhook URL</p>
-                        <p className="text-xs text-slate-600">We’ll POST JSON payloads to this URL.</p>
+                        <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Webhook URL</p>
+                        <p className="text-xs text-slate-600 dark:text-slate-400">We'll POST JSON payloads to this URL.</p>
                       </div>
                       <button
                         type="button"
@@ -1572,12 +1575,12 @@ export default function SettingsPage() {
                     </div>
                   </div>
 
-                  <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                  <div className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
                     <div className="flex items-center gap-2">
                       <IconLink className="h-4 w-4 text-emerald-600" stroke={1.5} />
-                      <p className="text-sm font-semibold text-slate-900">Events to send</p>
+                      <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Events to send</p>
                     </div>
-                    <p className="mt-1 text-xs text-slate-600">Choose what HandyCall should send into your CRM.</p>
+                    <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">Choose what HandyCall should send into your CRM.</p>
                     <div className="mt-4 grid gap-3 sm:grid-cols-2">
                       {webhookEvents.map((event) => {
                         const active = webhookDraft.enabled_events.includes(event);
@@ -1589,7 +1592,7 @@ export default function SettingsPage() {
                             className={`rounded-xl border px-4 py-3 text-left text-sm font-medium transition ${
                               active
                                 ? 'border-emerald-300 bg-emerald-50 text-emerald-900'
-                                : 'border-slate-200 bg-slate-50/60 text-slate-700 hover:border-slate-300'
+                                : 'border-slate-200 bg-slate-50/60 text-slate-700 hover:border-slate-300 dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-300'
                             }`}
                           >
                             {event}
@@ -1604,9 +1607,9 @@ export default function SettingsPage() {
                 </>
               )}
 
-              <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                <p className="text-sm font-semibold text-slate-900">Signing secret</p>
-                <p className="mt-1 text-xs text-slate-600">
+              <div className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
+                <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Signing secret</p>
+                <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
                   Use this secret to verify payload signatures. Keep it private.
                 </p>
                 <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -1652,24 +1655,24 @@ export default function SettingsPage() {
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                <p className="text-sm font-semibold text-slate-900">Delivery status</p>
+              <div className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
+                <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Delivery status</p>
                 <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                  <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3">
+                  <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3 hover:border-slate-200 dark:hover:border-slate-700 transition dark:border-slate-700 dark:bg-slate-800/50">
                     <p className="text-xs uppercase tracking-wide text-slate-500">Last delivery</p>
-                    <p className="mt-1 text-sm font-semibold text-slate-900">
+                    <p className="mt-1 text-sm font-semibold text-slate-900 dark:text-slate-100">
                       {formatTimestamp(webhookConfig?.last_delivery_at)}
                     </p>
-                    <p className="mt-1 text-xs text-slate-600">
+                    <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
                       Event: {webhookConfig?.last_event || 'None'}
                     </p>
                   </div>
-                  <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3">
+                  <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3 hover:border-slate-200 dark:hover:border-slate-700 transition dark:border-slate-700 dark:bg-slate-800/50">
                     <p className="text-xs uppercase tracking-wide text-slate-500">Last status</p>
-                    <p className="mt-1 text-sm font-semibold text-slate-900">
+                    <p className="mt-1 text-sm font-semibold text-slate-900 dark:text-slate-100">
                       {webhookConfig?.last_status_code || '—'}
                     </p>
-                    <p className="mt-1 text-xs text-slate-600">
+                    <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
                       {webhookConfig?.last_error ? webhookConfig.last_error : 'Delivered successfully'}
                     </p>
                   </div>
@@ -1703,12 +1706,12 @@ export default function SettingsPage() {
             </div>
           </div>
 
-          <div className="rounded-2xl border border-slate-100 bg-white shadow-sm">
-            <div className="border-b border-slate-100 px-5 py-4">
-              <h2 className="text-sm font-semibold text-slate-900">Zapier, Make, n8n guidance</h2>
+          <div className="rounded-2xl border border-slate-100 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <div className="border-b border-slate-100 px-5 py-4 dark:border-slate-800">
+              <h2 className="text-base font-semibold text-slate-900 pl-3 border-l-2 border-emerald-500 dark:text-slate-100">Zapier, Make, n8n guidance</h2>
               <p className="text-xs text-slate-500">Fastest setup for non-technical users.</p>
             </div>
-            <div className="space-y-3 p-5 text-sm text-slate-600">
+            <div className="space-y-3 p-5 text-sm text-slate-600 dark:text-slate-400">
               <p>
                 Recommended: Zapier Webhooks → Catch Hook. Paste your URL above and click Test webhook, then map fields
                 into your CRM action (HubSpot, Pipedrive, Zoho, Google Sheets, Airtable, etc).
