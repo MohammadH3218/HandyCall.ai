@@ -612,13 +612,46 @@ export class CognitoService {
     }
 
     try {
-      const command = new AdminDeleteUserCommand({
-        UserPoolId: poolId,
-        Username: email,
-      });
-
-      await this.cognitoClient.send(command);
+      await this.cognitoClient.send(
+        new AdminDeleteUserCommand({
+          UserPoolId: poolId,
+          Username: email,
+        })
+      );
     } catch (error: any) {
+      if (error?.name === 'UserNotFoundException') {
+        try {
+          const users = await this.cognitoClient.send(
+            new ListUsersCommand({
+              UserPoolId: poolId,
+              Filter: `email = \"${email}\"`,
+              Limit: 10,
+            })
+          );
+
+          const matchingUsernames = (users.Users || [])
+            .map((user) => user.Username)
+            .filter((username): username is string => Boolean(username));
+
+          if (matchingUsernames.length === 0) {
+            return;
+          }
+
+          for (const username of matchingUsernames) {
+            await this.cognitoClient.send(
+              new AdminDeleteUserCommand({
+                UserPoolId: poolId,
+                Username: username,
+              })
+            );
+          }
+          return;
+        } catch (lookupError: any) {
+          console.error('[CognitoService] Failed to resolve Cognito user by email during delete:', lookupError);
+          throw new BadRequestException(`Failed to delete user: ${lookupError.message}`);
+        }
+      }
+
       console.error('[CognitoService] Failed to delete user:', error);
       throw new BadRequestException(`Failed to delete user: ${error.message}`);
     }
