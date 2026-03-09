@@ -3,12 +3,23 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
+import { signOut } from 'next-auth/react';
 import { OnboardingProvider, useOnboarding } from '@/components/onboarding/onboarding-context';
 import { ONBOARDING_STEPS } from '@/constants/onboarding';
 import { Logo } from '@/components/ui/logo';
 import { IconCircleCheck, IconCircle } from '@tabler/icons-react';
 import { UserRole } from '@handycall/shared';
 import { useAuthStore } from '@/stores/auth-store';
+import { apiClient } from '@/lib/api-client';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { useToast } from '@/hooks/use-toast';
 
 export default function OnboardingLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -23,7 +34,11 @@ function OnboardingShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { loading, isAuthenticated, userRole, status } = useOnboarding();
   const { logout } = useAuthStore();
+  const { toast } = useToast();
   const [signingOut, setSigningOut] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deletingAccount, setDeletingAccount] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const isSetupPage = pathname?.startsWith('/onboarding/setup') ?? false;
 
@@ -94,6 +109,44 @@ function OnboardingShell({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const handleDeleteAccount = async () => {
+    setDeletingAccount(true);
+    setDeleteError(null);
+
+    try {
+      await apiClient.deleteMyAccount();
+      toast({
+        title: 'Account deleted',
+        description: 'Your account and related data have been removed.',
+      });
+
+      try {
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('id_token');
+        localStorage.removeItem('refresh_token');
+        localStorage.removeItem('email');
+        localStorage.removeItem('user_role');
+        localStorage.removeItem('handycall-admin-company');
+      } catch {
+        // no-op
+      }
+
+      await signOut({ callbackUrl: '/login' });
+    } catch (error: any) {
+      const message =
+        error?.message ||
+        'Unable to delete this account. If billing or Stripe is connected, contact hello@handycall.org.';
+      setDeleteError(message);
+      toast({
+        title: 'Delete account failed',
+        description: message,
+        variant: 'destructive',
+      });
+    } finally {
+      setDeletingAccount(false);
+    }
+  };
+
   // Full-screen chatbot layout for the setup page
   if (isSetupPage) {
     return (
@@ -109,6 +162,17 @@ function OnboardingShell({ children }: { children: React.ReactNode }) {
               </span>
               <button
                 type="button"
+                onClick={() => {
+                  setDeleteError(null);
+                  setDeleteDialogOpen(true);
+                }}
+                disabled={deletingAccount || signingOut}
+                className="text-sm text-rose-600 transition hover:text-rose-700 disabled:opacity-60"
+              >
+                Delete account
+              </button>
+              <button
+                type="button"
                 onClick={handleSignOut}
                 disabled={signingOut}
                 className="text-sm text-slate-500 transition hover:text-slate-700 disabled:opacity-60"
@@ -119,6 +183,47 @@ function OnboardingShell({ children }: { children: React.ReactNode }) {
           </div>
         </header>
         <main className="flex flex-1 flex-col overflow-hidden">{children}</main>
+        <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Are you sure you want to delete your account?</DialogTitle>
+              <DialogDescription>
+                This will permanently remove your account and related company data, including calls,
+                contacts, appointments, knowledge base entries, and other saved setup data.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+              If this account has a Stripe subscription, linked payment setup, or connected billing
+              state, deletion will be blocked and you will need to contact hello@handycall.org.
+            </div>
+            {deleteError ? (
+              <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                {deleteError}
+              </div>
+            ) : null}
+            <DialogFooter className="gap-2 sm:gap-0">
+              <button
+                type="button"
+                onClick={() => {
+                  if (deletingAccount) return;
+                  setDeleteDialogOpen(false);
+                  setDeleteError(null);
+                }}
+                className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteAccount}
+                disabled={deletingAccount}
+                className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {deletingAccount ? 'Deleting...' : 'Delete account'}
+              </button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     );
   }

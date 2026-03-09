@@ -14,7 +14,7 @@ import {
 import { CompaniesService } from './companies.service';
 import { UsersService } from '../users/users.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { CompanyId, UserRoleParam } from '../../common/decorators/auth.decorator';
+import { CompanyId, UserId, UserRoleParam } from '../../common/decorators/auth.decorator';
 import { UpdateCompanyDto } from './dto/update-company.dto';
 import { CreateCompanyDto } from './dto/create-company.dto';
 import { AdminUpdateCompanyDto } from './dto/admin-update-company.dto';
@@ -65,6 +65,31 @@ export class CompaniesController {
     }
     await this.validateServiceEnable(company, dto);
     return this.companiesService.updateCompany(companyId, dto);
+  }
+
+  @Delete('me/account')
+  async deleteMyAccount(
+    @CompanyId() companyId: string,
+    @UserId() userId: string,
+  ): Promise<{ message: string }> {
+    if (companyId === 'no-company' || !companyId || !userId) {
+      throw new NotFoundException('Account not found');
+    }
+
+    const company = await this.companiesService.findById(companyId);
+    if (!company) {
+      throw new NotFoundException('Company not found');
+    }
+
+    this.companiesService.assertSelfServeDeletionAllowed(company);
+
+    const users = await this.usersService.listCompanyUsers(companyId);
+    for (const user of users) {
+      await this.usersService.deleteUser(companyId, user.user_id, user.email);
+    }
+
+    await this.companiesService.deleteCompany(companyId);
+    return { message: 'Account deleted successfully' };
   }
 
   // ============================================================================

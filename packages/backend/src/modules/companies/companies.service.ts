@@ -1,4 +1,4 @@
-import { Injectable, ConflictException, NotFoundException } from '@nestjs/common';
+import { Injectable, BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { DynamoDBService } from '../../infrastructure/database/dynamodb.service';
 import {
   Company,
@@ -413,6 +413,27 @@ export class CompaniesService {
       this.deleteRelatedData('notification_devices', companyId),
       this.deleteRelatedData('notification_usage_alerts', companyId),
     ]);
+  }
+
+  assertSelfServeDeletionAllowed(company: Company): void {
+    const hasSubscriptionLink = Boolean(
+      company.subscription_plan ||
+      company.subscription_status ||
+      company.stripe_subscription_id ||
+      company.stripe_customer_id
+    );
+
+    const hasPaymentsLink = Boolean(
+      company.stripe_connect_account_id ||
+      company.stripe_connect_onboarding_complete ||
+      company.booking_payment_enabled
+    );
+
+    if (hasSubscriptionLink || hasPaymentsLink) {
+      throw new BadRequestException(
+        'This account cannot be deleted while billing, Stripe, or payment setup is linked. Please contact hello@handycall.org.'
+      );
+    }
   }
 
   /**

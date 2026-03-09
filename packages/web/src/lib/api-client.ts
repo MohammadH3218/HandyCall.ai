@@ -253,6 +253,10 @@ class ApiClient {
     return response.data!;
   }
 
+  async deleteMyAccount(): Promise<{ message: string }> {
+    return this.delete<{ message: string }>('/companies/me/account');
+  }
+
   async login(data: LoginRequest): Promise<any> {
     const response = await this.request<any>('/auth/login', {
       method: 'POST',
