@@ -339,7 +339,7 @@ export default function InvoicesPage() {
           if (!open) resetForm();
         }}
       >
-        <DialogContent className="max-w-4xl border-slate-200 bg-[#fcfcfb] p-0 sm:rounded-[28px]">
+        <DialogContent className="max-w-4xl overflow-hidden border-slate-200 bg-[#fcfcfb] p-0 rounded-[28px]">
           <div className="grid gap-0 lg:grid-cols-[300px_1fr]">
             <div className="border-b border-slate-200 bg-[linear-gradient(180deg,#eef9f1_0%,#f8fbf8_100%)] p-6 lg:border-b-0 lg:border-r">
               <DialogHeader className="space-y-3 text-left">
