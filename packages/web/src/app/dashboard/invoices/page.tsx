@@ -1,13 +1,35 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { apiClient } from '@/lib/api-client';
 import { PageHeader } from '@/components/portal/page-header';
 import { EmptyState } from '@/components/portal/empty-state';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { FileText, Plus, X, DollarSign, CheckCircle, Clock } from 'lucide-react';
+import {
+  CircleDollarSign,
+  DollarSign,
+  FileText,
+  Mail,
+  Package2,
+  Plus,
+  Receipt,
+  Trash2,
+  CheckCircle,
+  Clock,
+} from 'lucide-react';
 
 type Invoice = {
   invoice_id: string;
@@ -28,6 +50,34 @@ type InvoiceStats = {
   outstanding_amount_cents: number;
 };
 
+type BookingService = {
+  service_id: string;
+  name: string;
+  description?: string;
+  amount_cents: number;
+  currency?: string;
+  active?: boolean;
+  billing_type?: 'ONE_TIME' | 'SUBSCRIPTION';
+  billing_interval?: 'day' | 'week' | 'month' | 'year';
+  billing_interval_count?: number;
+};
+
+type Company = {
+  company_name?: string;
+  email?: string;
+  booking_from_email?: string;
+  email_from?: string;
+  booking_services?: BookingService[];
+};
+
+type DraftLineItem = {
+  id: string;
+  selection: string;
+  description: string;
+  quantity: number;
+  amount: string;
+};
+
 const STATUS_STYLES: Record<string, string> = {
   DRAFT: 'bg-slate-100 text-slate-600',
   SENT: 'bg-blue-100 text-blue-700',
@@ -37,16 +87,36 @@ const STATUS_STYLES: Record<string, string> = {
   CANCELLED: 'bg-slate-100 text-slate-500',
 };
 
+const CUSTOM_OPTION = 'CUSTOM';
+
 function formatMoney(cents: number) {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(cents / 100);
 }
 
-type LineItem = { description: string; quantity: number; unit_price_cents: number };
+function createDraftItem(): DraftLineItem {
+  return {
+    id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    selection: CUSTOM_OPTION,
+    description: '',
+    quantity: 1,
+    amount: '',
+  };
+}
+
+function billingLabel(service: BookingService) {
+  if (service.billing_type === 'SUBSCRIPTION') {
+    const interval = service.billing_interval || 'month';
+    const count = Math.max(1, Number(service.billing_interval_count || 1));
+    return count === 1 ? `Subscription · per ${interval}` : `Subscription · every ${count} ${interval}s`;
+  }
+  return 'One-time payment';
+}
 
 export default function InvoicesPage() {
   const { toast } = useToast();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [stats, setStats] = useState<InvoiceStats | null>(null);
+  const [company, setCompany] = useState<Company | null>(null);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -54,32 +124,133 @@ export default function InvoicesPage() {
     customer_name: '',
     customer_email: '',
     notes: '',
-    line_items: [{ description: '', quantity: 1, unit_price_cents: 0 }] as LineItem[],
+    line_items: [createDraftItem()] as DraftLineItem[],
   });
+
+  const activeServices = useMemo(
+    () => (Array.isArray(company?.booking_services) ? company.booking_services.filter((service) => service?.active !== false) : []),
+    [company],
+  );
+
+  const replyToEmail = company?.booking_from_email || company?.email_from || company?.email || 'hello@handycall.org';
 
   const load = async () => {
     setLoading(true);
     try {
-      const [list, s] = await Promise.all([
+      const [list, s, myCompany] = await Promise.all([
         (apiClient as any).get('/invoices?limit=50'),
         (apiClient as any).get('/invoices/stats'),
+        apiClient.getMyCompany(),
       ]);
       setInvoices(Array.isArray(list) ? list : []);
       setStats(s);
-    } catch { /* ignore */ }
+      setCompany(myCompany || null);
+    } catch {
+      // ignore
+    }
     setLoading(false);
   };
 
-  useEffect(() => { void load(); }, []);
+  useEffect(() => {
+    void load();
+  }, []);
+
+  const resetForm = () => {
+    setForm({
+      customer_name: '',
+      customer_email: '',
+      notes: '',
+      line_items: [createDraftItem()],
+    });
+  };
+
+  const applySelection = (itemId: string, value: string) => {
+    setForm((current) => ({
+      ...current,
+      line_items: current.line_items.map((item) => {
+        if (item.id !== itemId) return item;
+        if (value === CUSTOM_OPTION) {
+          return { ...item, selection: value, description: '', amount: '', quantity: item.quantity || 1 };
+        }
+        const service = activeServices.find((entry) => entry.service_id === value);
+        if (!service) return item;
+        return {
+          ...item,
+          selection: value,
+          description: service.description?.trim() || service.name,
+          amount: (service.amount_cents / 100).toFixed(2),
+          quantity: item.quantity || 1,
+        };
+      }),
+    }));
+  };
+
+  const updateLineItem = (itemId: string, field: keyof DraftLineItem, value: string | number) => {
+    setForm((current) => ({
+      ...current,
+      line_items: current.line_items.map((item) => (item.id === itemId ? { ...item, [field]: value } : item)),
+    }));
+  };
+
+  const addLineItem = () => {
+    setForm((current) => ({
+      ...current,
+      line_items: [...current.line_items, createDraftItem()],
+    }));
+  };
+
+  const removeLineItem = (itemId: string) => {
+    setForm((current) => ({
+      ...current,
+      line_items: current.line_items.filter((item) => item.id !== itemId),
+    }));
+  };
+
+  const total = useMemo(
+    () =>
+      form.line_items.reduce((sum, item) => {
+        const unit = Number.parseFloat(item.amount || '0');
+        const quantity = Number.isFinite(Number(item.quantity)) && Number(item.quantity) > 0 ? Number(item.quantity) : 1;
+        return sum + Math.round((Number.isFinite(unit) ? unit : 0) * 100) * quantity;
+      }, 0),
+    [form.line_items],
+  );
 
   const handleCreate = async () => {
-    if (!form.customer_name || !form.line_items[0].description) return;
+    if (!form.customer_name.trim()) {
+      toast({ title: 'Customer name is required', variant: 'destructive' });
+      return;
+    }
+
+    const normalizedLineItems = form.line_items
+      .map((item) => ({
+        description: item.description.trim(),
+        quantity: Math.max(1, Number(item.quantity || 1)),
+        unit_price_cents: Math.max(0, Math.round(Number.parseFloat(item.amount || '0') * 100)),
+      }))
+      .filter((item) => item.description);
+
+    if (normalizedLineItems.length === 0) {
+      toast({ title: 'Add at least one invoice item', description: 'Each invoice item needs a description.', variant: 'destructive' });
+      return;
+    }
+
+    if (normalizedLineItems.some((item) => !item.description)) {
+      toast({ title: 'Description required', description: 'Every invoice item needs a description.', variant: 'destructive' });
+      return;
+    }
+
     setSaving(true);
     try {
-      await (apiClient as any).post('/invoices', form);
+      await (apiClient as any).post('/invoices', {
+        customer_name: form.customer_name.trim(),
+        customer_email: form.customer_email.trim() || undefined,
+        notes: form.notes.trim() || undefined,
+        line_items: normalizedLineItems,
+      });
       toast({ title: 'Invoice created' });
       setShowForm(false);
-      setForm({ customer_name: '', customer_email: '', notes: '', line_items: [{ description: '', quantity: 1, unit_price_cents: 0 }] });
+      resetForm();
       await load();
     } catch (err: any) {
       toast({ title: 'Error', description: err?.message || 'Failed to create invoice', variant: 'destructive' });
@@ -101,28 +272,21 @@ export default function InvoicesPage() {
   const handleSend = async (invoiceId: string) => {
     try {
       await (apiClient as any).post(`/invoices/${invoiceId}/send`);
-      toast({ title: 'Invoice marked as sent' });
+      toast({ title: 'Invoice emailed', description: 'The customer received it from no-reply@handycall.org.' });
       await load();
     } catch (err: any) {
-      toast({ title: 'Error', description: err?.message, variant: 'destructive' });
+      toast({ title: 'Error', description: err?.message || 'Failed to send invoice', variant: 'destructive' });
     }
   };
-
-  const addLineItem = () => setForm((f) => ({ ...f, line_items: [...f.line_items, { description: '', quantity: 1, unit_price_cents: 0 }] }));
-  const removeLineItem = (i: number) => setForm((f) => ({ ...f, line_items: f.line_items.filter((_, idx) => idx !== i) }));
-  const updateLineItem = (i: number, field: keyof LineItem, value: any) => setForm((f) => ({
-    ...f,
-    line_items: f.line_items.map((item, idx) => idx === i ? { ...item, [field]: value } : item),
-  }));
-
-  const total = form.line_items.reduce((s, item) => s + (item.quantity || 0) * (item.unit_price_cents || 0), 0);
 
   if (loading) {
     return (
       <div className="space-y-4">
         <div className="h-8 w-48 animate-pulse rounded bg-slate-100" />
         <div className="grid gap-4 md:grid-cols-3">
-          {[1,2,3].map((i) => <div key={i} className="h-24 animate-pulse rounded-2xl bg-slate-100" />)}
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="h-24 animate-pulse rounded-2xl bg-slate-100" />
+          ))}
         </div>
       </div>
     );
@@ -141,82 +305,278 @@ export default function InvoicesPage() {
         }
       />
 
-      {/* Stats */}
       <div className="grid gap-4 md:grid-cols-3">
         <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
-          <div className="flex items-center justify-between mb-2">
+          <div className="mb-2 flex items-center justify-between">
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Total revenue</p>
             <DollarSign className="h-4 w-4 text-emerald-600" />
           </div>
           <p className="text-2xl font-bold text-slate-900">{formatMoney(stats?.total_revenue_cents || 0)}</p>
-          <p className="text-xs text-slate-500 mt-1">{stats?.paid_invoices || 0} paid invoices</p>
+          <p className="mt-1 text-xs text-slate-500">{stats?.paid_invoices || 0} paid invoices</p>
         </div>
         <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
-          <div className="flex items-center justify-between mb-2">
+          <div className="mb-2 flex items-center justify-between">
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Outstanding</p>
             <Clock className="h-4 w-4 text-amber-600" />
           </div>
           <p className="text-2xl font-bold text-slate-900">{formatMoney(stats?.outstanding_amount_cents || 0)}</p>
-          <p className="text-xs text-slate-500 mt-1">{stats?.outstanding_invoices || 0} unpaid invoices</p>
+          <p className="mt-1 text-xs text-slate-500">{stats?.outstanding_invoices || 0} unpaid invoices</p>
         </div>
         <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
-          <div className="flex items-center justify-between mb-2">
+          <div className="mb-2 flex items-center justify-between">
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Total invoices</p>
             <FileText className="h-4 w-4 text-slate-500" />
           </div>
           <p className="text-2xl font-bold text-slate-900">{stats?.total_invoices || 0}</p>
-          <p className="text-xs text-slate-500 mt-1">All time</p>
+          <p className="mt-1 text-xs text-slate-500">All time</p>
         </div>
       </div>
 
-      {/* Create form */}
-      {showForm && (
-        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5 space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-slate-900">New invoice</h3>
-            <button onClick={() => setShowForm(false)}><X className="h-4 w-4 text-slate-400" /></button>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div>
-              <label className="mb-1 block text-xs font-medium text-slate-700">Customer name *</label>
-              <Input placeholder="John Smith" value={form.customer_name} onChange={(e) => setForm({ ...form, customer_name: e.target.value })} />
-            </div>
-            <div>
-              <label className="mb-1 block text-xs font-medium text-slate-700">Customer email</label>
-              <Input type="email" placeholder="john@example.com" value={form.customer_email} onChange={(e) => setForm({ ...form, customer_email: e.target.value })} />
-            </div>
-          </div>
-          <div>
-            <div className="mb-2 flex items-center justify-between">
-              <label className="text-xs font-medium text-slate-700">Line items</label>
-              <Button size="sm" variant="outline" onClick={addLineItem}>+ Add item</Button>
-            </div>
-            <div className="space-y-2">
-              {form.line_items.map((item, i) => (
-                <div key={i} className="grid grid-cols-[1fr_80px_100px_32px] gap-2 items-center">
-                  <Input placeholder="Description" value={item.description} onChange={(e) => updateLineItem(i, 'description', e.target.value)} />
-                  <Input type="number" min={1} placeholder="Qty" value={item.quantity} onChange={(e) => updateLineItem(i, 'quantity', Number(e.target.value))} />
-                  <Input type="number" min={0} step={0.01} placeholder="Price ($)" value={item.unit_price_cents / 100} onChange={(e) => updateLineItem(i, 'unit_price_cents', Math.round(parseFloat(e.target.value || '0') * 100))} />
-                  {form.line_items.length > 1 && <button onClick={() => removeLineItem(i)} className="text-slate-400 hover:text-red-500"><X className="h-4 w-4" /></button>}
+      <Dialog
+        open={showForm}
+        onOpenChange={(open) => {
+          setShowForm(open);
+          if (!open) resetForm();
+        }}
+      >
+        <DialogContent className="max-w-4xl border-slate-200 bg-[#fcfcfb] p-0 sm:rounded-[28px]">
+          <div className="grid gap-0 lg:grid-cols-[300px_1fr]">
+            <div className="border-b border-slate-200 bg-[linear-gradient(180deg,#eef9f1_0%,#f8fbf8_100%)] p-6 lg:border-b-0 lg:border-r">
+              <DialogHeader className="space-y-3 text-left">
+                <div className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-600 text-white shadow-sm">
+                  <Receipt className="h-5 w-5" />
                 </div>
-              ))}
-            </div>
-            <p className="mt-2 text-right text-sm font-semibold text-slate-900">Total: {formatMoney(total)}</p>
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-slate-700">Notes</label>
-            <textarea rows={2} className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-emerald-500" placeholder="Payment terms, notes..." value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
-          </div>
-          <div className="flex gap-2">
-            <Button onClick={handleCreate} disabled={saving || !form.customer_name} size="sm">
-              {saving ? 'Creating...' : 'Create invoice'}
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => setShowForm(false)}>Cancel</Button>
-          </div>
-        </div>
-      )}
+                <DialogTitle className="text-2xl font-semibold tracking-tight text-slate-950">Create invoice</DialogTitle>
+                <DialogDescription className="text-sm leading-6 text-slate-600">
+                  Pick one of your payment offerings or bill for a custom amount. Description is always required so the customer
+                  knows exactly what this invoice covers.
+                </DialogDescription>
+              </DialogHeader>
 
-      {/* Invoice list */}
+              <div className="mt-6 space-y-4">
+                <div className="rounded-2xl border border-emerald-100 bg-white/80 p-4">
+                  <div className="flex items-start gap-3">
+                    <Mail className="mt-0.5 h-4 w-4 text-emerald-600" />
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900">Invoice delivery</p>
+                      <p className="mt-1 text-sm text-slate-600">Sent from no-reply@handycall.org</p>
+                      <p className="text-xs text-slate-500">Customer replies go to {replyToEmail}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-slate-200 bg-white/90 p-4">
+                  <div className="flex items-start gap-3">
+                    <Package2 className="mt-0.5 h-4 w-4 text-slate-500" />
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900">Available invoice items</p>
+                      <p className="mt-1 text-sm text-slate-600">
+                        {activeServices.length > 0
+                          ? `${activeServices.length} saved service or plan options pulled from your payment setup.`
+                          : 'No saved payment options yet. You can still invoice any custom amount with Other (Customer).'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-slate-200 bg-white/90 p-4">
+                  <div className="flex items-start gap-3">
+                    <CircleDollarSign className="mt-0.5 h-4 w-4 text-slate-500" />
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900">Best practice</p>
+                      <p className="mt-1 text-sm text-slate-600">
+                        Use a saved plan or service whenever possible so the invoice amount stays aligned with your configured
+                        pricing.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="max-h-[85vh] overflow-y-auto p-6">
+              <div className="space-y-6">
+                <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                  <div className="mb-4">
+                    <p className="text-sm font-semibold text-slate-900">Customer details</p>
+                    <p className="mt-1 text-sm text-slate-500">This is who will receive the invoice email.</p>
+                  </div>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="invoice-customer-name">Customer name</Label>
+                      <Input
+                        id="invoice-customer-name"
+                        placeholder="John Smith"
+                        value={form.customer_name}
+                        onChange={(e) => setForm((current) => ({ ...current, customer_name: e.target.value }))}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="invoice-customer-email">Customer email</Label>
+                      <Input
+                        id="invoice-customer-email"
+                        type="email"
+                        placeholder="john@example.com"
+                        value={form.customer_email}
+                        onChange={(e) => setForm((current) => ({ ...current, customer_email: e.target.value }))}
+                      />
+                    </div>
+                  </div>
+                </section>
+
+                <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                  <div className="mb-4 flex items-start justify-between gap-4">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900">Invoice items</p>
+                      <p className="mt-1 text-sm text-slate-500">Select a saved service or choose Other (Customer) for a manual amount.</p>
+                    </div>
+                    <Button type="button" variant="outline" size="sm" onClick={addLineItem}>
+                      <Plus className="mr-1 h-4 w-4" /> Add item
+                    </Button>
+                  </div>
+
+                  <div className="space-y-4">
+                    {form.line_items.map((item, index) => {
+                      const selectedService = activeServices.find((service) => service.service_id === item.selection);
+                      const isCustom = item.selection === CUSTOM_OPTION;
+                      return (
+                        <div key={item.id} className="rounded-[24px] border border-slate-200 bg-slate-50/70 p-4 shadow-sm">
+                          <div className="mb-4 flex items-center justify-between gap-3">
+                            <div>
+                              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">Item {index + 1}</p>
+                              <p className="mt-1 text-sm font-medium text-slate-700">
+                                {isCustom ? 'Custom customer charge' : selectedService ? billingLabel(selectedService) : 'Saved payment option'}
+                              </p>
+                            </div>
+                            {form.line_items.length > 1 && (
+                              <Button type="button" variant="ghost" size="icon" onClick={() => removeLineItem(item.id)} className="rounded-full text-slate-500">
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            )}
+                          </div>
+
+                          <div className="grid gap-4 md:grid-cols-[1.1fr_1fr]">
+                            <div className="space-y-2">
+                              <Label>What are you invoicing for?</Label>
+                              <Select value={item.selection} onValueChange={(value) => applySelection(item.id, value)}>
+                                <SelectTrigger className="h-12 rounded-2xl border-slate-200 bg-white">
+                                  <SelectValue placeholder="Select a saved service or custom amount" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {activeServices.map((service) => (
+                                    <SelectItem key={service.service_id} value={service.service_id}>
+                                      {service.name} · {formatMoney(service.amount_cents)}
+                                    </SelectItem>
+                                  ))}
+                                  <SelectItem value={CUSTOM_OPTION}>Other (Customer)</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+
+                            <div className="grid gap-4 sm:grid-cols-[120px_1fr]">
+                              <div className="space-y-2">
+                                <Label>Qty</Label>
+                                <Input
+                                  type="number"
+                                  min={1}
+                                  value={item.quantity}
+                                  onChange={(e) => updateLineItem(item.id, 'quantity', Math.max(1, Number(e.target.value || 1)))}
+                                  className="h-12 rounded-2xl border-slate-200 bg-white"
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label>Amount</Label>
+                                <div className="relative">
+                                  <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-sm font-semibold text-slate-500">$</span>
+                                  <Input
+                                    type="number"
+                                    min={0}
+                                    step={0.01}
+                                    value={item.amount}
+                                    onChange={(e) => updateLineItem(item.id, 'amount', e.target.value)}
+                                    className="h-12 rounded-2xl border-slate-200 bg-white pl-8"
+                                    placeholder="0.00"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="mt-4 space-y-2">
+                            <Label>Description</Label>
+                            <Textarea
+                              rows={3}
+                              value={item.description}
+                              onChange={(e) => updateLineItem(item.id, 'description', e.target.value)}
+                              className="min-h-[110px] rounded-2xl border-slate-200 bg-white"
+                              placeholder={
+                                isCustom
+                                  ? 'Describe what this customer is being charged for.'
+                                  : 'Explain what this invoice item covers.'
+                              }
+                            />
+                            <p className="text-xs text-slate-500">
+                              Required. Keep this customer-facing so they understand exactly what they are paying for.
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <div className="mt-5 rounded-2xl border border-emerald-100 bg-emerald-50/70 px-4 py-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-emerald-700">Invoice total</p>
+                        <p className="mt-1 text-2xl font-semibold text-slate-950">{formatMoney(total)}</p>
+                      </div>
+                      <div className="text-right text-xs text-slate-500">
+                        <p>Descriptions are required</p>
+                        <p>Customer email is needed to send</p>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+
+                <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                  <div className="mb-4">
+                    <p className="text-sm font-semibold text-slate-900">Internal notes</p>
+                    <p className="mt-1 text-sm text-slate-500">Optional notes or payment terms shown on the invoice email.</p>
+                  </div>
+                  <Textarea
+                    rows={4}
+                    className="rounded-2xl border-slate-200 bg-white"
+                    placeholder="Example: Payment due within 7 days. Reply if you need an updated copy."
+                    value={form.notes}
+                    onChange={(e) => setForm((current) => ({ ...current, notes: e.target.value }))}
+                  />
+                </section>
+              </div>
+
+              <DialogFooter className="mt-6 gap-2 border-t border-slate-200 pt-5 sm:justify-between">
+                <p className="text-xs text-slate-500">
+                  The invoice can be created as a draft first, then emailed to the customer when you click Send.
+                </p>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setShowForm(false);
+                      resetForm();
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                  <Button onClick={handleCreate} disabled={saving || !form.customer_name.trim()}>
+                    {saving ? 'Creating…' : 'Create invoice'}
+                  </Button>
+                </div>
+              </DialogFooter>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {invoices.length === 0 ? (
         <EmptyState
           icon={<FileText className="h-6 w-6 text-slate-400" />}
@@ -227,10 +587,12 @@ export default function InvoicesPage() {
         <div className="rounded-2xl border border-slate-100 bg-white shadow-sm divide-y divide-slate-100">
           {invoices.map((inv) => (
             <div key={inv.invoice_id} className="flex items-center gap-4 px-5 py-4">
-              <div className="flex-1 min-w-0">
+              <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                   <p className="text-sm font-semibold text-slate-900">{inv.invoice_number}</p>
-                  <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${STATUS_STYLES[inv.status] || STATUS_STYLES.DRAFT}`}>{inv.status}</span>
+                  <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${STATUS_STYLES[inv.status] || STATUS_STYLES.DRAFT}`}>
+                    {inv.status}
+                  </span>
                 </div>
                 <p className="text-xs text-slate-600">{inv.customer_name}</p>
                 <p className="text-xs text-slate-400">{new Date(inv.created_at).toLocaleDateString()}</p>
@@ -238,7 +600,9 @@ export default function InvoicesPage() {
               <p className="text-sm font-bold text-slate-900">{formatMoney(inv.total_cents)}</p>
               <div className="flex gap-1">
                 {inv.status === 'DRAFT' && (
-                  <Button size="sm" variant="outline" onClick={() => handleSend(inv.invoice_id)}>Send</Button>
+                  <Button size="sm" variant="outline" onClick={() => handleSend(inv.invoice_id)}>
+                    <Mail className="mr-1 h-3 w-3" /> Send
+                  </Button>
                 )}
                 {(inv.status === 'SENT' || inv.status === 'VIEWED' || inv.status === 'OVERDUE') && (
                   <Button size="sm" onClick={() => handleMarkPaid(inv.invoice_id)}>

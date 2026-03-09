@@ -108,6 +108,7 @@ export class CompaniesService {
 
     const companyId = uuidv4();
     const timestamp = Date.now();
+    const bookingAlias = this.buildBookingFromEmail(companyName, companyId);
 
     // Default business hours (M-F 9-5)
     const defaultBusinessHours: BusinessHours = {
@@ -125,7 +126,8 @@ export class CompaniesService {
       service_template_id: resolveServiceTemplateId(serviceType),
       ...(phoneNumber ? { phone_number: phoneNumber } : {}),
       email,
-      booking_from_email: this.buildBookingFromEmail(companyName, companyId),
+      booking_from_email: bookingAlias,
+      email_from: bookingAlias,
       status: CompanyStatus.INACTIVE,
       timezone,
       business_hours: defaultBusinessHours,
@@ -165,7 +167,11 @@ export class CompaniesService {
     const company = await this.dynamodb.get(this.tableName, { company_id: companyId });
     if (!company) return null;
     const finalized = await this.finalizeExpiredCancellation(company as Company);
-    return this.normalizeNoPlanStatus(finalized);
+    const normalized = await this.normalizeNoPlanStatus(finalized);
+    if (!normalized.email_from && normalized.booking_from_email) {
+      normalized.email_from = normalized.booking_from_email;
+    }
+    return normalized;
   }
 
   async findByEmail(email: string): Promise<Company | null> {
