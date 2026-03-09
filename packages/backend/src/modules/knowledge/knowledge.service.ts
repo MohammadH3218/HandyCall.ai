@@ -424,8 +424,18 @@ export class KnowledgeService implements OnModuleInit {
   }> {
     const cleanMessages = this.sanitizeAssistantMessages(messages);
     const userTurns = cleanMessages.filter((m) => m.role === 'user');
-    if (userTurns.length < 2) {
-      throw new BadRequestException('Please answer at least two assistant questions before generating knowledge.');
+    const combinedUserContent = userTurns
+      .map((m) => m.content.trim())
+      .filter(Boolean)
+      .join(' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    // Onboarding now supports one substantial business brief instead of a strict multi-turn interview.
+    if (!combinedUserContent || combinedUserContent.length < 80) {
+      throw new BadRequestException(
+        'Add a bit more business-specific detail before generating knowledge. Include services, pricing, policies, or common customer questions.',
+      );
     }
 
     const companyContext = await this.buildAssistantCompanyContext(companyId);
