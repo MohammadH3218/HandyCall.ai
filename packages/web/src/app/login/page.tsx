@@ -49,7 +49,14 @@ function LoginPageInner() {
   const [password, setPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [error, setError] = useState('');
+  const reasonParam = searchParams?.get('reason') || '';
+  const [error, setError] = useState(
+    reasonParam === 'account_not_found'
+      ? 'Your account was not found in our system. Please register a new account.'
+      : reasonParam === 'session_expired'
+        ? 'Your session expired. Please sign in again.'
+        : ''
+  );
   const [needsVerification, setNeedsVerification] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [socialLoading, setSocialLoading] = useState<'cognito-google' | 'cognito-apple' | null>(null);

@@ -37,7 +37,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const router = useRouter();
   const pathname = usePathname();
   const { status } = useSession();
-  const { isAuthenticated, isLoading, checkAuth, userRole, company } = useAuthStore();
+  const { isAuthenticated, isLoading, checkAuth, userRole, company, companyHydrated } = useAuthStore();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [knowledgeCount, setKnowledgeCount] = useState<number | null>(null);
   const [companyNumber, setCompanyNumber] = useState<string | null>(null);
@@ -106,11 +106,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const setupDataReady = knowledgeCount !== null && companyNumberLoaded;
 
   useEffect(() => {
-    if (!setupDataReady) return;
-    if (status === 'authenticated' && userRole !== UserRole.ADMIN && needsSetup) {
+    if (status !== 'authenticated' || userRole === UserRole.ADMIN) return;
+    // No company at all after hydration → send straight to onboarding
+    if (companyHydrated && !company) {
+      router.replace('/onboarding');
+      return;
+    }
+    // Company present but setup incomplete
+    if (setupDataReady && needsSetup) {
       router.replace('/onboarding');
     }
-  }, [needsSetup, router, setupDataReady, status, userRole]);
+  }, [needsSetup, router, setupDataReady, status, userRole, company, companyHydrated]);
 
   useEffect(() => {
     const populate = async () => {

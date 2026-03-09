@@ -14,6 +14,7 @@ interface AuthState {
   userRole: UserRole | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  companyHydrated: boolean;
   requiresPasswordChange: boolean;
   passwordChangeSession: string | null;
   passwordChangePoolType: 'users' | 'admin' | 'customer' | null;
@@ -40,6 +41,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   userRole: null,
   isAuthenticated: false,
   isLoading: true,
+  companyHydrated: false,
   requiresPasswordChange: false,
   passwordChangeSession: null,
   passwordChangePoolType: null,
@@ -307,15 +309,25 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const hydrateCompany = async () => {
         try {
           const company = await apiClient.getMyCompany();
-          set({ company });
+          set({ company, companyHydrated: true });
         } catch (error: any) {
-          if (
-            error?.message?.includes('Company not found') ||
-            error?.message?.includes('not completed company setup')
-          ) {
-            set({ company: null });
+          const msg: string = error?.message || '';
+          if (msg.includes('User not found in system') || msg.includes('Unauthorized')) {
+            // DynamoDB record missing — Cognito account exists but backend has no user.
+            // Sign out cleanly so the user can re-register.
+            set({ company: null, companyHydrated: true });
+            try {
+              await signOut({ redirect: false });
+            } catch {
+              // ignore
+            }
+            if (typeof window !== 'undefined') {
+              window.location.assign('/login?reason=account_not_found');
+            }
             return;
           }
+          // Company not found / setup not complete — redirect to onboarding handled by layout
+          set({ company: null, companyHydrated: true });
         }
       };
       void hydrateCompany();
