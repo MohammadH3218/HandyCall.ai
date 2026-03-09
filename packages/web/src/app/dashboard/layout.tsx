@@ -25,7 +25,6 @@ import {
   IconCreditCard,
   IconBolt,
   IconCurrencyDollar,
-  IconUsersGroup,
   IconChartBarPopular,
   IconSend,
   IconPhoneOutgoing,
@@ -352,14 +351,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               onClick={() => setSidebarOpen(false)}
             >
               Payments
-            </NavLink>
-            <NavLink
-              href="/dashboard/team"
-              icon={<IconUsersGroup stroke={1.5} className="h-5 w-5" />}
-              active={pathname?.startsWith('/dashboard/team')}
-              onClick={() => setSidebarOpen(false)}
-            >
-              Team
             </NavLink>
           </div>
 

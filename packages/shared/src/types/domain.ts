@@ -204,6 +204,7 @@ export interface Company {
   stripe_connect_onboarding_complete?: boolean;
   booking_payment_enabled?: boolean;
   booking_payment_mode?: 'HANDYCALL_MANAGED' | 'SELF_MANAGED';
+  booking_payment_mode_confirmed?: boolean;
   booking_services?: BookingService[];
 
   // Differentiator settings

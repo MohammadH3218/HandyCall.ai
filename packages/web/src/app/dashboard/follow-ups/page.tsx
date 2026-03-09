@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { usePlanFeatures } from '@/hooks/use-plan-features';
-import { MessageSquare, Settings } from 'lucide-react';
+import { MessageSquare } from 'lucide-react';
 
 type FollowUpSettings = {
   follow_up_sequences_enabled: boolean;
@@ -32,6 +32,12 @@ type Sequence = {
   steps: Array<{ step: number; send_at: number; body: string }>;
 };
 
+const FOLLOW_UP_BLOCKS = [
+  { key: 'follow_up_initial', title: 'First message', fallbackDelay: 0, fallbackText: "Thanks for calling {{company_name}}! Here's your booking link: {{booking_link}}" },
+  { key: 'follow_up_second', title: 'Second message', fallbackDelay: 1440, fallbackText: "Haven't booked yet? We'd love to help. {{booking_link}}" },
+  { key: 'follow_up_final', title: 'Final message', fallbackDelay: 4320, fallbackText: 'Final follow-up from {{company_name}}. Reply if you would like to reserve a time.' },
+] as const;
+
 export default function FollowUpsPage() {
   const { toast } = useToast();
   const { hasFeature } = usePlanFeatures();
@@ -39,6 +45,7 @@ export default function FollowUpsPage() {
   const [sequences, setSequences] = useState<Sequence[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [editing, setEditing] = useState(false);
   const [editSettings, setEditSettings] = useState<FollowUpSettings | null>(null);
 
   const load = async () => {
@@ -48,7 +55,7 @@ export default function FollowUpsPage() {
         (apiClient as any).get('/companies/me'),
         (apiClient as any).get('/follow-up-sequences').catch(() => ({ items: [] })),
       ]);
-      const s: FollowUpSettings = {
+      const nextSettings: FollowUpSettings = {
         follow_up_sequences_enabled: company?.follow_up_sequences_enabled || false,
         follow_up_initial_template: company?.follow_up_initial_template || '',
         follow_up_initial_delay_minutes: company?.follow_up_initial_delay_minutes ?? 0,
@@ -61,17 +68,19 @@ export default function FollowUpsPage() {
         review_request_delay_minutes: company?.review_request_delay_minutes ?? 120,
         review_platform_url: company?.review_platform_url || '',
       };
-      setSettings(s);
-      setEditSettings(s);
+      setSettings(nextSettings);
+      setEditSettings(nextSettings);
       setSequences(Array.isArray(seqData) ? seqData : seqData?.items || []);
-    } catch (err: any) {
+    } catch {
       toast({ title: 'Error', description: 'Failed to load follow-up settings', variant: 'destructive' });
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => { void load(); }, []);
+  useEffect(() => {
+    void load();
+  }, []);
 
   if (!hasFeature('follow_up_sequences')) {
     return (
@@ -93,7 +102,8 @@ export default function FollowUpsPage() {
     try {
       await (apiClient as any).put('/companies/me', editSettings);
       setSettings({ ...editSettings });
-      toast({ title: 'Settings saved' });
+      setEditing(false);
+      toast({ title: 'Settings saved', description: 'Your follow-up automation has been updated.' });
     } catch (err: any) {
       toast({ title: 'Error', description: err?.message || 'Failed to save', variant: 'destructive' });
     } finally {
@@ -101,7 +111,12 @@ export default function FollowUpsPage() {
     }
   };
 
-  if (loading) {
+  const handleCancel = () => {
+    setEditSettings(settings);
+    setEditing(false);
+  };
+
+  if (loading || !settings || !editSettings) {
     return (
       <div className="space-y-4">
         <div className="h-8 w-48 animate-pulse rounded bg-slate-100" />
@@ -115,86 +130,157 @@ export default function FollowUpsPage() {
       <PageHeader
         eyebrow="Automation"
         title="Follow-up Sequences"
-        subtitle="Automatically follow up with leads after calls and completed appointments."
-        actions={<Button onClick={handleSave} disabled={saving} size="sm">{saving ? 'Saving...' : 'Save settings'}</Button>}
+        subtitle="Keep leads warm automatically without making this page feel like a spreadsheet."
+        actions={
+          editing ? (
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={handleCancel}>Cancel</Button>
+              <Button onClick={handleSave} disabled={saving}>{saving ? 'Saving...' : 'Save changes'}</Button>
+            </div>
+          ) : (
+            <Button onClick={() => setEditing(true)}>Edit automation</Button>
+          )
+        }
       />
 
-      {/* Settings */}
       <div className="rounded-2xl border border-slate-100 bg-white shadow-sm">
-        <div className="flex items-center gap-3 border-b border-slate-100 px-5 py-4">
-          <Settings className="h-4 w-4 text-slate-500" />
-          <h2 className="text-sm font-semibold text-slate-900">Follow-up settings</h2>
-          <div className="ml-auto flex items-center gap-2">
-            <span className="text-xs text-slate-500">Enabled</span>
-            <button
-              onClick={() => setEditSettings((s) => s ? { ...s, follow_up_sequences_enabled: !s.follow_up_sequences_enabled } : s)}
-              className={`relative h-5 w-9 rounded-full transition-colors ${editSettings?.follow_up_sequences_enabled ? 'bg-emerald-600' : 'bg-slate-200'}`}
-            >
-              <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${editSettings?.follow_up_sequences_enabled ? 'translate-x-4' : 'translate-x-0.5'}`} />
-            </button>
-          </div>
+        <div className="border-b border-slate-100 px-5 py-4">
+          <h2 className="text-sm font-semibold text-slate-900">Recommended starter flow</h2>
+          <p className="text-xs text-slate-500">A simple setup most service businesses can start with immediately.</p>
         </div>
-        <div className="grid gap-5 p-5 sm:grid-cols-2">
-          {[
-            { key: 'follow_up_initial', label: 'First message', defaultDelay: 0, defaultTemplate: "Thanks for calling {{company_name}}! Here's your booking link: {{booking_link}}" },
-            { key: 'follow_up_second', label: 'Second message', defaultDelay: 1440, defaultTemplate: "Haven't booked yet? We'd love to help. {{booking_link}}" },
-            { key: 'follow_up_final', label: 'Final message', defaultDelay: 4320, defaultTemplate: "Final follow-up from {{company_name}}. Reply if you'd like to reserve a time." },
-          ].map((step) => (
-            <div key={step.key} className="rounded-xl border border-slate-100 bg-slate-50 p-4 space-y-3">
-              <p className="text-xs font-semibold text-slate-700 uppercase tracking-wide">{step.label}</p>
-              <div>
-                <label className="mb-1 block text-xs text-slate-600">Delay (minutes after trigger)</label>
-                <Input
-                  type="number"
-                  min={0}
-                  value={(editSettings as any)?.[`${step.key}_delay_minutes`] ?? step.defaultDelay}
-                  onChange={(e) => setEditSettings((s) => s ? { ...s, [`${step.key}_delay_minutes`]: Number(e.target.value) } : s)}
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-xs text-slate-600">Message template</label>
-                <textarea
-                  rows={2}
-                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-none"
-                  placeholder={step.defaultTemplate}
-                  value={(editSettings as any)?.[`${step.key}_template`] || ''}
-                  onChange={(e) => setEditSettings((s) => s ? { ...s, [`${step.key}_template`]: e.target.value } : s)}
-                />
-              </div>
+        <div className="grid gap-3 p-5 md:grid-cols-4">
+          <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+            <p className="text-xs uppercase tracking-wide text-slate-500">Automation</p>
+            <p className="mt-2 text-sm font-semibold text-slate-900">{settings.follow_up_sequences_enabled ? 'Enabled' : 'Disabled'}</p>
+          </div>
+          {FOLLOW_UP_BLOCKS.map((block) => (
+            <div key={block.key} className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+              <p className="text-xs uppercase tracking-wide text-slate-500">{block.title}</p>
+              <p className="mt-2 text-sm font-semibold text-slate-900">
+                {Number((settings as any)[`${block.key}_delay_minutes`] ?? block.fallbackDelay)} min
+              </p>
+              <p className="mt-1 line-clamp-2 text-xs text-slate-600">
+                {(settings as any)[`${block.key}_template`] || block.fallbackText}
+              </p>
             </div>
           ))}
-          <div className="rounded-xl border border-slate-100 bg-slate-50 p-4 space-y-3">
-            <div className="flex items-center justify-between">
-              <p className="text-xs font-semibold text-slate-700 uppercase tracking-wide">Review requests</p>
-              <button
-                onClick={() => setEditSettings((s) => s ? { ...s, review_request_enabled: !s.review_request_enabled } : s)}
-                className={`relative h-5 w-9 rounded-full transition-colors ${editSettings?.review_request_enabled ? 'bg-emerald-600' : 'bg-slate-200'}`}
-              >
-                <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${editSettings?.review_request_enabled ? 'translate-x-4' : 'translate-x-0.5'}`} />
-              </button>
-            </div>
-            <div>
-              <label className="mb-1 block text-xs text-slate-600">Review platform URL</label>
-              <Input
-                placeholder="https://g.page/r/your-review-link"
-                value={editSettings?.review_platform_url || ''}
-                onChange={(e) => setEditSettings((s) => s ? { ...s, review_platform_url: e.target.value } : s)}
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-xs text-slate-600">Delay (minutes after job completion)</label>
-              <Input
-                type="number"
-                min={0}
-                value={editSettings?.review_request_delay_minutes ?? 120}
-                onChange={(e) => setEditSettings((s) => s ? { ...s, review_request_delay_minutes: Number(e.target.value) } : s)}
-              />
-            </div>
-          </div>
         </div>
       </div>
 
-      {/* Recent sequences */}
+      <div className="rounded-2xl border border-slate-100 bg-white shadow-sm">
+        <div className="border-b border-slate-100 px-5 py-4">
+          <h2 className="text-sm font-semibold text-slate-900">Automation setup</h2>
+          <p className="text-xs text-slate-500">Edit only when you want to fine-tune timing or wording.</p>
+        </div>
+        {!editing ? (
+          <div className="space-y-4 p-5">
+            <div className="grid gap-3 md:grid-cols-2">
+              {FOLLOW_UP_BLOCKS.map((block) => (
+                <div key={block.key} className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+                  <p className="text-sm font-semibold text-slate-900">{block.title}</p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    Sends after {Number((settings as any)[`${block.key}_delay_minutes`] ?? block.fallbackDelay)} minutes
+                  </p>
+                  <p className="mt-3 line-clamp-3 text-sm text-slate-600">
+                    {(settings as any)[`${block.key}_template`] || block.fallbackText}
+                  </p>
+                </div>
+              ))}
+              <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+                <p className="text-sm font-semibold text-slate-900">Review requests</p>
+                <p className="mt-1 text-xs text-slate-500">
+                  {settings.review_request_enabled ? `Enabled after ${settings.review_request_delay_minutes} minutes` : 'Disabled'}
+                </p>
+                <p className="mt-3 line-clamp-3 text-sm text-slate-600">
+                  {settings.review_platform_url || 'No review link set yet.'}
+                </p>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-4 p-5">
+            <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+              <div>
+                <p className="text-sm font-semibold text-slate-900">Enable follow-up automation</p>
+                <p className="text-xs text-slate-600">Use a simple 3-touch sequence for leads who have not booked yet.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditSettings((s) => (s ? { ...s, follow_up_sequences_enabled: !s.follow_up_sequences_enabled } : s))}
+                className={`relative h-7 w-12 rounded-full transition ${editSettings.follow_up_sequences_enabled ? 'bg-emerald-600' : 'bg-slate-300'}`}
+              >
+                <span className={`absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow transition ${editSettings.follow_up_sequences_enabled ? 'translate-x-5' : 'translate-x-0'}`} />
+              </button>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {FOLLOW_UP_BLOCKS.map((block) => (
+                <div key={block.key} className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-900">{block.title}</p>
+                    <p className="text-xs text-slate-500">Keep this concise and conversational.</p>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-medium text-slate-700">Delay in minutes</label>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={(editSettings as any)[`${block.key}_delay_minutes`] ?? block.fallbackDelay}
+                      onChange={(e) => setEditSettings((s) => (s ? { ...s, [`${block.key}_delay_minutes`]: Number(e.target.value) } : s))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-medium text-slate-700">Message</label>
+                    <textarea
+                      rows={4}
+                      className="w-full resize-none rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                      placeholder={block.fallbackText}
+                      value={(editSettings as any)[`${block.key}_template`] || ''}
+                      onChange={(e) => setEditSettings((s) => (s ? { ...s, [`${block.key}_template`]: e.target.value } : s))}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-slate-900">Review requests</p>
+                  <p className="text-xs text-slate-600">Ask for a review after completed jobs.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setEditSettings((s) => (s ? { ...s, review_request_enabled: !s.review_request_enabled } : s))}
+                  className={`relative h-7 w-12 rounded-full transition ${editSettings.review_request_enabled ? 'bg-emerald-600' : 'bg-slate-300'}`}
+                >
+                  <span className={`absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow transition ${editSettings.review_request_enabled ? 'translate-x-5' : 'translate-x-0'}`} />
+                </button>
+              </div>
+              <div className="mt-4 grid gap-3 md:grid-cols-2">
+                <div className="space-y-2">
+                  <label className="text-xs font-medium text-slate-700">Review link</label>
+                  <Input
+                    placeholder="https://g.page/r/your-review-link"
+                    value={editSettings.review_platform_url || ''}
+                    onChange={(e) => setEditSettings((s) => (s ? { ...s, review_platform_url: e.target.value } : s))}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-medium text-slate-700">Send delay in minutes</label>
+                  <Input
+                    type="number"
+                    min={0}
+                    value={editSettings.review_request_delay_minutes ?? 120}
+                    onChange={(e) => setEditSettings((s) => (s ? { ...s, review_request_delay_minutes: Number(e.target.value) } : s))}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
       <div className="rounded-2xl border border-slate-100 bg-white shadow-sm">
         <div className="border-b border-slate-100 px-5 py-4">
           <h2 className="text-sm font-semibold text-slate-900">Recent sequences</h2>

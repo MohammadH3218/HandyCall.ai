@@ -271,6 +271,10 @@ export class UpdateCompanyDto {
   booking_payment_mode?: 'HANDYCALL_MANAGED' | 'SELF_MANAGED';
 
   @IsOptional()
+  @IsBoolean()
+  booking_payment_mode_confirmed?: boolean;
+
+  @IsOptional()
   @IsArray()
   @IsObject({ each: true })
   booking_services?: Array<{

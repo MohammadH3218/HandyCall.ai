@@ -7,7 +7,6 @@ import { Elements, CardElement, useStripe, useElements } from '@stripe/react-str
 import {
   IconSparkles,
   IconUser,
-  IconSend,
   IconCheck,
   IconX,
   IconArrowRight,
@@ -500,6 +499,11 @@ function OnboardingSetupContent() {
       );
     } else if (!s.billing) {
       await goTo('billing_plan', "Last step — let's activate your HandyCall subscription.");
+    } else if (!(company as any)?.booking_payment_mode_confirmed) {
+      await goTo(
+        'billing_payment_mode',
+        'One last choice: do you want HandyCall to collect customer payments for you, or will you handle payments yourself?',
+      );
     } else if (paymentsFlow === 'connect' && (connectState === 'return' || connectState === 'refresh')) {
       await goTo(
         'billing_connect',
@@ -986,6 +990,7 @@ function OnboardingSetupContent() {
       await apiClient.updateMyCompany({
         booking_payment_mode: mode,
         booking_payment_enabled: mode === 'HANDYCALL_MANAGED',
+        booking_payment_mode_confirmed: true,
       });
       await refreshAll();
 
@@ -1551,10 +1556,6 @@ function OnboardingSetupContent() {
                 </div>
               )}
               <div className="flex flex-wrap gap-2">
-                <ActionButton onClick={sendKbMessage} disabled={!kbInput.trim() || kbLoading} loading={kbLoading}>
-                  <IconSend className="h-4 w-4" stroke={1.5} />
-                  Ask assistant to guide me
-                </ActionButton>
                 <ActionButton
                   onClick={() => void handleGenerateKnowledge()}
                   disabled={kbGenerating || (kbMessages.filter((msg) => msg.role === 'user').length === 0 && !kbInput.trim())}

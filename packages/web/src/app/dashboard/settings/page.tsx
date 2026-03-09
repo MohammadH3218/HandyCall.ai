@@ -59,6 +59,7 @@ export default function SettingsPage() {
   const [connectStatus, setConnectStatus] = useState<any>(null);
   const [paymentsLoading, setPaymentsLoading] = useState(false);
   const [paymentsSaving, setPaymentsSaving] = useState(false);
+  const [paymentsEditMode, setPaymentsEditMode] = useState(false);
   const [bookingPaymentMode, setBookingPaymentMode] = useState<'HANDYCALL_MANAGED' | 'SELF_MANAGED'>('SELF_MANAGED');
   const [bookingPaymentEnabled, setBookingPaymentEnabled] = useState(false);
   const [bookingServices, setBookingServices] = useState<Array<{
@@ -81,7 +82,10 @@ export default function SettingsPage() {
   const [widgetPrimaryColor, setWidgetPrimaryColor] = useState('#10b981');
   const [widgetGreeting, setWidgetGreeting] = useState('Hi there! How can we help?');
   const [widgetSaving, setWidgetSaving] = useState(false);
+  const [widgetEditMode, setWidgetEditMode] = useState(false);
   const [automationSaving, setAutomationSaving] = useState(false);
+  const [automationEditMode, setAutomationEditMode] = useState(false);
+  const [integrationsEditMode, setIntegrationsEditMode] = useState(false);
   const [followUpEnabled, setFollowUpEnabled] = useState(false);
   const [followUpInitialDelayMinutes, setFollowUpInitialDelayMinutes] = useState('0');
   const [followUpSecondDelayMinutes, setFollowUpSecondDelayMinutes] = useState('1440');
@@ -366,6 +370,7 @@ export default function SettingsPage() {
         title: 'Webhook saved',
         description: 'Your CRM webhook settings are up to date.',
       });
+      setIntegrationsEditMode(false);
     } catch (error: any) {
       toast({
         title: 'Save failed',
@@ -488,6 +493,7 @@ export default function SettingsPage() {
       setPaymentsSaving(true);
       await apiClient.updateMyCompany({
         booking_payment_mode: bookingPaymentMode,
+        booking_payment_mode_confirmed: true,
         booking_payment_enabled:
           bookingPaymentMode === 'HANDYCALL_MANAGED' ? bookingPaymentEnabled : false,
         booking_services: bookingServices.map((service) => ({
@@ -507,6 +513,7 @@ export default function SettingsPage() {
         title: 'Payment settings saved',
         description: 'Your booking payment configuration has been updated.',
       });
+      setPaymentsEditMode(false);
     } catch (error: any) {
       toast({
         title: 'Save failed',
@@ -563,6 +570,7 @@ export default function SettingsPage() {
         title: 'Widget settings saved',
         description: 'Your website chat widget preferences were updated.',
       });
+      setWidgetEditMode(false);
     } catch (error: any) {
       toast({
         title: 'Save failed',
@@ -594,6 +602,7 @@ export default function SettingsPage() {
         title: 'Automation settings saved',
         description: 'Follow-ups and review request rules are updated.',
       });
+      setAutomationEditMode(false);
     } catch (error: any) {
       toast({
         title: 'Save failed',
@@ -886,6 +895,89 @@ export default function SettingsPage() {
               </p>
             </div>
             <div className="space-y-4 p-5">
+              {!paymentsEditMode ? (
+                <>
+                  <div className="grid gap-3 md:grid-cols-3">
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+                      <p className="text-xs uppercase tracking-wide text-slate-500">Payment mode</p>
+                      <p className="mt-2 text-sm font-semibold text-slate-900">
+                        {bookingPaymentMode === 'HANDYCALL_MANAGED' ? 'Managed in HandyCall' : 'Handled outside HandyCall'}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-600">
+                        {bookingPaymentMode === 'HANDYCALL_MANAGED'
+                          ? 'Customers can pay through HandyCall booking links.'
+                          : 'You collect payment outside HandyCall.'}
+                      </p>
+                    </div>
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+                      <p className="text-xs uppercase tracking-wide text-slate-500">Stripe Connect</p>
+                      <p className="mt-2 text-sm font-semibold text-slate-900">
+                        {connectStatus?.connected ? 'Connected' : 'Not connected'}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-600">
+                        {connectStatus?.connected
+                          ? connectStatus?.charges_enabled && connectStatus?.payouts_enabled
+                            ? 'Ready to collect and pay out.'
+                            : 'Connected, but setup still needs to be finished in Stripe.'
+                          : 'Connect Stripe only if you want HandyCall-managed payments.'}
+                      </p>
+                    </div>
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+                      <p className="text-xs uppercase tracking-wide text-slate-500">Booking payments</p>
+                      <p className="mt-2 text-sm font-semibold text-slate-900">
+                        {bookingPaymentEnabled && bookingPaymentMode === 'HANDYCALL_MANAGED' ? 'Enabled' : 'Disabled'}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-600">
+                        {bookingServices.length > 0
+                          ? `${bookingServices.length} service${bookingServices.length === 1 ? '' : 's'} configured`
+                          : 'No paid services configured yet.'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-3 text-sm text-slate-600">
+                    Choose whether HandyCall collects customer payments for you or if your team handles billing manually.
+                  </div>
+
+                  {bookingServices.length > 0 ? (
+                    <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                      <p className="text-sm font-semibold text-slate-900">Configured services</p>
+                      <div className="mt-3 grid gap-3 md:grid-cols-2">
+                        {bookingServices.map((service) => (
+                          <div key={service.service_id} className="rounded-xl border border-slate-200 bg-slate-50/60 p-3">
+                            <div className="flex items-center justify-between gap-3">
+                              <p className="text-sm font-semibold text-slate-900">{service.name || 'Untitled service'}</p>
+                              <span className={`rounded-full px-2 py-1 text-[11px] font-semibold ${service.active ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600'}`}>
+                                {service.active ? 'Active' : 'Paused'}
+                              </span>
+                            </div>
+                            <p className="mt-1 text-xs text-slate-600">
+                              {service.billing_type === 'SUBSCRIPTION'
+                                ? `Subscription · ${(service.amount_cents / 100).toFixed(2)} ${service.currency.toUpperCase()} every ${service.billing_interval_count} ${service.billing_interval}${service.billing_interval_count > 1 ? 's' : ''}`
+                                : `One-time · ${(service.amount_cents / 100).toFixed(2)} ${service.currency.toUpperCase()}`}
+                            </p>
+                            <p className="mt-1 text-xs text-slate-500">
+                              {service.collect_payment ? 'Collect payment in booking flow' : 'Booking only, no payment collected'}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  <div className="flex justify-end gap-2">
+                    {bookingPaymentMode === 'HANDYCALL_MANAGED' ? (
+                      <Button type="button" variant="outline" onClick={handleConnectSetup}>
+                        {connectStatus?.connected ? 'Open Stripe Connect' : 'Set up Stripe Connect'}
+                      </Button>
+                    ) : null}
+                    <Button type="button" onClick={() => setPaymentsEditMode(true)}>
+                      Edit payment setup
+                    </Button>
+                  </div>
+                </>
+              ) : (
+                <>
               <div className="grid gap-3 md:grid-cols-2">
                 <button
                   type="button"
@@ -966,6 +1058,8 @@ export default function SettingsPage() {
                 <p className="text-xs font-semibold text-emerald-900">Security</p>
                 <p className="mt-1 text-xs text-emerald-700">We don't store bank info. Payout details are handled directly by Stripe.</p>
               </div>
+                </>
+              )}
             </div>
           </div>
 
@@ -977,122 +1071,162 @@ export default function SettingsPage() {
               </p>
             </div>
             <div className="space-y-4 p-5">
-              <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50/70 p-4">
-                <div>
-                  <p className="text-sm font-semibold text-slate-900">Enable booking payments</p>
-                  <p className="text-xs text-slate-600">Show a payment step on public booking links.</p>
+              {!paymentsEditMode ? (
+                <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 text-sm text-slate-600">
+                  {bookingPaymentEnabled && bookingPaymentMode === 'HANDYCALL_MANAGED'
+                    ? 'Customers will see a payment step on public booking links for eligible services.'
+                    : 'Public booking links currently collect appointment details only.'}
                 </div>
-                <button
-                  type="button"
-                  aria-pressed={bookingPaymentEnabled}
-                  onClick={() => setBookingPaymentEnabled((prev) => !prev)}
-                  disabled={bookingPaymentMode !== 'HANDYCALL_MANAGED'}
-                  className={`relative h-7 w-12 rounded-full transition ${
-                    bookingPaymentEnabled ? 'bg-emerald-600' : 'bg-slate-300'
-                  }`}
-                >
-                  <span
-                    className={`absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow transition ${
-                      bookingPaymentEnabled ? 'translate-x-5' : 'translate-x-0'
-                    }`}
-                  />
-                </button>
-              </div>
-
-              <div className="space-y-3">
-                {bookingServices.map((service) => (
-                  <div key={service.service_id} className="grid gap-2 rounded-xl border border-slate-200 bg-white p-3 md:grid-cols-8">
-                    <Input
-                      value={service.name}
-                      onChange={(e) => handleUpdateBookingService(service.service_id, 'name', e.target.value)}
-                      placeholder="Service name"
-                    />
-                    <Input
-                      type="number"
-                      min={0}
-                      value={service.amount_cents}
-                      onChange={(e) => handleUpdateBookingService(service.service_id, 'amount_cents', Number(e.target.value))}
-                      placeholder="Amount (cents)"
-                    />
-                    <Input
-                      value={service.currency}
-                      onChange={(e) => handleUpdateBookingService(service.service_id, 'currency', e.target.value)}
-                      placeholder="Currency (usd)"
-                    />
-                    <Select
-                      value={service.billing_type}
-                      onValueChange={(value) => handleUpdateBookingService(service.service_id, 'billing_type', value as 'ONE_TIME' | 'SUBSCRIPTION')}
+              ) : (
+                <>
+                  <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900">Enable booking payments</p>
+                      <p className="text-xs text-slate-600">Show a payment step on public booking links.</p>
+                    </div>
+                    <button
+                      type="button"
+                      aria-pressed={bookingPaymentEnabled}
+                      onClick={() => setBookingPaymentEnabled((prev) => !prev)}
+                      disabled={bookingPaymentMode !== 'HANDYCALL_MANAGED'}
+                      className={`relative h-7 w-12 rounded-full transition ${
+                        bookingPaymentEnabled ? 'bg-emerald-600' : 'bg-slate-300'
+                      }`}
                     >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Billing type" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="ONE_TIME">One-time</SelectItem>
-                        <SelectItem value="SUBSCRIPTION">Subscription</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    {service.billing_type === 'SUBSCRIPTION' ? (
-                      <Select
-                        value={service.billing_interval}
-                        onValueChange={(value) =>
-                          handleUpdateBookingService(
-                            service.service_id,
-                            'billing_interval',
-                            value as 'day' | 'week' | 'month' | 'year',
-                          )
-                        }
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Interval" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="day">Daily</SelectItem>
-                          <SelectItem value="week">Weekly</SelectItem>
-                          <SelectItem value="month">Monthly</SelectItem>
-                          <SelectItem value="year">Yearly</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    ) : (
-                      <div />
-                    )}
-                    <Input
-                      type="number"
-                      min={1}
-                      value={service.billing_interval_count}
-                      onChange={(e) => handleUpdateBookingService(service.service_id, 'billing_interval_count', Number(e.target.value))}
-                      placeholder="Interval count"
-                      disabled={service.billing_type !== 'SUBSCRIPTION'}
-                    />
-                    <label className="flex items-center gap-2 text-sm text-slate-700">
-                      <input
-                        type="checkbox"
-                        checked={service.active}
-                        onChange={(e) => handleUpdateBookingService(service.service_id, 'active', e.target.checked)}
+                      <span
+                        className={`absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow transition ${
+                          bookingPaymentEnabled ? 'translate-x-5' : 'translate-x-0'
+                        }`}
                       />
-                      Active
-                    </label>
-                    <label className="flex items-center gap-2 text-sm text-slate-700">
-                      <input
-                        type="checkbox"
-                        checked={service.collect_payment}
-                        onChange={(e) => handleUpdateBookingService(service.service_id, 'collect_payment', e.target.checked)}
-                      />
-                      Collect
-                    </label>
-                    <Button type="button" variant="outline" onClick={() => handleRemoveBookingService(service.service_id)}>
-                      Remove
-                    </Button>
+                    </button>
                   </div>
-                ))}
-              </div>
+
+                  <div className="space-y-3">
+                    {bookingServices.map((service) => (
+                      <div key={service.service_id} className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4">
+                        <div className="grid gap-3 md:grid-cols-4">
+                          <div className="space-y-2 md:col-span-2">
+                            <Label>Service name</Label>
+                            <Input
+                              value={service.name}
+                              onChange={(e) => handleUpdateBookingService(service.service_id, 'name', e.target.value)}
+                              placeholder="Service name"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Price in cents</Label>
+                            <Input
+                              type="number"
+                              min={0}
+                              value={service.amount_cents}
+                              onChange={(e) => handleUpdateBookingService(service.service_id, 'amount_cents', Number(e.target.value))}
+                              placeholder="0"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Currency</Label>
+                            <Input
+                              value={service.currency}
+                              onChange={(e) => handleUpdateBookingService(service.service_id, 'currency', e.target.value)}
+                              placeholder="usd"
+                            />
+                          </div>
+                        </div>
+                        <div className="grid gap-3 md:grid-cols-3">
+                          <div className="space-y-2">
+                            <Label>Billing type</Label>
+                            <Select
+                              value={service.billing_type}
+                              onValueChange={(value) => handleUpdateBookingService(service.service_id, 'billing_type', value as 'ONE_TIME' | 'SUBSCRIPTION')}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Billing type" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="ONE_TIME">One-time</SelectItem>
+                                <SelectItem value="SUBSCRIPTION">Subscription</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Repeat interval</Label>
+                            <Select
+                              value={service.billing_interval}
+                              onValueChange={(value) =>
+                                handleUpdateBookingService(service.service_id, 'billing_interval', value as 'day' | 'week' | 'month' | 'year')
+                              }
+                              disabled={service.billing_type !== 'SUBSCRIPTION'}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Interval" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="day">Daily</SelectItem>
+                                <SelectItem value="week">Weekly</SelectItem>
+                                <SelectItem value="month">Monthly</SelectItem>
+                                <SelectItem value="year">Yearly</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Every how many intervals</Label>
+                            <Input
+                              type="number"
+                              min={1}
+                              value={service.billing_interval_count}
+                              onChange={(e) => handleUpdateBookingService(service.service_id, 'billing_interval_count', Number(e.target.value))}
+                              placeholder="1"
+                              disabled={service.billing_type !== 'SUBSCRIPTION'}
+                            />
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <div className="flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              onClick={() => handleUpdateBookingService(service.service_id, 'active', !service.active)}
+                              className={`rounded-full px-3 py-1.5 text-xs font-semibold ${service.active ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-700'}`}
+                            >
+                              {service.active ? 'Active' : 'Inactive'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleUpdateBookingService(service.service_id, 'collect_payment', !service.collect_payment)}
+                              className={`rounded-full px-3 py-1.5 text-xs font-semibold ${service.collect_payment ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-700'}`}
+                            >
+                              {service.collect_payment ? 'Collect payment' : 'Booking only'}
+                            </button>
+                          </div>
+                          <Button type="button" variant="outline" onClick={() => handleRemoveBookingService(service.service_id)}>
+                            Remove
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
 
               <div className="flex flex-wrap justify-between gap-2">
-                <Button type="button" variant="outline" onClick={handleAddBookingService}>
-                  Add service
-                </Button>
-                <Button onClick={handleSavePayments} disabled={paymentsSaving}>
-                  {paymentsSaving ? 'Saving…' : 'Save payment settings'}
-                </Button>
+                {paymentsEditMode ? (
+                  <>
+                    <Button type="button" variant="outline" onClick={handleAddBookingService}>
+                      Add service
+                    </Button>
+                    <div className="flex gap-2">
+                      <Button type="button" variant="outline" onClick={() => setPaymentsEditMode(false)}>
+                        Cancel
+                      </Button>
+                      <Button onClick={handleSavePayments} disabled={paymentsSaving}>
+                        {paymentsSaving ? 'Saving…' : 'Save payment settings'}
+                      </Button>
+                    </div>
+                  </>
+                ) : (
+                  <Button type="button" onClick={() => setPaymentsEditMode(true)}>
+                    Edit booking payments
+                  </Button>
+                )}
               </div>
             </div>
           </div>
@@ -1409,72 +1543,107 @@ export default function SettingsPage() {
                   </p>
                 </div>
               </div>
-
-              <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-semibold text-slate-900">Webhook URL</p>
-                    <p className="text-xs text-slate-600">We’ll POST JSON payloads to this URL.</p>
+              {!integrationsEditMode ? (
+                <div className="space-y-4">
+                  <div className="grid gap-3 md:grid-cols-3">
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+                      <p className="text-xs uppercase tracking-wide text-slate-500">Connection</p>
+                      <p className="mt-2 text-sm font-semibold text-slate-900">
+                        {webhookDraft.webhook_url ? 'Webhook configured' : 'Not configured'}
+                      </p>
+                      <p className="mt-1 break-all text-xs text-slate-600">
+                        {webhookDraft.webhook_url || 'Paste a Zapier, Make, or n8n webhook URL to start syncing.'}
+                      </p>
+                    </div>
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+                      <p className="text-xs uppercase tracking-wide text-slate-500">Delivery</p>
+                      <p className="mt-2 text-sm font-semibold text-slate-900">
+                        {webhookDraft.is_enabled ? 'Enabled' : 'Paused'}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-600">
+                        {webhookDraft.enabled_events.length} event{webhookDraft.enabled_events.length === 1 ? '' : 's'} selected
+                      </p>
+                    </div>
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+                      <p className="text-xs uppercase tracking-wide text-slate-500">Last delivery</p>
+                      <p className="mt-2 text-sm font-semibold text-slate-900">
+                        {formatTimestamp(webhookConfig?.last_delivery_at)}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-600">
+                        {webhookConfig?.last_status_code ? `Status ${webhookConfig.last_status_code}` : 'No deliveries yet'}
+                      </p>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <button
+                  <div className="flex flex-wrap justify-end gap-2">
+                    <Button
                       type="button"
-                      aria-pressed={webhookDraft.is_enabled}
-                      onClick={() =>
-                        setWebhookDraft((prev) => ({ ...prev, is_enabled: !prev.is_enabled }))
-                      }
-                      className={`relative h-7 w-12 rounded-full transition ${
-                        webhookDraft.is_enabled ? 'bg-emerald-600' : 'bg-slate-300'
-                      }`}
+                      variant="outline"
+                      onClick={handleTestWebhook}
+                      disabled={!webhookDraft.webhook_url || webhookTesting || webhookLoading}
                     >
-                      <span
-                        className={`absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow transition ${
-                          webhookDraft.is_enabled ? 'translate-x-5' : 'translate-x-0'
-                        }`}
-                      />
-                    </button>
-                    <span className="text-xs text-slate-600">
-                      {webhookDraft.is_enabled ? 'Enabled' : 'Disabled'}
-                    </span>
+                      {webhookTesting ? 'Testing...' : 'Test webhook'}
+                    </Button>
+                    <Button type="button" onClick={() => setIntegrationsEditMode(true)}>
+                      Edit CRM setup
+                    </Button>
                   </div>
                 </div>
-                <div className="mt-4">
-                  <Input
-                    value={webhookDraft.webhook_url}
-                    onChange={(e) =>
-                      setWebhookDraft((prev) => ({ ...prev, webhook_url: e.target.value }))
-                    }
-                    placeholder="https://hooks.zapier.com/..."
-                  />
-                </div>
-              </div>
-
-              <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                <div className="flex items-center gap-2">
-                  <IconLink className="h-4 w-4 text-emerald-600" stroke={1.5} />
-                  <p className="text-sm font-semibold text-slate-900">Events to send</p>
-                </div>
-                <p className="mt-1 text-xs text-slate-600">Select which CRM events you want delivered.</p>
-                <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                  {webhookEvents.map((event) => (
-                    <label
-                      key={event}
-                      className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50/60 px-3 py-2 text-xs font-medium text-slate-700"
-                    >
-                      <input
-                        type="checkbox"
-                        className="h-4 w-4"
-                        checked={webhookDraft.enabled_events.includes(event)}
-                        onChange={() => toggleWebhookEvent(event)}
+              ) : (
+                <>
+                  <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-slate-900">Webhook URL</p>
+                        <p className="text-xs text-slate-600">We’ll POST JSON payloads to this URL.</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setWebhookDraft((prev) => ({ ...prev, is_enabled: !prev.is_enabled }))}
+                        className={`rounded-full px-3 py-1.5 text-xs font-semibold ${webhookDraft.is_enabled ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-700'}`}
+                      >
+                        {webhookDraft.is_enabled ? 'Enabled' : 'Paused'}
+                      </button>
+                    </div>
+                    <div className="mt-4">
+                      <Input
+                        value={webhookDraft.webhook_url}
+                        onChange={(e) => setWebhookDraft((prev) => ({ ...prev, webhook_url: e.target.value }))}
+                        placeholder="https://hooks.zapier.com/..."
                       />
-                      <span>{event}</span>
-                    </label>
-                  ))}
-                  {!webhookEvents.length && (
-                    <div className="text-xs text-slate-500">No events available yet.</div>
-                  )}
-                </div>
-              </div>
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                    <div className="flex items-center gap-2">
+                      <IconLink className="h-4 w-4 text-emerald-600" stroke={1.5} />
+                      <p className="text-sm font-semibold text-slate-900">Events to send</p>
+                    </div>
+                    <p className="mt-1 text-xs text-slate-600">Choose what HandyCall should send into your CRM.</p>
+                    <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                      {webhookEvents.map((event) => {
+                        const active = webhookDraft.enabled_events.includes(event);
+                        return (
+                          <button
+                            key={event}
+                            type="button"
+                            onClick={() => toggleWebhookEvent(event)}
+                            className={`rounded-xl border px-4 py-3 text-left text-sm font-medium transition ${
+                              active
+                                ? 'border-emerald-300 bg-emerald-50 text-emerald-900'
+                                : 'border-slate-200 bg-slate-50/60 text-slate-700 hover:border-slate-300'
+                            }`}
+                          >
+                            {event}
+                          </button>
+                        );
+                      })}
+                      {!webhookEvents.length && (
+                        <div className="text-xs text-slate-500">No events available yet.</div>
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
 
               <div className="rounded-2xl border border-slate-200 bg-white p-4">
                 <p className="text-sm font-semibold text-slate-900">Signing secret</p>
@@ -1557,13 +1726,20 @@ export default function SettingsPage() {
                 >
                   {webhookTesting ? 'Testing...' : 'Test webhook'}
                 </Button>
-                <Button
-                  type="button"
-                  onClick={handleSaveWebhook}
-                  disabled={webhookSaving || webhookLoading || !webhookDraft.webhook_url}
-                >
-                  {webhookSaving ? 'Saving...' : 'Save changes'}
-                </Button>
+                {integrationsEditMode ? (
+                  <>
+                    <Button type="button" variant="outline" onClick={() => setIntegrationsEditMode(false)}>
+                      Cancel
+                    </Button>
+                    <Button
+                      type="button"
+                      onClick={handleSaveWebhook}
+                      disabled={webhookSaving || webhookLoading || !webhookDraft.webhook_url}
+                    >
+                      {webhookSaving ? 'Saving...' : 'Save changes'}
+                    </Button>
+                  </>
+                ) : null}
               </div>
             </div>
           </div>
@@ -1597,37 +1773,67 @@ export default function SettingsPage() {
                 </div>
               ) : (
                 <>
-                  <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50/70 p-4">
-                    <div>
-                      <p className="text-sm font-semibold text-slate-900">Enable widget</p>
-                      <p className="text-xs text-slate-600">Allow visitors to chat with AI and request callbacks.</p>
+                  {!widgetEditMode ? (
+                    <div className="space-y-4">
+                      <div className="grid gap-3 md:grid-cols-3">
+                        <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+                          <p className="text-xs uppercase tracking-wide text-slate-500">Widget</p>
+                          <p className="mt-2 text-sm font-semibold text-slate-900">{widgetEnabled ? 'Enabled' : 'Disabled'}</p>
+                          <p className="mt-1 text-xs text-slate-600">Website visitors can start a chat or request a callback.</p>
+                        </div>
+                        <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+                          <p className="text-xs uppercase tracking-wide text-slate-500">Primary color</p>
+                          <div className="mt-2 flex items-center gap-2">
+                            <span className="h-4 w-4 rounded-full border border-slate-200" style={{ backgroundColor: widgetPrimaryColor }} />
+                            <p className="text-sm font-semibold text-slate-900">{widgetPrimaryColor}</p>
+                          </div>
+                        </div>
+                        <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+                          <p className="text-xs uppercase tracking-wide text-slate-500">Greeting</p>
+                          <p className="mt-2 text-sm font-semibold text-slate-900">{widgetGreeting}</p>
+                        </div>
+                      </div>
+                      <div className="flex justify-end">
+                        <Button type="button" onClick={() => setWidgetEditMode(true)}>
+                          Edit widget
+                        </Button>
+                      </div>
                     </div>
-                    <button
-                      type="button"
-                      aria-pressed={widgetEnabled}
-                      onClick={() => setWidgetEnabled((prev) => !prev)}
-                      className={`relative h-7 w-12 rounded-full transition ${
-                        widgetEnabled ? 'bg-emerald-600' : 'bg-slate-300'
-                      }`}
-                    >
-                      <span
-                        className={`absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow transition ${
-                          widgetEnabled ? 'translate-x-5' : 'translate-x-0'
-                        }`}
-                      />
-                    </button>
-                  </div>
+                  ) : (
+                    <>
+                      <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+                        <div>
+                          <p className="text-sm font-semibold text-slate-900">Enable widget</p>
+                          <p className="text-xs text-slate-600">Allow visitors to chat with AI and request callbacks.</p>
+                        </div>
+                        <button
+                          type="button"
+                          aria-pressed={widgetEnabled}
+                          onClick={() => setWidgetEnabled((prev) => !prev)}
+                          className={`relative h-7 w-12 rounded-full transition ${
+                            widgetEnabled ? 'bg-emerald-600' : 'bg-slate-300'
+                          }`}
+                        >
+                          <span
+                            className={`absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow transition ${
+                              widgetEnabled ? 'translate-x-5' : 'translate-x-0'
+                            }`}
+                          />
+                        </button>
+                      </div>
 
-                  <div className="grid gap-3 md:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label>Primary color</Label>
-                      <Input value={widgetPrimaryColor} onChange={(e) => setWidgetPrimaryColor(e.target.value)} />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Greeting</Label>
-                      <Input value={widgetGreeting} onChange={(e) => setWidgetGreeting(e.target.value)} />
-                    </div>
-                  </div>
+                      <div className="grid gap-3 md:grid-cols-2">
+                        <div className="space-y-2">
+                          <Label>Primary color</Label>
+                          <Input value={widgetPrimaryColor} onChange={(e) => setWidgetPrimaryColor(e.target.value)} />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Greeting</Label>
+                          <Input value={widgetGreeting} onChange={(e) => setWidgetGreeting(e.target.value)} />
+                        </div>
+                      </div>
+                    </>
+                  )}
 
                   <div className="space-y-2">
                     <Label>Embed code</Label>
@@ -1641,10 +1847,17 @@ export default function SettingsPage() {
                       Copy embed code
                     </Button>
                   </div>
-                  <div className="flex justify-end">
-                    <Button onClick={handleSaveWidgetSettings} disabled={widgetSaving}>
-                      {widgetSaving ? 'Saving…' : 'Save widget settings'}
-                    </Button>
+                  <div className="flex justify-end gap-2">
+                    {widgetEditMode ? (
+                      <>
+                        <Button type="button" variant="outline" onClick={() => setWidgetEditMode(false)}>
+                          Cancel
+                        </Button>
+                        <Button onClick={handleSaveWidgetSettings} disabled={widgetSaving}>
+                          {widgetSaving ? 'Saving…' : 'Save widget settings'}
+                        </Button>
+                      </>
+                    ) : null}
                   </div>
                 </>
               )}

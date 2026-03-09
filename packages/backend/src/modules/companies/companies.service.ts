@@ -145,6 +145,7 @@ export class CompaniesService {
       stripe_connect_onboarding_complete: false,
       booking_payment_enabled: false,
       booking_payment_mode: 'SELF_MANAGED',
+      booking_payment_mode_confirmed: false,
       booking_services: [],
       follow_up_sequences_enabled: false,
       follow_up_initial_delay_minutes: 0,
@@ -232,6 +233,7 @@ export class CompaniesService {
       stripe_connect_onboarding_complete?: boolean;
       booking_payment_enabled?: boolean;
       booking_payment_mode?: 'HANDYCALL_MANAGED' | 'SELF_MANAGED';
+      booking_payment_mode_confirmed?: boolean;
       booking_services?: Array<{
         service_id: string;
         name: string;
