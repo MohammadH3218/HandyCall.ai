@@ -20,6 +20,7 @@ import {
   IconBrandWindows,
   IconBrandApple,
   IconPencil,
+  IconSend,
 } from '@tabler/icons-react';
 import { useOnboarding } from '@/components/onboarding/onboarding-context';
 import { useAuthStore } from '@/stores/auth-store';
