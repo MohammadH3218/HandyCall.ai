@@ -329,6 +329,7 @@ function OnboardingSetupContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const initialized = useRef(false);
 
   // Chat state
@@ -397,7 +398,13 @@ function OnboardingSetupContent() {
 
   // Auto-scroll on new messages
   useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const container = scrollContainerRef.current;
+    if (!container) return;
+    if (container.scrollHeight <= container.clientHeight) return;
+    container.scrollTo({
+      top: container.scrollHeight,
+      behavior: messages.length > 2 || kbMessages.length > 0 ? 'smooth' : 'auto',
+    });
   }, [messages, isTyping, kbMessages]);
 
   // ─── Chat helpers ──────────────────────────────────────────────────────────
@@ -1716,8 +1723,11 @@ function OnboardingSetupContent() {
   }
 
   return (
-    <div className="min-h-screen bg-[linear-gradient(180deg,#f8fafc_0%,#f8fafc_18%,#ffffff_18%,#ffffff_100%)] px-4 py-6 sm:px-8">
-      <div className="mx-auto max-w-3xl space-y-4">
+    <div
+      ref={scrollContainerRef}
+      className="h-full overflow-y-auto bg-[linear-gradient(180deg,#f8fafc_0%,#f8fafc_18%,#ffffff_18%,#ffffff_100%)]"
+    >
+      <div className="mx-auto max-w-3xl space-y-4 px-4 pb-10 pt-8 sm:px-8">
           {messages.map((msg) => (
             <div
               key={msg.id}
