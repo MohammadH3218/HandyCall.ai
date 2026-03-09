@@ -866,7 +866,7 @@ function OnboardingSetupContent() {
       }
     } catch {
       setKbError(
-        "The AI interview is temporarily unavailable. You can still generate a knowledge base with what you've answered, or skip and add entries manually from the dashboard.",
+        "The AI interview is temporarily unavailable. You can still generate a knowledge base with what you've already answered.",
       );
     } finally {
       setKbLoading(false);
@@ -915,14 +915,6 @@ function OnboardingSetupContent() {
     } finally {
       setKbGenerating(false);
     }
-  };
-
-  const handleSkipKnowledge = async () => {
-    userSay('Skip for now');
-    await goTo(
-      'call_flow_editor',
-      'No problem! You can add knowledge entries anytime from your dashboard. Before we finish, review the intake questions your AI should ask before scheduling.',
-    );
   };
 
   const handleSaveCallFlow = async () => {
@@ -1505,13 +1497,6 @@ function OnboardingSetupContent() {
             >
               Build my knowledge base
             </ChoiceButton>
-            <button
-              type="button"
-              onClick={() => void handleSkipKnowledge()}
-              className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-500 transition hover:bg-slate-50"
-            >
-              Skip for now
-            </button>
           </div>
         )}
 
@@ -1578,13 +1563,6 @@ function OnboardingSetupContent() {
                   <IconBrain className="h-4 w-4" stroke={1.5} />
                   {kbGenerating ? 'Building knowledge base...' : 'Build knowledge base'}
                 </ActionButton>
-                <button
-                  type="button"
-                  onClick={() => void handleSkipKnowledge()}
-                  className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-500 hover:bg-slate-50"
-                >
-                  Skip for now
-                </button>
               </div>
             </div>
           </div>
