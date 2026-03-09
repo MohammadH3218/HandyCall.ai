@@ -28,6 +28,16 @@ export interface ActivityItem {
   timestamp: number;
 }
 
+export interface DeletedAccountItem {
+  id: string;
+  company_id: string;
+  company_name: string;
+  company_email?: string;
+  deleted_at: number;
+  deleted_by_email?: string;
+  source?: string;
+}
+
 @Injectable()
 export class AdminService {
   constructor(
@@ -49,9 +59,9 @@ export class AdminService {
     const callsResult = await this.dynamodb.scan('calls');
 
     // Count companies by status
-    const activeCompanies = companies.filter(c => c.status === 'ACTIVE').length;
-    const trialCompanies = companies.filter(c => c.status === 'TRIAL').length;
-    const suspendedCompanies = companies.filter(c => c.status === 'SUSPENDED').length;
+    const activeCompanies = companies.filter((c) => c.status === 'ACTIVE').length;
+    const trialCompanies = companies.filter((c) => c.status === 'TRIAL').length;
+    const suspendedCompanies = companies.filter((c) => c.status === 'SUSPENDED').length;
 
     return {
       total_companies: companies.length,
@@ -96,9 +106,7 @@ export class AdminService {
 
     // Get recent companies
     const companies = await this.companiesService.listAll();
-    const recentCompanies = companies
-      .sort((a, b) => b.created_at - a.created_at)
-      .slice(0, 5);
+    const recentCompanies = companies.sort((a, b) => b.created_at - a.created_at).slice(0, 5);
 
     for (const company of recentCompanies) {
       activities.push({
@@ -118,7 +126,7 @@ export class AdminService {
       .slice(0, 5);
 
     for (const user of recentUsers) {
-      const company = companies.find(c => c.company_id === user.company_id);
+      const company = companies.find((c) => c.company_id === user.company_id);
       activities.push({
         id: `user-${user.user_id}`,
         type: 'USER_CREATED',
@@ -137,7 +145,7 @@ export class AdminService {
       .slice(0, 5);
 
     for (const call of recentCalls) {
-      const company = companies.find(c => c.company_id === call.company_id);
+      const company = companies.find((c) => c.company_id === call.company_id);
       activities.push({
         id: `call-${call.call_id}`,
         type: 'CALL_COMPLETED',
@@ -153,6 +161,23 @@ export class AdminService {
     return activities.slice(0, limit);
   }
 
+  async getDeletedAccounts(limit = 25): Promise<DeletedAccountItem[]> {
+    const result = await this.dynamodb.scan('deleted_accounts');
+
+    return (result.items || [])
+      .map((item: any) => ({
+        id: String(item.audit_id || `${item.company_id || 'deleted'}-${item.deleted_at || 0}`),
+        company_id: String(item.company_id || ''),
+        company_name: String(item.company_name || 'Deleted company'),
+        company_email: item.company_email || undefined,
+        deleted_at: Number(item.deleted_at || item.created_at || 0),
+        deleted_by_email: item.deleted_by_email || undefined,
+        source: item.source || undefined,
+      }))
+      .sort((a, b) => b.deleted_at - a.deleted_at)
+      .slice(0, limit);
+  }
+
   /**
    * Cancel a company's subscription at period end
    */
@@ -163,13 +188,17 @@ export class AdminService {
     }
 
     // Update company status to indicate pending cancellation
-    await this.dynamodb.update('companies', { company_id: companyId }, {
-      subscription_status: 'CANCELING',
-      cancel_at_period_end: true,
-      // Legacy attribute name kept for backwards compatibility with older reads.
-      subscription_cancel_at_period_end: true,
-      updated_at: Date.now(),
-    });
+    await this.dynamodb.update(
+      'companies',
+      { company_id: companyId },
+      {
+        subscription_status: 'CANCELING',
+        cancel_at_period_end: true,
+        // Legacy attribute name kept for backwards compatibility with older reads.
+        subscription_cancel_at_period_end: true,
+        updated_at: Date.now(),
+      }
+    );
 
     return {
       success: true,
@@ -187,13 +216,17 @@ export class AdminService {
     }
 
     // Suspend the company - disable all services
-    await this.dynamodb.update('companies', { company_id: companyId }, {
-      status: 'SUSPENDED',
-      calls_enabled: false,
-      sms_enabled: false,
-      suspended_at: Date.now(),
-      updated_at: Date.now(),
-    });
+    await this.dynamodb.update(
+      'companies',
+      { company_id: companyId },
+      {
+        status: 'SUSPENDED',
+        calls_enabled: false,
+        sms_enabled: false,
+        suspended_at: Date.now(),
+        updated_at: Date.now(),
+      }
+    );
 
     return {
       success: true,

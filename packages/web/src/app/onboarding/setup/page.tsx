@@ -96,7 +96,7 @@ function defaultHours(): CalendarHours {
     WEEKDAYS.map((d) => [
       d.key,
       { closed: d.key === 'SAT' || d.key === 'SUN', open: '09:00', close: '17:00' },
-    ]),
+    ])
   );
 }
 
@@ -109,7 +109,7 @@ function compactHours(hours: CalendarHours) {
 }
 
 function normalizeCallFlowQuestions(
-  questions: CompanyCallFlowQuestion[] | undefined | null,
+  questions: CompanyCallFlowQuestion[] | undefined | null
 ): CompanyCallFlowQuestion[] {
   if (!Array.isArray(questions)) return [];
   return questions
@@ -128,12 +128,15 @@ function normalizeCallFlowQuestions(
     .map((question, index) => ({ ...question, order: index }));
 }
 
-function sanitizeCallFlowQuestions(questions: CompanyCallFlowQuestion[]): CompanyCallFlowQuestion[] {
+function sanitizeCallFlowQuestions(
+  questions: CompanyCallFlowQuestion[]
+): CompanyCallFlowQuestion[] {
   return normalizeCallFlowQuestions(questions)
     .filter((question) => question.enabled !== false)
     .map((question, index) => {
       const prompt = String(question.prompt || '').trim();
-      const label = String(question.label || `Question ${index + 1}`).trim() || `Question ${index + 1}`;
+      const label =
+        String(question.label || `Question ${index + 1}`).trim() || `Question ${index + 1}`;
       const fieldKey =
         String(question.field_key || '')
           .trim()
@@ -323,8 +326,15 @@ function ChoiceButton({
 // ─── Main component ───────────────────────────────────────────────────────────
 
 function OnboardingSetupContent() {
-  const { loading, company, status, refreshAll, refreshKnowledge, companyNumber, refreshCompanyNumber } =
-    useOnboarding();
+  const {
+    loading,
+    company,
+    status,
+    refreshAll,
+    refreshKnowledge,
+    companyNumber,
+    refreshCompanyNumber,
+  } = useOnboarding();
   const { setCompany } = useAuthStore();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -368,11 +378,14 @@ function OnboardingSetupContent() {
 
   // Billing state
   const [selectedPlan, setSelectedPlan] = useState<SubscriptionPlan | null>(null);
+  const [selectedPaymentMode, setSelectedPaymentMode] = useState<
+    'HANDYCALL_MANAGED' | 'SELF_MANAGED' | null
+  >(null);
   const [paymentModeSaving, setPaymentModeSaving] = useState(false);
   const [connectBusy, setConnectBusy] = useState(false);
   const [connectStatus, setConnectStatus] = useState<any>(null);
   const [stripePublishableKey, setStripePublishableKey] = useState<string | null>(
-    process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || null,
+    process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || null
   );
   const stripePromise = useMemo(() => {
     const key = stripePublishableKey;
@@ -385,7 +398,11 @@ function OnboardingSetupContent() {
   }, [stripePublishableKey]);
 
   useEffect(() => {
-    if (stripePublishableKey && !stripePublishableKey.includes('local_dev_placeholder') && !stripePublishableKey.endsWith('_xxx')) {
+    if (
+      stripePublishableKey &&
+      !stripePublishableKey.includes('local_dev_placeholder') &&
+      !stripePublishableKey.endsWith('_xxx')
+    ) {
       return;
     }
     apiClient
@@ -426,7 +443,7 @@ function OnboardingSetupContent() {
       for (const m of msgs) await botSay(m);
       setPhase(next);
     },
-    [botSay],
+    [botSay]
   );
 
   /**
@@ -442,7 +459,7 @@ function OnboardingSetupContent() {
         setPhase(targetPhase);
       })();
     },
-    [botSay],
+    [botSay]
   );
 
   // ─── Initialization ────────────────────────────────────────────────────────
@@ -458,7 +475,13 @@ function OnboardingSetupContent() {
       setZipCodes(company.service_area_zipcodes as string[]);
     if (company?.business_hours) setCalendarHours(normalizeHours(company.business_hours));
     if (company?.phone_number) setForwardNumber(company.phone_number as string);
-    if (Array.isArray((company as any)?.call_flow_questions) && (company as any).call_flow_questions.length > 0) {
+    if ((company as any)?.booking_payment_mode) {
+      setSelectedPaymentMode((company as any).booking_payment_mode);
+    }
+    if (
+      Array.isArray((company as any)?.call_flow_questions) &&
+      (company as any).call_flow_questions.length > 0
+    ) {
       setCallFlowQuestions(normalizeCallFlowQuestions((company as any).call_flow_questions));
     } else if (company?.service_type) {
       setCallFlowQuestions(createDefaultCallFlowQuestions(company.service_type as ServiceType));
@@ -473,7 +496,7 @@ function OnboardingSetupContent() {
     const connectState = searchParams?.get('state');
 
     await botSay(
-      "👋 Hi! I'm your HandyCall setup assistant. Let's get your AI receptionist ready — it only takes a few minutes.",
+      "👋 Hi! I'm your HandyCall setup assistant. Let's get your AI receptionist ready — it only takes a few minutes."
     );
     if (!s.profile) {
       await goTo('profile_name', "First, what's your full name?");
@@ -482,35 +505,41 @@ function OnboardingSetupContent() {
     } else if (!s.serviceArea) {
       await goTo(
         'service_area_choice',
-        'Where do you provide service? Do you cover all areas, or specific ZIP codes?',
+        'Where do you provide service? Do you cover all areas, or specific ZIP codes?'
       );
     } else if (!s.calendar) {
-      await goTo('calendar_mode', "Let's set up your booking calendar. How do you want to manage appointments?");
+      await goTo(
+        'calendar_mode',
+        "Let's set up your booking calendar. How do you want to manage appointments?"
+      );
     } else if (!s.phone) {
-      await goTo('phone_choice', "Almost there! How do you want customers to reach you?");
+      await goTo('phone_choice', 'Almost there! How do you want customers to reach you?');
     } else if (!s.knowledge) {
       await goTo(
         'knowledge_intro',
-        "Now let's build your AI receptionist's knowledge base so it can answer caller questions accurately.",
+        "Now let's build your AI receptionist's knowledge base so it can answer caller questions accurately."
       );
-    } else if (!((company as any)?.call_flow_questions?.length)) {
+    } else if (!(company as any)?.call_flow_questions?.length) {
       await goTo(
         'call_flow_editor',
-        "Next, review the questions your AI should ask before it ever asks for a date and time. You can edit the wording, remove questions, add new ones, and control the order here.",
+        'Next, review the questions your AI should ask before it ever asks for a date and time. You can edit the wording, remove questions, add new ones, and control the order here.'
       );
-    } else if (!s.billing) {
-      await goTo('billing_plan', "Last step — let's activate your HandyCall subscription.");
     } else if (!(company as any)?.booking_payment_mode_confirmed) {
       await goTo(
         'billing_payment_mode',
-        'One last choice: do you want HandyCall to collect customer payments for you, or will you handle payments yourself?',
+        'Before we finish, choose whether HandyCall should collect customer payments for you or whether your team will handle them directly.'
       );
-    } else if (paymentsFlow === 'connect' && (connectState === 'return' || connectState === 'refresh')) {
+    } else if (!s.billing) {
+      await goTo('billing_plan', "Last step — let's activate your HandyCall subscription.");
+    } else if (
+      paymentsFlow === 'connect' &&
+      (connectState === 'return' || connectState === 'refresh')
+    ) {
       await goTo(
         'billing_connect',
         connectState === 'return'
           ? "Welcome back. Let's verify your Stripe Connect setup."
-          : 'Stripe setup was refreshed. Let’s continue and verify your Connect status.',
+          : 'Stripe setup was refreshed. Let’s continue and verify your Connect status.'
       );
       await refreshConnectStatusAndContinue();
     } else {
@@ -526,7 +555,7 @@ function OnboardingSetupContent() {
     if (!name) return;
     const captured = name;
     userSay(captured, () =>
-      editStep("What name would you like to use?", 'profile_name', () => setNameInput(captured)),
+      editStep('What name would you like to use?', 'profile_name', () => setNameInput(captured))
     );
     setNameInput('');
     setIsSaving(true);
@@ -557,11 +586,14 @@ function OnboardingSetupContent() {
       editStep('Which service type best describes your business?', 'service_type', () => {
         setShowOtherInput(false);
         setOtherServiceInput('');
-      }),
+      })
     );
     setIsSaving(true);
     try {
-      await apiClient.updateMyCompany({ service_type: value, call_flow_questions: defaultQuestions });
+      await apiClient.updateMyCompany({
+        service_type: value,
+        call_flow_questions: defaultQuestions,
+      });
       setCallFlowQuestions(defaultQuestions);
       await refreshAll();
       await goTo('timezone', 'What timezone are you in?');
@@ -586,7 +618,7 @@ function OnboardingSetupContent() {
       await refreshAll();
       await goTo(
         'service_area_choice',
-        "Company details saved! Now let's set your service area. Do you serve all areas, or specific ZIP codes?",
+        "Company details saved! Now let's set your service area. Do you serve all areas, or specific ZIP codes?"
       );
     } catch {
       setErrMsg('Could not save company profile. Try again.');
@@ -606,7 +638,10 @@ function OnboardingSetupContent() {
       });
       setCompany(updated);
       await refreshAll();
-      await goTo('calendar_mode', "Got it — you cover all areas. Now let's set up your booking calendar.");
+      await goTo(
+        'calendar_mode',
+        "Got it — you cover all areas. Now let's set up your booking calendar."
+      );
     } catch {
       setErrMsg('Could not save service area.');
     } finally {
@@ -616,7 +651,7 @@ function OnboardingSetupContent() {
 
   const handleServiceAreaSpecific = async () => {
     userSay('Specific ZIP codes');
-    await goTo('service_area_input', "Add the ZIP codes you serve below, then save to continue.");
+    await goTo('service_area_input', 'Add the ZIP codes you serve below, then save to continue.');
   };
 
   const addZip = () => {
@@ -643,9 +678,7 @@ function OnboardingSetupContent() {
       });
       setCompany(updated);
       await refreshAll();
-      userSay(
-        `${zipCodes.length} ZIP code${zipCodes.length !== 1 ? 's' : ''} saved`,
-      );
+      userSay(`${zipCodes.length} ZIP code${zipCodes.length !== 1 ? 's' : ''} saved`);
       await goTo('calendar_mode', "Service area saved! Let's set up your booking calendar.");
     } catch {
       setErrMsg('Could not save service area.');
@@ -659,7 +692,7 @@ function OnboardingSetupContent() {
       userSay('Use HandyCall Calendar');
       await goTo(
         'calendar_hours',
-        "Great choice! Set your business hours so callers can book valid times. Toggle each day open or closed.",
+        'Great choice! Set your business hours so callers can book valid times. Toggle each day open or closed.'
       );
     } else {
       userSay('Connect my existing calendar');
@@ -685,7 +718,10 @@ function OnboardingSetupContent() {
       setCompany(updated);
       await refreshAll();
       userSay('Business hours saved ✓');
-      await goTo('phone_choice', "Calendar is all set! Now let's get your phone ready. How do you want customers to reach you?");
+      await goTo(
+        'phone_choice',
+        "Calendar is all set! Now let's get your phone ready. How do you want customers to reach you?"
+      );
     } catch {
       setErrMsg('Could not save calendar settings.');
     } finally {
@@ -752,12 +788,15 @@ function OnboardingSetupContent() {
   const handlePhoneChoice = async (choice: 'claim' | 'forward' | 'demo') => {
     if (choice === 'claim') {
       userSay('Claim a new HandyCall number');
-      await goTo('phone_claim', "Let's find a local number! Enter an area code to search available numbers.");
+      await goTo(
+        'phone_claim',
+        "Let's find a local number! Enter an area code to search available numbers."
+      );
     } else if (choice === 'forward') {
       userSay('Forward my existing number');
       await goTo(
         'phone_forward',
-        "Enter your current business number. I'll save it so you can set up forwarding from your carrier.",
+        "Enter your current business number. I'll save it so you can set up forwarding from your carrier."
       );
     } else {
       userSay('Use a demo number for testing');
@@ -770,7 +809,7 @@ function OnboardingSetupContent() {
         userSay(`Demo number assigned${num ? `: ${num}` : ''}`);
         await goTo(
           'knowledge_intro',
-          `Demo number ready${num ? ` (${num})` : ''}! Now let's build your AI knowledge base.`,
+          `Demo number ready${num ? ` (${num})` : ''}! Now let's build your AI knowledge base.`
         );
       } catch (err: any) {
         setErrMsg(err?.message || 'Could not assign demo number.');
@@ -808,7 +847,7 @@ function OnboardingSetupContent() {
       userSay(`Claimed ${phoneNumber} ✓`);
       await goTo(
         'knowledge_intro',
-        `Your HandyCall number is ${phoneNumber}. Now let's build your AI knowledge base so it can answer calls accurately!`,
+        `Your HandyCall number is ${phoneNumber}. Now let's build your AI knowledge base so it can answer calls accurately!`
       );
     } catch (err: any) {
       setErrMsg(err?.message || 'Could not claim number. Try another.');
@@ -829,7 +868,7 @@ function OnboardingSetupContent() {
       userSay(`Saved: ${forwardNumber.trim()}`);
       await goTo(
         'knowledge_intro',
-        `Got it! When ready, forward calls from ${forwardNumber.trim()} to your HandyCall number in your carrier settings. Now let's build your knowledge base!`,
+        `Got it! When ready, forward calls from ${forwardNumber.trim()} to your HandyCall number in your carrier settings. Now let's build your knowledge base!`
       );
     } catch {
       setErrMsg('Could not save number.');
@@ -840,7 +879,9 @@ function OnboardingSetupContent() {
 
   const handleStartKnowledge = async () => {
     userSay("Let's build it!");
-    const suggestions = getKnowledgeBasePromptSuggestions((company?.service_type as ServiceType | undefined) || undefined);
+    const suggestions = getKnowledgeBasePromptSuggestions(
+      (company?.service_type as ServiceType | undefined) || undefined
+    );
     setKbMessages([
       {
         role: 'assistant',
@@ -855,7 +896,7 @@ function OnboardingSetupContent() {
       },
     ]);
     await botSay(
-      "Use the chat below to tell HandyCall what customers should hear about your services, pricing, policies, and anything specific to your business.",
+      'Use the chat below to tell HandyCall what customers should hear about your services, pricing, policies, and anything specific to your business.'
     );
     setPhase('knowledge_chat');
   };
@@ -871,7 +912,7 @@ function OnboardingSetupContent() {
       }
     } catch {
       setKbError(
-        "The AI interview is temporarily unavailable. You can still generate a knowledge base with what you've already answered.",
+        "The AI interview is temporarily unavailable. You can still generate a knowledge base with what you've already answered."
       );
     } finally {
       setKbLoading(false);
@@ -892,7 +933,9 @@ function OnboardingSetupContent() {
     setKbError(null);
     const draft = kbInput.trim();
     const baseMessages = overrideMessages ?? kbMessages;
-    const msgs = draft ? [...baseMessages, { role: 'user' as const, content: draft }] : baseMessages;
+    const msgs = draft
+      ? [...baseMessages, { role: 'user' as const, content: draft }]
+      : baseMessages;
     if (draft) {
       setKbMessages(msgs);
       setKbInput('');
@@ -900,20 +943,23 @@ function OnboardingSetupContent() {
     try {
       const [kbRes, prodRes] = await Promise.all([
         apiClient.knowledgeAssistantGenerate(msgs, true),
-        apiClient.knowledgeExtractProducts(msgs).catch(() => ({ created_count: 0, skipped_count: 0 })),
+        apiClient
+          .knowledgeExtractProducts(msgs)
+          .catch(() => ({ created_count: 0, skipped_count: 0 })),
       ]);
       const created = Number(kbRes?.created_count || 0);
       const productsCreated = Number(prodRes?.created_count || 0);
       await refreshKnowledge();
       await refreshAll();
       userSay(`Knowledge base generated: ${created} entries created`);
-      const productNote = productsCreated > 0
-        ? ` I also created ${productsCreated} service product${productsCreated === 1 ? '' : 's'} in your Payments page.`
-        : '';
+      const productNote =
+        productsCreated > 0
+          ? ` I also created ${productsCreated} service product${productsCreated === 1 ? '' : 's'} in your Payments page.`
+          : '';
       await goTo(
         'call_flow_editor',
         `Done! I created ${created} knowledge entr${created === 1 ? 'y' : 'ies'} for your AI receptionist.${productNote} You can always add more from your dashboard.`,
-        'Now review the exact intake questions your AI should ask before it ever asks for a date and time.',
+        'Now review the exact intake questions your AI should ask before it ever asks for a date and time.'
       );
     } catch (err: any) {
       setKbError(err?.message || 'Could not generate knowledge base. Try again.');
@@ -945,8 +991,8 @@ function OnboardingSetupContent() {
       await refreshAll();
       userSay(`Saved ${normalized.length} intake question${normalized.length === 1 ? '' : 's'}`);
       await goTo(
-        'billing_plan',
-        'Call flow saved. Last step: choose a plan and set up payments if you want HandyCall to handle customer payments.',
+        'billing_payment_mode',
+        'Call flow saved. Before we finish, choose how you want customer payments to work.'
       );
     } catch (err: any) {
       setErrMsg(err?.message || 'Could not save your AI call flow.');
@@ -958,14 +1004,30 @@ function OnboardingSetupContent() {
   const handlePlanSelect = async (plan: SubscriptionPlan) => {
     setSelectedPlan(plan);
     userSay(`${PLAN_CATALOG[plan].name} — $${PLAN_CATALOG[plan].price}/month`);
-    await goTo('billing_payment', `${PLAN_CATALOG[plan].name} plan selected! Add a payment method to activate.`);
+    await goTo(
+      'billing_payment',
+      `${PLAN_CATALOG[plan].name} plan selected! Add a payment method to activate.`
+    );
   };
 
   const handleBillingSuccess = async () => {
     await refreshAll();
+    const effectiveMode =
+      selectedPaymentMode ||
+      ((company as any)?.booking_payment_mode as 'HANDYCALL_MANAGED' | 'SELF_MANAGED' | undefined);
+
+    if (effectiveMode === 'HANDYCALL_MANAGED') {
+      await goTo(
+        'billing_connect',
+        'Subscription activated. Connect Stripe so HandyCall can collect customer payments and send payouts to your bank account.'
+      );
+      await refreshConnectStatusAndContinue();
+      return;
+    }
+
     await goTo(
-      'billing_payment_mode',
-      'Subscription activated. Final setup: choose how you want to handle customer payments.',
+      'complete',
+      "🎉 You're all set! HandyCall is active and your team will handle customer payments outside the platform."
     );
   };
 
@@ -976,7 +1038,7 @@ function OnboardingSetupContent() {
       if (latest?.connected && latest?.charges_enabled && latest?.payouts_enabled) {
         await goTo(
           'complete',
-          "🎉 You're all set! Stripe Connect is fully configured and your HandyCall AI receptionist is ready.",
+          "🎉 You're all set! Stripe Connect is fully configured and your HandyCall AI receptionist is ready."
         );
       }
     } catch (err: any) {
@@ -988,6 +1050,7 @@ function OnboardingSetupContent() {
     setPaymentModeSaving(true);
     setErrMsg(null);
     try {
+      setSelectedPaymentMode(mode);
       await apiClient.updateMyCompany({
         booking_payment_mode: mode,
         booking_payment_enabled: mode === 'HANDYCALL_MANAGED',
@@ -995,21 +1058,31 @@ function OnboardingSetupContent() {
       });
       await refreshAll();
 
-      if (mode === 'SELF_MANAGED') {
-        userSay('I handle payments myself');
+      if (!status.billing) {
+        userSay(mode === 'HANDYCALL_MANAGED' ? 'Managed in HandyCall' : 'I handle payments myself');
         await goTo(
-          'complete',
-          "🎉 You're all set! HandyCall will handle calls and bookings, and your team handles customer payments.",
+          'billing_plan',
+          mode === 'HANDYCALL_MANAGED'
+            ? "Great choice. Pick a plan to activate HandyCall, then you'll connect Stripe for payouts."
+            : 'Got it. Pick a HandyCall plan to activate the AI receptionist while your team keeps customer payments in its own workflow.'
         );
         return;
       }
 
-      userSay('Managed in HandyCall');
-      await goTo(
-        'billing_connect',
-        'Great choice. Connect Stripe to receive payouts and let customers pay through HandyCall booking links.',
-      );
-      await refreshConnectStatusAndContinue();
+      if (mode === 'SELF_MANAGED') {
+        userSay('I handle payments myself');
+        await goTo(
+          'complete',
+          "🎉 You're all set! HandyCall will handle calls and bookings, and your team handles customer payments."
+        );
+      } else {
+        userSay('Managed in HandyCall');
+        await goTo(
+          'billing_connect',
+          'Great choice. Connect Stripe to receive payouts and let customers pay through HandyCall booking links.'
+        );
+        await refreshConnectStatusAndContinue();
+      }
     } catch (err: any) {
       setErrMsg(err?.message || 'Could not save payment mode.');
     } finally {
@@ -1021,7 +1094,8 @@ function OnboardingSetupContent() {
     setConnectBusy(true);
     setErrMsg(null);
     try {
-      const origin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3001';
+      const origin =
+        typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3001';
       const link = await apiClient.setupConnectAccount({
         return_url: `${origin}/onboarding/setup?payments=connect&state=return`,
         refresh_url: `${origin}/onboarding/setup?payments=connect&state=refresh`,
@@ -1064,7 +1138,11 @@ function OnboardingSetupContent() {
               disabled={isSaving}
               className="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 disabled:opacity-50"
             />
-            <ActionButton onClick={handleProfileName} disabled={!nameInput.trim() || isSaving} loading={isSaving}>
+            <ActionButton
+              onClick={handleProfileName}
+              disabled={!nameInput.trim() || isSaving}
+              loading={isSaving}
+            >
               <IconSend className="h-4 w-4" stroke={1.5} />
             </ActionButton>
           </div>
@@ -1078,12 +1156,18 @@ function OnboardingSetupContent() {
               type="text"
               value={companyInput}
               onChange={(e) => setCompanyInput(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && companyInput.trim() && void handleCompanyName()}
+              onKeyDown={(e) =>
+                e.key === 'Enter' && companyInput.trim() && void handleCompanyName()
+              }
               placeholder="Business name..."
               disabled={isSaving}
               className="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 disabled:opacity-50"
             />
-            <ActionButton onClick={handleCompanyName} disabled={!companyInput.trim() || isSaving} loading={isSaving}>
+            <ActionButton
+              onClick={handleCompanyName}
+              disabled={!companyInput.trim() || isSaving}
+              loading={isSaving}
+            >
               <IconSend className="h-4 w-4" stroke={1.5} />
             </ActionButton>
           </div>
@@ -1103,7 +1187,9 @@ function OnboardingSetupContent() {
                 >
                   <div className="flex items-center justify-between gap-3">
                     <div>
-                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">{option.category}</p>
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">
+                        {option.category}
+                      </p>
                       <h3 className="mt-1 text-lg font-semibold text-slate-900">{option.title}</h3>
                     </div>
                     <IconArrowRight className="h-5 w-5 text-slate-300" stroke={1.5} />
@@ -1111,7 +1197,10 @@ function OnboardingSetupContent() {
                   <p className="mt-2 text-sm text-slate-600">{option.description}</p>
                   <div className="mt-3 flex flex-wrap gap-2">
                     {option.highlights.map((highlight) => (
-                      <span key={highlight} className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">
+                      <span
+                        key={highlight}
+                        className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600"
+                      >
                         {highlight}
                       </span>
                     ))}
@@ -1122,21 +1211,24 @@ function OnboardingSetupContent() {
             <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-4">
               <p className="text-sm font-semibold text-slate-900">Need something custom?</p>
               <p className="mt-1 text-sm text-slate-600">
-                Pick the closest template. You can edit every intake question and its order in the next step.
+                Pick the closest template. You can edit every intake question and its order in the
+                next step.
               </p>
               <div className="mt-3 flex flex-wrap gap-2">
-                {SERVICE_TYPE_OPTIONS.filter((opt) => (opt.value as string) === 'OTHER').map((opt) => (
-                  <ChipButton
-                    key={opt.value}
-                    onClick={() => {
-                      setShowOtherInput(true);
-                      setOtherServiceInput('');
-                    }}
-                    disabled={isSaving || showOtherInput}
-                  >
-                    {opt.label}
-                  </ChipButton>
-                ))}
+                {SERVICE_TYPE_OPTIONS.filter((opt) => (opt.value as string) === 'OTHER').map(
+                  (opt) => (
+                    <ChipButton
+                      key={opt.value}
+                      onClick={() => {
+                        setShowOtherInput(true);
+                        setOtherServiceInput('');
+                      }}
+                      disabled={isSaving || showOtherInput}
+                    >
+                      {opt.label}
+                    </ChipButton>
+                  )
+                )}
               </div>
             </div>
             {showOtherInput && (
@@ -1171,7 +1263,11 @@ function OnboardingSetupContent() {
         {phase === 'timezone' && (
           <div className="flex flex-wrap gap-2">
             {TIMEZONE_OPTIONS.map((tz) => (
-              <ChipButton key={tz.value} onClick={() => void handleTimezone(tz.value, tz.label)} disabled={isSaving}>
+              <ChipButton
+                key={tz.value}
+                onClick={() => void handleTimezone(tz.value, tz.label)}
+                disabled={isSaving}
+              >
                 {tz.label}
               </ChipButton>
             ))}
@@ -1202,13 +1298,18 @@ function OnboardingSetupContent() {
         {phase === 'service_area_input' && (
           <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
-              <p className="text-sm font-semibold text-slate-900">Add the ZIP codes you actually serve</p>
+              <p className="text-sm font-semibold text-slate-900">
+                Add the ZIP codes you actually serve
+              </p>
               <p className="mt-1 text-sm text-slate-600">
-                HandyCall uses this to qualify calls before booking, so keep it limited to the areas you want appointments from.
+                HandyCall uses this to qualify calls before booking, so keep it limited to the areas
+                you want appointments from.
               </p>
             </div>
             <div>
-              <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">ZIP codes</p>
+              <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                ZIP codes
+              </p>
               <div className="flex gap-2">
                 <input
                   type="text"
@@ -1286,7 +1387,11 @@ function OnboardingSetupContent() {
           <div className="space-y-4">
             <div className="space-y-1.5">
               {WEEKDAYS.map((day) => {
-                const row = calendarHours[day.key] ?? { closed: true, open: '09:00', close: '17:00' };
+                const row = calendarHours[day.key] ?? {
+                  closed: true,
+                  open: '09:00',
+                  close: '17:00',
+                };
                 return (
                   <div
                     key={day.key}
@@ -1296,10 +1401,15 @@ function OnboardingSetupContent() {
                     <button
                       type="button"
                       onClick={() =>
-                        setCalendarHours((prev) => ({ ...prev, [day.key]: { ...row, closed: !row.closed } }))
+                        setCalendarHours((prev) => ({
+                          ...prev,
+                          [day.key]: { ...row, closed: !row.closed },
+                        }))
                       }
                       className={`rounded-lg px-2.5 py-0.5 text-xs font-semibold transition ${
-                        row.closed ? 'bg-slate-100 text-slate-500' : 'bg-emerald-100 text-emerald-700'
+                        row.closed
+                          ? 'bg-slate-100 text-slate-500'
+                          : 'bg-emerald-100 text-emerald-700'
                       }`}
                     >
                       {row.closed ? 'Closed' : 'Open'}
@@ -1310,7 +1420,10 @@ function OnboardingSetupContent() {
                           type="time"
                           value={row.open}
                           onChange={(e) =>
-                            setCalendarHours((prev) => ({ ...prev, [day.key]: { ...row, open: e.target.value } }))
+                            setCalendarHours((prev) => ({
+                              ...prev,
+                              [day.key]: { ...row, open: e.target.value },
+                            }))
                           }
                           className="rounded-lg border border-slate-200 px-2 py-0.5 text-xs"
                         />
@@ -1319,7 +1432,10 @@ function OnboardingSetupContent() {
                           type="time"
                           value={row.close}
                           onChange={(e) =>
-                            setCalendarHours((prev) => ({ ...prev, [day.key]: { ...row, close: e.target.value } }))
+                            setCalendarHours((prev) => ({
+                              ...prev,
+                              [day.key]: { ...row, close: e.target.value },
+                            }))
                           }
                           className="rounded-lg border border-slate-200 px-2 py-0.5 text-xs"
                         />
@@ -1340,18 +1456,28 @@ function OnboardingSetupContent() {
         {phase === 'calendar_provider' && (
           <div className="flex flex-wrap gap-3">
             {[
-              { id: 'GOOGLE', label: 'Google Calendar', icon: <IconBrandGoogle className="h-4 w-4" stroke={1.5} /> },
+              {
+                id: 'GOOGLE',
+                label: 'Google Calendar',
+                icon: <IconBrandGoogle className="h-4 w-4" stroke={1.5} />,
+              },
               {
                 id: 'MICROSOFT',
                 label: 'Outlook / Microsoft 365',
                 icon: <IconBrandWindows className="h-4 w-4" stroke={1.5} />,
               },
-              { id: 'APPLE', label: 'Apple iCloud', icon: <IconBrandApple className="h-4 w-4" stroke={1.5} /> },
+              {
+                id: 'APPLE',
+                label: 'Apple iCloud',
+                icon: <IconBrandApple className="h-4 w-4" stroke={1.5} />,
+              },
             ].map((opt) => (
               <ChoiceButton
                 key={opt.id}
                 icon={opt.icon}
-                onClick={() => void handleCalendarProvider(opt.id as 'GOOGLE' | 'MICROSOFT' | 'APPLE')}
+                onClick={() =>
+                  void handleCalendarProvider(opt.id as 'GOOGLE' | 'MICROSOFT' | 'APPLE')
+                }
                 disabled={isSaving}
               >
                 {opt.label}
@@ -1453,7 +1579,11 @@ function OnboardingSetupContent() {
                 disabled={searchingNums || isSaving}
                 className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
               >
-                {searchingNums ? <IconLoader2 className="h-4 w-4 animate-spin" stroke={1.5} /> : 'Search'}
+                {searchingNums ? (
+                  <IconLoader2 className="h-4 w-4 animate-spin" stroke={1.5} />
+                ) : (
+                  'Search'
+                )}
               </button>
             </div>
             {availableNumbers.length > 0 && (
@@ -1486,7 +1616,11 @@ function OnboardingSetupContent() {
               placeholder="+15551234567"
               className="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
             />
-            <ActionButton onClick={handleSaveForwarding} disabled={isSaving || !forwardNumber.trim()} loading={isSaving}>
+            <ActionButton
+              onClick={handleSaveForwarding}
+              disabled={isSaving || !forwardNumber.trim()}
+              loading={isSaving}
+            >
               <IconCheck className="h-4 w-4" stroke={2} />
               Save
             </ActionButton>
@@ -1512,10 +1646,15 @@ function OnboardingSetupContent() {
             <div className="rounded-[24px] border border-emerald-100 bg-[linear-gradient(180deg,rgba(236,253,245,0.9),rgba(255,255,255,1))] p-5">
               <p className="text-base font-semibold text-slate-900">What to include here</p>
               <p className="mt-2 text-sm leading-6 text-slate-600">
-                Put in the business-specific answers customers ask before they book: services, pricing rules, what is included, service area details, deposits, cancellation policy, warranties, timing expectations, and anything else your receptionist should answer consistently.
+                Put in the business-specific answers customers ask before they book: services,
+                pricing rules, what is included, service area details, deposits, cancellation
+                policy, warranties, timing expectations, and anything else your receptionist should
+                answer consistently.
               </p>
               <div className="mt-3 flex flex-wrap gap-2">
-                {getKnowledgeBasePromptSuggestions((company?.service_type as ServiceType | undefined) || undefined).map((item) => (
+                {getKnowledgeBasePromptSuggestions(
+                  (company?.service_type as ServiceType | undefined) || undefined
+                ).map((item) => (
                   <button
                     key={item}
                     type="button"
@@ -1530,10 +1669,15 @@ function OnboardingSetupContent() {
 
             <div className="max-h-80 space-y-3 overflow-y-auto rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
               {kbMessages.map((msg, index) => (
-                <div key={`${msg.role}-${index}`} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                <div
+                  key={`${msg.role}-${index}`}
+                  className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                >
                   <div
                     className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm ${
-                      msg.role === 'user' ? 'bg-emerald-600 text-white' : 'bg-white text-slate-700 shadow-sm'
+                      msg.role === 'user'
+                        ? 'bg-emerald-600 text-white'
+                        : 'bg-white text-slate-700 shadow-sm'
                     }`}
                   >
                     <div className="whitespace-pre-wrap">{msg.content}</div>
@@ -1559,7 +1703,11 @@ function OnboardingSetupContent() {
               <div className="flex flex-wrap gap-2">
                 <ActionButton
                   onClick={() => void handleGenerateKnowledge()}
-                  disabled={kbGenerating || (kbMessages.filter((msg) => msg.role === 'user').length === 0 && !kbInput.trim())}
+                  disabled={
+                    kbGenerating ||
+                    (kbMessages.filter((msg) => msg.role === 'user').length === 0 &&
+                      !kbInput.trim())
+                  }
                   loading={kbGenerating}
                 >
                   <IconBrain className="h-4 w-4" stroke={1.5} />
@@ -1573,15 +1721,15 @@ function OnboardingSetupContent() {
         {phase === 'call_flow_editor' && (
           <div className="space-y-4 rounded-[26px] border border-slate-200 bg-white p-4 shadow-sm">
             <div className="rounded-[24px] border border-slate-200 bg-[linear-gradient(180deg,rgba(248,250,252,0.9),rgba(255,255,255,1))] p-5">
-              <p className="text-base font-semibold text-slate-900">Control the questions your AI asks before scheduling</p>
+              <p className="text-base font-semibold text-slate-900">
+                Control the questions your AI asks before scheduling
+              </p>
               <p className="mt-1 text-sm text-slate-600">
-                Reword the questions, remove anything unnecessary, add your own, and set the order. The scheduling question stays automatic and always comes last.
+                Reword the questions, remove anything unnecessary, add your own, and set the order.
+                The scheduling question stays automatic and always comes last.
               </p>
             </div>
-            <CallFlowEditor
-              questions={callFlowQuestions}
-              onChange={setCallFlowQuestions}
-            />
+            <CallFlowEditor questions={callFlowQuestions} onChange={setCallFlowQuestions} />
             <div className="flex flex-wrap gap-2">
               <ActionButton onClick={handleSaveCallFlow} disabled={isSaving} loading={isSaving}>
                 <IconCheck className="h-4 w-4" stroke={1.5} />
@@ -1608,11 +1756,18 @@ function OnboardingSetupContent() {
                   <p className="text-sm font-bold text-slate-900">{details.name}</p>
                   <p className="mt-1 text-xl font-bold text-emerald-600">
                     {price.current}
-                    <span className="text-xs font-normal text-slate-500"> /{price.cadence.replace('per ', '')}</span>
+                    <span className="text-xs font-normal text-slate-500">
+                      {' '}
+                      /{price.cadence.replace('per ', '')}
+                    </span>
                   </p>
-                  {details.badge && <p className="mt-1.5 text-xs text-slate-500">{details.badge}</p>}
+                  {details.badge && (
+                    <p className="mt-1.5 text-xs text-slate-500">{details.badge}</p>
+                  )}
                   {details.trialLabel && (
-                    <p className="mt-1 text-xs font-semibold text-emerald-600">{details.trialLabel}</p>
+                    <p className="mt-1 text-xs font-semibold text-emerald-600">
+                      {details.trialLabel}
+                    </p>
                   )}
                 </button>
               );
@@ -1627,7 +1782,9 @@ function OnboardingSetupContent() {
               <StripePaymentForm selectedPlan={selectedPlan} onSuccess={handleBillingSuccess} />
             </Elements>
           ) : (
-            <p className="text-sm text-red-600">Payment provider not configured. Contact support.</p>
+            <p className="text-sm text-red-600">
+              Payment provider not configured. Contact support.
+            </p>
           ))}
 
         {/* Payment mode choice */}
@@ -1664,7 +1821,11 @@ function OnboardingSetupContent() {
               )}
             </div>
             <div className="flex flex-wrap gap-2">
-              <ActionButton onClick={handleStartConnectOnboarding} disabled={connectBusy} loading={connectBusy}>
+              <ActionButton
+                onClick={handleStartConnectOnboarding}
+                disabled={connectBusy}
+                loading={connectBusy}
+              >
                 <IconCreditCard className="h-4 w-4" stroke={1.5} />
                 Connect bank account (Stripe)
               </ActionButton>
@@ -1708,93 +1869,93 @@ function OnboardingSetupContent() {
       className="h-full overflow-y-auto bg-[linear-gradient(180deg,#f8fafc_0%,#f8fafc_18%,#ffffff_18%,#ffffff_100%)]"
     >
       <div className="mx-auto max-w-3xl space-y-4 px-4 pb-10 pt-8 sm:px-8">
-          {messages.map((msg) => (
+        {messages.map((msg) => (
+          <div
+            key={msg.id}
+            className={`group flex items-start gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}
+          >
+            {/* Avatar */}
             <div
-              key={msg.id}
-              className={`group flex items-start gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}
+              className={`mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full ${
+                msg.role === 'bot' ? 'bg-emerald-600' : 'bg-slate-200'
+              }`}
             >
-              {/* Avatar */}
-              <div
-                className={`mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full ${
-                  msg.role === 'bot' ? 'bg-emerald-600' : 'bg-slate-200'
-                }`}
-              >
-                {msg.role === 'bot' ? (
-                  <IconSparkles className="h-4 w-4 text-white" stroke={1.5} />
-                ) : (
-                  <IconUser className="h-4 w-4 text-slate-500" stroke={1.5} />
-                )}
-              </div>
-
-              {/* Bubble */}
-              <div
-                className={`max-w-md rounded-2xl px-4 py-3 text-sm leading-relaxed ${
-                  msg.role === 'bot'
-                    ? 'rounded-tl-sm border border-slate-200 bg-white text-slate-800 shadow-sm'
-                    : 'rounded-tr-sm bg-emerald-600 text-white'
-                }`}
-              >
-                {msg.content}
-              </div>
-
-              {/* Edit pencil — appears on hover for editable user messages */}
-              {msg.role === 'user' && msg.onEdit && (
-                <button
-                  type="button"
-                  onClick={msg.onEdit}
-                  title="Edit this answer"
-                  className="mt-2 flex-shrink-0 self-center rounded-lg p-1 text-slate-400 opacity-0 transition hover:bg-slate-100 hover:text-slate-600 group-hover:opacity-100"
-                >
-                  <IconPencil className="h-3.5 w-3.5" stroke={1.5} />
-                </button>
+              {msg.role === 'bot' ? (
+                <IconSparkles className="h-4 w-4 text-white" stroke={1.5} />
+              ) : (
+                <IconUser className="h-4 w-4 text-slate-500" stroke={1.5} />
               )}
             </div>
-          ))}
 
-          {/* Typing indicator */}
-          {isTyping && (
-            <div className="flex items-start gap-3">
-              <div className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-emerald-600">
-                <IconSparkles className="h-4 w-4 text-white" stroke={1.5} />
-              </div>
-              <div className="rounded-2xl rounded-tl-sm border border-slate-200 bg-white px-4 py-3 shadow-sm">
-                <div className="flex items-center gap-1">
-                  {[0, 150, 300].map((delay) => (
-                    <span
-                      key={delay}
-                      className="h-2 w-2 animate-bounce rounded-full bg-slate-300"
-                      style={{ animationDelay: `${delay}ms` }}
-                    />
-                  ))}
-                </div>
-              </div>
+            {/* Bubble */}
+            <div
+              className={`max-w-md rounded-2xl px-4 py-3 text-sm leading-relaxed ${
+                msg.role === 'bot'
+                  ? 'rounded-tl-sm border border-slate-200 bg-white text-slate-800 shadow-sm'
+                  : 'rounded-tr-sm bg-emerald-600 text-white'
+              }`}
+            >
+              {msg.content}
             </div>
-          )}
 
-          {/* Complete CTA */}
-          {phase === 'complete' && !isTyping && (
-            <div className="flex justify-start pl-11">
+            {/* Edit pencil — appears on hover for editable user messages */}
+            {msg.role === 'user' && msg.onEdit && (
               <button
                 type="button"
-                onClick={() => router.replace('/dashboard')}
-                className="flex items-center gap-2 rounded-xl bg-emerald-600 px-6 py-3 text-sm font-bold text-white transition hover:bg-emerald-700"
+                onClick={msg.onEdit}
+                title="Edit this answer"
+                className="mt-2 flex-shrink-0 self-center rounded-lg p-1 text-slate-400 opacity-0 transition hover:bg-slate-100 hover:text-slate-600 group-hover:opacity-100"
               >
-                Go to Dashboard
-                <IconArrowRight className="h-4 w-4" stroke={2} />
+                <IconPencil className="h-3.5 w-3.5" stroke={1.5} />
               </button>
-            </div>
-          )}
+            )}
+          </div>
+        ))}
 
-          {!isTyping && phase !== 'loading' && phase !== 'complete' && (
-            <div className="pl-11">
-              <div className="max-h-[72vh] overflow-y-auto rounded-[28px] border border-slate-200 bg-slate-50/80 p-4 shadow-sm">
-                {renderActiveZone()}
+        {/* Typing indicator */}
+        {isTyping && (
+          <div className="flex items-start gap-3">
+            <div className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-emerald-600">
+              <IconSparkles className="h-4 w-4 text-white" stroke={1.5} />
+            </div>
+            <div className="rounded-2xl rounded-tl-sm border border-slate-200 bg-white px-4 py-3 shadow-sm">
+              <div className="flex items-center gap-1">
+                {[0, 150, 300].map((delay) => (
+                  <span
+                    key={delay}
+                    className="h-2 w-2 animate-bounce rounded-full bg-slate-300"
+                    style={{ animationDelay: `${delay}ms` }}
+                  />
+                ))}
               </div>
             </div>
-          )}
+          </div>
+        )}
 
-          <div ref={chatEndRef} />
-        </div>
+        {/* Complete CTA */}
+        {phase === 'complete' && !isTyping && (
+          <div className="flex justify-start pl-11">
+            <button
+              type="button"
+              onClick={() => router.replace('/dashboard')}
+              className="flex items-center gap-2 rounded-xl bg-emerald-600 px-6 py-3 text-sm font-bold text-white transition hover:bg-emerald-700"
+            >
+              Go to Dashboard
+              <IconArrowRight className="h-4 w-4" stroke={2} />
+            </button>
+          </div>
+        )}
+
+        {!isTyping && phase !== 'loading' && phase !== 'complete' && (
+          <div className="pl-11">
+            <div className="max-h-[72vh] overflow-y-auto rounded-[28px] border border-slate-200 bg-slate-50/80 p-4 shadow-sm">
+              {renderActiveZone()}
+            </div>
+          </div>
+        )}
+
+        <div ref={chatEndRef} />
+      </div>
     </div>
   );
 }

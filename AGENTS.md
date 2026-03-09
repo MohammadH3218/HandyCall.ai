@@ -50,6 +50,10 @@ Key domains:
 
 ## Deployment Paths
 - GitHub remote: `origin` -> `https://github.com/MohammadH3218/HandyCall.ai.git`
+- Local dev remote: `local` -> `https://github.com/MohammadH3218/local.git`
+- Branch policy:
+  - Use `local` remote for local-development feature branches
+  - Use `origin/master` for cloud/production-level deployment flow
 - Backend Docker/EB scripts:
   - `packages/backend/deploy.sh` (bash)
   - `packages/backend/deploy-docker-eb.ps1` (PowerShell)

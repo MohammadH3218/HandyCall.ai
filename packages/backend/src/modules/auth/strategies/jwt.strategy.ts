@@ -34,8 +34,6 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   async validate(payload: any): Promise<AuthContext> {
-    // CRITICAL: We need to find the user in YOUR database to get the company_id.
-    // We try to find the user by email (from ID Token) or username (from Access Token).
     const email = payload.email || payload['cognito:username'] || payload.username;
     const companyIdFromToken =
       payload['custom:company_id'] || payload.company_id || payload['company_id'];
@@ -45,32 +43,23 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       throw new UnauthorizedException('Invalid token claims');
     }
 
-    // Look up user in database (prefer company-scoped query when company_id is present)
     let user = null;
     if (companyIdFromToken) {
       user = await this.usersService.findByEmailForCompany(email, companyIdFromToken);
-    }
-    if (!user) {
+      if (!user) {
+        this.logger.warn(
+          `User with email ${email} was not found for company ${companyIdFromToken}. Rejecting token.`
+        );
+        throw new UnauthorizedException('User not found in system');
+      }
+    } else {
       user = await this.usersService.findByEmail(email);
-    }
-
-    if (!user) {
-      this.logger.warn(`User with email ${email} not found in database. Attempting auto-provisioning.`);
-      try {
-        const givenName = payload.given_name || payload['given_name'];
-        const familyName = payload.family_name || payload['family_name'];
-        user = await this.usersService.provisionUserFromCognito({
-          email,
-          firstName: givenName,
-          lastName: familyName,
-        });
-      } catch (err: any) {
-        this.logger.error(`Failed to auto-provision user for ${email}: ${err?.message || err}`);
+      if (!user) {
+        this.logger.warn(`User with email ${email} not found in database. Rejecting token.`);
         throw new UnauthorizedException('User not found in system');
       }
     }
 
-    // Attach user context to the Request object
     return {
       user_id: user.user_id,
       company_id: user.company_id,

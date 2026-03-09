@@ -25,7 +25,6 @@ import { WebhooksModule } from './modules/webhooks/webhooks.module';
 import { MessagesModule } from './modules/messages/messages.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { FollowUpSequencesModule } from './modules/follow-up-sequences/follow-up-sequences.module';
-import { ChatModule } from './modules/chat/chat.module';
 import { OutboundCallsModule } from './modules/outbound-calls/outbound-calls.module';
 import { SmsAutomationModule } from './modules/sms-automation/sms-automation.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
@@ -82,7 +81,6 @@ import { AppService } from './app.service';
     MessagesModule,
     NotificationsModule,
     FollowUpSequencesModule,
-    ChatModule,
     OutboundCallsModule,
     SmsAutomationModule,
     AnalyticsModule,

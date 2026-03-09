@@ -9,7 +9,8 @@ import {
   Query,
   UseGuards,
   NotFoundException,
-  BadRequestException
+  BadRequestException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { CompaniesService } from './companies.service';
 import { UsersService } from '../users/users.service';
@@ -18,7 +19,13 @@ import { CompanyId, UserId, UserRoleParam } from '../../common/decorators/auth.d
 import { UpdateCompanyDto } from './dto/update-company.dto';
 import { CreateCompanyDto } from './dto/create-company.dto';
 import { AdminUpdateCompanyDto } from './dto/admin-update-company.dto';
-import { Company, UserRole, CompanyStatus, SubscriptionPlan, SubscriptionStatus } from '@handycall/shared';
+import {
+  Company,
+  UserRole,
+  CompanyStatus,
+  SubscriptionPlan,
+  SubscriptionStatus,
+} from '@handycall/shared';
 import { CompanyStats } from './companies.service';
 import { UsageService } from '../billing/usage.service';
 
@@ -70,7 +77,7 @@ export class CompaniesController {
   @Delete('me/account')
   async deleteMyAccount(
     @CompanyId() companyId: string,
-    @UserId() userId: string,
+    @UserId() userId: string
   ): Promise<{ message: string }> {
     if (companyId === 'no-company' || !companyId || !userId) {
       throw new NotFoundException('Account not found');
@@ -81,6 +88,11 @@ export class CompaniesController {
       throw new NotFoundException('Company not found');
     }
 
+    const actor = await this.usersService.findById(companyId, userId);
+    if (!actor) {
+      throw new UnauthorizedException('Authenticated user context is out of sync. Please sign in again.');
+    }
+
     this.companiesService.assertSelfServeDeletionAllowed(company);
 
     const users = await this.usersService.listCompanyUsers(companyId);
@@ -88,7 +100,11 @@ export class CompaniesController {
       await this.usersService.deleteUser(companyId, user.user_id, user.email);
     }
 
-    await this.companiesService.deleteCompany(companyId);
+    await this.companiesService.deleteCompany(companyId, {
+      deletedByUserId: userId,
+      deletedByEmail: actor?.email,
+      source: 'self_serve',
+    });
     return { message: 'Account deleted successfully' };
   }
 
@@ -121,10 +137,7 @@ export class CompaniesController {
    * Get company by ID (admin only)
    */
   @Get(':id')
-  async getCompanyById(
-    @UserRoleParam() role: UserRole,
-    @Param('id') id: string
-  ): Promise<Company> {
+  async getCompanyById(@UserRoleParam() role: UserRole, @Param('id') id: string): Promise<Company> {
     if (role !== UserRole.ADMIN) {
       throw new NotFoundException('Not found');
     }
@@ -225,7 +238,7 @@ export class CompaniesController {
       throw new NotFoundException('Not found');
     }
 
-    await this.companiesService.deleteCompany(id);
+    await this.companiesService.deleteCompany(id, { source: 'admin' });
     return { message: 'Company deleted successfully' };
   }
 
@@ -233,10 +246,7 @@ export class CompaniesController {
    * Get all users for a company (admin only)
    */
   @Get(':companyId/users')
-  async getCompanyUsers(
-    @UserRoleParam() role: UserRole,
-    @Param('companyId') companyId: string
-  ) {
+  async getCompanyUsers(@UserRoleParam() role: UserRole, @Param('companyId') companyId: string) {
     if (role !== UserRole.ADMIN) {
       throw new NotFoundException('Not found');
     }
@@ -261,16 +271,18 @@ export class CompaniesController {
     // Check if user has an active subscription plan
     const hasActivePlan = Boolean(company.subscription_plan || company.stripe_subscription_id);
     const plan = company.subscription_plan as SubscriptionPlan | undefined;
-    
+
     // Check subscription status
     const status = company.subscription_status as SubscriptionStatus | undefined;
-    const hasActiveStatus = status === SubscriptionStatus.ACTIVE || status === SubscriptionStatus.TRIALING;
-    
+    const hasActiveStatus =
+      status === SubscriptionStatus.ACTIVE || status === SubscriptionStatus.TRIALING;
+
     // Check if user has an active trial (trial_ends_at is in the future)
-    const hasActiveTrial = company.trial_ends_at !== null && 
-                           company.trial_ends_at !== undefined && 
-                           company.trial_ends_at > Date.now();
-    
+    const hasActiveTrial =
+      company.trial_ends_at !== null &&
+      company.trial_ends_at !== undefined &&
+      company.trial_ends_at > Date.now();
+
     // Check if subscription is canceling but still active until period end
     const isCancelingButActive =
       company.cancel_at_period_end &&
@@ -281,16 +293,23 @@ export class CompaniesController {
     // 1. An active subscription plan with active status, OR
     // 2. An active trial (trial_ends_at in the future), OR
     // 3. A subscription that's canceling but still active
-    const hasSubscription = (hasActivePlan && hasActiveStatus) || hasActiveTrial || isCancelingButActive;
+    const hasSubscription =
+      (hasActivePlan && hasActiveStatus) || hasActiveTrial || isCancelingButActive;
 
     if (!hasSubscription) {
-      throw new BadRequestException('You must have an active subscription or trial to enable this service.');
+      throw new BadRequestException(
+        'You must have an active subscription or trial to enable this service.'
+      );
     }
 
     // If we have a plan, check usage limits
     if (plan) {
       const periodStart = company.current_period_start || Date.now();
-      const limits = await this.usageService.checkLimitsExceeded(company.company_id, plan, periodStart);
+      const limits = await this.usageService.checkLimitsExceeded(
+        company.company_id,
+        plan,
+        periodStart
+      );
       // Product behavior: allow enabling services even when limits are exceeded.
       // Overages are tracked and can be billed later; callers should not be hard-blocked.
     }

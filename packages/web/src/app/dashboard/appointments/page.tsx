@@ -201,6 +201,7 @@ export default function AppointmentsPage() {
   const [company, setCompany] = useState<any>(null);
   const setCompanyInStore = useAuthStore((state) => state.setCompany);
   const [appointments, setAppointments] = useState<any[]>([]);
+  const [contacts, setContacts] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -254,9 +255,12 @@ export default function AppointmentsPage() {
 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [createDraft, setCreateDraft] = useState<any>({
+    selected_contact_id: 'MANUAL',
     contact_name: '',
     contact_email: '',
     contact_phone: '',
+    pricing_mode: 'CUSTOM',
+    selected_service_id: '',
     service_type: '',
     date: '',
     start_time: '09:00',
@@ -386,6 +390,11 @@ export default function AppointmentsPage() {
     return Array.from(set.values());
   }, [appointments]);
 
+  const bookingServiceOptions = useMemo(() => {
+    if (!Array.isArray(company?.booking_services)) return [];
+    return (company.booking_services as any[]).filter((service: any) => service?.active !== false);
+  }, [company]);
+
   const focusKey = useMemo(() => ymd(toZonedDate(focusDate, displayTimezone)), [focusDate, displayTimezone]);
   const focusAppointments = useMemo(() => apptsByDay.get(focusKey) ?? [], [apptsByDay, focusKey]);
 
@@ -506,9 +515,10 @@ export default function AppointmentsPage() {
       } catch (err: any) {
         console.warn('Calendar connection check failed:', err);
       }
-      const [c, a] = await Promise.all([
+      const [c, a, contactsResponse] = await Promise.all([
         apiClient.getMyCompany(),
         apiClient.getAppointmentsRange(visibleRange.start.toISOString(), visibleRange.end.toISOString()),
+        apiClient.getContacts(200).catch(() => ({ contacts: [] })),
       ]);
       setCompany(c);
       setCompanyInStore(c);
@@ -517,6 +527,7 @@ export default function AppointmentsPage() {
       setDateOverridesDraft(normalizeOverrides(c?.schedule_overrides));
       setSetupTimezone(c?.calendar_connection?.timezone || c?.calendar_connection?.timeZone || c?.timezone || DEFAULT_TIMEZONE);
       setAppointments(a.appointments || []);
+      setContacts(Array.isArray(contactsResponse?.contacts) ? contactsResponse.contacts : []);
     } catch (err: any) {
       console.error('Error loading appointments:', err);
       setError(err?.message || 'Failed to load appointments');
@@ -655,9 +666,13 @@ export default function AppointmentsPage() {
       setIsCreateOpen(false);
       setCreateDraft((p: any) => ({
         ...p,
+        selected_contact_id: 'MANUAL',
         contact_name: '',
         contact_email: '',
         contact_phone: '',
+        pricing_mode: 'CUSTOM',
+        selected_service_id: '',
+        service_type: '',
         notes: '',
         address_street: '',
         address_city: '',
@@ -670,6 +685,60 @@ export default function AppointmentsPage() {
     } catch (err: any) {
       setError(err?.message || 'Failed to create appointment');
     }
+  };
+
+  const handleSelectCreateContact = (contactId: string) => {
+    if (contactId === 'MANUAL') {
+      setCreateDraft((p: any) => ({
+        ...p,
+        selected_contact_id: 'MANUAL',
+        contact_name: '',
+        contact_email: '',
+        contact_phone: '',
+        address_street: '',
+        address_city: '',
+        address_state: '',
+        address_zip: '',
+      }));
+      return;
+    }
+
+    const selected = contacts.find((contact: any) => String(contact.contact_id) === contactId);
+    if (!selected) return;
+
+    setCreateDraft((p: any) => ({
+      ...p,
+      selected_contact_id: contactId,
+      contact_name: selected.name || [selected.first_name, selected.last_name].filter(Boolean).join(' '),
+      contact_email: selected.email || '',
+      contact_phone: selected.phone_number || selected.phone || '',
+      address_street: selected.address || '',
+      address_city: p.address_city || '',
+      address_state: p.address_state || '',
+      address_zip: selected.zipcode || '',
+    }));
+  };
+
+  const handleCreatePricingModeChange = (value: string) => {
+    if (value === 'CUSTOM') {
+      setCreateDraft((p: any) => ({
+        ...p,
+        pricing_mode: 'CUSTOM',
+        selected_service_id: '',
+      }));
+      return;
+    }
+
+    const selectedService = bookingServiceOptions.find((service: any) => service.service_id === value);
+    if (!selectedService) return;
+
+    setCreateDraft((p: any) => ({
+      ...p,
+      pricing_mode: value,
+      selected_service_id: selectedService.service_id,
+      service_type: selectedService.name || p.service_type,
+      price: typeof selectedService.amount_cents === 'number' ? (selectedService.amount_cents / 100).toFixed(2) : '',
+    }));
   };
 
   const [appleEmail, setAppleEmail] = useState('');
@@ -1430,11 +1499,28 @@ export default function AppointmentsPage() {
 
       {/* Create Appointment Dialog */}
       <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-        <DialogContent className="max-w-xl">
+        <DialogContent className="max-w-xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>New Appointment</DialogTitle>
           </DialogHeader>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="sm:col-span-2">
+              <div className="text-xs text-slate-500 mb-1">Customer</div>
+              <select
+                className={inputCls}
+                value={createDraft.selected_contact_id || 'MANUAL'}
+                onChange={(e) => handleSelectCreateContact(e.target.value)}
+              >
+                <option value="MANUAL">Enter customer manually</option>
+                {contacts.map((contact: any) => (
+                  <option key={contact.contact_id} value={contact.contact_id}>
+                    {contact.name || 'Unnamed contact'}
+                    {contact.phone_number ? ` · ${contact.phone_number}` : ''}
+                    {contact.email ? ` · ${contact.email}` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
             <div className="sm:col-span-2">
               <div className="text-xs text-slate-500 mb-1">Customer name</div>
               <input className={inputCls} value={createDraft.contact_name} onChange={(e) => setCreateDraft((p: any) => ({ ...p, contact_name: e.target.value }))} placeholder="e.g., John Doe" />
@@ -1461,7 +1547,29 @@ export default function AppointmentsPage() {
             </div>
             <div>
               <div className="text-xs text-slate-500 mb-1">Service</div>
-              <input className={inputCls} value={createDraft.service_type} onChange={(e) => setCreateDraft((p: any) => ({ ...p, service_type: e.target.value }))} placeholder={company?.service_type || 'Service'} />
+              {bookingServiceOptions.length > 0 ? (
+                <select
+                  className={inputCls}
+                  value={createDraft.selected_service_id || ''}
+                  onChange={(e) => {
+                    const svc = bookingServiceOptions.find((service: any) => service.service_id === e.target.value);
+                    setCreateDraft((p: any) => ({
+                      ...p,
+                      selected_service_id: svc?.service_id || '',
+                      service_type: svc?.name || p.service_type,
+                    }));
+                  }}
+                >
+                  <option value="">Choose a service</option>
+                  {bookingServiceOptions.map((service: any) => (
+                    <option key={service.service_id} value={service.service_id}>
+                      {service.name}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input className={inputCls} value={createDraft.service_type} onChange={(e) => setCreateDraft((p: any) => ({ ...p, service_type: e.target.value }))} placeholder={company?.service_type || 'Service'} />
+              )}
             </div>
             <div className="sm:col-span-2">
               <div className="text-xs text-slate-500 mb-1">Notes (optional)</div>
@@ -1477,8 +1585,32 @@ export default function AppointmentsPage() {
               </div>
             </div>
             <div className="sm:col-span-2">
-              <div className="text-xs text-slate-500 mb-1">Price (optional)</div>
-              <input className={inputCls} value={createDraft.price} onChange={(e) => setCreateDraft((p: any) => ({ ...p, price: e.target.value }))} placeholder="e.g., 149.00" />
+              <div className="text-xs text-slate-500 mb-1">Price</div>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1.15fr_0.85fr]">
+                <select
+                  className={inputCls}
+                  value={createDraft.pricing_mode || 'CUSTOM'}
+                  onChange={(e) => handleCreatePricingModeChange(e.target.value)}
+                >
+                  <option value="CUSTOM">Custom amount</option>
+                  {bookingServiceOptions.map((service: any) => (
+                    <option key={service.service_id} value={service.service_id}>
+                      {service.name}
+                      {typeof service.amount_cents === 'number' ? ` · $${(service.amount_cents / 100).toFixed(2)}` : ''}
+                    </option>
+                  ))}
+                </select>
+                <div className="relative">
+                  <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-slate-500">$</span>
+                  <input
+                    className={`${inputCls} pl-7`}
+                    value={createDraft.price}
+                    onChange={(e) => setCreateDraft((p: any) => ({ ...p, price: e.target.value }))}
+                    placeholder="0.00"
+                    disabled={createDraft.pricing_mode !== 'CUSTOM' && !!createDraft.selected_service_id}
+                  />
+                </div>
+              </div>
             </div>
 
             <div className="sm:col-span-2 border-t border-slate-100 pt-3">

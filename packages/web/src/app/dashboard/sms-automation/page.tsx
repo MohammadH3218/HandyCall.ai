@@ -51,6 +51,38 @@ const STARTER_CARDS = [
   },
 ];
 
+const FRIENDLY_TOKENS = {
+  '[Customer name]': '{{contact_name}}',
+  '[Company name]': '{{company_name}}',
+  '[Booking link]': '{{booking_link}}',
+} as const;
+
+function toFriendlyTemplate(value?: string) {
+  let next = String(value || '');
+  Object.entries(FRIENDLY_TOKENS).forEach(([friendly, raw]) => {
+    next = next.split(raw).join(friendly);
+  });
+  return next;
+}
+
+function toApiTemplate(value?: string) {
+  let next = String(value || '');
+  Object.entries(FRIENDLY_TOKENS).forEach(([friendly, raw]) => {
+    next = next.split(friendly).join(raw);
+  });
+  return next;
+}
+
+function renderTemplatePreview(
+  value: string,
+  replacements: { customerName: string; companyName: string; bookingLink: string }
+) {
+  return toApiTemplate(value)
+    .split('{{contact_name}}').join(replacements.customerName)
+    .split('{{company_name}}').join(replacements.companyName)
+    .split('{{booking_link}}').join(replacements.bookingLink);
+}
+
 function CategoryBadge({ category }: { category: string }) {
   const colors: Record<string, string> = {
     APPOINTMENT_REMINDER: 'bg-blue-100 text-blue-700',
@@ -73,9 +105,14 @@ export default function SmsAutomationPage() {
   const [tab, setTab] = useState<'templates' | 'scheduled'>('templates');
   const [templates, setTemplates] = useState<SmsTemplate[]>([]);
   const [scheduled, setScheduled] = useState<ScheduledMessage[]>([]);
+  const [company, setCompany] = useState<any>(null);
+  const [contacts, setContacts] = useState<any[]>([]);
+  const [appointments, setAppointments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ name: '', category: 'CUSTOM', body: '' });
+  const [previewContactId, setPreviewContactId] = useState('NONE');
+  const [previewAppointmentId, setPreviewAppointmentId] = useState('NONE');
   const [saving, setSaving] = useState(false);
 
   const loadTemplates = async () => {
@@ -98,7 +135,20 @@ export default function SmsAutomationPage() {
 
   const load = async () => {
     setLoading(true);
-    await Promise.all([loadTemplates(), loadScheduled()]);
+    const now = new Date();
+    const start = new Date(now);
+    start.setMonth(start.getMonth() - 3);
+    const end = new Date(now);
+    end.setFullYear(end.getFullYear() + 1);
+    await Promise.all([
+      loadTemplates(),
+      loadScheduled(),
+      apiClient.getMyCompany().then(setCompany).catch(() => null),
+      apiClient.getContacts(200).then((data) => setContacts(Array.isArray(data?.contacts) ? data.contacts : [])).catch(() => setContacts([])),
+      apiClient.getAppointmentsRange(start.toISOString(), end.toISOString())
+        .then((data) => setAppointments(Array.isArray(data?.appointments) ? data.appointments : []))
+        .catch(() => setAppointments([])),
+    ]);
     setLoading(false);
   };
 
@@ -124,10 +174,15 @@ export default function SmsAutomationPage() {
     if (!form.name || !form.body) return;
     setSaving(true);
     try {
-      await (apiClient as any).post('/sms-automation/templates', form);
+      await (apiClient as any).post('/sms-automation/templates', {
+        ...form,
+        body: toApiTemplate(form.body),
+      });
       toast({ title: 'Template created', description: 'Your SMS template is ready to use.' });
       setShowForm(false);
       setForm({ name: '', category: 'CUSTOM', body: '' });
+      setPreviewContactId('NONE');
+      setPreviewAppointmentId('NONE');
       await loadTemplates();
     } catch (err: any) {
       toast({ title: 'Error', description: err?.message || 'Failed to create template', variant: 'destructive' });
@@ -135,6 +190,20 @@ export default function SmsAutomationPage() {
       setSaving(false);
     }
   };
+
+  const selectedContact = contacts.find((contact: any) => String(contact.contact_id) === previewContactId);
+  const contactAppointments = appointments
+    .filter((appointment: any) => {
+      if (!selectedContact) return false;
+      return appointment.contact_id === selectedContact.contact_id;
+    })
+    .sort((a: any, b: any) => Number(a.scheduled_start || 0) - Number(b.scheduled_start || 0));
+  const selectedAppointment = contactAppointments.find((appointment: any) => appointment.appointment_id === previewAppointmentId);
+  const previewBody = renderTemplatePreview(form.body, {
+    customerName: selectedContact?.name || selectedContact?.first_name || 'Customer',
+    companyName: company?.company_name || 'Your company',
+    bookingLink: selectedAppointment?.booking_link || 'your booking link',
+  });
 
   const handleDelete = async (templateId: string) => {
     try {
@@ -221,7 +290,7 @@ export default function SmsAutomationPage() {
                     <p className="text-sm font-semibold text-slate-900">{t.name}</p>
                     <CategoryBadge category={t.category} />
                   </div>
-                  <p className="line-clamp-2 text-xs text-slate-600">{t.body}</p>
+                  <p className="line-clamp-2 text-xs text-slate-600">{toFriendlyTemplate(t.body)}</p>
                 </div>
                 <button onClick={() => handleDelete(t.template_id)} className="text-slate-400 transition hover:text-red-600">
                   <Trash2 className="h-4 w-4" />
@@ -269,7 +338,7 @@ export default function SmsAutomationPage() {
           </DialogHeader>
           <div className="space-y-4">
             <div className="rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-3 text-sm text-slate-600">
-              Keep it short and conversational. Use placeholders like {'{{contact_name}}'} and {'{{booking_link}}'} when useful.
+              Write the message the way you want it to sound. You can optionally insert the customer name, your company name, or a booking link without dealing with template code.
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <div>
@@ -295,14 +364,77 @@ export default function SmsAutomationPage() {
             </div>
             <div>
               <label className="mb-1 block text-xs font-medium text-slate-700">Message body</label>
+              <div className="mb-2 flex flex-wrap gap-2">
+                {Object.keys(FRIENDLY_TOKENS).map((token) => (
+                  <button
+                    key={token}
+                    type="button"
+                    className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-700 transition hover:border-emerald-300 hover:text-emerald-700"
+                    onClick={() =>
+                      setForm((prev) => ({
+                        ...prev,
+                        body: prev.body ? `${prev.body} ${token}` : token,
+                      }))
+                    }
+                  >
+                    Insert {token.replace(/^\[|\]$/g, '')}
+                  </button>
+                ))}
+              </div>
               <textarea
                 rows={5}
                 className="w-full resize-none rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                placeholder="Hi {{contact_name}}, this is {{company_name}} checking in about your appointment..."
+                placeholder="Hi [Customer name], this is [Company name] checking in about your appointment."
                 value={form.body}
                 onChange={(e) => setForm({ ...form, body: e.target.value })}
               />
-              <p className="mt-1 text-xs text-slate-500">Available variables: {'{{contact_name}}'}, {'{{company_name}}'}, {'{{booking_link}}'}</p>
+              <p className="mt-1 text-xs text-slate-500">Keep it short and direct. If you want a pay or booking action, add the booking link button text naturally in the message.</p>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+              <div className="mb-3">
+                <p className="text-sm font-semibold text-slate-900">Preview this message</p>
+                <p className="text-xs text-slate-500">Choose a customer and one of their bookings so you can see the final text before saving.</p>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-slate-700">Customer</label>
+                  <select
+                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    value={previewContactId}
+                    onChange={(e) => {
+                      setPreviewContactId(e.target.value);
+                      setPreviewAppointmentId('NONE');
+                    }}
+                  >
+                    <option value="NONE">Choose a customer</option>
+                    {contacts.map((contact: any) => (
+                      <option key={contact.contact_id} value={contact.contact_id}>
+                        {contact.name || 'Unnamed customer'}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-slate-700">Booking link</label>
+                  <select
+                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    value={previewAppointmentId}
+                    onChange={(e) => setPreviewAppointmentId(e.target.value)}
+                    disabled={!selectedContact}
+                  >
+                    <option value="NONE">{selectedContact ? 'Choose a booking' : 'Choose a customer first'}</option>
+                    {contactAppointments.map((appointment: any) => (
+                      <option key={appointment.appointment_id} value={appointment.appointment_id}>
+                        {new Date(appointment.scheduled_start).toLocaleString()} · {appointment.service_type || 'Appointment'}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Preview</p>
+                <p className="mt-2 whitespace-pre-wrap text-sm text-slate-700">{previewBody || 'Your message preview will appear here.'}</p>
+              </div>
             </div>
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setShowForm(false)}>Cancel</Button>

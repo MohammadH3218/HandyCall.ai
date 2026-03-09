@@ -78,11 +78,6 @@ export default function SettingsPage() {
   const [notificationsSaving, setNotificationsSaving] = useState(false);
   const [notificationEvents, setNotificationEvents] = useState<Array<{ event_key: string; label: string; category: string; description: string }>>([]);
   const [notificationPrefs, setNotificationPrefs] = useState<Record<string, { in_app: boolean; push: boolean }>>({});
-  const [widgetEnabled, setWidgetEnabled] = useState(false);
-  const [widgetPrimaryColor, setWidgetPrimaryColor] = useState('#10b981');
-  const [widgetGreeting, setWidgetGreeting] = useState('Hi there! How can we help?');
-  const [widgetSaving, setWidgetSaving] = useState(false);
-  const [widgetEditMode, setWidgetEditMode] = useState(false);
   const [automationSaving, setAutomationSaving] = useState(false);
   const [automationEditMode, setAutomationEditMode] = useState(false);
   const [integrationsEditMode, setIntegrationsEditMode] = useState(false);
@@ -145,9 +140,6 @@ export default function SettingsPage() {
           }))
         : [],
     );
-    setWidgetEnabled(Boolean((company as any).website_widget_enabled));
-    setWidgetPrimaryColor((company as any).website_widget_settings?.primary_color || '#10b981');
-    setWidgetGreeting((company as any).website_widget_settings?.greeting || 'Hi there! How can we help?');
     setFollowUpEnabled(Boolean((company as any).follow_up_sequences_enabled));
     setFollowUpInitialDelayMinutes(String((company as any).follow_up_initial_delay_minutes ?? 0));
     setFollowUpSecondDelayMinutes(String((company as any).follow_up_second_delay_minutes ?? 1440));
@@ -555,33 +547,6 @@ export default function SettingsPage() {
     }
   };
 
-  const handleSaveWidgetSettings = async () => {
-    try {
-      setWidgetSaving(true);
-      await apiClient.updateMyCompany({
-        website_widget_enabled: widgetEnabled,
-        website_widget_settings: {
-          primary_color: widgetPrimaryColor,
-          greeting: widgetGreeting,
-          position: 'BOTTOM_RIGHT',
-        },
-      });
-      toast({
-        title: 'Widget settings saved',
-        description: 'Your website chat widget preferences were updated.',
-      });
-      setWidgetEditMode(false);
-    } catch (error: any) {
-      toast({
-        title: 'Save failed',
-        description: error?.message || 'Could not save widget settings.',
-        variant: 'destructive',
-      });
-    } finally {
-      setWidgetSaving(false);
-    }
-  };
-
   const handleSaveAutomations = async () => {
     try {
       setAutomationSaving(true);
@@ -630,12 +595,6 @@ export default function SettingsPage() {
     if (Number.isNaN(date.getTime())) return 'Never';
     return date.toLocaleString();
   };
-  const widgetApiBase = (process.env.NEXT_PUBLIC_API_URL || 'https://api.handycall.org/api/v1').replace(/\/$/, '');
-  const widgetEmbedCode = company?.company_id
-    ? `<script src="https://widget.handycall.org/v1/widget.js" data-company-id="${company.company_id}" data-api-base="${widgetApiBase}" async></script>`
-    : '';
-
-
   return (
     <div className="space-y-6 animate-fade-up max-w-4xl mx-auto">
       <PageHeader
@@ -1761,108 +1720,6 @@ export default function SettingsPage() {
             </div>
           </div>
 
-          <div className="rounded-2xl border border-slate-100 bg-white shadow-sm">
-            <div className="border-b border-slate-100 px-5 py-4">
-              <h2 className="text-sm font-semibold text-slate-900">Website chat widget (Max)</h2>
-              <p className="text-xs text-slate-500">Embed HandyCall chat and callback capture on your website.</p>
-            </div>
-            <div className="space-y-4 p-5">
-              {!hasFeature('website_widget') ? (
-                <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                  Available on the Max plan. Upgrade to unlock website widget deployment.
-                </div>
-              ) : (
-                <>
-                  {!widgetEditMode ? (
-                    <div className="space-y-4">
-                      <div className="grid gap-3 md:grid-cols-3">
-                        <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
-                          <p className="text-xs uppercase tracking-wide text-slate-500">Widget</p>
-                          <p className="mt-2 text-sm font-semibold text-slate-900">{widgetEnabled ? 'Enabled' : 'Disabled'}</p>
-                          <p className="mt-1 text-xs text-slate-600">Website visitors can start a chat or request a callback.</p>
-                        </div>
-                        <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
-                          <p className="text-xs uppercase tracking-wide text-slate-500">Primary color</p>
-                          <div className="mt-2 flex items-center gap-2">
-                            <span className="h-4 w-4 rounded-full border border-slate-200" style={{ backgroundColor: widgetPrimaryColor }} />
-                            <p className="text-sm font-semibold text-slate-900">{widgetPrimaryColor}</p>
-                          </div>
-                        </div>
-                        <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
-                          <p className="text-xs uppercase tracking-wide text-slate-500">Greeting</p>
-                          <p className="mt-2 text-sm font-semibold text-slate-900">{widgetGreeting}</p>
-                        </div>
-                      </div>
-                      <div className="flex justify-end">
-                        <Button type="button" onClick={() => setWidgetEditMode(true)}>
-                          Edit widget
-                        </Button>
-                      </div>
-                    </div>
-                  ) : (
-                    <>
-                      <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50/70 p-4">
-                        <div>
-                          <p className="text-sm font-semibold text-slate-900">Enable widget</p>
-                          <p className="text-xs text-slate-600">Allow visitors to chat with AI and request callbacks.</p>
-                        </div>
-                        <button
-                          type="button"
-                          aria-pressed={widgetEnabled}
-                          onClick={() => setWidgetEnabled((prev) => !prev)}
-                          className={`relative h-7 w-12 rounded-full transition ${
-                            widgetEnabled ? 'bg-emerald-600' : 'bg-slate-300'
-                          }`}
-                        >
-                          <span
-                            className={`absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow transition ${
-                              widgetEnabled ? 'translate-x-5' : 'translate-x-0'
-                            }`}
-                          />
-                        </button>
-                      </div>
-
-                      <div className="grid gap-3 md:grid-cols-2">
-                        <div className="space-y-2">
-                          <Label>Primary color</Label>
-                          <Input value={widgetPrimaryColor} onChange={(e) => setWidgetPrimaryColor(e.target.value)} />
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Greeting</Label>
-                          <Input value={widgetGreeting} onChange={(e) => setWidgetGreeting(e.target.value)} />
-                        </div>
-                      </div>
-                    </>
-                  )}
-
-                  <div className="space-y-2">
-                    <Label>Embed code</Label>
-                    <Input readOnly value={widgetEmbedCode} />
-                    <Button
-                      variant="outline"
-                      type="button"
-                      onClick={() => navigator.clipboard.writeText(widgetEmbedCode)}
-                      disabled={!widgetEmbedCode}
-                    >
-                      Copy embed code
-                    </Button>
-                  </div>
-                  <div className="flex justify-end gap-2">
-                    {widgetEditMode ? (
-                      <>
-                        <Button type="button" variant="outline" onClick={() => setWidgetEditMode(false)}>
-                          Cancel
-                        </Button>
-                        <Button onClick={handleSaveWidgetSettings} disabled={widgetSaving}>
-                          {widgetSaving ? 'Saving…' : 'Save widget settings'}
-                        </Button>
-                      </>
-                    ) : null}
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
             </>
           )}
         </div>

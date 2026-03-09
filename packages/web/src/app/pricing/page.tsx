@@ -68,7 +68,6 @@ const plans = [
       { label: 'Call recording (30-day)', included: true },
       { label: 'Priority support', included: true },
       { label: 'CRM integrations', included: false },
-      { label: 'Website chat widget', included: false },
     ],
   },
   {
@@ -88,7 +87,6 @@ const plans = [
       { label: 'Everything in Pro', included: true },
       { label: 'CRM integrations (Zapier, webhooks)', included: true },
       { label: 'Advanced routing (overflow + multi-location)', included: true },
-      { label: 'Website chat widget', included: true },
       { label: 'Call recording (90-day)', included: true },
       { label: 'Priority phone support', included: true },
     ],
@@ -115,7 +113,6 @@ const featureComparisons = [
   { label: 'Smart follow-up sequences', values: { Starter: false, Pro: true, Max: true } },
   { label: 'CRM integrations (Zapier, webhooks)', values: { Starter: false, Pro: false, Max: true } },
   { label: 'Advanced routing', values: { Starter: false, Pro: false, Max: true } },
-  { label: 'Website chat widget', values: { Starter: false, Pro: false, Max: true } },
   { label: 'Support', values: { Starter: 'Standard', Pro: 'Priority', Max: 'Priority + phone' } },
   { label: 'Free trial', values: { Starter: false, Pro: '14 days', Max: false } },
 ];

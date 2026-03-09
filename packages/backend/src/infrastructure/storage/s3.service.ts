@@ -8,6 +8,8 @@ import {
   GetObjectCommand,
   DeleteObjectCommand,
   HeadObjectCommand,
+  ListObjectsV2Command,
+  DeleteObjectsCommand,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
@@ -22,10 +24,13 @@ export class S3Service implements OnModuleInit {
   constructor(private configService: ConfigService) {}
 
   onModuleInit() {
-    const storageProvider = (this.configService.get<string>('STORAGE_PROVIDER') || '').trim().toLowerCase();
+    const storageProvider = (this.configService.get<string>('STORAGE_PROVIDER') || '')
+      .trim()
+      .toLowerCase();
     this.localMode = storageProvider === 'local';
     this.localStorageDir =
-      this.configService.get<string>('LOCAL_STORAGE_DIR') || path.resolve(process.cwd(), '.local/storage');
+      this.configService.get<string>('LOCAL_STORAGE_DIR') ||
+      path.resolve(process.cwd(), '.local/storage');
 
     this.recordingsBucket = this.configService.get<string>('S3_BUCKET_RECORDINGS') || '';
     this.transcriptsBucket = this.configService.get<string>('S3_BUCKET_TRANSCRIPTS') || '';
@@ -40,9 +45,11 @@ export class S3Service implements OnModuleInit {
       this.configService.get<string>('AWS_ENDPOINT_URL_S3') ||
       this.configService.get<string>('AWS_LOCALSTACK_ENDPOINT');
     const accessKeyId =
-      this.configService.get<string>('S3_ACCESS_KEY_ID') || this.configService.get<string>('AWS_ACCESS_KEY_ID');
+      this.configService.get<string>('S3_ACCESS_KEY_ID') ||
+      this.configService.get<string>('AWS_ACCESS_KEY_ID');
     const secretAccessKey =
-      this.configService.get<string>('S3_SECRET_ACCESS_KEY') || this.configService.get<string>('AWS_SECRET_ACCESS_KEY');
+      this.configService.get<string>('S3_SECRET_ACCESS_KEY') ||
+      this.configService.get<string>('AWS_SECRET_ACCESS_KEY');
     const forcePathStyleRaw =
       this.configService.get<string>('S3_FORCE_PATH_STYLE') ||
       (endpoint && endpoint.includes('localhost') ? 'true' : 'false');
@@ -72,6 +79,46 @@ export class S3Service implements OnModuleInit {
 
   private async ensureParentDir(filePath: string) {
     await fs.mkdir(path.dirname(filePath), { recursive: true });
+  }
+
+  private async removeLocalDir(dirPath: string): Promise<void> {
+    try {
+      await fs.rm(dirPath, { recursive: true, force: true });
+    } catch (error: any) {
+      if (error?.code !== 'ENOENT') throw error;
+    }
+  }
+
+  private async deletePrefix(bucket: string, prefix: string): Promise<void> {
+    if (!bucket) return;
+
+    let continuationToken: string | undefined;
+
+    do {
+      const listed = await this.client.send(
+        new ListObjectsV2Command({
+          Bucket: bucket,
+          Prefix: prefix,
+          ContinuationToken: continuationToken,
+        })
+      );
+
+      const objects = (listed.Contents || [])
+        .map((item) => item.Key)
+        .filter((key): key is string => Boolean(key))
+        .map((Key) => ({ Key }));
+
+      if (objects.length > 0) {
+        await this.client.send(
+          new DeleteObjectsCommand({
+            Bucket: bucket,
+            Delete: { Objects: objects, Quiet: true },
+          })
+        );
+      }
+
+      continuationToken = listed.IsTruncated ? listed.NextContinuationToken : undefined;
+    } while (continuationToken);
   }
 
   async uploadRecording(
@@ -120,11 +167,7 @@ export class S3Service implements OnModuleInit {
     return getSignedUrl(this.client, command, { expiresIn });
   }
 
-  async uploadTranscript(
-    companyId: string,
-    callId: string,
-    transcript: any
-  ): Promise<string> {
+  async uploadTranscript(companyId: string, callId: string, transcript: any): Promise<string> {
     if (this.localMode) {
       const filePath = this.transcriptFilePath(companyId, callId);
       await this.ensureParentDir(filePath);
@@ -221,5 +264,20 @@ export class S3Service implements OnModuleInit {
       }
       throw error;
     }
+  }
+
+  async deleteCompanyArtifacts(companyId: string): Promise<void> {
+    if (this.localMode) {
+      await Promise.all([
+        this.removeLocalDir(path.join(this.localStorageDir, 'recordings', companyId)),
+        this.removeLocalDir(path.join(this.localStorageDir, 'transcripts', companyId)),
+      ]);
+      return;
+    }
+
+    await Promise.all([
+      this.deletePrefix(this.recordingsBucket, `recordings/${companyId}/`),
+      this.deletePrefix(this.transcriptsBucket, `transcripts/${companyId}/`),
+    ]);
   }
 }

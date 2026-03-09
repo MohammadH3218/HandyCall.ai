@@ -1,5 +1,11 @@
-import { Injectable, BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+} from '@nestjs/common';
 import { DynamoDBService } from '../../infrastructure/database/dynamodb.service';
+import { S3Service } from '../../infrastructure/storage/s3.service';
 import {
   Company,
   CompanyStatus,
@@ -29,11 +35,16 @@ export interface CompanyListItem extends Company {
 @Injectable()
 export class CompaniesService {
   private readonly tableName = 'companies';
+  private readonly deletionAuditTableName = 'deleted_accounts';
 
-  constructor(private dynamodb: DynamoDBService) {}
+  constructor(
+    private dynamodb: DynamoDBService,
+    private s3Service: S3Service
+  ) {}
 
   private buildBookingFromEmail(companyName: string, companyId: string): string {
-    const domain = process.env.BOOKING_EMAIL_DOMAIN || process.env.SES_FROM_DOMAIN || 'handycall.org';
+    const domain =
+      process.env.BOOKING_EMAIL_DOMAIN || process.env.SES_FROM_DOMAIN || 'handycall.org';
     const slug = String(companyName || '')
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
@@ -53,10 +64,10 @@ export class CompaniesService {
     });
 
     return (
-      result.items.find(
+      (result.items.find(
         (item: any) => item.company_name?.toLowerCase() === companyName.toLowerCase()
-      ) as Company | null
-    ) ?? null;
+      ) as Company | null) ?? null
+    );
   }
 
   async createCompany(
@@ -315,7 +326,11 @@ export class CompaniesService {
       updatedData.sms_enabled = false;
     }
 
-    const result = await this.dynamodb.update(this.tableName, { company_id: companyId }, updatedData);
+    const result = await this.dynamodb.update(
+      this.tableName,
+      { company_id: companyId },
+      updatedData
+    );
 
     return result as Company;
   }
@@ -341,7 +356,11 @@ export class CompaniesService {
       updated_at: Date.now(),
     };
 
-    const result = await this.dynamodb.update(this.tableName, { company_id: companyId }, updatedData);
+    const result = await this.dynamodb.update(
+      this.tableName,
+      { company_id: companyId },
+      updatedData
+    );
     return result as Company;
   }
 
@@ -395,18 +414,25 @@ export class CompaniesService {
    * Delete a company and all associated data (admin only)
    * WARNING: This is a destructive operation
    */
-  async deleteCompany(companyId: string): Promise<void> {
+  async deleteCompany(
+    companyId: string,
+    options?: {
+      deletedByUserId?: string;
+      deletedByEmail?: string;
+      source?: 'self_serve' | 'admin';
+    }
+  ): Promise<void> {
     const company = await this.findById(companyId);
     if (!company) {
       throw new NotFoundException('Company not found');
     }
 
-    // Delete from companies table
-    await this.dynamodb.delete(this.tableName, { company_id: companyId });
+    await this.writeDeletionAudit(company, options);
 
-    // Delete all related data
-    // Note: In a production system, you'd want to do this in a transaction or use DynamoDB Streams
+    await this.s3Service.deleteCompanyArtifacts(companyId);
+
     await Promise.all([
+      this.deleteRelatedData('company_numbers', companyId),
       this.deleteRelatedData('users', companyId),
       this.deleteRelatedData('calls', companyId),
       this.deleteRelatedData('contacts', companyId),
@@ -420,7 +446,25 @@ export class CompaniesService {
       this.deleteRelatedData('notifications', companyId),
       this.deleteRelatedData('notification_devices', companyId),
       this.deleteRelatedData('notification_usage_alerts', companyId),
+      this.deleteRelatedData('usage_metrics', companyId),
+      this.deleteRelatedData('customer_payments', companyId),
+      this.deleteRelatedData('connected_accounts', companyId),
+      this.deleteRelatedData('chat_sessions', companyId),
+      this.deleteRelatedData('follow_up_sequences', companyId),
+      this.deleteRelatedData('scheduled_messages', companyId),
+      this.deleteRelatedData('invoices', companyId),
+      this.deleteRelatedData('outbound_calls', companyId),
+      this.deleteRelatedData('portal_messages', companyId),
+      this.deleteRelatedData('quote_requests', companyId),
+      this.deleteRelatedData('sms_templates', companyId),
+      this.deleteRelatedData('sms', companyId),
+      this.deleteRelatedData('team_members', companyId),
+      this.deleteRelatedData('billing_events', companyId),
+      this.deleteRelatedDataByAttribute('reviews', 'provider_company_id', companyId),
+      this.deleteRelatedDataByAttribute('realtime_cache', 'company_id', companyId),
     ]);
+
+    await this.dynamodb.delete(this.tableName, { company_id: companyId });
   }
 
   assertSelfServeDeletionAllowed(company: Company): void {
@@ -449,14 +493,12 @@ export class CompaniesService {
    */
   private async deleteRelatedData(tableName: string, companyId: string): Promise<void> {
     try {
-      const result = await this.dynamodb.query(
-        tableName,
-        '#company_id = :company_id',
-        { '#company_id': 'company_id' },
-        { ':company_id': companyId }
-      );
+      const result = await this.dynamodb.scan(tableName, {
+        filterExpression: '#company_id = :company_id',
+        expressionAttributeNames: { '#company_id': 'company_id' },
+        expressionAttributeValues: { ':company_id': companyId },
+      });
 
-      // Delete each item
       for (const item of result.items) {
         const keys = this.getTableKeys(tableName, item);
         if (keys) {
@@ -469,12 +511,36 @@ export class CompaniesService {
     }
   }
 
+  private async deleteRelatedDataByAttribute(
+    tableName: string,
+    attributeName: string,
+    value: string
+  ): Promise<void> {
+    try {
+      const result = await this.dynamodb.scan(tableName, {
+        filterExpression: '#attr = :value',
+        expressionAttributeNames: { '#attr': attributeName },
+        expressionAttributeValues: { ':value': value },
+      });
+
+      for (const item of result.items) {
+        const keys = this.getTableKeys(tableName, item);
+        if (keys) {
+          await this.dynamodb.delete(tableName, keys);
+        }
+      }
+    } catch (error) {
+      console.error(`Failed to delete related data from ${tableName} by ${attributeName}:`, error);
+    }
+  }
+
   /**
    * Get the primary key for a table item
    */
   private getTableKeys(tableName: string, item: any): any {
     const keyMap: Record<string, string[]> = {
       users: ['company_id', 'user_id'],
+      company_numbers: ['did_e164'],
       calls: ['company_id', 'call_id'],
       contacts: ['company_id', 'contact_id'],
       appointments: ['company_id', 'appointment_id'],
@@ -487,6 +553,22 @@ export class CompaniesService {
       notifications: ['company_id', 'notification_id'],
       notification_devices: ['company_id', 'device_id'],
       notification_usage_alerts: ['company_id', 'alert_key'],
+      usage_metrics: ['company_id', 'date'],
+      billing_events: ['company_id', 'event_id'],
+      customer_payments: ['company_id', 'payment_id'],
+      connected_accounts: ['company_id'],
+      chat_sessions: ['company_id', 'session_id'],
+      follow_up_sequences: ['company_id', 'sequence_id'],
+      scheduled_messages: ['company_id', 'message_id'],
+      invoices: ['company_id', 'invoice_id'],
+      outbound_calls: ['company_id', 'call_id'],
+      portal_messages: ['company_id', 'message_id'],
+      quote_requests: ['company_id', 'quote_id'],
+      realtime_cache: ['contact_id'],
+      reviews: ['provider_company_id', 'review_id'],
+      sms_templates: ['company_id', 'template_id'],
+      sms: ['company_id', 'sms_id'],
+      team_members: ['company_id', 'member_id'],
     };
 
     const keyNames = keyMap[tableName];
@@ -500,6 +582,30 @@ export class CompaniesService {
     }
 
     return Object.keys(keys).length > 0 ? keys : null;
+  }
+
+  private async writeDeletionAudit(
+    company: Company,
+    options?: {
+      deletedByUserId?: string;
+      deletedByEmail?: string;
+      source?: 'self_serve' | 'admin';
+    }
+  ): Promise<void> {
+    await this.dynamodb.put(this.deletionAuditTableName, {
+      company_id: company.company_id,
+      deleted_at: Date.now(),
+      audit_id: uuidv4(),
+      company_name: company.company_name,
+      company_email: company.email,
+      company_phone: company.phone_number || null,
+      subscription_plan: company.subscription_plan || null,
+      subscription_status: company.subscription_status || null,
+      source: options?.source || 'self_serve',
+      deleted_by_user_id: options?.deletedByUserId || null,
+      deleted_by_email: options?.deletedByEmail || null,
+      created_at: Date.now(),
+    });
   }
 
   /**
@@ -566,9 +672,10 @@ export class CompaniesService {
     const allCompanies = await this.listAll();
 
     const lowercaseSearch = searchTerm.toLowerCase();
-    return allCompanies.filter(company =>
-      company.company_name.toLowerCase().includes(lowercaseSearch) ||
-      company.email.toLowerCase().includes(lowercaseSearch)
+    return allCompanies.filter(
+      (company) =>
+        company.company_name.toLowerCase().includes(lowercaseSearch) ||
+        company.email.toLowerCase().includes(lowercaseSearch)
     );
   }
 

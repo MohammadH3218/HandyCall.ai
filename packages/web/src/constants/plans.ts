@@ -73,7 +73,6 @@ export const PLAN_CATALOG: Record<SubscriptionPlan, PlanCatalogEntry> = {
       'Everything in Pro, plus:',
       'CRM integrations (Zapier, webhooks)',
       'Advanced routing (overflow + multi-location)',
-      'Website chat widget',
       'Call recording (90-day retention)',
       'Priority phone support',
     ],

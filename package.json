@@ -7,7 +7,7 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "npm run shared:build && concurrently --names 'shared,backend,web,voice,realtime' --prefix-colors 'cyan,green,blue,yellow,magenta' \"npm run dev -w packages/shared\" \"npm run dev -w packages/backend\" \"npm run dev -w packages/web\" \"npm run dev -w packages/voice-bridge\" \"npm run dev -w packages/realtime-controller\"",
+    "dev": "npm run shared:build && concurrently --names 'shared,backend,web,voice,realtime' --prefix-colors 'cyan,green,blue,yellow,magenta' \"npm run dev -w packages/shared\" \"npm run dev -w packages/backend\" \"npm run dev -w packages/web\" \"bash scripts/local/start-voice-bridge-dev.sh\" \"npm run dev -w packages/realtime-controller\"",
     "build": "npm run build --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present",

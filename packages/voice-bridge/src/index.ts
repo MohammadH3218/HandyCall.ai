@@ -741,6 +741,25 @@ type SessionContext = {
   serviceNeed?: string;
 };
 
+const SUPPORTED_REALTIME_VOICES = new Set([
+  'alloy',
+  'ash',
+  'ballad',
+  'coral',
+  'echo',
+  'sage',
+  'shimmer',
+  'verse',
+  'marin',
+  'cedar',
+]);
+
+function normalizeRealtimeVoice(voice: string | undefined | null): string {
+  const normalized = String(voice || '').trim().toLowerCase();
+  if (normalized && SUPPORTED_REALTIME_VOICES.has(normalized)) return normalized;
+  return 'alloy';
+}
+
 function hasBookingIntent(text: string): boolean {
   const t = String(text || '').toLowerCase();
   if (
@@ -1468,7 +1487,7 @@ const server = http.createServer(async (req, res) => {
       const aiTwiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Connect>
-    <Stream url="${escapeXml(mediaWsUrl)}"${trackAttr} statusCallback="${escapeXml(streamStatusUrl)}" statusCallbackEvent="start end">
+    <Stream url="${escapeXml(mediaWsUrl)}"${trackAttr} statusCallback="${escapeXml(streamStatusUrl)}">
       <Parameter name="callSid" value="${escapeXml(callSid)}" />
       <Parameter name="to" value="${escapeXml(to)}" />
       <Parameter name="from" value="${escapeXml(from)}" />
@@ -1517,7 +1536,7 @@ const server = http.createServer(async (req, res) => {
 <Response>
   <Dial timeout="${safeTimeout}">${escapeXml(routingTarget)}</Dial>
   <Connect>
-    <Stream url="${escapeXml(mediaWsUrl)}"${trackAttr} statusCallback="${escapeXml(streamStatusUrl)}" statusCallbackEvent="start end">
+    <Stream url="${escapeXml(mediaWsUrl)}"${trackAttr} statusCallback="${escapeXml(streamStatusUrl)}">
       <Parameter name="callSid" value="${escapeXml(callSid)}" />
       <Parameter name="to" value="${escapeXml(to)}" />
       <Parameter name="from" value="${escapeXml(from)}" />
@@ -1609,15 +1628,28 @@ wss.on('connection', (twilioWs: WebSocket) => {
   // let lastBookingPromptAt = 0; // Unused
   let bookingPromptActive = false;
     let lastAvailabilitySlots: string[] = [];
-    let lastAvailabilityTimezone: string | null = null;
-    let initialGreetingSent = false;
-    let openaiSessionReady = false;
-    let twilioStreamReady = false;
-    let allowModelResponse = false;
+  let lastAvailabilityTimezone: string | null = null;
+  let initialGreetingSent = false;
+  let initialGreetingTimer: NodeJS.Timeout | null = null;
+  let initialGreetingStartedAt = 0;
+  let openaiSessionReady = false;
+  let twilioStreamReady = false;
+  let allowModelResponse = false;
+  let openaiResponseActive = false;
   let outboundAudioQueue: string[] = [];
   let outboundAudioTimer: NodeJS.Timeout | null = null;
   let outboundNextSendAt = 0;
   let lowSignalCount = 0;
+  let hasAcceptedCallerTranscript = false;
+  const enableBargeIn = (envFirst(['REALTIME_ENABLE_BARGE_IN', 'OPENAI_ENABLE_BARGE_IN']) ?? 'true') !== 'false';
+  const assistantInputMuteMs = (() => {
+    const parsed = Number(envFirst(['REALTIME_ASSISTANT_INPUT_MUTE_MS']) ?? '1200');
+    return Number.isFinite(parsed) && parsed >= 0 ? parsed : 1200;
+  })();
+  const greetingTranscriptLockMs = (() => {
+    const parsed = Number(envFirst(['REALTIME_GREETING_LOCK_MS']) ?? '4500');
+    return Number.isFinite(parsed) && parsed >= 0 ? parsed : 4500;
+  })();
 
   function log(msg: string, extra?: any) {
     const prefix = ctx ? `[callSid=${ctx.callSid} streamSid=${ctx.streamSid}]` : '[twilio]';
@@ -1646,6 +1678,13 @@ wss.on('connection', (twilioWs: WebSocket) => {
     }
     if (!outboundNextSendAt) outboundNextSendAt = Date.now();
     if (!outboundAudioTimer) scheduleTwilioAudioDrain();
+  }
+
+  function isAssistantPlaybackActive(): boolean {
+    if (Date.now() < assistantAudioActiveUntil) return true;
+    if (outboundAudioQueue.length > 0) return true;
+    if (outboundAudioTimer) return true;
+    return false;
   }
 
   function scheduleTwilioAudioDrain() {
@@ -1888,21 +1927,30 @@ wss.on('connection', (twilioWs: WebSocket) => {
     if (initialGreetingSent) return;
     if (!openaiSessionReady || !twilioStreamReady) return;
     if (!ctx || !openaiWs || pendingAutoHangup) return;
+    if (initialGreetingTimer) return;
 
-    initialGreetingSent = true;
-    log('Sending initial greeting', { openaiReady: openaiSessionReady, twilioReady: twilioStreamReady });
+    // Let Twilio stream settle briefly to avoid clipping the first words of the intro.
+    initialGreetingTimer = setTimeout(() => {
+      initialGreetingTimer = null;
+      if (initialGreetingSent) return;
+      if (!openaiSessionReady || !twilioStreamReady) return;
+      if (!ctx || !openaiWs || pendingAutoHangup) return;
 
-    const companyName = tenant?.company_name || 'HandyCall';
-    const greetingText = `Hi, thanks for calling ${companyName}. How can I help you today?`;
+      initialGreetingSent = true;
+      initialGreetingStartedAt = Date.now();
+      log('Sending initial greeting', { openaiReady: openaiSessionReady, twilioReady: twilioStreamReady });
 
-    if (fsmEnabled) {
-      sessionContext.state = 'GREETING';
-      sendPrompt(greetingText, { max_output_tokens: 80 });
-    } else {
-      sendPrompt(greetingText, { max_output_tokens: 80 });
-    }
-    noResponseStage = 0;
-    armNoResponseTimer();
+      const companyName = tenant?.company_name || 'HandyCall';
+      const greetingText = `Hi, thanks for calling ${companyName}. How can I help you today?`;
+
+      if (fsmEnabled) {
+        sessionContext.state = 'GREETING';
+        sendPrompt(greetingText, { max_output_tokens: 80 });
+      } else {
+        sendPrompt(greetingText, { max_output_tokens: 80 });
+      }
+      noResponseStage = 0;
+    }, 450);
   }
 
   function repromptLowSignal(attempt: number) {
@@ -1918,7 +1966,8 @@ wss.on('connection', (twilioWs: WebSocket) => {
     function sendPrompt(text: string, options?: { max_output_tokens?: number }) {
       if (!openaiWs || pendingAutoHangup) return;
       clearPendingResponseTimer();
-      if (lastResponseId) {
+      const shouldCancelForBargeIn = enableBargeIn && isAssistantPlaybackActive();
+      if (shouldCancelForBargeIn && openaiResponseActive) {
         sendToOpenAI(openaiWs, { type: 'response.cancel' });
       }
       allowModelResponse = true;
@@ -1937,9 +1986,8 @@ wss.on('connection', (twilioWs: WebSocket) => {
           ['audio', 'text'],
           `Read the following sentence verbatim. Do not add, remove, or paraphrase any words: "${safe}"`,
         {
-          temperature: 0,
+          temperature: 0.7,
           max_output_tokens: maxTokens,
-          ...(fsmEnabled ? { tool_choice: 'none' } : {}),
         }
       )
     );
@@ -2444,7 +2492,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
     allowModelResponse = true;
     sendToOpenAI(
       openaiWs,
-      responseCreate(['audio', 'text'], instructions, { temperature: 0.2, max_output_tokens: 200, tool_choice: 'none' })
+      responseCreate(['audio', 'text'], instructions, { temperature: 0.7, max_output_tokens: 200 })
     );
     return true;
   }
@@ -3314,12 +3362,13 @@ wss.on('connection', (twilioWs: WebSocket) => {
 
   function armNoResponseTimer() {
     clearNoResponseTimer();
-    const delayMs = noResponseStage === 0 ? 8000 : 7000;
+    if (!hasAcceptedCallerTranscript) return;
+    const delayMs = noResponseStage === 0 ? 12000 : 10000;
     noResponseTimer = setTimeout(() => {
       noResponseTimer = null;
       if (!ctx || !openaiWs) return;
       // Don't interrupt if the assistant is actively speaking.
-      if (Date.now() < assistantAudioActiveUntil) {
+      if (isAssistantPlaybackActive()) {
         armNoResponseTimer();
         return;
       }
@@ -3381,7 +3430,9 @@ wss.on('connection', (twilioWs: WebSocket) => {
         pendingHangupMarkName = `no_response_${Date.now()}`;
       }
         scheduleForcedHangup('no response after two prompts');
-        sendToOpenAI(openaiWs, { type: 'response.cancel' });
+        if (openaiResponseActive) {
+          sendToOpenAI(openaiWs, { type: 'response.cancel' });
+        }
         allowModelResponse = true;
         sendToOpenAI(openaiWs, {
           type: 'response.create',
@@ -3568,10 +3619,15 @@ wss.on('connection', (twilioWs: WebSocket) => {
         tenant?.agent_config?.realtime_model ||
         envFirst(['OPENAI_REALTIME_MODEL', 'REALTIME_MODEL']) ||
         'gpt-realtime-mini';
-      const voice =
+      const requestedVoice =
         tenant?.agent_config?.realtime_voice ||
         envFirst(['OPENAI_REALTIME_VOICE', 'REALTIME_VOICE']) ||
-        'nova';
+        'alloy';
+      const voice = normalizeRealtimeVoice(requestedVoice);
+      if (voice !== String(requestedVoice || '').trim().toLowerCase()) {
+        log('Unsupported realtime voice, falling back', { requestedVoice, using: voice });
+      }
+      log('Realtime session config', { model, voice, bargeIn: enableBargeIn });
       const instructions = buildInstructions({
         company_name: tenant.company_name,
         service_type: tenant.service_type,
@@ -3606,12 +3662,22 @@ wss.on('connection', (twilioWs: WebSocket) => {
             // Too low can cause interruptions; tune if you notice cutoffs.
             turn_detection: {
               type: 'semantic_vad',
-              create_response: true,
-              interrupt_response: true,
+              create_response: false,
+              interrupt_response: enableBargeIn,
             },
           },
         });
         openaiOutputAudioFormat = 'g711_ulaw';
+
+        // Some Realtime sessions do not emit `session.updated` quickly (or at all).
+        // Arm a fallback so the initial greeting is not blocked waiting for that event.
+        setTimeout(() => {
+          if (!openaiWs || openaiWs.readyState !== WebSocket.OPEN) return;
+          if (openaiSessionReady) return;
+          openaiSessionReady = true;
+          log('OpenAI session readiness fallback triggered');
+          tryInitialGreeting();
+        }, 1200);
 
         // Create lead/call record in the background (so greeting isn't delayed).
         invokeTool(ctx, 'create_lead', { collected_info: {} }).catch((e: any) =>
@@ -3632,6 +3698,22 @@ wss.on('connection', (twilioWs: WebSocket) => {
 
         if (msg?.type === 'session.created') {
           log('OpenAI session created', { id: msg?.session?.id });
+          if (!openaiSessionReady) {
+            openaiSessionReady = true;
+            tryInitialGreeting();
+          }
+        }
+
+        if (msg?.type === 'error' || msg?.type === 'response.failed') {
+          openaiResponseActive = false;
+          log('OpenAI response error', {
+            type: msg?.type,
+            code: msg?.error?.code || msg?.code,
+            message: msg?.error?.message || msg?.message,
+          });
+        }
+        if (msg?.type === 'response.cancelled') {
+          openaiResponseActive = false;
         }
 
         if (msg?.type === 'session.updated') {
@@ -3643,10 +3725,15 @@ wss.on('connection', (twilioWs: WebSocket) => {
           tryInitialGreeting();
         }
 
-        const responseEvent = typeof msg?.type === 'string' && msg.type.startsWith('response.');
-        if (responseEvent && !allowModelResponse) {
-          if (msg.type === 'response.created') {
-            log('Blocking unsolicited model response');
+        if (msg?.type === 'response.created') {
+          openaiResponseActive = true;
+        }
+
+        // Guard only new unsolicited responses. Do not drop trailing response.audio.* events,
+        // otherwise playback can be cut mid-sentence if response.done arrives early.
+        if (msg?.type === 'response.created' && !allowModelResponse) {
+          log('Blocking unsolicited model response');
+          if (openaiResponseActive) {
             sendToOpenAI(openaiWs, { type: 'response.cancel' });
           }
           return;
@@ -3660,15 +3747,17 @@ wss.on('connection', (twilioWs: WebSocket) => {
           // lastUserSpeechDurationMs = 0;
           clearNoResponseTimer();
           clearPendingResponseTimer();
-          // Barge-in: clear any buffered audio on the Twilio side and stop queued audio
-          outboundAudioQueue = [];
-          outboundNextSendAt = 0;
-          if (outboundAudioTimer) {
-            clearTimeout(outboundAudioTimer);
-            outboundAudioTimer = null;
-          }
-          if (ctx?.streamSid) {
-            sendToTwilio(twilioWs, { event: 'clear', streamSid: ctx.streamSid });
+          if (enableBargeIn) {
+            // Barge-in: clear any buffered audio on the Twilio side and stop queued audio
+            outboundAudioQueue = [];
+            outboundNextSendAt = 0;
+            if (outboundAudioTimer) {
+              clearTimeout(outboundAudioTimer);
+              outboundAudioTimer = null;
+            }
+            if (ctx?.streamSid) {
+              sendToTwilio(twilioWs, { event: 'clear', streamSid: ctx.streamSid });
+            }
           }
         }
 
@@ -3685,8 +3774,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
         }
 
         if (msg?.type === 'response.audio.delta' && typeof msg?.delta === 'string') {
-          const now = Date.now();
-          assistantAudioActiveUntil = now + 350;
+          assistantAudioActiveUntil = Date.now() + assistantInputMuteMs;
           const asPcm16 = shouldTreatDeltaAsPcm16(msg.delta);
           const bytes = asPcm16 ? decodeBase64Safe(msg.delta) : null;
           const payload = asPcm16 && bytes ? pcm16BytesToG711UlawBase64Adaptive(bytes) : msg.delta;
@@ -3701,6 +3789,11 @@ wss.on('connection', (twilioWs: WebSocket) => {
             });
           }
           enqueueTwilioAudio(payload);
+          // Account for queued Twilio frames so downstream guards don't fire before playback ends.
+          assistantAudioActiveUntil = Math.max(
+            assistantAudioActiveUntil,
+            Date.now() + outboundAudioQueue.length * 20 + assistantInputMuteMs
+          );
         }
 
         if (
@@ -3751,13 +3844,25 @@ wss.on('connection', (twilioWs: WebSocket) => {
         if (msg?.type === 'conversation.item.input_audio_transcription.completed') {
           const t = msg?.transcript;
           if (typeof t === 'string' && t.trim()) {
+            if (initialGreetingStartedAt && Date.now() - initialGreetingStartedAt < greetingTranscriptLockMs) {
+              log('Ignoring transcript during greeting lock', { text: t.trim() });
+              return;
+            }
+            if (!enableBargeIn && isAssistantPlaybackActive()) {
+              log('Ignoring transcript during assistant output guard', { text: t.trim() });
+              return;
+            }
             clearNoResponseTimer();
             lastUserTranscriptAt = Date.now();
             const text = t.trim();
             if (isLowSignalTranscript(text)) {
-              lowSignalCount = Math.min(lowSignalCount + 1, 2);
-              log('Low-signal transcript gate', { text });
-              repromptLowSignal(lowSignalCount);
+              if (!enableBargeIn && isAssistantPlaybackActive()) {
+                log('Ignoring low-signal transcript near assistant audio', { text });
+                if (!pendingAutoHangup) armNoResponseTimer();
+                return;
+              }
+              log('Ignoring low-signal transcript', { text });
+              if (!pendingAutoHangup) armNoResponseTimer();
               return;
             }
             lowSignalCount = 0;
@@ -3806,12 +3911,20 @@ wss.on('connection', (twilioWs: WebSocket) => {
                 armNoResponseTimer();
                 return;
               }
-              const recentSpeechStart = lastUserSpeechStartedAt > 0 && Date.now() - lastUserSpeechStartedAt < 4000;
-              const noSpeechMarker =
-                !recentSpeechStart &&
-                speechDurationMs === 0 &&
-                wordCount <= 2 &&
-                !/\d/.test(text);
+            const recentSpeechStart = lastUserSpeechStartedAt > 0 && Date.now() - lastUserSpeechStartedAt < 4000;
+            if (!enableBargeIn) {
+              const hasSpeechEvidence = recentSpeechStart || speechDurationMs >= 250;
+              if (!hasSpeechEvidence) {
+                log('Ignoring transcript without speech evidence', { text, speechDurationMs });
+                armNoResponseTimer();
+                return;
+              }
+            }
+            const noSpeechMarker =
+              !recentSpeechStart &&
+              speechDurationMs === 0 &&
+              wordCount <= 2 &&
+              !/\d/.test(text);
               if (noSpeechMarker) {
                 log('Ignoring transcript without speech markers', { text });
                 armNoResponseTimer();
@@ -3836,7 +3949,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
                 armNoResponseTimer();
                 return;
               }
-            if (Date.now() < assistantAudioActiveUntil && !isFillerUtterance(text)) {
+            if (enableBargeIn && Date.now() < assistantAudioActiveUntil && !isFillerUtterance(text)) {
               sendToOpenAI(openaiWs, { type: 'response.cancel' });
               sendToTwilio(twilioWs, { event: 'clear', streamSid: ctx.streamSid });
               assistantAudioActiveUntil = 0;
@@ -3848,6 +3961,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
             }
             lastCallerText = normalizedText;
             lastCallerAt = Date.now();
+            hasAcceptedCallerTranscript = true;
             conversation.push({ role: 'caller', text });
             pendingUserTranscript = pendingUserTranscript
               ? `${pendingUserTranscript} ${text}`
@@ -3916,7 +4030,9 @@ wss.on('connection', (twilioWs: WebSocket) => {
                 log('Auto-hangup triggered; generating goodbye', { mark: pendingHangupMarkName });
                 scheduleForcedHangup('caller said no (anything else)');
                 // Cancel any in-flight response and force a short goodbye before ending.
-                sendToOpenAI(openaiWs, { type: 'response.cancel' });
+                if (openaiResponseActive) {
+                  sendToOpenAI(openaiWs, { type: 'response.cancel' });
+                }
                 allowModelResponse = true;
                 sendToOpenAI(openaiWs, {
                   type: 'response.create',
@@ -4335,6 +4451,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
         }
 
         if (msg?.type === 'response.done') {
+          openaiResponseActive = false;
           if (bookingPromptActive) bookingPromptActive = false;
           const extracted = extractAssistantTextFromDone(msg);
           const candidate =
@@ -4354,7 +4471,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
             if (finalAssistant.includes('?')) {
               lastAssistantQuestionAt = now;
               noResponseStage = 0;
-              if (!pendingAutoHangup) armNoResponseTimer();
+              if (!pendingAutoHangup && hasAcceptedCallerTranscript) armNoResponseTimer();
             }
           }
             if (responseId) lastResponseId = responseId;
@@ -4374,12 +4491,14 @@ wss.on('connection', (twilioWs: WebSocket) => {
 
       openaiWs.on('close', () => {
         log('OpenAI websocket closed');
+        openaiResponseActive = false;
         openaiWs = null;
         twilioWs.close();
       });
 
       openaiWs.on('error', (err) => {
         log('OpenAI websocket error', (err as any)?.message ?? String(err));
+        openaiResponseActive = false;
         openaiWs = null;
         twilioWs.close();
       });
@@ -4396,6 +4515,12 @@ wss.on('connection', (twilioWs: WebSocket) => {
       if (!twilioStreamReady) {
         twilioStreamReady = true;
         tryInitialGreeting();
+      }
+
+      // When barge-in is disabled, do not feed inbound audio while assistant is speaking.
+      // This prevents comfort-noise/echo from being transcribed as user speech.
+      if (!enableBargeIn && isAssistantPlaybackActive()) {
+        return;
       }
 
       // NOISE GATE: RMS-based filtering

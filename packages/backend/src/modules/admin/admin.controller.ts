@@ -25,10 +25,7 @@ export class AdminController {
    * Get recent activity across all companies (admin only)
    */
   @Get('activity')
-  async getRecentActivity(
-    @UserRoleParam() role: UserRole,
-    @Query('limit') limit?: string
-  ) {
+  async getRecentActivity(@UserRoleParam() role: UserRole, @Query('limit') limit?: string) {
     if (role !== UserRole.ADMIN) {
       throw new NotFoundException('Not found');
     }
@@ -37,14 +34,21 @@ export class AdminController {
     return this.adminService.getRecentActivity(limitNum);
   }
 
+  @Get('deleted-accounts')
+  async getDeletedAccounts(@UserRoleParam() role: UserRole, @Query('limit') limit?: string) {
+    if (role !== UserRole.ADMIN) {
+      throw new NotFoundException('Not found');
+    }
+
+    const limitNum = limit ? parseInt(limit, 10) : 20;
+    return this.adminService.getDeletedAccounts(limitNum);
+  }
+
   /**
    * Get top companies by usage/revenue (admin only)
    */
   @Get('top-companies')
-  async getTopCompanies(
-    @UserRoleParam() role: UserRole,
-    @Query('limit') limit?: string
-  ) {
+  async getTopCompanies(@UserRoleParam() role: UserRole, @Query('limit') limit?: string) {
     if (role !== UserRole.ADMIN) {
       throw new NotFoundException('Not found');
     }
@@ -57,10 +61,7 @@ export class AdminController {
    * Cancel a company's subscription at period end (admin only)
    */
   @Post('companies/:id/cancel-subscription')
-  async cancelSubscription(
-    @UserRoleParam() role: UserRole,
-    @Param('id') companyId: string
-  ) {
+  async cancelSubscription(@UserRoleParam() role: UserRole, @Param('id') companyId: string) {
     if (role !== UserRole.ADMIN) {
       throw new NotFoundException('Not found');
     }
@@ -72,10 +73,7 @@ export class AdminController {
    * Suspend a company's account immediately (admin only)
    */
   @Post('companies/:id/suspend')
-  async suspendCompany(
-    @UserRoleParam() role: UserRole,
-    @Param('id') companyId: string
-  ) {
+  async suspendCompany(@UserRoleParam() role: UserRole, @Param('id') companyId: string) {
     if (role !== UserRole.ADMIN) {
       throw new NotFoundException('Not found');
     }

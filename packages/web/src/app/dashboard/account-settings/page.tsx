@@ -8,6 +8,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { PageHeader } from '@/components/portal/page-header';
 import { useToast } from '@/hooks/use-toast';
 import type { User } from '@handycall/shared';
@@ -32,6 +40,9 @@ export default function AccountSettingsPage() {
   const [passwordSending, setPasswordSending] = useState(false);
   const [profileEditing, setProfileEditing] = useState(false);
   const [companyEditing, setCompanyEditing] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleteConfirmName, setDeleteConfirmName] = useState('');
+  const [deleteSubmitting, setDeleteSubmitting] = useState(false);
 
   const normalizeUsPhone = (value: string) => {
     const digits = value.replace(/\D/g, '');
@@ -113,9 +124,7 @@ export default function AccountSettingsPage() {
       });
 
       const emailChanged =
-        updated?.email &&
-        storeEmail &&
-        updated.email.toLowerCase() !== storeEmail.toLowerCase();
+        updated?.email && storeEmail && updated.email.toLowerCase() !== storeEmail.toLowerCase();
 
       toast({
         title: 'Profile updated',
@@ -192,6 +201,38 @@ export default function AccountSettingsPage() {
     }
   };
 
+  const handleDeleteAccount = async () => {
+    if (!company?.company_name) return;
+
+    if (deleteConfirmName.trim() !== company.company_name.trim()) {
+      toast({
+        title: 'Confirmation required',
+        description: 'Enter your exact company name to confirm deletion.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setDeleteSubmitting(true);
+    try {
+      await apiClient.deleteMyAccount();
+      setDeleteDialogOpen(false);
+      toast({
+        title: 'Account deleted',
+        description: 'Your company account and related data were removed.',
+      });
+      await signOut({ callbackUrl: '/login' });
+    } catch (error: any) {
+      toast({
+        title: 'Delete account failed',
+        description: error?.message || 'Could not delete this account.',
+        variant: 'destructive',
+      });
+    } finally {
+      setDeleteSubmitting(false);
+    }
+  };
+
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
       <PageHeader
@@ -228,7 +269,9 @@ export default function AccountSettingsPage() {
               <Input
                 id="first_name"
                 value={profileDraft.first_name}
-                onChange={(e) => setProfileDraft((prev) => ({ ...prev, first_name: e.target.value }))}
+                onChange={(e) =>
+                  setProfileDraft((prev) => ({ ...prev, first_name: e.target.value }))
+                }
                 disabled={!profileEditing}
               />
             </div>
@@ -237,7 +280,9 @@ export default function AccountSettingsPage() {
               <Input
                 id="last_name"
                 value={profileDraft.last_name}
-                onChange={(e) => setProfileDraft((prev) => ({ ...prev, last_name: e.target.value }))}
+                onChange={(e) =>
+                  setProfileDraft((prev) => ({ ...prev, last_name: e.target.value }))
+                }
                 disabled={!profileEditing}
               />
             </div>
@@ -276,7 +321,9 @@ export default function AccountSettingsPage() {
               id="contact_email"
               type="email"
               value={profileDraft.contact_email}
-              onChange={(e) => setProfileDraft((prev) => ({ ...prev, contact_email: e.target.value }))}
+              onChange={(e) =>
+                setProfileDraft((prev) => ({ ...prev, contact_email: e.target.value }))
+              }
               disabled={!profileEditing}
             />
           </div>
@@ -340,7 +387,9 @@ export default function AccountSettingsPage() {
             <Input
               id="company_name"
               value={companyDraft.company_name}
-              onChange={(e) => setCompanyDraft((prev) => ({ ...prev, company_name: e.target.value }))}
+              onChange={(e) =>
+                setCompanyDraft((prev) => ({ ...prev, company_name: e.target.value }))
+              }
               disabled={!company || !companyEditing}
             />
           </div>
@@ -363,6 +412,93 @@ export default function AccountSettingsPage() {
           )}
         </CardContent>
       </Card>
+
+      <Card className="border-red-200">
+        <CardHeader>
+          <CardTitle className="text-red-600">Delete account</CardTitle>
+          <CardDescription>
+            Permanently remove this company and its related data. Billing- or Stripe-linked accounts
+            must contact hello@handycall.org instead.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="rounded-lg border border-red-100 bg-red-50/50 p-4 text-sm text-red-700">
+            This deletes company data, users, calls, appointments, knowledge base entries,
+            notifications, messages, invoices, and stored artifacts. This action cannot be undone.
+          </div>
+          <div className="flex justify-end">
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={() => setDeleteDialogOpen(true)}
+              disabled={!company}
+            >
+              Delete account
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Dialog
+        open={deleteDialogOpen}
+        onOpenChange={(open) => {
+          setDeleteDialogOpen(open);
+          if (!open) setDeleteConfirmName('');
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-red-600">Delete account</DialogTitle>
+            <DialogDescription>
+              Type{' '}
+              <span className="font-semibold text-slate-900">
+                {company?.company_name || 'your company name'}
+              </span>{' '}
+              to confirm permanent deletion.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="rounded-lg border border-red-100 bg-red-50/50 p-4 text-sm text-red-700">
+              This removes the company, users, calls, appointments, knowledge base, notifications,
+              stored recordings, SMS data, invoices, and other related cloud data. Only an admin
+              deletion-history record is kept.
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="delete_company_name">Company name</Label>
+              <Input
+                id="delete_company_name"
+                value={deleteConfirmName}
+                onChange={(e) => setDeleteConfirmName(e.target.value)}
+                placeholder={company?.company_name || ''}
+                autoFocus
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setDeleteDialogOpen(false);
+                setDeleteConfirmName('');
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={handleDeleteAccount}
+              disabled={
+                deleteSubmitting ||
+                deleteConfirmName.trim() !== (company?.company_name || '').trim()
+              }
+            >
+              {deleteSubmitting ? 'Deleting...' : 'Confirm delete'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { apiClient } from '@/lib/api-client';
 import { PageHeader } from '@/components/portal/page-header';
 import { EmptyState } from '@/components/portal/empty-state';
@@ -38,11 +38,48 @@ const FOLLOW_UP_BLOCKS = [
   { key: 'follow_up_final', title: 'Final message', fallbackDelay: 4320, fallbackText: 'Final follow-up from {{company_name}}. Reply if you would like to reserve a time.' },
 ] as const;
 
+const FRIENDLY_TOKENS = {
+  '[Customer name]': '{{contact_name}}',
+  '[Company name]': '{{company_name}}',
+  '[Booking link]': '{{booking_link}}',
+} as const;
+
+function toFriendlyTemplate(value?: string) {
+  let next = String(value || '');
+  Object.entries(FRIENDLY_TOKENS).forEach(([friendly, raw]) => {
+    next = next.split(raw).join(friendly);
+  });
+  return next;
+}
+
+function toApiTemplate(value?: string) {
+  let next = String(value || '');
+  Object.entries(FRIENDLY_TOKENS).forEach(([friendly, raw]) => {
+    next = next.split(friendly).join(raw);
+  });
+  return next;
+}
+
+function renderTemplatePreview(
+  value: string,
+  replacements: { customerName: string; companyName: string; bookingLink: string }
+) {
+  return toApiTemplate(value)
+    .split('{{contact_name}}').join(replacements.customerName)
+    .split('{{company_name}}').join(replacements.companyName)
+    .split('{{booking_link}}').join(replacements.bookingLink);
+}
+
 export default function FollowUpsPage() {
   const { toast } = useToast();
   const { hasFeature } = usePlanFeatures();
   const [settings, setSettings] = useState<FollowUpSettings | null>(null);
   const [sequences, setSequences] = useState<Sequence[]>([]);
+  const [company, setCompany] = useState<any>(null);
+  const [contacts, setContacts] = useState<any[]>([]);
+  const [appointments, setAppointments] = useState<any[]>([]);
+  const [previewContactId, setPreviewContactId] = useState('NONE');
+  const [previewAppointmentId, setPreviewAppointmentId] = useState('NONE');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -51,9 +88,16 @@ export default function FollowUpsPage() {
   const load = async () => {
     setLoading(true);
     try {
-      const [company, seqData] = await Promise.all([
+      const now = new Date();
+      const start = new Date(now);
+      start.setMonth(start.getMonth() - 3);
+      const end = new Date(now);
+      end.setFullYear(end.getFullYear() + 1);
+      const [company, seqData, contactsData, appointmentsData] = await Promise.all([
         (apiClient as any).get('/companies/me'),
         (apiClient as any).get('/follow-up-sequences').catch(() => ({ items: [] })),
+        apiClient.getContacts(200).catch(() => ({ contacts: [] })),
+        apiClient.getAppointmentsRange(start.toISOString(), end.toISOString()).catch(() => ({ appointments: [] })),
       ]);
       const nextSettings: FollowUpSettings = {
         follow_up_sequences_enabled: company?.follow_up_sequences_enabled || false,
@@ -68,9 +112,12 @@ export default function FollowUpsPage() {
         review_request_delay_minutes: company?.review_request_delay_minutes ?? 120,
         review_platform_url: company?.review_platform_url || '',
       };
+      setCompany(company);
       setSettings(nextSettings);
       setEditSettings(nextSettings);
       setSequences(Array.isArray(seqData) ? seqData : seqData?.items || []);
+      setContacts(Array.isArray(contactsData?.contacts) ? contactsData.contacts : []);
+      setAppointments(Array.isArray(appointmentsData?.appointments) ? appointmentsData.appointments : []);
     } catch {
       toast({ title: 'Error', description: 'Failed to load follow-up settings', variant: 'destructive' });
     } finally {
@@ -100,8 +147,15 @@ export default function FollowUpsPage() {
     if (!editSettings) return;
     setSaving(true);
     try {
-      await (apiClient as any).put('/companies/me', editSettings);
-      setSettings({ ...editSettings });
+      const payload: FollowUpSettings = {
+        ...editSettings,
+        follow_up_initial_template: toApiTemplate(editSettings.follow_up_initial_template || ''),
+        follow_up_second_template: toApiTemplate(editSettings.follow_up_second_template || ''),
+        follow_up_final_template: toApiTemplate(editSettings.follow_up_final_template || ''),
+        review_request_template: toApiTemplate(editSettings.review_request_template || ''),
+      };
+      await (apiClient as any).put('/companies/me', payload);
+      setSettings({ ...payload });
       setEditing(false);
       toast({ title: 'Settings saved', description: 'Your follow-up automation has been updated.' });
     } catch (err: any) {
@@ -115,6 +169,23 @@ export default function FollowUpsPage() {
     setEditSettings(settings);
     setEditing(false);
   };
+
+  const selectedContact = contacts.find((contact: any) => String(contact.contact_id) === previewContactId);
+  const contactAppointments = useMemo(
+    () =>
+      appointments
+        .filter((appointment: any) => selectedContact && appointment.contact_id === selectedContact.contact_id)
+        .sort((a: any, b: any) => Number(a.scheduled_start || 0) - Number(b.scheduled_start || 0)),
+    [appointments, selectedContact]
+  );
+  const selectedAppointment = contactAppointments.find((appointment: any) => appointment.appointment_id === previewAppointmentId);
+
+  const previewMessage = (value?: string, fallback?: string) =>
+    renderTemplatePreview(toFriendlyTemplate(value || fallback || ''), {
+      customerName: selectedContact?.name || selectedContact?.first_name || 'Customer',
+      companyName: company?.company_name || 'Your company',
+      bookingLink: selectedAppointment?.booking_link || 'your booking link',
+    });
 
   if (loading || !settings || !editSettings) {
     return (
@@ -131,16 +202,7 @@ export default function FollowUpsPage() {
         eyebrow="Automation"
         title="Follow-up Sequences"
         subtitle="Keep leads warm automatically without making this page feel like a spreadsheet."
-        actions={
-          editing ? (
-            <div className="flex gap-2">
-              <Button variant="outline" onClick={handleCancel}>Cancel</Button>
-              <Button onClick={handleSave} disabled={saving}>{saving ? 'Saving...' : 'Save changes'}</Button>
-            </div>
-          ) : (
-            <Button onClick={() => setEditing(true)}>Edit automation</Button>
-          )
-        }
+        actions={editing ? undefined : <Button onClick={() => setEditing(true)}>Edit automation</Button>}
       />
 
       <div className="rounded-2xl border border-slate-100 bg-white shadow-sm">
@@ -160,7 +222,7 @@ export default function FollowUpsPage() {
                 {Number((settings as any)[`${block.key}_delay_minutes`] ?? block.fallbackDelay)} min
               </p>
               <p className="mt-1 line-clamp-2 text-xs text-slate-600">
-                {(settings as any)[`${block.key}_template`] || block.fallbackText}
+                {toFriendlyTemplate((settings as any)[`${block.key}_template`] || block.fallbackText)}
               </p>
             </div>
           ))}
@@ -182,7 +244,7 @@ export default function FollowUpsPage() {
                     Sends after {Number((settings as any)[`${block.key}_delay_minutes`] ?? block.fallbackDelay)} minutes
                   </p>
                   <p className="mt-3 line-clamp-3 text-sm text-slate-600">
-                    {(settings as any)[`${block.key}_template`] || block.fallbackText}
+                    {previewMessage((settings as any)[`${block.key}_template`], block.fallbackText)}
                   </p>
                 </div>
               ))}
@@ -199,6 +261,49 @@ export default function FollowUpsPage() {
           </div>
         ) : (
           <div className="space-y-4 p-5">
+            <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+              <div className="mb-3">
+                <p className="text-sm font-semibold text-slate-900">Preview your follow-up messages</p>
+                <p className="text-xs text-slate-500">Pick a customer and booking so you can see exactly what the text will look like.</p>
+              </div>
+              <div className="grid gap-3 md:grid-cols-2">
+                <div className="space-y-2">
+                  <label className="text-xs font-medium text-slate-700">Customer</label>
+                  <select
+                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    value={previewContactId}
+                    onChange={(e) => {
+                      setPreviewContactId(e.target.value);
+                      setPreviewAppointmentId('NONE');
+                    }}
+                  >
+                    <option value="NONE">Choose a customer</option>
+                    {contacts.map((contact: any) => (
+                      <option key={contact.contact_id} value={contact.contact_id}>
+                        {contact.name || 'Unnamed customer'}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-medium text-slate-700">Booking</label>
+                  <select
+                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    value={previewAppointmentId}
+                    onChange={(e) => setPreviewAppointmentId(e.target.value)}
+                    disabled={!selectedContact}
+                  >
+                    <option value="NONE">{selectedContact ? 'Choose a booking' : 'Choose a customer first'}</option>
+                    {contactAppointments.map((appointment: any) => (
+                      <option key={appointment.appointment_id} value={appointment.appointment_id}>
+                        {new Date(appointment.scheduled_start).toLocaleString()} · {appointment.service_type || 'Appointment'}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+
             <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
               <div>
                 <p className="text-sm font-semibold text-slate-900">Enable follow-up automation</p>
@@ -218,7 +323,7 @@ export default function FollowUpsPage() {
                 <div key={block.key} className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
                   <div>
                     <p className="text-sm font-semibold text-slate-900">{block.title}</p>
-                    <p className="text-xs text-slate-500">Keep this concise and conversational.</p>
+                    <p className="text-xs text-slate-500">Write it in plain language. Use the quick insert buttons if you want the customer's name or booking link to appear automatically.</p>
                   </div>
                   <div className="space-y-2">
                     <label className="text-xs font-medium text-slate-700">Delay in minutes</label>
@@ -231,13 +336,40 @@ export default function FollowUpsPage() {
                   </div>
                   <div className="space-y-2">
                     <label className="text-xs font-medium text-slate-700">Message</label>
+                    <div className="flex flex-wrap gap-2">
+                      {Object.keys(FRIENDLY_TOKENS).map((token) => (
+                        <button
+                          key={token}
+                          type="button"
+                          className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-700 transition hover:border-emerald-300 hover:text-emerald-700"
+                          onClick={() =>
+                            setEditSettings((s) =>
+                              s
+                                ? {
+                                    ...s,
+                                    [`${block.key}_template`]: s[`${block.key}_template` as keyof FollowUpSettings]
+                                      ? `${String(s[`${block.key}_template` as keyof FollowUpSettings])} ${token}`
+                                      : token,
+                                  }
+                                : s
+                            )
+                          }
+                        >
+                          Insert {token.replace(/^\[|\]$/g, '')}
+                        </button>
+                      ))}
+                    </div>
                     <textarea
                       rows={4}
                       className="w-full resize-none rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                      placeholder={block.fallbackText}
-                      value={(editSettings as any)[`${block.key}_template`] || ''}
+                      placeholder={toFriendlyTemplate(block.fallbackText)}
+                      value={toFriendlyTemplate((editSettings as any)[`${block.key}_template`] || '')}
                       onChange={(e) => setEditSettings((s) => (s ? { ...s, [`${block.key}_template`]: e.target.value } : s))}
                     />
+                    <div className="rounded-xl border border-slate-200 bg-white p-3">
+                      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Preview</p>
+                      <p className="mt-2 text-sm text-slate-700">{previewMessage((editSettings as any)[`${block.key}_template`], block.fallbackText)}</p>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -276,6 +408,10 @@ export default function FollowUpsPage() {
                   />
                 </div>
               </div>
+            </div>
+            <div className="flex justify-end gap-2 border-t border-slate-100 pt-4">
+              <Button variant="outline" onClick={handleCancel}>Cancel</Button>
+              <Button onClick={handleSave} disabled={saving}>{saving ? 'Saving...' : 'Save changes'}</Button>
             </div>
           </div>
         )}

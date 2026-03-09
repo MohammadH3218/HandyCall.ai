@@ -59,26 +59,19 @@ class ApiClient {
   }
 
   private isAuthFailureResponse(response: Response, data: any, message: string): boolean {
-    const text = [
-      message,
-      data?.error?.message,
-      data?.message,
-      data?.error,
-      data?.raw,
-    ]
+    const text = [message, data?.error?.message, data?.message, data?.error, data?.raw]
       .filter(Boolean)
       .join(' ')
       .toLowerCase();
 
-    const tokenAuthFailure = (
+    const tokenAuthFailure =
       text.includes('invalid or expired token') ||
       text.includes('invalid token') ||
       text.includes('expired token') ||
       text.includes('token expired') ||
       text.includes('jwt expired') ||
       text.includes('invalid signature') ||
-      text.includes('token is not valid yet')
-    );
+      text.includes('token is not valid yet');
 
     if (response.status === 403) {
       // Do not force logout for feature/plan gates (forbidden without auth expiry).
@@ -120,10 +113,7 @@ class ApiClient {
     }
   }
 
-  private async request<T>(
-    endpoint: string,
-    options: RequestInit = {}
-  ): Promise<ApiResponse<T>> {
+  private async request<T>(endpoint: string, options: RequestInit = {}): Promise<ApiResponse<T>> {
     // Remove leading slash if present to avoid double slashes
     const cleanEndpoint = endpoint.startsWith('/') ? endpoint.slice(1) : endpoint;
     const url = `${this.baseUrl}/${cleanEndpoint}`;
@@ -160,17 +150,24 @@ class ApiClient {
       }
 
       if (!response.ok) {
+        const normalizedMessage = Array.isArray(data?.message)
+          ? data.message.filter(Boolean).join(', ')
+          : typeof data?.message === 'string'
+            ? data.message
+            : undefined;
+
         const errorMessage =
-          (typeof data?.error === 'string' ? data.error : undefined) ||
+          normalizedMessage ||
           data?.error?.message ||
-          data?.message ||
+          (typeof data?.error === 'string' && data.error !== 'Bad Request'
+            ? data.error
+            : undefined) ||
           data?.raw ||
           `Request failed with status ${response.status}`;
 
         const isTokenAuthFailure = this.isAuthFailureResponse(response, data, errorMessage);
         const shouldForceLogout =
-          isTokenAuthFailure ||
-          (response.status === 401 && !(await this.hasActiveSession()));
+          isTokenAuthFailure || (response.status === 401 && !(await this.hasActiveSession()));
 
         if (shouldForceLogout) {
           await this.forceLogoutToLogin();
@@ -272,7 +269,7 @@ class ApiClient {
     session: string,
     poolType: 'users' | 'admin' | 'customer' = 'users',
     firstName?: string,
-    lastName?: string,
+    lastName?: string
   ): Promise<any> {
     const body: any = { email, new_password: newPassword, session, pool_type: poolType };
     // Include first_name and last_name if provided
@@ -301,12 +298,15 @@ class ApiClient {
   async refreshToken(
     refreshToken: string,
     email: string,
-    poolType: 'auto' | 'users' | 'admin' | 'customer' = 'auto',
+    poolType: 'auto' | 'users' | 'admin' | 'customer' = 'auto'
   ): Promise<{ access_token: string; id_token: string }> {
-    const response = await this.request<{ access_token: string; id_token: string }>('/auth/refresh', {
-      method: 'POST',
-      body: JSON.stringify({ refresh_token: refreshToken, email, pool_type: poolType }),
-    });
+    const response = await this.request<{ access_token: string; id_token: string }>(
+      '/auth/refresh',
+      {
+        method: 'POST',
+        body: JSON.stringify({ refresh_token: refreshToken, email, pool_type: poolType }),
+      }
+    );
     return response.data!;
   }
 
@@ -369,23 +369,32 @@ class ApiClient {
   }
 
   // Appointments endpoints
-  async getAppointments(limit?: number, lastEvaluatedKey?: string): Promise<{ appointments: any[]; lastEvaluatedKey?: any }> {
+  async getAppointments(
+    limit?: number,
+    lastEvaluatedKey?: string
+  ): Promise<{ appointments: any[]; lastEvaluatedKey?: any }> {
     const params = new URLSearchParams();
     if (limit) params.append('limit', limit.toString());
     if (lastEvaluatedKey) params.append('lastEvaluatedKey', lastEvaluatedKey);
 
-    const response = await this.request<{ appointments: any[]; lastEvaluatedKey?: any }>(`/appointments?${params.toString()}`, {
-      method: 'GET',
-    });
+    const response = await this.request<{ appointments: any[]; lastEvaluatedKey?: any }>(
+      `/appointments?${params.toString()}`,
+      {
+        method: 'GET',
+      }
+    );
     const payload: any = response.data ?? response;
     return payload || { appointments: [], lastEvaluatedKey: undefined };
   }
 
   async getAppointmentsRange(startIso: string, endIso: string): Promise<{ appointments: any[] }> {
     const params = new URLSearchParams({ start: startIso, end: endIso });
-    const response = await this.request<{ appointments: any[] }>(`/appointments/range?${params.toString()}`, {
-      method: 'GET',
-    });
+    const response = await this.request<{ appointments: any[] }>(
+      `/appointments/range?${params.toString()}`,
+      {
+        method: 'GET',
+      }
+    );
     return (response.data ?? response) as { appointments: any[] };
   }
 
@@ -395,12 +404,17 @@ class ApiClient {
   }
 
   async createAppointment(data: any): Promise<any> {
-    const response = await this.request<any>(`/appointments`, { method: 'POST', body: JSON.stringify(data) });
+    const response = await this.request<any>(`/appointments`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
     return response.data ?? response;
   }
 
   async cancelAppointment(appointmentId: string): Promise<any> {
-    const response = await this.request<any>(`/appointments/${appointmentId}`, { method: 'DELETE' });
+    const response = await this.request<any>(`/appointments/${appointmentId}`, {
+      method: 'DELETE',
+    });
     return response.data ?? response;
   }
 
@@ -413,19 +427,27 @@ class ApiClient {
   }
 
   async deleteAppointment(appointmentId: string): Promise<any> {
-    const response = await this.request<any>(`/appointments/${appointmentId}`, { method: 'DELETE' });
+    const response = await this.request<any>(`/appointments/${appointmentId}`, {
+      method: 'DELETE',
+    });
     return response.data ?? response;
   }
 
   // Calls endpoints
-  async getCalls(limit?: number, lastEvaluatedKey?: string): Promise<{ calls: any[]; lastEvaluatedKey?: any; total?: number }> {
+  async getCalls(
+    limit?: number,
+    lastEvaluatedKey?: string
+  ): Promise<{ calls: any[]; lastEvaluatedKey?: any; total?: number }> {
     const params = new URLSearchParams();
     if (limit) params.append('limit', limit.toString());
     if (lastEvaluatedKey) params.append('lastEvaluatedKey', lastEvaluatedKey);
 
-    const response = await this.request<{ calls: any[]; lastEvaluatedKey?: any }>(`/calls?${params.toString()}`, {
-      method: 'GET',
-    });
+    const response = await this.request<{ calls: any[]; lastEvaluatedKey?: any }>(
+      `/calls?${params.toString()}`,
+      {
+        method: 'GET',
+      }
+    );
     const payload: any = response.data ?? response;
     return payload || { calls: [], lastEvaluatedKey: undefined };
   }
@@ -451,7 +473,10 @@ class ApiClient {
   }
 
   // Messages endpoints
-  async getMessageThreads(limit?: number, lastEvaluatedKey?: string): Promise<{ threads: any[]; lastEvaluatedKey?: any }> {
+  async getMessageThreads(
+    limit?: number,
+    lastEvaluatedKey?: string
+  ): Promise<{ threads: any[]; lastEvaluatedKey?: any }> {
     const params = new URLSearchParams();
     if (typeof limit === 'number') params.append('limit', limit.toString());
     if (lastEvaluatedKey) params.append('lastEvaluatedKey', lastEvaluatedKey);
@@ -460,12 +485,18 @@ class ApiClient {
     return (response.data ?? response) as { threads: any[]; lastEvaluatedKey?: any };
   }
 
-  async getMessageThread(contactId: string, limit?: number, lastEvaluatedKey?: string): Promise<{ thread: any; messages: any[]; lastEvaluatedKey?: any }> {
+  async getMessageThread(
+    contactId: string,
+    limit?: number,
+    lastEvaluatedKey?: string
+  ): Promise<{ thread: any; messages: any[]; lastEvaluatedKey?: any }> {
     const params = new URLSearchParams();
     if (typeof limit === 'number') params.append('limit', limit.toString());
     if (lastEvaluatedKey) params.append('lastEvaluatedKey', lastEvaluatedKey);
     const suffix = params.toString() ? `?${params.toString()}` : '';
-    const response = await this.request<any>(`/messages/threads/${contactId}${suffix}`, { method: 'GET' });
+    const response = await this.request<any>(`/messages/threads/${contactId}${suffix}`, {
+      method: 'GET',
+    });
     return (response.data ?? response) as { thread: any; messages: any[]; lastEvaluatedKey?: any };
   }
 
@@ -496,11 +527,14 @@ class ApiClient {
     const query = new URLSearchParams();
     if (params.country) query.append('country', params.country);
     if (params.type) query.append('type', params.type);
-    if (typeof params.maxResults === 'number') query.append('maxResults', String(params.maxResults));
+    if (typeof params.maxResults === 'number')
+      query.append('maxResults', String(params.maxResults));
     if (params.areaCode) query.append('areaCode', params.areaCode);
     if (params.contains) query.append('contains', params.contains);
 
-    const response = await this.request<any>(`/telephony/available-numbers?${query.toString()}`, { method: 'GET' });
+    const response = await this.request<any>(`/telephony/available-numbers?${query.toString()}`, {
+      method: 'GET',
+    });
     const payload: any = response.data ?? response;
     return Array.isArray(payload) ? payload : payload?.data || [];
   }
@@ -573,7 +607,9 @@ class ApiClient {
     return response.data ?? response;
   }
 
-  async knowledgeAssistantRespond(messages: Array<{ role: 'user' | 'assistant'; content: string }>): Promise<any> {
+  async knowledgeAssistantRespond(
+    messages: Array<{ role: 'user' | 'assistant'; content: string }>
+  ): Promise<any> {
     const response = await this.request<any>('/knowledge-items/assistant/respond', {
       method: 'POST',
       body: JSON.stringify({ messages }),
@@ -583,7 +619,7 @@ class ApiClient {
 
   async knowledgeAssistantGenerate(
     messages: Array<{ role: 'user' | 'assistant'; content: string }>,
-    autoCreate: boolean = true,
+    autoCreate: boolean = true
   ): Promise<any> {
     const response = await this.request<any>('/knowledge-items/assistant/generate', {
       method: 'POST',
@@ -596,7 +632,7 @@ class ApiClient {
   }
 
   async knowledgeExtractProducts(
-    messages: Array<{ role: 'user' | 'assistant'; content: string }>,
+    messages: Array<{ role: 'user' | 'assistant'; content: string }>
   ): Promise<{ created_count: number; skipped_count: number }> {
     const response = await this.request<any>('/knowledge-items/assistant/extract-products', {
       method: 'POST',
@@ -660,7 +696,9 @@ class ApiClient {
   }
 
   async getContactAppointments(contactId: string): Promise<{ appointments: any[] }> {
-    const response = await this.request<any>(`/contacts/${contactId}/appointments`, { method: 'GET' });
+    const response = await this.request<any>(`/contacts/${contactId}/appointments`, {
+      method: 'GET',
+    });
     return (response.data ?? response) as { appointments: any[] };
   }
 
@@ -673,7 +711,9 @@ class ApiClient {
     if (typeof limit === 'number') params.append('limit', limit.toString());
     if (lastEvaluatedKey) params.append('lastEvaluatedKey', lastEvaluatedKey);
     const suffix = params.toString() ? `?${params.toString()}` : '';
-    const response = await this.request<any>(`/contacts/${contactId}/calls${suffix}`, { method: 'GET' });
+    const response = await this.request<any>(`/contacts/${contactId}/calls${suffix}`, {
+      method: 'GET',
+    });
     return (response.data ?? response) as { calls: any[]; lastEvaluatedKey?: any; total?: number };
   }
 
@@ -812,7 +852,10 @@ class ApiClient {
     return response.data ?? response;
   }
 
-  async createConnectOnboardingLink(options?: { refresh_url?: string; return_url?: string }): Promise<any> {
+  async createConnectOnboardingLink(options?: {
+    refresh_url?: string;
+    return_url?: string;
+  }): Promise<any> {
     const response = await this.request<any>('/billing/connect/onboarding-link', {
       method: 'POST',
       body: JSON.stringify(options || {}),
@@ -843,7 +886,8 @@ class ApiClient {
     if (typeof filters?.start === 'number') params.append('start', String(filters.start));
     if (typeof filters?.end === 'number') params.append('end', String(filters.end));
     if (typeof filters?.limit === 'number') params.append('limit', String(filters.limit));
-    if (filters?.lastEvaluatedKey) params.append('lastEvaluatedKey', JSON.stringify(filters.lastEvaluatedKey));
+    if (filters?.lastEvaluatedKey)
+      params.append('lastEvaluatedKey', JSON.stringify(filters.lastEvaluatedKey));
     const suffix = params.toString() ? `?${params.toString()}` : '';
     const response = await this.request<any>(`/billing/customer-payments${suffix}`, {
       method: 'GET',
@@ -878,9 +922,12 @@ class ApiClient {
   }
 
   async getMicrosoftCalendarAuthUrl(): Promise<{ url: string }> {
-    const response = await this.request<{ url: string }>('/calendar-integration/auth/microsoft/url', {
-      method: 'GET',
-    });
+    const response = await this.request<{ url: string }>(
+      '/calendar-integration/auth/microsoft/url',
+      {
+        method: 'GET',
+      }
+    );
     return (response.data ?? response) as { url: string };
   }
 
@@ -1083,13 +1130,22 @@ class ApiClient {
   }
 
   async reactivateAdminCompanySubscription(companyId: string): Promise<any> {
-    const response = await this.request<any>(`/billing/admin/company/${companyId}/subscription/reactivate`, {
-      method: 'POST',
-    });
+    const response = await this.request<any>(
+      `/billing/admin/company/${companyId}/subscription/reactivate`,
+      {
+        method: 'POST',
+      }
+    );
     return response.data ?? response;
   }
 
-  async updateMyProfile(data: { first_name?: string; last_name?: string; contact_email?: string; email?: string; phone_number?: string }): Promise<any> {
+  async updateMyProfile(data: {
+    first_name?: string;
+    last_name?: string;
+    contact_email?: string;
+    email?: string;
+    phone_number?: string;
+  }): Promise<any> {
     const response = await this.request<any>('/users/me', {
       method: 'PUT',
       body: JSON.stringify(data),
@@ -1120,15 +1176,25 @@ class ApiClient {
   }
 
   async createSmsTemplate(data: { name: string; category: string; body: string }) {
-    return this.request<any>('/sms-automation/templates', { method: 'POST', body: JSON.stringify(data) });
+    return this.request<any>('/sms-automation/templates', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
   }
 
   async deleteSmsTemplate(templateId: string) {
     return this.request<any>(`/sms-automation/templates/${templateId}`, { method: 'DELETE' });
   }
 
-  async sendSmsCampaign(data: { template_id: string; contact_ids: string[]; scheduled_at?: number }) {
-    return this.request<any>('/sms-automation/campaign', { method: 'POST', body: JSON.stringify(data) });
+  async sendSmsCampaign(data: {
+    template_id: string;
+    contact_ids: string[];
+    scheduled_at?: number;
+  }) {
+    return this.request<any>('/sms-automation/campaign', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
   }
 
   async getScheduledMessages(status?: string) {
@@ -1169,7 +1235,10 @@ class ApiClient {
   }
 
   async updateInvoice(invoiceId: string, data: any): Promise<any> {
-    return this.request<any>(`/invoices/${invoiceId}`, { method: 'PUT', body: JSON.stringify(data) });
+    return this.request<any>(`/invoices/${invoiceId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
   }
 
   async markInvoiceSent(invoiceId: string): Promise<any> {
@@ -1271,7 +1340,7 @@ class ApiClient {
 
   async listFollowUpSequences(): Promise<any[]> {
     const res = await this.request<any>('/follow-up-sequences');
-    return Array.isArray(res) ? res : (res as any)?.items ?? [];
+    return Array.isArray(res) ? res : ((res as any)?.items ?? []);
   }
 
   // Quote Requests (marketplace)
@@ -1331,7 +1400,9 @@ class ApiClient {
   }
 
   async getCustomerThreads(email: string): Promise<any[]> {
-    const res = await this.request<any>(`/portal-messaging/customer/threads?email=${encodeURIComponent(email)}`);
+    const res = await this.request<any>(
+      `/portal-messaging/customer/threads?email=${encodeURIComponent(email)}`
+    );
     return (res as any)?.threads ?? res ?? [];
   }
 
@@ -1345,7 +1416,7 @@ class ApiClient {
   // Refunds
   async refundCustomerPayment(
     paymentId: string,
-    data?: { amount_cents?: number; reason?: 'duplicate' | 'fraudulent' | 'requested_by_customer' },
+    data?: { amount_cents?: number; reason?: 'duplicate' | 'fraudulent' | 'requested_by_customer' }
   ): Promise<any> {
     const res = await this.request<any>(`/billing/customer-payments/${paymentId}/refund`, {
       method: 'POST',
@@ -1402,7 +1473,12 @@ class ApiClient {
 
   async createProductCheckout(
     productId: string,
-    data: { customer_email?: string; contact_id?: string; success_url?: string; cancel_url?: string },
+    data: {
+      customer_email?: string;
+      contact_id?: string;
+      success_url?: string;
+      cancel_url?: string;
+    }
   ): Promise<any> {
     const res = await this.request<any>(`/billing/service-products/${productId}/checkout`, {
       method: 'POST',
@@ -1410,7 +1486,6 @@ class ApiClient {
     });
     return res;
   }
-
 }
 
 export const apiClient = new ApiClient(API_URL);
