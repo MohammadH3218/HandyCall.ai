@@ -8,7 +8,12 @@ import { EmptyState } from '@/components/portal/empty-state';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { MessageSquare, Phone, Search, Users } from 'lucide-react';
+import {
+  IconMessageCircle,
+  IconPhone,
+  IconSearch,
+  IconUsers,
+} from '@tabler/icons-react';
 
 type LeadItem = {
   call_id: string;
@@ -30,6 +35,17 @@ const progressLabel = (stage?: LeadItem['lead_progress_stage']) => {
       return 'Intake started';
     default:
       return 'Interested';
+  }
+};
+
+const stageBadgeClass = (stage?: LeadItem['lead_progress_stage']) => {
+  switch (stage) {
+    case 'READY_TO_BOOK':
+      return 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-300';
+    case 'INTAKE_STARTED':
+      return 'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-300';
+    default:
+      return 'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300';
   }
 };
 
@@ -64,9 +80,9 @@ export default function LeadInboxPage() {
   if (loading) {
     return (
       <div className="space-y-4">
-        <div className="h-8 w-48 animate-pulse rounded bg-slate-100" />
+        <div className="h-8 w-48 animate-pulse rounded bg-slate-100 dark:bg-slate-800" />
         {[1, 2, 3, 4].map((i) => (
-          <div key={i} className="h-24 animate-pulse rounded-2xl bg-slate-100" />
+          <div key={i} className="h-24 animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-800" />
         ))}
       </div>
     );
@@ -79,26 +95,44 @@ export default function LeadInboxPage() {
         title="Lead Inbox"
         subtitle="People who showed real buying intent on the call and should be followed up."
         actions={
-          <Button onClick={() => void load()} size="sm" variant="outline">
-            Refresh leads
-          </Button>
+          <div className="flex items-center gap-3">
+            <Badge
+              variant="outline"
+              className="border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300"
+            >
+              {leads.length} total lead{leads.length === 1 ? '' : 's'}
+            </Badge>
+            <Button onClick={() => void load()} size="sm" variant="outline">
+              Refresh leads
+            </Button>
+          </div>
         }
       />
 
-      <div className="flex items-center gap-3">
-        <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-800">
-          {filtered.length} lead{filtered.length === 1 ? '' : 's'}
-        </Badge>
+      <div className="relative">
+        <IconSearch className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
+        <Input
+          className="pl-9"
+          placeholder="Search leads..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
       </div>
 
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-        <Input className="pl-9" placeholder="Search leads..." value={search} onChange={(e) => setSearch(e.target.value)} />
-      </div>
+      {search && (
+        <div className="flex items-center gap-2">
+          <Badge
+            variant="outline"
+            className="border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300"
+          >
+            {filtered.length} result{filtered.length === 1 ? '' : 's'}
+          </Badge>
+        </div>
+      )}
 
       {filtered.length === 0 ? (
         <EmptyState
-          icon={<Users className="h-6 w-6 text-slate-400" />}
+          icon={<IconUsers className="h-6 w-6 text-slate-400 dark:text-slate-500" />}
           title="No leads found"
           description="Leads will appear here after callers show real service interest."
         />
@@ -108,9 +142,12 @@ export default function LeadInboxPage() {
             const name = lead.contact_name || lead.phone_number || 'Unknown';
             const createdAt = lead.created_at ? new Date(lead.created_at).toLocaleString() : '';
             return (
-              <div key={lead.call_id} className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm transition hover:border-slate-200">
+              <div
+                key={lead.call_id}
+                className="rounded-2xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm transition hover:border-slate-200 dark:hover:border-slate-700"
+              >
                 <div className="flex flex-col gap-4 md:flex-row md:items-start">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-sm font-bold text-amber-700">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-amber-50 dark:bg-amber-950 text-sm font-bold text-amber-700 dark:text-amber-300">
                     {(name[0] || '?').toUpperCase()}
                   </div>
 
@@ -118,43 +155,53 @@ export default function LeadInboxPage() {
                     <div className="flex flex-wrap items-center gap-2">
                       <Link
                         href={lead.contact_id ? `/dashboard/customers?contact=${lead.contact_id}` : `/dashboard/calls/${lead.call_id}`}
-                        className="text-sm font-semibold text-slate-900 transition hover:text-emerald-600"
+                        className="text-sm font-semibold text-slate-900 dark:text-slate-100 transition hover:text-emerald-600 dark:hover:text-emerald-400"
                       >
                         {name}
                       </Link>
-                      <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-800">
+                      <Badge
+                        variant="outline"
+                        className="border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300"
+                      >
                         Lead
                       </Badge>
-                      <Badge variant="outline" className="border-slate-200 bg-slate-50 text-slate-700">
+                      <Badge
+                        variant="outline"
+                        className={stageBadgeClass(lead.lead_progress_stage)}
+                      >
                         {progressLabel(lead.lead_progress_stage)}
                       </Badge>
                     </div>
 
-                    <div className="space-y-1 text-sm text-slate-600">
+                    <div className="space-y-1 text-sm text-slate-600 dark:text-slate-400">
                       <p>{lead.phone_number}</p>
                       {createdAt ? <p>{createdAt}</p> : null}
                       {lead.duration_seconds ? <p>{lead.duration_seconds}s call</p> : null}
                     </div>
 
-                    {lead.summary ? <p className="text-sm text-slate-700">{lead.summary}</p> : null}
-                    {lead.lead_reason ? <p className="text-sm text-slate-500">{lead.lead_reason}</p> : null}
+                    {lead.summary ? (
+                      <p className="text-sm text-slate-700 dark:text-slate-300">{lead.summary}</p>
+                    ) : null}
+                    {lead.lead_reason ? (
+                      <p className="text-sm text-slate-500 dark:text-slate-500">{lead.lead_reason}</p>
+                    ) : null}
                   </div>
 
                   <div className="flex shrink-0 items-center gap-2">
                     {lead.phone_number ? (
                       <Link
                         href="/dashboard/outbound-calls"
-                        className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-500 transition hover:border-emerald-200 hover:text-emerald-600"
+                        className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 transition hover:border-emerald-200 hover:text-emerald-600 dark:hover:border-emerald-700 dark:hover:text-emerald-400"
                       >
-                        <Phone className="h-3.5 w-3.5" />
+                        <IconPhone stroke={1.5} className="h-3.5 w-3.5" />
                       </Link>
                     ) : null}
                     {lead.phone_number ? (
                       <Link
                         href="/dashboard/messages"
-                        className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-500 transition hover:border-emerald-200 hover:text-emerald-600"
+                        className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 transition hover:border-emerald-200 hover:text-emerald-600 dark:hover:border-emerald-700 dark:hover:text-emerald-400"
                       >
-                        <MessageSquare className="h-3.5 w-3.5" />
+                        <IconMessageCircle stroke={1.5} className="h-3.5 w-3.5" />
                       </Link>
                     ) : null}
                   </div>

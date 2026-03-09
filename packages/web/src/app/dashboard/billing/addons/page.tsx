@@ -14,7 +14,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
-import { Zap, Phone, MessageSquare } from 'lucide-react';
+import { IconBolt, IconPhone, IconMessage, IconInfoCircle } from '@tabler/icons-react';
 
 interface AddonPack {
   id: string;
@@ -76,13 +76,20 @@ export default function AddonsPage() {
   if (loading) {
     return (
       <div>
-        <PageHeader title="Add-on Packs" subtitle="Purchase extra minutes or SMS to top up your plan" />
+        <PageHeader
+          eyebrow="BILLING"
+          title="Add-on Packs"
+          subtitle="Purchase extra minutes or SMS to top up your plan"
+        />
         <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2">
           {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="animate-pulse rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
-              <div className="h-5 w-32 rounded bg-slate-200 mb-3" />
-              <div className="h-4 w-48 rounded bg-slate-100 mb-4" />
-              <div className="h-8 w-20 rounded bg-slate-200" />
+            <div
+              key={i}
+              className="animate-pulse rounded-2xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 shadow-sm"
+            >
+              <div className="h-5 w-32 rounded bg-slate-200 dark:bg-slate-700 mb-3" />
+              <div className="h-4 w-48 rounded bg-slate-100 dark:bg-slate-800 mb-4" />
+              <div className="h-8 w-20 rounded bg-slate-200 dark:bg-slate-700" />
             </div>
           ))}
         </div>
@@ -92,7 +99,11 @@ export default function AddonsPage() {
 
   return (
     <div>
-      <PageHeader title="Add-on Packs" subtitle="Purchase extra minutes or SMS to top up your current plan limit" />
+      <PageHeader
+        eyebrow="BILLING"
+        title="Add-on Packs"
+        subtitle="Purchase extra minutes or SMS to top up your current plan limit"
+      />
 
       <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2">
         {addons.map((pack) => {
@@ -102,32 +113,38 @@ export default function AddonsPage() {
           return (
             <div
               key={pack.id}
-              className="relative rounded-2xl border border-slate-100 bg-white p-6 shadow-sm transition-shadow hover:shadow-md"
+              className="relative rounded-2xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 shadow-sm transition-all hover:shadow-md hover:border-slate-200 dark:hover:border-slate-600 dark:hover:shadow-slate-900"
             >
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-3">
-                  <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${isMinutes ? 'bg-blue-50' : 'bg-violet-50'}`}>
+                  <div
+                    className={`flex h-11 w-11 items-center justify-center rounded-xl ${
+                      isMinutes
+                        ? 'bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950 dark:to-blue-900'
+                        : 'bg-gradient-to-br from-violet-50 to-violet-100 dark:from-violet-950 dark:to-violet-900'
+                    }`}
+                  >
                     {isMinutes ? (
-                      <Phone className="h-5 w-5 text-blue-600" />
+                      <IconPhone stroke={1.5} className="h-5 w-5 text-blue-600 dark:text-blue-400" />
                     ) : (
-                      <MessageSquare className="h-5 w-5 text-violet-600" />
+                      <IconMessage stroke={1.5} className="h-5 w-5 text-violet-600 dark:text-violet-400" />
                     )}
                   </div>
                   <div>
-                    <h3 className="font-semibold text-slate-900">{pack.name}</h3>
+                    <h3 className="font-semibold text-slate-900 dark:text-slate-100">{pack.name}</h3>
                     <Badge variant="secondary" className="mt-0.5 text-xs">
                       {isMinutes ? 'Call Minutes' : 'SMS Messages'}
                     </Badge>
                   </div>
                 </div>
-                <p className="text-2xl font-bold text-slate-900">{pack.price_display}</p>
+                <p className="text-3xl font-bold text-slate-900 dark:text-slate-100">{pack.price_display}</p>
               </div>
 
               <p className="mt-3 text-sm text-muted-foreground">{pack.description}</p>
 
-              <div className="mt-4 flex items-center gap-2">
-                <Zap className="h-4 w-4 text-amber-500" />
-                <span className="text-sm font-medium text-slate-700">
+              <div className="mt-4 flex items-center gap-2 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-100 dark:border-amber-900/50 px-3 py-2">
+                <IconBolt className="h-4 w-4 shrink-0 text-amber-500 dark:text-amber-400" />
+                <span className="text-sm font-medium text-amber-800 dark:text-amber-300">
                   {isMinutes ? `${pack.minutes} minutes` : `${pack.sms} messages`} added instantly
                 </span>
               </div>
@@ -144,12 +161,15 @@ export default function AddonsPage() {
         })}
       </div>
 
-      <div className="mt-8 rounded-2xl border border-slate-100 bg-slate-50 p-5">
-        <p className="text-sm text-muted-foreground">
-          <strong>Note:</strong> Add-on packs are charged immediately to your saved payment method and
-          credits are applied to your current billing period. Credits carry through the remainder of
-          your current billing cycle.
-        </p>
+      <div className="mt-8 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 p-4">
+        <div className="flex items-start gap-3">
+          <IconInfoCircle stroke={1.5} className="mt-0.5 h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" />
+          <p className="text-sm text-slate-600 dark:text-slate-400">
+            <strong className="text-slate-700 dark:text-slate-300">Note:</strong> Add-on packs are charged immediately to your saved payment method and
+            credits are applied to your current billing period. Credits carry through the remainder of
+            your current billing cycle.
+          </p>
+        </div>
       </div>
 
       {/* Purchase confirmation dialog */}

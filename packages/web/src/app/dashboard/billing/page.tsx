@@ -251,15 +251,15 @@ export default function BillingPage() {
 
   const getStatusPill = (status?: SubscriptionStatus) => {
     const map: Record<string, string> = {
-      [SubscriptionStatus.TRIALING]: 'bg-blue-50 text-blue-700 border-blue-200',
-      [SubscriptionStatus.ACTIVE]: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-      [SubscriptionStatus.PAST_DUE]: 'bg-amber-50 text-amber-800 border-amber-200',
-      [SubscriptionStatus.CANCELED]: 'bg-slate-50 text-slate-600 border-slate-200',
-      [SubscriptionStatus.UNPAID]: 'bg-red-50 text-red-700 border-red-200',
-      [SubscriptionStatus.INCOMPLETE]: 'bg-slate-50 text-slate-600 border-slate-200',
+      [SubscriptionStatus.TRIALING]: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-800',
+      [SubscriptionStatus.ACTIVE]: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-300 dark:border-emerald-800',
+      [SubscriptionStatus.PAST_DUE]: 'bg-amber-50 text-amber-800 border-amber-200 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-800',
+      [SubscriptionStatus.CANCELED]: 'bg-slate-50 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700',
+      [SubscriptionStatus.UNPAID]: 'bg-red-50 text-red-700 border-red-200 dark:bg-red-950 dark:text-red-300 dark:border-red-800',
+      [SubscriptionStatus.INCOMPLETE]: 'bg-slate-50 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700',
     };
     if (!status) return null;
-    const cls = map[status] || 'bg-slate-50 text-slate-600 border-slate-200';
+    const cls = map[status] || 'bg-slate-50 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700';
     const label = status.charAt(0) + status.slice(1).toLowerCase().replace('_', ' ');
     return <span className={`rounded-full border px-2.5 py-0.5 text-xs font-semibold ${cls}`}>{label}</span>;
   };
@@ -307,10 +307,10 @@ export default function BillingPage() {
   if (loading) {
     return (
       <div className="space-y-5">
-        <div className="h-8 w-48 animate-pulse rounded-lg bg-slate-100" />
+        <div className="h-8 w-48 animate-pulse rounded-lg bg-slate-100 dark:bg-slate-800" />
         <div className="grid gap-5 md:grid-cols-2">
-          <div className="h-72 animate-pulse rounded-xl bg-slate-100" />
-          <div className="h-72 animate-pulse rounded-xl bg-slate-100" />
+          <div className="h-72 animate-pulse rounded-xl bg-slate-100 dark:bg-slate-800" />
+          <div className="h-72 animate-pulse rounded-xl bg-slate-100 dark:bg-slate-800" />
         </div>
       </div>
     );
@@ -325,9 +325,9 @@ export default function BillingPage() {
       />
 
       {limitReached && (
-        <div className="rounded-xl border border-red-200 bg-red-50 px-5 py-4">
-          <p className="text-sm font-semibold text-red-800">Usage limit reached</p>
-          <p className="mt-1 text-sm text-red-700">
+        <div className="rounded-xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/50 px-5 py-4">
+          <p className="text-sm font-semibold text-red-800 dark:text-red-300">Usage limit reached</p>
+          <p className="mt-1 text-sm text-red-700 dark:text-red-400">
             AI call/SMS handling may be paused until your next reset on {formatDate(subscription?.current_period_end)}.
           </p>
           <button
@@ -341,12 +341,12 @@ export default function BillingPage() {
 
       <div className="grid gap-5 md:grid-cols-2">
         {/* Current Plan */}
-        <div className="rounded-xl border border-slate-200 bg-white">
-          <div className="border-b border-slate-100 px-5 py-4 flex items-center gap-3">
+        <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
+          <div className="border-b border-slate-100 dark:border-slate-800 px-5 py-4 flex items-center gap-3">
             <IconSparkles stroke={1.5} className="h-4 w-4 text-emerald-600" />
             <div>
-              <h2 className="text-sm font-semibold text-slate-900">Current plan</h2>
-              <p className="text-xs text-slate-500">Your active subscription and monthly limits.</p>
+              <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Current plan</h2>
+              <p className="text-xs text-slate-500 dark:text-slate-500">Your active subscription and monthly limits.</p>
             </div>
           </div>
 
@@ -355,12 +355,16 @@ export default function BillingPage() {
               <>
                 <div className="flex flex-wrap items-start justify-between gap-4">
                   <div>
-                    <p className="text-xs text-slate-500">Plan</p>
-                    <p className="text-xl font-bold text-slate-900">{planDetails.name}</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-500">Plan</p>
+                    <p className="text-xl font-bold text-slate-900 dark:text-slate-100">{planDetails.name}</p>
                     <div className="mt-1 flex flex-wrap items-baseline gap-2">
-                      {priceDisplay?.original && <span className="text-sm text-slate-400 line-through">{priceDisplay.original}</span>}
-                      <span className="text-2xl font-bold text-slate-900">{priceDisplay?.current}</span>
-                      {priceDisplay?.cadence && <span className="text-sm text-slate-500">{priceDisplay.cadence}</span>}
+                      {priceDisplay?.original && (
+                        <span className="text-sm text-slate-400 dark:text-slate-500 line-through">{priceDisplay.original}</span>
+                      )}
+                      <span className="text-3xl font-bold text-slate-900 dark:text-slate-100">{priceDisplay?.current}</span>
+                      {priceDisplay?.cadence && (
+                        <span className="text-sm text-slate-500 dark:text-slate-500">{priceDisplay.cadence}</span>
+                      )}
                     </div>
                   </div>
                   {getStatusPill(isCanceling ? SubscriptionStatus.CANCELED : status)}
@@ -368,21 +372,24 @@ export default function BillingPage() {
 
                 <div className="grid grid-cols-3 gap-2">
                   {planHighlights.map((item) => (
-                    <div key={item.label} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                      <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">{item.label}</p>
-                      <p className="mt-1 text-sm font-semibold text-slate-900">{item.value}</p>
+                    <div
+                      key={item.label}
+                      className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 p-3"
+                    >
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">{item.label}</p>
+                      <p className="mt-1 text-sm font-semibold text-slate-900 dark:text-slate-100">{item.value}</p>
                     </div>
                   ))}
                 </div>
 
                 {subscription?.current_period_start && (
-                  <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-500">
+                  <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 px-4 py-3 text-xs text-slate-500 dark:text-slate-400">
                     Period: {formatDate(subscription.current_period_start)} – {formatDate(subscription.current_period_end)}
                   </div>
                 )}
 
                 {isCanceling && subscription?.current_period_end && (
-                  <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800">
+                  <div className="rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/50 px-4 py-3 text-xs text-amber-800 dark:text-amber-300">
                     Plan ends in {getDaysRemaining()} on {formatDate(subscription.current_period_end)}.
                   </div>
                 )}
@@ -405,7 +412,7 @@ export default function BillingPage() {
                       </button>
                       <button
                         onClick={() => setShowCancelDialog(true)}
-                        className="border border-red-200 text-red-600 hover:bg-red-50 rounded-lg px-4 py-2 text-sm font-medium transition-colors"
+                        className="border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/50 rounded-lg px-4 py-2 text-sm font-medium transition-colors"
                       >
                         Cancel plan
                       </button>
@@ -415,7 +422,7 @@ export default function BillingPage() {
               </>
             ) : (
               <div className="flex flex-col items-center py-8 text-center">
-                <p className="text-sm text-slate-500 mb-4">No active subscription</p>
+                <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">No active subscription</p>
                 <button
                   onClick={() => router.push('/dashboard/billing/plans')}
                   className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg px-4 py-2 text-sm font-medium"
@@ -428,18 +435,18 @@ export default function BillingPage() {
         </div>
 
         {/* Payment Methods */}
-        <div className="rounded-xl border border-slate-200 bg-white">
-          <div className="border-b border-slate-100 px-5 py-4 flex items-center justify-between gap-3">
+        <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
+          <div className="border-b border-slate-100 dark:border-slate-800 px-5 py-4 flex items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               <IconCreditCard stroke={1.5} className="h-4 w-4 text-emerald-600" />
               <div>
-                <h2 className="text-sm font-semibold text-slate-900">Payment methods</h2>
-                <p className="text-xs text-slate-500">Manage how your subscription is billed.</p>
+                <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Payment methods</h2>
+                <p className="text-xs text-slate-500 dark:text-slate-500">Manage how your subscription is billed.</p>
               </div>
             </div>
             <button
               onClick={() => router.push('/dashboard/billing/payment-method')}
-              className="shrink-0 border border-slate-200 text-slate-700 hover:bg-slate-50 rounded-lg px-4 py-2 text-sm"
+              className="shrink-0 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg px-4 py-2 text-sm transition-colors"
             >
               Add card
             </button>
@@ -453,20 +460,20 @@ export default function BillingPage() {
                   return (
                     <div
                       key={method.id}
-                      className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4"
+                      className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 p-4"
                     >
                       <div className="flex items-center gap-3">
-                        <IconCreditCard stroke={1.5} className="h-5 w-5 text-slate-500" />
+                        <IconCreditCard stroke={1.5} className="h-5 w-5 text-slate-500 dark:text-slate-400" />
                         <div>
                           <div className="flex items-center gap-2">
-                            <p className="text-sm font-semibold text-slate-900">{(method.brand || 'Card').toUpperCase()}</p>
+                            <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{(method.brand || 'Card').toUpperCase()}</p>
                             {isDefault && (
-                              <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
+                              <span className="rounded-full border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 dark:text-emerald-300">
                                 Default
                               </span>
                             )}
                           </div>
-                          <p className="text-xs text-slate-500">
+                          <p className="text-xs text-slate-500 dark:text-slate-400">
                             •••• {method.last4 || '----'}
                             {method.exp_month && method.exp_year ? `  ·  exp ${method.exp_month}/${method.exp_year}` : ''}
                           </p>
@@ -478,7 +485,7 @@ export default function BillingPage() {
                             <button
                               onClick={() => handleMakeDefault(method.id)}
                               disabled={paymentActionId === method.id}
-                              className="border border-slate-200 text-slate-700 hover:bg-slate-50 rounded-lg px-3 py-1 text-xs font-medium disabled:opacity-50 transition-colors"
+                              className="border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg px-3 py-1 text-xs font-medium disabled:opacity-50 transition-colors"
                             >
                               Make default
                             </button>
@@ -487,7 +494,7 @@ export default function BillingPage() {
                             <button
                               onClick={() => handleDeleteClick(method)}
                               disabled={paymentActionId === method.id}
-                              className="rounded-lg px-3 py-1 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50 transition-colors"
+                              className="rounded-lg px-3 py-1 text-xs font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/50 disabled:opacity-50 transition-colors"
                             >
                               Remove
                             </button>
@@ -498,12 +505,12 @@ export default function BillingPage() {
                   );
                 })}
                 {!canRemovePaymentMethods && canEditPaymentMethods && (
-                  <p className="text-xs text-slate-400">You must keep at least one payment method on file.</p>
+                  <p className="text-xs text-slate-400 dark:text-slate-500">You must keep at least one payment method on file.</p>
                 )}
               </>
             ) : (
               <div className="flex flex-col items-center py-8 text-center">
-                <p className="text-sm text-slate-500 mb-4">No payment method on file</p>
+                <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">No payment method on file</p>
                 <button
                   onClick={() => router.push('/dashboard/billing/payment-method')}
                   className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg px-4 py-2 text-sm font-medium"
@@ -513,12 +520,12 @@ export default function BillingPage() {
               </div>
             )}
 
-            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+            <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 px-4 py-3">
               <div className="flex items-start gap-3">
                 <IconShieldCheck stroke={1.5} className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
                 <div>
-                  <p className="text-xs font-semibold text-slate-900">Secure billing</p>
-                  <p className="text-xs text-slate-500 mt-0.5">
+                  <p className="text-xs font-semibold text-slate-900 dark:text-slate-100">Secure billing</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                     Card details are encrypted and stored by Stripe. HandyCall never stores full card numbers.
                   </p>
                 </div>
@@ -530,18 +537,18 @@ export default function BillingPage() {
 
       {/* Usage meters */}
       {usage && planDetails && (
-        <div className="rounded-xl border border-slate-200 bg-white">
-          <div className="border-b border-slate-100 px-5 py-4">
-            <h2 className="text-sm font-semibold text-slate-900">Current period usage</h2>
-            <p className="text-xs text-slate-500">
+        <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
+          <div className="border-b border-slate-100 dark:border-slate-800 px-5 py-4">
+            <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Current period usage</h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
               {usage.period_start ? formatDate(usage.period_start) : 'N/A'} – {usage.period_end ? formatDate(usage.period_end) : 'N/A'}
             </p>
           </div>
-          <div className="grid divide-y divide-slate-100 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+          <div className="grid divide-y divide-slate-100 dark:divide-slate-800 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
             {[
-              { label: 'Call minutes', used: usage?.call_minutes || 0, limit: planLimits?.minutes, icon: <IconClock stroke={1.5} className="h-4 w-4 text-slate-500" />, barColor: 'bg-emerald-500' },
-              { label: 'SMS messages', used: usage?.sms_count || 0, limit: planLimits?.sms, icon: <IconMessage stroke={1.5} className="h-4 w-4 text-slate-500" />, barColor: 'bg-emerald-500' },
-              { label: 'Active contacts', used: usage?.active_contacts || 0, limit: planLimits?.contacts, icon: <IconUsers stroke={1.5} className="h-4 w-4 text-slate-500" />, barColor: 'bg-emerald-500' },
+              { label: 'Call minutes', used: usage?.call_minutes || 0, limit: planLimits?.minutes, icon: <IconClock stroke={1.5} className="h-4 w-4 text-slate-500 dark:text-slate-400" />, barColor: 'bg-emerald-500' },
+              { label: 'SMS messages', used: usage?.sms_count || 0, limit: planLimits?.sms, icon: <IconMessage stroke={1.5} className="h-4 w-4 text-slate-500 dark:text-slate-400" />, barColor: 'bg-emerald-500' },
+              { label: 'Active contacts', used: usage?.active_contacts || 0, limit: planLimits?.contacts, icon: <IconUsers stroke={1.5} className="h-4 w-4 text-slate-500 dark:text-slate-400" />, barColor: 'bg-emerald-500' },
             ].map((m) => {
               const pct = calculateUsagePercentage(m.used, m.limit || 0);
               const bar = pct >= 90 ? 'bg-red-500' : pct >= 75 ? 'bg-amber-500' : m.barColor;
@@ -552,13 +559,13 @@ export default function BillingPage() {
                     <div className="flex items-center gap-3">
                       {m.icon}
                       <div>
-                        <p className="text-xs font-semibold text-slate-700">{m.label}</p>
-                        <p className="text-[11px] text-slate-400">Limit: {limitLabel}</p>
+                        <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">{m.label}</p>
+                        <p className="text-[11px] text-slate-400 dark:text-slate-500">Limit: {limitLabel}</p>
                       </div>
                     </div>
-                    <p className="text-xl font-bold text-slate-900">{m.used.toLocaleString()}</p>
+                    <p className="text-xl font-bold text-slate-900 dark:text-slate-100">{m.used.toLocaleString()}</p>
                   </div>
-                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
+                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
                     <div className={`h-full rounded-full ${bar}`} style={{ width: `${pct}%` }} />
                   </div>
                 </div>
@@ -568,22 +575,22 @@ export default function BillingPage() {
         </div>
       )}
 
-      <div className="rounded-xl border border-slate-200 bg-white">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
+      <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 px-5 py-4">
           <div>
-            <h2 className="text-sm font-semibold text-slate-900">Customer payments</h2>
-            <p className="text-xs text-slate-500">Collect payments from booking links with Stripe Connect.</p>
+            <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Customer payments</h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400">Collect payments from booking links with Stripe Connect.</p>
           </div>
           <div className="flex items-center gap-2">
-            <div className="flex items-center rounded-lg border border-slate-200 bg-slate-50 p-0.5">
+            <div className="flex items-center rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-0.5">
               <button
                 type="button"
                 disabled={paymentModeSaving}
                 onClick={() => handleSwitchPaymentMode('HANDYCALL_MANAGED')}
                 className={`rounded-md px-3 py-1 text-xs font-semibold transition ${
                   bookingPaymentMode === 'HANDYCALL_MANAGED'
-                    ? 'bg-white text-emerald-700 shadow-sm'
-                    : 'text-slate-600 hover:text-slate-800'
+                    ? 'bg-white dark:bg-slate-700 text-emerald-700 dark:text-emerald-300 shadow-sm'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
                 } disabled:opacity-60`}
               >
                 Managed in HandyCall
@@ -594,20 +601,20 @@ export default function BillingPage() {
                 onClick={() => handleSwitchPaymentMode('SELF_MANAGED')}
                 className={`rounded-md px-3 py-1 text-xs font-semibold transition ${
                   bookingPaymentMode === 'SELF_MANAGED'
-                    ? 'bg-white text-slate-700 shadow-sm'
-                    : 'text-slate-600 hover:text-slate-800'
+                    ? 'bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 shadow-sm'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
                 } disabled:opacity-60`}
               >
                 Self-managed
               </button>
             </div>
             {connectFullyReady ? (
-              <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-700">
+              <span className="rounded-full border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950 px-2.5 py-0.5 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
                 Connected
               </span>
             ) : connectSetupIncomplete ? (
               <>
-                <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-700">
+                <span className="rounded-full border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950 px-2.5 py-0.5 text-xs font-semibold text-amber-700 dark:text-amber-300">
                   Setup incomplete
                 </span>
                 <button
@@ -627,7 +634,7 @@ export default function BillingPage() {
             ) : null}
             <button
               onClick={() => router.push('/dashboard/payments')}
-              className="border border-slate-200 text-slate-700 hover:bg-slate-50 rounded-lg px-4 py-2 text-sm"
+              className="border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg px-4 py-2 text-sm transition-colors"
             >
               View all payments
             </button>
@@ -635,8 +642,8 @@ export default function BillingPage() {
         </div>
         <div className="space-y-4 px-5 py-5">
           {!managedPaymentsEnabled ? (
-            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-4">
-              <p className="text-sm text-slate-700">
+            <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 px-4 py-4">
+              <p className="text-sm text-slate-700 dark:text-slate-300">
                 Your company is set to handle payments outside HandyCall. AI can still send booking links, but customers will pay through your own process.
               </p>
               <button
@@ -650,25 +657,25 @@ export default function BillingPage() {
           ) : connectFullyReady ? (
             <>
               <div className="grid gap-3 sm:grid-cols-4">
-                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                  <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Revenue</p>
-                  <p className="mt-1 text-base font-bold text-slate-900">
+                <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 p-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">Revenue</p>
+                  <p className="mt-1 text-base font-bold text-slate-900 dark:text-slate-100">
                     {formatMoney(customerPaymentStats?.total_revenue_cents || 0)}
                   </p>
                 </div>
-                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                  <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">This month</p>
-                  <p className="mt-1 text-base font-bold text-slate-900">
+                <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 p-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">This month</p>
+                  <p className="mt-1 text-base font-bold text-slate-900 dark:text-slate-100">
                     {formatMoney(customerPaymentStats?.this_month_revenue_cents || 0)}
                   </p>
                 </div>
-                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                  <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Successful</p>
-                  <p className="mt-1 text-base font-bold text-slate-900">{customerPaymentStats?.successful_payments || 0}</p>
+                <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 p-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">Successful</p>
+                  <p className="mt-1 text-base font-bold text-slate-900 dark:text-slate-100">{customerPaymentStats?.successful_payments || 0}</p>
                 </div>
-                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                  <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Avg ticket</p>
-                  <p className="mt-1 text-base font-bold text-slate-900">
+                <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 p-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">Avg ticket</p>
+                  <p className="mt-1 text-base font-bold text-slate-900 dark:text-slate-100">
                     {formatMoney(customerPaymentStats?.average_ticket_cents || 0)}
                   </p>
                 </div>
@@ -677,25 +684,28 @@ export default function BillingPage() {
               {recentCustomerPayments.length > 0 ? (
                 <div className="space-y-2">
                   {recentCustomerPayments.slice(0, 5).map((payment) => (
-                    <div key={payment.payment_id} className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3">
+                    <div
+                      key={payment.payment_id}
+                      className="flex items-center justify-between rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-3"
+                    >
                       <div>
-                        <p className="text-sm font-semibold text-slate-900">{payment.customer_name || payment.service_name || 'Payment'}</p>
-                        <p className="text-xs text-slate-500">{formatDate(payment.created_at)}</p>
+                        <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{payment.customer_name || payment.service_name || 'Payment'}</p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">{formatDate(payment.created_at)}</p>
                       </div>
                       <div className="text-right">
-                        <p className="text-sm font-semibold text-slate-900">{formatMoney(payment.amount_cents, payment.currency)}</p>
-                        <p className="text-xs text-slate-500">{payment.payment_status}</p>
+                        <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{formatMoney(payment.amount_cents, payment.currency)}</p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">{payment.payment_status}</p>
                       </div>
                     </div>
                   ))}
                 </div>
               ) : (
-                <p className="text-sm text-slate-500">No customer payments yet.</p>
+                <p className="text-sm text-slate-500 dark:text-slate-400">No customer payments yet.</p>
               )}
             </>
           ) : connectSetupIncomplete ? (
-            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-4">
-              <p className="text-sm text-amber-800">
+            <div className="rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/50 px-4 py-4">
+              <p className="text-sm text-amber-800 dark:text-amber-300">
                 Stripe account exists, but onboarding is not complete yet.
                 {!connectCanCharge ? ' Enable charges in Stripe Connect.' : ''}
                 {!connectCanPayout ? ' Add bank/payout details to enable payouts.' : ''}
@@ -708,16 +718,16 @@ export default function BillingPage() {
               </button>
             </div>
           ) : (
-            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-4">
-              <p className="text-sm text-slate-700">
+            <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 px-4 py-4">
+              <p className="text-sm text-slate-700 dark:text-slate-300">
                 Connect Stripe to start collecting customer payments from booking links.
               </p>
             </div>
           )}
 
-          <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-            <p className="text-xs font-semibold text-slate-900">Security</p>
-            <p className="mt-1 text-xs text-slate-500">We never store your bank information.</p>
+          <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 px-4 py-3">
+            <p className="text-xs font-semibold text-slate-900 dark:text-slate-100">Security</p>
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">We never store your bank information.</p>
           </div>
         </div>
       </div>
@@ -733,12 +743,12 @@ export default function BillingPage() {
             key={item.title}
             type="button"
             onClick={() => router.push(item.path)}
-            className="group flex items-start gap-3 rounded-xl border border-slate-200 bg-white p-4 text-left transition-all hover:border-emerald-200"
+            className="group flex items-start gap-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4 text-left transition-all hover:border-emerald-200 dark:hover:border-emerald-800"
           >
             {item.icon}
             <div>
-              <p className="text-sm font-semibold text-slate-900 group-hover:text-emerald-700 transition-colors">{item.title}</p>
-              <p className="mt-0.5 text-xs text-slate-500">{item.desc}</p>
+              <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors">{item.title}</p>
+              <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">{item.desc}</p>
             </div>
           </button>
         ))}
@@ -757,7 +767,7 @@ export default function BillingPage() {
             <button
               onClick={() => setDeleteDialogOpen(false)}
               disabled={paymentActionId === deleteTarget?.id}
-              className="border border-slate-200 text-slate-700 hover:bg-slate-50 rounded-lg px-4 py-2 text-sm disabled:opacity-50"
+              className="border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg px-4 py-2 text-sm disabled:opacity-50 transition-colors"
             >
               Keep card
             </button>
@@ -785,7 +795,7 @@ export default function BillingPage() {
             <button
               onClick={() => setShowCancelDialog(false)}
               disabled={cancelling}
-              className="border border-slate-200 text-slate-700 hover:bg-slate-50 rounded-lg px-4 py-2 text-sm disabled:opacity-50"
+              className="border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg px-4 py-2 text-sm disabled:opacity-50 transition-colors"
             >
               Keep subscription
             </button>

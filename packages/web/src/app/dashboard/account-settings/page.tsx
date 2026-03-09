@@ -18,10 +18,12 @@ import {
 } from '@/components/ui/dialog';
 import { PageHeader } from '@/components/portal/page-header';
 import { useToast } from '@/hooks/use-toast';
+import { useTheme } from '@/components/providers/theme-provider';
 import type { User } from '@handycall/shared';
 
 export default function AccountSettingsPage() {
   const { toast } = useToast();
+  const { theme, setTheme } = useTheme();
   const { company, email: storeEmail, user: storeUser, setCompany } = useAuthStore();
   const [user, setUser] = useState<User | null>(storeUser);
   const [profileDraft, setProfileDraft] = useState({
@@ -410,6 +412,31 @@ export default function AccountSettingsPage() {
               </Button>
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Appearance</CardTitle>
+          <CardDescription>Choose your preferred display theme.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center gap-2">
+            {(['light', 'system', 'dark'] as const).map((t) => (
+              <button
+                key={t}
+                type="button"
+                onClick={() => setTheme(t)}
+                className={`flex-1 rounded-lg border px-3 py-2 text-sm font-medium transition ${
+                  theme === t
+                    ? 'border-emerald-500 bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'
+                    : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400'
+                }`}
+              >
+                {t === 'light' ? 'Light' : t === 'dark' ? 'Dark' : 'System'}
+              </button>
+            ))}
+          </div>
         </CardContent>
       </Card>
 

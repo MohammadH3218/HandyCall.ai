@@ -195,7 +195,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   if (status === 'loading' || isLoading || status === 'unauthenticated') {
     return (
-      <div className="flex h-screen items-center justify-center bg-white">
+      <div className="flex h-screen items-center justify-center bg-white dark:bg-slate-950">
         <div className="text-center">
           <div className="h-8 w-8 animate-spin rounded-full border-4 border-emerald-600 border-t-transparent mx-auto"></div>
           <p className="mt-4 text-sm text-slate-500">Loading...</p>
@@ -205,7 +205,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }
 
   return (
-    <div className="flex h-screen bg-slate-50 overflow-hidden">
+    <div className="flex h-screen bg-slate-50 dark:bg-slate-950 overflow-hidden">
       {/* Mobile overlay */}
       {sidebarOpen && (
         <div
@@ -218,7 +218,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <aside
         className={`
           fixed lg:sticky lg:top-0 inset-y-0 left-0 z-50
-          h-screen w-64 bg-white border-r border-slate-200 flex flex-col
+          h-screen w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col
           transform transition-transform duration-200 ease-in-out
           ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
         `}
@@ -229,16 +229,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             variant="ghost"
             size="sm"
             onClick={() => setSidebarOpen(false)}
-            className="h-8 w-8 p-0 text-slate-500 hover:text-slate-900 hover:bg-slate-100"
+            className="h-8 w-8 p-0 text-slate-500 hover:text-slate-900 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-slate-100 dark:hover:bg-slate-800"
           >
             <IconX stroke={1.5} className="h-5 w-5" />
           </Button>
         </div>
 
-        <div className="px-5 py-5 flex flex-col items-start justify-center border-b border-slate-100">
+        <div className="px-5 py-5 flex flex-col items-start justify-center border-b border-slate-100 dark:border-slate-800">
           <Logo variant="words" width={150} height={36} />
           {company?.company_name && (
-            <p className="mt-1 text-sm font-semibold text-slate-700 leading-tight">
+            <p className="mt-1 text-sm font-semibold text-slate-700 dark:text-slate-300 leading-tight">
               {company.company_name}
             </p>
           )}
@@ -296,8 +296,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </NavLink>
           </div>
 
-          <div className="pt-3 border-t border-slate-100 space-y-0.5">
-            <p className="px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Company</p>
+          <div className="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-0.5">
+            <p className="px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">Company</p>
             <NavLink
               href="/dashboard/knowledge"
               icon={<IconMessageDots stroke={1.5} className="h-5 w-5" />}
@@ -324,8 +324,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </NavLink>
           </div>
 
-          <div className="pt-3 border-t border-slate-100 space-y-0.5">
-            <p className="px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Account</p>
+          <div className="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-0.5">
+            <p className="px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">Account</p>
             <NavLink
               href="/dashboard/usage"
               icon={<IconChartBar stroke={1.5} className="h-5 w-5" />}
@@ -361,8 +361,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
 
           {canUseAutomation && (
-            <div className="pt-3 border-t border-slate-100 space-y-0.5">
-              <p className="px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Automation</p>
+            <div className="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-0.5">
+              <p className="px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">Automation</p>
               <NavLink
                 href="/dashboard/analytics"
                 icon={<IconChartBarPopular stroke={1.5} className="h-5 w-5" />}
@@ -403,13 +403,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Top bar */}
-        <div className="border-b border-slate-200 bg-white px-4 py-3 sm:px-6">
+        <div className="border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-3 sm:px-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-10 w-10 p-0 lg:hidden text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+                className="h-10 w-10 p-0 lg:hidden text-slate-600 hover:text-slate-900 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-slate-100 dark:hover:bg-slate-800"
                 onClick={() => setSidebarOpen(true)}
               >
                 <IconMenu2 stroke={1.5} className="h-5 w-5" />
@@ -450,13 +450,13 @@ function NavLink({
       onClick={onClick}
       className={`group flex items-center px-3 py-2 text-sm rounded-lg transition-colors duration-150 ${
         active
-          ? 'bg-emerald-50 text-emerald-700'
-          : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+          ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'
+          : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100'
       }`}
     >
       <span
         className={`mr-3 transition-colors duration-150 ${
-          active ? 'text-emerald-600' : 'text-slate-400 group-hover:text-slate-600'
+          active ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 group-hover:text-slate-600 dark:text-slate-500 dark:group-hover:text-slate-300'
         }`}
       >
         {icon}
