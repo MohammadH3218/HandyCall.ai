@@ -350,6 +350,73 @@ export class StripeConnectService {
     return session;
   }
 
+  async createOneTimeCheckoutSession(
+    companyId: string,
+    input: {
+      amount_cents: number;
+      currency?: string;
+      service_name: string;
+      service_description?: string;
+      customer_email?: string;
+      metadata?: Record<string, string>;
+      success_url?: string;
+      cancel_url?: string;
+    },
+  ): Promise<Stripe.Checkout.Session> {
+    if (!Number.isFinite(input.amount_cents) || input.amount_cents < 50) {
+      throw new BadRequestException('amount_cents must be at least 50');
+    }
+
+    const status = await this.getAccountStatus(companyId);
+    if (!status.connected || !status.account_id) {
+      throw new BadRequestException('Stripe Connect account is not set up');
+    }
+    if (!status.charges_enabled) {
+      throw new BadRequestException('Stripe Connect onboarding is incomplete. Charges are not enabled yet.');
+    }
+
+    const currency = (input.currency || 'usd').toLowerCase();
+    const frontendBase = this.getFrontendBaseUrl();
+    const successUrl = input.success_url || `${frontendBase}/?invoice=paid&session_id={CHECKOUT_SESSION_ID}`;
+    const cancelUrl = input.cancel_url || `${frontendBase}/?invoice=cancel`;
+
+    const session = await this.stripe.checkout.sessions.create({
+      mode: 'payment',
+      success_url: successUrl,
+      cancel_url: cancelUrl,
+      customer_email: input.customer_email || undefined,
+      line_items: [
+        {
+          quantity: 1,
+          price_data: {
+            currency,
+            unit_amount: Math.round(input.amount_cents),
+            product_data: {
+              name: input.service_name || 'Invoice payment',
+              ...(input.service_description ? { description: input.service_description } : {}),
+            },
+          },
+        },
+      ],
+      payment_intent_data: {
+        transfer_data: {
+          destination: status.account_id,
+        },
+        on_behalf_of: status.account_id,
+        metadata: {
+          company_id: companyId,
+          ...(input.metadata || {}),
+        },
+      },
+      metadata: {
+        company_id: companyId,
+        ...(input.metadata || {}),
+      },
+    });
+
+    return session;
+  }
+
   async getCheckoutSession(sessionId: string): Promise<Stripe.Checkout.Session> {
     if (!sessionId?.trim()) {
       throw new BadRequestException('checkout session id is required');

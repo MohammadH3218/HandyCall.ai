@@ -6,6 +6,7 @@ import { CompaniesService } from '../companies/companies.service';
 import { CreateInvoiceDto, UpdateInvoiceDto, InvoiceStatus } from './dto/invoice.dto';
 import { sendSesEmail } from '../public-booking/email.util';
 import { renderHandycallEmail } from '../../common/email-templates';
+import { StripeConnectService } from '../billing/stripe-connect.service';
 
 @Injectable()
 export class InvoicingService {
@@ -13,6 +14,7 @@ export class InvoicingService {
     private readonly dynamodb: DynamoDBService,
     private readonly companies: CompaniesService,
     private readonly config: ConfigService,
+    private readonly stripeConnect: StripeConnectService,
   ) {}
 
   private calculateTotals(lineItems: any[], taxRate = 0, discountCents = 0) {
@@ -46,22 +48,24 @@ export class InvoicingService {
     );
   }
 
-  private buildInvoiceEmail(invoice: any, company: any): { subject: string; text: string; html: string } {
+  private buildInvoiceEmail(
+    invoice: any,
+    company: any,
+    options?: { paymentUrl?: string },
+  ): { subject: string; text: string; html: string } {
     const lineItems = Array.isArray(invoice?.line_items) ? invoice.line_items : [];
     const currency = String(lineItems[0]?.currency || 'USD').toUpperCase();
     const lineList = lineItems
       .map((item: any) => {
-        const qty = Math.max(1, Number(item?.quantity || 1));
         const amount = this.formatMoney(Number(item?.unit_price_cents || 0), currency);
-        return `<li style="margin:0 0 8px;"><strong>${item?.description || 'Invoice item'}</strong> x${qty} - ${amount}</li>`;
+        return `<li style="margin:0 0 8px;"><strong>${item?.description || 'Invoice item'}</strong> - ${amount}</li>`;
       })
       .join('');
 
     const textLineList = lineItems
       .map((item: any) => {
-        const qty = Math.max(1, Number(item?.quantity || 1));
         const amount = this.formatMoney(Number(item?.unit_price_cents || 0), currency);
-        return `- ${item?.description || 'Invoice item'} x${qty} - ${amount}`;
+        return `- ${item?.description || 'Invoice item'} - ${amount}`;
       })
       .join('\n');
 
@@ -79,6 +83,9 @@ export class InvoicingService {
       `<p style="margin:0 0 16px;"><strong>Total due:</strong> ${totalLabel}</p>`,
       `<p style="margin:0 0 12px;"><strong>Invoice details</strong></p>`,
       `<ul style="margin:0 0 12px 18px;padding:0;">${lineList}</ul>`,
+      options?.paymentUrl
+        ? `<p style="margin:16px 0 0;">Use the secure payment button below to pay this invoice online.</p>`
+        : '',
       notesBlock,
       `<p style="margin:16px 0 0;">If you have any questions about this invoice, reply to this email and ${company?.company_name || 'the business'} can help you directly.</p>`,
     ].join('');
@@ -91,6 +98,7 @@ export class InvoicingService {
       ``,
       `Invoice details:`,
       textLineList,
+      options?.paymentUrl ? `\nPay online: ${options.paymentUrl}` : '',
       invoice?.notes ? `\nNotes:\n${invoice.notes}` : '',
       '',
       `Reply to this email if you have any questions.`,
@@ -101,6 +109,7 @@ export class InvoicingService {
       preheader: `${company?.company_name || 'HandyCall'} sent you an invoice for ${totalLabel}.`,
       greeting: invoice?.customer_name ? `Hi ${invoice.customer_name},` : undefined,
       body,
+      ...(options?.paymentUrl ? { cta: { label: 'Pay invoice', url: options.paymentUrl } } : {}),
       footer: `Sent by HandyCall on behalf of ${company?.company_name || 'your service provider'}.`,
     });
 
@@ -213,7 +222,31 @@ export class InvoicingService {
       throw new BadRequestException('Customer email is required to send an invoice');
     }
 
-    const email = this.buildInvoiceEmail(invoice, company);
+    const connectStatus = await this.stripeConnect.getAccountStatus(companyId);
+    if (!connectStatus.connected || !connectStatus.account_id || !connectStatus.charges_enabled || !connectStatus.payouts_enabled) {
+      throw new BadRequestException(
+        'Connect your bank account in Settings -> Payments before sending invoices.',
+      );
+    }
+
+    const checkoutSession = await this.stripeConnect.createOneTimeCheckoutSession(companyId, {
+      amount_cents: Number(invoice.total_cents || 0),
+      currency: String(invoice?.line_items?.[0]?.currency || 'usd'),
+      customer_email: invoice.customer_email.trim(),
+      service_name: `${company?.company_name || 'HandyCall'} invoice ${invoice.invoice_number}`,
+      service_description: (Array.isArray(invoice?.line_items) ? invoice.line_items : [])
+        .map((item: any) => String(item?.description || '').trim())
+        .filter(Boolean)
+        .slice(0, 3)
+        .join(' • '),
+      metadata: {
+        invoice_id: invoice.invoice_id,
+        invoice_number: invoice.invoice_number,
+        source: 'invoice_email',
+      },
+    });
+
+    const email = this.buildInvoiceEmail(invoice, company, { paymentUrl: checkoutSession.url || undefined });
     await sendSesEmail({
       region: this.config.get<string>('AWS_REGION') || 'us-east-1',
       from: 'no-reply@handycall.org',
@@ -233,6 +266,8 @@ export class InvoicingService {
         updated_at: Date.now(),
         sender_email: 'no-reply@handycall.org',
         reply_to_email: this.getCompanyReplyAddress(company),
+        payment_checkout_session_id: checkoutSession.id,
+        payment_checkout_url: checkoutSession.url,
       },
     );
     return this.getById(companyId, invoiceId);

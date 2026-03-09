@@ -74,7 +74,6 @@ type DraftLineItem = {
   id: string;
   selection: string;
   description: string;
-  quantity: number;
   amount: string;
 };
 
@@ -98,7 +97,6 @@ function createDraftItem(): DraftLineItem {
     id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
     selection: CUSTOM_OPTION,
     description: '',
-    quantity: 1,
     amount: '',
   };
 }
@@ -170,7 +168,7 @@ export default function InvoicesPage() {
       line_items: current.line_items.map((item) => {
         if (item.id !== itemId) return item;
         if (value === CUSTOM_OPTION) {
-          return { ...item, selection: value, description: '', amount: '', quantity: item.quantity || 1 };
+          return { ...item, selection: value, description: '', amount: '' };
         }
         const service = activeServices.find((entry) => entry.service_id === value);
         if (!service) return item;
@@ -179,7 +177,6 @@ export default function InvoicesPage() {
           selection: value,
           description: service.description?.trim() || service.name,
           amount: (service.amount_cents / 100).toFixed(2),
-          quantity: item.quantity || 1,
         };
       }),
     }));
@@ -210,8 +207,7 @@ export default function InvoicesPage() {
     () =>
       form.line_items.reduce((sum, item) => {
         const unit = Number.parseFloat(item.amount || '0');
-        const quantity = Number.isFinite(Number(item.quantity)) && Number(item.quantity) > 0 ? Number(item.quantity) : 1;
-        return sum + Math.round((Number.isFinite(unit) ? unit : 0) * 100) * quantity;
+        return sum + Math.round((Number.isFinite(unit) ? unit : 0) * 100);
       }, 0),
     [form.line_items],
   );
@@ -225,8 +221,17 @@ export default function InvoicesPage() {
     const normalizedLineItems = form.line_items
       .map((item) => ({
         description: item.description.trim(),
-        quantity: Math.max(1, Number(item.quantity || 1)),
+        quantity: 1,
         unit_price_cents: Math.max(0, Math.round(Number.parseFloat(item.amount || '0') * 100)),
+        ...(item.selection !== CUSTOM_OPTION
+          ? {
+              service_id: item.selection,
+              billing_type: activeServices.find((service) => service.service_id === item.selection)?.billing_type || 'ONE_TIME',
+              billing_interval: activeServices.find((service) => service.service_id === item.selection)?.billing_interval,
+              billing_interval_count: activeServices.find((service) => service.service_id === item.selection)?.billing_interval_count,
+              currency: activeServices.find((service) => service.service_id === item.selection)?.currency || 'usd',
+            }
+          : { currency: 'usd' }),
       }))
       .filter((item) => item.description);
 
@@ -272,7 +277,10 @@ export default function InvoicesPage() {
   const handleSend = async (invoiceId: string) => {
     try {
       await (apiClient as any).post(`/invoices/${invoiceId}/send`);
-      toast({ title: 'Invoice emailed', description: 'The customer received it from no-reply@handycall.org.' });
+      toast({
+        title: 'Invoice emailed',
+        description: 'The customer received it from no-reply@handycall.org with a payment link.',
+      });
       await load();
     } catch (err: any) {
       toast({ title: 'Error', description: err?.message || 'Failed to send invoice', variant: 'destructive' });
@@ -455,7 +463,7 @@ export default function InvoicesPage() {
                             )}
                           </div>
 
-                          <div className="grid gap-4 md:grid-cols-[1.1fr_1fr]">
+                          <div className="grid gap-4 md:grid-cols-[1.15fr_160px]">
                             <div className="space-y-2">
                               <Label>What are you invoicing for?</Label>
                               <Select value={item.selection} onValueChange={(value) => applySelection(item.id, value)}>
@@ -473,31 +481,19 @@ export default function InvoicesPage() {
                               </Select>
                             </div>
 
-                            <div className="grid gap-4 sm:grid-cols-[120px_1fr]">
-                              <div className="space-y-2">
-                                <Label>Qty</Label>
+                            <div className="space-y-2">
+                              <Label>Amount</Label>
+                              <div className="relative">
+                                <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-sm font-semibold text-slate-500">$</span>
                                 <Input
                                   type="number"
-                                  min={1}
-                                  value={item.quantity}
-                                  onChange={(e) => updateLineItem(item.id, 'quantity', Math.max(1, Number(e.target.value || 1)))}
-                                  className="h-12 rounded-2xl border-slate-200 bg-white"
+                                  min={0}
+                                  step={0.01}
+                                  value={item.amount}
+                                  onChange={(e) => updateLineItem(item.id, 'amount', e.target.value)}
+                                  className="h-12 rounded-2xl border-slate-200 bg-white pl-8"
+                                  placeholder="0.00"
                                 />
-                              </div>
-                              <div className="space-y-2">
-                                <Label>Amount</Label>
-                                <div className="relative">
-                                  <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-sm font-semibold text-slate-500">$</span>
-                                  <Input
-                                    type="number"
-                                    min={0}
-                                    step={0.01}
-                                    value={item.amount}
-                                    onChange={(e) => updateLineItem(item.id, 'amount', e.target.value)}
-                                    className="h-12 rounded-2xl border-slate-200 bg-white pl-8"
-                                    placeholder="0.00"
-                                  />
-                                </div>
                               </div>
                             </div>
                           </div>

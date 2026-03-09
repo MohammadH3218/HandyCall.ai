@@ -22,6 +22,27 @@ export class LineItemDto {
   @IsNumber()
   @Min(0)
   unit_price_cents: number;
+
+  @IsString()
+  @IsOptional()
+  service_id?: string;
+
+  @IsString()
+  @IsOptional()
+  billing_type?: 'ONE_TIME' | 'SUBSCRIPTION';
+
+  @IsString()
+  @IsOptional()
+  billing_interval?: 'day' | 'week' | 'month' | 'year';
+
+  @IsNumber()
+  @IsOptional()
+  @Min(1)
+  billing_interval_count?: number;
+
+  @IsString()
+  @IsOptional()
+  currency?: string;
 }
 
 export class CreateInvoiceDto {
