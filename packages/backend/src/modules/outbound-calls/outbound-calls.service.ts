@@ -43,9 +43,24 @@ export class OutboundCallsService {
     );
   }
 
-  private getOutboundWebhookUrl(companyId: string, context: OutboundCallContext): string {
+  private buildOutboundWebhookUrl(params: {
+    companyId: string;
+    context: OutboundCallContext;
+    contactName?: string;
+    appointmentStart?: string;
+    appointmentServiceType?: string;
+    customMessage?: string;
+  }): string {
     const base = this.getVoiceWebhookUrl();
-    return `${base}?direction=outbound&company_id=${companyId}&context=${context}`;
+    const query = new URLSearchParams();
+    query.set('direction', 'outbound');
+    query.set('company_id', params.companyId);
+    query.set('context', params.context);
+    if (params.contactName) query.set('contact_name', params.contactName);
+    if (params.appointmentStart) query.set('appointment_start', params.appointmentStart);
+    if (params.appointmentServiceType) query.set('appointment_service_type', params.appointmentServiceType);
+    if (params.customMessage) query.set('custom_message', params.customMessage);
+    return `${base}?${query.toString()}`;
   }
 
   async createOutboundCall(
@@ -70,7 +85,21 @@ export class OutboundCallsService {
 
     const accountSid = this.getTwilioAccountSid();
     const context = dto.context || OutboundCallContext.MANUAL;
-    const webhookUrl = this.getOutboundWebhookUrl(companyId, context);
+    const contact = dto.contact_id
+      ? await this.dynamodb.get('contacts', { company_id: companyId, contact_id: dto.contact_id }).catch(() => null)
+      : null;
+    const appointment = dto.appointment_id
+      ? await this.dynamodb.get('appointments', { company_id: companyId, appointment_id: dto.appointment_id }).catch(() => null)
+      : null;
+    const contactName = String((contact as any)?.name || [ (contact as any)?.first_name, (contact as any)?.last_name ].filter(Boolean).join(' ') || '').trim();
+    const webhookUrl = this.buildOutboundWebhookUrl({
+      companyId,
+      context,
+      contactName: contactName || undefined,
+      appointmentStart: String((appointment as any)?.scheduled_start || '').trim() || undefined,
+      appointmentServiceType: String((appointment as any)?.service_type || '').trim() || undefined,
+      customMessage: String(dto.custom_message || '').trim() || undefined,
+    });
 
     const form = new URLSearchParams();
     form.set('To', dto.to_number);
@@ -80,6 +109,7 @@ export class OutboundCallsService {
     form.set('StatusCallback', `${this.config.get<string>('API_BASE_URL') || ''}/api/v1/outbound-calls/status`);
     form.set('StatusCallbackMethod', 'POST');
     if (dto.contact_id) form.set('StatusCallbackEvent', 'completed ringing answered no-answer busy failed canceled');
+    form.set('MachineDetection', 'Enable');
 
     const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Calls.json`;
     const res = await fetch(twilioUrl, {

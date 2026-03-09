@@ -1162,7 +1162,13 @@ class ApiClient {
   }
 
   // Outbound calls
-  async createOutboundCall(data: { to_number: string; context?: string; contact_id?: string }) {
+  async createOutboundCall(data: {
+    to_number: string;
+    context?: string;
+    contact_id?: string;
+    appointment_id?: string;
+    custom_message?: string;
+  }) {
     return this.request<any>('/outbound-calls', { method: 'POST', body: JSON.stringify(data) });
   }
 

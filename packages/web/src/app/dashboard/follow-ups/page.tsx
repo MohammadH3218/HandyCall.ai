@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { usePlanFeatures } from '@/hooks/use-plan-features';
-import { MessageSquare } from 'lucide-react';
+import { IconMessage } from '@tabler/icons-react';
 
 type FollowUpSettings = {
   follow_up_sequences_enabled: boolean;
@@ -131,9 +131,9 @@ export default function FollowUpsPage() {
 
   if (!hasFeature('follow_up_sequences')) {
     return (
-      <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6">
-        <h2 className="text-lg font-semibold text-amber-900">Follow-ups are available on Pro and Max</h2>
-        <p className="mt-1 text-sm text-amber-800">
+      <div className="rounded-2xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950 p-6">
+        <h2 className="text-lg font-semibold text-amber-900 dark:text-amber-200">Follow-ups are available on Pro and Max</h2>
+        <p className="mt-1 text-sm text-amber-800 dark:text-amber-300">
           Upgrade your plan to enable automated follow-up sequences and review requests.
         </p>
         <Button className="mt-4" onClick={() => (window.location.href = '/dashboard/billing/plans')}>
@@ -190,8 +190,8 @@ export default function FollowUpsPage() {
   if (loading || !settings || !editSettings) {
     return (
       <div className="space-y-4">
-        <div className="h-8 w-48 animate-pulse rounded bg-slate-100" />
-        <div className="h-64 animate-pulse rounded-2xl bg-slate-100" />
+        <div className="h-8 w-48 animate-pulse rounded bg-slate-100 dark:bg-slate-800" />
+        <div className="h-64 animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-800" />
       </div>
     );
   }
@@ -205,23 +205,24 @@ export default function FollowUpsPage() {
         actions={editing ? undefined : <Button onClick={() => setEditing(true)}>Edit automation</Button>}
       />
 
-      <div className="rounded-2xl border border-slate-100 bg-white shadow-sm">
-        <div className="border-b border-slate-100 px-5 py-4">
-          <h2 className="text-sm font-semibold text-slate-900">Recommended starter flow</h2>
-          <p className="text-xs text-slate-500">A simple setup most service businesses can start with immediately.</p>
+      {/* Summary card */}
+      <div className="rounded-2xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm">
+        <div className="border-b border-slate-100 dark:border-slate-800 px-5 py-4">
+          <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Recommended starter flow</h2>
+          <p className="text-xs text-slate-500 dark:text-slate-400">A simple setup most service businesses can start with immediately.</p>
         </div>
         <div className="grid gap-3 p-5 md:grid-cols-4">
-          <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
-            <p className="text-xs uppercase tracking-wide text-slate-500">Automation</p>
-            <p className="mt-2 text-sm font-semibold text-slate-900">{settings.follow_up_sequences_enabled ? 'Enabled' : 'Disabled'}</p>
+          <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/50 p-4">
+            <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Automation</p>
+            <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-slate-100">{settings.follow_up_sequences_enabled ? 'Enabled' : 'Disabled'}</p>
           </div>
           {FOLLOW_UP_BLOCKS.map((block) => (
-            <div key={block.key} className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
-              <p className="text-xs uppercase tracking-wide text-slate-500">{block.title}</p>
-              <p className="mt-2 text-sm font-semibold text-slate-900">
+            <div key={block.key} className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/50 p-4">
+              <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">{block.title}</p>
+              <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
                 {Number((settings as any)[`${block.key}_delay_minutes`] ?? block.fallbackDelay)} min
               </p>
-              <p className="mt-1 line-clamp-2 text-xs text-slate-600">
+              <p className="mt-1 line-clamp-2 text-xs text-slate-600 dark:text-slate-400">
                 {toFriendlyTemplate((settings as any)[`${block.key}_template`] || block.fallbackText)}
               </p>
             </div>
@@ -229,31 +230,32 @@ export default function FollowUpsPage() {
         </div>
       </div>
 
-      <div className="rounded-2xl border border-slate-100 bg-white shadow-sm">
-        <div className="border-b border-slate-100 px-5 py-4">
-          <h2 className="text-sm font-semibold text-slate-900">Automation setup</h2>
-          <p className="text-xs text-slate-500">Edit only when you want to fine-tune timing or wording.</p>
+      {/* Automation setup card */}
+      <div className="rounded-2xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm">
+        <div className="border-b border-slate-100 dark:border-slate-800 px-5 py-4">
+          <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Automation setup</h2>
+          <p className="text-xs text-slate-500 dark:text-slate-400">Edit only when you want to fine-tune timing or wording.</p>
         </div>
         {!editing ? (
           <div className="space-y-4 p-5">
             <div className="grid gap-3 md:grid-cols-2">
               {FOLLOW_UP_BLOCKS.map((block) => (
-                <div key={block.key} className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
-                  <p className="text-sm font-semibold text-slate-900">{block.title}</p>
-                  <p className="mt-1 text-xs text-slate-500">
+                <div key={block.key} className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/50 p-4">
+                  <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{block.title}</p>
+                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                     Sends after {Number((settings as any)[`${block.key}_delay_minutes`] ?? block.fallbackDelay)} minutes
                   </p>
-                  <p className="mt-3 line-clamp-3 text-sm text-slate-600">
+                  <p className="mt-3 line-clamp-3 text-sm text-slate-600 dark:text-slate-400">
                     {previewMessage((settings as any)[`${block.key}_template`], block.fallbackText)}
                   </p>
                 </div>
               ))}
-              <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
-                <p className="text-sm font-semibold text-slate-900">Review requests</p>
-                <p className="mt-1 text-xs text-slate-500">
+              <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/50 p-4">
+                <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Review requests</p>
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                   {settings.review_request_enabled ? `Enabled after ${settings.review_request_delay_minutes} minutes` : 'Disabled'}
                 </p>
-                <p className="mt-3 line-clamp-3 text-sm text-slate-600">
+                <p className="mt-3 line-clamp-3 text-sm text-slate-600 dark:text-slate-400">
                   {settings.review_platform_url || 'No review link set yet.'}
                 </p>
               </div>
@@ -261,16 +263,17 @@ export default function FollowUpsPage() {
           </div>
         ) : (
           <div className="space-y-4 p-5">
-            <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+            {/* Preview picker */}
+            <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/50 p-4">
               <div className="mb-3">
-                <p className="text-sm font-semibold text-slate-900">Preview your follow-up messages</p>
-                <p className="text-xs text-slate-500">Pick a customer and booking so you can see exactly what the text will look like.</p>
+                <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Preview your follow-up messages</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Pick a customer and booking so you can see exactly what the text will look like.</p>
               </div>
               <div className="grid gap-3 md:grid-cols-2">
                 <div className="space-y-2">
-                  <label className="text-xs font-medium text-slate-700">Customer</label>
+                  <label className="text-xs font-medium text-slate-700 dark:text-slate-300">Customer</label>
                   <select
-                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                     value={previewContactId}
                     onChange={(e) => {
                       setPreviewContactId(e.target.value);
@@ -286,9 +289,9 @@ export default function FollowUpsPage() {
                   </select>
                 </div>
                 <div className="space-y-2">
-                  <label className="text-xs font-medium text-slate-700">Booking</label>
+                  <label className="text-xs font-medium text-slate-700 dark:text-slate-300">Booking</label>
                   <select
-                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                     value={previewAppointmentId}
                     onChange={(e) => setPreviewAppointmentId(e.target.value)}
                     disabled={!selectedContact}
@@ -304,44 +307,47 @@ export default function FollowUpsPage() {
               </div>
             </div>
 
-            <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+            {/* Enable toggle */}
+            <div className="flex items-center justify-between rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/50 p-4">
               <div>
-                <p className="text-sm font-semibold text-slate-900">Enable follow-up automation</p>
-                <p className="text-xs text-slate-600">Use a simple 3-touch sequence for leads who have not booked yet.</p>
+                <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Enable follow-up automation</p>
+                <p className="text-xs text-slate-600 dark:text-slate-400">Use a simple 3-touch sequence for leads who have not booked yet.</p>
               </div>
               <button
                 type="button"
                 onClick={() => setEditSettings((s) => (s ? { ...s, follow_up_sequences_enabled: !s.follow_up_sequences_enabled } : s))}
-                className={`relative h-7 w-12 rounded-full transition ${editSettings.follow_up_sequences_enabled ? 'bg-emerald-600' : 'bg-slate-300'}`}
+                className={`relative h-7 w-12 rounded-full transition ${editSettings.follow_up_sequences_enabled ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-600'}`}
               >
                 <span className={`absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow transition ${editSettings.follow_up_sequences_enabled ? 'translate-x-5' : 'translate-x-0'}`} />
               </button>
             </div>
 
+            {/* Message blocks */}
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               {FOLLOW_UP_BLOCKS.map((block) => (
-                <div key={block.key} className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+                <div key={block.key} className="space-y-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/50 p-4">
                   <div>
-                    <p className="text-sm font-semibold text-slate-900">{block.title}</p>
-                    <p className="text-xs text-slate-500">Write it in plain language. Use the quick insert buttons if you want the customer's name or booking link to appear automatically.</p>
+                    <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{block.title}</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">Write it in plain language. Use the quick insert buttons if you want the customer's name or booking link to appear automatically.</p>
                   </div>
                   <div className="space-y-2">
-                    <label className="text-xs font-medium text-slate-700">Delay in minutes</label>
+                    <label className="text-xs font-medium text-slate-700 dark:text-slate-300">Delay in minutes</label>
                     <Input
                       type="number"
                       min={0}
                       value={(editSettings as any)[`${block.key}_delay_minutes`] ?? block.fallbackDelay}
                       onChange={(e) => setEditSettings((s) => (s ? { ...s, [`${block.key}_delay_minutes`]: Number(e.target.value) } : s))}
+                      className="dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100"
                     />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-xs font-medium text-slate-700">Message</label>
+                    <label className="text-xs font-medium text-slate-700 dark:text-slate-300">Message</label>
                     <div className="flex flex-wrap gap-2">
                       {Object.keys(FRIENDLY_TOKENS).map((token) => (
                         <button
                           key={token}
                           type="button"
-                          className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-700 transition hover:border-emerald-300 hover:text-emerald-700"
+                          className="rounded-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-1 text-xs font-medium text-slate-700 dark:text-slate-300 transition hover:border-emerald-300 hover:text-emerald-700 dark:hover:border-emerald-600 dark:hover:text-emerald-400"
                           onClick={() =>
                             setEditSettings((s) =>
                               s
@@ -361,84 +367,98 @@ export default function FollowUpsPage() {
                     </div>
                     <textarea
                       rows={4}
-                      className="w-full resize-none rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                      className="w-full resize-none rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                       placeholder={toFriendlyTemplate(block.fallbackText)}
                       value={toFriendlyTemplate((editSettings as any)[`${block.key}_template`] || '')}
                       onChange={(e) => setEditSettings((s) => (s ? { ...s, [`${block.key}_template`]: e.target.value } : s))}
                     />
-                    <div className="rounded-xl border border-slate-200 bg-white p-3">
-                      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Preview</p>
-                      <p className="mt-2 text-sm text-slate-700">{previewMessage((editSettings as any)[`${block.key}_template`], block.fallbackText)}</p>
+                    <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-3">
+                      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">Preview</p>
+                      <p className="mt-2 text-sm text-slate-700 dark:text-slate-300">{previewMessage((editSettings as any)[`${block.key}_template`], block.fallbackText)}</p>
                     </div>
                   </div>
                 </div>
               ))}
             </div>
 
-            <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+            {/* Review requests */}
+            <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/50 p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-semibold text-slate-900">Review requests</p>
-                  <p className="text-xs text-slate-600">Ask for a review after completed jobs.</p>
+                  <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Review requests</p>
+                  <p className="text-xs text-slate-600 dark:text-slate-400">Ask for a review after completed jobs.</p>
                 </div>
                 <button
                   type="button"
                   onClick={() => setEditSettings((s) => (s ? { ...s, review_request_enabled: !s.review_request_enabled } : s))}
-                  className={`relative h-7 w-12 rounded-full transition ${editSettings.review_request_enabled ? 'bg-emerald-600' : 'bg-slate-300'}`}
+                  className={`relative h-7 w-12 rounded-full transition ${editSettings.review_request_enabled ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-600'}`}
                 >
                   <span className={`absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow transition ${editSettings.review_request_enabled ? 'translate-x-5' : 'translate-x-0'}`} />
                 </button>
               </div>
               <div className="mt-4 grid gap-3 md:grid-cols-2">
                 <div className="space-y-2">
-                  <label className="text-xs font-medium text-slate-700">Review link</label>
+                  <label className="text-xs font-medium text-slate-700 dark:text-slate-300">Review link</label>
                   <Input
                     placeholder="https://g.page/r/your-review-link"
                     value={editSettings.review_platform_url || ''}
                     onChange={(e) => setEditSettings((s) => (s ? { ...s, review_platform_url: e.target.value } : s))}
+                    className="dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100"
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-xs font-medium text-slate-700">Send delay in minutes</label>
+                  <label className="text-xs font-medium text-slate-700 dark:text-slate-300">Send delay in minutes</label>
                   <Input
                     type="number"
                     min={0}
                     value={editSettings.review_request_delay_minutes ?? 120}
                     onChange={(e) => setEditSettings((s) => (s ? { ...s, review_request_delay_minutes: Number(e.target.value) } : s))}
+                    className="dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100"
                   />
                 </div>
               </div>
             </div>
-            <div className="flex justify-end gap-2 border-t border-slate-100 pt-4">
-              <Button variant="outline" onClick={handleCancel}>Cancel</Button>
+
+            <div className="flex justify-end gap-2 border-t border-slate-100 dark:border-slate-800 pt-4">
+              <Button variant="outline" onClick={handleCancel}
+                className="border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400">
+                Cancel
+              </Button>
               <Button onClick={handleSave} disabled={saving}>{saving ? 'Saving...' : 'Save changes'}</Button>
             </div>
           </div>
         )}
       </div>
 
-      <div className="rounded-2xl border border-slate-100 bg-white shadow-sm">
-        <div className="border-b border-slate-100 px-5 py-4">
-          <h2 className="text-sm font-semibold text-slate-900">Recent sequences</h2>
-          <p className="text-xs text-slate-500">Follow-up sequences sent to leads</p>
+      {/* Recent sequences */}
+      <div className="rounded-2xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm">
+        <div className="border-b border-slate-100 dark:border-slate-800 px-5 py-4">
+          <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Recent sequences</h2>
+          <p className="text-xs text-slate-500 dark:text-slate-400">Follow-up sequences sent to leads</p>
         </div>
         {sequences.length === 0 ? (
           <div className="p-5">
             <EmptyState
-              icon={<MessageSquare className="h-5 w-5 text-slate-400" />}
+              icon={<IconMessage stroke={1.5} className="h-5 w-5 text-slate-400 dark:text-slate-500" />}
               title="No sequences yet"
               description="Follow-up sequences will appear here after calls with new leads."
             />
           </div>
         ) : (
-          <div className="divide-y divide-slate-100">
+          <div className="divide-y divide-slate-100 dark:divide-slate-800">
             {sequences.slice(0, 20).map((seq) => (
-              <div key={seq.sequence_id} className="flex items-center justify-between px-5 py-3">
+              <div key={seq.sequence_id} className="flex items-center justify-between px-5 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
                 <div>
-                  <p className="text-sm font-medium text-slate-900">{seq.to_number}</p>
-                  <p className="text-xs text-slate-500">{seq.steps?.length || 0} messages · {new Date(seq.created_at).toLocaleDateString()}</p>
+                  <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{seq.to_number}</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">{seq.steps?.length || 0} messages · {new Date(seq.created_at).toLocaleDateString()}</p>
                 </div>
-                <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${seq.status === 'SCHEDULED' ? 'bg-amber-100 text-amber-700' : seq.status === 'COMPLETED' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-700'}`}>
+                <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                  seq.status === 'SCHEDULED'
+                    ? 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300'
+                    : seq.status === 'COMPLETED'
+                    ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'
+                    : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
+                }`}>
                   {seq.status}
                 </span>
               </div>

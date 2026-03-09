@@ -409,6 +409,12 @@ type CallContext = {
   timezone?: string;
   transfer_enabled?: boolean;
   transfer_number?: string;
+  direction?: 'inbound' | 'outbound';
+  outbound_context?: string;
+  outbound_custom_message?: string;
+  outbound_contact_name?: string;
+  outbound_appointment_start?: string;
+  outbound_appointment_service_type?: string;
   startedAt: number;
 };
 
@@ -1379,7 +1385,19 @@ function buildServiceOptionsBrief(tenant: TenantInfo): string | null {
   return items.join(' | ');
 }
 
-function buildInstructions(tenant: TenantInfo, options: { serviceAreaRequired: boolean; existingCustomer?: { contact_id: string; name?: string; email?: string; address?: string; zip?: string } | null; startupAppointments?: Array<{ appointment_id: string; start_time: string; end_time?: string; service_type?: string; status?: string }> }) {
+function buildInstructions(tenant: TenantInfo, options: {
+  serviceAreaRequired: boolean;
+  existingCustomer?: { contact_id: string; name?: string; email?: string; address?: string; zip?: string } | null;
+  startupAppointments?: Array<{ appointment_id: string; start_time: string; end_time?: string; service_type?: string; status?: string }>;
+  outbound?: {
+    enabled: boolean;
+    context?: string;
+    customMessage?: string;
+    contactName?: string;
+    appointmentStart?: string;
+    appointmentServiceType?: string;
+  };
+}) {
   const name = tenant.company_name || 'our company';
   const extra = tenant.agent_config?.realtime_instructions;
   const templatePrompt = typeof tenant.service_template?.base_system_prompt === 'string'
@@ -1394,11 +1412,26 @@ function buildInstructions(tenant: TenantInfo, options: { serviceAreaRequired: b
   const requiredFields = formatFieldList(requiredBookingFields);
   const optionalFields = formatFieldList(tenant.service_template?.intake_schema?.optional);
   const serviceSelectionQuestion = tenant.service_selection_guide?.default_question;
+  const outboundEnabled = options.outbound?.enabled === true;
+  const outboundContext = String(options.outbound?.context || '').trim();
+  const outboundReason = String(options.outbound?.customMessage || '').trim();
   const lines = [
     renderedTemplatePrompt || `You are the phone receptionist for ${name}.`,
-    `Greet the caller immediately and include the company name in the first sentence.`,
+    outboundEnabled
+      ? `This is an OUTBOUND call initiated by ${name}. You are calling the customer; do not speak like they called you.`
+      : `Greet the caller immediately and include the company name in the first sentence.`,
     `Be friendly, concise, and phone-like. Ask one question at a time.`,
     `Keep responses short by default. Use a brief filler phrase only when waiting on a tool call.`,
+    outboundEnabled
+      ? `The purpose of this outbound call is ${outboundContext ? `"${outboundContext.replace(/_/g, ' ').toLowerCase()}"` : '"customer outreach"'}.`
+      : null,
+    outboundReason ? `Specific reason for the outbound call from the business: "${outboundReason}". Follow this closely.` : null,
+    options.outbound?.appointmentStart
+      ? `This call is tied to the customer's booking at ${new Date(options.outbound.appointmentStart).toLocaleString('en-US', { timeZone: tenant.timezone || 'America/Chicago' })}${options.outbound?.appointmentServiceType ? ` for ${options.outbound.appointmentServiceType}` : ''}.`
+      : null,
+    outboundEnabled
+      ? `If a voicemail greeting or answering machine picks up, leave a short voicemail with the company name, the reason for the call, and a callback/request-to-check-text message, then end the call.`
+      : null,
     `Speak in English only. Do not switch languages.`,
     `If the caller speaks another language, apologize briefly and continue in English.`,
     `You can answer FAQs and help callers book appointments directly.`,
@@ -1495,7 +1528,7 @@ function buildInstructions(tenant: TenantInfo, options: { serviceAreaRequired: b
           ].filter(Boolean).join('\n');
         })()
       : null,
-    !options.existingCustomer
+    !options.existingCustomer && !outboundEnabled
       ? `If the caller is an existing customer, ask if they want to manage an existing booking or create a new booking.`
       : null,
     `If they want to manage an existing booking: explain they can use the confirmation link, or you can help by phone. Ask if they want to reschedule or cancel, then use list_appointments_by_phone and reschedule_appointment/cancel_appointment.`,
@@ -1938,14 +1971,21 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === 'POST' && req.url?.startsWith('/twilio/voice')) {
       const publicBaseUrl = requireEnvFirst(['PUBLIC_BASE_URL', 'VOICE_BRIDGE_PUBLIC_BASE_URL']).replace(/\/$/, '');
+      const requestUrl = new URL(req.url || '/twilio/voice', publicBaseUrl);
       const raw = await readBody(req);
       const form = parseFormUrlEncoded(raw);
+      const outboundDirection = requestUrl.searchParams.get('direction') === 'outbound';
+      const outboundContext = String(requestUrl.searchParams.get('context') || '').trim();
+      const outboundCustomMessage = String(requestUrl.searchParams.get('custom_message') || '').trim();
+      const outboundContactName = String(requestUrl.searchParams.get('contact_name') || '').trim();
+      const outboundAppointmentStart = String(requestUrl.searchParams.get('appointment_start') || '').trim();
+      const outboundAppointmentServiceType = String(requestUrl.searchParams.get('appointment_service_type') || '').trim();
 
       const validate = (process.env.TWILIO_VALIDATE_SIGNATURE ?? 'true') === 'true';
       if (validate) {
         const authToken = await getSecret('TWILIO_AUTH_TOKEN');
         const signature = (req.headers['x-twilio-signature'] as string | undefined) ?? '';
-        const url = `${publicBaseUrl}/twilio/voice`;
+        const url = requestUrl.toString();
         const ok = twilio.validateRequest(authToken, signature, url, form);
         if (!ok) {
           return json(res, 401, { ok: false, error: 'Invalid Twilio signature' });
@@ -2003,6 +2043,12 @@ const server = http.createServer(async (req, res) => {
       <Parameter name="to" value="${escapeXml(to)}" />
       <Parameter name="from" value="${escapeXml(from)}" />
       <Parameter name="token" value="${escapeXml(mediaToken)}" />
+      <Parameter name="direction" value="${escapeXml(outboundDirection ? 'outbound' : 'inbound')}" />
+      <Parameter name="context" value="${escapeXml(outboundContext)}" />
+      <Parameter name="custom_message" value="${escapeXml(outboundCustomMessage)}" />
+      <Parameter name="contact_name" value="${escapeXml(outboundContactName)}" />
+      <Parameter name="appointment_start" value="${escapeXml(outboundAppointmentStart)}" />
+      <Parameter name="appointment_service_type" value="${escapeXml(outboundAppointmentServiceType)}" />
     </Stream>
   </Connect>
 </Response>`;
@@ -2030,6 +2076,12 @@ const server = http.createServer(async (req, res) => {
       <Parameter name="to" value="${escapeXml(to)}" />
       <Parameter name="from" value="${escapeXml(from)}" />
       <Parameter name="token" value="${escapeXml(mediaToken)}" />
+      <Parameter name="direction" value="${escapeXml(outboundDirection ? 'outbound' : 'inbound')}" />
+      <Parameter name="context" value="${escapeXml(outboundContext)}" />
+      <Parameter name="custom_message" value="${escapeXml(outboundCustomMessage)}" />
+      <Parameter name="contact_name" value="${escapeXml(outboundContactName)}" />
+      <Parameter name="appointment_start" value="${escapeXml(outboundAppointmentStart)}" />
+      <Parameter name="appointment_service_type" value="${escapeXml(outboundAppointmentServiceType)}" />
     </Stream>
   </Connect>
 </Response>`;
@@ -2110,7 +2162,25 @@ wss.on('connection', (twilioWs: WebSocket) => {
     if (!openaiWs || !openaiReady || !twilioReady || greeted) return;
     const name = ctx?.company_name || 'our company';
     let greeting: string;
-    if (existingCustomer?.name) {
+    if (ctx?.direction === 'outbound') {
+      const customerName = ctx?.outbound_contact_name || existingCustomer?.name || '';
+      if (ctx?.outbound_context === 'APPOINTMENT_REMINDER' && ctx?.outbound_appointment_start) {
+        const when = new Date(ctx.outbound_appointment_start).toLocaleString('en-US', {
+          month: 'short',
+          day: 'numeric',
+          hour: 'numeric',
+          minute: '2-digit',
+          timeZone: ctx.timezone || 'America/Chicago',
+        });
+        greeting = customerName
+          ? `Hi ${customerName}, this is HandyCall calling on behalf of ${name} with a reminder about your appointment on ${when}.`
+          : `Hi, this is HandyCall calling on behalf of ${name} with a reminder about your appointment on ${when}.`;
+      } else {
+        greeting = customerName
+          ? `Hi ${customerName}, this is HandyCall calling on behalf of ${name}.`
+          : `Hi, this is HandyCall calling on behalf of ${name}.`;
+      }
+    } else if (existingCustomer?.name) {
       greeting = `Hi, thanks for calling ${name}! Am I speaking with ${existingCustomer.name}?`;
     } else if (hasExistingAppointments) {
       greeting = `Hi there, thanks for calling ${name}. Would you like to manage an existing booking, or book a new appointment?`;
@@ -2514,6 +2584,14 @@ wss.on('connection', (twilioWs: WebSocket) => {
       serviceAreaRequired,
       existingCustomer,
       startupAppointments,
+      outbound: {
+        enabled: ctx?.direction === 'outbound',
+        context: ctx?.outbound_context,
+        customMessage: ctx?.outbound_custom_message,
+        contactName: ctx?.outbound_contact_name,
+        appointmentStart: ctx?.outbound_appointment_start,
+        appointmentServiceType: ctx?.outbound_appointment_service_type,
+      },
     });
     const openaiKey = await getSecret('OPENAI_API_KEY');
     const openaiUrl = `wss://api.openai.com/v1/realtime?model=${encodeURIComponent(model)}`;
@@ -3125,6 +3203,12 @@ wss.on('connection', (twilioWs: WebSocket) => {
       const to = params.to || '';
       const from = params.from || '';
       const token = params.token || '';
+      const direction = params.direction === 'outbound' ? 'outbound' : 'inbound';
+      const outboundContext = String(params.context || '').trim();
+      const outboundCustomMessage = String(params.custom_message || '').trim();
+      const outboundContactName = String(params.contact_name || '').trim();
+      const outboundAppointmentStart = String(params.appointment_start || '').trim();
+      const outboundAppointmentServiceType = String(params.appointment_service_type || '').trim();
       const tokenExpected = process.env.TWILIO_MEDIA_STREAM_TOKEN || '';
 
       if (tokenExpected && token !== tokenExpected) {
@@ -3161,6 +3245,12 @@ wss.on('connection', (twilioWs: WebSocket) => {
         timezone: resolvedTenant.timezone,
         transfer_enabled: resolvedTenant.transfer_enabled,
         transfer_number: resolvedTenant.transfer_number,
+        direction,
+        outbound_context: outboundContext || undefined,
+        outbound_custom_message: outboundCustomMessage || undefined,
+        outbound_contact_name: outboundContactName || undefined,
+        outbound_appointment_start: outboundAppointmentStart || undefined,
+        outbound_appointment_service_type: outboundAppointmentServiceType || undefined,
         startedAt: Date.now(),
       };
       diag('call.start', {
@@ -3169,6 +3259,8 @@ wss.on('connection', (twilioWs: WebSocket) => {
         from,
         to,
         companyId: resolvedTenant.company_id,
+        direction,
+        outboundContext: outboundContext || undefined,
       });
 
       activeCalls.set(callSid, {
