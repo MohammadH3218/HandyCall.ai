@@ -313,7 +313,7 @@ export default function ContactsPage() {
               Export
             </Button>
             <label className="cursor-pointer">
-              <span className="inline-flex h-9 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition">
+              <span className="inline-flex h-9 items-center gap-2 rounded-xl border border-border bg-card px-4 py-2 text-sm font-semibold text-foreground hover:bg-accent transition">
                 Import CSV
               </span>
               <input ref={fileInputRef} type="file" accept=".csv" className="hidden" onChange={(e) => void importCsv(e)} />
@@ -336,7 +336,7 @@ export default function ContactsPage() {
             className={`rounded-2xl border p-3 text-left transition shadow-sm ${
               leadFilter === s.value
                 ? 'border-emerald-400 bg-emerald-50'
-                : 'border-slate-100 bg-white hover:border-slate-200'
+                : 'border-border bg-card hover:border-border/80'
             }`}
           >
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">{s.label}</p>
@@ -381,7 +381,7 @@ export default function ContactsPage() {
       </div>
 
       {/* Contacts list */}
-      <div className="rounded-2xl border border-slate-100 bg-white shadow-sm overflow-hidden">
+      <div className="rounded-2xl border border-border bg-card shadow-sm overflow-hidden">
         <div className="border-b border-slate-100 px-5 py-3 flex items-center justify-between">
           <p className="text-sm font-semibold text-slate-700">
             {filtered.length} of {contacts.length} contacts
@@ -395,7 +395,7 @@ export default function ContactsPage() {
             ))}
           </div>
         ) : filtered.length > 0 ? (
-          <div className="divide-y divide-slate-100">
+          <div className="divide-y divide-border">
             {filtered.map((contact) => {
               const badge = leadStatusBadge(contact.lead_status);
               return (

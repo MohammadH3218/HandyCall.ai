@@ -225,14 +225,14 @@ export default function CallsPage() {
 
   const PaginationBar = (
     <div className="flex items-center justify-between">
-      <p className="text-sm text-slate-500 dark:text-slate-500">
+      <p className="text-sm text-muted-foreground">
         Page {currentPage}{totalPages ? ` of ${totalPages}` : ''}
       </p>
       <div className="flex items-center gap-1">
         <button
           onClick={() => void handlePageChange(currentPage - 1)}
           disabled={!canGoPrev || isPaging}
-          className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
+          className="flex h-8 w-8 items-center justify-center rounded-lg border border-border text-muted-foreground transition-colors hover:bg-slate-50 dark:hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
         >
           <IconChevronLeft className="h-4 w-4" stroke={1.5} />
         </button>
@@ -244,7 +244,7 @@ export default function CallsPage() {
             className={`flex h-8 w-8 items-center justify-center rounded-lg text-sm font-medium transition-colors ${
               page === currentPage
                 ? 'bg-emerald-600 text-white shadow-sm'
-                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
+                : 'text-muted-foreground hover:bg-slate-50 dark:hover:bg-slate-800'
             }`}
           >
             {page}
@@ -253,7 +253,7 @@ export default function CallsPage() {
         <button
           onClick={() => void handlePageChange(currentPage + 1)}
           disabled={!canGoNext || isPaging}
-          className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
+          className="flex h-8 w-8 items-center justify-center rounded-lg border border-border text-muted-foreground transition-colors hover:bg-slate-50 dark:hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
         >
           <IconChevronRight className="h-4 w-4" stroke={1.5} />
         </button>
@@ -288,14 +288,14 @@ export default function CallsPage() {
       {/* Search */}
       <div className="flex gap-3">
         <div className="relative flex-1">
-          <IconSearch className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 dark:text-slate-500" stroke={1.5} />
+          <IconSearch className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" stroke={1.5} />
           <input
             type="text"
             placeholder="Search by name, phone, or summary…"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && void handleSearch()}
-            className="h-10 w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 pl-10 pr-3 text-sm text-slate-900 dark:text-slate-100 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
+            className="h-10 w-full rounded-lg border border-border bg-card pl-10 pr-3 text-sm text-foreground outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
           />
         </div>
         <button
@@ -314,12 +314,12 @@ export default function CallsPage() {
       {isLoading ? (
         <div className="space-y-2">
           {[1, 2, 3, 4, 5].map((i) => (
-            <div key={i} className="flex items-center gap-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
-              <div className="h-10 w-10 animate-pulse rounded-full bg-slate-100 dark:bg-slate-800" />
+            <div key={i} className="flex items-center gap-4 rounded-xl border border-border bg-card p-4">
+              <div className="h-10 w-10 animate-pulse rounded-full bg-muted" />
               <div className="flex-1 space-y-2">
-                <div className="h-4 w-1/3 animate-pulse rounded bg-slate-100 dark:bg-slate-800" />
-                <div className="h-3 w-1/4 animate-pulse rounded bg-slate-100 dark:bg-slate-800" />
-                <div className="h-3 w-1/2 animate-pulse rounded bg-slate-100 dark:bg-slate-800" />
+                <div className="h-4 w-1/3 animate-pulse rounded bg-muted" />
+                <div className="h-3 w-1/4 animate-pulse rounded bg-muted" />
+                <div className="h-3 w-1/2 animate-pulse rounded bg-muted" />
               </div>
             </div>
           ))}
@@ -336,41 +336,41 @@ export default function CallsPage() {
               <div
                 key={call.call_id}
                 onClick={() => handleViewCall(call.call_id)}
-                className="group flex cursor-pointer items-center gap-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4 transition-colors hover:border-slate-300 dark:hover:border-slate-600"
+                className="group flex cursor-pointer items-center gap-4 rounded-xl border border-border bg-card p-4 transition-colors hover:border-slate-300 dark:hover:border-slate-600"
               >
                 {/* Avatar */}
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 text-sm font-bold text-slate-700 dark:text-slate-300">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-border bg-muted text-sm font-bold text-foreground">
                   {getInitials(call.caller_name)}
                 </div>
 
                 {/* Body */}
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="truncate font-semibold text-slate-900 dark:text-slate-100">{displayName}</span>
+                    <span className="truncate font-semibold text-foreground">{displayName}</span>
                     <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${tag.badgeClass}`}>
                       {tag.label}
                     </span>
                   </div>
                   {showPhone && (
-                    <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-500">{formatPhone(call.caller_phone)}</p>
+                    <p className="mt-0.5 text-sm text-muted-foreground">{formatPhone(call.caller_phone)}</p>
                   )}
-                  <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
+                  <p className="mt-1 text-xs text-muted-foreground">
                     {formatDate(call.created_at)} · {formatTime(call.created_at)}
                     {duration ? ` · ${duration}` : ''}
                   </p>
                 </div>
 
                 {/* Arrow */}
-                <IconChevronRight className="h-5 w-5 shrink-0 text-slate-300 dark:text-slate-600 transition-colors group-hover:text-slate-500 dark:group-hover:text-slate-400" stroke={1.5} />
+                <IconChevronRight className="h-5 w-5 shrink-0 text-border transition-colors group-hover:text-muted-foreground" stroke={1.5} />
               </div>
             );
           })}
         </div>
       ) : (
-        <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-12 text-center">
-          <IconPhone className="mx-auto h-10 w-10 text-slate-300 dark:text-slate-600" stroke={1.5} />
-          <p className="mt-3 text-sm font-semibold text-slate-900 dark:text-slate-100">No calls yet</p>
-          <p className="mt-1 text-sm text-slate-500 dark:text-slate-500">
+        <div className="rounded-xl border border-border bg-card p-12 text-center">
+          <IconPhone className="mx-auto h-10 w-10 text-border" stroke={1.5} />
+          <p className="mt-3 text-sm font-semibold text-foreground">No calls yet</p>
+          <p className="mt-1 text-sm text-muted-foreground">
             Your AI receptionist will handle calls automatically when your business is unavailable.
           </p>
         </div>

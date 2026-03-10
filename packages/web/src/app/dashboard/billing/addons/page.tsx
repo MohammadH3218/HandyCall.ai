@@ -85,11 +85,11 @@ export default function AddonsPage() {
           {[1, 2, 3, 4].map((i) => (
             <div
               key={i}
-              className="animate-pulse rounded-2xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 shadow-sm"
+              className="animate-pulse rounded-2xl border border-border bg-card p-6 shadow-sm"
             >
-              <div className="h-5 w-32 rounded bg-slate-200 dark:bg-slate-700 mb-3" />
-              <div className="h-4 w-48 rounded bg-slate-100 dark:bg-slate-800 mb-4" />
-              <div className="h-8 w-20 rounded bg-slate-200 dark:bg-slate-700" />
+              <div className="h-5 w-32 rounded bg-muted mb-3" />
+              <div className="h-4 w-48 rounded bg-muted mb-4" />
+              <div className="h-8 w-20 rounded bg-muted" />
             </div>
           ))}
         </div>
@@ -113,7 +113,7 @@ export default function AddonsPage() {
           return (
             <div
               key={pack.id}
-              className="relative rounded-2xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 shadow-sm transition-all hover:shadow-md hover:border-slate-200 dark:hover:border-slate-600 dark:hover:shadow-slate-900"
+              className="relative rounded-2xl border border-border bg-card p-6 shadow-sm transition-all hover:shadow-md hover:border-slate-200 dark:hover:border-slate-600 dark:hover:shadow-slate-900"
             >
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-3">
@@ -131,13 +131,13 @@ export default function AddonsPage() {
                     )}
                   </div>
                   <div>
-                    <h3 className="font-semibold text-slate-900 dark:text-slate-100">{pack.name}</h3>
+                    <h3 className="font-semibold text-foreground">{pack.name}</h3>
                     <Badge variant="secondary" className="mt-0.5 text-xs">
                       {isMinutes ? 'Call Minutes' : 'SMS Messages'}
                     </Badge>
                   </div>
                 </div>
-                <p className="text-3xl font-bold text-slate-900 dark:text-slate-100">{pack.price_display}</p>
+                <p className="text-3xl font-bold text-foreground">{pack.price_display}</p>
               </div>
 
               <p className="mt-3 text-sm text-muted-foreground">{pack.description}</p>
@@ -161,11 +161,11 @@ export default function AddonsPage() {
         })}
       </div>
 
-      <div className="mt-8 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 p-4">
+      <div className="mt-8 rounded-xl border border-border bg-muted/50 p-4">
         <div className="flex items-start gap-3">
-          <IconInfoCircle stroke={1.5} className="mt-0.5 h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" />
-          <p className="text-sm text-slate-600 dark:text-slate-400">
-            <strong className="text-slate-700 dark:text-slate-300">Note:</strong> Add-on packs are charged immediately to your saved payment method and
+          <IconInfoCircle stroke={1.5} className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+          <p className="text-sm text-muted-foreground">
+            <strong className="text-foreground">Note:</strong> Add-on packs are charged immediately to your saved payment method and
             credits are applied to your current billing period. Credits carry through the remainder of
             your current billing cycle.
           </p>

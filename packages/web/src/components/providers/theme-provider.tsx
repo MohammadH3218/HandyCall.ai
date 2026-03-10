@@ -1,8 +1,12 @@
 'use client';
 
 import { createContext, useContext, useEffect, useState } from 'react';
+import { useSession } from 'next-auth/react';
 
-type Theme = 'light' | 'dark' | 'system';
+type Theme = 'light' | 'dark';
+
+const PUBLIC_THEME_KEY = 'handycall-theme:public';
+const LEGACY_THEME_KEY = 'handycall-theme';
 
 interface ThemeContextValue {
   theme: Theme;
@@ -21,27 +25,47 @@ export function useTheme() {
 }
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
+  const { data: session } = useSession();
   const [theme, setThemeState] = useState<Theme>('light');
   const [resolvedTheme, setResolvedTheme] = useState<'light' | 'dark'>('light');
+  const accountEmail = session?.user?.email?.trim().toLowerCase() || null;
 
-  useEffect(() => {
-    const stored = localStorage.getItem('handycall-theme') as Theme | null;
-    const initial = stored || 'light';
-    setThemeState(initial);
-    applyTheme(initial);
-  }, []);
+  const getStorageKey = (email?: string | null) =>
+    email ? `handycall-theme:${email}` : PUBLIC_THEME_KEY;
 
   const applyTheme = (t: Theme) => {
     const root = document.documentElement;
-    const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    const isDark = t === 'dark' || (t === 'system' && systemDark);
+    const isDark = t === 'dark';
     root.classList.toggle('dark', isDark);
+    root.dataset.theme = isDark ? 'dark' : 'light';
     setResolvedTheme(isDark ? 'dark' : 'light');
   };
 
+  const readStoredTheme = (email?: string | null): Theme => {
+    const scopedKey = getStorageKey(email);
+    const scoped = localStorage.getItem(scopedKey) as string | null;
+    if (scoped === 'light' || scoped === 'dark') {
+      return scoped;
+    }
+
+    const fallbackKey = email ? PUBLIC_THEME_KEY : LEGACY_THEME_KEY;
+    const fallback = localStorage.getItem(fallbackKey) as string | null;
+    if (fallback === 'light' || fallback === 'dark') {
+      return fallback;
+    }
+
+    return 'light';
+  };
+
+  useEffect(() => {
+    const initial = readStoredTheme(accountEmail);
+    setThemeState(initial);
+    applyTheme(initial);
+  }, [accountEmail]);
+
   const setTheme = (t: Theme) => {
     setThemeState(t);
-    localStorage.setItem('handycall-theme', t);
+    localStorage.setItem(getStorageKey(accountEmail), t);
     applyTheme(t);
   };
 

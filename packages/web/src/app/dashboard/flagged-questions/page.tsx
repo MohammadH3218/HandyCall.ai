@@ -124,7 +124,7 @@ export default function FlaggedQuestionsPage() {
       />
 
       {/* Filter pills */}
-      <div className="flex flex-wrap gap-2 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-sm w-fit">
+      <div className="flex flex-wrap gap-2 rounded-2xl border border-border bg-card p-1.5 shadow-sm w-fit">
         {(['ALL', 'OPEN', 'RESOLVED', 'DISMISSED'] as const).map((status) => (
           <button
             key={status}
@@ -152,7 +152,7 @@ export default function FlaggedQuestionsPage() {
       {isLoading ? (
         <div className="space-y-2">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="rounded-2xl border border-slate-100 bg-white p-5">
+            <div key={i} className="rounded-2xl border border-border bg-card p-5">
               <div className="mb-2 h-4 w-3/4 animate-pulse rounded bg-slate-100" />
               <div className="h-3 w-full animate-pulse rounded bg-slate-100" />
             </div>
@@ -161,7 +161,7 @@ export default function FlaggedQuestionsPage() {
       ) : questions.length > 0 ? (
         <div className="space-y-3">
           {questions.map((q) => (
-            <div key={q.flagged_id} className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
+            <div key={q.flagged_id} className="rounded-2xl border border-border bg-card p-5 shadow-sm">
               <div className="flex items-start justify-between gap-4">
                 <div className="flex-1 min-w-0">
                   {/* Question */}

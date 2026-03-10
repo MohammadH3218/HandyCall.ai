@@ -37,7 +37,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const router = useRouter();
   const pathname = usePathname();
   const { status } = useSession();
-  const { isAuthenticated, isLoading, checkAuth, userRole, company, companyHydrated } = useAuthStore();
+  const { isAuthenticated, isLoading, checkAuth, userRole, company, companyHydrated } =
+    useAuthStore();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [knowledgeCount, setKnowledgeCount] = useState<number | null>(null);
   const [companyNumber, setCompanyNumber] = useState<string | null>(null);
@@ -123,12 +124,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       if (status === 'authenticated') {
         try {
           // Give session a moment to stabilize before checking auth
-          await new Promise(resolve => setTimeout(resolve, 300));
+          await new Promise((resolve) => setTimeout(resolve, 300));
 
           await checkAuth();
 
           // Wait a bit more for state to update
-          await new Promise(resolve => setTimeout(resolve, 200));
+          await new Promise((resolve) => setTimeout(resolve, 200));
 
           // After checkAuth, verify we actually have valid credentials
           const state = useAuthStore.getState();
@@ -140,17 +141,19 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
           // For admin users, check for tokens. For customers, check for company or tokens
           // But be lenient - if session exists, give it time
-          const hasValidAuth = state.isAuthenticated && (
-            state.accessToken ||
-            state.idToken ||
-            (state.userRole === UserRole.ADMIN) ||
-            state.company
-          );
+          const hasValidAuth =
+            state.isAuthenticated &&
+            (state.accessToken ||
+              state.idToken ||
+              state.userRole === UserRole.ADMIN ||
+              state.company);
 
           // Only sign out if we're definitely unauthenticated and not loading
           if (!hasValidAuth && !state.isLoading) {
             // Check session one more time before signing out
-            const sessionCheck = await fetch('/api/auth/session', { cache: 'no-store' }).catch(() => null);
+            const sessionCheck = await fetch('/api/auth/session', { cache: 'no-store' }).catch(
+              () => null
+            );
             const sessionData = sessionCheck?.ok ? await sessionCheck.json() : null;
 
             if (!sessionData || (!sessionData.accessToken && !sessionData.idToken)) {
@@ -165,7 +168,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
           // Don't immediately sign out on error - check session first
           try {
-            const sessionCheck = await fetch('/api/auth/session', { cache: 'no-store' }).catch(() => null);
+            const sessionCheck = await fetch('/api/auth/session', { cache: 'no-store' }).catch(
+              () => null
+            );
             const sessionData = sessionCheck?.ok ? await sessionCheck.json() : null;
 
             if (!sessionData || (!sessionData.accessToken && !sessionData.idToken)) {
@@ -195,21 +200,21 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   if (status === 'loading' || isLoading || status === 'unauthenticated') {
     return (
-      <div className="flex h-screen items-center justify-center bg-white dark:bg-slate-950">
+      <div className="flex h-screen items-center justify-center bg-background">
         <div className="text-center">
           <div className="h-8 w-8 animate-spin rounded-full border-4 border-emerald-600 border-t-transparent mx-auto"></div>
-          <p className="mt-4 text-sm text-slate-500">Loading...</p>
+          <p className="mt-4 text-sm text-muted-foreground">Loading...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="flex h-screen bg-slate-50 dark:bg-slate-950 overflow-hidden">
+    <div className="flex h-screen overflow-hidden bg-background dark:bg-[radial-gradient(circle_at_top,rgba(16,185,129,0.12),transparent_22%),linear-gradient(180deg,rgba(12,18,30,0.98),rgba(7,10,18,1))]">
       {/* Mobile overlay */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 bg-slate-900/40 z-40 lg:hidden transition-opacity duration-200"
+          className="fixed inset-0 z-40 bg-slate-950/58 backdrop-blur-sm transition-opacity duration-200 lg:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       )}
@@ -218,7 +223,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <aside
         className={`
           fixed lg:sticky lg:top-0 inset-y-0 left-0 z-50
-          h-screen w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col
+          h-screen w-64 border-r border-border/80 bg-card/80 backdrop-blur-xl flex flex-col
           transform transition-transform duration-200 ease-in-out
           ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
         `}
@@ -229,16 +234,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             variant="ghost"
             size="sm"
             onClick={() => setSidebarOpen(false)}
-            className="h-8 w-8 p-0 text-slate-500 hover:text-slate-900 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-slate-100 dark:hover:bg-slate-800"
+            className="h-8 w-8 p-0 text-slate-500 hover:text-slate-900 hover:bg-accent/80 dark:text-slate-400 dark:hover:text-slate-100"
           >
             <IconX stroke={1.5} className="h-5 w-5" />
           </Button>
         </div>
 
-        <div className="px-5 py-5 flex flex-col items-start justify-center border-b border-slate-100 dark:border-slate-800">
+        <div className="flex flex-col items-start justify-center border-b border-border/80 px-5 py-5">
           <Logo variant="words" width={150} height={36} />
           {company?.company_name && (
-            <p className="mt-1 text-sm font-semibold text-slate-700 dark:text-slate-300 leading-tight">
+            <p className="mt-1 text-sm font-semibold leading-tight text-foreground">
               {company.company_name}
             </p>
           )}
@@ -296,8 +301,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </NavLink>
           </div>
 
-          <div className="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-0.5">
-            <p className="px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">Company</p>
+          <div className="space-y-0.5 border-t border-border/80 pt-3">
+            <p className="px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Company
+            </p>
             <NavLink
               href="/dashboard/knowledge"
               icon={<IconMessageDots stroke={1.5} className="h-5 w-5" />}
@@ -324,8 +331,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </NavLink>
           </div>
 
-          <div className="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-0.5">
-            <p className="px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">Account</p>
+          <div className="space-y-0.5 border-t border-border/80 pt-3">
+            <p className="px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Account
+            </p>
             <NavLink
               href="/dashboard/usage"
               icon={<IconChartBar stroke={1.5} className="h-5 w-5" />}
@@ -337,7 +346,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <NavLink
               href="/dashboard/billing"
               icon={<IconCreditCard stroke={1.5} className="h-5 w-5" />}
-              active={pathname?.startsWith('/dashboard/billing') && !pathname?.startsWith('/dashboard/billing/addons')}
+              active={
+                pathname?.startsWith('/dashboard/billing') &&
+                !pathname?.startsWith('/dashboard/billing/addons')
+              }
               onClick={() => setSidebarOpen(false)}
             >
               Billing
@@ -361,8 +373,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
 
           {canUseAutomation && (
-            <div className="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-0.5">
-              <p className="px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">Automation</p>
+            <div className="space-y-0.5 border-t border-border/80 pt-3">
+              <p className="px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Automation
+              </p>
               <NavLink
                 href="/dashboard/analytics"
                 icon={<IconChartBarPopular stroke={1.5} className="h-5 w-5" />}
@@ -403,13 +417,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Top bar */}
-        <div className="border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-3 sm:px-6">
+        <div className="border-b border-border/80 bg-card/70 px-4 py-3 backdrop-blur-xl sm:px-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-10 w-10 p-0 lg:hidden text-slate-600 hover:text-slate-900 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-slate-100 dark:hover:bg-slate-800"
+                className="h-10 w-10 p-0 text-muted-foreground hover:bg-accent/80 hover:text-foreground lg:hidden"
                 onClick={() => setSidebarOpen(true)}
               >
                 <IconMenu2 stroke={1.5} className="h-5 w-5" />
@@ -423,7 +437,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
 
         {/* Main Content Area */}
-        <main className="flex-1 overflow-auto p-4 sm:p-6 lg:p-10">
+        <main className="flex-1 overflow-auto bg-[radial-gradient(circle_at_top,rgba(16,185,129,0.05),transparent_20%)] p-4 dark:bg-transparent sm:p-6 lg:p-10">
           <div className="animate-fade-up">{children}</div>
         </main>
       </div>
@@ -436,7 +450,7 @@ function NavLink({
   icon,
   children,
   active,
-  onClick
+  onClick,
 }: {
   href: string;
   icon: React.ReactNode;
@@ -450,13 +464,15 @@ function NavLink({
       onClick={onClick}
       className={`group flex items-center px-3 py-2 text-sm rounded-lg transition-colors duration-150 ${
         active
-          ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'
-          : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100'
+          ? 'border border-emerald-400/25 bg-emerald-50/90 text-emerald-700 shadow-sm dark:bg-emerald-950/45 dark:text-emerald-300'
+          : 'border border-transparent text-muted-foreground hover:border-border/70 hover:bg-accent/70 hover:text-foreground'
       }`}
     >
       <span
         className={`mr-3 transition-colors duration-150 ${
-          active ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 group-hover:text-slate-600 dark:text-slate-500 dark:group-hover:text-slate-300'
+          active
+            ? 'text-emerald-600 dark:text-emerald-400'
+            : 'text-muted-foreground group-hover:text-foreground/70'
         }`}
       >
         {icon}

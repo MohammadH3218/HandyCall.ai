@@ -190,8 +190,8 @@ export default function FollowUpsPage() {
   if (loading || !settings || !editSettings) {
     return (
       <div className="space-y-4">
-        <div className="h-8 w-48 animate-pulse rounded bg-slate-100 dark:bg-slate-800" />
-        <div className="h-64 animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-800" />
+        <div className="h-8 w-48 animate-pulse rounded bg-muted" />
+        <div className="h-64 animate-pulse rounded-2xl bg-muted" />
       </div>
     );
   }
@@ -206,23 +206,23 @@ export default function FollowUpsPage() {
       />
 
       {/* Summary card */}
-      <div className="rounded-2xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm">
-        <div className="border-b border-slate-100 dark:border-slate-800 px-5 py-4">
-          <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Recommended starter flow</h2>
-          <p className="text-xs text-slate-500 dark:text-slate-400">A simple setup most service businesses can start with immediately.</p>
+      <div className="rounded-2xl border border-border bg-card shadow-sm">
+        <div className="border-b border-border px-5 py-4">
+          <h2 className="text-sm font-semibold text-foreground">Recommended starter flow</h2>
+          <p className="text-xs text-muted-foreground">A simple setup most service businesses can start with immediately.</p>
         </div>
         <div className="grid gap-3 p-5 md:grid-cols-4">
-          <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/50 p-4">
-            <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Automation</p>
-            <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-slate-100">{settings.follow_up_sequences_enabled ? 'Enabled' : 'Disabled'}</p>
+          <div className="rounded-2xl border border-border bg-slate-50/70 dark:bg-slate-800/50 p-4">
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">Automation</p>
+            <p className="mt-2 text-sm font-semibold text-foreground">{settings.follow_up_sequences_enabled ? 'Enabled' : 'Disabled'}</p>
           </div>
           {FOLLOW_UP_BLOCKS.map((block) => (
-            <div key={block.key} className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/50 p-4">
-              <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">{block.title}</p>
-              <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
+            <div key={block.key} className="rounded-2xl border border-border bg-slate-50/70 dark:bg-slate-800/50 p-4">
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">{block.title}</p>
+              <p className="mt-2 text-sm font-semibold text-foreground">
                 {Number((settings as any)[`${block.key}_delay_minutes`] ?? block.fallbackDelay)} min
               </p>
-              <p className="mt-1 line-clamp-2 text-xs text-slate-600 dark:text-slate-400">
+              <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
                 {toFriendlyTemplate((settings as any)[`${block.key}_template`] || block.fallbackText)}
               </p>
             </div>
@@ -231,31 +231,31 @@ export default function FollowUpsPage() {
       </div>
 
       {/* Automation setup card */}
-      <div className="rounded-2xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm">
-        <div className="border-b border-slate-100 dark:border-slate-800 px-5 py-4">
-          <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Automation setup</h2>
-          <p className="text-xs text-slate-500 dark:text-slate-400">Edit only when you want to fine-tune timing or wording.</p>
+      <div className="rounded-2xl border border-border bg-card shadow-sm">
+        <div className="border-b border-border px-5 py-4">
+          <h2 className="text-sm font-semibold text-foreground">Automation setup</h2>
+          <p className="text-xs text-muted-foreground">Edit only when you want to fine-tune timing or wording.</p>
         </div>
         {!editing ? (
           <div className="space-y-4 p-5">
             <div className="grid gap-3 md:grid-cols-2">
               {FOLLOW_UP_BLOCKS.map((block) => (
-                <div key={block.key} className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/50 p-4">
-                  <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{block.title}</p>
-                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                <div key={block.key} className="rounded-2xl border border-border bg-slate-50/70 dark:bg-slate-800/50 p-4">
+                  <p className="text-sm font-semibold text-foreground">{block.title}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
                     Sends after {Number((settings as any)[`${block.key}_delay_minutes`] ?? block.fallbackDelay)} minutes
                   </p>
-                  <p className="mt-3 line-clamp-3 text-sm text-slate-600 dark:text-slate-400">
+                  <p className="mt-3 line-clamp-3 text-sm text-muted-foreground">
                     {previewMessage((settings as any)[`${block.key}_template`], block.fallbackText)}
                   </p>
                 </div>
               ))}
-              <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/50 p-4">
-                <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Review requests</p>
-                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+              <div className="rounded-2xl border border-border bg-slate-50/70 dark:bg-slate-800/50 p-4">
+                <p className="text-sm font-semibold text-foreground">Review requests</p>
+                <p className="mt-1 text-xs text-muted-foreground">
                   {settings.review_request_enabled ? `Enabled after ${settings.review_request_delay_minutes} minutes` : 'Disabled'}
                 </p>
-                <p className="mt-3 line-clamp-3 text-sm text-slate-600 dark:text-slate-400">
+                <p className="mt-3 line-clamp-3 text-sm text-muted-foreground">
                   {settings.review_platform_url || 'No review link set yet.'}
                 </p>
               </div>
@@ -264,16 +264,16 @@ export default function FollowUpsPage() {
         ) : (
           <div className="space-y-4 p-5">
             {/* Preview picker */}
-            <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/50 p-4">
+            <div className="rounded-2xl border border-border bg-slate-50/70 dark:bg-slate-800/50 p-4">
               <div className="mb-3">
-                <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Preview your follow-up messages</p>
-                <p className="text-xs text-slate-500 dark:text-slate-400">Pick a customer and booking so you can see exactly what the text will look like.</p>
+                <p className="text-sm font-semibold text-foreground">Preview your follow-up messages</p>
+                <p className="text-xs text-muted-foreground">Pick a customer and booking so you can see exactly what the text will look like.</p>
               </div>
               <div className="grid gap-3 md:grid-cols-2">
                 <div className="space-y-2">
-                  <label className="text-xs font-medium text-slate-700 dark:text-slate-300">Customer</label>
+                  <label className="text-xs font-medium text-foreground">Customer</label>
                   <select
-                    className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    className="w-full rounded-xl border border-border bg-card px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500"
                     value={previewContactId}
                     onChange={(e) => {
                       setPreviewContactId(e.target.value);
@@ -289,9 +289,9 @@ export default function FollowUpsPage() {
                   </select>
                 </div>
                 <div className="space-y-2">
-                  <label className="text-xs font-medium text-slate-700 dark:text-slate-300">Booking</label>
+                  <label className="text-xs font-medium text-foreground">Booking</label>
                   <select
-                    className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    className="w-full rounded-xl border border-border bg-card px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500"
                     value={previewAppointmentId}
                     onChange={(e) => setPreviewAppointmentId(e.target.value)}
                     disabled={!selectedContact}
@@ -308,10 +308,10 @@ export default function FollowUpsPage() {
             </div>
 
             {/* Enable toggle */}
-            <div className="flex items-center justify-between rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/50 p-4">
+            <div className="flex items-center justify-between rounded-2xl border border-border bg-slate-50/70 dark:bg-slate-800/50 p-4">
               <div>
-                <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Enable follow-up automation</p>
-                <p className="text-xs text-slate-600 dark:text-slate-400">Use a simple 3-touch sequence for leads who have not booked yet.</p>
+                <p className="text-sm font-semibold text-foreground">Enable follow-up automation</p>
+                <p className="text-xs text-muted-foreground">Use a simple 3-touch sequence for leads who have not booked yet.</p>
               </div>
               <button
                 type="button"
@@ -325,13 +325,13 @@ export default function FollowUpsPage() {
             {/* Message blocks */}
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               {FOLLOW_UP_BLOCKS.map((block) => (
-                <div key={block.key} className="space-y-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/50 p-4">
+                <div key={block.key} className="space-y-3 rounded-2xl border border-border bg-slate-50/70 dark:bg-slate-800/50 p-4">
                   <div>
-                    <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{block.title}</p>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">Write it in plain language. Use the quick insert buttons if you want the customer's name or booking link to appear automatically.</p>
+                    <p className="text-sm font-semibold text-foreground">{block.title}</p>
+                    <p className="text-xs text-muted-foreground">Write it in plain language. Use the quick insert buttons if you want the customer's name or booking link to appear automatically.</p>
                   </div>
                   <div className="space-y-2">
-                    <label className="text-xs font-medium text-slate-700 dark:text-slate-300">Delay in minutes</label>
+                    <label className="text-xs font-medium text-foreground">Delay in minutes</label>
                     <Input
                       type="number"
                       min={0}
@@ -341,13 +341,13 @@ export default function FollowUpsPage() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-xs font-medium text-slate-700 dark:text-slate-300">Message</label>
+                    <label className="text-xs font-medium text-foreground">Message</label>
                     <div className="flex flex-wrap gap-2">
                       {Object.keys(FRIENDLY_TOKENS).map((token) => (
                         <button
                           key={token}
                           type="button"
-                          className="rounded-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-1 text-xs font-medium text-slate-700 dark:text-slate-300 transition hover:border-emerald-300 hover:text-emerald-700 dark:hover:border-emerald-600 dark:hover:text-emerald-400"
+                          className="rounded-full border border-border bg-card px-3 py-1 text-xs font-medium text-foreground transition hover:border-emerald-300 hover:text-emerald-700 dark:hover:border-emerald-600 dark:hover:text-emerald-400"
                           onClick={() =>
                             setEditSettings((s) =>
                               s
@@ -367,14 +367,14 @@ export default function FollowUpsPage() {
                     </div>
                     <textarea
                       rows={4}
-                      className="w-full resize-none rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                      className="w-full resize-none rounded-xl border border-border bg-card px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500"
                       placeholder={toFriendlyTemplate(block.fallbackText)}
                       value={toFriendlyTemplate((editSettings as any)[`${block.key}_template`] || '')}
                       onChange={(e) => setEditSettings((s) => (s ? { ...s, [`${block.key}_template`]: e.target.value } : s))}
                     />
-                    <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-3">
-                      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">Preview</p>
-                      <p className="mt-2 text-sm text-slate-700 dark:text-slate-300">{previewMessage((editSettings as any)[`${block.key}_template`], block.fallbackText)}</p>
+                    <div className="rounded-xl border border-border bg-card p-3">
+                      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Preview</p>
+                      <p className="mt-2 text-sm text-foreground">{previewMessage((editSettings as any)[`${block.key}_template`], block.fallbackText)}</p>
                     </div>
                   </div>
                 </div>
@@ -382,11 +382,11 @@ export default function FollowUpsPage() {
             </div>
 
             {/* Review requests */}
-            <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/50 p-4">
+            <div className="rounded-2xl border border-border bg-slate-50/70 dark:bg-slate-800/50 p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Review requests</p>
-                  <p className="text-xs text-slate-600 dark:text-slate-400">Ask for a review after completed jobs.</p>
+                  <p className="text-sm font-semibold text-foreground">Review requests</p>
+                  <p className="text-xs text-muted-foreground">Ask for a review after completed jobs.</p>
                 </div>
                 <button
                   type="button"
@@ -398,7 +398,7 @@ export default function FollowUpsPage() {
               </div>
               <div className="mt-4 grid gap-3 md:grid-cols-2">
                 <div className="space-y-2">
-                  <label className="text-xs font-medium text-slate-700 dark:text-slate-300">Review link</label>
+                  <label className="text-xs font-medium text-foreground">Review link</label>
                   <Input
                     placeholder="https://g.page/r/your-review-link"
                     value={editSettings.review_platform_url || ''}
@@ -407,7 +407,7 @@ export default function FollowUpsPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-xs font-medium text-slate-700 dark:text-slate-300">Send delay in minutes</label>
+                  <label className="text-xs font-medium text-foreground">Send delay in minutes</label>
                   <Input
                     type="number"
                     min={0}
@@ -419,9 +419,9 @@ export default function FollowUpsPage() {
               </div>
             </div>
 
-            <div className="flex justify-end gap-2 border-t border-slate-100 dark:border-slate-800 pt-4">
+            <div className="flex justify-end gap-2 border-t border-border pt-4">
               <Button variant="outline" onClick={handleCancel}
-                className="border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400">
+                className="border-border text-muted-foreground">
                 Cancel
               </Button>
               <Button onClick={handleSave} disabled={saving}>{saving ? 'Saving...' : 'Save changes'}</Button>
@@ -431,26 +431,26 @@ export default function FollowUpsPage() {
       </div>
 
       {/* Recent sequences */}
-      <div className="rounded-2xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm">
-        <div className="border-b border-slate-100 dark:border-slate-800 px-5 py-4">
-          <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Recent sequences</h2>
-          <p className="text-xs text-slate-500 dark:text-slate-400">Follow-up sequences sent to leads</p>
+      <div className="rounded-2xl border border-border bg-card shadow-sm">
+        <div className="border-b border-border px-5 py-4">
+          <h2 className="text-sm font-semibold text-foreground">Recent sequences</h2>
+          <p className="text-xs text-muted-foreground">Follow-up sequences sent to leads</p>
         </div>
         {sequences.length === 0 ? (
           <div className="p-5">
             <EmptyState
-              icon={<IconMessage stroke={1.5} className="h-5 w-5 text-slate-400 dark:text-slate-500" />}
+              icon={<IconMessage stroke={1.5} className="h-5 w-5 text-muted-foreground" />}
               title="No sequences yet"
               description="Follow-up sequences will appear here after calls with new leads."
             />
           </div>
         ) : (
-          <div className="divide-y divide-slate-100 dark:divide-slate-800">
+          <div className="divide-y divide-border">
             {sequences.slice(0, 20).map((seq) => (
               <div key={seq.sequence_id} className="flex items-center justify-between px-5 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
                 <div>
-                  <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{seq.to_number}</p>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">{seq.steps?.length || 0} messages · {new Date(seq.created_at).toLocaleDateString()}</p>
+                  <p className="text-sm font-medium text-foreground">{seq.to_number}</p>
+                  <p className="text-xs text-muted-foreground">{seq.steps?.length || 0} messages · {new Date(seq.created_at).toLocaleDateString()}</p>
                 </div>
                 <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
                   seq.status === 'SCHEDULED'

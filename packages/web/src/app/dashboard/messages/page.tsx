@@ -117,14 +117,14 @@ export default function MessagesPage() {
 
   const PaginationBar = (
     <div className="flex items-center justify-between">
-      <p className="text-sm text-slate-500 dark:text-slate-500">
+      <p className="text-sm text-muted-foreground">
         Page {currentPage} of {totalPages}
       </p>
       <div className="flex items-center gap-1">
         <button
           onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
           disabled={!canGoPrev}
-          className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
+          className="flex h-8 w-8 items-center justify-center rounded-lg border border-border text-muted-foreground transition-colors hover:bg-slate-50 dark:hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
         >
           <IconChevronLeft className="h-4 w-4" stroke={1.5} />
         </button>
@@ -135,7 +135,7 @@ export default function MessagesPage() {
             className={`flex h-8 w-8 items-center justify-center rounded-lg text-sm font-medium transition-colors ${
               page === currentPage
                 ? 'bg-emerald-600 text-white shadow-sm'
-                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
+                : 'text-muted-foreground hover:bg-slate-50 dark:hover:bg-slate-800'
             }`}
           >
             {page}
@@ -144,7 +144,7 @@ export default function MessagesPage() {
         <button
           onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
           disabled={!canGoNext}
-          className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
+          className="flex h-8 w-8 items-center justify-center rounded-lg border border-border text-muted-foreground transition-colors hover:bg-slate-50 dark:hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
         >
           <IconChevronRight className="h-4 w-4" stroke={1.5} />
         </button>
@@ -163,14 +163,14 @@ export default function MessagesPage() {
       {/* Search */}
       <div className="flex gap-3">
         <div className="relative flex-1">
-          <IconSearch className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 dark:text-slate-500" stroke={1.5} />
+          <IconSearch className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" stroke={1.5} />
           <input
             type="text"
             placeholder="Search by name, phone, or message…"
             value={searchQuery}
             onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
             onKeyDown={(e) => e.key === 'Enter' && handleSearchSubmit()}
-            className="h-10 w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 pl-10 pr-3 text-sm text-slate-900 dark:text-slate-100 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
+            className="h-10 w-full rounded-lg border border-border bg-card pl-10 pr-3 text-sm text-foreground outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
           />
         </div>
         <button
@@ -189,11 +189,11 @@ export default function MessagesPage() {
       {loading ? (
         <div className="space-y-2">
           {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="flex items-center gap-4 rounded-2xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
-              <div className="h-10 w-10 animate-pulse rounded-full bg-slate-100 dark:bg-slate-800" />
+            <div key={i} className="flex items-center gap-4 rounded-2xl border border-border bg-card p-4">
+              <div className="h-10 w-10 animate-pulse rounded-full bg-muted" />
               <div className="flex-1 space-y-2">
-                <div className="h-4 w-1/3 animate-pulse rounded bg-slate-100 dark:bg-slate-800" />
-                <div className="h-3 w-2/3 animate-pulse rounded bg-slate-100 dark:bg-slate-800" />
+                <div className="h-4 w-1/3 animate-pulse rounded bg-muted" />
+                <div className="h-3 w-2/3 animate-pulse rounded bg-muted" />
               </div>
             </div>
           ))}
@@ -203,10 +203,10 @@ export default function MessagesPage() {
           {error}
         </div>
       ) : pageThreads.length === 0 ? (
-        <div className="flex flex-col items-center justify-center rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 py-16 text-center">
-          <IconMessage className="h-10 w-10 text-slate-300 dark:text-slate-600" stroke={1.5} />
-          <p className="mt-3 text-sm font-semibold text-slate-700 dark:text-slate-300">No messages yet</p>
-          <p className="mt-1 text-sm text-slate-500 dark:text-slate-500">SMS conversations will appear here once your AI starts texting.</p>
+        <div className="flex flex-col items-center justify-center rounded-xl border border-border bg-card py-16 text-center">
+          <IconMessage className="h-10 w-10 text-border" stroke={1.5} />
+          <p className="mt-3 text-sm font-semibold text-foreground">No messages yet</p>
+          <p className="mt-1 text-sm text-muted-foreground">SMS conversations will appear here once your AI starts texting.</p>
         </div>
       ) : (
         <div className="space-y-2">
@@ -220,7 +220,7 @@ export default function MessagesPage() {
                 key={thread.id}
                 type="button"
                 onClick={() => router.push(`${basePath}/messages/${thread.id}`)}
-                className="group w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4 text-left transition-colors hover:border-slate-300 dark:hover:border-slate-600"
+                className="group w-full rounded-xl border border-border bg-card p-4 text-left transition-colors hover:border-slate-300 dark:hover:border-slate-600"
               >
                 <div className="flex items-start gap-4">
                   {/* Avatar */}
@@ -234,19 +234,19 @@ export default function MessagesPage() {
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex min-w-0 items-center gap-2">
-                        <span className="truncate font-semibold text-slate-900 dark:text-slate-100">{thread.contact_name}</span>
+                        <span className="truncate font-semibold text-foreground">{thread.contact_name}</span>
                         <span className={`inline-flex shrink-0 items-center rounded-full border px-2 py-0.5 text-xs font-medium ${lead.className}`}>
                           {lead.label}
                         </span>
                       </div>
-                      <span className="shrink-0 text-xs text-slate-400 dark:text-slate-500">{relativeTime(thread.last_at)}</span>
+                      <span className="shrink-0 text-xs text-muted-foreground">{relativeTime(thread.last_at)}</span>
                     </div>
-                    <p className="mt-0.5 text-xs text-slate-400 dark:text-slate-500">{thread.contact_phone}</p>
-                    <p className="mt-2 line-clamp-2 text-sm text-slate-600 dark:text-slate-400">{thread.last_message}</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">{thread.contact_phone}</p>
+                    <p className="mt-2 line-clamp-2 text-sm text-muted-foreground">{thread.last_message}</p>
                   </div>
 
                   {/* Arrow */}
-                  <IconChevronRight className="mt-0.5 h-5 w-5 shrink-0 text-slate-300 dark:text-slate-600 transition-colors group-hover:text-slate-500 dark:group-hover:text-slate-400" stroke={1.5} />
+                  <IconChevronRight className="mt-0.5 h-5 w-5 shrink-0 text-border transition-colors group-hover:text-muted-foreground" stroke={1.5} />
                 </div>
               </button>
             );

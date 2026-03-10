@@ -103,8 +103,10 @@ export function ProfileDropdown() {
     const canceling = company?.cancel_at_period_end || fallbackCancelAtPeriodEnd;
 
     if (!planValue) {
-      if (status === SubscriptionStatus.TRIALING) return { text: 'Trialing', color: 'text-blue-600' };
-      if (status === SubscriptionStatus.ACTIVE) return { text: 'Active', color: 'text-green-600' };
+      if (status === SubscriptionStatus.TRIALING)
+        return { text: 'Trialing', color: 'text-blue-600 dark:text-blue-400' };
+      if (status === SubscriptionStatus.ACTIVE)
+        return { text: 'Active', color: 'text-green-600 dark:text-green-400' };
       return { text: 'No Plan', color: 'text-muted-foreground' };
     }
 
@@ -115,19 +117,19 @@ export function ProfileDropdown() {
 
     if (canceling) {
       statusText = ' (Cancelled)';
-      color = 'text-red-600';
+      color = 'text-red-600 dark:text-red-400';
     } else if (status === SubscriptionStatus.TRIALING) {
       statusText = ' (Trial)';
-      color = 'text-blue-600';
+      color = 'text-blue-600 dark:text-blue-400';
     } else if (status === SubscriptionStatus.ACTIVE) {
       statusText = ' (Active)';
-      color = 'text-green-600';
+      color = 'text-green-600 dark:text-green-400';
     } else if (status === SubscriptionStatus.PAST_DUE) {
       statusText = ' (Past Due)';
-      color = 'text-yellow-600';
+      color = 'text-yellow-600 dark:text-yellow-400';
     } else if (status === SubscriptionStatus.CANCELED) {
       statusText = ' (Canceled)';
-      color = 'text-red-600';
+      color = 'text-red-600 dark:text-red-400';
     }
 
     return { text: `${planName}${statusText}`, color };
@@ -138,17 +140,15 @@ export function ProfileDropdown() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <button className="flex items-center space-x-3 rounded-lg px-3 py-2 transition-colors duration-200 hover:bg-secondary focus:outline-none focus:ring-2 focus:ring-ring">
+        <button className="flex items-center space-x-3 rounded-xl border border-transparent px-3 py-2 transition-colors duration-200 hover:border-border/80 hover:bg-card/80 focus:outline-none focus:ring-2 focus:ring-ring">
           <Avatar className="h-9 w-9 transition-transform duration-200 hover:scale-105">
-            <AvatarFallback className="bg-primary text-primary-foreground">
+            <AvatarFallback className="bg-primary/90 text-primary-foreground shadow-sm">
               {getInitials()}
             </AvatarFallback>
           </Avatar>
           <div className="hidden text-left md:block">
             <p className="text-sm font-medium text-foreground">{getDisplayName()}</p>
-            <p className={`text-xs truncate max-w-[150px] ${planInfo.color}`}>
-              {planInfo.text}
-            </p>
+            <p className={`text-xs truncate max-w-[150px] ${planInfo.color}`}>{planInfo.text}</p>
           </div>
         </button>
       </DropdownMenuTrigger>
@@ -156,11 +156,7 @@ export function ProfileDropdown() {
         <DropdownMenuLabel className="font-normal">
           <div className="flex flex-col space-y-1">
             <p className="text-sm font-medium leading-none">{getDisplayName()}</p>
-            {email && (
-              <p className="text-xs leading-none text-muted-foreground">
-                {email}
-              </p>
-            )}
+            {email && <p className="text-xs leading-none text-muted-foreground">{email}</p>}
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />

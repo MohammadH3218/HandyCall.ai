@@ -80,9 +80,9 @@ export default function LeadInboxPage() {
   if (loading) {
     return (
       <div className="space-y-4">
-        <div className="h-8 w-48 animate-pulse rounded bg-slate-100 dark:bg-slate-800" />
+        <div className="h-8 w-48 animate-pulse rounded bg-muted" />
         {[1, 2, 3, 4].map((i) => (
-          <div key={i} className="h-24 animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-800" />
+          <div key={i} className="h-24 animate-pulse rounded-2xl bg-muted" />
         ))}
       </div>
     );
@@ -110,7 +110,7 @@ export default function LeadInboxPage() {
       />
 
       <div className="relative">
-        <IconSearch className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
+        <IconSearch className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <Input
           className="pl-9"
           placeholder="Search leads..."
@@ -132,7 +132,7 @@ export default function LeadInboxPage() {
 
       {filtered.length === 0 ? (
         <EmptyState
-          icon={<IconUsers className="h-6 w-6 text-slate-400 dark:text-slate-500" />}
+          icon={<IconUsers className="h-6 w-6 text-muted-foreground" />}
           title="No leads found"
           description="Leads will appear here after callers show real service interest."
         />
@@ -144,7 +144,7 @@ export default function LeadInboxPage() {
             return (
               <div
                 key={lead.call_id}
-                className="rounded-2xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm transition hover:border-slate-200 dark:hover:border-slate-700"
+                className="rounded-2xl border border-border bg-card p-4 shadow-sm transition hover:border-slate-200 dark:hover:border-slate-700"
               >
                 <div className="flex flex-col gap-4 md:flex-row md:items-start">
                   <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-amber-50 dark:bg-amber-950 text-sm font-bold text-amber-700 dark:text-amber-300">
@@ -155,7 +155,7 @@ export default function LeadInboxPage() {
                     <div className="flex flex-wrap items-center gap-2">
                       <Link
                         href={lead.contact_id ? `/dashboard/customers?contact=${lead.contact_id}` : `/dashboard/calls/${lead.call_id}`}
-                        className="text-sm font-semibold text-slate-900 dark:text-slate-100 transition hover:text-emerald-600 dark:hover:text-emerald-400"
+                        className="text-sm font-semibold text-foreground transition hover:text-emerald-600 dark:hover:text-emerald-400"
                       >
                         {name}
                       </Link>
@@ -173,17 +173,17 @@ export default function LeadInboxPage() {
                       </Badge>
                     </div>
 
-                    <div className="space-y-1 text-sm text-slate-600 dark:text-slate-400">
+                    <div className="space-y-1 text-sm text-muted-foreground">
                       <p>{lead.phone_number}</p>
                       {createdAt ? <p>{createdAt}</p> : null}
                       {lead.duration_seconds ? <p>{lead.duration_seconds}s call</p> : null}
                     </div>
 
                     {lead.summary ? (
-                      <p className="text-sm text-slate-700 dark:text-slate-300">{lead.summary}</p>
+                      <p className="text-sm text-foreground">{lead.summary}</p>
                     ) : null}
                     {lead.lead_reason ? (
-                      <p className="text-sm text-slate-500 dark:text-slate-500">{lead.lead_reason}</p>
+                      <p className="text-sm text-muted-foreground">{lead.lead_reason}</p>
                     ) : null}
                   </div>
 
@@ -191,7 +191,7 @@ export default function LeadInboxPage() {
                     {lead.phone_number ? (
                       <Link
                         href="/dashboard/outbound-calls"
-                        className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 transition hover:border-emerald-200 hover:text-emerald-600 dark:hover:border-emerald-700 dark:hover:text-emerald-400"
+                        className="flex h-8 w-8 items-center justify-center rounded-lg border border-border text-muted-foreground transition hover:border-emerald-200 hover:text-emerald-600 dark:hover:border-emerald-700 dark:hover:text-emerald-400"
                       >
                         <IconPhone stroke={1.5} className="h-3.5 w-3.5" />
                       </Link>
@@ -199,7 +199,7 @@ export default function LeadInboxPage() {
                     {lead.phone_number ? (
                       <Link
                         href="/dashboard/messages"
-                        className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 transition hover:border-emerald-200 hover:text-emerald-600 dark:hover:border-emerald-700 dark:hover:text-emerald-400"
+                        className="flex h-8 w-8 items-center justify-center rounded-lg border border-border text-muted-foreground transition hover:border-emerald-200 hover:text-emerald-600 dark:hover:border-emerald-700 dark:hover:text-emerald-400"
                       >
                         <IconMessageCircle stroke={1.5} className="h-3.5 w-3.5" />
                       </Link>

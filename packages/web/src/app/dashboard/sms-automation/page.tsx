@@ -228,9 +228,9 @@ export default function SmsAutomationPage() {
   if (loading) {
     return (
       <div className="space-y-4">
-        <div className="h-8 w-48 animate-pulse rounded bg-slate-100 dark:bg-slate-800" />
+        <div className="h-8 w-48 animate-pulse rounded bg-muted" />
         {[1, 2, 3].map((i) => (
-          <div key={i} className="h-20 animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-800" />
+          <div key={i} className="h-20 animate-pulse rounded-2xl bg-muted" />
         ))}
       </div>
     );
@@ -253,14 +253,14 @@ export default function SmsAutomationPage() {
 
       <div className="grid gap-3 md:grid-cols-3">
         {STARTER_CARDS.map((card) => (
-          <div key={card.title} className="rounded-2xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm">
-            <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{card.title}</p>
-            <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">{card.body}</p>
+          <div key={card.title} className="rounded-2xl border border-border bg-card p-4 shadow-sm">
+            <p className="text-sm font-semibold text-foreground">{card.title}</p>
+            <p className="mt-1 text-sm text-muted-foreground">{card.body}</p>
           </div>
         ))}
       </div>
 
-      <div className="flex w-fit gap-1 rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 p-1">
+      <div className="flex w-fit gap-1 rounded-xl border border-border bg-muted/50 p-1">
         {(['templates', 'scheduled'] as const).map((t) => (
           <button
             key={t}
@@ -268,7 +268,7 @@ export default function SmsAutomationPage() {
             className={`rounded-lg px-4 py-1.5 text-sm font-medium transition ${
               tab === t
                 ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 shadow-sm'
-                : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+                : 'text-muted-foreground hover:text-slate-700 dark:hover:text-slate-200'
             }`}
           >
             {t === 'templates' ? `Templates (${templates.length})` : `Scheduled (${scheduled.length})`}
@@ -279,22 +279,22 @@ export default function SmsAutomationPage() {
       {tab === 'templates' && (
         templates.length === 0 ? (
           <EmptyState
-            icon={<IconMessageDots className="h-6 w-6 text-slate-400 dark:text-slate-500" />}
+            icon={<IconMessageDots className="h-6 w-6 text-muted-foreground" />}
             title="No templates yet"
             description="Create your first SMS template to speed up reminders and follow-ups."
           />
         ) : (
-          <div className="rounded-2xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm divide-y divide-slate-100 dark:divide-slate-800">
+          <div className="rounded-2xl border border-border bg-card shadow-sm divide-y divide-border">
             {templates.map((t) => (
               <div key={t.template_id} className="flex items-start gap-4 px-5 py-4 hover:border-slate-200 dark:hover:border-slate-700 transition">
                 <div className="min-w-0 flex-1">
                   <div className="mb-1 flex items-center gap-2">
-                    <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{t.name}</p>
+                    <p className="text-sm font-semibold text-foreground">{t.name}</p>
                     <CategoryBadge category={t.category} />
                   </div>
-                  <p className="line-clamp-2 text-xs text-slate-600 dark:text-slate-400">{toFriendlyTemplate(t.body)}</p>
+                  <p className="line-clamp-2 text-xs text-muted-foreground">{toFriendlyTemplate(t.body)}</p>
                 </div>
-                <button onClick={() => handleDelete(t.template_id)} className="text-slate-400 dark:text-slate-500 transition hover:text-red-600 dark:hover:text-red-400">
+                <button onClick={() => handleDelete(t.template_id)} className="text-muted-foreground transition hover:text-red-600 dark:hover:text-red-400">
                   <IconTrash className="h-4 w-4" />
                 </button>
               </div>
@@ -306,25 +306,25 @@ export default function SmsAutomationPage() {
       {tab === 'scheduled' && (
         scheduled.length === 0 ? (
           <EmptyState
-            icon={<IconMessageDots className="h-6 w-6 text-slate-400 dark:text-slate-500" />}
+            icon={<IconMessageDots className="h-6 w-6 text-muted-foreground" />}
             title="No scheduled messages"
             description="Scheduled SMS messages will appear here."
           />
         ) : (
-          <div className="rounded-2xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm divide-y divide-slate-100 dark:divide-slate-800">
+          <div className="rounded-2xl border border-border bg-card shadow-sm divide-y divide-border">
             {scheduled.map((m) => (
               <div key={m.message_id} className="flex items-start gap-4 px-5 py-4">
                 <div className="min-w-0 flex-1">
                   <div className="mb-1 flex items-center gap-2">
-                    <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{m.to_number}</p>
+                    <p className="text-sm font-medium text-foreground">{m.to_number}</p>
                     <span className="rounded-full bg-amber-100 dark:bg-amber-950 px-2 py-0.5 text-xs font-semibold text-amber-700 dark:text-amber-300">
                       {m.message_type}
                     </span>
                   </div>
-                  <p className="line-clamp-2 text-xs text-slate-600 dark:text-slate-400">{m.body}</p>
-                  <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">Sends {new Date(m.send_at).toLocaleString()}</p>
+                  <p className="line-clamp-2 text-xs text-muted-foreground">{m.body}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">Sends {new Date(m.send_at).toLocaleString()}</p>
                 </div>
-                <button onClick={() => handleCancelScheduled(m.message_id)} className="text-slate-400 dark:text-slate-500 transition hover:text-red-600 dark:hover:text-red-400">
+                <button onClick={() => handleCancelScheduled(m.message_id)} className="text-muted-foreground transition hover:text-red-600 dark:hover:text-red-400">
                   <IconX className="h-4 w-4" />
                 </button>
               </div>
@@ -334,17 +334,17 @@ export default function SmsAutomationPage() {
       )}
 
       <Dialog open={showForm} onOpenChange={setShowForm}>
-        <DialogContent className="max-w-2xl bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800">
+        <DialogContent className="max-w-2xl bg-card border-border">
           <DialogHeader>
-            <DialogTitle className="text-slate-900 dark:text-slate-100">Create SMS template</DialogTitle>
+            <DialogTitle className="text-foreground">Create SMS template</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/60 px-4 py-3 text-sm text-slate-600 dark:text-slate-400">
+            <div className="rounded-xl border border-border bg-slate-50/70 dark:bg-slate-800/60 px-4 py-3 text-sm text-muted-foreground">
               Write the message the way you want it to sound. You can optionally insert the customer name, your company name, or a booking link without dealing with template code.
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <div>
-                <label className="mb-1 block text-xs font-medium text-slate-700 dark:text-slate-300">Template name</label>
+                <label className="mb-1 block text-xs font-medium text-foreground">Template name</label>
                 <Input
                   placeholder="Appointment reminder"
                   value={form.name}
@@ -353,9 +353,9 @@ export default function SmsAutomationPage() {
                 />
               </div>
               <div>
-                <label className="mb-1 block text-xs font-medium text-slate-700 dark:text-slate-300">Category</label>
+                <label className="mb-1 block text-xs font-medium text-foreground">Category</label>
                 <select
-                  className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  className="w-full rounded-xl border border-border bg-card px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   value={form.category}
                   onChange={(e) => setForm({ ...form, category: e.target.value })}
                 >
@@ -366,13 +366,13 @@ export default function SmsAutomationPage() {
               </div>
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-slate-700 dark:text-slate-300">Message body</label>
+              <label className="mb-1 block text-xs font-medium text-foreground">Message body</label>
               <div className="mb-2 flex flex-wrap gap-2">
                 {Object.keys(FRIENDLY_TOKENS).map((token) => (
                   <button
                     key={token}
                     type="button"
-                    className="rounded-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-1 text-xs font-medium text-slate-700 dark:text-slate-300 transition hover:border-emerald-300 dark:hover:border-emerald-600 hover:text-emerald-700 dark:hover:text-emerald-400"
+                    className="rounded-full border border-border bg-card px-3 py-1 text-xs font-medium text-foreground transition hover:border-emerald-300 dark:hover:border-emerald-600 hover:text-emerald-700 dark:hover:text-emerald-400"
                     onClick={() =>
                       setForm((prev) => ({
                         ...prev,
@@ -386,23 +386,23 @@ export default function SmsAutomationPage() {
               </div>
               <textarea
                 rows={5}
-                className="w-full resize-none rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                className="w-full resize-none rounded-xl border border-border bg-card px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 placeholder="Hi [Customer name], this is [Company name] checking in about your appointment."
                 value={form.body}
                 onChange={(e) => setForm({ ...form, body: e.target.value })}
               />
-              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Keep it short and direct. If you want a pay or booking action, add the booking link button text naturally in the message.</p>
+              <p className="mt-1 text-xs text-muted-foreground">Keep it short and direct. If you want a pay or booking action, add the booking link button text naturally in the message.</p>
             </div>
-            <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/60 p-4">
+            <div className="rounded-2xl border border-border bg-slate-50/70 dark:bg-slate-800/60 p-4">
               <div className="mb-3">
-                <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Preview this message</p>
-                <p className="text-xs text-slate-500 dark:text-slate-400">Choose a customer and one of their bookings so you can see the final text before saving.</p>
+                <p className="text-sm font-semibold text-foreground">Preview this message</p>
+                <p className="text-xs text-muted-foreground">Choose a customer and one of their bookings so you can see the final text before saving.</p>
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
                 <div>
-                  <label className="mb-1 block text-xs font-medium text-slate-700 dark:text-slate-300">Customer</label>
+                  <label className="mb-1 block text-xs font-medium text-foreground">Customer</label>
                   <select
-                    className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    className="w-full rounded-xl border border-border bg-card px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500"
                     value={previewContactId}
                     onChange={(e) => {
                       setPreviewContactId(e.target.value);
@@ -418,9 +418,9 @@ export default function SmsAutomationPage() {
                   </select>
                 </div>
                 <div>
-                  <label className="mb-1 block text-xs font-medium text-slate-700 dark:text-slate-300">Booking link</label>
+                  <label className="mb-1 block text-xs font-medium text-foreground">Booking link</label>
                   <select
-                    className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    className="w-full rounded-xl border border-border bg-card px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500"
                     value={previewAppointmentId}
                     onChange={(e) => setPreviewAppointmentId(e.target.value)}
                     disabled={!selectedContact}
@@ -434,9 +434,9 @@ export default function SmsAutomationPage() {
                   </select>
                 </div>
               </div>
-              <div className="mt-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">Preview</p>
-                <p className="mt-2 whitespace-pre-wrap text-sm text-slate-700 dark:text-slate-300">{previewBody || 'Your message preview will appear here.'}</p>
+              <div className="mt-4 rounded-xl border border-border bg-card p-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Preview</p>
+                <p className="mt-2 whitespace-pre-wrap text-sm text-foreground">{previewBody || 'Your message preview will appear here.'}</p>
               </div>
             </div>
             <div className="flex justify-end gap-2">

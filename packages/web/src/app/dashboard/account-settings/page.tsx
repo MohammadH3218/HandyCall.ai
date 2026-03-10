@@ -345,7 +345,7 @@ export default function AccountSettingsPage() {
           <CardDescription>Send a password reset email to update your password.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="rounded-lg border border-emerald-100 bg-emerald-50/40 p-4 text-sm text-emerald-800">
+          <div className="rounded-lg border border-emerald-100 bg-emerald-50/40 p-4 text-sm text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-300">
             We will email you a secure link to reset your password.
           </div>
           <div className="flex justify-end">
@@ -422,18 +422,18 @@ export default function AccountSettingsPage() {
         </CardHeader>
         <CardContent>
           <div className="flex items-center gap-2">
-            {(['light', 'system', 'dark'] as const).map((t) => (
+            {(['light', 'dark'] as const).map((t) => (
               <button
                 key={t}
                 type="button"
                 onClick={() => setTheme(t)}
-                className={`flex-1 rounded-lg border px-3 py-2 text-sm font-medium transition ${
+                className={`flex-1 rounded-lg border px-3 py-2.5 text-sm font-medium transition-all ${
                   theme === t
-                    ? 'border-emerald-500 bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'
-                    : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400'
+                    ? 'border-emerald-500 bg-emerald-600 text-white shadow-sm'
+                    : 'border-border bg-secondary text-muted-foreground hover:border-border/80 hover:text-foreground'
                 }`}
               >
-                {t === 'light' ? 'Light' : t === 'dark' ? 'Dark' : 'System'}
+                {t === 'light' ? 'Light' : 'Dark'}
               </button>
             ))}
           </div>
@@ -449,7 +449,7 @@ export default function AccountSettingsPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="rounded-lg border border-red-100 bg-red-50/50 p-4 text-sm text-red-700">
+          <div className="rounded-lg border border-red-100 bg-red-50/50 p-4 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300">
             This deletes company data, users, calls, appointments, knowledge base entries,
             notifications, messages, invoices, and stored artifacts. This action cannot be undone.
           </div>
@@ -478,14 +478,14 @@ export default function AccountSettingsPage() {
             <DialogTitle className="text-red-600">Delete account</DialogTitle>
             <DialogDescription>
               Type{' '}
-              <span className="font-semibold text-slate-900">
+              <span className="font-semibold text-foreground">
                 {company?.company_name || 'your company name'}
               </span>{' '}
               to confirm permanent deletion.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
-            <div className="rounded-lg border border-red-100 bg-red-50/50 p-4 text-sm text-red-700">
+            <div className="rounded-lg border border-red-100 bg-red-50/50 p-4 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300">
               This removes the company, users, calls, appointments, knowledge base, notifications,
               stored recordings, SMS data, invoices, and other related cloud data. Only an admin
               deletion-history record is kept.

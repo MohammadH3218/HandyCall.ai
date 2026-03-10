@@ -219,7 +219,7 @@ export default function CustomersPage() {
         actions={
           <button
             onClick={() => void load()}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 shadow-sm transition-colors hover:bg-slate-50 dark:hover:bg-slate-800"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-card px-3 py-2 text-sm font-medium text-foreground shadow-sm transition-colors hover:bg-slate-50 dark:hover:bg-slate-800"
           >
             <RefreshCw className="h-3.5 w-3.5" />
             Refresh
@@ -237,7 +237,7 @@ export default function CustomersPage() {
       {/* Search */}
       <div className="flex gap-3">
         <div className="relative flex-1">
-          <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
+          <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             type="text"
             placeholder="Search by name, phone, or email…"
@@ -252,9 +252,9 @@ export default function CustomersPage() {
       {/* Header count */}
       {!isLoading && (
         <div className="flex items-center gap-2">
-          <Users className="h-4 w-4 text-slate-400 dark:text-slate-500" />
-          <p className="text-sm text-slate-500 dark:text-slate-500">
-            <span className="font-semibold text-slate-900 dark:text-slate-100">{derivedRows.length}</span> customer{derivedRows.length !== 1 ? 's' : ''}
+          <Users className="h-4 w-4 text-muted-foreground" />
+          <p className="text-sm text-muted-foreground">
+            <span className="font-semibold text-foreground">{derivedRows.length}</span> customer{derivedRows.length !== 1 ? 's' : ''}
           </p>
         </div>
       )}
@@ -263,20 +263,20 @@ export default function CustomersPage() {
       {isLoading ? (
         <div className="space-y-2">
           {[1, 2, 3, 4, 5].map((i) => (
-            <div key={i} className="flex items-center gap-4 rounded-2xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
-              <div className="h-10 w-10 animate-pulse rounded-full bg-slate-100 dark:bg-slate-800" />
+            <div key={i} className="flex items-center gap-4 rounded-2xl border border-border bg-card p-4">
+              <div className="h-10 w-10 animate-pulse rounded-full bg-muted" />
               <div className="flex-1 space-y-2">
-                <div className="h-4 w-1/3 animate-pulse rounded bg-slate-100 dark:bg-slate-800" />
-                <div className="h-3 w-2/3 animate-pulse rounded bg-slate-100 dark:bg-slate-800" />
+                <div className="h-4 w-1/3 animate-pulse rounded bg-muted" />
+                <div className="h-3 w-2/3 animate-pulse rounded bg-muted" />
               </div>
             </div>
           ))}
         </div>
       ) : derivedRows.length === 0 ? (
-        <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50 py-16 text-center">
-          <Users className="h-10 w-10 text-slate-300 dark:text-slate-600" />
-          <p className="mt-3 text-sm font-semibold text-slate-700 dark:text-slate-300">No customers yet</p>
-          <p className="mt-1 text-sm text-slate-500 dark:text-slate-500">Contacts appear after a call, SMS, or booking.</p>
+        <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-slate-50/50 dark:bg-slate-800/50 py-16 text-center">
+          <Users className="h-10 w-10 text-border" />
+          <p className="mt-3 text-sm font-semibold text-foreground">No customers yet</p>
+          <p className="mt-1 text-sm text-muted-foreground">Contacts appear after a call, SMS, or booking.</p>
         </div>
       ) : (
         <div className="space-y-2">
@@ -289,7 +289,7 @@ export default function CustomersPage() {
                 key={row.contact.contact_id}
                 type="button"
                 onClick={() => void openDetails(row.contact)}
-                className="group w-full rounded-2xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 text-left transition-all hover:border-emerald-100 dark:hover:border-emerald-900 hover:shadow-sm"
+                className="group w-full rounded-2xl border border-border bg-card p-4 text-left transition-all hover:border-emerald-100 dark:hover:border-emerald-900 hover:shadow-sm"
               >
                 <div className="flex items-start gap-4">
                   {/* Avatar */}
@@ -301,7 +301,7 @@ export default function CustomersPage() {
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex min-w-0 items-center gap-2 flex-wrap">
-                        <span className="truncate font-semibold text-slate-900 dark:text-slate-100">{row.displayName}</span>
+                        <span className="truncate font-semibold text-foreground">{row.displayName}</span>
                         <Badge variant="outline" className={`${lbadge.className} shrink-0 text-xs`}>
                           {lbadge.label}
                         </Badge>
@@ -316,12 +316,12 @@ export default function CustomersPage() {
                           </Badge>
                         )}
                       </div>
-                      <span className="shrink-0 text-xs text-slate-400 dark:text-slate-500">{row.lastActivity ? formatDate(row.lastActivity) : ''}</span>
+                      <span className="shrink-0 text-xs text-muted-foreground">{row.lastActivity ? formatDate(row.lastActivity) : ''}</span>
                     </div>
-                    <p className="mt-0.5 text-xs text-slate-400 dark:text-slate-500">{row.displayPhone}</p>
-                    {row.contact.email && <p className="text-xs text-slate-400 dark:text-slate-500">{row.contact.email}</p>}
+                    <p className="mt-0.5 text-xs text-muted-foreground">{row.displayPhone}</p>
+                    {row.contact.email && <p className="text-xs text-muted-foreground">{row.contact.email}</p>}
                     {(row.nextStart || row.upcomingCount > 0) && (
-                      <div className="mt-2 flex flex-wrap gap-3 text-xs text-slate-500 dark:text-slate-500">
+                      <div className="mt-2 flex flex-wrap gap-3 text-xs text-muted-foreground">
                         {row.nextStart && <span>Next: {formatDate(row.nextStart)}</span>}
                         {row.upcomingCount > 0 && <span>Value: {formatMoney(row.totalSpend)}</span>}
                       </div>
@@ -329,7 +329,7 @@ export default function CustomersPage() {
                   </div>
 
                   {/* Arrow */}
-                  <ChevronRight className="mt-0.5 h-5 w-5 shrink-0 text-slate-300 dark:text-slate-600 transition-colors group-hover:text-emerald-500" />
+                  <ChevronRight className="mt-0.5 h-5 w-5 shrink-0 text-border transition-colors group-hover:text-emerald-500" />
                 </div>
               </button>
             );
@@ -347,19 +347,19 @@ export default function CustomersPage() {
           {selectedContact && (
             <div className="space-y-5">
               {/* Contact info */}
-              <div className="flex items-start gap-4 rounded-2xl border border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/50 p-4">
+              <div className="flex items-start gap-4 rounded-2xl border border-border bg-slate-50/50 dark:bg-slate-800/50 p-4">
                 <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-base font-bold text-white ${getAvatarColor(contactDisplayName(selectedContact))}`}>
                   {getInitials(contactDisplayName(selectedContact))}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="font-semibold text-slate-900 dark:text-slate-100">{contactDisplayName(selectedContact)}</p>
-                  <p className="text-sm text-slate-500 dark:text-slate-500">{String(selectedContact.phone_number || selectedContact.phone || '').trim()}</p>
-                  {selectedContact.email && <p className="text-sm text-slate-500 dark:text-slate-500">{selectedContact.email}</p>}
-                  {selectedContact.address && <p className="text-sm text-slate-500 dark:text-slate-500">{selectedContact.address}</p>}
+                  <p className="font-semibold text-foreground">{contactDisplayName(selectedContact)}</p>
+                  <p className="text-sm text-muted-foreground">{String(selectedContact.phone_number || selectedContact.phone || '').trim()}</p>
+                  {selectedContact.email && <p className="text-sm text-muted-foreground">{selectedContact.email}</p>}
+                  {selectedContact.address && <p className="text-sm text-muted-foreground">{selectedContact.address}</p>}
                   {!selectedContact.address && selectedContact.zipcode && (
-                    <p className="text-sm text-slate-500 dark:text-slate-500">ZIP {selectedContact.zipcode}</p>
+                    <p className="text-sm text-muted-foreground">ZIP {selectedContact.zipcode}</p>
                   )}
-                  <div className="mt-1.5 flex flex-wrap gap-3 text-xs text-slate-400 dark:text-slate-500">
+                  <div className="mt-1.5 flex flex-wrap gap-3 text-xs text-muted-foreground">
                     <span>Added {formatDate(selectedContact.created_at)}</span>
                     {selectedContact.last_contact_at && <span>Last contact {formatDate(selectedContact.last_contact_at)}</span>}
                     {selectedContact.source && <span>Source: {selectedContact.source}</span>}
@@ -374,30 +374,30 @@ export default function CustomersPage() {
               <div className="grid grid-cols-2 gap-3">
                 <button
                   type="button"
-                  className="flex items-center gap-3 rounded-2xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 text-left transition-all hover:border-emerald-100 dark:hover:border-emerald-900 hover:shadow-sm"
+                  className="flex items-center gap-3 rounded-2xl border border-border bg-card p-4 text-left transition-all hover:border-emerald-100 dark:hover:border-emerald-900 hover:shadow-sm"
                   onClick={() => { setDetailsOpen(false); router.push(`${basePath}/calls?contact=${selectedContact.contact_id}`); }}
                 >
                   <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-emerald-100 dark:border-emerald-900 bg-emerald-50 dark:bg-emerald-950/30">
                     <PhoneCall className="h-4 w-4 text-emerald-600" />
                   </div>
                   <div>
-                    <p className="text-xs text-slate-500 dark:text-slate-500">Calls</p>
-                    <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                    <p className="text-xs text-muted-foreground">Calls</p>
+                    <p className="text-sm font-semibold text-foreground">
                       {selectedContactCallsLoading ? '…' : `${selectedContactCallsTotal ?? 0} total`}
                     </p>
                   </div>
                 </button>
                 <button
                   type="button"
-                  className="flex items-center gap-3 rounded-2xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 text-left transition-all hover:border-emerald-100 dark:hover:border-emerald-900 hover:shadow-sm"
+                  className="flex items-center gap-3 rounded-2xl border border-border bg-card p-4 text-left transition-all hover:border-emerald-100 dark:hover:border-emerald-900 hover:shadow-sm"
                   onClick={() => { setDetailsOpen(false); router.push(`${basePath}/messages/${selectedContact.contact_id}`); }}
                 >
                   <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-emerald-100 dark:border-emerald-900 bg-emerald-50 dark:bg-emerald-950/30">
                     <MessageCircle className="h-4 w-4 text-emerald-600" />
                   </div>
                   <div>
-                    <p className="text-xs text-slate-500 dark:text-slate-500">Messages</p>
-                    <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">View thread</p>
+                    <p className="text-xs text-muted-foreground">Messages</p>
+                    <p className="text-sm font-semibold text-foreground">View thread</p>
                   </div>
                 </button>
               </div>
@@ -406,7 +406,7 @@ export default function CustomersPage() {
               <div>
                 <div className="mb-3 flex items-center gap-2">
                   <CalendarCheck className="h-4 w-4 text-emerald-600" />
-                  <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Appointments</p>
+                  <p className="text-sm font-semibold text-foreground">Appointments</p>
                 </div>
                 {selectedContactAppointments.filter((a) => !a?.is_series_master).length > 0 ? (
                   <div className="space-y-2">
@@ -416,14 +416,14 @@ export default function CustomersPage() {
                         <button
                           key={a.appointment_id}
                           type="button"
-                          className="w-full rounded-xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 p-3 text-left transition-all hover:border-emerald-100 dark:hover:border-emerald-900 hover:shadow-sm"
+                          className="w-full rounded-xl border border-border bg-card p-3 text-left transition-all hover:border-emerald-100 dark:hover:border-emerald-900 hover:shadow-sm"
                           onClick={() => { setDetailsOpen(false); router.push(`${basePath}/appointments?appointmentId=${a.appointment_id}`); }}
                         >
                           <div className="flex items-center justify-between gap-3">
-                            <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">{a.service_type || 'Service'}</span>
-                            <span className="text-xs text-slate-400 dark:text-slate-500">{formatDate(a.scheduled_start)}</span>
+                            <span className="text-sm font-semibold text-foreground">{a.service_type || 'Service'}</span>
+                            <span className="text-xs text-muted-foreground">{formatDate(a.scheduled_start)}</span>
                           </div>
-                          <div className="mt-0.5 flex gap-3 text-xs text-slate-500 dark:text-slate-500">
+                          <div className="mt-0.5 flex gap-3 text-xs text-muted-foreground">
                             <span>{a.status || '-'}</span>
                             {typeof a.price_cents === 'number' && <span>{formatMoney(a.price_cents)}</span>}
                           </div>
@@ -431,34 +431,34 @@ export default function CustomersPage() {
                       ))}
                   </div>
                 ) : (
-                  <p className="text-sm text-slate-400 dark:text-slate-500">No appointments found.</p>
+                  <p className="text-sm text-muted-foreground">No appointments found.</p>
                 )}
               </div>
 
               {/* Payments */}
               <div>
                 <div className="mb-3 flex items-center gap-2">
-                  <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Payment history</p>
+                  <p className="text-sm font-semibold text-foreground">Payment history</p>
                 </div>
                 {selectedContactPayments.length > 0 ? (
                   <div className="space-y-2">
                     {selectedContactPayments.map((payment) => (
-                      <div key={payment.payment_id} className="rounded-xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 p-3">
+                      <div key={payment.payment_id} className="rounded-xl border border-border bg-card p-3">
                         <div className="flex items-center justify-between gap-3">
-                          <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                          <span className="text-sm font-semibold text-foreground">
                             {payment.service_name || 'Service payment'}
                           </span>
-                          <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                          <span className="text-sm font-semibold text-foreground">
                             {formatMoney(payment.amount_cents)}
                           </span>
                         </div>
-                        <div className="mt-1 flex items-center justify-between text-xs text-slate-500 dark:text-slate-500">
+                        <div className="mt-1 flex items-center justify-between text-xs text-muted-foreground">
                           <span>{formatDate(payment.created_at)}</span>
                           <div className="flex items-center gap-2">
-                            <span className="rounded-full border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 font-medium text-slate-700 dark:text-slate-300">
+                            <span className="rounded-full border border-border bg-muted/50 px-2 py-0.5 font-medium text-foreground">
                               {payment.payment_type || 'BOOKING'}
                             </span>
-                            <span className="rounded-full border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 font-medium text-slate-700 dark:text-slate-300">
+                            <span className="rounded-full border border-border bg-muted/50 px-2 py-0.5 font-medium text-foreground">
                               {payment.payment_status || 'UNKNOWN'}
                             </span>
                           </div>
@@ -467,7 +467,7 @@ export default function CustomersPage() {
                     ))}
                   </div>
                 ) : (
-                  <p className="rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/50 px-3 py-3 text-sm text-slate-500 dark:text-slate-500">
+                  <p className="rounded-xl border border-border bg-slate-50/70 dark:bg-slate-800/50 px-3 py-3 text-sm text-muted-foreground">
                     No payments on file for this customer yet.
                   </p>
                 )}

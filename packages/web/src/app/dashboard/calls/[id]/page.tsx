@@ -223,7 +223,7 @@ export default function CallDetailsPage() {
             <button
               type="button"
               onClick={() => router.push(`${basePath}/customers?contact=${call.contact_id}`)}
-              className="group flex items-center gap-3 rounded-2xl border border-slate-100 bg-white p-4 text-left shadow-sm transition-all hover:border-emerald-100 hover:shadow-md"
+              className="group flex items-center gap-3 rounded-2xl border border-border bg-card p-4 text-left shadow-sm transition-all hover:border-emerald-100 hover:shadow-md"
             >
               <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-emerald-100 bg-emerald-50">
                 <User className="h-4 w-4 text-emerald-600" />
@@ -239,7 +239,7 @@ export default function CallDetailsPage() {
             <button
               type="button"
               onClick={() => router.push(`${basePath}/appointments?appointment=${call.appointment_id}`)}
-              className="group flex items-center gap-3 rounded-2xl border border-slate-100 bg-white p-4 text-left shadow-sm transition-all hover:border-emerald-100 hover:shadow-md"
+              className="group flex items-center gap-3 rounded-2xl border border-border bg-card p-4 text-left shadow-sm transition-all hover:border-emerald-100 hover:shadow-md"
             >
               <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-emerald-100 bg-emerald-50">
                 <Calendar className="h-4 w-4 text-emerald-600" />
@@ -256,7 +256,7 @@ export default function CallDetailsPage() {
 
       {/* Captured Info + Location */}
       <div className={`grid gap-5 ${addressLine ? 'lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]' : ''}`}>
-        <div className="rounded-2xl border border-slate-100 bg-white shadow-sm">
+        <div className="rounded-2xl border border-border bg-card shadow-sm">
           <div className="border-b border-slate-100 px-5 py-4">
             <h2 className="text-sm font-semibold text-slate-900">Captured Information</h2>
           </div>
@@ -288,7 +288,7 @@ export default function CallDetailsPage() {
         </div>
 
         {addressLine && (
-          <div className="rounded-2xl border border-slate-100 bg-white shadow-sm">
+          <div className="rounded-2xl border border-border bg-card shadow-sm">
             <div className="border-b border-slate-100 px-5 py-4">
               <h2 className="text-sm font-semibold text-slate-900">Location</h2>
             </div>
@@ -309,7 +309,7 @@ export default function CallDetailsPage() {
       </div>
 
       {/* Call Recording */}
-      <div className="rounded-2xl border border-slate-100 bg-white shadow-sm">
+      <div className="rounded-2xl border border-border bg-card shadow-sm">
         <div className="border-b border-slate-100 px-5 py-4 flex items-center gap-3">
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-emerald-100 bg-emerald-50">
             <Mic className="h-3.5 w-3.5 text-emerald-600" />
@@ -339,7 +339,7 @@ export default function CallDetailsPage() {
       </div>
 
       {/* Transcript */}
-      <div className="rounded-2xl border border-slate-100 bg-white shadow-sm">
+      <div className="rounded-2xl border border-border bg-card shadow-sm">
         {/* Header */}
         <div className="flex items-center gap-3 border-b border-slate-100 px-5 py-4">
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-emerald-100 bg-emerald-50">

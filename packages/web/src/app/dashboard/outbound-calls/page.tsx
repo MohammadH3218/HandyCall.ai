@@ -189,9 +189,9 @@ export default function OutboundCallsPage() {
   if (loading) {
     return (
       <div className="space-y-4">
-        <div className="h-8 w-48 animate-pulse rounded bg-slate-100 dark:bg-slate-800" />
+        <div className="h-8 w-48 animate-pulse rounded bg-muted" />
         {[1, 2, 3].map((i) => (
-          <div key={i} className="h-16 animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-800" />
+          <div key={i} className="h-16 animate-pulse rounded-2xl bg-muted" />
         ))}
       </div>
     );
@@ -214,8 +214,8 @@ export default function OutboundCallsPage() {
         <div className="rounded-3xl border border-emerald-200 dark:border-emerald-900 bg-gradient-to-br from-emerald-50 via-white to-white dark:from-emerald-950/50 dark:via-slate-900 dark:to-slate-900 p-5 shadow-sm">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">Start an AI outbound call</h3>
-              <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
+              <h3 className="text-base font-semibold text-foreground">Start an AI outbound call</h3>
+              <p className="mt-1 text-sm text-muted-foreground">
                 Pick the customer, choose the booking if this call is tied to one, and tell the AI what this call needs to accomplish.
               </p>
             </div>
@@ -224,7 +224,7 @@ export default function OutboundCallsPage() {
                 setShowForm(false);
                 resetForm();
               }}
-              className="rounded-full p-1 text-slate-400 transition hover:bg-white/80 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+              className="rounded-full p-1 text-muted-foreground transition hover:bg-accent hover:text-foreground"
             >
               <IconX stroke={1.5} className="h-4 w-4" />
             </button>
@@ -232,13 +232,13 @@ export default function OutboundCallsPage() {
 
           <div className="mt-5 grid gap-4 lg:grid-cols-[1.3fr_0.9fr]">
             <div className="space-y-4">
-              <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/80 p-4">
-                <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Who should the AI call?</p>
+              <div className="rounded-2xl border border-border bg-card p-4">
+                <p className="text-sm font-semibold text-foreground">Who should the AI call?</p>
                 <div className="mt-3 grid gap-3 sm:grid-cols-2">
                   <div className="space-y-2">
-                    <label className="text-xs font-medium text-slate-700 dark:text-slate-300">Customer</label>
+                    <label className="text-xs font-medium text-foreground">Customer</label>
                     <select
-                      className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                      className="w-full rounded-xl border border-border bg-card px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500"
                       value={form.selected_contact_id}
                       onChange={(e) =>
                         setForm((prev) => ({
@@ -260,9 +260,9 @@ export default function OutboundCallsPage() {
                     </select>
                   </div>
                   <div className="space-y-2">
-                    <label className="text-xs font-medium text-slate-700 dark:text-slate-300">Booking (optional)</label>
+                    <label className="text-xs font-medium text-foreground">Booking (optional)</label>
                     <select
-                      className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                      className="w-full rounded-xl border border-border bg-card px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500"
                       value={form.selected_appointment_id}
                       onChange={(e) => setForm((prev) => ({ ...prev, selected_appointment_id: e.target.value }))}
                       disabled={!selectedContact}
@@ -278,18 +278,18 @@ export default function OutboundCallsPage() {
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/80 p-4">
+              <div className="rounded-2xl border border-border bg-card p-4">
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div>
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Customer phone</p>
-                    <p className="mt-2 text-sm font-medium text-slate-900 dark:text-slate-100">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Customer phone</p>
+                    <p className="mt-2 text-sm font-medium text-foreground">
                       {selectedContactPhone || 'Select a customer with a saved phone number'}
                     </p>
                   </div>
                   <div>
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Call type</p>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Call type</p>
                     <select
-                      className="mt-2 w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                      className="mt-2 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500"
                       value={form.context}
                       onChange={(e) => setForm((prev) => ({ ...prev, context: e.target.value }))}
                     >
@@ -307,16 +307,16 @@ export default function OutboundCallsPage() {
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/80 p-4">
-                <label className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+              <div className="rounded-2xl border border-border bg-card p-4">
+                <label className="text-sm font-semibold text-foreground">
                   {form.context === 'MANUAL' ? 'What should the AI call about?' : 'Extra note for the AI (optional)'}
                 </label>
-                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                <p className="mt-1 text-xs text-muted-foreground">
                   Write this the same way you would brief a receptionist. The AI will use it as the reason for the call.
                 </p>
                 <textarea
                   rows={5}
-                  className="mt-3 w-full resize-none rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-3 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  className="mt-3 w-full resize-none rounded-2xl border border-border bg-card px-3 py-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   placeholder={
                     form.context === 'MANUAL'
                       ? 'Example: Let them know we need to move tomorrow’s visit to Friday afternoon and ask which time works better.'
@@ -329,15 +329,15 @@ export default function OutboundCallsPage() {
             </div>
 
             <div className="space-y-4">
-              <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/80 p-4">
-                <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Call preview</p>
-                <div className="mt-3 space-y-3 text-sm text-slate-600 dark:text-slate-300">
+              <div className="rounded-2xl border border-border bg-card p-4">
+                <p className="text-sm font-semibold text-foreground">Call preview</p>
+                <div className="mt-3 space-y-3 text-sm text-muted-foreground">
                   <div>
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Customer</p>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Customer</p>
                     <p className="mt-1">{selectedContact?.name || 'No customer selected yet'}</p>
                   </div>
                   <div>
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Booking reference</p>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Booking reference</p>
                     <p className="mt-1">
                       {selectedAppointment
                         ? `${new Date(selectedAppointment.scheduled_start).toLocaleString()} · ${selectedAppointment.service_type || 'Appointment'}`
@@ -345,7 +345,7 @@ export default function OutboundCallsPage() {
                     </p>
                   </div>
                   <div>
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">What happens if they do not answer</p>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">What happens if they do not answer</p>
                     <p className="mt-1">If voicemail picks up, the AI will leave a short message instead of hanging up silently.</p>
                   </div>
                 </div>
@@ -378,21 +378,21 @@ export default function OutboundCallsPage() {
 
       {calls.length === 0 ? (
         <EmptyState
-          icon={<IconPhoneOutgoing stroke={1.5} className="h-6 w-6 text-slate-400 dark:text-slate-500" />}
+          icon={<IconPhoneOutgoing stroke={1.5} className="h-6 w-6 text-muted-foreground" />}
           title="No outbound calls yet"
           description="Use AI to place appointment reminders, follow-ups, and one-off customer calls."
         />
       ) : (
-        <div className="rounded-2xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm divide-y divide-slate-100 dark:divide-slate-800">
+        <div className="rounded-2xl border border-border bg-card shadow-sm divide-y divide-border">
           {calls.map((call) => (
             <div key={call.call_id} className="flex items-center justify-between px-5 py-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
               <div className="min-w-0">
-                <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{call.to_number}</p>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
+                <p className="text-sm font-semibold text-foreground">{call.to_number}</p>
+                <p className="text-xs text-muted-foreground">
                   {(call.context || 'MANUAL').replace(/_/g, ' ')} · {new Date(call.created_at).toLocaleString()}
                 </p>
                 {call.custom_message ? (
-                  <p className="mt-1 line-clamp-2 text-xs text-slate-500 dark:text-slate-400">{call.custom_message}</p>
+                  <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{call.custom_message}</p>
                 ) : null}
               </div>
               <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${statusColor(call.status)}`}>

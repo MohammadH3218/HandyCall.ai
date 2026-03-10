@@ -187,7 +187,7 @@ export default function KnowledgePage() {
           className={`flex items-center px-4 py-2 rounded-full border text-sm transition-colors ${
             activeTab === 'knowledge'
               ? 'border-emerald-200 dark:border-emerald-900 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300'
-              : 'border-transparent bg-white/70 dark:bg-slate-800/50 text-slate-500 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+              : 'border-transparent bg-secondary text-muted-foreground hover:text-foreground'
           }`}
         >
           <MessageSquare className="h-4 w-4 mr-2" />
@@ -198,7 +198,7 @@ export default function KnowledgePage() {
           className={`flex items-center px-4 py-2 rounded-full border text-sm transition-colors ${
             activeTab === 'service-area'
               ? 'border-emerald-200 dark:border-emerald-900 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300'
-              : 'border-transparent bg-white/70 dark:bg-slate-800/50 text-slate-500 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+              : 'border-transparent bg-secondary text-muted-foreground hover:text-foreground'
           }`}
         >
           <MapPin className="h-4 w-4 mr-2" />
@@ -209,8 +209,8 @@ export default function KnowledgePage() {
       {activeTab === 'knowledge' && (
         <>
           {error && (
-            <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-6">
-              <p className="text-red-800">{error}</p>
+            <div className="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900 rounded-xl p-4 mb-6">
+              <p className="text-red-800 dark:text-red-300">{error}</p>
               <button onClick={loadItems} className="mt-2 text-sm text-red-600 hover:text-red-800 underline">
                 Try again
               </button>
@@ -226,8 +226,8 @@ export default function KnowledgePage() {
                 <div className="space-y-3">
                   {[1, 2, 3, 4].map((i) => (
                     <div key={i} className="animate-pulse">
-                      <div className="h-6 bg-gray-200 dark:bg-slate-800 rounded w-2/3 mb-2"></div>
-                      <div className="h-4 bg-gray-200 dark:bg-slate-800 rounded w-full"></div>
+                      <div className="h-6 bg-muted rounded w-2/3 mb-2"></div>
+                      <div className="h-4 bg-muted rounded w-full"></div>
                     </div>
                   ))}
                 </div>
@@ -236,17 +236,17 @@ export default function KnowledgePage() {
                   {items.map((item) => (
                     <div
                       key={item.knowledge_id}
-                      className="border border-emerald-100/70 dark:border-emerald-900 bg-white/85 dark:bg-slate-900 rounded-xl p-4 hover:-translate-y-[1px] hover:shadow-md transition-all"
+                      className="border border-emerald-200/70 dark:border-emerald-900/60 bg-card rounded-xl p-4 hover:-translate-y-[1px] hover:shadow-md transition-all"
                     >
                       <div className="flex items-start justify-between mb-3">
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-2">
-                            <h3 className="font-semibold text-slate-900 dark:text-slate-100">{item.title}</h3>
+                            <h3 className="font-semibold text-foreground">{item.title}</h3>
                             <span className={`text-xs px-2 py-1 rounded-full ${getTypeColor(item.type)}`}>
                               {item.type}
                             </span>
                           </div>
-                          <p className="text-sm text-slate-600 dark:text-slate-400 line-clamp-2">{item.content}</p>
+                          <p className="text-sm text-muted-foreground line-clamp-2">{item.content}</p>
                           {item.tags && item.tags.length > 0 && (
                             <div className="flex gap-2 mt-2">
                               {item.tags.map((tag, idx) => (

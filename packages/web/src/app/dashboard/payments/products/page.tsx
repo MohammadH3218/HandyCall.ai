@@ -241,12 +241,12 @@ export default function ServiceProductsPage() {
       />
 
       {loading ? (
-        <div className="rounded-2xl border border-slate-100 bg-white p-8 text-center text-slate-400 shadow-sm">
+        <div className="rounded-2xl border border-border bg-card p-8 text-center text-slate-400 shadow-sm">
           Loading products…
         </div>
       ) : products.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-12 text-center shadow-sm">
-          <p className="text-lg font-semibold text-slate-700 mb-2">No products yet</p>
+        <div className="rounded-2xl border border-dashed border-border bg-card p-12 text-center shadow-sm">
+          <p className="text-lg font-semibold text-foreground mb-2">No products yet</p>
           <p className="text-sm text-slate-400 mb-6">
             Create your first service product — a subscription plan or one-time charge — to start collecting payments.
           </p>
@@ -257,15 +257,15 @@ export default function ServiceProductsPage() {
           {products.map((product) => (
             <div
               key={product.product_id}
-              className={`rounded-2xl border bg-white p-5 shadow-sm transition ${
+              className={`rounded-2xl border bg-card p-5 shadow-sm transition ${
                 product.active
-                  ? 'border-slate-100 hover:border-emerald-200 hover:shadow-md'
-                  : 'border-slate-200 opacity-60'
+                  ? 'border-border hover:border-emerald-200 dark:hover:border-emerald-800 hover:shadow-md'
+                  : 'border-border opacity-60'
               }`}
             >
               <div className="flex items-start justify-between mb-2">
                 <div>
-                  <p className="font-bold text-slate-900">{product.name}</p>
+                  <p className="font-bold text-foreground">{product.name}</p>
                   {product.description && (
                     <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">{product.description}</p>
                   )}
@@ -337,9 +337,9 @@ export default function ServiceProductsPage() {
       {/* Create / Edit Form Modal */}
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4 py-8 overflow-y-auto">
-          <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-6 shadow-xl my-auto">
+          <div className="w-full max-w-lg rounded-2xl border border-border bg-card p-6 shadow-xl my-auto">
             <div className="mb-5 flex items-center justify-between">
-              <h3 className="text-lg font-bold text-slate-900">
+              <h3 className="text-lg font-bold text-foreground">
                 {editingId ? 'Edit product' : 'New service product'}
               </h3>
               <button
@@ -501,9 +501,9 @@ export default function ServiceProductsPage() {
       {/* Checkout Link Modal */}
       {checkoutTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
-          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-xl">
+          <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-xl">
             <div className="mb-5 flex items-center justify-between">
-              <h3 className="text-lg font-bold text-slate-900">Payment link</h3>
+              <h3 className="text-lg font-bold text-foreground">Payment link</h3>
               <button
                 type="button"
                 onClick={() => setCheckoutTarget(null)}

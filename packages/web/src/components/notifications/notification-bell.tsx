@@ -39,7 +39,10 @@ export function NotificationBell() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
-  const unreadLabel = useMemo(() => (unreadCount > 99 ? '99+' : String(unreadCount)), [unreadCount]);
+  const unreadLabel = useMemo(
+    () => (unreadCount > 99 ? '99+' : String(unreadCount)),
+    [unreadCount]
+  );
 
   const load = useCallback(async () => {
     try {
@@ -72,14 +75,17 @@ export function NotificationBell() {
   };
 
   return (
-    <DropdownMenu open={open} onOpenChange={(next) => {
-      setOpen(next);
-      if (next) void load();
-    }}>
+    <DropdownMenu
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (next) void load();
+      }}
+    >
       <DropdownMenuTrigger asChild>
         <button
           type="button"
-          className="relative inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 transition-colors hover:bg-slate-50"
+          className="relative inline-flex h-10 w-10 items-center justify-center rounded-xl border border-border/80 bg-card/80 text-foreground shadow-sm backdrop-blur-sm transition-colors hover:bg-accent/80 hover:text-foreground"
           aria-label="Notifications"
         >
           <Bell className="h-4 w-4" />
@@ -99,15 +105,17 @@ export function NotificationBell() {
         </div>
         <DropdownMenuSeparator />
         {loading ? (
-          <div className="px-3 py-4 text-sm text-slate-500">Loading…</div>
+          <div className="px-3 py-4 text-sm text-muted-foreground">Loading…</div>
         ) : items.length === 0 ? (
-          <div className="px-3 py-4 text-sm text-slate-500">No notifications yet.</div>
+          <div className="px-3 py-4 text-sm text-muted-foreground">
+            No notifications yet.
+          </div>
         ) : (
           <div className="max-h-[320px] overflow-auto">
             {items.map((item) => (
               <DropdownMenuItem
                 key={item.notification_id}
-                className="flex cursor-pointer flex-col items-start gap-1 rounded-none px-3 py-2"
+                className="flex cursor-pointer flex-col items-start gap-1 rounded-lg px-3 py-2"
                 onClick={() => {
                   if (!item.is_read) {
                     void markRead(item.notification_id);
@@ -118,18 +126,34 @@ export function NotificationBell() {
                 {item.action_url ? (
                   <Link href={item.action_url}>
                     <div className="flex w-full items-start justify-between gap-2">
-                      <p className={`text-sm ${item.is_read ? 'text-slate-700' : 'font-semibold text-slate-900'}`}>{item.title}</p>
-                      <span className="text-xs text-slate-400">{formatRelative(item.created_at)}</span>
+                      <p
+                        className={`text-sm ${item.is_read ? 'text-foreground' : 'font-semibold text-foreground'}`}
+                      >
+                        {item.title}
+                      </p>
+                      <span className="text-xs text-muted-foreground">
+                        {formatRelative(item.created_at)}
+                      </span>
                     </div>
-                    <p className="line-clamp-2 text-xs text-slate-500">{item.body}</p>
+                    <p className="line-clamp-2 text-xs text-muted-foreground">
+                      {item.body}
+                    </p>
                   </Link>
                 ) : (
                   <>
                     <div className="flex w-full items-start justify-between gap-2">
-                      <p className={`text-sm ${item.is_read ? 'text-slate-700' : 'font-semibold text-slate-900'}`}>{item.title}</p>
-                      <span className="text-xs text-slate-400">{formatRelative(item.created_at)}</span>
+                      <p
+                        className={`text-sm ${item.is_read ? 'text-foreground' : 'font-semibold text-foreground'}`}
+                      >
+                        {item.title}
+                      </p>
+                      <span className="text-xs text-muted-foreground">
+                        {formatRelative(item.created_at)}
+                      </span>
                     </div>
-                    <p className="line-clamp-2 text-xs text-slate-500">{item.body}</p>
+                    <p className="line-clamp-2 text-xs text-muted-foreground">
+                      {item.body}
+                    </p>
                   </>
                 )}
               </DropdownMenuItem>
@@ -146,4 +170,3 @@ export function NotificationBell() {
     </DropdownMenu>
   );
 }
-
