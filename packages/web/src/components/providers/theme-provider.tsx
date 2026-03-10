@@ -42,14 +42,16 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   };
 
   const readStoredTheme = (email?: string | null): Theme => {
+    // Public pages (no logged-in user) always render in light mode
+    if (!email) return 'light';
+
     const scopedKey = getStorageKey(email);
     const scoped = localStorage.getItem(scopedKey) as string | null;
     if (scoped === 'light' || scoped === 'dark') {
       return scoped;
     }
 
-    const fallbackKey = email ? PUBLIC_THEME_KEY : LEGACY_THEME_KEY;
-    const fallback = localStorage.getItem(fallbackKey) as string | null;
+    const fallback = localStorage.getItem(LEGACY_THEME_KEY) as string | null;
     if (fallback === 'light' || fallback === 'dark') {
       return fallback;
     }

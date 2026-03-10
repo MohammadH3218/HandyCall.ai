@@ -210,7 +210,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background dark:bg-[radial-gradient(circle_at_top,rgba(16,185,129,0.12),transparent_22%),linear-gradient(180deg,rgba(12,18,30,0.98),rgba(7,10,18,1))]">
+    <div className="flex h-screen overflow-hidden bg-background">
       {/* Mobile overlay */}
       {sidebarOpen && (
         <div
@@ -241,7 +241,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
 
         <div className="flex flex-col items-start justify-center border-b border-border/80 px-5 py-5">
-          <Logo variant="words" width={150} height={36} />
+          <Logo variant="icon" width={36} height={36} />
           {company?.company_name && (
             <p className="mt-1 text-sm font-semibold leading-tight text-foreground">
               {company.company_name}
@@ -437,7 +437,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
 
         {/* Main Content Area */}
-        <main className="flex-1 overflow-auto bg-[radial-gradient(circle_at_top,rgba(16,185,129,0.05),transparent_20%)] p-4 dark:bg-transparent sm:p-6 lg:p-10">
+        <main className="flex-1 overflow-auto p-4 sm:p-6 lg:p-10">
           <div className="animate-fade-up">{children}</div>
         </main>
       </div>
