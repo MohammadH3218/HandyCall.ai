@@ -306,14 +306,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               Company
             </p>
             <NavLink
-              href="/dashboard/knowledge"
-              icon={<IconMessageDots stroke={1.5} className="h-5 w-5" />}
-              active={pathname?.startsWith('/dashboard/knowledge')}
-              onClick={() => setSidebarOpen(false)}
-            >
-              Knowledge Base
-            </NavLink>
-            <NavLink
               href="/dashboard/invoices"
               icon={<IconFileText stroke={1.5} className="h-5 w-5" />}
               active={pathname?.startsWith('/dashboard/invoices')}
