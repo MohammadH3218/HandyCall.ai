@@ -1323,7 +1323,7 @@ function OnboardingSetupContent() {
                   }}
                   placeholder="e.g. 77002"
                   maxLength={5}
-                  className="flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
+                  className="flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
                 />
                 <button
                   type="button"
@@ -1693,7 +1693,7 @@ function OnboardingSetupContent() {
                 onChange={(e) => setKbInput(e.target.value)}
                 placeholder="Example: We offer one-time and monthly pest plans. Our one-time treatment starts at $149. Monthly plans start at $39/month. We service Fulshear, Katy, and Richmond. Customers often ask if pets need to stay outside during treatment..."
                 rows={5}
-                className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
+                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
               />
               {kbError && (
                 <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-800">

@@ -86,15 +86,24 @@ function OnboardingShell({ children }: { children: React.ReactNode }) {
     if (currentIndex === -1 || currentIndex > fallbackIndex) {
       router.replace(`/onboarding/${ONBOARDING_STEPS[fallbackIndex].id}`);
     }
-  }, [allComplete, currentIndex, firstIncompleteIndex, isAuthenticated, isSetupPage, loading, router, userRole]);
+  }, [
+    allComplete,
+    currentIndex,
+    firstIncompleteIndex,
+    isAuthenticated,
+    isSetupPage,
+    loading,
+    router,
+    userRole,
+  ]);
 
   // Never replace children with a spinner on the setup page — that would unmount and restart the chat.
   if (loading && !isSetupPage) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-white">
+      <div className="flex min-h-screen items-center justify-center bg-background">
         <div className="text-center">
           <div className="mx-auto h-8 w-8 animate-spin rounded-full border-4 border-emerald-600 border-t-transparent" />
-          <p className="mt-4 text-sm text-slate-500">Preparing your setup...</p>
+          <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">Preparing your setup...</p>
         </div>
       </div>
     );
@@ -150,8 +159,8 @@ function OnboardingShell({ children }: { children: React.ReactNode }) {
   // Full-screen chatbot layout for the setup page
   if (isSetupPage) {
     return (
-      <div className="flex h-screen flex-col bg-white">
-        <header className="flex-none border-b border-slate-200 bg-white">
+      <div className="force-light flex h-screen flex-col bg-background">
+        <header className="flex-none border-b border-border/80 bg-background/88 backdrop-blur-sm">
           <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-3">
             <Link href="/" className="flex items-center gap-3">
               <Logo width={130} height={32} />
@@ -175,7 +184,7 @@ function OnboardingShell({ children }: { children: React.ReactNode }) {
                 type="button"
                 onClick={handleSignOut}
                 disabled={signingOut}
-                className="text-sm text-slate-500 transition hover:text-slate-700 disabled:opacity-60"
+                className="text-sm text-slate-500 transition hover:text-slate-700 disabled:opacity-60 dark:text-slate-400 dark:hover:text-slate-200"
               >
                 {signingOut ? 'Signing out...' : 'Sign out'}
               </button>
@@ -192,12 +201,12 @@ function OnboardingShell({ children }: { children: React.ReactNode }) {
                 contacts, appointments, knowledge base entries, and other saved setup data.
               </DialogDescription>
             </DialogHeader>
-            <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+            <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-300">
               If this account has a Stripe subscription, linked payment setup, or connected billing
               state, deletion will be blocked and you will need to contact hello@handycall.org.
             </div>
             {deleteError ? (
-              <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+              <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-300">
                 {deleteError}
               </div>
             ) : null}
@@ -209,7 +218,7 @@ function OnboardingShell({ children }: { children: React.ReactNode }) {
                   setDeleteDialogOpen(false);
                   setDeleteError(null);
                 }}
-                className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-accent dark:text-slate-200"
               >
                 Cancel
               </button>
@@ -229,28 +238,30 @@ function OnboardingShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="min-h-screen bg-white">
-      <header className="border-b border-slate-200 bg-white">
+    <div className="min-h-screen bg-background">
+      <header className="border-b border-border/80 bg-background/88 backdrop-blur-sm">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4">
           <Link href="/" className="flex items-center gap-3">
             <Logo width={150} height={36} />
           </Link>
-          <span className="inline-flex items-center rounded-full border border-emerald-100 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
+          <span className="inline-flex items-center rounded-full border border-emerald-100 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300">
             Guided setup
           </span>
         </div>
       </header>
 
       <div className="mx-auto grid max-w-6xl gap-8 px-4 pb-16 pt-10 lg:grid-cols-[280px_1fr]">
-        <aside className="rounded-xl border border-slate-200 bg-white p-5">
+        <aside className="rounded-2xl border border-border/80 bg-card/82 p-5 shadow-sm backdrop-blur-sm">
           <div className="mb-6">
-            <p className="text-xs uppercase tracking-wide text-slate-500">Progress</p>
+            <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
+              Progress
+            </p>
             <div className="mt-2 flex items-center justify-between">
-              <p className="text-lg font-semibold text-slate-900">
+              <p className="text-lg font-semibold text-slate-900 dark:text-slate-100">
                 {completedCount} / {ONBOARDING_STEPS.length} complete
               </p>
             </div>
-            <div className="mt-3 h-2 rounded-full bg-slate-100">
+            <div className="mt-3 h-2 rounded-full bg-slate-100 dark:bg-slate-800">
               <div
                 className="h-2 rounded-full bg-emerald-500 transition-all"
                 style={{ width: `${(completedCount / ONBOARDING_STEPS.length) * 100}%` }}
@@ -270,8 +281,8 @@ function OnboardingShell({ children }: { children: React.ReactNode }) {
                   href={isLocked ? '#' : `/onboarding/${step.id}`}
                   className={`group block rounded-lg border px-4 py-3 transition ${
                     isActive
-                      ? 'border-emerald-100 bg-emerald-50'
-                      : 'border-slate-200 hover:bg-slate-50'
+                      ? 'border-emerald-100 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/40'
+                      : 'border-border/80 hover:bg-accent/60'
                   } ${isLocked ? 'pointer-events-none opacity-50' : ''}`}
                 >
                   <div className="flex items-start gap-3">
@@ -279,12 +290,19 @@ function OnboardingShell({ children }: { children: React.ReactNode }) {
                       {isComplete ? (
                         <IconCircleCheck className="h-5 w-5 text-emerald-600" stroke={1.5} />
                       ) : (
-                        <IconCircle className="h-5 w-5 text-slate-300" stroke={1.5} />
+                        <IconCircle
+                          className="h-5 w-5 text-slate-300 dark:text-slate-600"
+                          stroke={1.5}
+                        />
                       )}
                     </div>
                     <div>
-                      <p className="text-sm font-semibold text-slate-900">{step.label}</p>
-                      <p className="text-xs text-slate-600">{step.description}</p>
+                      <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                        {step.label}
+                      </p>
+                      <p className="text-xs text-slate-600 dark:text-slate-400">
+                        {step.description}
+                      </p>
                     </div>
                   </div>
                 </Link>
@@ -292,23 +310,23 @@ function OnboardingShell({ children }: { children: React.ReactNode }) {
             })}
           </div>
 
-          <div className="mt-6 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+          <div className="mt-6 rounded-lg border border-border bg-card/70 p-4 text-sm text-slate-700 dark:text-slate-300">
             Need help? Email support@handycall.org or book a quick onboarding call.
           </div>
         </aside>
 
-        <main className="rounded-xl border border-slate-200 bg-white p-6">
+        <main className="rounded-2xl border border-border/80 bg-card/82 p-6 shadow-sm backdrop-blur-sm">
           <div className="animate-fade-up">{children}</div>
           <div className="mt-8 flex justify-between">
             <button
               type="button"
               onClick={handleSignOut}
               disabled={signingOut}
-              className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+              className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60 dark:text-slate-200"
             >
               {signingOut ? 'Signing out...' : 'Sign out'}
             </button>
-            <div className="text-sm text-slate-500">
+            <div className="text-sm text-slate-500 dark:text-slate-400">
               Secure setup - Your data is encrypted in transit
             </div>
           </div>

@@ -90,6 +90,31 @@
     background-color: #070a12;
   }
 
+  /* Force light-mode CSS variables regardless of the .dark class on <html>.
+     Apply this class to any page/section that must always render in light mode. */
+  .force-light {
+    --background: 150 28% 98%;
+    --foreground: 210 24% 12%;
+    --card: 0 0% 100%;
+    --card-foreground: 210 24% 12%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 210 24% 12%;
+    --primary: 160 84% 34%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 150 20% 95%;
+    --secondary-foreground: 210 20% 16%;
+    --muted: 160 18% 94%;
+    --muted-foreground: 215 12% 40%;
+    --accent: 160 42% 90%;
+    --accent-foreground: 160 35% 18%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 160 14% 84%;
+    --input: 160 16% 88%;
+    --ring: 160 84% 34%;
+    color-scheme: light;
+  }
+
   h1,
   h2,
   h3,
