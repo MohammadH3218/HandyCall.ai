@@ -530,30 +530,30 @@ function OnboardingSetupContent() {
         'Before we finish, choose whether HandyCall should collect customer payments for you or whether your team will handle them directly.'
       );
     } else if (!s.billing) {
-      await goTo(‘billing_plan’, "Last step — let’s activate your HandyCall subscription.");
+      await goTo('billing_plan', "Last step — let's activate your HandyCall subscription.");
     } else if (
-      paymentsFlow === ‘connect’ &&
-      (connectState === ‘return’ || connectState === ‘refresh’)
+      paymentsFlow === 'connect' &&
+      (connectState === 'return' || connectState === 'refresh')
     ) {
       await goTo(
-        ‘billing_connect’,
-        connectState === ‘return’
-          ? "Welcome back. Let’s verify your Stripe Connect setup."
-          : ‘Stripe setup was refreshed. Let’s continue and verify your Connect status.’
+        'billing_connect',
+        connectState === 'return'
+          ? "Welcome back. Let's verify your Stripe Connect setup."
+          : 'Stripe setup was refreshed. Let's continue and verify your Connect status.'
       );
       await refreshConnectStatusAndContinue();
     } else if (
-      (company as any)?.booking_payment_mode === ‘HANDYCALL_MANAGED’ &&
+      (company as any)?.booking_payment_mode === 'HANDYCALL_MANAGED' &&
       !(company as any)?.stripe_connect_onboarding_complete
     ) {
       await goTo(
-        ‘billing_connect’,
-        ‘Almost done! Connect your bank account so HandyCall can send customer payment payouts directly to you.’
+        'billing_connect',
+        'Almost done! Connect your bank account so HandyCall can send customer payment payouts directly to you.'
       );
       await refreshConnectStatusAndContinue();
     } else {
-      await botSay(‘🎉 Setup complete! Redirecting to your dashboard...’);
-      setTimeout(() => router.replace(‘/dashboard’), 2000);
+      await botSay('🎉 Setup complete! Redirecting to your dashboard...');
+      setTimeout(() => router.replace('/dashboard'), 2000);
     }
   };
 
