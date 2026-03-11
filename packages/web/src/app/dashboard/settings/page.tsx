@@ -15,7 +15,8 @@ import { PageHeader } from '@/components/portal/page-header';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { usePlanFeatures } from '@/hooks/use-plan-features';
-import { IconCopy, IconPhone, IconRefresh, IconSettings, IconShield, IconLink, IconBuilding, IconPhoneCall, IconBrain, IconCreditCard, IconWebhook, IconBell, IconUser } from '@tabler/icons-react';
+import { IconCopy, IconPhone, IconRefresh, IconSettings, IconShield, IconLink, IconBuilding, IconPhoneCall, IconBrain, IconCreditCard, IconWebhook, IconBell, IconUser, IconMapPin } from '@tabler/icons-react';
+import { ServiceAreaTab } from '@/app/dashboard/knowledge/service-area-tab';
 import { CallFlowEditor } from '@/components/company/call-flow-editor';
 import { createDefaultCallFlowQuestions } from '@/constants/company-templates';
 
@@ -36,7 +37,7 @@ export default function SettingsPage() {
   const [isSavingBusiness, setIsSavingBusiness] = useState(false);
   const [isSavingCall, setIsSavingCall] = useState(false);
   const [myNumber, setMyNumber] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'business' | 'call' | 'call_flow' | 'payments' | 'integrations' | 'notifications' | 'account'>('business');
+  const [activeTab, setActiveTab] = useState<'business' | 'call' | 'call_flow' | 'payments' | 'integrations' | 'notifications' | 'account' | 'service_area'>('business');
   const [callFlowQuestions, setCallFlowQuestions] = useState<CompanyCallFlowQuestion[]>([]);
   const [editOpen, setEditOpen] = useState(false);
   const [editDraft, setEditDraft] = useState({
@@ -612,6 +613,7 @@ export default function SettingsPage() {
           { key: 'integrations', label: 'CRM integrations', Icon: IconWebhook },
           { key: 'notifications', label: 'Notifications', Icon: IconBell },
           { key: 'account', label: 'Account', Icon: IconUser },
+          { key: 'service_area', label: 'Service Area', Icon: IconMapPin },
         ].map((tab) => (
           <button
             key={tab.key}
@@ -1779,6 +1781,10 @@ export default function SettingsPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {activeTab === 'service_area' && (
+        <ServiceAreaTab />
+      )}
     </div>
   );
 }

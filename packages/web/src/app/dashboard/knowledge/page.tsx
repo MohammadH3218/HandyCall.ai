@@ -15,10 +15,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { MessageSquare, Plus, Edit2, Trash2, X, MapPin } from 'lucide-react';
+import { MessageSquare, Plus, Edit2, Trash2, X } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
-import { ServiceAreaTab } from './service-area-tab';
 import { useToast } from '@/hooks/use-toast';
 
 interface KnowledgeItem {
@@ -34,7 +33,6 @@ interface KnowledgeItem {
 
 export default function KnowledgePage() {
   const { toast } = useToast();
-  const [activeTab, setActiveTab] = useState<'knowledge' | 'service-area'>('knowledge');
 
   // Knowledge Items State
   const [items, setItems] = useState<KnowledgeItem[]>([]);
@@ -58,10 +56,8 @@ export default function KnowledgePage() {
   });
 
   useEffect(() => {
-    if (activeTab === 'knowledge') {
-      loadItems();
-    }
-  }, [activeTab]);
+    loadItems();
+  }, []);
 
   const loadItems = async () => {
     try {
@@ -171,44 +167,14 @@ export default function KnowledgePage() {
         title="Knowledge base"
         subtitle="Teach your AI about services, policies, and service areas."
         actions={
-          activeTab === 'knowledge' ? (
-            <Button onClick={handleCreate}>
-              <Plus className="h-4 w-4 mr-2" />
-              Add Knowledge
-            </Button>
-          ) : null
+          <Button onClick={handleCreate}>
+            <Plus className="h-4 w-4 mr-2" />
+            Add Knowledge
+          </Button>
         }
       />
 
-      {/* Tabs */}
-      <div className="flex flex-wrap gap-2 mb-8">
-        <button
-          onClick={() => setActiveTab('knowledge')}
-          className={`flex items-center px-4 py-2 rounded-full border text-sm transition-colors ${
-            activeTab === 'knowledge'
-              ? 'border-emerald-200 dark:border-emerald-900 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300'
-              : 'border-transparent bg-secondary text-muted-foreground hover:text-foreground'
-          }`}
-        >
-          <MessageSquare className="h-4 w-4 mr-2" />
-          Q&A and Info
-        </button>
-        <button
-          onClick={() => setActiveTab('service-area')}
-          className={`flex items-center px-4 py-2 rounded-full border text-sm transition-colors ${
-            activeTab === 'service-area'
-              ? 'border-emerald-200 dark:border-emerald-900 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300'
-              : 'border-transparent bg-secondary text-muted-foreground hover:text-foreground'
-          }`}
-        >
-          <MapPin className="h-4 w-4 mr-2" />
-          Service Area
-        </button>
-      </div>
-
-      {activeTab === 'knowledge' && (
-        <>
-          {error && (
+      {error && (
             <div className="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900 rounded-xl p-4 mb-6">
               <p className="text-red-800 dark:text-red-300">{error}</p>
               <button onClick={loadItems} className="mt-2 text-sm text-red-600 hover:text-red-800 underline">
@@ -285,10 +251,6 @@ export default function KnowledgePage() {
             </CardContent>
           </Card>
         </>
-      )}
-
-      {activeTab === 'service-area' && (
-        <ServiceAreaTab />
       )}
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>

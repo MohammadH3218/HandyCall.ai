@@ -240,10 +240,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </Button>
         </div>
 
-        <div className="flex flex-col items-start justify-center border-b border-border/80 px-5 py-5">
-          <Logo variant="icon" width={36} height={36} />
+        <div className="flex flex-row items-center gap-3 border-b border-border/80 px-5 py-3">
+          <Logo variant="icon" width={32} height={32} />
           {company?.company_name && (
-            <p className="mt-1 text-sm font-semibold leading-tight text-foreground">
+            <p className="text-sm font-semibold leading-tight text-foreground truncate">
               {company.company_name}
             </p>
           )}
