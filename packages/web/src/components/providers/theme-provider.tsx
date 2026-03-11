@@ -6,7 +6,6 @@ import { useSession } from 'next-auth/react';
 type Theme = 'light' | 'dark';
 
 const PUBLIC_THEME_KEY = 'handycall-theme:public';
-const LEGACY_THEME_KEY = 'handycall-theme';
 
 interface ThemeContextValue {
   theme: Theme;
@@ -42,7 +41,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   };
 
   const readStoredTheme = (email?: string | null): Theme => {
-    // Public pages (no logged-in user) always render in light mode
+    // Public pages and new users always default to light
     if (!email) return 'light';
 
     const scopedKey = getStorageKey(email);
@@ -51,11 +50,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       return scoped;
     }
 
-    const fallback = localStorage.getItem(LEGACY_THEME_KEY) as string | null;
-    if (fallback === 'light' || fallback === 'dark') {
-      return fallback;
-    }
-
+    // No saved preference for this user → always start in light mode
     return 'light';
   };
 
