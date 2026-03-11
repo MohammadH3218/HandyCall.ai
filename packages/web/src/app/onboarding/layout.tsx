@@ -202,8 +202,7 @@ function OnboardingShell({ children }: { children: React.ReactNode }) {
               </DialogDescription>
             </DialogHeader>
             <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-300">
-              If this account has a Stripe subscription, linked payment setup, or connected billing
-              state, deletion will be blocked and you will need to contact hello@handycall.org.
+              Any active subscription will be cancelled immediately. This action is permanent and cannot be undone.
             </div>
             {deleteError ? (
               <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-300">

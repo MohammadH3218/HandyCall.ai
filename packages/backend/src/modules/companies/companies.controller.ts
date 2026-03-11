@@ -14,6 +14,7 @@ import {
 } from '@nestjs/common';
 import { CompaniesService } from './companies.service';
 import { UsersService } from '../users/users.service';
+import { BillingService } from '../billing/billing.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CompanyId, UserId, UserRoleParam } from '../../common/decorators/auth.decorator';
 import { UpdateCompanyDto } from './dto/update-company.dto';
@@ -35,7 +36,8 @@ export class CompaniesController {
   constructor(
     private companiesService: CompaniesService,
     private usersService: UsersService,
-    private usageService: UsageService
+    private usageService: UsageService,
+    private billingService: BillingService
   ) {}
 
   @Get('me')
@@ -93,7 +95,14 @@ export class CompaniesController {
       throw new UnauthorizedException('Authenticated user context is out of sync. Please sign in again.');
     }
 
-    this.companiesService.assertSelfServeDeletionAllowed(company);
+    // Auto-cancel any active Stripe subscription before deletion
+    if (company.stripe_subscription_id || company.subscription_plan) {
+      try {
+        await this.billingService.cancelSubscription(companyId, true);
+      } catch {
+        // Ignore cancellation errors — subscription may already be cancelled
+      }
+    }
 
     const users = await this.usersService.listCompanyUsers(companyId);
     for (const user of users) {
