@@ -85,7 +85,7 @@ export function NotificationBell() {
       <DropdownMenuTrigger asChild>
         <button
           type="button"
-          className="relative inline-flex h-10 w-10 items-center justify-center rounded-xl border border-border/80 bg-card/80 text-foreground shadow-sm backdrop-blur-sm transition-colors hover:bg-accent/80 hover:text-foreground"
+          className="relative inline-flex h-8 w-8 items-center justify-center rounded-lg border border-border/80 bg-card/80 text-muted-foreground shadow-sm transition-colors hover:bg-accent/80 hover:text-foreground flex-shrink-0"
           aria-label="Notifications"
         >
           <Bell className="h-4 w-4" />
@@ -96,7 +96,7 @@ export function NotificationBell() {
           )}
         </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-[360px] p-0">
+      <DropdownMenuContent side="top" align="end" className="w-[360px] p-0">
         <div className="flex items-center justify-between px-3 py-2">
           <DropdownMenuLabel className="p-0 text-sm font-semibold">Notifications</DropdownMenuLabel>
           <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={markAllRead}>

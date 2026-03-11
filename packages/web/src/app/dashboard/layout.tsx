@@ -413,11 +413,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           )}
         </nav>
 
-        {/* Bottom user area — notification bell + profile */}
+        {/* Bottom user area — profile + notification bell */}
         <div className="flex-none border-t border-border/80 px-3 py-3">
-          <div className="flex items-center justify-between px-1">
+          <div className="flex items-center gap-2">
+            <div className="flex-1 min-w-0">
+              <ProfileDropdown />
+            </div>
             <NotificationBell />
-            <ProfileDropdown />
           </div>
         </div>
       </aside>

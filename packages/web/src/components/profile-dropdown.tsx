@@ -76,19 +76,23 @@ export function ProfileDropdown() {
     return 'U';
   };
 
-  // Get display name
+  // Full display name (used in dropdown content)
   const getDisplayName = () => {
-    // Try to get from user object first
     if (user?.first_name && user?.last_name) {
       return `${user.first_name} ${user.last_name}`;
     }
-    if (user?.first_name) {
-      return user.first_name;
+    if (user?.first_name) return user.first_name;
+    if (email) return email.split('@')[0];
+    return 'User';
+  };
+
+  // Short name for the sidebar trigger: "First L."
+  const getShortName = () => {
+    if (user?.first_name && user?.last_name) {
+      return `${user.first_name} ${user.last_name[0]}.`;
     }
-    // Fallback to email username
-    if (email) {
-      return email.split('@')[0];
-    }
+    if (user?.first_name) return user.first_name;
+    if (email) return email.split('@')[0];
     return 'User';
   };
 
@@ -140,15 +144,15 @@ export function ProfileDropdown() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <button className="flex items-center gap-2 rounded-xl border border-transparent px-2 py-1.5 transition-colors duration-200 hover:border-border/80 hover:bg-accent/70 focus:outline-none focus:ring-2 focus:ring-ring">
-          <Avatar className="h-9 w-9 transition-transform duration-200 hover:scale-105">
-            <AvatarFallback className="bg-primary/90 text-primary-foreground shadow-sm">
+        <button className="flex w-full items-center gap-2.5 rounded-xl border border-transparent px-2 py-1.5 transition-colors duration-200 hover:border-border/80 hover:bg-accent/70 focus:outline-none focus:ring-2 focus:ring-ring">
+          <Avatar className="h-8 w-8 flex-shrink-0">
+            <AvatarFallback className="bg-primary/90 text-primary-foreground text-xs shadow-sm">
               {getInitials()}
             </AvatarFallback>
           </Avatar>
-          <div className="block text-left">
-            <p className="text-sm font-medium text-foreground">{getDisplayName()}</p>
-            <p className={`text-xs truncate max-w-[150px] ${planInfo.color}`}>{planInfo.text}</p>
+          <div className="min-w-0 text-left">
+            <p className="truncate text-sm font-medium leading-tight text-foreground">{getShortName()}</p>
+            <p className={`truncate text-xs leading-tight ${planInfo.color}`}>{planInfo.text}</p>
           </div>
         </button>
       </DropdownMenuTrigger>
