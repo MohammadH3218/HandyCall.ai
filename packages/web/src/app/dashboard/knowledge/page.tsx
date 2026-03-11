@@ -250,8 +250,6 @@ export default function KnowledgePage() {
               )}
             </CardContent>
           </Card>
-        </>
-      )}
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="max-w-2xl">
