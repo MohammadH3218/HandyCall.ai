@@ -140,19 +140,19 @@ export function ProfileDropdown() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <button className="flex items-center space-x-3 rounded-xl border border-transparent px-3 py-2 transition-colors duration-200 hover:border-border/80 hover:bg-card/80 focus:outline-none focus:ring-2 focus:ring-ring">
+        <button className="flex items-center gap-2 rounded-xl border border-transparent px-2 py-1.5 transition-colors duration-200 hover:border-border/80 hover:bg-accent/70 focus:outline-none focus:ring-2 focus:ring-ring">
           <Avatar className="h-9 w-9 transition-transform duration-200 hover:scale-105">
             <AvatarFallback className="bg-primary/90 text-primary-foreground shadow-sm">
               {getInitials()}
             </AvatarFallback>
           </Avatar>
-          <div className="hidden text-left md:block">
+          <div className="block text-left">
             <p className="text-sm font-medium text-foreground">{getDisplayName()}</p>
             <p className={`text-xs truncate max-w-[150px] ${planInfo.color}`}>{planInfo.text}</p>
           </div>
         </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-56">
+      <DropdownMenuContent side="top" align="end" className="w-56">
         <DropdownMenuLabel className="font-normal">
           <div className="flex flex-col space-y-1">
             <p className="text-sm font-medium leading-none">{getDisplayName()}</p>

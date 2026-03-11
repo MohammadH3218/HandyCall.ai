@@ -412,28 +412,28 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </div>
           )}
         </nav>
+
+        {/* Bottom user area — notification bell + profile */}
+        <div className="flex-none border-t border-border/80 px-3 py-3">
+          <div className="flex items-center justify-between px-1">
+            <NotificationBell />
+            <ProfileDropdown />
+          </div>
+        </div>
       </aside>
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Top bar */}
-        <div className="border-b border-border/80 bg-card/70 px-4 py-3 backdrop-blur-xl sm:px-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-10 w-10 p-0 text-muted-foreground hover:bg-accent/80 hover:text-foreground lg:hidden"
-                onClick={() => setSidebarOpen(true)}
-              >
-                <IconMenu2 stroke={1.5} className="h-5 w-5" />
-              </Button>
-            </div>
-            <div className="flex items-center gap-3">
-              <NotificationBell />
-              <ProfileDropdown />
-            </div>
-          </div>
+        {/* Mobile-only top strip with hamburger */}
+        <div className="flex items-center gap-3 border-b border-border/80 bg-card/70 px-3 py-2 backdrop-blur-xl lg:hidden">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-9 w-9 p-0 text-muted-foreground hover:bg-accent/80 hover:text-foreground"
+            onClick={() => setSidebarOpen(true)}
+          >
+            <IconMenu2 stroke={1.5} className="h-5 w-5" />
+          </Button>
         </div>
 
         {/* Main Content Area */}
