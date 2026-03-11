@@ -546,11 +546,10 @@ function OnboardingSetupContent() {
       (company as any)?.booking_payment_mode === 'HANDYCALL_MANAGED' &&
       !(company as any)?.stripe_connect_onboarding_complete
     ) {
-      await goTo(
-        'billing_connect',
-        'Almost done! Connect your bank account so HandyCall can send customer payment payouts directly to you.'
+      await botSay(
+        'Almost done! Opening Stripe so you can connect your bank account for payouts...'
       );
-      await refreshConnectStatusAndContinue();
+      await handleStartConnectOnboarding();
     } else {
       await botSay('🎉 Setup complete! Redirecting to your dashboard...');
       setTimeout(() => router.replace('/dashboard'), 2000);
@@ -1026,11 +1025,10 @@ function OnboardingSetupContent() {
       ((company as any)?.booking_payment_mode as 'HANDYCALL_MANAGED' | 'SELF_MANAGED' | undefined);
 
     if (effectiveMode === 'HANDYCALL_MANAGED') {
-      await goTo(
-        'billing_connect',
-        'Subscription activated. Connect Stripe so HandyCall can collect customer payments and send payouts to your bank account.'
+      await botSay(
+        'Subscription activated! Opening Stripe to connect your bank account for payouts...'
       );
-      await refreshConnectStatusAndContinue();
+      await handleStartConnectOnboarding();
       return;
     }
 
@@ -1086,11 +1084,10 @@ function OnboardingSetupContent() {
         );
       } else {
         userSay('Managed in HandyCall');
-        await goTo(
-          'billing_connect',
-          'Great choice. Connect Stripe to receive payouts and let customers pay through HandyCall booking links.'
+        await botSay(
+          'Opening Stripe to connect your bank account for payouts...'
         );
-        await refreshConnectStatusAndContinue();
+        await handleStartConnectOnboarding();
       }
     } catch (err: any) {
       setErrMsg(err?.message || 'Could not save payment mode.');
