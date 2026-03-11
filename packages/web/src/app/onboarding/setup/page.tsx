@@ -539,7 +539,7 @@ function OnboardingSetupContent() {
         'billing_connect',
         connectState === 'return'
           ? "Welcome back. Let's verify your Stripe Connect setup."
-          : 'Stripe setup was refreshed. Let's continue and verify your Connect status.'
+          : "Stripe setup was refreshed. Let's continue and verify your Connect status."
       );
       await refreshConnectStatusAndContinue();
     } else if (
