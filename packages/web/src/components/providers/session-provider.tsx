@@ -19,13 +19,23 @@ function AuthInitializer({ children }: { children: React.ReactNode }) {
       pathname.startsWith('/admin') ||
       pathname.startsWith('/onboarding');
 
-    if (shouldCheck && status === 'authenticated') {
-      if (!isAuthenticated) {
-        checkAuth();
-        return;
-      }
-      if (!lastAuthCheckAt) {
-        checkAuth();
+    if (shouldCheck) {
+      // While NextAuth is still determining auth status, keep isLoading=true.
+      // Prematurely setting isLoading=false here would cause layout to redirect to
+      // /login before checkAuth has a chance to run (e.g. after returning from Stripe).
+      if (status === 'loading') return;
+
+      if (status === 'authenticated') {
+        if (!isAuthenticated) {
+          checkAuth();
+          return;
+        }
+        if (!lastAuthCheckAt) {
+          checkAuth();
+        }
+      } else {
+        // status === 'unauthenticated'
+        useAuthStore.setState({ isLoading: false, _checkAuthInProgress: false });
       }
     } else {
       useAuthStore.setState({ isLoading: false, _checkAuthInProgress: false });

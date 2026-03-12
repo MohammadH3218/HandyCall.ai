@@ -74,13 +74,13 @@ function OnboardingShell({ children }: { children: React.ReactNode }) {
       return;
     }
 
+    // Don't redirect away from the setup page — it manages its own completion flow
+    if (isSetupPage) return;
+
     if (allComplete) {
       router.replace('/dashboard');
       return;
     }
-
-    // Don't redirect away from the chatbot setup page
-    if (isSetupPage) return;
 
     const fallbackIndex = firstIncompleteIndex === -1 ? 0 : firstIncompleteIndex;
     if (currentIndex === -1 || currentIndex > fallbackIndex) {

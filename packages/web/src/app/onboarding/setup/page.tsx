@@ -1113,16 +1113,20 @@ function OnboardingSetupContent() {
   };
 
   const handleBillingSuccess = async () => {
-    await refreshAll();
+    // Check payment mode BEFORE refreshAll — calling refreshAll first would mark
+    // billing=true → allComplete=true → layout redirects to /dashboard before Stripe fires.
     const effectiveMode =
       selectedPaymentMode ||
       ((company as any)?.booking_payment_mode as 'HANDYCALL_MANAGED' | 'SELF_MANAGED' | undefined);
 
     if (effectiveMode === 'HANDYCALL_MANAGED') {
+      // Show the connect phase (spinner visible) then redirect to Stripe
+      await goTo('billing_connect');
       await handleStartConnectOnboarding();
       return;
     }
 
+    await refreshAll();
     await goTo('complete');
   };
 
@@ -1929,20 +1933,32 @@ function OnboardingSetupContent() {
       case 'billing_connect':
         return (
           <div className="space-y-4">
-            <div className="rounded-xl border border-border bg-card p-4 text-sm text-foreground">
-              {connectStatus?.connected ? (
-                <p>
-                  Connect account linked ({connectStatus?.account_id || 'account found'}).
+            {connectBusy ? (
+              <div className="flex flex-col items-center gap-3 rounded-xl border border-emerald-100 bg-emerald-50 p-8 text-center dark:border-emerald-900 dark:bg-emerald-950/30">
+                <IconLoader2 className="h-8 w-8 animate-spin text-emerald-600 dark:text-emerald-400" stroke={1.5} />
+                <p className="text-sm font-medium text-emerald-800 dark:text-emerald-200">
+                  Opening Stripe&hellip;
                 </p>
-              ) : (
-                <p className="text-muted-foreground">Connect account not linked yet.</p>
-              )}
-              {connectStatus?.connected && !connectStatus?.charges_enabled && (
-                <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">
-                  Complete onboarding in Stripe to enable charges and payouts.
+                <p className="text-xs text-emerald-700/70 dark:text-emerald-400/70">
+                  You&apos;ll be redirected to Stripe to connect your bank account. Please wait.
                 </p>
-              )}
-            </div>
+              </div>
+            ) : (
+              <div className="rounded-xl border border-border bg-card p-4 text-sm text-foreground">
+                {connectStatus?.connected ? (
+                  <p>
+                    Connect account linked ({connectStatus?.account_id || 'account found'}).
+                  </p>
+                ) : (
+                  <p className="text-muted-foreground">Connect account not linked yet.</p>
+                )}
+                {connectStatus?.connected && !connectStatus?.charges_enabled && (
+                  <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">
+                    Complete onboarding in Stripe to enable charges and payouts.
+                  </p>
+                )}
+              </div>
+            )}
             <div className="flex flex-wrap gap-2">
               <PrimaryButton
                 onClick={handleStartConnectOnboarding}
