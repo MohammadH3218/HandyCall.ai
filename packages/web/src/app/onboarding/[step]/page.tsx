@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { loadStripe } from '@stripe/stripe-js';
-import { Elements, CardElement, useElements, useStripe } from '@stripe/react-stripe-js';
+import { Elements, PaymentElement, useElements, useStripe } from '@stripe/react-stripe-js';
 import { apiClient } from '@/lib/api-client';
 import { useOnboarding } from '@/components/onboarding/onboarding-context';
 import { ONBOARDING_STEPS, OnboardingStepId } from '@/constants/onboarding';
@@ -548,7 +548,9 @@ function ProfileStep({ nextStep }: { nextStep?: OnboardingStepId }) {
 function BillingStep({ nextStep }: { nextStep?: OnboardingStepId }) {
   const { status, refreshAll, company } = useOnboarding();
   const { toast } = useToast();
-  const publishableKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
+  const [publishableKey, setPublishableKey] = useState<string | null>(
+    process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || null,
+  );
   const stripeKeyMissingOrInvalid =
     !publishableKey ||
     publishableKey === 'pk_test_xxx' ||
@@ -559,10 +561,27 @@ function BillingStep({ nextStep }: { nextStep?: OnboardingStepId }) {
   const currentPlan = (company?.subscription_plan as SubscriptionPlan | undefined) || undefined;
   const [selectedPlan, setSelectedPlan] = useState<SubscriptionPlan | null>(currentPlan || null);
   const [showPayment, setShowPayment] = useState(false);
+  const [setupClientSecret, setSetupClientSecret] = useState<string | null>(null);
+  const [paymentInitError, setPaymentInitError] = useState<string | null>(null);
   const [connectStatus, setConnectStatus] = useState<any>(null);
   const [connectBusy, setConnectBusy] = useState(false);
   const [paymentMode, setPaymentMode] = useState<'HANDYCALL_MANAGED' | 'SELF_MANAGED'>('SELF_MANAGED');
   const [savingPaymentMode, setSavingPaymentMode] = useState(false);
+
+  useEffect(() => {
+    if (!stripeKeyMissingOrInvalid) return;
+    let isMounted = true;
+    apiClient
+      .getBillingConfig()
+      .then((config) => {
+        if (!isMounted || !config?.publishable_key) return;
+        setPublishableKey(config.publishable_key);
+      })
+      .catch(() => null);
+    return () => {
+      isMounted = false;
+    };
+  }, [stripeKeyMissingOrInvalid]);
 
   useEffect(() => {
     const mode = String((company as any)?.booking_payment_mode || '').toUpperCase();
@@ -575,10 +594,34 @@ function BillingStep({ nextStep }: { nextStep?: OnboardingStepId }) {
   }, [company]);
 
   useEffect(() => {
-    if (selectedPlan) {
-      setShowPayment(true);
+    if (!selectedPlan) {
+      setShowPayment(false);
+      setSetupClientSecret(null);
+      setPaymentInitError(null);
+      return;
     }
-  }, [selectedPlan]);
+    setShowPayment(true);
+    if (stripeKeyMissingOrInvalid) return;
+
+    let isMounted = true;
+    setPaymentInitError(null);
+    setSetupClientSecret(null);
+
+    apiClient
+      .createSetupIntent()
+      .then(({ client_secret }) => {
+        if (!isMounted) return;
+        setSetupClientSecret(client_secret);
+      })
+      .catch((error: any) => {
+        if (!isMounted) return;
+        setPaymentInitError(error?.message || 'Unable to initialize the payment form.');
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedPlan, stripeKeyMissingOrInvalid]);
 
   useEffect(() => {
     if (!status.billing) return;
@@ -606,7 +649,12 @@ function BillingStep({ nextStep }: { nextStep?: OnboardingStepId }) {
   const startConnectOnboarding = async () => {
     try {
       setConnectBusy(true);
-      const result = await apiClient.setupConnectAccount();
+      const origin =
+        typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3001';
+      const result = await apiClient.setupConnectAccount({
+        return_url: `${origin}/onboarding/billing`,
+        refresh_url: `${origin}/onboarding/billing`,
+      });
       if (result?.url) {
         window.location.href = result.url;
         return;
@@ -634,6 +682,7 @@ function BillingStep({ nextStep }: { nextStep?: OnboardingStepId }) {
       await apiClient.updateMyCompany({
         booking_payment_mode: mode,
         booking_payment_enabled: mode === 'HANDYCALL_MANAGED',
+        booking_payment_mode_confirmed: true,
       });
       await refreshAll();
       toast({
@@ -643,6 +692,12 @@ function BillingStep({ nextStep }: { nextStep?: OnboardingStepId }) {
             ? 'Customers can pay from booking links after Stripe Connect is set up.'
             : 'You are set to handle customer payments outside HandyCall.',
       });
+      if (
+        mode === 'HANDYCALL_MANAGED' &&
+        !(connectStatus?.connected && connectStatus?.charges_enabled && connectStatus?.payouts_enabled)
+      ) {
+        await startConnectOnboarding();
+      }
     } catch (error: any) {
       toast({
         title: 'Unable to update payment mode',
@@ -806,11 +861,18 @@ function BillingStep({ nextStep }: { nextStep?: OnboardingStepId }) {
         <CardContent>
           {!stripePromise ? (
             <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
-              Stripe publishable key is missing or invalid. Set a real test/live key in
-              NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY and restart the web app.
+              Stripe publishable key is missing or invalid. Confirm the backend billing config is set correctly and try again.
+            </div>
+          ) : paymentInitError ? (
+            <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+              {paymentInitError}
+            </div>
+          ) : !setupClientSecret ? (
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+              Initializing secure payment form...
             </div>
           ) : (
-            <Elements stripe={stripePromise}>
+            <Elements stripe={stripePromise} options={{ clientSecret: setupClientSecret }}>
               <OnboardingPaymentForm
                 selectedPlan={selectedPlan}
                 onSuccess={async () => {
@@ -852,16 +914,13 @@ function OnboardingPaymentForm({
     e.preventDefault();
     if (!stripe || !elements || !selectedPlan) return;
 
-    const cardElement = elements.getElement(CardElement);
-    if (!cardElement) return;
-
     setLoading(true);
     setError(null);
 
     try {
-      const { client_secret } = await apiClient.createSetupIntent();
-      const { error: stripeError, setupIntent } = await stripe.confirmCardSetup(client_secret, {
-        payment_method: { card: cardElement },
+      const { error: stripeError, setupIntent } = await stripe.confirmSetup({
+        elements,
+        redirect: 'if_required',
       });
 
       if (stripeError) {
@@ -894,19 +953,7 @@ function OnboardingPaymentForm({
           : 'Select a plan above to unlock payment.'}
       </div>
       <div className="rounded-xl border border-slate-200 bg-white p-4">
-        <CardElement
-          options={{
-            style: {
-              base: {
-                color: '#1f2937',
-                fontFamily: '"Helvetica Neue", Helvetica, sans-serif',
-                fontSize: '16px',
-                '::placeholder': { color: '#9ca3af' },
-              },
-              invalid: { color: '#ef4444' },
-            },
-          }}
-        />
+        <PaymentElement />
       </div>
       {error && (
         <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">{error}</div>
