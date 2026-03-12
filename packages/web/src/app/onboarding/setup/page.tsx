@@ -1111,7 +1111,10 @@ function OnboardingSetupContent() {
       }
       window.location.href = link.url;
     } catch (err: any) {
-      setErrMsg(err?.message || 'Could not start Stripe Connect onboarding.');
+      const msg = err?.message || 'Could not start Stripe Connect onboarding.';
+      setErrMsg(msg);
+      // Fall back to manual phase so user can retry or skip
+      await goTo('billing_connect', 'Something went wrong. Click below to try again or skip for now.');
     } finally {
       setConnectBusy(false);
     }
