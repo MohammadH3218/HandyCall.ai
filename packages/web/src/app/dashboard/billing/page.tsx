@@ -189,6 +189,21 @@ export default function BillingPage() {
     }
   };
 
+  const startConnectSetup = async () => {
+    const origin =
+      typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3001';
+    const result = await apiClient.setupConnectAccount({
+      return_url: `${origin}/dashboard/billing`,
+      refresh_url: `${origin}/dashboard/billing`,
+    });
+
+    if (!result?.url) {
+      throw new Error('Unable to generate a Stripe onboarding link right now.');
+    }
+
+    window.location.href = result.url;
+  };
+
   const handleConnectSetup = async () => {
     if (!managedPaymentsEnabled) {
       toast({
@@ -198,16 +213,7 @@ export default function BillingPage() {
       return;
     }
     try {
-      const result = await apiClient.setupConnectAccount();
-      if (result?.url) {
-        window.location.href = result.url;
-        return;
-      }
-      toast({
-        title: 'Connect setup unavailable',
-        description: 'Unable to generate a Stripe onboarding link right now.',
-        variant: 'destructive',
-      });
+      await startConnectSetup();
     } catch (error: any) {
       toast({
         title: 'Connect setup failed',
@@ -225,6 +231,7 @@ export default function BillingPage() {
       const updated = await apiClient.updateMyCompany({
         booking_payment_mode: mode,
         booking_payment_enabled: mode === 'HANDYCALL_MANAGED',
+        booking_payment_mode_confirmed: true,
       });
       const updatedCompany = updated?.company_id ? updated : updated?.company;
       if (updatedCompany) {
@@ -238,6 +245,17 @@ export default function BillingPage() {
             : 'Customers will pay outside HandyCall.',
       });
       await loadBillingData();
+      if (mode === 'HANDYCALL_MANAGED' && !connectFullyReady) {
+        try {
+          await startConnectSetup();
+        } catch (error: any) {
+          toast({
+            title: 'Connect setup failed',
+            description: error?.message || 'Unable to start Stripe Connect onboarding.',
+            variant: 'destructive',
+          });
+        }
+      }
     } catch (error: any) {
       toast({
         title: 'Could not update payment mode',

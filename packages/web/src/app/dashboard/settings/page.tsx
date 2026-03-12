@@ -508,6 +508,12 @@ export default function SettingsPage() {
         description: 'Your booking payment configuration has been updated.',
       });
       setPaymentsEditMode(false);
+      if (
+        bookingPaymentMode === 'HANDYCALL_MANAGED' &&
+        !(connectStatus?.connected && connectStatus?.charges_enabled && connectStatus?.payouts_enabled)
+      ) {
+        await handleConnectSetup();
+      }
     } catch (error: any) {
       toast({
         title: 'Save failed',

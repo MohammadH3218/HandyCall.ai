@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { loadStripe } from '@stripe/stripe-js';
-import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
+import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import { apiClient } from '@/lib/api-client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -11,24 +11,6 @@ import { useAuthStore } from '@/stores/auth-store';
 import { SubscriptionPlan } from '@handycall/shared';
 import { PLAN_CATALOG, getPlanPriceDisplay } from '@/constants/plans';
 import { PageHeader } from '@/components/portal/page-header';
-
-const CARD_ELEMENT_OPTIONS = {
-  style: {
-    base: {
-      color: '#32325d',
-      fontFamily: '"Helvetica Neue", Helvetica, sans-serif',
-      fontSmoothing: 'antialiased',
-      fontSize: '16px',
-      '::placeholder': {
-        color: '#aab7c4',
-      },
-    },
-    invalid: {
-      color: '#fa755a',
-      iconColor: '#fa755a',
-    },
-  },
-};
 
 function PaymentMethodForm({ selectedPlan }: { selectedPlan?: SubscriptionPlan }) {
   const router = useRouter();
@@ -46,23 +28,13 @@ function PaymentMethodForm({ selectedPlan }: { selectedPlan?: SubscriptionPlan }
       return;
     }
 
-    const cardElement = elements.getElement(CardElement);
-    if (!cardElement) {
-      return;
-    }
-
     setLoading(true);
     setError(null);
 
     try {
-      // Create setup intent
-      const { client_secret } = await apiClient.createSetupIntent();
-
-      // Confirm card setup
-      const { error: stripeError, setupIntent } = await stripe.confirmCardSetup(client_secret, {
-        payment_method: {
-          card: cardElement,
-        },
+      const { error: stripeError, setupIntent } = await stripe.confirmSetup({
+        elements,
+        redirect: 'if_required',
       });
 
       if (stripeError) {
@@ -118,7 +90,7 @@ function PaymentMethodForm({ selectedPlan }: { selectedPlan?: SubscriptionPlan }
       <div className="mb-6">
         <label className="block text-sm font-medium text-gray-700 mb-2">Card Information</label>
         <div className="p-4 border border-gray-300 rounded-md">
-          <CardElement options={CARD_ELEMENT_OPTIONS} />
+          <PaymentElement />
         </div>
       </div>
 
@@ -167,6 +139,8 @@ export default function PaymentMethodPage() {
   const [publishableKey, setPublishableKey] = useState<string | null>(
     process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || null,
   );
+  const [setupClientSecret, setSetupClientSecret] = useState<string | null>(null);
+  const [setupError, setSetupError] = useState<string | null>(null);
 
   useEffect(() => {
     if (publishableKey && !publishableKey.includes('local_dev_placeholder') && !publishableKey.endsWith('_xxx')) {
@@ -178,6 +152,30 @@ export default function PaymentMethodPage() {
         if (config?.publishable_key) setPublishableKey(config.publishable_key);
       })
       .catch(() => null);
+  }, [publishableKey]);
+
+  useEffect(() => {
+    if (!publishableKey || publishableKey.includes('local_dev_placeholder') || publishableKey.endsWith('_xxx')) {
+      return;
+    }
+
+    let isMounted = true;
+    setSetupError(null);
+    setSetupClientSecret(null);
+
+    apiClient
+      .createSetupIntent()
+      .then(({ client_secret }) => {
+        if (isMounted) setSetupClientSecret(client_secret);
+      })
+      .catch((error: any) => {
+        if (!isMounted) return;
+        setSetupError(error?.message || 'Unable to initialize the payment form.');
+      });
+
+    return () => {
+      isMounted = false;
+    };
   }, [publishableKey]);
 
   // Only create the Stripe promise when we actually have a key.
@@ -240,8 +238,16 @@ export default function PaymentMethodPage() {
             <div className="p-3 bg-red-50 border border-red-200 rounded-md text-sm text-red-800">
               Stripe publishable key is not configured on the server yet.
             </div>
+          ) : setupError ? (
+            <div className="p-3 bg-red-50 border border-red-200 rounded-md text-sm text-red-800">
+              {setupError}
+            </div>
+          ) : !setupClientSecret ? (
+            <div className="p-3 bg-gray-50 border border-gray-200 rounded-md text-sm text-gray-700">
+              Initializing secure payment form...
+            </div>
           ) : (
-            <Elements stripe={stripePromise}>
+            <Elements stripe={stripePromise} options={{ clientSecret: setupClientSecret }}>
               <PaymentMethodForm selectedPlan={selectedPlan || undefined} />
             </Elements>
           )}

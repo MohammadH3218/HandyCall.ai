@@ -3,7 +3,7 @@
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { loadStripe } from '@stripe/stripe-js';
-import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
+import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import {
   IconSparkles,
   IconUser,
@@ -453,14 +453,12 @@ function StripePaymentForm({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!stripe || !elements || !selectedPlan || done) return;
-    const card = elements.getElement(CardElement);
-    if (!card) return;
     setLoading(true);
     setError(null);
     try {
-      const { client_secret } = await apiClient.createSetupIntent();
-      const { error: stripeErr, setupIntent } = await stripe.confirmCardSetup(client_secret, {
-        payment_method: { card },
+      const { error: stripeErr, setupIntent } = await stripe.confirmSetup({
+        elements,
+        redirect: 'if_required',
       });
       if (stripeErr) throw new Error(stripeErr.message);
       if (!setupIntent?.payment_method) throw new Error('No payment method returned.');
@@ -479,21 +477,7 @@ function StripePaymentForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="rounded-xl border border-border bg-background p-4">
-        <CardElement
-          options={{
-            style: {
-              base: {
-                color: 'hsl(210 24% 12%)',
-                fontFamily: 'ui-sans-serif, system-ui, sans-serif',
-                fontSize: '14px',
-                '::placeholder': { color: 'hsl(215 12% 60%)' },
-              },
-              invalid: { color: '#ef4444' },
-            },
-          }}
-        />
-      </div>
+      <PaymentElement />
       {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
       {done && <p className="text-sm font-medium text-emerald-600">Subscription activated!</p>}
       <PrimaryButton
@@ -566,6 +550,7 @@ function OnboardingSetupContent() {
   const [paymentModeSaving, setPaymentModeSaving] = useState(false);
   const [connectBusy, setConnectBusy] = useState(false);
   const [connectStatus, setConnectStatus] = useState<any>(null);
+  const [setupClientSecret, setSetupClientSecret] = useState<string | null>(null);
   const [stripePublishableKey, setStripePublishableKey] = useState<string | null>(
     process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || null
   );
@@ -1109,7 +1094,17 @@ function OnboardingSetupContent() {
   const handlePlanSelect = async (plan: SubscriptionPlan) => {
     setSelectedPlan(plan);
     userSay(`${PLAN_CATALOG[plan].name} — $${PLAN_CATALOG[plan].price}/month`);
-    await goTo('billing_payment');
+    setIsSaving(true);
+    setErrMsg(null);
+    try {
+      const { client_secret } = await apiClient.createSetupIntent();
+      setSetupClientSecret(client_secret);
+      await goTo('billing_payment');
+    } catch (err: any) {
+      setErrMsg(err?.message || 'Could not initialize payment. Please try again.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleBillingSuccess = async () => {
@@ -1920,13 +1915,15 @@ function OnboardingSetupContent() {
         );
 
       case 'billing_payment':
-        return stripePromise ? (
-          <Elements stripe={stripePromise}>
+        return stripePromise && setupClientSecret ? (
+          <Elements stripe={stripePromise} options={{ clientSecret: setupClientSecret }}>
             <StripePaymentForm selectedPlan={selectedPlan} onSuccess={handleBillingSuccess} />
           </Elements>
         ) : (
           <p className="text-sm text-red-600 dark:text-red-400">
-            Payment provider not configured. Contact support.
+            {!stripePromise
+              ? 'Payment provider not configured. Contact support.'
+              : 'Initializing payment form...'}
           </p>
         );
 
