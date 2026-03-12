@@ -319,12 +319,14 @@ function getStepMeta(phase: Phase): { title: string; description: string } {
 
 function PrimaryButton({
   onClick,
+  type = 'button',
   disabled,
   loading,
   children,
   className,
 }: {
   onClick?: () => void | Promise<void>;
+  type?: 'button' | 'submit';
   disabled?: boolean;
   loading?: boolean;
   children: React.ReactNode;
@@ -332,7 +334,7 @@ function PrimaryButton({
 }) {
   return (
     <button
-      type="button"
+      type={type}
       onClick={onClick ? () => void onClick() : undefined}
       disabled={disabled || loading}
       className={cn(
@@ -481,6 +483,7 @@ function StripePaymentForm({
       {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
       {done && <p className="text-sm font-medium text-emerald-600">Subscription activated!</p>}
       <PrimaryButton
+        type="submit"
         disabled={!stripe || loading || done || !selectedPlan}
         loading={loading}
         className="w-full justify-center"
@@ -580,11 +583,18 @@ function OnboardingSetupContent() {
       .catch(() => null);
   }, [stripePublishableKey]);
 
-  // Auto-scroll when phase changes or kb messages update
+  // New setup steps should start at the top of the content area.
   useEffect(() => {
     const container = scrollContainerRef.current;
     if (!container) return;
-    if (container.scrollHeight <= container.clientHeight) return;
+    container.scrollTo({ top: 0, behavior: 'auto' });
+  }, [phase]);
+
+  // Keep the knowledge chat pinned to the latest messages without affecting other steps.
+  useEffect(() => {
+    if (phase !== 'knowledge_chat') return;
+    const container = scrollContainerRef.current;
+    if (!container || container.scrollHeight <= container.clientHeight) return;
     container.scrollTo({
       top: container.scrollHeight,
       behavior: kbMessages.length > 0 ? 'smooth' : 'auto',
