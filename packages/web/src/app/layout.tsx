@@ -55,8 +55,7 @@ export const metadata: Metadata = {
   twitter: {
     card: 'summary_large_image',
     title: 'HandyCall — Find & Book Trusted Home Service Pros',
-    description:
-      'Browse local providers and book home services in minutes.',
+    description: 'Browse local providers and book home services in minutes.',
     images: ['/og-image.png'],
   },
   robots: {
@@ -70,20 +69,16 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={`${manrope.variable} ${spaceGrotesk.variable} font-sans antialiased`}>
-        <ThemeProvider>
-          <SessionProvider>
+        <SessionProvider>
+          <ThemeProvider>
             {children}
             <Toaster />
-          </SessionProvider>
-        </ThemeProvider>
+          </ThemeProvider>
+        </SessionProvider>
       </body>
     </html>
   );
