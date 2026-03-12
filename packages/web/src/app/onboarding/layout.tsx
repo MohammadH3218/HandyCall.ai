@@ -41,6 +41,10 @@ function OnboardingShell({ children }: { children: React.ReactNode }) {
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const isSetupPage = pathname?.startsWith('/onboarding/setup') ?? false;
+  const isLegacyStepPage =
+    (pathname?.startsWith('/onboarding/') ?? false) &&
+    pathname !== '/onboarding' &&
+    !isSetupPage;
 
   const stepMap = useMemo(
     () => ({
@@ -74,6 +78,11 @@ function OnboardingShell({ children }: { children: React.ReactNode }) {
       return;
     }
 
+    if (isLegacyStepPage) {
+      router.replace('/onboarding/setup');
+      return;
+    }
+
     // Don't redirect away from the setup page — it manages its own completion flow
     if (isSetupPage) return;
 
@@ -91,6 +100,7 @@ function OnboardingShell({ children }: { children: React.ReactNode }) {
     currentIndex,
     firstIncompleteIndex,
     isAuthenticated,
+    isLegacyStepPage,
     isSetupPage,
     loading,
     router,
@@ -277,7 +287,7 @@ function OnboardingShell({ children }: { children: React.ReactNode }) {
               return (
                 <Link
                   key={step.id}
-                  href={isLocked ? '#' : `/onboarding/${step.id}`}
+                  href={isLocked ? '#' : '/onboarding/setup'}
                   className={`group block rounded-lg border px-4 py-3 transition ${
                     isActive
                       ? 'border-emerald-100 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/40'
