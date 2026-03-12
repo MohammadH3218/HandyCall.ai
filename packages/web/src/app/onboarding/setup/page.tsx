@@ -19,8 +19,9 @@ import {
   IconBrandGoogle,
   IconBrandWindows,
   IconBrandApple,
-  IconPencil,
   IconSend,
+  IconChevronRight,
+  IconGlobe,
 } from '@tabler/icons-react';
 import { useOnboarding } from '@/components/onboarding/onboarding-context';
 import { useAuthStore } from '@/stores/auth-store';
@@ -35,6 +36,7 @@ import { TIMEZONE_OPTIONS, DEFAULT_TIMEZONE } from '@/constants/timezones';
 import { PLAN_CATALOG, getPlanPriceDisplay } from '@/constants/plans';
 import { CompanyCallFlowQuestion, ServiceType, SubscriptionPlan } from '@handycall/shared';
 import { CallFlowEditor } from '@/components/company/call-flow-editor';
+import { cn } from '@/lib/utils';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -62,13 +64,6 @@ type Phase =
   | 'billing_connect'
   | 'complete';
 
-type ChatMessage = {
-  id: string;
-  role: 'bot' | 'user';
-  content: string;
-  /** If set, an edit pencil appears on this user message */
-  onEdit?: () => void;
-};
 type KnowledgeMsg = { role: 'user' | 'assistant'; content: string };
 type DayRow = { closed: boolean; open: string; close: string };
 type CalendarHours = Record<string, DayRow>;
@@ -85,10 +80,44 @@ const WEEKDAYS = [
   { key: 'SUN', label: 'Sun' },
 ];
 
+const PHASE_TO_GROUP: Record<Phase, number> = {
+  loading: 0,
+  profile_name: 1,
+  company_name: 2,
+  service_type: 2,
+  timezone: 2,
+  service_area_choice: 3,
+  service_area_input: 3,
+  calendar_mode: 4,
+  calendar_hours: 4,
+  calendar_provider: 4,
+  calendar_apple: 4,
+  phone_choice: 5,
+  phone_claim: 5,
+  phone_forward: 5,
+  knowledge_intro: 6,
+  knowledge_chat: 6,
+  call_flow_editor: 7,
+  billing_payment_mode: 8,
+  billing_plan: 8,
+  billing_payment: 8,
+  billing_connect: 8,
+  complete: 9,
+};
+
+const STEP_GROUPS = [
+  { group: 1, label: 'Your profile' },
+  { group: 2, label: 'Your business' },
+  { group: 3, label: 'Service area' },
+  { group: 4, label: 'Calendar' },
+  { group: 5, label: 'Phone number' },
+  { group: 6, label: 'Knowledge base' },
+  { group: 7, label: 'AI call flow' },
+  { group: 8, label: 'Billing & plan' },
+];
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-let _id = 0;
-const mkId = () => `msg-${++_id}`;
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 function defaultHours(): CalendarHours {
@@ -170,6 +199,242 @@ function normalizeHours(source: any): CalendarHours {
   return base;
 }
 
+function getStepMeta(phase: Phase): { title: string; description: string } {
+  switch (phase) {
+    case 'profile_name':
+      return {
+        title: "What's your name?",
+        description: "We'll use this to personalize your HandyCall account.",
+      };
+    case 'company_name':
+      return {
+        title: "What's your business name?",
+        description: 'This appears across your AI receptionist and booking links.',
+      };
+    case 'service_type':
+      return {
+        title: 'What type of service do you provide?',
+        description: "Pick the closest template — you'll customize everything in the next step.",
+      };
+    case 'timezone':
+      return {
+        title: 'What timezone are you in?',
+        description: 'Used for scheduling appointments and sending reminders accurately.',
+      };
+    case 'service_area_choice':
+      return {
+        title: 'Where do you provide service?',
+        description: 'HandyCall uses this to qualify callers before accepting bookings.',
+      };
+    case 'service_area_input':
+      return {
+        title: 'Add your service ZIP codes',
+        description: 'Only callers in these areas will be routed to the booking flow.',
+      };
+    case 'calendar_mode':
+      return {
+        title: 'How do you manage appointments?',
+        description: 'HandyCall can run its own calendar or sync with an existing one.',
+      };
+    case 'calendar_hours':
+      return {
+        title: 'Set your business hours',
+        description: 'Callers can only book time slots within these hours.',
+      };
+    case 'calendar_provider':
+      return {
+        title: 'Which calendar would you like to connect?',
+        description: "We'll sync appointments in both directions.",
+      };
+    case 'calendar_apple':
+      return {
+        title: 'Connect your Apple Calendar',
+        description: 'Use an app-specific password generated from appleid.apple.com.',
+      };
+    case 'phone_choice':
+      return {
+        title: 'How should customers reach you?',
+        description: 'Set up the phone number your AI receptionist will answer.',
+      };
+    case 'phone_claim':
+      return {
+        title: 'Find your local number',
+        description: 'Search by area code to claim a dedicated HandyCall line.',
+      };
+    case 'phone_forward':
+      return {
+        title: 'Enter your current number',
+        description:
+          'Customers keep calling the same number — HandyCall intercepts and handles it.',
+      };
+    case 'knowledge_intro':
+      return {
+        title: 'Build your AI knowledge base',
+        description:
+          'Teach your AI receptionist how to answer the questions customers actually ask.',
+      };
+    case 'knowledge_chat':
+      return {
+        title: 'Tell us about your business',
+        description: 'Add services, pricing, policies — anything your receptionist should know.',
+      };
+    case 'call_flow_editor':
+      return {
+        title: 'Customize your AI call flow',
+        description:
+          'Control exactly which questions your AI asks before scheduling a job.',
+      };
+    case 'billing_payment_mode':
+      return {
+        title: 'How should customer payments work?',
+        description: 'Choose how HandyCall handles money from your bookings.',
+      };
+    case 'billing_plan':
+      return {
+        title: 'Choose your plan',
+        description: 'Start with a free trial — cancel anytime, no commitment.',
+      };
+    case 'billing_payment':
+      return {
+        title: 'Add a payment method',
+        description: "You won't be charged until after your trial period ends.",
+      };
+    case 'billing_connect':
+      return {
+        title: 'Connect your bank account',
+        description: 'HandyCall deposits customer payments directly to you via Stripe.',
+      };
+    case 'complete':
+      return {
+        title: "You're all set!",
+        description:
+          'Your AI receptionist is configured and ready to take calls.',
+      };
+    default:
+      return { title: 'Setting up...', description: '' };
+  }
+}
+
+// ─── UI Components ────────────────────────────────────────────────────────────
+
+function PrimaryButton({
+  onClick,
+  disabled,
+  loading,
+  children,
+  className,
+}: {
+  onClick?: () => void | Promise<void>;
+  disabled?: boolean;
+  loading?: boolean;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick ? () => void onClick() : undefined}
+      disabled={disabled || loading}
+      className={cn(
+        'inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50',
+        className
+      )}
+    >
+      {loading && <IconLoader2 className="h-4 w-4 animate-spin" stroke={1.5} />}
+      {children}
+    </button>
+  );
+}
+
+function GhostButton({
+  onClick,
+  disabled,
+  children,
+  className,
+}: {
+  onClick?: () => void | Promise<void>;
+  disabled?: boolean;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick ? () => void onClick() : undefined}
+      disabled={disabled}
+      className={cn(
+        'inline-flex items-center justify-center gap-2 rounded-xl border border-border px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50',
+        className
+      )}
+    >
+      {children}
+    </button>
+  );
+}
+
+function OptionCard({
+  onClick,
+  disabled,
+  selected,
+  icon,
+  label,
+  description,
+  recommended,
+}: {
+  onClick: () => void | Promise<void>;
+  disabled?: boolean;
+  selected?: boolean;
+  icon?: React.ReactNode;
+  label: string;
+  description?: string;
+  recommended?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={() => void onClick()}
+      disabled={disabled}
+      className={cn(
+        'group relative w-full rounded-2xl border p-4 text-left transition-all duration-150',
+        selected
+          ? 'border-emerald-500 bg-emerald-50/60 dark:bg-emerald-950/30'
+          : 'border-border bg-card hover:border-emerald-400/60 hover:bg-accent/60',
+        'disabled:cursor-not-allowed disabled:opacity-50'
+      )}
+    >
+      {recommended && (
+        <span className="absolute right-3 top-3 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
+          Recommended
+        </span>
+      )}
+      <div className="flex items-start gap-3">
+        {icon && (
+          <div
+            className={cn(
+              'mt-0.5 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl',
+              selected
+                ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/50 dark:text-emerald-400'
+                : 'bg-muted text-muted-foreground'
+            )}
+          >
+            {icon}
+          </div>
+        )}
+        <div className="min-w-0 flex-1">
+          <p className="font-semibold text-foreground">{label}</p>
+          {description && (
+            <p className="mt-0.5 text-sm text-muted-foreground">{description}</p>
+          )}
+        </div>
+        <IconChevronRight
+          className="mt-0.5 h-4 w-4 flex-shrink-0 text-muted-foreground/50 transition-transform group-hover:translate-x-0.5"
+          stroke={1.5}
+        />
+      </div>
+    </button>
+  );
+}
+
 // ─── Stripe payment sub-component ────────────────────────────────────────────
 
 function StripePaymentForm({
@@ -213,113 +478,33 @@ function StripePaymentForm({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-3">
-      <div className="rounded-xl border border-slate-200 bg-white p-4">
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="rounded-xl border border-border bg-background p-4">
         <CardElement
           options={{
             style: {
               base: {
-                color: '#1f2937',
+                color: 'hsl(210 24% 12%)',
                 fontFamily: 'ui-sans-serif, system-ui, sans-serif',
                 fontSize: '14px',
-                '::placeholder': { color: '#9ca3af' },
+                '::placeholder': { color: 'hsl(215 12% 60%)' },
               },
               invalid: { color: '#ef4444' },
             },
           }}
         />
       </div>
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
       {done && <p className="text-sm font-medium text-emerald-600">Subscription activated!</p>}
-      <button
-        type="submit"
+      <PrimaryButton
         disabled={!stripe || loading || done || !selectedPlan}
-        className="flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-50"
+        loading={loading}
+        className="w-full justify-center"
       >
-        {loading ? (
-          <>
-            <IconLoader2 className="h-4 w-4 animate-spin" stroke={1.5} />
-            Processing...
-          </>
-        ) : (
-          <>
-            <IconCreditCard className="h-4 w-4" stroke={1.5} />
-            Activate {selectedPlan ? PLAN_CATALOG[selectedPlan].name : ''} plan
-          </>
-        )}
-      </button>
+        <IconCreditCard className="h-4 w-4" stroke={1.5} />
+        Activate {selectedPlan ? PLAN_CATALOG[selectedPlan].name : ''} plan
+      </PrimaryButton>
     </form>
-  );
-}
-
-// ─── Small reusable buttons ───────────────────────────────────────────────────
-
-function ActionButton({
-  onClick,
-  disabled,
-  loading,
-  children,
-}: {
-  onClick: () => void | Promise<void>;
-  disabled?: boolean;
-  loading?: boolean;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={() => void onClick()}
-      disabled={disabled || loading}
-      className="flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-50"
-    >
-      {loading && <IconLoader2 className="h-4 w-4 animate-spin" stroke={1.5} />}
-      {children}
-    </button>
-  );
-}
-
-function ChipButton({
-  onClick,
-  disabled,
-  children,
-}: {
-  onClick: () => void | Promise<void>;
-  disabled?: boolean;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={() => void onClick()}
-      disabled={disabled}
-      className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:border-emerald-400 hover:bg-emerald-50 hover:text-emerald-700 disabled:opacity-50"
-    >
-      {children}
-    </button>
-  );
-}
-
-function ChoiceButton({
-  onClick,
-  disabled,
-  icon,
-  children,
-}: {
-  onClick: () => void | Promise<void>;
-  disabled?: boolean;
-  icon?: React.ReactNode;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={() => void onClick()}
-      disabled={disabled}
-      className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-emerald-400 hover:bg-emerald-50 disabled:opacity-50"
-    >
-      {icon}
-      {children}
-    </button>
   );
 }
 
@@ -342,9 +527,6 @@ function OnboardingSetupContent() {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const initialized = useRef(false);
 
-  // Chat state
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [isTyping, setIsTyping] = useState(false);
   const [phase, setPhase] = useState<Phase>('loading');
   const [isSaving, setIsSaving] = useState(false);
   const [errMsg, setErrMsg] = useState<string | null>(null);
@@ -413,53 +595,35 @@ function OnboardingSetupContent() {
       .catch(() => null);
   }, [stripePublishableKey]);
 
-  // Auto-scroll on new messages
+  // Auto-scroll when phase changes or kb messages update
   useEffect(() => {
     const container = scrollContainerRef.current;
     if (!container) return;
     if (container.scrollHeight <= container.clientHeight) return;
     container.scrollTo({
       top: container.scrollHeight,
-      behavior: messages.length > 2 || kbMessages.length > 0 ? 'smooth' : 'auto',
+      behavior: kbMessages.length > 0 ? 'smooth' : 'auto',
     });
-  }, [messages, isTyping, kbMessages]);
+  }, [phase, kbMessages]);
 
-  // ─── Chat helpers ──────────────────────────────────────────────────────────
+  // ─── Simplified chat helpers ──────────────────────────────────────────────
 
-  const botSay = useCallback(async (text: string) => {
-    setIsTyping(true);
-    await sleep(Math.min(500 + text.length * 12, 1600));
-    setIsTyping(false);
-    setMessages((prev) => [...prev, { id: mkId(), role: 'bot', content: text }]);
+  const botSay = useCallback(async (_text: string) => {}, []);
+
+  const userSay = useCallback((_text: string, _onEdit?: () => void) => {}, []);
+
+  const goTo = useCallback(async (next: Phase, ..._msgs: string[]) => {
+    setErrMsg(null);
+    setPhase(next);
   }, []);
 
-  const userSay = useCallback((text: string, onEdit?: () => void) => {
-    setMessages((prev) => [...prev, { id: mkId(), role: 'user', content: text, onEdit }]);
-  }, []);
-
-  const goTo = useCallback(
-    async (next: Phase, ...msgs: string[]) => {
-      setErrMsg(null);
-      for (const m of msgs) await botSay(m);
-      setPhase(next);
-    },
-    [botSay]
-  );
-
-  /**
-   * Re-opens a previous step for editing.
-   * Adds a bot re-prompt message and jumps back to that phase.
-   */
   const editStep = useCallback(
-    (prompt: string, targetPhase: Phase, prefill?: () => void) => {
+    (_prompt: string, targetPhase: Phase, prefill?: () => void) => {
       setErrMsg(null);
       if (prefill) prefill();
-      void (async () => {
-        await botSay(prompt);
-        setPhase(targetPhase);
-      })();
+      setPhase(targetPhase);
     },
-    [botSay]
+    []
   );
 
   // ─── Initialization ────────────────────────────────────────────────────────
@@ -495,63 +659,37 @@ function OnboardingSetupContent() {
     const paymentsFlow = searchParams?.get('payments');
     const connectState = searchParams?.get('state');
 
-    await botSay(
-      "👋 Hi! I'm your HandyCall setup assistant. Let's get your AI receptionist ready — it only takes a few minutes."
-    );
     if (!s.profile) {
-      await goTo('profile_name', "First, what's your full name?");
+      await goTo('profile_name');
     } else if (!s.companyProfile) {
-      await goTo('company_name', "Let's set up your company. What's the business name?");
+      await goTo('company_name');
     } else if (!s.serviceArea) {
-      await goTo(
-        'service_area_choice',
-        'Where do you provide service? Do you cover all areas, or specific ZIP codes?'
-      );
+      await goTo('service_area_choice');
     } else if (!s.calendar) {
-      await goTo(
-        'calendar_mode',
-        "Let's set up your booking calendar. How do you want to manage appointments?"
-      );
+      await goTo('calendar_mode');
     } else if (!s.phone) {
-      await goTo('phone_choice', 'Almost there! How do you want customers to reach you?');
+      await goTo('phone_choice');
     } else if (!s.knowledge) {
-      await goTo(
-        'knowledge_intro',
-        "Now let's build your AI receptionist's knowledge base so it can answer caller questions accurately."
-      );
+      await goTo('knowledge_intro');
     } else if (!(company as any)?.call_flow_questions?.length) {
-      await goTo(
-        'call_flow_editor',
-        'Next, review the questions your AI should ask before it ever asks for a date and time. You can edit the wording, remove questions, add new ones, and control the order here.'
-      );
+      await goTo('call_flow_editor');
     } else if (!(company as any)?.booking_payment_mode_confirmed) {
-      await goTo(
-        'billing_payment_mode',
-        'Before we finish, choose whether HandyCall should collect customer payments for you or whether your team will handle them directly.'
-      );
+      await goTo('billing_payment_mode');
     } else if (!s.billing) {
-      await goTo('billing_plan', "Last step — let's activate your HandyCall subscription.");
+      await goTo('billing_plan');
     } else if (
       paymentsFlow === 'connect' &&
       (connectState === 'return' || connectState === 'refresh')
     ) {
-      await goTo(
-        'billing_connect',
-        connectState === 'return'
-          ? "Welcome back. Let's verify your Stripe Connect setup."
-          : "Stripe setup was refreshed. Let's continue and verify your Connect status."
-      );
+      await goTo('billing_connect');
       await refreshConnectStatusAndContinue();
     } else if (
       (company as any)?.booking_payment_mode === 'HANDYCALL_MANAGED' &&
       !(company as any)?.stripe_connect_onboarding_complete
     ) {
-      await botSay(
-        'Almost done! Opening Stripe so you can connect your bank account for payouts...'
-      );
       await handleStartConnectOnboarding();
     } else {
-      await botSay('🎉 Setup complete! Redirecting to your dashboard...');
+      await goTo('complete');
       setTimeout(() => router.replace('/dashboard'), 2000);
     }
   };
@@ -575,14 +713,14 @@ function OnboardingSetupContent() {
     } finally {
       setIsSaving(false);
     }
-    await goTo('company_name', `Nice to meet you, ${captured}! What's the name of your business?`);
+    await goTo('company_name');
   };
 
   const handleCompanyName = async () => {
     const name = companyInput.trim();
     if (!name) return;
     userSay(name, () => editStep("What's the correct business name?", 'company_name'));
-    await goTo('service_type', `Got it — ${name}! What type of service do you provide?`);
+    await goTo('service_type');
   };
 
   const handleServiceType = async (value: string, label: string) => {
@@ -604,7 +742,7 @@ function OnboardingSetupContent() {
       });
       setCallFlowQuestions(defaultQuestions);
       await refreshAll();
-      await goTo('timezone', 'What timezone are you in?');
+      await goTo('timezone');
     } catch {
       setErrMsg('Could not save service type. Try again.');
     } finally {
@@ -624,10 +762,7 @@ function OnboardingSetupContent() {
       });
       setCompany(updated);
       await refreshAll();
-      await goTo(
-        'service_area_choice',
-        "Company details saved! Now let's set your service area. Do you serve all areas, or specific ZIP codes?"
-      );
+      await goTo('service_area_choice');
     } catch {
       setErrMsg('Could not save company profile. Try again.');
     } finally {
@@ -646,10 +781,7 @@ function OnboardingSetupContent() {
       });
       setCompany(updated);
       await refreshAll();
-      await goTo(
-        'calendar_mode',
-        "Got it — you cover all areas. Now let's set up your booking calendar."
-      );
+      await goTo('calendar_mode');
     } catch {
       setErrMsg('Could not save service area.');
     } finally {
@@ -659,7 +791,7 @@ function OnboardingSetupContent() {
 
   const handleServiceAreaSpecific = async () => {
     userSay('Specific ZIP codes');
-    await goTo('service_area_input', 'Add the ZIP codes you serve below, then save to continue.');
+    await goTo('service_area_input');
   };
 
   const addZip = () => {
@@ -687,7 +819,7 @@ function OnboardingSetupContent() {
       setCompany(updated);
       await refreshAll();
       userSay(`${zipCodes.length} ZIP code${zipCodes.length !== 1 ? 's' : ''} saved`);
-      await goTo('calendar_mode', "Service area saved! Let's set up your booking calendar.");
+      await goTo('calendar_mode');
     } catch {
       setErrMsg('Could not save service area.');
     } finally {
@@ -698,13 +830,10 @@ function OnboardingSetupContent() {
   const handleCalendarMode = async (mode: 'INTERNAL' | 'EXTERNAL') => {
     if (mode === 'INTERNAL') {
       userSay('Use HandyCall Calendar');
-      await goTo(
-        'calendar_hours',
-        'Great choice! Set your business hours so callers can book valid times. Toggle each day open or closed.'
-      );
+      await goTo('calendar_hours');
     } else {
       userSay('Connect my existing calendar');
-      await goTo('calendar_provider', 'Which calendar would you like to connect?');
+      await goTo('calendar_provider');
     }
   };
 
@@ -725,11 +854,8 @@ function OnboardingSetupContent() {
       });
       setCompany(updated);
       await refreshAll();
-      userSay('Business hours saved ✓');
-      await goTo(
-        'phone_choice',
-        "Calendar is all set! Now let's get your phone ready. How do you want customers to reach you?"
-      );
+      userSay('Business hours saved');
+      await goTo('phone_choice');
     } catch {
       setErrMsg('Could not save calendar settings.');
     } finally {
@@ -746,7 +872,7 @@ function OnboardingSetupContent() {
           : 'Apple iCloud';
     userSay(label);
     if (provider === 'APPLE') {
-      await goTo('calendar_apple', 'Enter your Apple ID and an app-specific password to connect.');
+      await goTo('calendar_apple');
       return;
     }
     setIsSaving(true);
@@ -784,8 +910,8 @@ function OnboardingSetupContent() {
       });
       await apiClient.connectAppleCalendar(appleEmail, applePass);
       await refreshAll();
-      userSay('Apple Calendar connected ✓');
-      await goTo('phone_choice', "Calendar connected! Let's set up your phone.");
+      userSay('Apple Calendar connected');
+      await goTo('phone_choice');
     } catch (err: any) {
       setErrMsg(err?.message || 'Could not connect Apple Calendar.');
     } finally {
@@ -796,16 +922,10 @@ function OnboardingSetupContent() {
   const handlePhoneChoice = async (choice: 'claim' | 'forward' | 'demo') => {
     if (choice === 'claim') {
       userSay('Claim a new HandyCall number');
-      await goTo(
-        'phone_claim',
-        "Let's find a local number! Enter an area code to search available numbers."
-      );
+      await goTo('phone_claim');
     } else if (choice === 'forward') {
       userSay('Forward my existing number');
-      await goTo(
-        'phone_forward',
-        "Enter your current business number. I'll save it so you can set up forwarding from your carrier."
-      );
+      await goTo('phone_forward');
     } else {
       userSay('Use a demo number for testing');
       setIsSaving(true);
@@ -815,10 +935,7 @@ function OnboardingSetupContent() {
         await refreshAll();
         const num = res?.phoneNumber ?? res?.phone_number ?? res?.data?.phoneNumber ?? '';
         userSay(`Demo number assigned${num ? `: ${num}` : ''}`);
-        await goTo(
-          'knowledge_intro',
-          `Demo number ready${num ? ` (${num})` : ''}! Now let's build your AI knowledge base.`
-        );
+        await goTo('knowledge_intro');
       } catch (err: any) {
         setErrMsg(err?.message || 'Could not assign demo number.');
       } finally {
@@ -852,11 +969,8 @@ function OnboardingSetupContent() {
       await apiClient.claimPhoneNumber(phoneNumber, 'HandyCall onboarding');
       await refreshCompanyNumber();
       await refreshAll();
-      userSay(`Claimed ${phoneNumber} ✓`);
-      await goTo(
-        'knowledge_intro',
-        `Your HandyCall number is ${phoneNumber}. Now let's build your AI knowledge base so it can answer calls accurately!`
-      );
+      userSay(`Claimed ${phoneNumber}`);
+      await goTo('knowledge_intro');
     } catch (err: any) {
       setErrMsg(err?.message || 'Could not claim number. Try another.');
     } finally {
@@ -874,10 +988,7 @@ function OnboardingSetupContent() {
       const updated = await apiClient.updateMyCompany({ phone_number: forwardNumber.trim() });
       setCompany(updated);
       userSay(`Saved: ${forwardNumber.trim()}`);
-      await goTo(
-        'knowledge_intro',
-        `Got it! When ready, forward calls from ${forwardNumber.trim()} to your HandyCall number in your carrier settings. Now let's build your knowledge base!`
-      );
+      await goTo('knowledge_intro');
     } catch {
       setErrMsg('Could not save number.');
     } finally {
@@ -903,9 +1014,6 @@ function OnboardingSetupContent() {
           suggestions.map((item, index) => `${index + 1}. ${item}`).join('\n'),
       },
     ]);
-    await botSay(
-      'Use the chat below to tell HandyCall what customers should hear about your services, pricing, policies, and anything specific to your business.'
-    );
     setPhase('knowledge_chat');
   };
 
@@ -960,15 +1068,7 @@ function OnboardingSetupContent() {
       await refreshKnowledge();
       await refreshAll();
       userSay(`Knowledge base generated: ${created} entries created`);
-      const productNote =
-        productsCreated > 0
-          ? ` I also created ${productsCreated} service product${productsCreated === 1 ? '' : 's'} in your Payments page.`
-          : '';
-      await goTo(
-        'call_flow_editor',
-        `Done! I created ${created} knowledge entr${created === 1 ? 'y' : 'ies'} for your AI receptionist.${productNote} You can always add more from your dashboard.`,
-        'Now review the exact intake questions your AI should ask before it ever asks for a date and time.'
-      );
+      await goTo('call_flow_editor');
     } catch (err: any) {
       setKbError(err?.message || 'Could not generate knowledge base. Try again.');
     } finally {
@@ -998,10 +1098,7 @@ function OnboardingSetupContent() {
       });
       await refreshAll();
       userSay(`Saved ${normalized.length} intake question${normalized.length === 1 ? '' : 's'}`);
-      await goTo(
-        'billing_payment_mode',
-        'Call flow saved. Before we finish, choose how you want customer payments to work.'
-      );
+      await goTo('billing_payment_mode');
     } catch (err: any) {
       setErrMsg(err?.message || 'Could not save your AI call flow.');
     } finally {
@@ -1012,10 +1109,7 @@ function OnboardingSetupContent() {
   const handlePlanSelect = async (plan: SubscriptionPlan) => {
     setSelectedPlan(plan);
     userSay(`${PLAN_CATALOG[plan].name} — $${PLAN_CATALOG[plan].price}/month`);
-    await goTo(
-      'billing_payment',
-      `${PLAN_CATALOG[plan].name} plan selected! Add a payment method to activate.`
-    );
+    await goTo('billing_payment');
   };
 
   const handleBillingSuccess = async () => {
@@ -1025,17 +1119,11 @@ function OnboardingSetupContent() {
       ((company as any)?.booking_payment_mode as 'HANDYCALL_MANAGED' | 'SELF_MANAGED' | undefined);
 
     if (effectiveMode === 'HANDYCALL_MANAGED') {
-      await botSay(
-        'Subscription activated! Opening Stripe to connect your bank account for payouts...'
-      );
       await handleStartConnectOnboarding();
       return;
     }
 
-    await goTo(
-      'complete',
-      "🎉 You're all set! HandyCall is active and your team will handle customer payments outside the platform."
-    );
+    await goTo('complete');
   };
 
   const refreshConnectStatusAndContinue = async () => {
@@ -1043,10 +1131,7 @@ function OnboardingSetupContent() {
       const latest = await apiClient.getConnectStatus();
       setConnectStatus(latest);
       if (latest?.connected && latest?.charges_enabled && latest?.payouts_enabled) {
-        await goTo(
-          'complete',
-          "🎉 You're all set! Stripe Connect is fully configured and your HandyCall AI receptionist is ready."
-        );
+        await goTo('complete');
       }
     } catch (err: any) {
       setErrMsg(err?.message || 'Could not verify Stripe Connect status.');
@@ -1067,26 +1152,15 @@ function OnboardingSetupContent() {
 
       if (!status.billing) {
         userSay(mode === 'HANDYCALL_MANAGED' ? 'Managed in HandyCall' : 'I handle payments myself');
-        await goTo(
-          'billing_plan',
-          mode === 'HANDYCALL_MANAGED'
-            ? "Great choice. Pick a plan to activate HandyCall, then you'll connect Stripe for payouts."
-            : 'Got it. Pick a HandyCall plan to activate the AI receptionist while your team keeps customer payments in its own workflow.'
-        );
+        await goTo('billing_plan');
         return;
       }
 
       if (mode === 'SELF_MANAGED') {
         userSay('I handle payments myself');
-        await goTo(
-          'complete',
-          "🎉 You're all set! HandyCall will handle calls and bookings, and your team handles customer payments."
-        );
+        await goTo('complete');
       } else {
         userSay('Managed in HandyCall');
-        await botSay(
-          'Opening Stripe to connect your bank account for payouts...'
-        );
         await handleStartConnectOnboarding();
       }
     } catch (err: any) {
@@ -1114,52 +1188,46 @@ function OnboardingSetupContent() {
       const msg = err?.message || 'Could not start Stripe Connect onboarding.';
       setErrMsg(msg);
       // Fall back to manual phase so user can retry or skip
-      await goTo('billing_connect', 'Something went wrong. Click below to try again or skip for now.');
+      await goTo('billing_connect');
     } finally {
       setConnectBusy(false);
     }
   };
 
-  // ─── Active zone ───────────────────────────────────────────────────────────
+  // ─── Step content renderer ─────────────────────────────────────────────────
 
-  const renderActiveZone = () => {
-    if (phase === 'loading' || phase === 'complete') return null;
+  const renderStepContent = () => {
+    switch (phase) {
+      case 'loading':
+        return null;
 
-    return (
-      <div className="space-y-3">
-        {errMsg && (
-          <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700">
-            <IconX className="h-4 w-4 flex-shrink-0" stroke={1.5} />
-            {errMsg}
-          </div>
-        )}
-
-        {/* Profile name */}
-        {phase === 'profile_name' && (
-          <div className="flex gap-2">
+      case 'profile_name':
+        return (
+          <div className="space-y-4">
             <input
               autoFocus
               type="text"
               value={nameInput}
               onChange={(e) => setNameInput(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && void handleProfileName()}
-              placeholder="Your full name..."
+              placeholder="e.g. Alex Johnson"
               disabled={isSaving}
-              className="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 disabled:opacity-50"
+              className="w-full rounded-xl border border-input bg-background px-4 py-3 text-base text-foreground placeholder:text-muted-foreground/70 outline-none ring-offset-background transition-all focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50"
             />
-            <ActionButton
+            <PrimaryButton
               onClick={handleProfileName}
               disabled={!nameInput.trim() || isSaving}
               loading={isSaving}
             >
-              <IconSend className="h-4 w-4" stroke={1.5} />
-            </ActionButton>
+              Continue
+              <IconArrowRight className="h-4 w-4" stroke={2} />
+            </PrimaryButton>
           </div>
-        )}
+        );
 
-        {/* Company name */}
-        {phase === 'company_name' && (
-          <div className="flex gap-2">
+      case 'company_name':
+        return (
+          <div className="space-y-4">
             <input
               autoFocus
               type="text"
@@ -1168,22 +1236,23 @@ function OnboardingSetupContent() {
               onKeyDown={(e) =>
                 e.key === 'Enter' && companyInput.trim() && void handleCompanyName()
               }
-              placeholder="Business name..."
+              placeholder="e.g. Apex Plumbing & Heating"
               disabled={isSaving}
-              className="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 disabled:opacity-50"
+              className="w-full rounded-xl border border-input bg-background px-4 py-3 text-base text-foreground placeholder:text-muted-foreground/70 outline-none ring-offset-background transition-all focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50"
             />
-            <ActionButton
+            <PrimaryButton
               onClick={handleCompanyName}
               disabled={!companyInput.trim() || isSaving}
               loading={isSaving}
             >
-              <IconSend className="h-4 w-4" stroke={1.5} />
-            </ActionButton>
+              Continue
+              <IconArrowRight className="h-4 w-4" stroke={2} />
+            </PrimaryButton>
           </div>
-        )}
+        );
 
-        {/* Service type */}
-        {phase === 'service_type' && (
+      case 'service_type':
+        return (
           <div className="space-y-3">
             <div className="grid gap-3 md:grid-cols-2">
               {COMPANY_TEMPLATE_OPTIONS.map((option) => (
@@ -1192,23 +1261,25 @@ function OnboardingSetupContent() {
                   type="button"
                   onClick={() => void handleServiceType(option.serviceType, option.title)}
                   disabled={isSaving}
-                  className="rounded-2xl border border-slate-200 bg-white p-4 text-left transition hover:border-emerald-400 hover:bg-emerald-50/60"
+                  className="rounded-2xl border border-border bg-card p-4 text-left transition hover:border-emerald-400/60 hover:bg-accent/60 disabled:opacity-50"
                 >
                   <div className="flex items-center justify-between gap-3">
                     <div>
-                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-600 dark:text-emerald-400">
                         {option.category}
                       </p>
-                      <h3 className="mt-1 text-lg font-semibold text-slate-900">{option.title}</h3>
+                      <h3 className="mt-1 text-base font-semibold text-foreground">
+                        {option.title}
+                      </h3>
                     </div>
-                    <IconArrowRight className="h-5 w-5 text-slate-300" stroke={1.5} />
+                    <IconArrowRight className="h-5 w-5 flex-shrink-0 text-muted-foreground/40" stroke={1.5} />
                   </div>
-                  <p className="mt-2 text-sm text-slate-600">{option.description}</p>
+                  <p className="mt-2 text-sm text-muted-foreground">{option.description}</p>
                   <div className="mt-3 flex flex-wrap gap-2">
                     {option.highlights.map((highlight) => (
                       <span
                         key={highlight}
-                        className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600"
+                        className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground"
                       >
                         {highlight}
                       </span>
@@ -1217,25 +1288,27 @@ function OnboardingSetupContent() {
                 </button>
               ))}
             </div>
-            <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-4">
-              <p className="text-sm font-semibold text-slate-900">Need something custom?</p>
-              <p className="mt-1 text-sm text-slate-600">
+            <div className="rounded-2xl border border-dashed border-border bg-card p-4">
+              <p className="text-sm font-semibold text-foreground">Need something custom?</p>
+              <p className="mt-1 text-sm text-muted-foreground">
                 Pick the closest template. You can edit every intake question and its order in the
                 next step.
               </p>
               <div className="mt-3 flex flex-wrap gap-2">
                 {SERVICE_TYPE_OPTIONS.filter((opt) => (opt.value as string) === 'OTHER').map(
                   (opt) => (
-                    <ChipButton
+                    <button
                       key={opt.value}
+                      type="button"
                       onClick={() => {
                         setShowOtherInput(true);
                         setOtherServiceInput('');
                       }}
                       disabled={isSaving || showOtherInput}
+                      className="rounded-xl border border-border bg-card px-3 py-1.5 text-sm font-medium text-foreground transition hover:border-emerald-400/60 hover:bg-accent disabled:opacity-50"
                     >
                       {opt.label}
-                    </ChipButton>
+                    </button>
                   )
                 )}
               </div>
@@ -1254,69 +1327,71 @@ function OnboardingSetupContent() {
                   }
                   placeholder="e.g. Septic tank cleaning, foundation repair..."
                   disabled={isSaving}
-                  className="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 disabled:opacity-50"
+                  className="flex-1 rounded-xl border border-input bg-background px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/70 outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
                 />
-                <ActionButton
+                <PrimaryButton
                   onClick={() => void handleServiceType('OTHER', otherServiceInput.trim())}
                   disabled={!otherServiceInput.trim() || isSaving}
                   loading={isSaving}
                 >
                   <IconSend className="h-4 w-4" stroke={1.5} />
-                </ActionButton>
+                </PrimaryButton>
               </div>
             )}
           </div>
-        )}
+        );
 
-        {/* Timezone */}
-        {phase === 'timezone' && (
+      case 'timezone':
+        return (
           <div className="flex flex-wrap gap-2">
             {TIMEZONE_OPTIONS.map((tz) => (
-              <ChipButton
+              <button
                 key={tz.value}
+                type="button"
                 onClick={() => void handleTimezone(tz.value, tz.label)}
                 disabled={isSaving}
+                className="rounded-xl border border-border bg-card px-3 py-1.5 text-sm font-medium text-foreground transition hover:border-emerald-400/60 hover:bg-accent disabled:opacity-50"
               >
                 {tz.label}
-              </ChipButton>
+              </button>
             ))}
           </div>
-        )}
+        );
 
-        {/* Service area choice */}
-        {phase === 'service_area_choice' && (
-          <div className="flex flex-wrap gap-3">
-            <ChoiceButton
-              icon={<IconMapPin className="h-4 w-4 text-emerald-500" stroke={1.5} />}
+      case 'service_area_choice':
+        return (
+          <div className="space-y-3">
+            <OptionCard
               onClick={handleServiceAreaAll}
               disabled={isSaving}
-            >
-              Serve all areas
-            </ChoiceButton>
-            <ChoiceButton
-              icon={<IconMapPin className="h-4 w-4 text-slate-400" stroke={1.5} />}
+              icon={<IconGlobe className="h-5 w-5" stroke={1.5} />}
+              label="Serve all areas"
+              description="No location restrictions — accept bookings from anywhere."
+            />
+            <OptionCard
               onClick={handleServiceAreaSpecific}
               disabled={isSaving}
-            >
-              Specific ZIP codes
-            </ChoiceButton>
+              icon={<IconMapPin className="h-5 w-5" stroke={1.5} />}
+              label="Specific ZIP codes"
+              description="Only accept bookings from callers in your service area."
+            />
           </div>
-        )}
+        );
 
-        {/* Service area input */}
-        {phase === 'service_area_input' && (
-          <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
-              <p className="text-sm font-semibold text-slate-900">
+      case 'service_area_input':
+        return (
+          <div className="space-y-4">
+            <div className="rounded-2xl border border-border bg-card p-4">
+              <p className="text-sm font-semibold text-foreground">
                 Add the ZIP codes you actually serve
               </p>
-              <p className="mt-1 text-sm text-slate-600">
-                HandyCall uses this to qualify calls before booking, so keep it limited to the areas
-                you want appointments from.
+              <p className="mt-1 text-sm text-muted-foreground">
+                HandyCall uses this to qualify calls before booking, so keep it limited to the
+                areas you want appointments from.
               </p>
             </div>
             <div>
-              <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">
+              <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 ZIP codes
               </p>
               <div className="flex gap-2">
@@ -1332,21 +1407,15 @@ function OnboardingSetupContent() {
                   }}
                   placeholder="e.g. 77002"
                   maxLength={5}
-                  className="flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
+                  className="flex-1 rounded-xl border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/70 outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 />
-                <button
-                  type="button"
-                  onClick={addZip}
-                  className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-                >
-                  Add
-                </button>
+                <GhostButton onClick={addZip}>Add</GhostButton>
               </div>
               <div className="mt-2 flex flex-wrap gap-1.5">
                 {zipCodes.map((z) => (
                   <span
                     key={z}
-                    className="flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-medium text-emerald-800"
+                    className="flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-medium text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300"
                   >
                     {z}
                     <button
@@ -1360,39 +1429,39 @@ function OnboardingSetupContent() {
                 ))}
               </div>
             </div>
-            <ActionButton
+            <PrimaryButton
               onClick={handleSaveServiceArea}
               disabled={isSaving || zipCodes.length === 0}
               loading={isSaving}
             >
               <IconCheck className="h-4 w-4" stroke={2} />
               Save service area
-            </ActionButton>
+            </PrimaryButton>
           </div>
-        )}
+        );
 
-        {/* Calendar mode */}
-        {phase === 'calendar_mode' && (
-          <div className="flex flex-wrap gap-3">
-            <ChoiceButton
-              icon={<IconCalendar className="h-4 w-4 text-emerald-500" stroke={1.5} />}
+      case 'calendar_mode':
+        return (
+          <div className="space-y-3">
+            <OptionCard
               onClick={() => void handleCalendarMode('INTERNAL')}
               disabled={isSaving}
-            >
-              Use HandyCall Calendar
-            </ChoiceButton>
-            <ChoiceButton
-              icon={<IconCalendar className="h-4 w-4 text-slate-400" stroke={1.5} />}
+              icon={<IconCalendar className="h-5 w-5" stroke={1.5} />}
+              label="Use HandyCall Calendar"
+              description="Built-in scheduling — no setup needed. HandyCall manages your availability."
+            />
+            <OptionCard
               onClick={() => void handleCalendarMode('EXTERNAL')}
               disabled={isSaving}
-            >
-              Connect my existing calendar
-            </ChoiceButton>
+              icon={<IconCalendar className="h-5 w-5" stroke={1.5} />}
+              label="Connect my existing calendar"
+              description="Sync with Google, Outlook, or Apple Calendar for two-way appointment management."
+            />
           </div>
-        )}
+        );
 
-        {/* Business hours */}
-        {phase === 'calendar_hours' && (
+      case 'calendar_hours':
+        return (
           <div className="space-y-4">
             <div className="space-y-1.5">
               {WEEKDAYS.map((day) => {
@@ -1404,9 +1473,9 @@ function OnboardingSetupContent() {
                 return (
                   <div
                     key={day.key}
-                    className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2"
+                    className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-card px-3 py-2"
                   >
-                    <span className="w-8 text-xs font-bold text-slate-500">{day.label}</span>
+                    <span className="w-8 text-xs font-bold text-muted-foreground">{day.label}</span>
                     <button
                       type="button"
                       onClick={() =>
@@ -1415,11 +1484,12 @@ function OnboardingSetupContent() {
                           [day.key]: { ...row, closed: !row.closed },
                         }))
                       }
-                      className={`rounded-lg px-2.5 py-0.5 text-xs font-semibold transition ${
+                      className={cn(
+                        'rounded-lg px-2.5 py-0.5 text-xs font-semibold transition',
                         row.closed
-                          ? 'bg-slate-100 text-slate-500'
-                          : 'bg-emerald-100 text-emerald-700'
-                      }`}
+                          ? 'bg-muted text-muted-foreground'
+                          : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
+                      )}
                     >
                       {row.closed ? 'Closed' : 'Open'}
                     </button>
@@ -1434,9 +1504,9 @@ function OnboardingSetupContent() {
                               [day.key]: { ...row, open: e.target.value },
                             }))
                           }
-                          className="rounded-lg border border-slate-200 px-2 py-0.5 text-xs"
+                          className="rounded-lg border border-border bg-background px-2 py-0.5 text-xs text-foreground"
                         />
-                        <span className="text-xs text-slate-400">–</span>
+                        <span className="text-xs text-muted-foreground">-</span>
                         <input
                           type="time"
                           value={row.close}
@@ -1446,7 +1516,7 @@ function OnboardingSetupContent() {
                               [day.key]: { ...row, close: e.target.value },
                             }))
                           }
-                          className="rounded-lg border border-slate-200 px-2 py-0.5 text-xs"
+                          className="rounded-lg border border-border bg-background px-2 py-0.5 text-xs text-foreground"
                         />
                       </>
                     )}
@@ -1454,118 +1524,121 @@ function OnboardingSetupContent() {
                 );
               })}
             </div>
-            <ActionButton onClick={handleSaveCalendarHours} disabled={isSaving} loading={isSaving}>
+            <PrimaryButton
+              onClick={handleSaveCalendarHours}
+              disabled={isSaving}
+              loading={isSaving}
+            >
               <IconCheck className="h-4 w-4" stroke={2} />
               Save hours & continue
-            </ActionButton>
+            </PrimaryButton>
           </div>
-        )}
+        );
 
-        {/* Calendar provider */}
-        {phase === 'calendar_provider' && (
-          <div className="flex flex-wrap gap-3">
+      case 'calendar_provider':
+        return (
+          <div className="space-y-3">
             {[
               {
                 id: 'GOOGLE',
                 label: 'Google Calendar',
-                icon: <IconBrandGoogle className="h-4 w-4" stroke={1.5} />,
+                description: 'Sync appointments with your Google account.',
+                icon: <IconBrandGoogle className="h-5 w-5" stroke={1.5} />,
               },
               {
                 id: 'MICROSOFT',
                 label: 'Outlook / Microsoft 365',
-                icon: <IconBrandWindows className="h-4 w-4" stroke={1.5} />,
+                description: 'Connect your Microsoft calendar for two-way sync.',
+                icon: <IconBrandWindows className="h-5 w-5" stroke={1.5} />,
               },
               {
                 id: 'APPLE',
                 label: 'Apple iCloud',
-                icon: <IconBrandApple className="h-4 w-4" stroke={1.5} />,
+                description: 'Use an app-specific password to connect iCloud Calendar.',
+                icon: <IconBrandApple className="h-5 w-5" stroke={1.5} />,
               },
             ].map((opt) => (
-              <ChoiceButton
+              <OptionCard
                 key={opt.id}
-                icon={opt.icon}
                 onClick={() =>
                   void handleCalendarProvider(opt.id as 'GOOGLE' | 'MICROSOFT' | 'APPLE')
                 }
                 disabled={isSaving}
-              >
-                {opt.label}
-              </ChoiceButton>
+                icon={opt.icon}
+                label={opt.label}
+                description={opt.description}
+              />
             ))}
           </div>
-        )}
+        );
 
-        {/* Apple calendar credentials */}
-        {phase === 'calendar_apple' && (
+      case 'calendar_apple':
+        return (
           <div className="space-y-3">
             <input
               type="email"
               value={appleEmail}
               onChange={(e) => setAppleEmail(e.target.value)}
               placeholder="Apple ID email"
-              className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
+              className="w-full rounded-xl border border-input bg-background px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/70 outline-none focus-visible:ring-2 focus-visible:ring-ring"
             />
             <input
               type="password"
               value={applePass}
               onChange={(e) => setApplePass(e.target.value)}
               placeholder="App-specific password"
-              className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
+              className="w-full rounded-xl border border-input bg-background px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/70 outline-none focus-visible:ring-2 focus-visible:ring-ring"
             />
             <a
               href="https://support.apple.com/en-us/102654"
               target="_blank"
               rel="noopener noreferrer"
-              className="block text-xs text-emerald-600 hover:underline"
+              className="block text-xs text-emerald-600 hover:underline dark:text-emerald-400"
             >
-              How to generate an app-specific password →
+              How to generate an app-specific password
             </a>
-            <ActionButton
+            <PrimaryButton
               onClick={handleConnectApple}
               disabled={isSaving || !appleEmail || !applePass}
               loading={isSaving}
             >
               <IconCheck className="h-4 w-4" stroke={2} />
               Connect Apple Calendar
-            </ActionButton>
+            </PrimaryButton>
           </div>
-        )}
+        );
 
-        {/* Phone choice */}
-        {phase === 'phone_choice' && (
-          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-            {[
-              {
-                id: 'claim',
-                label: 'Claim a new HandyCall number',
-                icon: <IconPhone className="h-4 w-4 text-emerald-500" stroke={1.5} />,
-              },
-              {
-                id: 'forward',
-                label: 'Forward my existing number',
-                icon: <IconPhone className="h-4 w-4 text-slate-500" stroke={1.5} />,
-              },
-              {
-                id: 'demo',
-                label: 'Use a demo number for testing',
-                icon: <IconPhone className="h-4 w-4 text-slate-300" stroke={1.5} />,
-              },
-            ].map((opt) => (
-              <ChoiceButton
-                key={opt.id}
-                icon={opt.icon}
-                onClick={() => void handlePhoneChoice(opt.id as 'claim' | 'forward' | 'demo')}
-                disabled={isSaving}
-              >
-                {opt.label}
-              </ChoiceButton>
-            ))}
-          </div>
-        )}
-
-        {/* Phone number search */}
-        {phase === 'phone_claim' && (
+      case 'phone_choice':
+        return (
           <div className="space-y-3">
+            <OptionCard
+              onClick={() => void handlePhoneChoice('claim')}
+              disabled={isSaving}
+              icon={<IconPhone className="h-5 w-5" stroke={1.5} />}
+              label="Claim a new HandyCall number"
+              description="Get a dedicated local number that your AI receptionist answers."
+              recommended
+            />
+            <OptionCard
+              onClick={() => void handlePhoneChoice('forward')}
+              disabled={isSaving}
+              icon={<IconPhone className="h-5 w-5" stroke={1.5} />}
+              label="Forward my existing number"
+              description="Keep your current number and route calls through HandyCall."
+            />
+            <OptionCard
+              onClick={() => void handlePhoneChoice('demo')}
+              disabled={isSaving}
+              icon={<IconPhone className="h-5 w-5" stroke={1.5} />}
+              label="Use a demo number for testing"
+              description="Try out HandyCall before committing to a phone number."
+            />
+          </div>
+        );
+
+      case 'phone_claim':
+        return (
+          <div className="space-y-4">
             <div className="flex gap-2">
               <input
                 type="text"
@@ -1573,20 +1646,20 @@ function OnboardingSetupContent() {
                 onChange={(e) => setAreaCode(e.target.value)}
                 placeholder="Area code"
                 maxLength={3}
-                className="w-24 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-emerald-400"
+                className="w-24 rounded-xl border border-input bg-background px-3 py-2.5 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
               />
               <input
                 type="text"
                 value={numberSearch}
                 onChange={(e) => setNumberSearch(e.target.value)}
                 placeholder="Contains (optional)"
-                className="flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-emerald-400"
+                className="flex-1 rounded-xl border border-input bg-background px-3 py-2.5 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
               />
               <button
                 type="button"
                 onClick={() => void handleSearchNumbers()}
                 disabled={searchingNums || isSaving}
-                className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-card px-3 py-2.5 text-sm font-medium text-foreground transition hover:bg-accent disabled:opacity-50"
               >
                 {searchingNums ? (
                   <IconLoader2 className="h-4 w-4 animate-spin" stroke={1.5} />
@@ -1603,58 +1676,74 @@ function OnboardingSetupContent() {
                     key={num.phoneNumber}
                     onClick={() => void handleClaimNumber(num.phoneNumber)}
                     disabled={isSaving}
-                    className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm transition hover:border-emerald-400 hover:bg-emerald-50 disabled:opacity-50"
+                    className="flex items-center justify-between rounded-xl border border-border bg-card px-3 py-2.5 text-sm transition hover:border-emerald-400/60 hover:bg-accent/60 disabled:opacity-50"
                   >
-                    <span className="font-semibold text-slate-900">{num.phoneNumber}</span>
-                    <span className="text-xs font-medium text-emerald-600">Claim →</span>
+                    <span className="font-semibold text-foreground">{num.phoneNumber}</span>
+                    <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400">
+                      Claim
+                    </span>
                   </button>
                 ))}
               </div>
             )}
           </div>
-        )}
+        );
 
-        {/* Forward number input */}
-        {phase === 'phone_forward' && (
-          <div className="flex gap-2">
+      case 'phone_forward':
+        return (
+          <div className="space-y-4">
             <input
               autoFocus
               type="tel"
               value={forwardNumber}
               onChange={(e) => setForwardNumber(e.target.value)}
               placeholder="+15551234567"
-              className="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
+              className="w-full rounded-xl border border-input bg-background px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/70 outline-none focus-visible:ring-2 focus-visible:ring-ring"
             />
-            <ActionButton
+            <PrimaryButton
               onClick={handleSaveForwarding}
               disabled={isSaving || !forwardNumber.trim()}
               loading={isSaving}
             >
               <IconCheck className="h-4 w-4" stroke={2} />
-              Save
-            </ActionButton>
+              Save number
+            </PrimaryButton>
           </div>
-        )}
+        );
 
-        {/* Knowledge intro */}
-        {phase === 'knowledge_intro' && (
-          <div className="flex flex-wrap gap-3">
-            <ChoiceButton
-              icon={<IconBrain className="h-4 w-4 text-emerald-500" stroke={1.5} />}
+      case 'knowledge_intro':
+        return (
+          <div className="space-y-4">
+            <div className="rounded-2xl border border-border bg-card p-5">
+              <div className="flex items-start gap-3">
+                <div className="mt-0.5 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600 dark:bg-emerald-900/50 dark:text-emerald-400">
+                  <IconBrain className="h-5 w-5" stroke={1.5} />
+                </div>
+                <div>
+                  <p className="font-semibold text-foreground">What to include</p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Tell your AI receptionist about your services, pricing, service area, policies,
+                    warranties, and anything else customers commonly ask before booking.
+                  </p>
+                </div>
+              </div>
+            </div>
+            <PrimaryButton
               onClick={() => void handleStartKnowledge()}
               disabled={isSaving}
             >
+              <IconBrain className="h-4 w-4" stroke={1.5} />
               Build my knowledge base
-            </ChoiceButton>
+            </PrimaryButton>
           </div>
-        )}
+        );
 
-        {/* Knowledge structured form */}
-        {phase === 'knowledge_chat' && (
-          <div className="space-y-4 rounded-[26px] border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="rounded-[24px] border border-emerald-100 bg-[linear-gradient(180deg,rgba(236,253,245,0.9),rgba(255,255,255,1))] p-5">
-              <p className="text-base font-semibold text-slate-900">What to include here</p>
-              <p className="mt-2 text-sm leading-6 text-slate-600">
+      case 'knowledge_chat':
+        return (
+          <div className="space-y-4">
+            <div className="rounded-2xl border border-emerald-200/60 bg-emerald-50/50 p-4 dark:border-emerald-900/50 dark:bg-emerald-950/20">
+              <p className="text-sm font-semibold text-foreground">What to include here</p>
+              <p className="mt-1.5 text-sm leading-6 text-muted-foreground">
                 Put in the business-specific answers customers ask before they book: services,
                 pricing rules, what is included, service area details, deposits, cancellation
                 policy, warranties, timing expectations, and anything else your receptionist should
@@ -1668,7 +1757,7 @@ function OnboardingSetupContent() {
                     key={item}
                     type="button"
                     onClick={() => setKbInput((prev) => (prev ? `${prev}\n- ${item}` : item))}
-                    className="rounded-full border border-emerald-200 bg-white px-3 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-100"
+                    className="rounded-full border border-emerald-200 bg-card px-3 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-50 dark:border-emerald-800/50 dark:text-emerald-400 dark:hover:bg-emerald-950/40"
                   >
                     {item}
                   </button>
@@ -1676,24 +1765,27 @@ function OnboardingSetupContent() {
               </div>
             </div>
 
-            <div className="max-h-80 space-y-3 overflow-y-auto rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
+            <div className="max-h-80 space-y-3 overflow-y-auto rounded-2xl border border-border bg-muted/40 p-4">
               {kbMessages.map((msg, index) => (
                 <div
                   key={`${msg.role}-${index}`}
                   className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
                 >
                   <div
-                    className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm ${
+                    className={cn(
+                      'max-w-[85%] rounded-2xl px-4 py-3 text-sm',
                       msg.role === 'user'
                         ? 'bg-emerald-600 text-white'
-                        : 'bg-white text-slate-700 shadow-sm'
-                    }`}
+                        : 'border border-border bg-card text-foreground shadow-sm'
+                    )}
                   >
                     <div className="whitespace-pre-wrap">{msg.content}</div>
                   </div>
                 </div>
               ))}
-              {kbLoading && <p className="text-sm text-slate-500">Assistant is thinking…</p>}
+              {kbLoading && (
+                <p className="text-sm text-muted-foreground">Assistant is thinking...</p>
+              )}
             </div>
 
             <div className="space-y-3">
@@ -1702,15 +1794,15 @@ function OnboardingSetupContent() {
                 onChange={(e) => setKbInput(e.target.value)}
                 placeholder="Example: We offer one-time and monthly pest plans. Our one-time treatment starts at $149. Monthly plans start at $39/month. We service Fulshear, Katy, and Richmond. Customers often ask if pets need to stay outside during treatment..."
                 rows={5}
-                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
+                className="w-full rounded-2xl border border-input bg-background px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/60 outline-none focus-visible:ring-2 focus-visible:ring-ring"
               />
               {kbError && (
-                <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-800">
+                <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300">
                   {kbError}
                 </div>
               )}
               <div className="flex flex-wrap gap-2">
-                <ActionButton
+                <PrimaryButton
                   onClick={() => void handleGenerateKnowledge()}
                   disabled={
                     kbGenerating ||
@@ -1721,249 +1813,309 @@ function OnboardingSetupContent() {
                 >
                   <IconBrain className="h-4 w-4" stroke={1.5} />
                   {kbGenerating ? 'Building knowledge base...' : 'Build knowledge base'}
-                </ActionButton>
+                </PrimaryButton>
               </div>
             </div>
           </div>
-        )}
+        );
 
-        {phase === 'call_flow_editor' && (
-          <div className="space-y-4 rounded-[26px] border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="rounded-[24px] border border-slate-200 bg-[linear-gradient(180deg,rgba(248,250,252,0.9),rgba(255,255,255,1))] p-5">
-              <p className="text-base font-semibold text-slate-900">
+      case 'call_flow_editor':
+        return (
+          <div className="space-y-4">
+            <div className="rounded-2xl border border-border bg-card p-5">
+              <p className="text-sm font-semibold text-foreground">
                 Control the questions your AI asks before scheduling
               </p>
-              <p className="mt-1 text-sm text-slate-600">
+              <p className="mt-1 text-sm text-muted-foreground">
                 Reword the questions, remove anything unnecessary, add your own, and set the order.
                 The scheduling question stays automatic and always comes last.
               </p>
             </div>
             <CallFlowEditor questions={callFlowQuestions} onChange={setCallFlowQuestions} />
-            <div className="flex flex-wrap gap-2">
-              <ActionButton onClick={handleSaveCallFlow} disabled={isSaving} loading={isSaving}>
-                <IconCheck className="h-4 w-4" stroke={1.5} />
-                Save call flow
-              </ActionButton>
-            </div>
+            <PrimaryButton
+              onClick={handleSaveCallFlow}
+              disabled={isSaving}
+              loading={isSaving}
+            >
+              <IconCheck className="h-4 w-4" stroke={1.5} />
+              Save call flow
+            </PrimaryButton>
           </div>
-        )}
+        );
 
-        {/* Billing plan selection */}
-        {phase === 'billing_plan' && (
+      case 'billing_payment_mode':
+        return (
+          <div className="space-y-3">
+            <OptionCard
+              onClick={() => void handlePaymentModeChoice('HANDYCALL_MANAGED')}
+              disabled={paymentModeSaving}
+              icon={<IconCreditCard className="h-5 w-5" stroke={1.5} />}
+              label="Managed by HandyCall"
+              description="HandyCall collects payments from customers and deposits them to your bank account."
+              recommended
+            />
+            <OptionCard
+              onClick={() => void handlePaymentModeChoice('SELF_MANAGED')}
+              disabled={paymentModeSaving}
+              icon={<IconUser className="h-5 w-5" stroke={1.5} />}
+              label="I handle payments myself"
+              description="HandyCall books the appointment only — you handle payment outside the platform."
+            />
+          </div>
+        );
+
+      case 'billing_plan':
+        return (
           <div className="grid gap-3 sm:grid-cols-3">
             {Object.entries(PLAN_CATALOG).map(([plan, details]) => {
               const planKey = plan as SubscriptionPlan;
               const price = getPlanPriceDisplay(planKey);
+              const isPopular = details.name === 'Pro';
               return (
                 <button
                   type="button"
                   key={plan}
                   onClick={() => void handlePlanSelect(planKey)}
                   disabled={isSaving}
-                  className="flex flex-col rounded-xl border border-slate-200 bg-white p-4 text-left transition hover:border-emerald-400 hover:shadow-sm disabled:opacity-50"
+                  className={cn(
+                    'relative flex flex-col rounded-2xl border p-5 text-left transition hover:shadow-sm disabled:opacity-50',
+                    isPopular
+                      ? 'border-emerald-500 bg-emerald-50/50 hover:border-emerald-600 dark:bg-emerald-950/20'
+                      : 'border-border bg-card hover:border-emerald-400/60 hover:bg-accent/40'
+                  )}
                 >
-                  <p className="text-sm font-bold text-slate-900">{details.name}</p>
-                  <p className="mt-1 text-xl font-bold text-emerald-600">
+                  {isPopular && (
+                    <span className="absolute right-3 top-3 rounded-full bg-emerald-600 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
+                      Popular
+                    </span>
+                  )}
+                  <p className="text-sm font-bold text-foreground">{details.name}</p>
+                  <p className="mt-2 text-2xl font-bold text-emerald-600 dark:text-emerald-400">
                     {price.current}
-                    <span className="text-xs font-normal text-slate-500">
+                    <span className="text-xs font-normal text-muted-foreground">
                       {' '}
                       /{price.cadence.replace('per ', '')}
                     </span>
                   </p>
                   {details.badge && (
-                    <p className="mt-1.5 text-xs text-slate-500">{details.badge}</p>
+                    <p className="mt-2 text-xs text-muted-foreground">{details.badge}</p>
                   )}
                   {details.trialLabel && (
-                    <p className="mt-1 text-xs font-semibold text-emerald-600">
+                    <p className="mt-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
                       {details.trialLabel}
                     </p>
                   )}
+                  <div className="mt-3 flex items-center gap-1 text-xs font-medium text-emerald-600 dark:text-emerald-400">
+                    Select plan
+                    <IconArrowRight className="h-3 w-3" stroke={2} />
+                  </div>
                 </button>
               );
             })}
           </div>
-        )}
+        );
 
-        {/* Stripe payment */}
-        {phase === 'billing_payment' &&
-          (stripePromise ? (
-            <Elements stripe={stripePromise}>
-              <StripePaymentForm selectedPlan={selectedPlan} onSuccess={handleBillingSuccess} />
-            </Elements>
-          ) : (
-            <p className="text-sm text-red-600">
-              Payment provider not configured. Contact support.
-            </p>
-          ))}
+      case 'billing_payment':
+        return stripePromise ? (
+          <Elements stripe={stripePromise}>
+            <StripePaymentForm selectedPlan={selectedPlan} onSuccess={handleBillingSuccess} />
+          </Elements>
+        ) : (
+          <p className="text-sm text-red-600 dark:text-red-400">
+            Payment provider not configured. Contact support.
+          </p>
+        );
 
-        {/* Payment mode choice */}
-        {phase === 'billing_payment_mode' && (
-          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-            <ChoiceButton
-              icon={<IconCreditCard className="h-4 w-4 text-emerald-500" stroke={1.5} />}
-              onClick={() => void handlePaymentModeChoice('HANDYCALL_MANAGED')}
-              disabled={paymentModeSaving}
-            >
-              Managed in HandyCall (Recommended)
-            </ChoiceButton>
-            <ChoiceButton
-              icon={<IconCreditCard className="h-4 w-4 text-slate-500" stroke={1.5} />}
-              onClick={() => void handlePaymentModeChoice('SELF_MANAGED')}
-              disabled={paymentModeSaving}
-            >
-              I handle payments myself
-            </ChoiceButton>
-          </div>
-        )}
-
-        {/* Stripe Connect onboarding */}
-        {phase === 'billing_connect' && (
-          <div className="space-y-3">
-            <div className="rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-700">
-              {connectStatus?.connected
-                ? `Connect account linked (${connectStatus?.account_id || 'account found'}).`
-                : 'Connect account not linked yet.'}
+      case 'billing_connect':
+        return (
+          <div className="space-y-4">
+            <div className="rounded-xl border border-border bg-card p-4 text-sm text-foreground">
+              {connectStatus?.connected ? (
+                <p>
+                  Connect account linked ({connectStatus?.account_id || 'account found'}).
+                </p>
+              ) : (
+                <p className="text-muted-foreground">Connect account not linked yet.</p>
+              )}
               {connectStatus?.connected && !connectStatus?.charges_enabled && (
-                <p className="mt-1 text-xs text-amber-600">
+                <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">
                   Complete onboarding in Stripe to enable charges and payouts.
                 </p>
               )}
             </div>
             <div className="flex flex-wrap gap-2">
-              <ActionButton
+              <PrimaryButton
                 onClick={handleStartConnectOnboarding}
                 disabled={connectBusy}
                 loading={connectBusy}
               >
                 <IconCreditCard className="h-4 w-4" stroke={1.5} />
                 Connect bank account (Stripe)
-              </ActionButton>
-              <button
-                type="button"
-                onClick={() => void refreshConnectStatusAndContinue()}
-                className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
-              >
+              </PrimaryButton>
+              <GhostButton onClick={() => void refreshConnectStatusAndContinue()}>
                 I completed this, check again
-              </button>
-              <button
-                type="button"
-                onClick={() => void handlePaymentModeChoice('SELF_MANAGED')}
-                className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-500 transition hover:bg-slate-50"
-              >
+              </GhostButton>
+              <GhostButton onClick={() => void handlePaymentModeChoice('SELF_MANAGED')}>
                 Skip and handle payments myself
-              </button>
+              </GhostButton>
             </div>
           </div>
-        )}
-      </div>
-    );
+        );
+
+      case 'complete':
+        return (
+          <div className="flex flex-col items-center justify-center py-16 text-center">
+            <div className="mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-900/40">
+              <IconCheck className="h-10 w-10 text-emerald-600 dark:text-emerald-400" stroke={2} />
+            </div>
+            <h1 className="text-3xl font-bold tracking-tight text-foreground">You're all set!</h1>
+            <p className="mt-3 max-w-md text-lg text-muted-foreground">
+              Your AI receptionist is configured and ready to start handling calls for your
+              business.
+            </p>
+            <PrimaryButton
+              onClick={() => router.replace('/dashboard')}
+              className="mt-8 px-8 py-3"
+            >
+              Go to dashboard
+              <IconArrowRight className="h-4 w-4" stroke={2} />
+            </PrimaryButton>
+          </div>
+        );
+
+      default:
+        return null;
+    }
   };
 
-  // ─── Main render ───────────────────────────────────────────────────────────
+  // ─── Loading state ──────────────────────────────────────────────────────────
 
-  if (loading && messages.length === 0) {
+  if (loading && phase === 'loading') {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="flex flex-col items-center gap-3 text-center">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-emerald-600 border-t-transparent" />
-          <p className="text-sm text-slate-500">Preparing your setup...</p>
+      <div className="flex h-full items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-4 text-center">
+          <div className="h-10 w-10 animate-spin rounded-full border-4 border-emerald-600 border-t-transparent" />
+          <p className="text-sm text-muted-foreground">Preparing your setup...</p>
         </div>
       </div>
     );
   }
 
+  // ─── Main render ────────────────────────────────────────────────────────────
+
   return (
-    <div
-      ref={scrollContainerRef}
-      className="h-full overflow-y-auto bg-[linear-gradient(180deg,#f8fafc_0%,#f8fafc_18%,#ffffff_18%,#ffffff_100%)]"
-    >
-      <div className="mx-auto max-w-3xl space-y-4 px-4 pb-10 pt-8 sm:px-8">
-        {messages.map((msg) => (
-          <div
-            key={msg.id}
-            className={`group flex items-start gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}
-          >
-            {/* Avatar */}
-            <div
-              className={`mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full ${
-                msg.role === 'bot' ? 'bg-emerald-600' : 'bg-slate-200'
-              }`}
+    <div className="flex h-full overflow-hidden bg-background">
+      {/* Sidebar */}
+      <aside className="hidden w-64 flex-shrink-0 flex-col border-r border-border bg-card/50 lg:flex">
+        <div className="flex-1 overflow-y-auto px-4 py-6">
+          <p className="mb-4 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+            Setup steps
+          </p>
+          <div className="space-y-1">
+            {STEP_GROUPS.map((sg) => {
+              const groupNum = PHASE_TO_GROUP[phase] || 0;
+              const isComplete = groupNum > sg.group;
+              const isActive = groupNum === sg.group;
+              return (
+                <div
+                  key={sg.group}
+                  className={cn(
+                    'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-colors',
+                    isActive &&
+                      'bg-emerald-50/80 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300',
+                    isComplete && 'text-foreground',
+                    !isActive && !isComplete && 'text-muted-foreground'
+                  )}
+                >
+                  <div
+                    className={cn(
+                      'flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full text-xs font-bold',
+                      isActive && 'bg-emerald-600 text-white',
+                      isComplete &&
+                        'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400',
+                      !isActive && !isComplete && 'bg-muted text-muted-foreground'
+                    )}
+                  >
+                    {isComplete ? (
+                      <IconCheck className="h-3.5 w-3.5" stroke={2.5} />
+                    ) : (
+                      sg.group
+                    )}
+                  </div>
+                  <span className={cn('font-medium', isActive && 'font-semibold')}>
+                    {sg.label}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+        <div className="border-t border-border p-4">
+          <p className="text-xs text-muted-foreground">
+            Need help?{' '}
+            <a
+              href="mailto:support@handycall.org"
+              className="text-emerald-600 hover:underline dark:text-emerald-400"
             >
-              {msg.role === 'bot' ? (
-                <IconSparkles className="h-4 w-4 text-white" stroke={1.5} />
-              ) : (
-                <IconUser className="h-4 w-4 text-slate-500" stroke={1.5} />
+              support@handycall.org
+            </a>
+          </p>
+        </div>
+      </aside>
+
+      {/* Main content */}
+      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto">
+        {/* Mobile step indicator */}
+        <div className="border-b border-border bg-card/50 px-4 py-3 lg:hidden">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-medium text-foreground">
+              Step {Math.min(PHASE_TO_GROUP[phase] || 1, 8)} of 8
+            </p>
+            <p className="text-sm text-muted-foreground">
+              {STEP_GROUPS[Math.min((PHASE_TO_GROUP[phase] || 1), 8) - 1]?.label}
+            </p>
+          </div>
+          <div className="mt-2 h-1.5 rounded-full bg-muted">
+            <div
+              className="h-1.5 rounded-full bg-emerald-500 transition-all duration-500"
+              style={{
+                width: `${((Math.min(PHASE_TO_GROUP[phase] || 1, 8) - 1) / 8) * 100}%`,
+              }}
+            />
+          </div>
+        </div>
+
+        <div className="mx-auto max-w-2xl px-6 py-10 sm:px-8">
+          {/* Step header */}
+          {phase !== 'loading' && phase !== 'complete' && (
+            <div className="mb-8">
+              <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-emerald-600 dark:text-emerald-400">
+                Step {Math.min(PHASE_TO_GROUP[phase] || 1, 8)} of 8
+              </p>
+              <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
+                {getStepMeta(phase).title}
+              </h1>
+              {getStepMeta(phase).description && (
+                <p className="mt-2 text-base text-muted-foreground">
+                  {getStepMeta(phase).description}
+                </p>
               )}
             </div>
+          )}
 
-            {/* Bubble */}
-            <div
-              className={`max-w-md rounded-2xl px-4 py-3 text-sm leading-relaxed ${
-                msg.role === 'bot'
-                  ? 'rounded-tl-sm border border-slate-200 bg-white text-slate-800 shadow-sm'
-                  : 'rounded-tr-sm bg-emerald-600 text-white'
-              }`}
-            >
-              {msg.content}
+          {/* Error message */}
+          {errMsg && phase !== 'loading' && (
+            <div className="mb-4 flex items-start gap-2.5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-400">
+              <IconX className="mt-0.5 h-4 w-4 flex-shrink-0" stroke={1.5} />
+              {errMsg}
             </div>
+          )}
 
-            {/* Edit pencil — appears on hover for editable user messages */}
-            {msg.role === 'user' && msg.onEdit && (
-              <button
-                type="button"
-                onClick={msg.onEdit}
-                title="Edit this answer"
-                className="mt-2 flex-shrink-0 self-center rounded-lg p-1 text-slate-400 opacity-0 transition hover:bg-slate-100 hover:text-slate-600 group-hover:opacity-100"
-              >
-                <IconPencil className="h-3.5 w-3.5" stroke={1.5} />
-              </button>
-            )}
-          </div>
-        ))}
+          {/* Step content */}
+          {renderStepContent()}
 
-        {/* Typing indicator */}
-        {isTyping && (
-          <div className="flex items-start gap-3">
-            <div className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-emerald-600">
-              <IconSparkles className="h-4 w-4 text-white" stroke={1.5} />
-            </div>
-            <div className="rounded-2xl rounded-tl-sm border border-slate-200 bg-white px-4 py-3 shadow-sm">
-              <div className="flex items-center gap-1">
-                {[0, 150, 300].map((delay) => (
-                  <span
-                    key={delay}
-                    className="h-2 w-2 animate-bounce rounded-full bg-slate-300"
-                    style={{ animationDelay: `${delay}ms` }}
-                  />
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Complete CTA */}
-        {phase === 'complete' && !isTyping && (
-          <div className="flex justify-start pl-11">
-            <button
-              type="button"
-              onClick={() => router.replace('/dashboard')}
-              className="flex items-center gap-2 rounded-xl bg-emerald-600 px-6 py-3 text-sm font-bold text-white transition hover:bg-emerald-700"
-            >
-              Go to Dashboard
-              <IconArrowRight className="h-4 w-4" stroke={2} />
-            </button>
-          </div>
-        )}
-
-        {!isTyping && phase !== 'loading' && phase !== 'complete' && (
-          <div className="pl-11">
-            <div className="max-h-[72vh] overflow-y-auto rounded-[28px] border border-slate-200 bg-slate-50/80 p-4 shadow-sm">
-              {renderActiveZone()}
-            </div>
-          </div>
-        )}
-
-        <div ref={chatEndRef} />
+          <div ref={chatEndRef} />
+        </div>
       </div>
     </div>
   );
@@ -1971,7 +2123,16 @@ function OnboardingSetupContent() {
 
 export default function OnboardingSetupPage() {
   return (
-    <Suspense fallback={<div className="p-6 text-sm text-slate-500">Loading setup...</div>}>
+    <Suspense
+      fallback={
+        <div className="flex h-full items-center justify-center bg-background">
+          <div className="flex flex-col items-center gap-4 text-center">
+            <div className="h-10 w-10 animate-spin rounded-full border-4 border-emerald-600 border-t-transparent" />
+            <p className="text-sm text-muted-foreground">Loading setup...</p>
+          </div>
+        </div>
+      }
+    >
       <OnboardingSetupContent />
     </Suspense>
   );

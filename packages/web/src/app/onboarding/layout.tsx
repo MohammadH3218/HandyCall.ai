@@ -159,7 +159,7 @@ function OnboardingShell({ children }: { children: React.ReactNode }) {
   // Full-screen chatbot layout for the setup page
   if (isSetupPage) {
     return (
-      <div className="force-light flex h-screen flex-col bg-background">
+      <div className="flex h-screen flex-col bg-background">
         <header className="flex-none border-b border-border/80 bg-background/88 backdrop-blur-sm">
           <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-3">
             <Link href="/" className="flex items-center gap-3">
