@@ -1412,6 +1412,29 @@ function buildInstructions(tenant: TenantInfo, options: {
   const requiredFields = formatFieldList(requiredBookingFields);
   const optionalFields = formatFieldList(tenant.service_template?.intake_schema?.optional);
   const serviceSelectionQuestion = tenant.service_selection_guide?.default_question;
+
+  // Build explicit intake question flow from company-configured questions.
+  const intakeQuestions = Array.isArray(tenant?.service_template?.intake_schema?.questions)
+    ? tenant.service_template.intake_schema.questions
+        .filter((q: any) => q?.enabled !== false)
+        .sort((a: any, b: any) => (a?.order ?? 0) - (b?.order ?? 0))
+    : [];
+  let intakeFlowBlock: string | null = null;
+  if (intakeQuestions.length > 0) {
+    const stepLines = intakeQuestions.map((q: any, i: number) => {
+      const prompt = String(q.prompt || '').trim() || `Please share your ${String(q.label || q.field_key || '').trim()}.`;
+      return `  Step ${i + 1}: "${prompt}" (field: ${q.field_key})`;
+    });
+    const hasName = intakeQuestions.some((q: any) => isNameField(String(q.field_key || '')));
+    if (!hasName) {
+      stepLines.unshift(`  Step 0: ALWAYS ask for the caller's full name first.`);
+    }
+    intakeFlowBlock = [
+      `[INTAKE QUESTION FLOW] You MUST ask these questions exactly in this order, ONE at a time. Wait for the caller to answer before moving to the next. Do NOT skip any step. Do NOT combine multiple questions into one turn.`,
+      ...stepLines,
+      `  After all questions above: ask for preferred day and time.`,
+    ].join('\n');
+  }
   const outboundEnabled = options.outbound?.enabled === true;
   const outboundContext = String(options.outbound?.context || '').trim();
   const outboundReason = String(options.outbound?.customMessage || '').trim();
@@ -1454,11 +1477,13 @@ function buildInstructions(tenant: TenantInfo, options: {
     requiresServiceSelection(tenant)
       ? `Service or plan selection is REQUIRED before scheduling. Confirm the caller's exact choice and save it in details before asking for date/time. Use this question when needed: "${serviceSelectionQuestion || 'Which service option would you like to book?'}"`
       : null,
+    intakeFlowBlock,
     `Do not invent extra intake questions. Only ask for fields that are in the required intake list or explicitly requested by the scripted intake flow.`,
     `Never ask about insurance, payment responsibility, or coverage unless that exact field is required for this tenant.`,
     `You MUST collect EVERY required intake field before asking about scheduling. Do not skip any. Ask one missing field at a time.`,
     `Do NOT ask for preferred date/time until all non-time required fields are collected (including address when required).`,
     `When the bridge gives you an exact intake question, say that exact question only. Do not paraphrase it, do not add context, and do not ask a second question.`,
+    `ALWAYS ask for the caller's full name if you have not collected it yet.`,
     `Do not provide recap/summary of collected details unless the caller explicitly asks for one.`,
     `Then call get_availability and offer available slots.`,
     `Never claim a time is available unless get_availability returns it. If a requested time is unavailable, say so and offer available slots from get_availability.`,
