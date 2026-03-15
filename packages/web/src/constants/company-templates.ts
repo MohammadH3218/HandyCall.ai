@@ -18,8 +18,8 @@ type QuestionSeed = {
 
 const questionSeeds = {
   pest: [
-    { field_key: 'zip', label: 'Service ZIP code', prompt: 'Could you give me your 5-digit ZIP code?' },
     { field_key: 'full_name', label: 'Customer name', prompt: 'What is your full name?' },
+    { field_key: 'zip', label: 'Service ZIP code', prompt: 'Could you give me your 5-digit ZIP code?' },
     { field_key: 'pest_type_or_symptoms', label: 'Pest or issue', prompt: 'What pest type or symptoms are you dealing with?' },
     { field_key: 'where_seen', label: 'Where the issue is', prompt: 'Where have you seen the issue?' },
     { field_key: 'severity', label: 'Severity', prompt: 'How severe would you say the problem is: mild, moderate, or severe?' },
@@ -27,23 +27,23 @@ const questionSeeds = {
     { field_key: 'selected_billing_type', label: 'Service plan', prompt: 'Would you like a one-time treatment or recurring monthly service?' },
   ],
   plumbing: [
-    { field_key: 'zip', label: 'Service ZIP code', prompt: 'Could you give me your 5-digit ZIP code?', required: false },
     { field_key: 'full_name', label: 'Customer name', prompt: 'What is your full name?' },
+    { field_key: 'zip', label: 'Service ZIP code', prompt: 'Could you give me your 5-digit ZIP code?', required: false },
     { field_key: 'issue_type', label: 'Issue type', prompt: 'What plumbing issue are you dealing with today?' },
     { field_key: 'urgency', label: 'Urgency', prompt: 'Is this urgent, or is it something that can wait a bit?' },
     { field_key: 'service_address', label: 'Service address', prompt: 'What is the service address?' },
   ],
   hvac: [
-    { field_key: 'zip', label: 'Service ZIP code', prompt: 'Could you give me your 5-digit ZIP code?', required: false },
     { field_key: 'full_name', label: 'Customer name', prompt: 'What is your full name?' },
+    { field_key: 'zip', label: 'Service ZIP code', prompt: 'Could you give me your 5-digit ZIP code?', required: false },
     { field_key: 'system_type', label: 'System type', prompt: 'Is this for your AC, heater, or another HVAC system?' },
     { field_key: 'symptoms', label: 'Symptoms', prompt: 'What issue are you noticing with the system?' },
     { field_key: 'urgency', label: 'Urgency', prompt: 'How urgent does this feel right now?' },
     { field_key: 'service_address', label: 'Service address', prompt: 'What is the service address?' },
   ],
   electrical: [
-    { field_key: 'zip', label: 'Service ZIP code', prompt: 'Could you give me your 5-digit ZIP code?', required: false },
     { field_key: 'full_name', label: 'Customer name', prompt: 'What is your full name?' },
+    { field_key: 'zip', label: 'Service ZIP code', prompt: 'Could you give me your 5-digit ZIP code?', required: false },
     { field_key: 'issue_summary', label: 'Issue summary', prompt: 'What electrical issue are you calling about?' },
     { field_key: 'urgency', label: 'Urgency', prompt: 'Is this urgent or more routine?' },
     { field_key: 'service_address', label: 'Service address', prompt: 'What is the service address?' },
@@ -57,23 +57,23 @@ const questionSeeds = {
     { field_key: 'issue_summary', label: 'Issue details', prompt: 'What issue are you noticing with the vehicle?' },
   ],
   cleaning: [
-    { field_key: 'zip', label: 'Service ZIP code', prompt: 'Could you give me your 5-digit ZIP code?', required: false },
     { field_key: 'full_name', label: 'Customer name', prompt: 'What is your full name?' },
+    { field_key: 'zip', label: 'Service ZIP code', prompt: 'Could you give me your 5-digit ZIP code?', required: false },
     { field_key: 'home_size_sqft', label: 'Home size', prompt: 'About how large is the home in square feet?' },
     { field_key: 'num_beds', label: 'Bedrooms', prompt: 'How many bedrooms are there?' },
     { field_key: 'num_baths', label: 'Bathrooms', prompt: 'How many bathrooms are there?' },
     { field_key: 'service_address', label: 'Service address', prompt: 'What is the service address?' },
   ],
   landscaping: [
-    { field_key: 'zip', label: 'Service ZIP code', prompt: 'Could you give me your 5-digit ZIP code?', required: false },
     { field_key: 'full_name', label: 'Customer name', prompt: 'What is your full name?' },
+    { field_key: 'zip', label: 'Service ZIP code', prompt: 'Could you give me your 5-digit ZIP code?', required: false },
     { field_key: 'service_type', label: 'Service type', prompt: 'What kind of landscaping or lawn care help do you need?' },
     { field_key: 'lot_approx_size', label: 'Property size', prompt: 'About how large is the property or yard?' },
     { field_key: 'service_address', label: 'Service address', prompt: 'What is the service address?' },
   ],
   general: [
-    { field_key: 'zip', label: 'Service ZIP code', prompt: 'Could you give me your 5-digit ZIP code?', required: false },
     { field_key: 'full_name', label: 'Customer name', prompt: 'What is your full name?' },
+    { field_key: 'zip', label: 'Service ZIP code', prompt: 'Could you give me your 5-digit ZIP code?', required: false },
     { field_key: 'service_request_type', label: 'Service needed', prompt: 'What can we help you with today?' },
     { field_key: 'issue_summary', label: 'Issue details', prompt: 'Can you tell me a little more about the job or issue?' },
     { field_key: 'service_address', label: 'Service address', prompt: 'What is the service address?' },

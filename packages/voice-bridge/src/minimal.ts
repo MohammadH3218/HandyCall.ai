@@ -1091,6 +1091,10 @@ function buildRequiredBookingFields(tenant: TenantInfo): string[] {
         .filter(Boolean)
     : [];
   const required = [...templateRequired];
+  // full_name is ALWAYS required for booking — ensure it's present.
+  if (!required.some((field) => isNameField(field))) {
+    required.unshift('full_name');
+  }
   if (requiresServiceSelection(tenant)) {
     required.push('selected_service_name');
     if (requiresBillingTypeSelection(tenant)) {
@@ -1139,7 +1143,13 @@ function buildCanonicalIntakeOrder(tenant: TenantInfo, serviceAreaRequired: bool
       ...nonScheduling,
       ...scheduling,
     ];
-    return ordered.filter((field, index, arr) => arr.indexOf(field) === index);
+    const deduped = ordered.filter((field, index, arr) => arr.indexOf(field) === index);
+    // Ensure full_name is always present and comes first among non-zip fields.
+    if (!deduped.some((field: string) => isNameField(field))) {
+      const insertIdx = deduped.length > 0 && isZipField(deduped[0]) ? 1 : 0;
+      deduped.splice(insertIdx, 0, 'full_name');
+    }
+    return deduped;
   }
 
   const required = buildRequiredBookingFields(tenant);
@@ -1164,7 +1174,8 @@ function buildCanonicalIntakeOrder(tenant: TenantInfo, serviceAreaRequired: bool
 function looksLikeBookingIntent(text?: string): boolean {
   const normalized = normalizeSpeech(text);
   if (!normalized) return false;
-  return [
+  // Explicit booking phrases
+  if ([
     'book',
     'booking',
     'appointment',
@@ -1172,7 +1183,34 @@ function looksLikeBookingIntent(text?: string): boolean {
     'service visit',
     'come out',
     'set up service',
-  ].some((phrase) => normalized.includes(phrase));
+  ].some((phrase) => normalized.includes(phrase))) return true;
+  // Service request phrases that imply booking intent
+  if ([
+    'i need',
+    'i want',
+    'i would like',
+    'id like',
+    'looking for',
+    'interested in',
+    'can you help',
+    'need help',
+    'need service',
+    'need someone',
+    'pest control',
+    'pest problem',
+    'bug problem',
+    'plumbing',
+    'hvac',
+    'repair',
+    'fix',
+    'install',
+    'clean',
+    'inspection',
+    'estimate',
+    'quote',
+    'treatment',
+  ].some((phrase) => normalized.includes(phrase))) return true;
+  return false;
 }
 
 function buildIntakeQuestion(field: string, tenant: TenantInfo | null, details: Record<string, any>): string {
@@ -1430,9 +1468,10 @@ function buildInstructions(tenant: TenantInfo, options: {
       stepLines.unshift(`  Step 0: ALWAYS ask for the caller's full name first.`);
     }
     intakeFlowBlock = [
-      `[INTAKE QUESTION FLOW] You MUST ask these questions exactly in this order, ONE at a time. Wait for the caller to answer before moving to the next. Do NOT skip any step. Do NOT combine multiple questions into one turn.`,
+      `[INTAKE QUESTION FLOW — MANDATORY] You MUST ask these questions exactly in this order, ONE at a time. Wait for the caller to answer each question before moving to the next. Do NOT skip any step. Do NOT combine multiple questions into one turn. Do NOT rephrase or merge steps. If the caller volunteers extra info, acknowledge it, store it, but still continue with the NEXT unanswered step in order.`,
       ...stepLines,
-      `  After all questions above: ask for preferred day and time.`,
+      `  After ALL steps above are answered: ask for preferred day and time.`,
+      `  CRITICAL: The bridge will feed you exact questions via response.create. When that happens, say ONLY that question and STOP. Do not add commentary or follow-up questions.`,
     ].join('\n');
   }
   const outboundEnabled = options.outbound?.enabled === true;
@@ -1478,7 +1517,7 @@ function buildInstructions(tenant: TenantInfo, options: {
       ? `Service or plan selection is REQUIRED before scheduling. Confirm the caller's exact choice and save it in details before asking for date/time. Use this question when needed: "${serviceSelectionQuestion || 'Which service option would you like to book?'}"`
       : null,
     intakeFlowBlock,
-    `Do not invent extra intake questions. Only ask for fields that are in the required intake list or explicitly requested by the scripted intake flow.`,
+    `Do NOT invent extra intake questions. Only ask for fields that are in the required intake list or explicitly requested by the scripted intake flow. Never ask about topics not in the flow.`,
     `Never ask about insurance, payment responsibility, or coverage unless that exact field is required for this tenant.`,
     `You MUST collect EVERY required intake field before asking about scheduling. Do not skip any. Ask one missing field at a time.`,
     `Do NOT ask for preferred date/time until all non-time required fields are collected (including address when required).`,
@@ -2785,6 +2824,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
         transcript.push(`Caller: ${trimmed}`);
         lastCallerUtterance = trimmed;
         lowSignalAttempts = 0;
+        const wasBookingActive = bookingIntentActive;
         if (looksLikeBookingIntent(trimmed)) {
           bookingIntentActive = true;
         }
@@ -2845,6 +2885,16 @@ wss.on('connection', (twilioWs: WebSocket) => {
           );
 
         if (pendingScriptedIntake) {
+          // Don't silently drop — ask the next missing field explicitly.
+          const planned = orderedIntakeFields.length ? orderedIntakeFields : requiredIntakeFields;
+          const missingNow = findMissingRequired(
+            planned.filter((f) => !isSchedulingField(f)),
+            { details: { ...collectedDetails } }
+          );
+          if (missingNow.length > 0) {
+            activeIntakeField = missingNow[0];
+            askExactQuestion(buildIntakeQuestion(missingNow[0], activeTenant, collectedDetails));
+          }
           return;
         }
 
@@ -3194,7 +3244,18 @@ wss.on('connection', (twilioWs: WebSocket) => {
           },
         });
         if (toolName !== 'end_call' && !customToolResponseIssued) {
-          if (toolName === 'check_service_area' && maybeDriveBookingIntake()) {
+          // After tool calls that reveal missing fields, force the exact question
+          // instead of letting the AI freestyle its response.
+          if (maybeDriveBookingIntake()) {
+            return;
+          }
+          const toolReturnedMissing =
+            typeof (result as any)?.error === 'string' &&
+            ((result as any).error.includes('MissingRequired') || (result as any).error.includes('MissingRequiredFieldsBeforeScheduling'));
+          if (toolReturnedMissing && Array.isArray((result as any)?.missing_fields) && (result as any).missing_fields.length > 0) {
+            const field = (result as any).missing_fields[0];
+            activeIntakeField = field;
+            askExactQuestion(buildIntakeQuestion(field, activeTenant, collectedDetails));
             return;
           }
           createResponse();
