@@ -552,6 +552,7 @@ function OnboardingSetupContent() {
   >(null);
   const [paymentModeSaving, setPaymentModeSaving] = useState(false);
   const [connectBusy, setConnectBusy] = useState(false);
+  const [connectChecking, setConnectChecking] = useState(false);
   const [connectStatus, setConnectStatus] = useState<any>(null);
   const [setupClientSecret, setSetupClientSecret] = useState<string | null>(null);
   const [stripePublishableKey, setStripePublishableKey] = useState<string | null>(
@@ -612,6 +613,70 @@ function OnboardingSetupContent() {
     setPhase(next);
   }, []);
 
+  const clearConnectQueryParams = useCallback(() => {
+    if (typeof window === 'undefined') return;
+    const url = new URL(window.location.href);
+    const hadConnectParams =
+      url.searchParams.has('payments') || url.searchParams.has('state');
+    if (!hadConnectParams) return;
+    url.searchParams.delete('payments');
+    url.searchParams.delete('state');
+    const nextUrl = `${url.pathname}${url.search}${url.hash}`;
+    window.history.replaceState(window.history.state, '', nextUrl);
+  }, []);
+
+  const isConnectReady = useCallback(
+    (statusOverride?: any) => {
+      const currentStatus = statusOverride ?? connectStatus;
+      return Boolean(
+        currentStatus?.connected &&
+          (currentStatus?.charges_enabled ||
+            currentStatus?.details_submitted ||
+            (company as any)?.stripe_connect_onboarding_complete)
+      );
+    },
+    [company, connectStatus]
+  );
+
+  const hasActiveBilling = useCallback(() => {
+    return Boolean(
+      status.billing ||
+        (company as any)?.subscription_plan ||
+        (company as any)?.stripe_subscription_id ||
+        (company as any)?.subscription_status === 'ACTIVE' ||
+        (company as any)?.subscription_status === 'TRIALING'
+    );
+  }, [company, status.billing]);
+
+  const continueAfterConnect = useCallback(async () => {
+    await refreshAll();
+    if (hasActiveBilling()) {
+      await goTo('complete');
+      return;
+    }
+    await goTo('billing_plan');
+  }, [goTo, hasActiveBilling, refreshAll]);
+
+  const refreshConnectStatus = useCallback(
+    async (options?: { clearQuery?: boolean }) => {
+      setConnectChecking(true);
+      try {
+        const latest = await apiClient.getConnectStatus();
+        setConnectStatus(latest);
+        if (options?.clearQuery) {
+          clearConnectQueryParams();
+        }
+        return latest;
+      } catch (err: any) {
+        setErrMsg(err?.message || 'Could not verify Stripe Connect status.');
+        return null;
+      } finally {
+        setConnectChecking(false);
+      }
+    },
+    [clearConnectQueryParams]
+  );
+
   const editStep = useCallback(
     (_prompt: string, targetPhase: Phase, prefill?: () => void) => {
       setErrMsg(null);
@@ -653,6 +718,19 @@ function OnboardingSetupContent() {
   const startChat = async (s: typeof status) => {
     const paymentsFlow = searchParams?.get('payments');
     const connectState = searchParams?.get('state');
+    const bookingPaymentMode = (company as any)?.booking_payment_mode as
+      | 'HANDYCALL_MANAGED'
+      | 'SELF_MANAGED'
+      | undefined;
+    const needsManagedConnect =
+      bookingPaymentMode === 'HANDYCALL_MANAGED' &&
+      !(company as any)?.stripe_connect_onboarding_complete;
+
+    if (paymentsFlow === 'connect' && (connectState === 'return' || connectState === 'refresh')) {
+      await goTo('billing_connect');
+      await refreshConnectStatus({ clearQuery: true });
+      return;
+    }
 
     if (!s.profile) {
       await goTo('profile_name');
@@ -670,19 +748,11 @@ function OnboardingSetupContent() {
       await goTo('call_flow_editor');
     } else if (!(company as any)?.booking_payment_mode_confirmed) {
       await goTo('billing_payment_mode');
+    } else if (needsManagedConnect) {
+      await goTo('billing_connect');
+      await refreshConnectStatus();
     } else if (!s.billing) {
       await goTo('billing_plan');
-    } else if (
-      paymentsFlow === 'connect' &&
-      (connectState === 'return' || connectState === 'refresh')
-    ) {
-      await goTo('billing_connect');
-      await refreshConnectStatusAndContinue();
-    } else if (
-      (company as any)?.booking_payment_mode === 'HANDYCALL_MANAGED' &&
-      !(company as any)?.stripe_connect_onboarding_complete
-    ) {
-      await handleStartConnectOnboarding();
     } else {
       await goTo('complete');
       setTimeout(() => router.replace('/dashboard'), 2000);
@@ -1111,6 +1181,16 @@ function OnboardingSetupContent() {
   };
 
   const handlePlanSelect = async (plan: SubscriptionPlan) => {
+    const effectiveMode =
+      selectedPaymentMode ||
+      ((company as any)?.booking_payment_mode as 'HANDYCALL_MANAGED' | 'SELF_MANAGED' | undefined);
+
+    if (effectiveMode === 'HANDYCALL_MANAGED' && !isConnectReady()) {
+      setErrMsg('Connect your bank account before starting your subscription.');
+      await goTo('billing_connect');
+      return;
+    }
+
     setSelectedPlan(plan);
     userSay(`${PLAN_CATALOG[plan].name} — $${PLAN_CATALOG[plan].price}/month`);
     setIsSaving(true);
@@ -1127,33 +1207,17 @@ function OnboardingSetupContent() {
   };
 
   const handleBillingSuccess = async () => {
-    // Check payment mode BEFORE refreshAll — calling refreshAll first would mark
-    // billing=true → allComplete=true → layout redirects to /dashboard before Stripe fires.
-    const effectiveMode =
-      selectedPaymentMode ||
-      ((company as any)?.booking_payment_mode as 'HANDYCALL_MANAGED' | 'SELF_MANAGED' | undefined);
-
-    if (effectiveMode === 'HANDYCALL_MANAGED') {
-      // Show the connect phase (spinner visible) then redirect to Stripe
-      await goTo('billing_connect');
-      await handleStartConnectOnboarding();
-      return;
-    }
-
     await refreshAll();
     await goTo('complete');
   };
 
-  const refreshConnectStatusAndContinue = async () => {
-    try {
-      const latest = await apiClient.getConnectStatus();
-      setConnectStatus(latest);
-      if (latest?.connected && latest?.charges_enabled && latest?.payouts_enabled) {
-        await goTo('complete');
-      }
-    } catch (err: any) {
-      setErrMsg(err?.message || 'Could not verify Stripe Connect status.');
+  const handleContinueAfterConnect = async () => {
+    const latest = await refreshConnectStatus();
+    if (!isConnectReady(latest)) {
+      setErrMsg('Finish Stripe onboarding first, then come back here and continue.');
+      return;
     }
+    await continueAfterConnect();
   };
 
   const handlePaymentModeChoice = async (mode: 'HANDYCALL_MANAGED' | 'SELF_MANAGED') => {
@@ -1168,18 +1232,17 @@ function OnboardingSetupContent() {
       });
       await refreshAll();
 
-      if (!status.billing) {
-        userSay(mode === 'HANDYCALL_MANAGED' ? 'Managed in HandyCall' : 'I handle payments myself');
-        await goTo('billing_plan');
-        return;
-      }
-
       if (mode === 'SELF_MANAGED') {
         userSay('I handle payments myself');
-        await goTo('complete');
+        if (hasActiveBilling()) {
+          await goTo('complete');
+        } else {
+          await goTo('billing_plan');
+        }
       } else {
         userSay('Managed in HandyCall');
-        await handleStartConnectOnboarding();
+        await goTo('billing_connect');
+        await refreshConnectStatus();
       }
     } catch (err: any) {
       setErrMsg(err?.message || 'Could not save payment mode.');
@@ -1211,6 +1274,11 @@ function OnboardingSetupContent() {
       setConnectBusy(false);
     }
   };
+
+  useEffect(() => {
+    if (phase !== 'billing_connect') return;
+    void refreshConnectStatus();
+  }, [phase, refreshConnectStatus]);
 
   // ─── Step content renderer ─────────────────────────────────────────────────
 
@@ -1961,31 +2029,61 @@ function OnboardingSetupContent() {
               </div>
             ) : (
               <div className="rounded-xl border border-border bg-card p-4 text-sm text-foreground">
-                {connectStatus?.connected ? (
-                  <p>
-                    Connect account linked ({connectStatus?.account_id || 'account found'}).
-                  </p>
+                {isConnectReady() ? (
+                  <>
+                    <p className="font-medium text-emerald-700 dark:text-emerald-300">
+                      Bank account connected.
+                    </p>
+                    <p className="mt-1 text-muted-foreground">
+                      Stripe is linked and HandyCall can send payouts to your connected account.
+                    </p>
+                  </>
+                ) : connectStatus?.connected ? (
+                  <>
+                    <p className="font-medium">Stripe account linked.</p>
+                    <p className="mt-1 text-muted-foreground">
+                      Finish the remaining Stripe onboarding details, then come back and continue.
+                    </p>
+                  </>
                 ) : (
                   <p className="text-muted-foreground">Connect account not linked yet.</p>
                 )}
-                {connectStatus?.connected && !connectStatus?.charges_enabled && (
+                {connectStatus?.account_id && (
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    Account: {connectStatus.account_id}
+                  </p>
+                )}
+                {connectStatus?.connected && !isConnectReady() && (
                   <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">
-                    Complete onboarding in Stripe to enable charges and payouts.
+                    Stripe still needs a bit more information before charges can be enabled.
                   </p>
                 )}
               </div>
             )}
             <div className="flex flex-wrap gap-2">
+              {isConnectReady() ? (
+                <PrimaryButton
+                  onClick={handleContinueAfterConnect}
+                  disabled={connectBusy || connectChecking}
+                  loading={connectChecking}
+                >
+                  <IconArrowRight className="h-4 w-4" stroke={1.5} />
+                  Continue
+                </PrimaryButton>
+              ) : null}
               <PrimaryButton
                 onClick={handleStartConnectOnboarding}
-                disabled={connectBusy}
+                disabled={connectBusy || connectChecking}
                 loading={connectBusy}
               >
                 <IconCreditCard className="h-4 w-4" stroke={1.5} />
-                Connect bank account (Stripe)
+                {connectStatus?.connected ? 'Finish in Stripe' : 'Connect bank account (Stripe)'}
               </PrimaryButton>
-              <GhostButton onClick={() => void refreshConnectStatusAndContinue()}>
-                I completed this, check again
+              <GhostButton
+                onClick={() => void refreshConnectStatus()}
+                disabled={connectBusy || connectChecking}
+              >
+                {connectChecking ? 'Checking...' : 'Check connection status'}
               </GhostButton>
               <GhostButton onClick={() => void handlePaymentModeChoice('SELF_MANAGED')}>
                 Skip and handle payments myself
