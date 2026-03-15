@@ -321,6 +321,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             >
               Settings
             </NavLink>
+            <NavLink
+              href="/dashboard/payments"
+              icon={<IconCurrencyDollar stroke={1.5} className="h-5 w-5" />}
+              active={pathname?.startsWith('/dashboard/payments')}
+              onClick={() => setSidebarOpen(false)}
+            >
+              Payments
+            </NavLink>
           </div>
 
           <div className="space-y-0.5 border-t border-border/80 pt-3">
@@ -353,14 +361,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               onClick={() => setSidebarOpen(false)}
             >
               Add-on Packs
-            </NavLink>
-            <NavLink
-              href="/dashboard/payments"
-              icon={<IconCurrencyDollar stroke={1.5} className="h-5 w-5" />}
-              active={pathname?.startsWith('/dashboard/payments')}
-              onClick={() => setSidebarOpen(false)}
-            >
-              Payments
             </NavLink>
           </div>
 

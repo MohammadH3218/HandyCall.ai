@@ -51,11 +51,6 @@ export default function BillingPage() {
   const [paymentActionId, setPaymentActionId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<PaymentMethod | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [connectStatus, setConnectStatus] = useState<any>(null);
-  const [customerPaymentStats, setCustomerPaymentStats] = useState<any>(null);
-  const [recentCustomerPayments, setRecentCustomerPayments] = useState<any[]>([]);
-  const [paymentModeSaving, setPaymentModeSaving] = useState(false);
-
   useEffect(() => { loadBillingData(); }, []);
 
   const currentPlan = resolvePlan(
@@ -82,19 +77,6 @@ export default function BillingPage() {
 
   const canEditPaymentMethods = paymentMethods.length > 0;
   const canRemovePaymentMethods = paymentMethods.length > 1;
-  const rawBookingPaymentMode = String((company as any)?.booking_payment_mode || '').toUpperCase();
-  const bookingPaymentMode =
-    rawBookingPaymentMode === 'HANDYCALL_MANAGED' ||
-    (!rawBookingPaymentMode && ((company as any)?.booking_payment_enabled || (company as any)?.stripe_connect_account_id))
-      ? 'HANDYCALL_MANAGED'
-      : 'SELF_MANAGED';
-  const managedPaymentsEnabled = bookingPaymentMode === 'HANDYCALL_MANAGED';
-  const connectAccountExists = Boolean(connectStatus?.connected && connectStatus?.account_id);
-  const connectCanCharge = Boolean(connectStatus?.charges_enabled);
-  const connectCanPayout = Boolean(connectStatus?.payouts_enabled);
-  const connectFullyReady = connectAccountExists && connectCanCharge && connectCanPayout;
-  const connectSetupIncomplete = connectAccountExists && !connectFullyReady;
-
   const planHighlights = useMemo(
     () => [
       { label: 'Call minutes', value: planLimits?.minutes === -1 ? 'Unlimited' : typeof planLimits?.minutes === 'number' ? `${planLimits.minutes}/mo` : '-' },
@@ -110,13 +92,10 @@ export default function BillingPage() {
       const withTimeout = <T,>(promise: Promise<T>, ms = 12000) =>
         Promise.race([promise, new Promise<T>((_, reject) => setTimeout(() => reject(new Error('Request timed out')), ms))]);
 
-      const [subData, usageData, paymentData, connectData, paymentStats, recentPayments] = await Promise.all([
+      const [subData, usageData, paymentData] = await Promise.all([
         withTimeout(apiClient.getMySubscription()),
         withTimeout(apiClient.getUsageMetrics()),
         withTimeout(apiClient.getPaymentMethods().catch(() => ({ payment_methods: [], default_payment_method_id: null }))),
-        withTimeout(apiClient.getConnectStatus().catch(() => ({ connected: false }))),
-        withTimeout(apiClient.getCustomerPaymentStats().catch(() => null)),
-        withTimeout(apiClient.getCustomerPayments({ limit: 6 }).catch(() => ({ payments: [] }))),
       ]);
       const plan =
         resolvePlan(company?.subscription_plan as SubscriptionPlan | undefined) ||
@@ -131,9 +110,6 @@ export default function BillingPage() {
         : [];
       setPaymentMethods(sanitizedPaymentMethods);
       setDefaultPaymentMethodId(paymentData?.default_payment_method_id || null);
-      setConnectStatus(connectData || { connected: false });
-      setCustomerPaymentStats(paymentStats || null);
-      setRecentCustomerPayments((recentPayments?.payments || []) as any[]);
     } catch (error: any) {
       console.error('Failed to load billing data:', error);
       toast({ title: 'Unable to load billing', description: error.message || 'Please try again in a moment.', variant: 'destructive' });
@@ -186,84 +162,6 @@ export default function BillingPage() {
       toast({ title: 'Remove failed', description: error?.message || 'Failed to remove payment method.', variant: 'destructive' });
     } finally {
       setPaymentActionId(null);
-    }
-  };
-
-  const startConnectSetup = async () => {
-    const origin =
-      typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3001';
-    const result = await apiClient.setupConnectAccount({
-      return_url: `${origin}/dashboard/billing`,
-      refresh_url: `${origin}/dashboard/billing`,
-    });
-
-    if (!result?.url) {
-      throw new Error('Unable to generate a Stripe onboarding link right now.');
-    }
-
-    window.location.href = result.url;
-  };
-
-  const handleConnectSetup = async () => {
-    if (!managedPaymentsEnabled) {
-      toast({
-        title: 'Payments are self-managed',
-        description: 'Switch to "Managed in HandyCall" to connect Stripe.',
-      });
-      return;
-    }
-    try {
-      await startConnectSetup();
-    } catch (error: any) {
-      toast({
-        title: 'Connect setup failed',
-        description: error?.message || 'Unable to start Stripe Connect onboarding.',
-        variant: 'destructive',
-      });
-    }
-  };
-
-  const handleSwitchPaymentMode = async (mode: 'HANDYCALL_MANAGED' | 'SELF_MANAGED') => {
-    if (mode === bookingPaymentMode || paymentModeSaving) return;
-
-    try {
-      setPaymentModeSaving(true);
-      const updated = await apiClient.updateMyCompany({
-        booking_payment_mode: mode,
-        booking_payment_enabled: mode === 'HANDYCALL_MANAGED',
-        booking_payment_mode_confirmed: true,
-      });
-      const updatedCompany = updated?.company_id ? updated : updated?.company;
-      if (updatedCompany) {
-        setCompany(updatedCompany);
-      }
-      toast({
-        title: mode === 'HANDYCALL_MANAGED' ? 'HandyCall-managed payments enabled' : 'Self-managed payments enabled',
-        description:
-          mode === 'HANDYCALL_MANAGED'
-            ? 'Customers can pay directly from booking links after Stripe Connect setup.'
-            : 'Customers will pay outside HandyCall.',
-      });
-      await loadBillingData();
-      if (mode === 'HANDYCALL_MANAGED' && !connectFullyReady) {
-        try {
-          await startConnectSetup();
-        } catch (error: any) {
-          toast({
-            title: 'Connect setup failed',
-            description: error?.message || 'Unable to start Stripe Connect onboarding.',
-            variant: 'destructive',
-          });
-        }
-      }
-    } catch (error: any) {
-      toast({
-        title: 'Could not update payment mode',
-        description: error?.message || 'Please try again.',
-        variant: 'destructive',
-      });
-    } finally {
-      setPaymentModeSaving(false);
     }
   };
 
@@ -592,163 +490,6 @@ export default function BillingPage() {
           </div>
         </div>
       )}
-
-      <div className="rounded-xl border border-border bg-card">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-4">
-          <div>
-            <h2 className="text-sm font-semibold text-foreground">Customer payments</h2>
-            <p className="text-xs text-muted-foreground">Collect payments from booking links with Stripe Connect.</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="flex items-center rounded-lg border border-border bg-muted p-0.5">
-              <button
-                type="button"
-                disabled={paymentModeSaving}
-                onClick={() => handleSwitchPaymentMode('HANDYCALL_MANAGED')}
-                className={`rounded-md px-3 py-1 text-xs font-semibold transition ${
-                  bookingPaymentMode === 'HANDYCALL_MANAGED'
-                    ? 'bg-card text-emerald-700 dark:text-emerald-300 shadow-sm'
-                    : 'text-muted-foreground hover:text-slate-800 dark:hover:text-slate-200'
-                } disabled:opacity-60`}
-              >
-                Managed in HandyCall
-              </button>
-              <button
-                type="button"
-                disabled={paymentModeSaving}
-                onClick={() => handleSwitchPaymentMode('SELF_MANAGED')}
-                className={`rounded-md px-3 py-1 text-xs font-semibold transition ${
-                  bookingPaymentMode === 'SELF_MANAGED'
-                    ? 'bg-card text-foreground shadow-sm'
-                    : 'text-muted-foreground hover:text-slate-800 dark:hover:text-slate-200'
-                } disabled:opacity-60`}
-              >
-                Self-managed
-              </button>
-            </div>
-            {connectFullyReady ? (
-              <span className="rounded-full border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950 px-2.5 py-0.5 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
-                Connected
-              </span>
-            ) : connectSetupIncomplete ? (
-              <>
-                <span className="rounded-full border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950 px-2.5 py-0.5 text-xs font-semibold text-amber-700 dark:text-amber-300">
-                  Setup incomplete
-                </span>
-                <button
-                  onClick={handleConnectSetup}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg px-4 py-2 text-sm font-medium"
-                >
-                  Complete setup
-                </button>
-              </>
-            ) : managedPaymentsEnabled ? (
-              <button
-                onClick={handleConnectSetup}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg px-4 py-2 text-sm font-medium"
-              >
-                Set up Connect
-              </button>
-            ) : null}
-            <button
-              onClick={() => router.push('/dashboard/payments')}
-              className="border border-border text-foreground hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg px-4 py-2 text-sm transition-colors"
-            >
-              View all payments
-            </button>
-          </div>
-        </div>
-        <div className="space-y-4 px-5 py-5">
-          {!managedPaymentsEnabled ? (
-            <div className="rounded-xl border border-border bg-muted/50 px-4 py-4">
-              <p className="text-sm text-foreground">
-                Your company is set to handle payments outside HandyCall. AI can still send booking links, but customers will pay through your own process.
-              </p>
-              <button
-                onClick={() => handleSwitchPaymentMode('HANDYCALL_MANAGED')}
-                disabled={paymentModeSaving}
-                className="mt-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50"
-              >
-                Switch to HandyCall-managed payments
-              </button>
-            </div>
-          ) : connectFullyReady ? (
-            <>
-              <div className="grid gap-3 sm:grid-cols-4">
-                <div className="rounded-xl border border-border bg-muted/50 p-3">
-                  <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Revenue</p>
-                  <p className="mt-1 text-base font-bold text-foreground">
-                    {formatMoney(customerPaymentStats?.total_revenue_cents || 0)}
-                  </p>
-                </div>
-                <div className="rounded-xl border border-border bg-muted/50 p-3">
-                  <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">This month</p>
-                  <p className="mt-1 text-base font-bold text-foreground">
-                    {formatMoney(customerPaymentStats?.this_month_revenue_cents || 0)}
-                  </p>
-                </div>
-                <div className="rounded-xl border border-border bg-muted/50 p-3">
-                  <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Successful</p>
-                  <p className="mt-1 text-base font-bold text-foreground">{customerPaymentStats?.successful_payments || 0}</p>
-                </div>
-                <div className="rounded-xl border border-border bg-muted/50 p-3">
-                  <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Avg ticket</p>
-                  <p className="mt-1 text-base font-bold text-foreground">
-                    {formatMoney(customerPaymentStats?.average_ticket_cents || 0)}
-                  </p>
-                </div>
-              </div>
-
-              {recentCustomerPayments.length > 0 ? (
-                <div className="space-y-2">
-                  {recentCustomerPayments.slice(0, 5).map((payment) => (
-                    <div
-                      key={payment.payment_id}
-                      className="flex items-center justify-between rounded-xl border border-border bg-card px-4 py-3"
-                    >
-                      <div>
-                        <p className="text-sm font-semibold text-foreground">{payment.customer_name || payment.service_name || 'Payment'}</p>
-                        <p className="text-xs text-muted-foreground">{formatDate(payment.created_at)}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-sm font-semibold text-foreground">{formatMoney(payment.amount_cents, payment.currency)}</p>
-                        <p className="text-xs text-muted-foreground">{payment.payment_status}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground">No customer payments yet.</p>
-              )}
-            </>
-          ) : connectSetupIncomplete ? (
-            <div className="rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/50 px-4 py-4">
-              <p className="text-sm text-amber-800 dark:text-amber-300">
-                Stripe account exists, but onboarding is not complete yet.
-                {!connectCanCharge ? ' Enable charges in Stripe Connect.' : ''}
-                {!connectCanPayout ? ' Add bank/payout details to enable payouts.' : ''}
-              </p>
-              <button
-                onClick={handleConnectSetup}
-                className="mt-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg px-4 py-2 text-sm font-medium"
-              >
-                Complete Stripe setup
-              </button>
-            </div>
-          ) : (
-            <div className="rounded-xl border border-border bg-muted/50 px-4 py-4">
-              <p className="text-sm text-foreground">
-                Connect Stripe to start collecting customer payments from booking links.
-              </p>
-            </div>
-          )}
-
-          <div className="rounded-xl border border-border bg-muted/50 px-4 py-3">
-            <p className="text-xs font-semibold text-foreground">Security</p>
-            <p className="mt-1 text-xs text-muted-foreground">We never store your bank information.</p>
-          </div>
-        </div>
-      </div>
 
       {/* Quick links */}
       <div className="grid gap-3 sm:grid-cols-3">
