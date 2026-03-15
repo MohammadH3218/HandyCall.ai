@@ -223,7 +223,7 @@ export default function ServiceProductsPage() {
       <PageHeader
         eyebrow="Payments"
         title="Service products & pricing"
-        subtitle="Define what you offer and how you charge — subscriptions, one-time payments, and more."
+        subtitle="Set up one-time services, recurring plans, and shareable payment links without the billing jargon."
         actions={
           <div className="flex items-center gap-2">
             <label className="flex items-center gap-2 text-sm text-slate-500 cursor-pointer">
@@ -248,7 +248,7 @@ export default function ServiceProductsPage() {
         <div className="rounded-2xl border border-dashed border-border bg-card p-12 text-center shadow-sm">
           <p className="text-lg font-semibold text-foreground mb-2">No products yet</p>
           <p className="text-sm text-slate-400 mb-6">
-            Create your first service product — a subscription plan or one-time charge — to start collecting payments.
+            Add your first service or plan so customers can pay you through HandyCall.
           </p>
           <Button onClick={openCreate}>Create first product</Button>
         </div>
@@ -373,7 +373,7 @@ export default function ServiceProductsPage() {
               </div>
 
               <div>
-                <label className="mb-1.5 block text-sm font-semibold text-slate-700">Charge type *</label>
+                <label className="mb-1.5 block text-sm font-semibold text-slate-700">How customers pay *</label>
                 <div className="grid grid-cols-2 gap-2">
                   {(['ONE_TIME', 'SUBSCRIPTION'] as PriceType[]).map((type) => (
                     <button
@@ -394,14 +394,14 @@ export default function ServiceProductsPage() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="mb-1.5 block text-sm font-semibold text-slate-700">Amount ($) *</label>
+                  <label className="mb-1.5 block text-sm font-semibold text-slate-700">Price *</label>
                   <Input
                     type="number"
                     min="0.50"
                     step="0.01"
                     value={form.amount_dollars}
                     onChange={(e) => setForm((f) => ({ ...f, amount_dollars: e.target.value }))}
-                    placeholder="0.00"
+                    placeholder="e.g. 149.00"
                   />
                 </div>
                 <div>
@@ -436,25 +436,26 @@ export default function ServiceProductsPage() {
                       </select>
                     </div>
                     <div>
-                      <label className="mb-1.5 block text-sm font-semibold text-slate-700">Every N intervals</label>
+                      <label className="mb-1.5 block text-sm font-semibold text-slate-700">Repeat every</label>
                       <Input
                         type="number"
                         min={1}
                         max={12}
                         value={form.billing_interval_count}
                         onChange={(e) => setForm((f) => ({ ...f, billing_interval_count: parseInt(e.target.value) || 1 }))}
+                        placeholder="1"
                       />
                     </div>
                   </div>
 
                   <div>
-                    <label className="mb-1.5 block text-sm font-semibold text-slate-700">Free trial (days)</label>
+                    <label className="mb-1.5 block text-sm font-semibold text-slate-700">Free trial length</label>
                     <Input
                       type="number"
                       min={0}
                       value={form.trial_period_days}
                       onChange={(e) => setForm((f) => ({ ...f, trial_period_days: parseInt(e.target.value) || 0 }))}
-                      placeholder="0 = no trial"
+                      placeholder="0 days"
                     />
                   </div>
                 </>

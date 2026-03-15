@@ -64,7 +64,6 @@ type Phase =
   | 'billing_connect'
   | 'complete';
 
-type KnowledgeMsg = { role: 'user' | 'assistant'; content: string };
 type DayRow = { closed: boolean; open: string; close: string };
 type CalendarHours = Record<string, DayRow>;
 
@@ -538,10 +537,8 @@ function OnboardingSetupContent() {
   const [otherServiceInput, setOtherServiceInput] = useState('');
   const [callFlowQuestions, setCallFlowQuestions] = useState<CompanyCallFlowQuestion[]>([]);
 
-  // Knowledge AI state
-  const [kbMessages, setKbMessages] = useState<KnowledgeMsg[]>([]);
+  // Knowledge base state
   const [kbInput, setKbInput] = useState('');
-  const [kbLoading, setKbLoading] = useState(false);
   const [kbGenerating, setKbGenerating] = useState(false);
   const [kbError, setKbError] = useState<string | null>(null);
 
@@ -590,17 +587,6 @@ function OnboardingSetupContent() {
     if (!container) return;
     container.scrollTo({ top: 0, behavior: 'auto' });
   }, [phase]);
-
-  // Keep the knowledge chat pinned to the latest messages without affecting other steps.
-  useEffect(() => {
-    if (phase !== 'knowledge_chat') return;
-    const container = scrollContainerRef.current;
-    if (!container || container.scrollHeight <= container.clientHeight) return;
-    container.scrollTo({
-      top: container.scrollHeight,
-      behavior: kbMessages.length > 0 ? 'smooth' : 'auto',
-    });
-  }, [phase, kbMessages]);
 
   // ─── Simplified chat helpers ──────────────────────────────────────────────
 
@@ -743,7 +729,7 @@ function OnboardingSetupContent() {
     } else if (!s.phone) {
       await goTo('phone_choice');
     } else if (!s.knowledge) {
-      await goTo('knowledge_intro');
+      await goTo('knowledge_chat');
     } else if (!(company as any)?.call_flow_questions?.length) {
       await goTo('call_flow_editor');
     } else if (!(company as any)?.booking_payment_mode_confirmed) {
@@ -1009,7 +995,7 @@ function OnboardingSetupContent() {
         await refreshAll();
         const num = res?.phoneNumber ?? res?.phone_number ?? res?.data?.phoneNumber ?? '';
         userSay(`Demo number assigned${num ? `: ${num}` : ''}`);
-        await goTo('knowledge_intro');
+        await goTo('knowledge_chat');
       } catch (err: any) {
         setErrMsg(err?.message || 'Could not assign demo number.');
       } finally {
@@ -1044,7 +1030,7 @@ function OnboardingSetupContent() {
       await refreshCompanyNumber();
       await refreshAll();
       userSay(`Claimed ${phoneNumber}`);
-      await goTo('knowledge_intro');
+      await goTo('knowledge_chat');
     } catch (err: any) {
       setErrMsg(err?.message || 'Could not claim number. Try another.');
     } finally {
@@ -1062,7 +1048,7 @@ function OnboardingSetupContent() {
       const updated = await apiClient.updateMyCompany({ phone_number: forwardNumber.trim() });
       setCompany(updated);
       userSay(`Saved: ${forwardNumber.trim()}`);
-      await goTo('knowledge_intro');
+      await goTo('knowledge_chat');
     } catch {
       setErrMsg('Could not save number.');
     } finally {
@@ -1070,66 +1056,16 @@ function OnboardingSetupContent() {
     }
   };
 
-  const handleStartKnowledge = async () => {
-    userSay("Let's build it!");
-    const suggestions = getKnowledgeBasePromptSuggestions(
-      (company?.service_type as ServiceType | undefined) || undefined
-    );
-    setKbMessages([
-      {
-        role: 'assistant',
-        content:
-          'Tell me the company-specific facts you want your AI receptionist to answer confidently. Focus on what is unique to your business, not general small-talk or generic customer service answers.',
-      },
-      {
-        role: 'assistant',
-        content:
-          `Use this chat like you're briefing a new receptionist. Add the company-specific answers you want the AI to know before it starts taking real calls.\n\n` +
-          suggestions.map((item, index) => `${index + 1}. ${item}`).join('\n'),
-      },
-    ]);
-    setPhase('knowledge_chat');
-  };
-
-  const fetchKbReply = async (history: KnowledgeMsg[]) => {
-    setKbLoading(true);
-    setKbError(null);
-    try {
-      const res = await apiClient.knowledgeAssistantRespond(history);
-      const msg = String(res?.assistant_message || '').trim();
-      if (msg) {
-        setKbMessages([...history, { role: 'assistant', content: msg }]);
-      }
-    } catch {
-      setKbError(
-        "The AI interview is temporarily unavailable. You can still generate a knowledge base with what you've already answered."
-      );
-    } finally {
-      setKbLoading(false);
-    }
-  };
-
-  const sendKbMessage = async () => {
-    const text = kbInput.trim();
-    if (!text || kbLoading) return;
-    const next: KnowledgeMsg[] = [...kbMessages, { role: 'user', content: text }];
-    setKbMessages(next);
-    setKbInput('');
-    await fetchKbReply(next);
-  };
-
-  const handleGenerateKnowledge = async (overrideMessages?: KnowledgeMsg[]) => {
+  const handleGenerateKnowledge = async () => {
     setKbGenerating(true);
     setKbError(null);
     const draft = kbInput.trim();
-    const baseMessages = overrideMessages ?? kbMessages;
-    const msgs = draft
-      ? [...baseMessages, { role: 'user' as const, content: draft }]
-      : baseMessages;
-    if (draft) {
-      setKbMessages(msgs);
-      setKbInput('');
+    if (!draft) {
+      setKbError('Add some business details first so we can build your knowledge base.');
+      setKbGenerating(false);
+      return;
     }
+    const msgs = [{ role: 'user' as const, content: draft }];
     try {
       const [kbRes, prodRes] = await Promise.all([
         apiClient.knowledgeAssistantGenerate(msgs, true),
@@ -1138,7 +1074,6 @@ function OnboardingSetupContent() {
           .catch(() => ({ created_count: 0, skipped_count: 0 })),
       ]);
       const created = Number(kbRes?.created_count || 0);
-      const productsCreated = Number(prodRes?.created_count || 0);
       await refreshKnowledge();
       await refreshAll();
       userSay(`Knowledge base generated: ${created} entries created`);
@@ -1798,32 +1733,6 @@ function OnboardingSetupContent() {
         );
 
       case 'knowledge_intro':
-        return (
-          <div className="space-y-4">
-            <div className="rounded-2xl border border-border bg-card p-5">
-              <div className="flex items-start gap-3">
-                <div className="mt-0.5 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600 dark:bg-emerald-900/50 dark:text-emerald-400">
-                  <IconBrain className="h-5 w-5" stroke={1.5} />
-                </div>
-                <div>
-                  <p className="font-semibold text-foreground">What to include</p>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    Tell your AI receptionist about your services, pricing, service area, policies,
-                    warranties, and anything else customers commonly ask before booking.
-                  </p>
-                </div>
-              </div>
-            </div>
-            <PrimaryButton
-              onClick={() => void handleStartKnowledge()}
-              disabled={isSaving}
-            >
-              <IconBrain className="h-4 w-4" stroke={1.5} />
-              Build my knowledge base
-            </PrimaryButton>
-          </div>
-        );
-
       case 'knowledge_chat':
         return (
           <div className="space-y-4">
@@ -1851,29 +1760,6 @@ function OnboardingSetupContent() {
               </div>
             </div>
 
-            <div className="max-h-80 space-y-3 overflow-y-auto rounded-2xl border border-border bg-muted/40 p-4">
-              {kbMessages.map((msg, index) => (
-                <div
-                  key={`${msg.role}-${index}`}
-                  className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                >
-                  <div
-                    className={cn(
-                      'max-w-[85%] rounded-2xl px-4 py-3 text-sm',
-                      msg.role === 'user'
-                        ? 'bg-emerald-600 text-white'
-                        : 'border border-border bg-card text-foreground shadow-sm'
-                    )}
-                  >
-                    <div className="whitespace-pre-wrap">{msg.content}</div>
-                  </div>
-                </div>
-              ))}
-              {kbLoading && (
-                <p className="text-sm text-muted-foreground">Assistant is thinking...</p>
-              )}
-            </div>
-
             <div className="space-y-3">
               <textarea
                 value={kbInput}
@@ -1890,11 +1776,7 @@ function OnboardingSetupContent() {
               <div className="flex flex-wrap gap-2">
                 <PrimaryButton
                   onClick={() => void handleGenerateKnowledge()}
-                  disabled={
-                    kbGenerating ||
-                    (kbMessages.filter((msg) => msg.role === 'user').length === 0 &&
-                      !kbInput.trim())
-                  }
+                  disabled={kbGenerating || !kbInput.trim()}
                   loading={kbGenerating}
                 >
                   <IconBrain className="h-4 w-4" stroke={1.5} />

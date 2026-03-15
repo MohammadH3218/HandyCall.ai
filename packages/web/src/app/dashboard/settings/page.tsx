@@ -12,7 +12,14 @@ import { DEFAULT_TIMEZONE, TIMEZONE_OPTIONS, hasTimezoneOption } from '@/constan
 import { CallHandlingMode, CompanyCallFlowQuestion, ServiceType } from '@handycall/shared';
 import { CallForwardingGuide } from '@/components/telephony/call-forwarding-guide';
 import { PageHeader } from '@/components/portal/page-header';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { usePlanFeatures } from '@/hooks/use-plan-features';
 import { IconCopy, IconPhone, IconRefresh, IconSettings, IconShield, IconLink, IconBuilding, IconPhoneCall, IconBrain, IconCreditCard, IconWebhook, IconBell, IconUser, IconMapPin, IconMessageDots } from '@tabler/icons-react';
@@ -26,7 +33,6 @@ export default function SettingsPage() {
   const { company } = useAuthStore();
   const { hasFeature } = usePlanFeatures();
   const crmEnabled = hasFeature('crm_integrations');
-  const canUseFollowUps = hasFeature('follow_up_sequences');
   const [formData, setFormData] = useState({
     company_name: '',
     phone_number: '',
@@ -80,20 +86,7 @@ export default function SettingsPage() {
   const [notificationsSaving, setNotificationsSaving] = useState(false);
   const [notificationEvents, setNotificationEvents] = useState<Array<{ event_key: string; label: string; category: string; description: string }>>([]);
   const [notificationPrefs, setNotificationPrefs] = useState<Record<string, { in_app: boolean; push: boolean }>>({});
-  const [automationSaving, setAutomationSaving] = useState(false);
-  const [automationEditMode, setAutomationEditMode] = useState(false);
   const [integrationsEditMode, setIntegrationsEditMode] = useState(false);
-  const [followUpEnabled, setFollowUpEnabled] = useState(false);
-  const [followUpInitialDelayMinutes, setFollowUpInitialDelayMinutes] = useState('0');
-  const [followUpSecondDelayMinutes, setFollowUpSecondDelayMinutes] = useState('1440');
-  const [followUpFinalDelayMinutes, setFollowUpFinalDelayMinutes] = useState('4320');
-  const [followUpInitialTemplate, setFollowUpInitialTemplate] = useState('');
-  const [followUpSecondTemplate, setFollowUpSecondTemplate] = useState('');
-  const [followUpFinalTemplate, setFollowUpFinalTemplate] = useState('');
-  const [reviewRequestEnabled, setReviewRequestEnabled] = useState(false);
-  const [reviewRequestDelayMinutes, setReviewRequestDelayMinutes] = useState('120');
-  const [reviewPlatformUrl, setReviewPlatformUrl] = useState('');
-  const [reviewRequestTemplate, setReviewRequestTemplate] = useState('');
 
   const statusLabel = company?.cancel_at_period_end
     ? 'Cancelled'
@@ -142,17 +135,6 @@ export default function SettingsPage() {
           }))
         : [],
     );
-    setFollowUpEnabled(Boolean((company as any).follow_up_sequences_enabled));
-    setFollowUpInitialDelayMinutes(String((company as any).follow_up_initial_delay_minutes ?? 0));
-    setFollowUpSecondDelayMinutes(String((company as any).follow_up_second_delay_minutes ?? 1440));
-    setFollowUpFinalDelayMinutes(String((company as any).follow_up_final_delay_minutes ?? 4320));
-    setFollowUpInitialTemplate((company as any).follow_up_initial_template || '');
-    setFollowUpSecondTemplate((company as any).follow_up_second_template || '');
-    setFollowUpFinalTemplate((company as any).follow_up_final_template || '');
-    setReviewRequestEnabled(Boolean((company as any).review_request_enabled));
-    setReviewRequestDelayMinutes(String((company as any).review_request_delay_minutes ?? 120));
-    setReviewPlatformUrl((company as any).review_platform_url || '');
-    setReviewRequestTemplate((company as any).review_request_template || '');
     setCallFlowQuestions(
       Array.isArray((company as any).call_flow_questions) && (company as any).call_flow_questions.length > 0
         ? ((company as any).call_flow_questions as CompanyCallFlowQuestion[])
@@ -441,79 +423,20 @@ export default function SettingsPage() {
     }
   };
 
-  const handleAddBookingService = () => {
-    setBookingServices((prev) => [
-      ...prev,
-      {
-        service_id: crypto.randomUUID(),
-        name: '',
-        amount_cents: 0,
-        currency: 'usd',
-        active: true,
-        collect_payment: true,
-        billing_type: 'ONE_TIME',
-        billing_interval: 'month',
-        billing_interval_count: 1,
-        trial_period_days: 0,
-      },
-    ]);
-  };
-
-  const handleUpdateBookingService = (
-    serviceId: string,
-    field:
-      | 'name'
-      | 'amount_cents'
-      | 'currency'
-      | 'active'
-      | 'collect_payment'
-      | 'billing_type'
-      | 'billing_interval'
-      | 'billing_interval_count'
-      | 'trial_period_days',
-    value: string | number | boolean,
-  ) => {
-    setBookingServices((prev) =>
-      prev.map((service) => (service.service_id === serviceId ? { ...service, [field]: value } : service)),
-    );
-  };
-
-  const handleRemoveBookingService = (serviceId: string) => {
-    setBookingServices((prev) => prev.filter((service) => service.service_id !== serviceId));
-  };
-
   const handleSavePayments = async () => {
     try {
       setPaymentsSaving(true);
       await apiClient.updateMyCompany({
         booking_payment_mode: bookingPaymentMode,
         booking_payment_mode_confirmed: true,
-        booking_payment_enabled:
-          bookingPaymentMode === 'HANDYCALL_MANAGED' ? bookingPaymentEnabled : false,
-        booking_services: bookingServices.map((service) => ({
-          service_id: service.service_id,
-          name: service.name.trim(),
-          amount_cents: Math.max(0, Math.round(Number(service.amount_cents || 0))),
-          currency: (service.currency || 'usd').toLowerCase(),
-          active: service.active,
-          collect_payment: service.collect_payment,
-          billing_type: service.billing_type,
-          billing_interval: service.billing_interval,
-          billing_interval_count: Math.max(1, Math.round(Number(service.billing_interval_count || 1))),
-          trial_period_days: Math.max(0, Math.round(Number(service.trial_period_days || 0))),
-        })),
+        booking_payment_enabled: bookingPaymentMode === 'HANDYCALL_MANAGED',
       });
+      setBookingPaymentEnabled(bookingPaymentMode === 'HANDYCALL_MANAGED');
       toast({
         title: 'Payment settings saved',
-        description: 'Your booking payment configuration has been updated.',
+        description: 'Your customer payment setup has been updated.',
       });
       setPaymentsEditMode(false);
-      if (
-        bookingPaymentMode === 'HANDYCALL_MANAGED' &&
-        !(connectStatus?.connected && connectStatus?.charges_enabled && connectStatus?.payouts_enabled)
-      ) {
-        await handleConnectSetup();
-      }
     } catch (error: any) {
       toast({
         title: 'Save failed',
@@ -552,38 +475,6 @@ export default function SettingsPage() {
       });
     } finally {
       setNotificationsSaving(false);
-    }
-  };
-
-  const handleSaveAutomations = async () => {
-    try {
-      setAutomationSaving(true);
-      await apiClient.updateMyCompany({
-        follow_up_sequences_enabled: canUseFollowUps ? followUpEnabled : false,
-        follow_up_initial_delay_minutes: canUseFollowUps ? Math.max(0, Number(followUpInitialDelayMinutes || 0)) : 0,
-        follow_up_second_delay_minutes: canUseFollowUps ? Math.max(0, Number(followUpSecondDelayMinutes || 1440)) : 1440,
-        follow_up_final_delay_minutes: canUseFollowUps ? Math.max(0, Number(followUpFinalDelayMinutes || 4320)) : 4320,
-        follow_up_initial_template: canUseFollowUps ? followUpInitialTemplate.trim() || '' : '',
-        follow_up_second_template: canUseFollowUps ? followUpSecondTemplate.trim() || '' : '',
-        follow_up_final_template: canUseFollowUps ? followUpFinalTemplate.trim() || '' : '',
-        review_request_enabled: reviewRequestEnabled,
-        review_request_delay_minutes: Math.max(0, Number(reviewRequestDelayMinutes || 120)),
-        review_platform_url: reviewPlatformUrl.trim() || '',
-        review_request_template: reviewRequestTemplate.trim() || '',
-      });
-      toast({
-        title: 'Automation settings saved',
-        description: 'Follow-ups and review request rules are updated.',
-      });
-      setAutomationEditMode(false);
-    } catch (error: any) {
-      toast({
-        title: 'Save failed',
-        description: error?.message || 'Could not save automation settings.',
-        variant: 'destructive',
-      });
-    } finally {
-      setAutomationSaving(false);
     }
   };
 
@@ -863,523 +754,189 @@ export default function SettingsPage() {
             <div className="border-b border-slate-100 px-5 py-4 dark:border-slate-800">
               <h2 className="text-base font-semibold text-slate-900 pl-3 border-l-2 border-emerald-500 dark:text-slate-100">How you want to handle customer payments</h2>
               <p className="text-xs text-slate-500">
-                Pick a payment mode. You can change this later.
+                Keep this page focused on the big decision. Pricing, payment links, and automation live in their own dedicated tools.
               </p>
             </div>
             <div className="space-y-4 p-5">
-              {!paymentsEditMode ? (
-                <>
-                  <div className="grid gap-3 md:grid-cols-3">
-                    <div className="rounded-2xl border border-border bg-muted/50 p-4">
-                      <p className="text-xs uppercase tracking-wide text-slate-500">Payment mode</p>
-                      <p className="mt-2 text-sm font-semibold text-foreground">
-                        {bookingPaymentMode === 'HANDYCALL_MANAGED' ? 'Managed in HandyCall' : 'Handled outside HandyCall'}
-                      </p>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        {bookingPaymentMode === 'HANDYCALL_MANAGED'
-                          ? 'Customers can pay through HandyCall booking links.'
-                          : 'You collect payment outside HandyCall.'}
-                      </p>
-                    </div>
-                    <div className="rounded-2xl border border-border bg-muted/50 p-4">
-                      <p className="text-xs uppercase tracking-wide text-slate-500">Stripe Connect</p>
-                      <p className="mt-2 text-sm font-semibold text-foreground">
-                        {connectStatus?.connected ? 'Connected' : 'Not connected'}
-                      </p>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        {connectStatus?.connected
-                          ? connectStatus?.charges_enabled && connectStatus?.payouts_enabled
-                            ? 'Ready to collect and pay out.'
-                            : 'Connected, but setup still needs to be finished in Stripe.'
-                          : 'Connect Stripe only if you want HandyCall-managed payments.'}
-                      </p>
-                    </div>
-                    <div className="rounded-2xl border border-border bg-muted/50 p-4">
-                      <p className="text-xs uppercase tracking-wide text-slate-500">Booking payments</p>
-                      <p className="mt-2 text-sm font-semibold text-foreground">
-                        {bookingPaymentEnabled && bookingPaymentMode === 'HANDYCALL_MANAGED' ? 'Enabled' : 'Disabled'}
-                      </p>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        {bookingServices.length > 0
-                          ? `${bookingServices.length} service${bookingServices.length === 1 ? '' : 's'} configured`
-                          : 'No paid services configured yet.'}
-                      </p>
-                    </div>
-                  </div>
+              <div className="grid gap-3 md:grid-cols-3">
+                <div className="rounded-2xl border border-border bg-muted/50 p-4">
+                  <p className="text-xs uppercase tracking-wide text-slate-500">Payment mode</p>
+                  <p className="mt-2 text-sm font-semibold text-foreground">
+                    {bookingPaymentMode === 'HANDYCALL_MANAGED'
+                      ? 'Managed by HandyCall'
+                      : 'Handled by your team'}
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {bookingPaymentMode === 'HANDYCALL_MANAGED'
+                      ? 'Customers can pay through HandyCall checkout links.'
+                      : 'HandyCall books the job, and you collect payment yourself.'}
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-border bg-muted/50 p-4">
+                  <p className="text-xs uppercase tracking-wide text-slate-500">Stripe Connect</p>
+                  <p className="mt-2 text-sm font-semibold text-foreground">
+                    {paymentsLoading
+                      ? 'Checking...'
+                      : connectStatus?.connected
+                        ? connectStatus?.charges_enabled && connectStatus?.payouts_enabled
+                          ? 'Connected and ready'
+                          : 'Connected, setup incomplete'
+                        : 'Not connected'}
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {connectStatus?.connected
+                      ? connectStatus?.charges_enabled && connectStatus?.payouts_enabled
+                        ? 'Payments and payouts are ready in Stripe.'
+                        : 'Finish the remaining Stripe setup to enable charges and payouts.'
+                      : 'Only needed if you want HandyCall to handle customer payments.'}
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-border bg-muted/50 p-4">
+                  <p className="text-xs uppercase tracking-wide text-slate-500">Service pricing</p>
+                  <p className="mt-2 text-sm font-semibold text-foreground">
+                    {bookingServices.length > 0
+                      ? `${bookingServices.length} service${bookingServices.length === 1 ? '' : 's'} configured`
+                      : 'No services configured yet'}
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Add one-time services or subscriptions from the dedicated Payments area.
+                  </p>
+                </div>
+              </div>
 
-                  <div className="rounded-xl border border-border bg-muted/50 px-4 py-3 text-sm text-muted-foreground">
-                    Choose whether HandyCall collects customer payments for you or if your team handles billing manually.
-                  </div>
+              <div className="rounded-xl border border-border bg-muted/50 px-4 py-3 text-sm text-muted-foreground">
+                Booking payment configuration has been removed from Settings to keep this page simple. Use the dedicated Payments area for products, pricing, and payment links.
+              </div>
 
-                  {bookingServices.length > 0 ? (
-                    <div className="rounded-2xl border border-border bg-card p-4">
-                      <p className="text-sm font-semibold text-foreground">Configured services</p>
-                      <div className="mt-3 grid gap-3 md:grid-cols-2">
-                        {bookingServices.map((service) => (
-                          <div key={service.service_id} className="rounded-xl border border-border bg-muted/50 p-3">
-                            <div className="flex items-center justify-between gap-3">
-                              <p className="text-sm font-semibold text-foreground">{service.name || 'Untitled service'}</p>
-                              <span className={`rounded-full px-2 py-1 text-[11px] font-semibold ${service.active ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300' : 'bg-muted text-muted-foreground'}`}>
-                                {service.active ? 'Active' : 'Paused'}
-                              </span>
-                            </div>
-                            <p className="mt-1 text-xs text-muted-foreground">
-                              {service.billing_type === 'SUBSCRIPTION'
-                                ? `Subscription · ${(service.amount_cents / 100).toFixed(2)} ${service.currency.toUpperCase()} every ${service.billing_interval_count} ${service.billing_interval}${service.billing_interval_count > 1 ? 's' : ''}`
-                                : `One-time · ${(service.amount_cents / 100).toFixed(2)} ${service.currency.toUpperCase()}`}
-                            </p>
-                            <p className="mt-1 text-xs text-slate-500">
-                              {service.collect_payment ? 'Collect payment in booking flow' : 'Booking only, no payment collected'}
-                            </p>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ) : null}
-
-                  <div className="flex justify-end gap-2">
-                    {bookingPaymentMode === 'HANDYCALL_MANAGED' ? (
-                      <Button type="button" variant="outline" onClick={handleConnectSetup}>
-                        {connectStatus?.connected ? 'Open Stripe Connect' : 'Set up Stripe Connect'}
-                      </Button>
-                    ) : null}
-                    <Button type="button" onClick={() => setPaymentsEditMode(true)}>
-                      Edit payment setup
-                    </Button>
-                  </div>
-                </>
-              ) : (
-                <>
               <div className="grid gap-3 md:grid-cols-2">
-                <button
-                  type="button"
-                  onClick={() => setBookingPaymentMode('HANDYCALL_MANAGED')}
-                  className={`rounded-xl border p-4 text-left transition ${
-                    bookingPaymentMode === 'HANDYCALL_MANAGED'
-                      ? 'border-emerald-300 bg-emerald-50/70 dark:bg-emerald-950/30 dark:border-emerald-700'
-                      : 'border-border bg-card hover:border-emerald-200 dark:hover:border-emerald-700'
-                  }`}
-                >
-                  <p className="text-sm font-semibold text-foreground">Managed in HandyCall (Recommended)</p>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    Connect Stripe once. When AI sends booking links, customers can pay there and everything is tracked in one place.
+                <div className="rounded-2xl border border-border bg-card p-4">
+                  <p className="text-sm font-semibold text-foreground">Products and pricing</p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Manage service names, prices, subscriptions, and checkout links in one place.
                   </p>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setBookingPaymentMode('SELF_MANAGED')}
-                  className={`rounded-xl border p-4 text-left transition ${
-                    bookingPaymentMode === 'SELF_MANAGED'
-                      ? 'border-border bg-muted/70'
-                      : 'border-border bg-card hover:border-border/80'
-                  }`}
-                >
-                  <p className="text-sm font-semibold text-foreground">I handle payments myself</p>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    HandyCall books jobs and collects lead details, but payment happens outside HandyCall.
-                  </p>
-                </button>
-              </div>
-
-              <div className="rounded-xl border border-border bg-muted/50 px-4 py-3 text-xs text-muted-foreground">
-                You can keep booking links and disable in-link payment anytime if your team prefers manual invoicing.
-              </div>
-
-              <div className="rounded-xl border border-border bg-card p-4">
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Stripe Connect</p>
-              {(() => {
-                const connectAccountExists = Boolean(connectStatus?.connected && connectStatus?.account_id);
-                const connectCanCharge = Boolean(connectStatus?.charges_enabled);
-                const connectCanPayout = Boolean(connectStatus?.payouts_enabled);
-                const connectFullyReady = connectAccountExists && connectCanCharge && connectCanPayout;
-                const connectSetupIncomplete = connectAccountExists && !connectFullyReady;
-                return (
-                  <>
-              {paymentsLoading ? (
-                  <p className="mt-2 text-sm text-slate-500">Loading payment status…</p>
-              ) : connectFullyReady ? (
-                  <div className="mt-2 rounded-xl border border-emerald-200 bg-emerald-50/70 px-4 py-3 text-sm text-emerald-800">
-                    Connected{connectStatus?.account_id ? ` · ${connectStatus.account_id}` : ''}.
-                  </div>
-              ) : connectSetupIncomplete ? (
-                  <div className="mt-2 rounded-xl border border-amber-200 bg-amber-50/70 px-4 py-3 text-sm text-amber-800">
-                    Setup incomplete{connectStatus?.account_id ? ` · ${connectStatus.account_id}` : ''}.
-                    {!connectCanCharge ? ' Enable charges in Stripe Connect.' : ''}
-                    {!connectCanPayout ? ' Add bank/payout details to enable payouts.' : ''}
-                  </div>
-              ) : (
-                  <div className="mt-2 rounded-xl border border-border bg-muted/50 px-4 py-3 text-sm text-foreground">
-                    Stripe Connect is not set up yet.
-                  </div>
-              )}
-              <div className="flex gap-2">
-                <Button onClick={handleConnectSetup} disabled={bookingPaymentMode !== 'HANDYCALL_MANAGED'}>
-                  {connectFullyReady ? 'Open Stripe Connect' : connectSetupIncomplete ? 'Complete Stripe setup' : 'Set up Stripe Connect'}
-                </Button>
-              </div>
-                  </>
-                );
-              })()}
-              {bookingPaymentMode !== 'HANDYCALL_MANAGED' ? (
-                <p className="mt-2 text-xs text-slate-500">
-                  Enable "Managed in HandyCall" to connect Stripe and collect payments from booking links.
-                </p>
-              ) : null}
-              </div>
-              <div className="rounded-xl border border-emerald-100 bg-emerald-50/70 px-4 py-3 dark:border-emerald-900 dark:bg-emerald-950/30">
-                <p className="text-xs font-semibold text-emerald-900 dark:text-emerald-300">Security</p>
-                <p className="mt-1 text-xs text-emerald-700 dark:text-emerald-300">We don't store bank info. Payout details are handled directly by Stripe.</p>
-              </div>
-                </>
-              )}
-            </div>
-          </div>
-
-          <div className="rounded-2xl border border-border bg-card shadow-sm">
-            <div className="border-b border-slate-100 px-5 py-4 dark:border-slate-800">
-              <h2 className="text-base font-semibold text-slate-900 pl-3 border-l-2 border-emerald-500 dark:text-slate-100">Booking payment configuration</h2>
-              <p className="text-xs text-slate-500">
-                Define service types and whether each is a one-time charge or recurring subscription.
-              </p>
-            </div>
-            <div className="space-y-4 p-5">
-              {!paymentsEditMode ? (
-                <div className="rounded-xl border border-border bg-muted/50 p-4 text-sm text-muted-foreground">
-                  {bookingPaymentEnabled && bookingPaymentMode === 'HANDYCALL_MANAGED'
-                    ? 'Customers will see a payment step on public booking links for eligible services.'
-                    : 'Public booking links currently collect appointment details only.'}
-                </div>
-              ) : (
-                <>
-                  <div className="flex items-center justify-between rounded-xl border border-border bg-muted/50 p-4">
-                    <div>
-                      <p className="text-sm font-semibold text-foreground">Enable booking payments</p>
-                      <p className="text-xs text-muted-foreground">Show a payment step on public booking links.</p>
-                    </div>
-                    <button
-                      type="button"
-                      aria-pressed={bookingPaymentEnabled}
-                      onClick={() => setBookingPaymentEnabled((prev) => !prev)}
-                      disabled={bookingPaymentMode !== 'HANDYCALL_MANAGED'}
-                      className={`relative h-7 w-12 rounded-full transition ${
-                        bookingPaymentEnabled ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-600'
-                      }`}
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <a
+                      href="/dashboard/payments/products"
+                      className="inline-flex items-center justify-center rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700"
                     >
-                      <span
-                        className={`absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow transition ${
-                          bookingPaymentEnabled ? 'translate-x-5' : 'translate-x-0'
-                        }`}
-                      />
-                    </button>
+                      Open products
+                    </a>
+                    <a
+                      href="/dashboard/payments"
+                      className="inline-flex items-center justify-center rounded-xl border border-border px-4 py-2 text-sm font-medium text-foreground transition hover:bg-accent"
+                    >
+                      Open payments
+                    </a>
                   </div>
-
-                  <div className="space-y-3">
-                    {bookingServices.map((service) => (
-                      <div key={service.service_id} className="space-y-3 rounded-2xl border border-border bg-card p-4">
-                        <div className="grid gap-3 md:grid-cols-4">
-                          <div className="space-y-2 md:col-span-2">
-                            <Label>Service name</Label>
-                            <Input
-                              value={service.name}
-                              onChange={(e) => handleUpdateBookingService(service.service_id, 'name', e.target.value)}
-                              placeholder="Service name"
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <Label>Price in cents</Label>
-                            <Input
-                              type="number"
-                              min={0}
-                              value={service.amount_cents}
-                              onChange={(e) => handleUpdateBookingService(service.service_id, 'amount_cents', Number(e.target.value))}
-                              placeholder="0"
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <Label>Currency</Label>
-                            <Input
-                              value={service.currency}
-                              onChange={(e) => handleUpdateBookingService(service.service_id, 'currency', e.target.value)}
-                              placeholder="usd"
-                            />
-                          </div>
-                        </div>
-                        <div className="grid gap-3 md:grid-cols-3">
-                          <div className="space-y-2">
-                            <Label>Billing type</Label>
-                            <Select
-                              value={service.billing_type}
-                              onValueChange={(value) => handleUpdateBookingService(service.service_id, 'billing_type', value as 'ONE_TIME' | 'SUBSCRIPTION')}
-                            >
-                              <SelectTrigger>
-                                <SelectValue placeholder="Billing type" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="ONE_TIME">One-time</SelectItem>
-                                <SelectItem value="SUBSCRIPTION">Subscription</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          <div className="space-y-2">
-                            <Label>Repeat interval</Label>
-                            <Select
-                              value={service.billing_interval}
-                              onValueChange={(value) =>
-                                handleUpdateBookingService(service.service_id, 'billing_interval', value as 'day' | 'week' | 'month' | 'year')
-                              }
-                              disabled={service.billing_type !== 'SUBSCRIPTION'}
-                            >
-                              <SelectTrigger>
-                                <SelectValue placeholder="Interval" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="day">Daily</SelectItem>
-                                <SelectItem value="week">Weekly</SelectItem>
-                                <SelectItem value="month">Monthly</SelectItem>
-                                <SelectItem value="year">Yearly</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          <div className="space-y-2">
-                            <Label>Every how many intervals</Label>
-                            <Input
-                              type="number"
-                              min={1}
-                              value={service.billing_interval_count}
-                              onChange={(e) => handleUpdateBookingService(service.service_id, 'billing_interval_count', Number(e.target.value))}
-                              placeholder="1"
-                              disabled={service.billing_type !== 'SUBSCRIPTION'}
-                            />
-                          </div>
-                        </div>
-                        <div className="flex flex-wrap items-center justify-between gap-3">
-                          <div className="flex flex-wrap gap-2">
-                            <button
-                              type="button"
-                              onClick={() => handleUpdateBookingService(service.service_id, 'active', !service.active)}
-                              className={`rounded-full px-3 py-1.5 text-xs font-semibold ${service.active ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-700'}`}
-                            >
-                              {service.active ? 'Active' : 'Inactive'}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleUpdateBookingService(service.service_id, 'collect_payment', !service.collect_payment)}
-                              className={`rounded-full px-3 py-1.5 text-xs font-semibold ${service.collect_payment ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300' : 'bg-slate-200 text-slate-700'}`}
-                            >
-                              {service.collect_payment ? 'Collect payment' : 'Booking only'}
-                            </button>
-                          </div>
-                          <Button type="button" variant="outline" onClick={() => handleRemoveBookingService(service.service_id)}>
-                            Remove
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </>
-              )}
-
-              <div className="flex flex-wrap justify-between gap-2">
-                {paymentsEditMode ? (
-                  <>
-                    <Button type="button" variant="outline" onClick={handleAddBookingService}>
-                      Add service
-                    </Button>
-                    <div className="flex gap-2">
-                      <Button type="button" variant="outline" onClick={() => setPaymentsEditMode(false)}>
-                        Cancel
-                      </Button>
-                      <Button onClick={handleSavePayments} disabled={paymentsSaving}>
-                        {paymentsSaving ? 'Saving…' : 'Save payment settings'}
-                      </Button>
-                    </div>
-                  </>
-                ) : (
-                  <Button type="button" onClick={() => setPaymentsEditMode(true)}>
-                    Edit booking payments
-                  </Button>
-                )}
-              </div>
-            </div>
-          </div>
-
-          <div className="rounded-2xl border border-border bg-card shadow-sm">
-            <div className="border-b border-slate-100 px-5 py-4 dark:border-slate-800">
-              <h2 className="text-base font-semibold text-slate-900 pl-3 border-l-2 border-emerald-500 dark:text-slate-100">Follow-ups and review requests</h2>
-              <p className="text-xs text-slate-500">Automate post-call and post-appointment outreach.</p>
-            </div>
-            <div className="space-y-4 p-5">
-              {!canUseFollowUps ? (
-                <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                  Follow-up sequences are available on Pro and Max plans.
                 </div>
-              ) : null}
 
-              <div className="flex items-center justify-between rounded-xl border border-border bg-muted/50 p-4">
-                <div>
-                  <p className="text-sm font-semibold text-foreground">Enable follow-up SMS sequence</p>
-                  <p className="text-xs text-muted-foreground">Send immediate, 24-hour, and 3-day follow-ups after calls.</p>
-                </div>
-                <button
-                  type="button"
-                  aria-pressed={followUpEnabled}
-                  onClick={() => canUseFollowUps && setFollowUpEnabled((prev) => !prev)}
-                  disabled={!canUseFollowUps}
-                  className={`relative h-7 w-12 rounded-full transition ${
-                    canUseFollowUps && followUpEnabled ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-600'
-                  } ${!canUseFollowUps ? 'opacity-60' : ''}`}
-                >
-                  <span
-                    className={`absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow transition ${
-                      canUseFollowUps && followUpEnabled ? 'translate-x-5' : 'translate-x-0'
-                    }`}
-                  />
-                </button>
-              </div>
-
-              {canUseFollowUps && followUpEnabled ? (
-                <div className="grid gap-3 rounded-xl border border-border bg-card p-4">
-                  <div className="grid gap-3 md:grid-cols-3">
-                    <div className="space-y-2">
-                      <Label htmlFor="follow_up_initial_delay">Initial delay (minutes)</Label>
-                      <Input
-                        id="follow_up_initial_delay"
-                        type="number"
-                        min={0}
-                        value={followUpInitialDelayMinutes}
-                        onChange={(e) => setFollowUpInitialDelayMinutes(e.target.value)}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="follow_up_second_delay">Second delay (minutes)</Label>
-                      <Input
-                        id="follow_up_second_delay"
-                        type="number"
-                        min={0}
-                        value={followUpSecondDelayMinutes}
-                        onChange={(e) => setFollowUpSecondDelayMinutes(e.target.value)}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="follow_up_final_delay">Final delay (minutes)</Label>
-                      <Input
-                        id="follow_up_final_delay"
-                        type="number"
-                        min={0}
-                        value={followUpFinalDelayMinutes}
-                        onChange={(e) => setFollowUpFinalDelayMinutes(e.target.value)}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="follow_up_initial_template">Initial follow-up message (optional)</Label>
-                    <textarea
-                      id="follow_up_initial_template"
-                      value={followUpInitialTemplate}
-                      onChange={(e) => setFollowUpInitialTemplate(e.target.value)}
-                      rows={2}
-                      className="w-full rounded-xl border border-border bg-input px-3 py-2 text-sm text-foreground outline-none ring-emerald-200 transition focus:ring"
-                      placeholder="Thanks for calling {{company_name}}! Here's your booking link: {{booking_link}}"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="follow_up_second_template">Second follow-up message (optional)</Label>
-                    <textarea
-                      id="follow_up_second_template"
-                      value={followUpSecondTemplate}
-                      onChange={(e) => setFollowUpSecondTemplate(e.target.value)}
-                      rows={2}
-                      className="w-full rounded-xl border border-border bg-input px-3 py-2 text-sm text-foreground outline-none ring-emerald-200 transition focus:ring"
-                      placeholder="Haven't booked yet? We'd love to help. {{booking_link}}"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="follow_up_final_template">Final follow-up message (optional)</Label>
-                    <textarea
-                      id="follow_up_final_template"
-                      value={followUpFinalTemplate}
-                      onChange={(e) => setFollowUpFinalTemplate(e.target.value)}
-                      rows={2}
-                      className="w-full rounded-xl border border-border bg-input px-3 py-2 text-sm text-foreground outline-none ring-emerald-200 transition focus:ring"
-                      placeholder="Final follow-up from {{company_name}}. Reply here if you'd like us to reserve a time for you."
-                    />
-                  </div>
-
-                  <p className="text-xs text-slate-500">
-                    Template variables supported: <code>{'{{company_name}}'}</code>, <code>{'{{booking_link}}'}</code>, <code>{'{{contact_name}}'}</code>.
+                <div className="rounded-2xl border border-border bg-card p-4">
+                  <p className="text-sm font-semibold text-foreground">Automation moved</p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Follow-ups and review requests now live under Automation so they are not mixed into payment settings.
                   </p>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <a
+                      href="/dashboard/follow-ups"
+                      className="inline-flex items-center justify-center rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700"
+                    >
+                      Open follow-ups
+                    </a>
+                    <a
+                      href="/dashboard/sms-automation"
+                      className="inline-flex items-center justify-center rounded-xl border border-border px-4 py-2 text-sm font-medium text-foreground transition hover:bg-accent"
+                    >
+                      Open automation
+                    </a>
+                  </div>
                 </div>
-              ) : null}
-
-              <div className="flex items-center justify-between rounded-xl border border-border bg-muted/50 p-4">
-                <div>
-                  <p className="text-sm font-semibold text-foreground">Enable review request SMS</p>
-                  <p className="text-xs text-muted-foreground">Send a review request automatically after completed appointments.</p>
-                </div>
-                <button
-                  type="button"
-                  aria-pressed={reviewRequestEnabled}
-                  onClick={() => setReviewRequestEnabled((prev) => !prev)}
-                  className={`relative h-7 w-12 rounded-full transition ${
-                    reviewRequestEnabled ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-600'
-                  }`}
-                >
-                  <span
-                    className={`absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow transition ${
-                      reviewRequestEnabled ? 'translate-x-5' : 'translate-x-0'
-                    }`}
-                  />
-                </button>
               </div>
 
-              {reviewRequestEnabled ? (
-                <div className="grid gap-3">
-                  <div className="grid gap-3 md:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label htmlFor="review_delay_minutes">Send delay (minutes)</Label>
-                      <Input
-                        id="review_delay_minutes"
-                        type="number"
-                        min={0}
-                        value={reviewRequestDelayMinutes}
-                        onChange={(e) => setReviewRequestDelayMinutes(e.target.value)}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="review_platform_url">Review URL</Label>
-                      <Input
-                        id="review_platform_url"
-                        value={reviewPlatformUrl}
-                        onChange={(e) => setReviewPlatformUrl(e.target.value)}
-                        placeholder="https://g.page/your-business/review"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="review_request_template">Review request message (optional)</Label>
-                    <textarea
-                      id="review_request_template"
-                      value={reviewRequestTemplate}
-                      onChange={(e) => setReviewRequestTemplate(e.target.value)}
-                      rows={3}
-                      className="w-full rounded-xl border border-border bg-input px-3 py-2 text-sm text-foreground outline-none ring-emerald-200 transition focus:ring"
-                      placeholder="Thanks for choosing [Company]! We'd love your feedback: [review_link]"
-                    />
-                  </div>
-                </div>
-              ) : null}
-
-              <div className="flex justify-end">
-                <Button onClick={handleSaveAutomations} disabled={automationSaving}>
-                  {automationSaving ? 'Saving…' : 'Save automation settings'}
+              <div className="flex flex-wrap justify-end gap-2">
+                {bookingPaymentMode === 'HANDYCALL_MANAGED' ? (
+                  <Button type="button" variant="outline" onClick={handleConnectSetup}>
+                    {connectStatus?.connected ? 'Open Stripe Connect' : 'Set up Stripe Connect'}
+                  </Button>
+                ) : null}
+                <Button type="button" onClick={() => setPaymentsEditMode(true)}>
+                  Edit payment mode
                 </Button>
               </div>
             </div>
           </div>
+
+          <Dialog open={paymentsEditMode} onOpenChange={setPaymentsEditMode}>
+            <DialogContent className="max-w-xl">
+              <DialogHeader>
+                <DialogTitle>Edit payment setup</DialogTitle>
+                <DialogDescription>
+                  Choose whether HandyCall should collect customer payments for you or whether your team will handle billing outside the platform.
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="space-y-4">
+                <div className="grid gap-3 md:grid-cols-2">
+                  <button
+                    type="button"
+                    onClick={() => setBookingPaymentMode('HANDYCALL_MANAGED')}
+                    className={`rounded-xl border p-4 text-left transition ${
+                      bookingPaymentMode === 'HANDYCALL_MANAGED'
+                        ? 'border-emerald-300 bg-emerald-50/70 dark:border-emerald-700 dark:bg-emerald-950/30'
+                        : 'border-border bg-card hover:border-emerald-200 dark:hover:border-emerald-700'
+                    }`}
+                  >
+                    <p className="text-sm font-semibold text-foreground">Managed by HandyCall</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Customers pay through HandyCall booking links, and payouts go through Stripe Connect.
+                    </p>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setBookingPaymentMode('SELF_MANAGED')}
+                    className={`rounded-xl border p-4 text-left transition ${
+                      bookingPaymentMode === 'SELF_MANAGED'
+                        ? 'border-border bg-muted/70'
+                        : 'border-border bg-card hover:border-border/80'
+                    }`}
+                  >
+                    <p className="text-sm font-semibold text-foreground">I handle payments myself</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      HandyCall will book the job and capture customer details, but you will invoice or collect payment separately.
+                    </p>
+                  </button>
+                </div>
+
+                <div className="rounded-xl border border-border bg-muted/50 p-4 text-sm text-muted-foreground">
+                  Detailed service pricing and payment links are managed in <span className="font-semibold text-foreground">Payments &gt; Products</span>, not here.
+                </div>
+
+                {bookingPaymentMode === 'HANDYCALL_MANAGED' ? (
+                  <div className="rounded-xl border border-emerald-100 bg-emerald-50/70 px-4 py-3 dark:border-emerald-900 dark:bg-emerald-950/30">
+                    <p className="text-sm font-semibold text-foreground">Stripe Connect</p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      {connectStatus?.connected
+                        ? connectStatus?.charges_enabled && connectStatus?.payouts_enabled
+                          ? 'Stripe is connected and ready.'
+                          : 'Stripe is connected, but setup still needs to be completed.'
+                        : 'Stripe Connect is not set up yet.'}
+                    </p>
+                    <Button type="button" variant="outline" className="mt-3" onClick={handleConnectSetup}>
+                      {connectStatus?.connected ? 'Open Stripe Connect' : 'Set up Stripe Connect'}
+                    </Button>
+                  </div>
+                ) : null}
+              </div>
+
+              <DialogFooter className="gap-2 sm:gap-2">
+                <Button type="button" variant="outline" onClick={() => setPaymentsEditMode(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={handleSavePayments} disabled={paymentsSaving}>
+                  {paymentsSaving ? 'Saving…' : 'Save payment setup'}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </div>
       )}
 
