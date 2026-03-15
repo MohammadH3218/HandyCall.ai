@@ -334,7 +334,9 @@ export class AuthService {
     if (companyId) {
       try {
         company = await this.companiesService.findById(companyId);
-        user = await this.usersService.findByEmail(email);
+        user =
+          (await this.usersService.findByEmailForCompany(email, companyId)) ||
+          (await this.usersService.findByEmail(email));
         if (user) {
           role = user.role; // Use role from database if available
         }
@@ -465,7 +467,9 @@ export class AuthService {
       // Fetch user data from DynamoDB
       let user = null;
       try {
-        user = await this.usersService.findByEmail(email);
+        user =
+          (await this.usersService.findByEmailForCompany(email, companyId)) ||
+          (await this.usersService.findByEmail(email));
       } catch (userError) {
         console.warn('[AuthService] Failed to fetch user from DynamoDB:', userError);
       }
@@ -636,7 +640,9 @@ export class AuthService {
       // Fetch user data from DynamoDB to include in response
       let user = null;
       try {
-        user = await this.usersService.findByEmail(email);
+        user =
+          (await this.usersService.findByEmailForCompany(email, companyId)) ||
+          (await this.usersService.findByEmail(email));
       } catch (userError) {
         console.warn('[AuthService] Failed to fetch user from DynamoDB:', userError);
       }

@@ -54,6 +54,40 @@ export class CompaniesService {
     return `${local}@${domain}`;
   }
 
+  getCompanySelectionScore(company: Partial<Company> | null | undefined): number {
+    if (!company) return 0;
+
+    let score = 0;
+
+    if (company.status === CompanyStatus.ACTIVE) score += 1000;
+    if (company.subscription_status === SubscriptionStatus.ACTIVE) score += 600;
+    if (company.subscription_status === SubscriptionStatus.TRIALING) score += 400;
+    if (company.subscription_plan) score += 250;
+    if (company.stripe_subscription_id) score += 200;
+    if (company.stripe_connect_account_id) score += 150;
+    if (company.company_profile_completed) score += 100;
+    if (company.service_area_completed) score += 75;
+    if (company.calendar_setup_completed) score += 75;
+    if (company.booking_payment_mode_confirmed) score += 50;
+
+    return score;
+  }
+
+  pickPreferredCompany(companies: Company[]): Company | null {
+    if (!Array.isArray(companies) || companies.length === 0) return null;
+
+    return [...companies].sort((a, b) => {
+      const scoreDiff =
+        this.getCompanySelectionScore(b) - this.getCompanySelectionScore(a);
+      if (scoreDiff !== 0) return scoreDiff;
+
+      const updatedDiff = Number(b.updated_at || 0) - Number(a.updated_at || 0);
+      if (updatedDiff !== 0) return updatedDiff;
+
+      return Number(b.created_at || 0) - Number(a.created_at || 0);
+    })[0];
+  }
+
   async findByName(companyName: string): Promise<Company | null> {
     // Case-insensitive match via scan (tables are small enough for admin operations)
     const result = await this.dynamodb.scan(this.tableName, {
@@ -187,14 +221,14 @@ export class CompaniesService {
 
   async findByEmail(email: string): Promise<Company | null> {
     // Production email index uses company_id as the partition key; safest is a filtered scan by email.
+    // Some accounts have duplicate placeholder companies, so prefer the active/subscribed record.
     const result = await this.dynamodb.scan(this.tableName, {
       filterExpression: '#email = :email',
       expressionAttributeNames: { '#email': 'email' },
       expressionAttributeValues: { ':email': email },
-      limit: 1,
     });
 
-    return result.items.length > 0 ? (result.items[0] as Company) : null;
+    return this.pickPreferredCompany((result.items || []) as Company[]);
   }
 
   async findByPhone(phoneNumber: string): Promise<Company | null> {

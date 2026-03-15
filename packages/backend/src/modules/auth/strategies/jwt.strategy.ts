@@ -5,6 +5,7 @@ import { passportJwtSecret } from 'jwks-rsa';
 import { ConfigService } from '@nestjs/config';
 import { AuthContext } from '@handycall/shared';
 import { UsersService } from '../../users/users.service';
+import { CompaniesService } from '../../companies/companies.service';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
@@ -13,6 +14,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   constructor(
     private configService: ConfigService,
     private usersService: UsersService,
+    private companiesService: CompaniesService,
   ) {
     const userPoolId = configService.get<string>('AWS_COGNITO_USERS_POOL_ID');
     const region = configService.get<string>('AWS_REGION');
@@ -47,15 +49,31 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     if (companyIdFromToken) {
       user = await this.usersService.findByEmailForCompany(email, companyIdFromToken);
       if (!user) {
-        this.logger.warn(
-          `User with email ${email} was not found for company ${companyIdFromToken}. Rejecting token.`
-        );
-        throw new UnauthorizedException('User not found in system');
+        user = await this.usersService.findByEmail(email);
       }
     } else {
-      user = await this.usersService.findByEmail(email);
-      if (!user) {
-        this.logger.warn(`User with email ${email} not found in database. Rejecting token.`);
+      const preferredCompany = await this.companiesService.findByEmail(email);
+      if (preferredCompany?.company_id) {
+        user =
+          (await this.usersService.findByEmailForCompany(email, preferredCompany.company_id)) ||
+          (await this.usersService.findByEmail(email));
+      } else {
+        user = await this.usersService.findByEmail(email);
+      }
+    }
+
+    if (!user) {
+      try {
+        user = await this.usersService.provisionUserFromCognito({
+          email,
+          firstName: payload.given_name,
+          lastName: payload.family_name,
+          companyId: companyIdFromToken,
+          companyName: payload['custom:company_name'],
+        });
+        this.logger.log(`Provisioned missing user record for ${email}.`);
+      } catch (error) {
+        this.logger.warn(`User with email ${email} could not be provisioned. Rejecting token.`);
         throw new UnauthorizedException('User not found in system');
       }
     }
