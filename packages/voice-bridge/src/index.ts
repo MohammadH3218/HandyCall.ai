@@ -465,6 +465,32 @@ function formatServiceTypeLabel(serviceType?: string): string {
 }
 
 function buildIntakeFieldOrder(template: any, requireZipCheck: boolean): string[] {
+  // If the company configured explicit call-flow questions, honour THEIR order.
+  const questions: any[] | undefined = template?.intake_schema?.questions;
+  if (Array.isArray(questions) && questions.length > 0) {
+    const sorted = [...questions]
+      .filter((q: any) => q.enabled !== false)
+      .sort((a: any, b: any) => (a.order ?? 0) - (b.order ?? 0));
+    const fields = sorted
+      .map((q: any) => String(q.field_key || '').trim())
+      .filter(Boolean)
+      .filter((f: string) => !isPhoneField(f));
+
+    // Ensure a name field is always present (needed for booking).
+    if (!fields.some((f: string) => isNameField(f))) {
+      // Insert after zip if zip is first, otherwise at position 0.
+      const insertIdx = fields.length > 0 && isZipField(fields[0]) ? 1 : 0;
+      fields.splice(insertIdx, 0, 'full_name');
+    }
+
+    // Move preferred_time to the very end (or append if absent).
+    const withoutTime = fields.filter((f: string) => !isPreferredTimeField(f));
+    withoutTime.push('preferred_time');
+
+    return Array.from(new Set(withoutTime));
+  }
+
+  // Fallback: legacy type-based ordering when no questions array exists.
   const required: string[] = Array.isArray(template?.intake_schema?.required)
     ? template.intake_schema.required
         .map((f: any) => String(f || '').trim())
@@ -1013,15 +1039,49 @@ function buildInstructions(input: {
   const serviceLabel = formatServiceTypeLabel(service_type);
   const requireZipCheck = service_template?.tool_policy?.require_zip_check === true;
 
+  // Build explicit intake question flow from company-configured questions.
+  const intakeQuestions: any[] | undefined = service_template?.intake_schema?.questions;
+  const hasExplicitQuestions = Array.isArray(intakeQuestions) && intakeQuestions.length > 0;
+  let intakeFlowBlock: string | null = null;
+
+  if (hasExplicitQuestions) {
+    const sorted = [...intakeQuestions]
+      .filter((q: any) => q.enabled !== false)
+      .sort((a: any, b: any) => (a.order ?? 0) - (b.order ?? 0));
+    const stepLines = sorted.map((q: any, i: number) => {
+      const prompt = String(q.prompt || '').trim() || `Please share your ${String(q.label || q.field_key || '').trim()}.`;
+      return `Step ${i + 1}: "${prompt}" (collecting: ${q.field_key})`;
+    });
+    // Ensure name is always mentioned.
+    const hasName = sorted.some((q: any) => isNameField(q.field_key));
+    if (!hasName) {
+      stepLines.unshift(`Step 0: ALWAYS ask for the caller's full name first.`);
+    }
+    intakeFlowBlock = [
+      `[INTAKE QUESTION FLOW]`,
+      `You MUST ask these questions exactly in this order, ONE at a time.`,
+      `Wait for the caller to answer each question before moving to the next.`,
+      `Do NOT skip any step. Do NOT combine multiple questions into one turn.`,
+      `Do NOT ask questions that are not in this list unless the caller brings something up.`,
+      ``,
+      ...stepLines,
+      ``,
+      `After all questions above: ask for preferred day and time.`,
+    ].join('\n');
+  }
+
   const businessRules: string[] = [];
   if (requireZipCheck) {
     businessRules.push('Service area check required: ask for ZIP and call check_service_area(zip) before booking.');
   }
-  if (service_template?.intake_schema?.required?.length) {
-    businessRules.push(`Required intake fields: ${service_template.intake_schema.required.join(', ')}.`);
-  }
-  if (service_template?.intake_schema?.optional?.length) {
-    businessRules.push(`Optional intake fields: ${service_template.intake_schema.optional.join(', ')}.`);
+  // Only list generic field names when no explicit question flow exists.
+  if (!hasExplicitQuestions) {
+    if (service_template?.intake_schema?.required?.length) {
+      businessRules.push(`Required intake fields: ${service_template.intake_schema.required.join(', ')}.`);
+    }
+    if (service_template?.intake_schema?.optional?.length) {
+      businessRules.push(`Optional intake fields: ${service_template.intake_schema.optional.join(', ')}.`);
+    }
   }
   if (timezone) {
     businessRules.push(`Timezone: ${timezone}.`);
@@ -1050,11 +1110,12 @@ function buildInstructions(input: {
     `- Do not assume you heard correctly. If the caller is unclear, ask ONE clarifying question.`,
     `- Never pretend the caller said something they did not say. Only use info explicitly provided by the caller or returned by tools.`,
     `- Never invent availability, pricing, policies, or services. Use knowledge_search or say you will have the team follow up.`,
+    `- ALWAYS ask for the caller's full name if you have not collected it yet.`,
     ``,
     `[PRIMARY GOAL]`,
     `Resolve the call quickly and correctly:`,
     `1) Identify intent: book/reschedule/cancel vs question vs message.`,
-    `2) If booking-related, collect the minimum required fields efficiently.`,
+    `2) If booking-related, follow the INTAKE QUESTION FLOW below strictly - one question at a time in exact order.`,
     `3) Use tools at the correct times (below).`,
     `4) Confirm once (single summary confirmation) right before booking.`,
     `5) Close the call politely and end.`,
@@ -1066,12 +1127,14 @@ function buildInstructions(input: {
     `State rules:`,
     `- GREETING: greet + ask what they need. <wait>`,
     `- INTENT: classify into (booking / reschedule / cancel / question / message). Ask ONE question to route. <wait>`,
-    `- INTAKE: collect required fields (name, zip/address if required, service, preferred time window, email if needed for link). Keep it moving.`,
+    `- INTAKE: follow the INTAKE QUESTION FLOW below. Ask each question one at a time in order. Do NOT skip ahead or combine questions.`,
     `- AVAILABILITY: call get_availability based on what they requested. Offer 3 options max if needed.`,
     `- CONFIRM_SUMMARY: do ONE summary confirmation ONLY:`,
     `"Okay, I have {Name}, {Service}, at {Address/Zip if needed}, for {Date/Time}. Is that right?" <wait>`,
     `- BOOKED: only after "yes" AND create_booking returns success, acknowledge booking and send link (send_booking_link).`,
     `- WRAP_UP: "Anything else I can help with?" If no -> goodbye + save_call + end_call.`,
+    ``,
+    intakeFlowBlock,
     ``,
     `[CONFIRMATION POLICY]`,
     `- Do NOT confirm each field one-by-one.`,
@@ -2672,23 +2735,32 @@ wss.on('connection', (twilioWs: WebSocket) => {
     return null;
   }
 
+  function getCustomPrompt(fieldKey: string): string | null {
+    const questions: any[] | undefined = tenant?.service_template?.intake_schema?.questions;
+    if (!Array.isArray(questions)) return null;
+    const key = normalizeFieldKey(fieldKey);
+    const match = questions.find((q: any) => normalizeFieldKey(q.field_key) === key);
+    const prompt = match?.prompt ? String(match.prompt).trim() : '';
+    return prompt || null;
+  }
+
   function askForNextField() {
     const serviceLabel = formatServiceTypeLabel(tenant?.service_type);
     const serviceType = tenant?.service_type;
     const next = nextMissingField();
     if (!next) {
       sessionContext.state = 'ASK_TIME';
-      sendPrompt('What day and time would you prefer?');
+      sendPrompt(getCustomPrompt('preferred_time') || 'What day and time would you prefer?');
       return;
     }
     if (isPreferredTimeField(next)) {
       sessionContext.state = 'ASK_TIME';
-      sendPrompt('What day and time would you prefer?');
+      sendPrompt(getCustomPrompt('preferred_time') || 'What day and time would you prefer?');
       return;
     }
     activeIntakeField = next;
     sessionContext.state = 'COLLECTING';
-    sendPrompt(fieldPrompt(next, serviceLabel, serviceType));
+    sendPrompt(getCustomPrompt(next) || fieldPrompt(next, serviceLabel, serviceType));
   }
 
   function buildBookingNotes(intakeData: Record<string, any>, fields: string[]): string | undefined {
