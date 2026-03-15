@@ -695,13 +695,22 @@ function OnboardingSetupContent() {
     const name = nameInput.trim();
     if (!name) return;
     const captured = name;
+    const nameParts = captured.split(/\s+/).filter(Boolean);
+    const firstName = nameParts[0];
+    const lastName = nameParts.slice(1).join(' ') || undefined;
     userSay(captured, () =>
       editStep('What name would you like to use?', 'profile_name', () => setNameInput(captured))
     );
     setNameInput('');
     setIsSaving(true);
     try {
-      await apiClient.updateMyCompany({ owner_name: captured });
+      await Promise.all([
+        apiClient.updateMyProfile({
+          first_name: firstName || undefined,
+          last_name: lastName,
+        }),
+        apiClient.updateMyCompany({ owner_name: captured }),
+      ]);
       await refreshAll();
     } catch {
       // Non-blocking

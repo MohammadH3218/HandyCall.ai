@@ -101,9 +101,11 @@ export function computeOnboardingStatus(input: {
   );
   const knowledge = (knowledgeCount !== null ? knowledgeCount > 0 : false) || hasPricingProfileData(company);
   const phone = Boolean(companyNumber || String(company.phone_number || '').trim());
+  const ownerName = String(company.owner_name || '').trim();
+  const hasProfileName = Boolean(userFirstName || userLastName || ownerName);
 
   return {
-    profile: Boolean((userFirstName || userLastName) && (userEmail || company.email)),
+    profile: Boolean(hasProfileName && (userEmail || company.email)),
     billing,
     companyProfile,
     serviceArea,
