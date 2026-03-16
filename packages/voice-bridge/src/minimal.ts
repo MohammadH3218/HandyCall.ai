@@ -2638,7 +2638,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
       tenant?.agent_config?.realtime_model ||
       tenant?.agent_config?.model ||
       envFirst(['OPENAI_REALTIME_MODEL', 'REALTIME_MODEL']) ||
-      'gpt-realtime';
+      'gpt-4o-mini-realtime';
     const voice =
       tenant?.agent_config?.realtime_voice ||
       tenant?.agent_config?.voice ||
@@ -2680,7 +2680,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
           input_audio_transcription: { model: 'gpt-4o-mini-transcribe' },
           turn_detection: {
             type: 'semantic_vad',
-            eagerness: 'medium',     // 'low' was too slow for barge-in; startup guard handles false triggers
+            eagerness: 'high',       // faster response after caller stops speaking
             create_response: false,
             interrupt_response: true,
           },
