@@ -862,7 +862,6 @@ function isIssueDiscoveryField(field: string): boolean {
   return [
     'issue_summary',
     'issue_type',
-    'pest_type_or_symptoms',
     'symptoms',
     'problem',
     'problem_type',
@@ -873,7 +872,6 @@ function isIssueDiscoveryField(field: string): boolean {
     'case_type',
     'brief_summary',
     'situation',
-    'treatment_interest',
   ].includes(key);
 }
 
@@ -1100,11 +1098,6 @@ function buildRequiredBookingFields(tenant: TenantInfo): string[] {
     if (requiresBillingTypeSelection(tenant)) {
       required.push('selected_billing_type');
     }
-  } else if (
-    !required.some((field) => normalizeFieldKey(field) === 'selected_billing_type') &&
-    String(tenant?.service_type || '').toUpperCase() === 'PEST_CONTROL'
-  ) {
-    required.push('selected_billing_type');
   }
   return uniqueNormalizedFields(required);
 }
@@ -1118,8 +1111,6 @@ function intakeFieldPriority(field: string, tenant: TenantInfo, serviceAreaRequi
   if (isZipField(key)) return serviceAreaRequired ? 10 : 120;
   if (isNameField(key)) return 20;
   if (isIssueDiscoveryField(key)) return 30;
-  if (serviceType === 'PEST_CONTROL' && key === 'where_seen') return 40;
-  if (serviceType === 'PEST_CONTROL' && key === 'severity') return 50;
   if (isFollowupDetailField(key)) return 60;
   if (isAddressField(key)) return 70;
   if (isServiceChoiceField(key)) return 80;
@@ -1196,19 +1187,12 @@ function looksLikeBookingIntent(text?: string): boolean {
     'need help',
     'need service',
     'need someone',
-    'pest control',
-    'pest problem',
-    'bug problem',
-    'plumbing',
-    'hvac',
     'repair',
     'fix',
     'install',
-    'clean',
     'inspection',
     'estimate',
     'quote',
-    'treatment',
   ].some((phrase) => normalized.includes(phrase))) return true;
   return false;
 }
@@ -1225,31 +1209,10 @@ function buildIntakeQuestion(field: string, tenant: TenantInfo | null, details: 
   if (isEmailField(key)) return 'What is the best email for your confirmation?';
   if (key === 'preferred_time') return 'What day and time would you like for the appointment?';
   if (isBillingChoiceField(key)) {
-    if (Array.isArray(tenant?.booking_services) && tenant!.booking_services!.length > 0) {
-      return 'Would you like a one-time service or a subscription plan?';
-    }
-    if (String(tenant?.service_type || '').toUpperCase() === 'PEST_CONTROL') {
-      return 'Would you like a one-time treatment or recurring monthly service?';
-    }
     return 'Is this for a one-time service or an ongoing plan?';
   }
   if (isServiceChoiceField(key)) {
     return tenant?.service_selection_guide?.default_question || 'Which service option would you like to book?';
-  }
-  if (key.includes('severity')) return 'How severe would you say the problem is: mild, moderate, or severe?';
-  if (key.includes('where') || key.includes('seen') || key.includes('area') || key.includes('location')) {
-    return 'Where have you seen the issue?';
-  }
-  if (key.includes('pest') || key.includes('symptom')) {
-    return 'What pest type or symptoms are you dealing with?';
-  }
-  if (key.includes('issue') || key.includes('problem')) {
-    const svcType = String(tenant?.service_type || '').toUpperCase();
-    if (svcType === 'PEST_CONTROL') return 'What pest type or symptoms are you dealing with?';
-    if (svcType === 'PLUMBING') return 'What plumbing issue are you dealing with today?';
-    if (svcType === 'HVAC') return 'What issue are you noticing with the system?';
-    if (svcType === 'ELECTRICIAN') return 'What electrical issue are you calling about?';
-    return 'Can you describe the issue you need help with?';
   }
   if (details[key] && String(details[key]).trim()) {
     return `Please confirm your ${titleizeField(field)}.`;
@@ -1296,8 +1259,8 @@ function inferRequestedFieldFromPrompt(prompt: string, fields: string[]): string
     if (match) return match;
   }
 
-  if (/\b(pest type|what kind of pest|what kind of issue|symptoms|what are you dealing with)\b/i.test(normalizedPrompt)) {
-    const match = findFieldByHint((field) => field.includes('pest') || field.includes('symptom') || field.includes('issue') || field.includes('problem'));
+  if (/\b(what kind of issue|symptoms|what are you dealing with|what issue|what problem)\b/i.test(normalizedPrompt)) {
+    const match = findFieldByHint((field) => field.includes('symptom') || field.includes('issue') || field.includes('problem'));
     if (match) return match;
   }
 
