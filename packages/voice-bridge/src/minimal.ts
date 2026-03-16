@@ -3162,11 +3162,40 @@ wss.on('connection', (twilioWs: WebSocket) => {
                 const rawZip = String(args?.zip || collectedDetails.zip || '').trim();
                 const zipForSpeech = /\b\d{5}\b/.test(rawZip) ? rawZip : 'that ZIP code';
                 const companyName = ctx.company_name || 'our company';
-                // Deterministic close avoids repeated/hallucinated ZIP re-checks.
                 createResponse(
                   `Say exactly: "Sorry, we don't service ZIP code ${zipForSpeech}. We won't be able to book an appointment in that area. Thanks for calling ${companyName}, and have a great day." Then stop.`
                 );
                 customToolResponseIssued = true;
+              } else if ((result as any)?.eligible === true) {
+                // Service area confirmed — immediately drive the next intake question.
+                // Build the exact next question so the AI doesn't freestyle.
+                const planned = orderedIntakeFields.length ? orderedIntakeFields : requiredIntakeFields;
+                const nonSched = planned.filter((f) => !isSchedulingField(f));
+                const missing = findMissingRequired(nonSched, { details: { ...collectedDetails } });
+                if (missing.length > 0) {
+                  const nextField = missing[0];
+                  activeIntakeField = nextField;
+                  const question = buildIntakeQuestion(nextField, activeTenant, collectedDetails);
+                  // Inject instructions into the tool result so the AI knows what to do
+                  (result as any).next_instruction = `Great, we service that area. Now ask ONLY this: "${question}"`;
+                }
+                customToolResponseIssued = true;
+                // Send tool output, then force the exact question
+                sendToOpenAI(openaiWs, {
+                  type: 'conversation.item.create',
+                  item: {
+                    type: 'function_call_output',
+                    call_id: callId,
+                    output: JSON.stringify(result),
+                  },
+                });
+                if (missing.length > 0) {
+                  const question = buildIntakeQuestion(missing[0], activeTenant, collectedDetails);
+                  askExactQuestion(`Great, we're available in your area. ${question}`);
+                } else {
+                  createResponse();
+                }
+                return; // Skip the default tool output + createResponse below
               }
             }
             if (toolName === 'get_availability') {
