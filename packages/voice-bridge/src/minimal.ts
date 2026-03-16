@@ -1240,8 +1240,16 @@ function buildIntakeQuestion(field: string, tenant: TenantInfo | null, details: 
   if (key.includes('where') || key.includes('seen') || key.includes('area') || key.includes('location')) {
     return 'Where have you seen the issue?';
   }
-  if (key.includes('pest') || key.includes('symptom') || key.includes('issue') || key.includes('problem')) {
+  if (key.includes('pest') || key.includes('symptom')) {
     return 'What pest type or symptoms are you dealing with?';
+  }
+  if (key.includes('issue') || key.includes('problem')) {
+    const svcType = String(tenant?.service_type || '').toUpperCase();
+    if (svcType === 'PEST_CONTROL') return 'What pest type or symptoms are you dealing with?';
+    if (svcType === 'PLUMBING') return 'What plumbing issue are you dealing with today?';
+    if (svcType === 'HVAC') return 'What issue are you noticing with the system?';
+    if (svcType === 'ELECTRICIAN') return 'What electrical issue are you calling about?';
+    return 'Can you describe the issue you need help with?';
   }
   if (details[key] && String(details[key]).trim()) {
     return `Please confirm your ${titleizeField(field)}.`;
