@@ -2239,6 +2239,16 @@ wss.on('connection', (twilioWs: WebSocket) => {
   function askExactQuestion(question: string) {
     const safe = String(question || '').replace(/"/g, '\\"').trim();
     if (!safe) return;
+    // If the AI is currently generating or speaking a response, cancel it first
+    // so our scripted question replaces whatever the AI was about to say.
+    if (openaiResponding && openaiWs) {
+      sendToOpenAI(openaiWs, { type: 'response.cancel' });
+      openaiResponding = false;
+    }
+    if (assistantSpeaking && ctx?.streamSid) {
+      sendToTwilio(twilioWs, { event: 'clear', streamSid: ctx.streamSid });
+      assistantSpeaking = false;
+    }
     createResponse(`Say exactly: "${safe}" Then stop. Do not add any other sentence.`);
   }
 
@@ -2879,6 +2889,20 @@ wss.on('connection', (twilioWs: WebSocket) => {
         openaiResponding = false;
         if (useElevenLabs && assistantTextBuffer.trim()) {
           flushAssistantText();
+        }
+        // After the AI finishes responding, check if it skipped intake fields.
+        // If the AI just spoke about scheduling but non-scheduling fields are still
+        // missing, immediately force the next missing question.
+        if (bookingIntentActive && !appointmentCreated) {
+          const planned = orderedIntakeFields.length ? orderedIntakeFields : requiredIntakeFields;
+          const missingNonSched = findMissingRequired(
+            planned.filter((f) => !isSchedulingField(f)),
+            { details: { ...collectedDetails } },
+          );
+          if (missingNonSched.length > 0 && !activeIntakeField) {
+            activeIntakeField = missingNonSched[0];
+            askExactQuestion(buildIntakeQuestion(missingNonSched[0], activeTenant, collectedDetails));
+          }
         }
         return;
       }
