@@ -19,6 +19,7 @@ import {
 import { Logo } from '@/components/ui/logo';
 import { useAuthStore } from '@/stores/auth-store';
 import { SiteFooter } from '@/components/marketing/site-footer';
+import { SiteHeader } from '@/components/marketing/site-header';
 import { IconCircleCheck, IconArrowRight } from '@tabler/icons-react';
 
 /* ── SVG brand icons ── */
@@ -272,23 +273,7 @@ function LoginPageInner() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      {/* Minimal top bar */}
-      <header className="border-b border-border/80 bg-background/80 backdrop-blur-sm">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4">
-          <Link href="/">
-            <Logo variant="words" width={148} height={36} />
-          </Link>
-          <p className="text-sm text-slate-500 dark:text-slate-400">
-            New here?{' '}
-            <Link
-              href="/register"
-              className="font-semibold text-emerald-600 hover:text-emerald-700"
-            >
-              Create a pro account
-            </Link>
-          </p>
-        </div>
-      </header>
+      <SiteHeader hideLoginLink={true} />
 
       <main className="mx-auto grid max-w-6xl items-start gap-12 px-4 pb-20 pt-14 lg:grid-cols-[1.1fr_0.9fr] lg:items-center lg:pt-20">
         {/* ── Left: product context ── */}

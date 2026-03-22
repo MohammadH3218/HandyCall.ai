@@ -16,6 +16,7 @@ type SiteHeaderProps = {
 const NAV_LINKS = [
   { href: '/#features', label: 'Features' },
   { href: '/pricing', label: 'Pricing' },
+  { href: '/contact', label: 'Contact' },
 ];
 
 export function SiteHeader({

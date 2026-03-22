@@ -59,8 +59,8 @@ export default function PrivacyPolicyPage() {
             </p>
             <p className="text-sm text-slate-600">
               <strong>
-                No mobile opt-in data or mobile phone numbers collected through the SMS opt-in program will be
-                shared with or sold to third parties or affiliates for marketing or promotional purposes.
+                No mobile information will be shared with third parties/affiliates for marketing/promotional
+                purposes. Information sharing to subcontractors in support of customer service is permitted.
               </strong>
             </p>
           </section>
@@ -68,9 +68,10 @@ export default function PrivacyPolicyPage() {
           <section className="space-y-3">
             <h2 className="text-lg font-semibold text-slate-900">Data Sharing</h2>
             <p className="text-sm text-slate-600">
-              We do not sell your personal information. We share data only with service providers needed to operate
-              HandyCall (such as hosting, analytics, and communications) or when required by law. Mobile opt-in
-              data is never shared with third parties or affiliates for marketing or promotional purposes.
+              We do not sell your personal information. We share data only with service providers (subcontractors)
+              needed to operate HandyCall (such as hosting, analytics, and communications) or when required by law.
+              No mobile information will be shared with third parties/affiliates for marketing/promotional purposes.
+              Information sharing to subcontractors in support of customer service is permitted.
             </p>
           </section>
 

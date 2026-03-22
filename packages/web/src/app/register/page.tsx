@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Logo } from '@/components/ui/logo';
 import { SiteFooter } from '@/components/marketing/site-footer';
+import { SiteHeader } from '@/components/marketing/site-header';
 import { IconArrowRight } from '@tabler/icons-react';
 
 const PRO_SETUP_STEPS = [
@@ -117,20 +118,7 @@ export default function RegisterPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Minimal top bar */}
-      <header className="border-b border-border/80 bg-background/80 backdrop-blur-sm">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4">
-          <Link href="/">
-            <Logo variant="words" width={148} height={36} />
-          </Link>
-          <p className="text-sm text-slate-500 dark:text-slate-400">
-            Already have an account?{' '}
-            <Link href="/login" className="font-semibold text-emerald-700 hover:text-emerald-600">
-              Sign in
-            </Link>
-          </p>
-        </div>
-      </header>
+      <SiteHeader hideLogin={true} />
 
       <main className="mx-auto grid max-w-6xl items-start gap-12 px-4 pb-20 pt-14 lg:grid-cols-[1.1fr_0.9fr] lg:items-start lg:pt-16">
         {/* ── Left: onboarding context ── */}
