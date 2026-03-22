@@ -29,6 +29,7 @@ import {
   IconCircleCheck,
   IconClock,
 } from '@tabler/icons-react';
+import { DEMO_INVOICES, DEMO_INVOICE_STATS } from '@/lib/demo-data';
 
 type Invoice = {
   invoice_id: string;
@@ -139,8 +140,9 @@ export default function InvoicesPage() {
         (apiClient as any).get('/invoices/stats'),
         apiClient.getMyCompany(),
       ]);
-      setInvoices(Array.isArray(list) ? list : []);
-      setStats(s);
+      const fetchedInvoices = Array.isArray(list) ? list : [];
+      setInvoices(fetchedInvoices.length > 0 ? fetchedInvoices : (DEMO_INVOICES as Invoice[]));
+      setStats(fetchedInvoices.length > 0 ? s : DEMO_INVOICE_STATS);
       setCompany(myCompany || null);
     } catch {
       // ignore
