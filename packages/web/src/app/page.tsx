@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { SiteHeader } from '@/components/marketing/site-header';
 import { SiteFooter } from '@/components/marketing/site-footer';
 import { FadeIn } from '@/components/marketing/fade-in';
+import { ProductPreview } from '@/components/marketing/ProductPreview';
 import {
   IconPhone,
   IconCalendar,
@@ -380,90 +381,7 @@ export default function HomePage() {
 
         {/* ── Hero dashboard preview ───────────────────────────────── */}
         <FadeIn delay={320}>
-          <div className="relative mx-auto mt-12 max-w-5xl px-4">
-            <div className="overflow-hidden rounded-t-2xl border border-b-0 border-slate-200 bg-white shadow-2xl shadow-slate-100">
-              {/* Browser chrome bar */}
-              <div className="flex items-center gap-1.5 border-b border-slate-100 bg-slate-50 px-4 py-3">
-                <span className="h-3 w-3 rounded-full bg-red-400" />
-                <span className="h-3 w-3 rounded-full bg-yellow-400" />
-                <span className="h-3 w-3 rounded-full bg-emerald-400" />
-                <div className="mx-auto flex h-6 w-72 items-center justify-center rounded-md border border-slate-200 bg-white text-xs text-slate-400">
-                  app.handycall.ai/dashboard
-                </div>
-              </div>
-
-              {/* Dashboard layout */}
-              <div className="flex divide-x divide-slate-100">
-                {/* Sidebar — hidden on mobile */}
-                <div className="hidden w-44 flex-shrink-0 bg-slate-50 p-3 sm:block">
-                  {['Dashboard', 'Calls', 'Appointments', 'Payments', 'Contacts', 'Invoices'].map(
-                    (item, i) => (
-                      <div
-                        key={item}
-                        className={`mb-1 flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium transition ${
-                          i === 0
-                            ? 'bg-emerald-50 text-emerald-700'
-                            : 'text-slate-500'
-                        }`}
-                      >
-                        <span
-                          className={`h-1.5 w-1.5 flex-shrink-0 rounded-full ${
-                            i === 0 ? 'bg-emerald-500' : 'bg-slate-300'
-                          }`}
-                        />
-                        {item}
-                      </div>
-                    )
-                  )}
-                </div>
-
-                {/* Main area */}
-                <div className="min-w-0 flex-1 p-4 space-y-3">
-                  {/* Stat cards row */}
-                  <div className="grid grid-cols-3 gap-3">
-                    {statCards.map((card) => (
-                      <div
-                        key={card.label}
-                        className="rounded-xl border border-slate-100 bg-white p-3"
-                      >
-                        <p className="text-xs text-slate-400">{card.label}</p>
-                        <p className="mt-0.5 text-lg font-bold text-slate-900">{card.value}</p>
-                        <p className={`text-xs font-semibold ${card.subClass}`}>{card.sub}</p>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Recent calls table */}
-                  <div className="rounded-xl border border-slate-100 bg-white p-3">
-                    <p className="mb-2.5 text-xs font-bold uppercase tracking-widest text-slate-400">
-                      Recent Calls
-                    </p>
-                    {recentCalls.map((row) => (
-                      <div
-                        key={row.name}
-                        className="flex items-center justify-between border-b border-slate-50 py-2 last:border-0"
-                      >
-                        <div className="flex items-center gap-2">
-                          <div className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-100 text-xs font-bold text-emerald-700">
-                            {row.initial}
-                          </div>
-                          <div>
-                            <p className="text-xs font-semibold text-slate-800">{row.name}</p>
-                            <p className="text-xs text-slate-400">{row.time}</p>
-                          </div>
-                        </div>
-                        <span
-                          className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${row.statusClass}`}
-                        >
-                          {row.status}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+          <ProductPreview />
         </FadeIn>
       </section>
 
