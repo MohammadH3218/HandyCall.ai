@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { usePlanFeatures } from '@/hooks/use-plan-features';
 import { IconPhone, IconPhoneOutgoing, IconX } from '@tabler/icons-react';
+import { DEMO_OUTBOUND_CALLS, DEMO_CONTACTS } from '@/lib/demo-data';
 
 type OutboundCall = {
   call_id: string;
@@ -74,8 +75,10 @@ export default function OutboundCallsPage() {
         apiClient.getAppointmentsRange(start.toISOString(), end.toISOString()).catch(() => ({ appointments: [] })),
       ]);
 
-      setCalls(Array.isArray((callsData as any)?.items) ? (callsData as any).items : Array.isArray(callsData) ? callsData : []);
-      setContacts(Array.isArray(contactsData?.contacts) ? contactsData.contacts : []);
+      const fetchedCalls = Array.isArray((callsData as any)?.items) ? (callsData as any).items : Array.isArray(callsData) ? callsData : [];
+      setCalls(fetchedCalls.length > 0 ? fetchedCalls : (DEMO_OUTBOUND_CALLS as unknown as OutboundCall[]));
+      const fetchedContacts = Array.isArray(contactsData?.contacts) ? contactsData.contacts : [];
+      setContacts(fetchedContacts.length > 0 ? fetchedContacts : DEMO_CONTACTS);
       setAppointments(Array.isArray(appointmentsData?.appointments) ? appointmentsData.appointments : []);
     } catch {
       // keep page usable even if one of the supporting queries fails

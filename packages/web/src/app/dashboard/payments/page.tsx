@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { PageHeader } from '@/components/portal/page-header';
 import { apiClient } from '@/lib/api-client';
+import { DEMO_PAYMENTS, DEMO_PAYMENT_STATS } from '@/lib/demo-data';
 
 type Payment = {
   payment_id: string;
@@ -89,8 +90,9 @@ export default function PaymentsPage() {
         }),
         apiClient.getCustomerPaymentStats({ start, end }),
       ]);
-      setPayments((paymentsRes?.payments || []) as Payment[]);
-      setStats(statsRes);
+      const fetchedPayments = (paymentsRes?.payments || []) as Payment[];
+      setPayments(fetchedPayments.length > 0 ? fetchedPayments : (DEMO_PAYMENTS as Payment[]));
+      setStats(fetchedPayments.length > 0 ? statsRes : DEMO_PAYMENT_STATS);
     } finally {
       setLoading(false);
     }

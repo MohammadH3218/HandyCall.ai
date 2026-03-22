@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { apiClient } from '@/lib/api-client';
+import { DEMO_ANALYTICS } from '@/lib/demo-data';
 import { PageHeader } from '@/components/portal/page-header';
 import { Button } from '@/components/ui/button';
 import { usePlanFeatures } from '@/hooks/use-plan-features';
@@ -64,7 +65,8 @@ export default function AnalyticsPage() {
       setLoading(true);
       setError(null);
       const data = await (apiClient as any).get(`/analytics/calls?days=${days}`);
-      setMetrics(data);
+      const hasData = data && (data.total_calls ?? 0) > 0;
+      setMetrics(hasData ? data : { ...DEMO_ANALYTICS, period_days: days });
     } catch (err: any) {
       setError(err?.message || 'Failed to load analytics');
     } finally {

@@ -532,3 +532,322 @@ export const DEMO_INVOICE_STATS: {
   total_revenue_cents: 56900,
   outstanding_amount_cents: 118000,
 };
+
+// ---------------------------------------------------------------------------
+// Payments (Stripe-backed)
+// ---------------------------------------------------------------------------
+export const DEMO_PAYMENTS: Array<{
+  payment_id: string;
+  contact_id?: string;
+  customer_name?: string;
+  customer_email?: string;
+  service_name?: string;
+  amount_cents: number;
+  currency: string;
+  payment_type: string;
+  payment_status: string;
+  created_at: number;
+  paid_at?: number;
+}> = [
+  {
+    payment_id: 'demo-pay-001',
+    contact_id: 'demo-contact-001',
+    customer_name: 'Mike Johnson',
+    customer_email: 'mike.johnson@email.com',
+    service_name: 'Water Heater Replacement',
+    amount_cents: 89500,
+    currency: 'usd',
+    payment_type: 'BOOKING',
+    payment_status: 'SUCCEEDED',
+    created_at: NOW - 1 * D,
+    paid_at: NOW - 1 * D,
+  },
+  {
+    payment_id: 'demo-pay-002',
+    contact_id: 'demo-contact-004',
+    customer_name: 'Lisa Rodriguez',
+    customer_email: 'lisarodriguez@yahoo.com',
+    service_name: 'Kitchen Faucet & Disposal Install',
+    amount_cents: 42000,
+    currency: 'usd',
+    payment_type: 'BOOKING',
+    payment_status: 'SUCCEEDED',
+    created_at: NOW - 3 * D,
+    paid_at: NOW - 3 * D,
+  },
+  {
+    payment_id: 'demo-pay-003',
+    contact_id: 'demo-contact-003',
+    customer_name: 'David Chen',
+    customer_email: 'dchen@outlook.com',
+    service_name: 'Annual Plumbing Inspection',
+    amount_cents: 14900,
+    currency: 'usd',
+    payment_type: 'BOOKING',
+    payment_status: 'SUCCEEDED',
+    created_at: NOW - 10 * D,
+    paid_at: NOW - 10 * D,
+  },
+  {
+    payment_id: 'demo-pay-004',
+    contact_id: 'demo-contact-002',
+    customer_name: 'Sarah Williams',
+    customer_email: 'sarah.w@gmail.com',
+    service_name: 'Tankless Water Heater Quote',
+    amount_cents: 0,
+    currency: 'usd',
+    payment_type: 'DEPOSIT',
+    payment_status: 'REQUIRES_PAYMENT_METHOD',
+    created_at: NOW - 1 * D,
+    paid_at: undefined,
+  },
+];
+
+export const DEMO_PAYMENT_STATS = {
+  total_revenue_cents: 146400,
+  this_month_revenue_cents: 131500,
+  successful_payments: 3,
+  average_ticket_cents: 48800,
+};
+
+// ---------------------------------------------------------------------------
+// Analytics (call metrics)
+// ---------------------------------------------------------------------------
+export const DEMO_ANALYTICS: {
+  period_days: number;
+  total_calls: number;
+  completed_calls: number;
+  completion_rate: number;
+  lead_capture_rate: number;
+  booking_conversion_rate: number;
+  inbound_calls: number;
+  outbound_calls: number;
+  avg_duration_seconds: number;
+  sentiment: { positive: number; neutral: number; negative: number; unknown: number };
+  lead_quality: Record<string, number>;
+  daily_breakdown: Array<{ date: string; calls: number; leads: number; bookings: number }>;
+} = {
+  period_days: 30,
+  total_calls: 7,
+  completed_calls: 7,
+  completion_rate: 100,
+  lead_capture_rate: 71,
+  booking_conversion_rate: 43,
+  inbound_calls: 7,
+  outbound_calls: 0,
+  avg_duration_seconds: 178,
+  sentiment: { positive: 5, neutral: 1, negative: 1, unknown: 0 },
+  lead_quality: { HIGH: 3, MEDIUM: 2, LOW: 1 },
+  daily_breakdown: (() => {
+    const days: Array<{ date: string; calls: number; leads: number; bookings: number }> = [];
+    const sampleCalls = [0,0,1,0,2,0,1,0,0,0,1,0,0,2,0,0,0,1,0,0,0,0,0,1,0,0,0,0,1,0];
+    for (let i = 29; i >= 0; i--) {
+      const d = new Date(NOW - i * D);
+      const idx = 29 - i;
+      const calls = sampleCalls[idx] || 0;
+      days.push({
+        date: d.toISOString().slice(0, 10),
+        calls,
+        leads: Math.floor(calls * 0.7),
+        bookings: Math.floor(calls * 0.4),
+      });
+    }
+    return days;
+  })(),
+};
+
+// ---------------------------------------------------------------------------
+// Flagged Questions
+// ---------------------------------------------------------------------------
+export const DEMO_FLAGGED_QUESTIONS: Array<{
+  flagged_id: string;
+  call_id: string;
+  question: string;
+  context?: string;
+  ai_attempted_answer?: string;
+  confidence_score?: number;
+  status: 'OPEN' | 'RESOLVED' | 'DISMISSED';
+  answer?: string;
+  created_at: number;
+}> = [
+  {
+    flagged_id: 'demo-flag-001',
+    call_id: 'demo-call-001',
+    question: 'Do you offer financing for larger jobs like a whole-house re-pipe?',
+    context: 'Customer asked during a re-pipe quote call. Was interested in payment plan options.',
+    ai_attempted_answer: 'We may have financing options available — please ask when we visit for your estimate.',
+    confidence_score: 0.42,
+    status: 'OPEN',
+    created_at: NOW - 2 * H,
+  },
+  {
+    flagged_id: 'demo-flag-002',
+    call_id: 'demo-call-003',
+    question: 'Can you install a tankless water heater in a home that runs on propane instead of natural gas?',
+    context: 'Customer has propane tank. Wanted to know if Navien units are compatible.',
+    ai_attempted_answer: 'Yes, many tankless units including Navien offer propane models — I recommend confirming with our tech.',
+    confidence_score: 0.58,
+    status: 'OPEN',
+    created_at: NOW - 1 * D,
+  },
+  {
+    flagged_id: 'demo-flag-003',
+    call_id: 'demo-call-005',
+    question: 'How long does a slab leak detection typically take, and is it destructive?',
+    context: 'Caller was worried about having to tear up their floors for a slab leak diagnosis.',
+    ai_attempted_answer: 'Slab leak detection usually takes 1–2 hours and we use electronic methods that are non-destructive.',
+    confidence_score: 0.71,
+    status: 'RESOLVED',
+    answer: 'We use electronic leak detection equipment that pinpoints the leak without opening the slab. The process takes about 1–2 hours. Repairs may require some concrete cutting, but we minimize disruption.',
+    created_at: NOW - 2 * D - 2 * H,
+  },
+];
+
+// ---------------------------------------------------------------------------
+// Outbound Calls
+// ---------------------------------------------------------------------------
+export const DEMO_OUTBOUND_CALLS: Array<{
+  call_id: string;
+  twilio_call_sid: string;
+  to_number: string;
+  from_number: string;
+  context: string;
+  status: string;
+  created_at: number;
+  custom_message?: string;
+}> = [
+  {
+    call_id: 'demo-out-001',
+    twilio_call_sid: 'CA000demo001',
+    to_number: '+17025551234',
+    from_number: '+17025550000',
+    context: 'FOLLOW_UP',
+    status: 'COMPLETED',
+    created_at: NOW - 3 * H,
+    custom_message: 'Follow up with James Patterson about his re-pipe estimate request. He called earlier today.',
+  },
+  {
+    call_id: 'demo-out-002',
+    twilio_call_sid: 'CA000demo002',
+    to_number: '+17025554567',
+    from_number: '+17025550000',
+    context: 'FOLLOW_UP',
+    status: 'COMPLETED',
+    created_at: NOW - 1 * D + H,
+    custom_message: 'Follow up with Sarah Williams about the tankless water heater quote.',
+  },
+  {
+    call_id: 'demo-out-003',
+    twilio_call_sid: 'CA000demo003',
+    to_number: '+17025557890',
+    from_number: '+17025550000',
+    context: 'REVIEW_REQUEST',
+    status: 'COMPLETED',
+    created_at: NOW - 2 * D - H,
+  },
+];
+
+// ---------------------------------------------------------------------------
+// SMS Templates
+// ---------------------------------------------------------------------------
+export const DEMO_SMS_TEMPLATES: Array<{
+  template_id: string;
+  name: string;
+  category: string;
+  body: string;
+  created_at: number;
+}> = [
+  {
+    template_id: 'demo-tpl-001',
+    name: 'Appointment Reminder — Day Before',
+    category: 'APPOINTMENT_REMINDER',
+    body: 'Hi {{contact_name}}, just a reminder that your appointment with {{company_name}} is tomorrow. Reply CONFIRM to confirm or call us to reschedule. See you then!',
+    created_at: NOW - 14 * D,
+  },
+  {
+    template_id: 'demo-tpl-002',
+    name: 'Lead Follow-up — First Touch',
+    category: 'FOLLOW_UP',
+    body: "Hi {{contact_name}}, this is {{company_name}}. Thanks for reaching out! Here's your booking link to schedule at your convenience: {{booking_link}}",
+    created_at: NOW - 14 * D,
+  },
+  {
+    template_id: 'demo-tpl-003',
+    name: 'Review Request — Post Job',
+    category: 'REVIEW_REQUEST',
+    body: "Hi {{contact_name}}, hope everything went great! If you're happy with our work, we'd really appreciate a quick Google review: {{booking_link}} — it means a lot. Thanks, {{company_name}}!",
+    created_at: NOW - 7 * D,
+  },
+];
+
+// ---------------------------------------------------------------------------
+// Scheduled SMS Messages
+// ---------------------------------------------------------------------------
+export const DEMO_SCHEDULED_MESSAGES: Array<{
+  message_id: string;
+  to_number: string;
+  body: string;
+  send_at: number;
+  status: string;
+  message_type: string;
+}> = [
+  {
+    message_id: 'demo-sched-001',
+    to_number: '+17025559876',
+    body: "Hi Mike, just a reminder that your appointment with Toushe Plumbing is tomorrow at 9 AM. Reply CONFIRM to confirm. See you then!",
+    send_at: NOW + 12 * H,
+    status: 'PENDING',
+    message_type: 'APPOINTMENT_REMINDER',
+  },
+  {
+    message_id: 'demo-sched-002',
+    to_number: '+17025551234',
+    body: "Hi James, this is Toushe Plumbing. Haven't heard back — we'd love to get you that re-pipe estimate. Book here: your booking link",
+    send_at: NOW + 24 * H,
+    status: 'PENDING',
+    message_type: 'FOLLOW_UP',
+  },
+];
+
+// ---------------------------------------------------------------------------
+// Follow-up Sequences
+// ---------------------------------------------------------------------------
+export const DEMO_SEQUENCES: Array<{
+  sequence_id: string;
+  to_number: string;
+  status: string;
+  created_at: number;
+  steps: Array<{ step: number; send_at: number; body: string }>;
+}> = [
+  {
+    sequence_id: 'demo-seq-001',
+    to_number: '+17025551234',
+    status: 'SCHEDULED',
+    created_at: NOW - 2 * H,
+    steps: [
+      { step: 1, send_at: NOW + 5 * 60_000, body: "Hi James, thanks for calling Toushe Plumbing! Here's your booking link: your booking link" },
+      { step: 2, send_at: NOW + 1 * D, body: "Hey James, just checking in — ready to schedule that re-pipe estimate?" },
+      { step: 3, send_at: NOW + 3 * D, body: "Last check-in from Toushe Plumbing — let us know if you'd like that estimate: your booking link" },
+    ],
+  },
+  {
+    sequence_id: 'demo-seq-002',
+    to_number: '+17025554567',
+    status: 'SCHEDULED',
+    created_at: NOW - 1 * D,
+    steps: [
+      { step: 1, send_at: NOW - 1 * D + 5 * 60_000, body: "Hi Sarah, thanks for calling Toushe Plumbing! Book your tankless water heater consultation here: your booking link" },
+      { step: 2, send_at: NOW + 12 * H, body: "Hi Sarah, still interested in upgrading to tankless? We'd love to help — your booking link" },
+    ],
+  },
+  {
+    sequence_id: 'demo-seq-003',
+    to_number: '+17025557890',
+    status: 'COMPLETED',
+    created_at: NOW - 3 * D,
+    steps: [
+      { step: 1, send_at: NOW - 3 * D + 5 * 60_000, body: "Hi Lisa, thanks for calling Toushe Plumbing! Book your service here: your booking link" },
+      { step: 2, send_at: NOW - 2 * D, body: "Hi Lisa, just a quick follow-up — ready to get that faucet and disposal fixed?" },
+    ],
+  },
+];

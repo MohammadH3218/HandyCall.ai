@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { apiClient } from '@/lib/api-client';
+import { DEMO_FLAGGED_QUESTIONS } from '@/lib/demo-data';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -43,7 +44,11 @@ export default function FlaggedQuestionsPage() {
       setError(null);
       const status = filter === 'ALL' ? undefined : filter;
       const data = await apiClient.getFlaggedQuestions(status);
-      setQuestions(data || []);
+      const fetched = data || [];
+      const demoFiltered = filter === 'ALL'
+        ? DEMO_FLAGGED_QUESTIONS
+        : DEMO_FLAGGED_QUESTIONS.filter((q) => q.status === filter);
+      setQuestions(fetched.length > 0 ? fetched : (demoFiltered as FlaggedQuestion[]));
     } catch (err: any) {
       setError(err.message || 'Failed to load questions');
     } finally {

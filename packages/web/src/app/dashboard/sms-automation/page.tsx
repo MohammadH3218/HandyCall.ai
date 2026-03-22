@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { useToast } from '@/hooks/use-toast';
 import { usePlanFeatures } from '@/hooks/use-plan-features';
 import { IconMessageDots, IconPlus, IconTrash, IconX } from '@tabler/icons-react';
+import { DEMO_SMS_TEMPLATES, DEMO_SCHEDULED_MESSAGES, DEMO_CONTACTS } from '@/lib/demo-data';
 
 type SmsTemplate = {
   template_id: string;
@@ -118,18 +119,20 @@ export default function SmsAutomationPage() {
   const loadTemplates = async () => {
     try {
       const data = await (apiClient as any).get('/sms-automation/templates');
-      setTemplates(Array.isArray(data) ? data : data?.items || []);
+      const fetched = Array.isArray(data) ? data : data?.items || [];
+      setTemplates(fetched.length > 0 ? fetched : (DEMO_SMS_TEMPLATES as SmsTemplate[]));
     } catch {
-      // ignore
+      setTemplates(DEMO_SMS_TEMPLATES as SmsTemplate[]);
     }
   };
 
   const loadScheduled = async () => {
     try {
       const data = await (apiClient as any).get('/sms-automation/scheduled?status=PENDING&limit=50');
-      setScheduled(Array.isArray(data) ? data : data?.items || []);
+      const fetched = Array.isArray(data) ? data : data?.items || [];
+      setScheduled(fetched.length > 0 ? fetched : (DEMO_SCHEDULED_MESSAGES as ScheduledMessage[]));
     } catch {
-      // ignore
+      setScheduled(DEMO_SCHEDULED_MESSAGES as ScheduledMessage[]);
     }
   };
 
@@ -144,7 +147,7 @@ export default function SmsAutomationPage() {
       loadTemplates(),
       loadScheduled(),
       apiClient.getMyCompany().then(setCompany).catch(() => null),
-      apiClient.getContacts(200).then((data) => setContacts(Array.isArray(data?.contacts) ? data.contacts : [])).catch(() => setContacts([])),
+      apiClient.getContacts(200).then((data) => { const c = Array.isArray(data?.contacts) ? data.contacts : []; setContacts(c.length > 0 ? c : DEMO_CONTACTS); }).catch(() => setContacts(DEMO_CONTACTS)),
       apiClient.getAppointmentsRange(start.toISOString(), end.toISOString())
         .then((data) => setAppointments(Array.isArray(data?.appointments) ? data.appointments : []))
         .catch(() => setAppointments([])),
