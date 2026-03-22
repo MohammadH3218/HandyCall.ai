@@ -731,6 +731,7 @@ function wordCount(text?: string) {
 function isActionableShortUtterance(text?: string) {
   const t = normalizeSpeech(text);
   if (!t) return false;
+  if (hasDateTokens(t) || extractTimeNeedle(text)) return true;
   const words = t.split(' ').filter(Boolean);
   if (words.length > 3) return true;
   if (shortIntentKeywords.has(t)) return true;
@@ -1176,8 +1177,8 @@ function getConfiguredQuestion(
 function buildRequiredBookingFields(tenant: TenantInfo): string[] {
   const templateRequired = Array.isArray(tenant?.service_template?.intake_schema?.required)
     ? tenant.service_template.intake_schema.required
-        .map((field: any) => String(field || '').trim())
-        .filter(Boolean)
+      .map((field: any) => String(field || '').trim())
+      .filter(Boolean)
     : [];
   const required = [...templateRequired];
   // full_name is ALWAYS required for booking — ensure it's present.
@@ -1212,10 +1213,10 @@ function intakeFieldPriority(field: string, tenant: TenantInfo, serviceAreaRequi
 function buildCanonicalIntakeOrder(tenant: TenantInfo, serviceAreaRequired: boolean): string[] {
   const configuredQuestions = Array.isArray(tenant?.service_template?.intake_schema?.questions)
     ? tenant.service_template.intake_schema.questions
-        .filter((question: any) => question?.enabled !== false)
-        .sort((a: any, b: any) => Number(a?.order || 0) - Number(b?.order || 0))
-        .map((question: any) => normalizeFieldKey(String(question?.field_key || '')))
-        .filter(Boolean)
+      .filter((question: any) => question?.enabled !== false)
+      .sort((a: any, b: any) => Number(a?.order || 0) - Number(b?.order || 0))
+      .map((question: any) => normalizeFieldKey(String(question?.field_key || '')))
+      .filter(Boolean)
     : [];
   if (configuredQuestions.length > 0) {
     const nonScheduling = configuredQuestions.filter((field: string) => !isSchedulingField(field));
@@ -1516,8 +1517,8 @@ function buildInstructions(tenant: TenantInfo, options: {
   // Build explicit intake question flow from company-configured questions.
   const intakeQuestions = Array.isArray(tenant?.service_template?.intake_schema?.questions)
     ? tenant.service_template.intake_schema.questions
-        .filter((q: any) => q?.enabled !== false)
-        .sort((a: any, b: any) => (a?.order ?? 0) - (b?.order ?? 0))
+      .filter((q: any) => q?.enabled !== false)
+      .sort((a: any, b: any) => (a?.order ?? 0) - (b?.order ?? 0))
     : [];
   let intakeFlowBlock: string | null = null;
   if (intakeQuestions.length > 0) {
@@ -1542,43 +1543,43 @@ function buildInstructions(tenant: TenantInfo, options: {
   // Build returning customer block early so it can be placed at top of prompt
   const returningCustomerBlock = options.existingCustomer
     ? (() => {
-        const cust = options.existingCustomer!;
-        const hasSubscription = Array.isArray(tenant.booking_services) &&
-          tenant.booking_services.some(s => s.billing_type === 'SUBSCRIPTION');
-        const streetOnly = cust.address
-          ? cust.address.replace(/,.*$/, '').trim()
-          : null;
-        const intentQ = hasSubscription
-          ? `"Are you calling about your current service, wanting to schedule a visit, or do you have a question?"`
-          : `"Are you calling about a previous job, want to book something new, or do you have a question I can help with?"`;
-        const emailOnFile = cust.email && !/placeholder|noreply|no-reply|@handycall|example\.com|test@|fake/i.test(cust.email)
-          ? cust.email : null;
-        const appts = options.startupAppointments ?? [];
-        const apptSummary = appts.length > 0
-          ? `Their existing appointments on file (${appts.length} total):\n` + appts.slice(0, 5).map(a => {
-              const dt = new Date(a.start_time);
-              const dateStr = dt.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric', timeZone: tenant.timezone || 'America/Chicago' });
-              const timeStr = dt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: tenant.timezone || 'America/Chicago' });
-              return `  - [${a.appointment_id}] ${a.service_type || 'Appointment'} on ${dateStr} at ${timeStr} (status: ${a.status || 'SCHEDULED'})`;
-            }).join('\n')
-          : null;
-        return [
-          `[RETURNING CUSTOMER — HIGHEST PRIORITY] This caller is a known customer. Follow these instructions BEFORE any intake flow.`,
-          `Their name on file: "${cust.name || 'Unknown'}".`,
-          cust.address ? `Their address on file: "${cust.address}".` : '',
-          cust.zip ? `Their ZIP on file: "${cust.zip}".` : '',
-          emailOnFile ? `Their email on file: "${emailOnFile}".` : '',
-          apptSummary || null,
-          `The caller has ALREADY been greeted with "Am I speaking with ${cust.name}?"`,
-          `After they confirm identity: the bridge will ask the intent question automatically. Do NOT ask intake questions until the caller says they want to book.`,
-          `Do NOT ask for name, address, or ZIP — these are already on file. Do NOT run check_service_area — they are already a known customer.`,
-          `If they want to book new: only collect fields NOT already on file (skip name, address, ZIP). Ask about the issue and urgency, then schedule.`,
-          `If they have questions about previous bookings: use list_appointments_by_phone and help them.`,
-          `If they want to reschedule: ask for the new preferred date/time, call get_availability, then call reschedule_appointment with the appointment_id and new start_time. Do NOT re-collect intake fields (urgency, issue type, address, etc.) — the original booking details carry over. Do NOT use create_booking for reschedules.`,
-          `If they want to cancel: confirm which appointment, then call cancel_appointment.`,
-          emailOnFile ? `For confirmation email, offer: "Should I send the confirmation to ${emailOnFile}?"` : `No valid email on file — ask: "What's the best email to send your confirmation to?"`,
-        ].filter(Boolean).join('\n');
-      })()
+      const cust = options.existingCustomer!;
+      const hasSubscription = Array.isArray(tenant.booking_services) &&
+        tenant.booking_services.some(s => s.billing_type === 'SUBSCRIPTION');
+      const streetOnly = cust.address
+        ? cust.address.replace(/,.*$/, '').trim()
+        : null;
+      const intentQ = hasSubscription
+        ? `"Are you calling about your current service, wanting to schedule a visit, or do you have a question?"`
+        : `"Are you calling about a previous job, want to book something new, or do you have a question I can help with?"`;
+      const emailOnFile = cust.email && !/placeholder|noreply|no-reply|@handycall|example\.com|test@|fake/i.test(cust.email)
+        ? cust.email : null;
+      const appts = options.startupAppointments ?? [];
+      const apptSummary = appts.length > 0
+        ? `Their existing appointments on file (${appts.length} total):\n` + appts.slice(0, 5).map(a => {
+          const dt = new Date(a.start_time);
+          const dateStr = dt.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric', timeZone: tenant.timezone || 'America/Chicago' });
+          const timeStr = dt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: tenant.timezone || 'America/Chicago' });
+          return `  - [${a.appointment_id}] ${a.service_type || 'Appointment'} on ${dateStr} at ${timeStr} (status: ${a.status || 'SCHEDULED'})`;
+        }).join('\n')
+        : null;
+      return [
+        `[RETURNING CUSTOMER — HIGHEST PRIORITY] This caller is a known customer. Follow these instructions BEFORE any intake flow.`,
+        `Their name on file: "${cust.name || 'Unknown'}".`,
+        cust.address ? `Their address on file: "${cust.address}".` : '',
+        cust.zip ? `Their ZIP on file: "${cust.zip}".` : '',
+        emailOnFile ? `Their email on file: "${emailOnFile}".` : '',
+        apptSummary || null,
+        `The caller has ALREADY been greeted with "Am I speaking with ${cust.name}?"`,
+        `After they confirm identity: the bridge will ask the intent question automatically. Do NOT ask intake questions until the caller says they want to book.`,
+        `Do NOT ask for name, address, or ZIP — these are already on file. Do NOT run check_service_area — they are already a known customer.`,
+        `If they want to book new: only collect fields NOT already on file (skip name, address, ZIP). Ask about the issue and urgency, then schedule.`,
+        `If they have questions about previous bookings: use list_appointments_by_phone and help them.`,
+        `If they want to reschedule: ask for the new preferred date/time, call get_availability, then call reschedule_appointment with the appointment_id and new start_time. Do NOT re-collect intake fields (urgency, issue type, address, etc.) — the original booking details carry over. Do NOT use create_booking for reschedules.`,
+        `If they want to cancel: confirm which appointment, then call cancel_appointment.`,
+        emailOnFile ? `For confirmation email, offer: "Should I send the confirmation to ${emailOnFile}?"` : `No valid email on file — ask: "What's the best email to send your confirmation to?"`,
+      ].filter(Boolean).join('\n');
+    })()
     : null;
 
   const lines = [
@@ -2330,8 +2331,9 @@ wss.on('connection', (twilioWs: WebSocket) => {
     if (!openaiWs || !openaiReady) return;
     // If we're in the middle of an intake question, re-ask that specific question
     // instead of falling back to the generic "book or question?" prompt.
-    if (activeIntakeField && bookingIntentActive) {
-      const question = buildIntakeQuestion(activeIntakeField, activeTenant, collectedDetails);
+    const fieldForReprompt = activeIntakeField || inferRequestedFieldFromPrompt(lastAssistantPromptText, orderedIntakeFields.length ? orderedIntakeFields : requiredIntakeFields);
+    if (fieldForReprompt && bookingIntentActive) {
+      const question = buildIntakeQuestion(fieldForReprompt, activeTenant, collectedDetails);
       askExactQuestion(`Sorry, I didn't catch that. ${question}`);
       return;
     }
@@ -3191,7 +3193,11 @@ wss.on('connection', (twilioWs: WebSocket) => {
         // When activeIntakeField is set, the caller is answering a direct question
         // (e.g. "What is your full name?"). Their answer may be short (1-2 word name)
         // so we must NOT filter it as low-signal or too-short.
-        const answeringIntakeQuestion = !!activeIntakeField && bookingIntentActive;
+        const inferredField =
+          activeIntakeField ||
+          inferRequestedFieldFromPrompt(lastAssistantPromptText, orderedIntakeFields.length ? orderedIntakeFields : requiredIntakeFields);
+
+        const answeringIntakeQuestion = !!inferredField && bookingIntentActive;
 
         if (!answeringIntakeQuestion && !recentSpeech && trimmed.length < 6) {
           return;
@@ -3244,9 +3250,6 @@ wss.on('connection', (twilioWs: WebSocket) => {
         if (looksLikeBookingIntent(trimmed)) {
           bookingIntentActive = true;
         }
-        const inferredField =
-          activeIntakeField ||
-          inferRequestedFieldFromPrompt(lastAssistantPromptText, orderedIntakeFields.length ? orderedIntakeFields : requiredIntakeFields);
         if (inferredField) {
           bookingIntentActive = true;
         }
@@ -3275,7 +3278,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
               !existingValue ||
               String(existingValue).trim() === '' ||
               String(normalizedValue).trim().length > String(existingValue).trim().length
-          );
+            );
           if (shouldStore) {
             collectedDetails[inferredField] = normalizedValue;
             if (activeIntakeField && normalizeFieldKey(activeIntakeField) === normalizeFieldKey(inferredField)) {
@@ -3523,7 +3526,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
                 console.log('[bridge] reschedule succeeded — marking appointmentCreated=true');
               }
             }
-          if (toolName === 'check_service_area') {
+            if (toolName === 'check_service_area') {
               bookingIntentActive = true;
               if (typeof (result as any)?.eligible === 'boolean') {
                 serviceAreaEligible = (result as any).eligible;
