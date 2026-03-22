@@ -412,15 +412,20 @@ export default function AppointmentsPage() {
   }, [filteredAppointments, displayTimezone]);
 
   const weekDays = useMemo(() => {
-    const base = new Date(focusDate);
-    const start = new Date(base);
-    start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
+    // Use the timezone-aware parts of focusDate to compute the week start,
+    // then generate each day as UTC noon to avoid day-boundary shifts across timezones.
+    const parts = getZonedParts(focusDate, displayTimezone);
+    const anchor = new Date(Date.UTC(parts.year, parts.month - 1, parts.day, 12, 0, 0));
+    const dayOfWeek = anchor.getUTCDay(); // 0=Sun, 1=Mon, ...
+    const mondayOffset = (dayOfWeek + 6) % 7; // shift so Mon=0
+    const monday = new Date(anchor);
+    monday.setUTCDate(monday.getUTCDate() - mondayOffset);
     return Array.from({ length: 7 }, (_, idx) => {
-      const d = new Date(start);
-      d.setDate(start.getDate() + idx);
+      const d = new Date(monday);
+      d.setUTCDate(monday.getUTCDate() + idx);
       return d;
     });
-  }, [focusDate]);
+  }, [focusDate, displayTimezone]);
 
   const viewLabel = useMemo(() => {
     if (calendarView === 'month') return monthLabel;
@@ -1340,10 +1345,10 @@ export default function AppointmentsPage() {
                           <div key={key} className="border-r border-border last:border-r-0">
                             <div className="sticky top-0 z-10 bg-card px-3 py-2 border-b border-border">
                               <div className="text-xs text-muted-foreground">
-                                {zonedDay.toLocaleDateString('en-US', { timeZone: displayTimezone, weekday: 'short' })}
+                                {zonedDay.toLocaleDateString('en-US', { weekday: 'short' })}
                               </div>
                               <div className="text-sm font-medium text-foreground">
-                                {zonedDay.toLocaleDateString('en-US', { timeZone: displayTimezone, month: 'short', day: 'numeric' })}
+                                {zonedDay.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                               </div>
                             </div>
                             <div className="relative" style={{ height: `${dayHeight}px` }}>

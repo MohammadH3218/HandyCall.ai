@@ -62,7 +62,11 @@ function VerifyEmailPageInner() {
 
     setIsSubmitting(true);
     try {
-      await apiClient.confirmSignUp({ email: email.trim(), code: code.trim(), pool_type: poolType });
+      await apiClient.confirmSignUp({
+        email: email.trim(),
+        code: code.trim(),
+        pool_type: poolType,
+      });
       setSuccess('Email verified successfully. You can now sign in.');
       setTimeout(() => {
         router.replace(loginHref);
@@ -93,7 +97,7 @@ function VerifyEmailPageInner() {
   };
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-background">
       <SiteHeader />
       <main className="mx-auto max-w-4xl px-4 pb-16 pt-12">
         <div className="mx-auto max-w-lg space-y-6">
@@ -101,32 +105,43 @@ function VerifyEmailPageInner() {
             <span className="inline-flex items-center rounded-full border border-emerald-100 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
               Verify your email
             </span>
-            <h1 className="text-3xl font-bold text-slate-900">Check your inbox</h1>
-            <p className="text-sm text-slate-600">
+            <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-100">
+              Check your inbox
+            </h1>
+            <p className="text-sm text-slate-600 dark:text-slate-400">
               We sent a verification code to your email. Enter it below to activate your account.
             </p>
           </div>
 
-          <div className="rounded-xl border border-slate-200 bg-white p-6">
+          <div className="rounded-2xl border border-border/80 bg-card/88 p-6 shadow-[0_24px_70px_-38px_rgba(15,23,42,0.42)] backdrop-blur-sm">
             <div>
-              <h2 className="text-lg font-semibold text-slate-900">Email verification</h2>
-              <p className="text-sm text-slate-500">Once verified, you can sign in and continue setup.</p>
+              <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
+                Email verification
+              </h2>
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                Once verified, you can sign in and continue setup.
+              </p>
             </div>
             <form onSubmit={handleVerify}>
               <div className="mt-5 space-y-4">
                 {error && (
-                  <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                  <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
                     {error}
                   </div>
                 )}
                 {success && (
-                  <div className="rounded-md border border-emerald-100 bg-emerald-50 p-3 text-sm text-emerald-700">
+                  <div className="rounded-md border border-emerald-100 bg-emerald-50 p-3 text-sm text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300">
                     {success}
                   </div>
                 )}
 
                 <div className="space-y-2">
-                  <label htmlFor="email" className="block text-sm font-medium text-slate-700">Email</label>
+                  <label
+                    htmlFor="email"
+                    className="block text-sm font-medium text-slate-700 dark:text-slate-300"
+                  >
+                    Email
+                  </label>
                   <input
                     id="email"
                     type="email"
@@ -135,11 +150,16 @@ function VerifyEmailPageInner() {
                     placeholder="you@business.com"
                     required
                     disabled={isSubmitting}
-                    className="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm text-slate-900 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
+                    className="h-11 w-full rounded-lg border border-input/80 bg-background/80 px-3 text-sm text-foreground outline-none shadow-sm backdrop-blur-sm transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
                   />
                 </div>
                 <div className="space-y-2">
-                  <label htmlFor="code" className="block text-sm font-medium text-slate-700">Verification code</label>
+                  <label
+                    htmlFor="code"
+                    className="block text-sm font-medium text-slate-700 dark:text-slate-300"
+                  >
+                    Verification code
+                  </label>
                   <input
                     id="code"
                     value={code}
@@ -147,7 +167,7 @@ function VerifyEmailPageInner() {
                     placeholder="123456"
                     required
                     disabled={isSubmitting}
-                    className="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm text-slate-900 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
+                    className="h-11 w-full rounded-lg border border-input/80 bg-background/80 px-3 text-sm text-foreground outline-none shadow-sm backdrop-blur-sm transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
                   />
                 </div>
               </div>
@@ -161,13 +181,13 @@ function VerifyEmailPageInner() {
                 </button>
                 <button
                   type="button"
-                  className="w-full rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="w-full rounded-lg border border-border/80 bg-card/75 px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm backdrop-blur-sm transition hover:bg-accent/80 dark:text-slate-200 disabled:cursor-not-allowed disabled:opacity-60"
                   onClick={handleResend}
                   disabled={isResending}
                 >
                   {isResending ? 'Sending...' : 'Resend verification email'}
                 </button>
-                <p className="text-center text-sm text-slate-500">
+                <p className="text-center text-sm text-slate-500 dark:text-slate-400">
                   Already verified?{' '}
                   <Link href={loginHref} className="font-semibold text-emerald-600 hover:underline">
                     Sign in

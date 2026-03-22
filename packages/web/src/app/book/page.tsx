@@ -25,6 +25,12 @@ export default function BookLandingPage() {
               Request Service
             </Link>
             <Link
+              href="/book/demo"
+              className="rounded-lg border border-emerald-300 px-5 py-2.5 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-50"
+            >
+              View Opt-In Demo
+            </Link>
+            <Link
               href="/sms-consent"
               className="rounded-lg border border-slate-300 px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
             >

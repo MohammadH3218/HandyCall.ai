@@ -471,6 +471,7 @@ export default function BookingPage() {
         full_name: fullName || undefined,
         email: email || undefined,
         phone_number: phone || undefined,
+        sms_consent: smsConsent,
         preferred_date: date || undefined,
         preferred_time: time || undefined,
         address: {

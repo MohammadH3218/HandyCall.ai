@@ -100,14 +100,14 @@ export default function SmsConsentPage() {
               </div>
               <p className="mt-3 text-xs text-slate-500">
                 The checkbox is unchecked by default. SMS is only sent when the customer actively checks this box.
-                Consent is stored alongside the appointment record at the time of booking.
+                Consent is stored on the related contact record at the time of booking.
               </p>
             </div>
 
             <p className="text-sm text-slate-600">
-              The public booking entry point is{' '}
-              <Link href="/book" className="text-emerald-700 underline">
-                https://handycall.org/book
+              The public opt-in demo reviewers can access is{' '}
+              <Link href="/book/demo" className="text-emerald-700 underline">
+                https://handycall.org/book/demo
               </Link>
               . Personalized booking links (
               <code className="rounded bg-slate-100 px-1 py-0.5 text-xs">/book/[token]</code>) are unique
