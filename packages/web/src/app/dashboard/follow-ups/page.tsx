@@ -9,7 +9,6 @@ import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { usePlanFeatures } from '@/hooks/use-plan-features';
 import { IconMessage } from '@tabler/icons-react';
-import { DEMO_SEQUENCES, DEMO_CONTACTS } from '@/lib/demo-data';
 
 type FollowUpSettings = {
   follow_up_sequences_enabled: boolean;
@@ -116,10 +115,8 @@ export default function FollowUpsPage() {
       setCompany(company);
       setSettings(nextSettings);
       setEditSettings(nextSettings);
-      const fetchedSeq = Array.isArray(seqData) ? seqData : seqData?.items || [];
-      setSequences(fetchedSeq.length > 0 ? fetchedSeq : (DEMO_SEQUENCES as Sequence[]));
-      const fetchedContacts = Array.isArray(contactsData?.contacts) ? contactsData.contacts : [];
-      setContacts(fetchedContacts.length > 0 ? fetchedContacts : DEMO_CONTACTS);
+      setSequences(Array.isArray(seqData) ? seqData : seqData?.items || []);
+      setContacts(Array.isArray(contactsData?.contacts) ? contactsData.contacts : []);
       setAppointments(Array.isArray(appointmentsData?.appointments) ? appointmentsData.appointments : []);
     } catch {
       toast({ title: 'Error', description: 'Failed to load follow-up settings', variant: 'destructive' });

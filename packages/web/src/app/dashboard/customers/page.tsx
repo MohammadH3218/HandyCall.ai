@@ -10,7 +10,6 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { PageHeader } from '@/components/portal/page-header';
 import { CalendarCheck, ChevronRight, MessageCircle, PhoneCall, RefreshCw, Search, Users } from 'lucide-react';
-import { DEMO_CONTACTS } from '@/lib/demo-data';
 
 type Contact = {
   contact_id: string;
@@ -112,8 +111,7 @@ export default function CustomersPage() {
         apiClient.getContacts(200),
         apiClient.getAppointmentsRange(start.toISOString(), end.toISOString()),
       ]);
-      const fetchedContacts = (contactsResp.contacts || []) as Contact[];
-      setContacts(fetchedContacts.length > 0 ? fetchedContacts : (DEMO_CONTACTS as unknown as Contact[]));
+      setContacts((contactsResp.contacts || []) as Contact[]);
       setUpcomingAppointments(apptsResp.appointments || []);
     } catch (err: any) {
       setError(err?.message || 'Failed to load customers');

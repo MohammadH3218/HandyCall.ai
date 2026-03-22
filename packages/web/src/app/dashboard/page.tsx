@@ -13,7 +13,6 @@ import {
 import { apiClient } from '@/lib/api-client';
 import { useAuthStore } from '@/stores/auth-store';
 import { PageHeader } from '@/components/portal/page-header';
-import { DEMO_DASHBOARD_OVERVIEW } from '@/lib/demo-data';
 
 type DashboardOverview = {
   metrics: {
@@ -83,12 +82,7 @@ export default function DashboardPage() {
         apiClient.getDashboardStats(),
         apiClient.getConnectStatus().catch(() => ({ connected: false })),
       ]);
-      const typed = overviewData as DashboardOverview;
-      // Fall back to demo data when the account has no real activity yet
-      const hasActivity =
-        (typed?.metrics?.total_customers ?? 0) > 0 ||
-        (typed?.activity_feed?.length ?? 0) > 0;
-      setOverview(hasActivity ? typed : (DEMO_DASHBOARD_OVERVIEW as unknown as DashboardOverview));
+      setOverview(overviewData as DashboardOverview);
       setConnectStatus(connect || { connected: false });
     } catch (err: any) {
       setError(err?.message || 'Failed to load dashboard');

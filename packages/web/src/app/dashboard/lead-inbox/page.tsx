@@ -14,7 +14,6 @@ import {
   IconSearch,
   IconUsers,
 } from '@tabler/icons-react';
-import { DEMO_LEADS } from '@/lib/demo-data';
 
 type LeadItem = {
   call_id: string;
@@ -59,8 +58,7 @@ export default function LeadInboxPage() {
     setLoading(true);
     try {
       const leadData = await apiClient.getLeads().catch(() => []);
-      const fetched = Array.isArray(leadData) ? leadData : [];
-      setLeads(fetched.length > 0 ? fetched : (DEMO_LEADS as LeadItem[]));
+      setLeads(Array.isArray(leadData) ? leadData : []);
     } catch {
       setLeads([]);
     }

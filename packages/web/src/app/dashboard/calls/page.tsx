@@ -6,7 +6,6 @@ import { apiClient } from '@/lib/api-client';
 import { usePortalBasePath } from '@/lib/portal';
 import { PageHeader } from '@/components/portal/page-header';
 import { IconPhone, IconSearch, IconChevronRight, IconChevronLeft } from '@tabler/icons-react';
-import { DEMO_CALLS } from '@/lib/demo-data';
 
 interface Call {
   call_id: string;
@@ -88,8 +87,7 @@ export default function CallsPage() {
         ? await apiClient.getContactCalls(contactFilter, pageSize, previousKey || undefined)
         : await apiClient.getCalls(pageSize, previousKey || undefined);
 
-      const fetchedCalls = response.calls || [];
-      setCalls(fetchedCalls.length > 0 ? fetchedCalls : (DEMO_CALLS as unknown as Call[]));
+      setCalls(response.calls || []);
       const nextKey = response.lastEvaluatedKey ? JSON.stringify(response.lastEvaluatedKey) : null;
       setPageKeys((prev) => {
         const next = [...prev];

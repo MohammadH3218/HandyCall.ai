@@ -6,7 +6,6 @@ import { PageHeader } from '@/components/portal/page-header';
 import { apiClient } from '@/lib/api-client';
 import { usePortalBasePath } from '@/lib/portal';
 import { IconMessage, IconSearch, IconChevronLeft, IconChevronRight } from '@tabler/icons-react';
-import { DEMO_THREADS } from '@/lib/demo-data';
 
 type MessageThread = {
   id: string;
@@ -71,8 +70,7 @@ export default function MessagesPage() {
       try {
         const result = await apiClient.getMessageThreads(200);
         if (!isActive) return;
-        const fetched = Array.isArray(result?.threads) ? result.threads : [];
-        setThreads(fetched.length > 0 ? fetched : (DEMO_THREADS as MessageThread[]));
+        setThreads(Array.isArray(result?.threads) ? result.threads : []);
         setError(null);
       } catch (err) {
         if (!isActive) return;

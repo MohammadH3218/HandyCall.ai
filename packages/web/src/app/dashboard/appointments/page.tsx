@@ -21,7 +21,6 @@ import {
   IconX,
 } from '@tabler/icons-react';
 import { PageHeader } from '@/components/portal/page-header';
-import { DEMO_APPOINTMENTS } from '@/lib/demo-data';
 
 type TimeSegment = { open: string; close: string };
 type DayScheduleDraft = { closed?: boolean; open?: string; close?: string; segments?: TimeSegment[] };
@@ -532,8 +531,7 @@ export default function AppointmentsPage() {
       setBusinessHoursDraft(normalizeBusinessHours(c?.business_hours));
       setDateOverridesDraft(normalizeOverrides(c?.schedule_overrides));
       setSetupTimezone(c?.calendar_connection?.timezone || c?.calendar_connection?.timeZone || c?.timezone || DEFAULT_TIMEZONE);
-      const fetchedAppts = a.appointments || [];
-      setAppointments(fetchedAppts.length > 0 ? fetchedAppts : DEMO_APPOINTMENTS);
+      setAppointments(a.appointments || []);
       setContacts(Array.isArray(contactsResponse?.contacts) ? contactsResponse.contacts : []);
     } catch (err: any) {
       console.error('Error loading appointments:', err);
