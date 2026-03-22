@@ -411,6 +411,11 @@ export interface Contact {
   source_call_id?: UUID; // Call that created this contact
   lead_status: LeadStatus;
   notes?: string;
+  sms_consent?: boolean;
+  sms_consent_at?: Timestamp;
+  sms_consent_source?: 'WEB_BOOKING' | 'VERBAL_CALL' | 'MANUAL' | 'IMPORT';
+  sms_opted_out?: boolean;
+  sms_opted_out_at?: Timestamp;
   created_at: Timestamp;
   updated_at: Timestamp;
   last_contact_at?: Timestamp;

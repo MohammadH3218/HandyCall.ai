@@ -7,6 +7,7 @@ final class AppContainer: ObservableObject {
     let socialAuthManager: SocialAuthManager
     let sessionStore: SessionStore
     let pushManager: PushNotificationManager
+    let appearanceManager: AppearanceManager
 
     init() {
         let api = APIClient()
@@ -16,6 +17,7 @@ final class AppContainer: ObservableObject {
         self.socialAuthManager = socialAuthManager
         self.sessionStore = store
         self.pushManager = PushNotificationManager(apiClient: api)
+        self.appearanceManager = AppearanceManager()
 
         // Log out the user whenever any authenticated request returns 401/403.
         api.onSessionExpired = { [weak store] in

@@ -3,10 +3,11 @@
 ## Purpose
 This file is the fast context handoff for coding agents working in this repo.
 
-## Snapshot (2026-02-26)
+## Snapshot (2026-03-10)
 - Repo: `HandyCall.ai`
 - Branch: `master`
 - Architecture: monorepo (`packages/backend`, `packages/web`, `packages/shared`, `apps/ios`, `packages/widget`)
+- Production hosting: backend and web are both Docker apps on AWS Elastic Beanstalk in `us-east-1`
 - Pricing migration in progress: weekly -> monthly
 - Large feature wave in progress: Stripe Connect payments, dashboard redesign, notifications, usage gating, settings wiring, differentiators
 - Worktree may be intentionally dirty during implementation; do not revert unrelated local changes
@@ -57,6 +58,23 @@ Key domains:
 - Backend Docker/EB scripts:
   - `packages/backend/deploy.sh` (bash)
   - `packages/backend/deploy-docker-eb.ps1` (PowerShell)
+- Web Docker/EB scripts:
+  - `packages/web/deploy.sh` (bash)
+- Live AWS deployment targets:
+  - Backend app/env: `handycall-api` / `handycall-api-lb`
+  - Backend ECR repo: `handycall-backend`
+  - Web app/env: `handycall-web` / `handycall-web-lb`
+  - Web ECR repo: `handycall-web`
+  - AWS account: `982081079378`
+  - Region: `us-east-1`
+- DNS:
+  - `handycall.org` and `www.handycall.org` alias to the Elastic Beanstalk load balancer for `handycall-web-lb`
+- Web runtime facts:
+  - `packages/web/Dockerfile` exposes port `3001`
+  - EB health check path is `/`
+  - EB target process listens on port `80` and proxies to the container
+- Legacy note:
+  - `amplify.yml` still exists in the repo, but the live web app is deployed via Elastic Beanstalk, not Amplify
 - Prereqs:
   - Docker running
   - AWS CLI authenticated

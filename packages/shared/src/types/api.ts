@@ -178,6 +178,9 @@ export interface CreateContactRequest {
   first_name?: string;
   last_name?: string;
   notes?: string;
+  sms_consent?: boolean;
+  sms_consent_source?: 'WEB_BOOKING' | 'VERBAL_CALL' | 'MANUAL' | 'IMPORT';
+  sms_opted_out?: boolean;
 }
 
 export interface ListContactsRequest extends PaginationParams {

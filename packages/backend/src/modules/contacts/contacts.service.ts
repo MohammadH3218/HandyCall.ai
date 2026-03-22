@@ -48,6 +48,11 @@ export interface CreateContactDto {
   source?: ContactSource;
   lead_status?: LeadStatus;
   notes?: string;
+  sms_consent?: boolean;
+  sms_consent_at?: number;
+  sms_consent_source?: 'WEB_BOOKING' | 'VERBAL_CALL' | 'MANUAL' | 'IMPORT';
+  sms_opted_out?: boolean;
+  sms_opted_out_at?: number;
 }
 
 export interface UpdateContactDto {
@@ -64,6 +69,11 @@ export interface UpdateContactDto {
   zipcode?: string;
   lead_status?: LeadStatus;
   notes?: string;
+  sms_consent?: boolean;
+  sms_consent_at?: number;
+  sms_consent_source?: 'WEB_BOOKING' | 'VERBAL_CALL' | 'MANUAL' | 'IMPORT';
+  sms_opted_out?: boolean;
+  sms_opted_out_at?: number;
 }
 
 @Injectable()
@@ -181,6 +191,11 @@ export class ContactsService {
       source: data.source ?? ContactSource.MANUAL,
       lead_status: data.lead_status ?? LeadStatus.NEW,
       notes: data.notes,
+      sms_consent: data.sms_consent,
+      sms_consent_at: data.sms_consent_at,
+      sms_consent_source: data.sms_consent_source,
+      sms_opted_out: data.sms_opted_out,
+      sms_opted_out_at: data.sms_opted_out_at,
       created_at: now,
       updated_at: now,
       last_contact_at: now,
@@ -221,6 +236,11 @@ export class ContactsService {
       ...(data.zipcode !== undefined && { zipcode: data.zipcode }),
       ...(data.lead_status !== undefined && { lead_status: data.lead_status }),
       ...(data.notes !== undefined && { notes: data.notes }),
+      ...(data.sms_consent !== undefined && { sms_consent: data.sms_consent }),
+      ...(data.sms_consent_at !== undefined && { sms_consent_at: data.sms_consent_at }),
+      ...(data.sms_consent_source !== undefined && { sms_consent_source: data.sms_consent_source }),
+      ...(data.sms_opted_out !== undefined && { sms_opted_out: data.sms_opted_out }),
+      ...(data.sms_opted_out_at !== undefined && { sms_opted_out_at: data.sms_opted_out_at }),
       updated_at: Date.now(),
     };
 

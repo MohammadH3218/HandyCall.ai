@@ -10,6 +10,8 @@ struct HandyCallApp: App {
             RootView()
                 .environmentObject(container)
                 .environmentObject(container.sessionStore)
+                .environmentObject(container.appearanceManager)
+                .preferredColorScheme(container.appearanceManager.colorScheme)
                 .task {
                     appDelegate.onDeviceToken = { token in
                         container.pushManager.didRegister(deviceToken: token)

@@ -25,7 +25,7 @@ HandyCall.ai/
 ├── docs/                 16 subdirectories, 9+ markdown files
 ├── package.json          npm workspaces root
 ├── tsconfig.json         ES2022, strict, decorators
-├── amplify.yml           AWS Amplify CI/CD for web
+├── amplify.yml           Legacy Amplify config (repo artifact, not current prod deploy path)
 └── *.md                  PROJECT_CONTEXT, DB_SCHEMA, API_REFERENCE, AGENTS, RUNBOOK
 ```
 
@@ -54,7 +54,7 @@ HandyCall.ai/
 | **Charts** | Recharts | 2.15.0 |
 | **Icons** | Lucide React | 0.309.0 |
 | **Fonts** | Space Grotesk + Manrope | Google Fonts |
-| **CI/CD** | AWS Amplify (web), Elastic Beanstalk (backend) | Docker → ECR → EB |
+| **CI/CD** | Elastic Beanstalk (web + backend) | Docker → ECR → EB |
 | **Secrets** | AWS SSM Parameter Store | Runtime injection |
 
 ---
@@ -230,7 +230,7 @@ There is **no "customer" role** today. The platform only serves **pros/business 
 
 ### Dark Mode
 
-Defined in CSS (`darkMode: ['class']`) but not actively used. Dark theme tokens exist but most components only use light-mode Tailwind classes.
+Defined in CSS (`darkMode: ['class']`) and actively used in the web dashboard/auth shell. Theme persistence is account-scoped in the web app rather than a single global browser toggle.
 
 ### Component Library
 

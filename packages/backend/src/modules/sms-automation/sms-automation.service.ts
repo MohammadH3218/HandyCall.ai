@@ -82,6 +82,10 @@ export class SmsAutomationService {
     return phone.replace(/[^\d+]/g, '');
   }
 
+  private contactAllowsSms(contact: any): boolean {
+    return contact?.sms_consent === true && contact?.sms_opted_out !== true;
+  }
+
   // ──── CAMPAIGN SEND ───────────────────────────────────────────────────────
 
   async sendCampaign(
@@ -104,6 +108,10 @@ export class SmsAutomationService {
       try {
         const contact = await this.contacts.getContactById(companyId, contactId);
         if (!contact?.phone_number && !(contact as any)?.phone) {
+          skipped++;
+          continue;
+        }
+        if (!this.contactAllowsSms(contact)) {
           skipped++;
           continue;
         }

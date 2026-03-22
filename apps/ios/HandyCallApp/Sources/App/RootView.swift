@@ -13,6 +13,7 @@ struct RootView: View {
                     .task {
                         await sessionStore.refreshCompany()
                         await container.pushManager.requestAuthorizationIfNeeded()
+                        container.appearanceManager.applyToWindow()
                     }
             } else {
                 LoginView()
@@ -20,7 +21,6 @@ struct RootView: View {
             }
         }
         .animation(.spring(response: 0.35, dampingFraction: 0.85), value: sessionStore.isAuthenticated)
-        .background(HandyCallTheme.canvas.ignoresSafeArea())
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .active {
                 Task { await sessionStore.validateAndRefreshIfNeeded() }

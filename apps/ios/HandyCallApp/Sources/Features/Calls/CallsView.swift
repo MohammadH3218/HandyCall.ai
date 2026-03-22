@@ -46,6 +46,16 @@ final class CallDetailViewModel: ObservableObject {
 struct CallsView: View {
     @EnvironmentObject private var container: AppContainer
     @StateObject private var viewModel = CallsViewModel()
+    @State private var searchText = ""
+
+    private var filtered: [CallItem] {
+        guard !searchText.isEmpty else { return viewModel.calls }
+        return viewModel.calls.filter {
+            ($0.callerName?.localizedCaseInsensitiveContains(searchText) ?? false) ||
+            ($0.callerPhone?.localizedCaseInsensitiveContains(searchText) ?? false) ||
+            ($0.summary?.localizedCaseInsensitiveContains(searchText) ?? false)
+        }
+    }
 
     var body: some View {
         NavigationStack {
@@ -62,14 +72,16 @@ struct CallsView: View {
                 } else if let error = viewModel.error {
                     HCErrorCard(text: error)
                         .padding(HandyCallTheme.Spacing.screenPadding)
-                } else if viewModel.calls.isEmpty {
+                } else if filtered.isEmpty {
                     HCEmptyState(
                         icon: "phone.down.waves.left.and.right",
-                        title: "No calls yet",
-                        message: "Completed and in-progress calls will appear here."
+                        title: searchText.isEmpty ? "No calls yet" : "No results",
+                        message: searchText.isEmpty
+                            ? "Completed and in-progress calls will appear here."
+                            : "Try a different search term."
                     )
                 } else {
-                    List(Array(viewModel.calls.enumerated()), id: \.element.id) { index, call in
+                    List(Array(filtered.enumerated()), id: \.element.id) { index, call in
                         NavigationLink {
                             CallDetailView(initialCall: call)
                         } label: {
@@ -82,6 +94,7 @@ struct CallsView: View {
             }
             .background(HandyCallTheme.pageBackground.ignoresSafeArea())
             .navigationTitle("Calls")
+            .searchable(text: $searchText, prompt: "Search calls")
             .task {
                 await viewModel.load(using: container.apiClient)
             }
@@ -159,6 +172,16 @@ private struct CallDetailView: View {
             VStack(spacing: HandyCallTheme.Spacing.lg) {
                 detailHeader
                 overviewCard
+
+                if let summary = viewModel.call.summary?.nonEmpty {
+                    SectionCard(title: "Summary", icon: "doc.text") {
+                        Text(summary)
+                            .font(HandyCallTheme.Typography.body)
+                            .foregroundStyle(HandyCallTheme.slate)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+
                 if let transcript = viewModel.call.transcript?.nonEmpty {
                     transcriptCard(transcript)
                 }
@@ -177,6 +200,20 @@ private struct CallDetailView: View {
         .navigationTitle("Call")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.hidden, for: .tabBar)
+        .toolbar {
+            if let phone = viewModel.call.callerPhone {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        if let url = URL(string: "tel://\(phone.filter { $0.isNumber })") {
+                            UIApplication.shared.open(url)
+                        }
+                    } label: {
+                        Image(systemName: "phone.fill")
+                            .foregroundStyle(HandyCallTheme.emeraldFixed)
+                    }
+                }
+            }
+        }
         .overlay {
             if viewModel.isLoading {
                 ProgressView()
@@ -341,6 +378,7 @@ private struct TranscriptBubble: View {
                     .foregroundStyle(.secondary)
                 Text(line.text)
                     .font(.body)
+                    .foregroundStyle(HandyCallTheme.slate)
                     .fixedSize(horizontal: false, vertical: true)
             }
             .padding(10)
@@ -400,7 +438,7 @@ private struct RecordingPlaybackCard: View {
                                 ),
                                 in: 0...max(safeDuration, 0.1)
                             )
-                            .tint(HandyCallTheme.emerald)
+                            .tint(HandyCallTheme.emeraldFixed)
                             HStack {
                                 Text(formatClock(currentTime))
                                 Spacer()
@@ -415,7 +453,7 @@ private struct RecordingPlaybackCard: View {
                         Label("Open full recording", systemImage: "arrow.up.forward")
                             .font(.footnote.weight(.semibold))
                     }
-                    .foregroundStyle(HandyCallTheme.emeraldDark)
+                    .foregroundStyle(HandyCallTheme.emeraldFixed)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .onAppear { configurePlayer(with: recordingURL) }

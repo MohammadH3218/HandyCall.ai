@@ -16,41 +16,46 @@ final class TabBadgeStore: ObservableObject {
 struct MainTabView: View {
     @EnvironmentObject private var container: AppContainer
     @StateObject private var badgeStore = TabBadgeStore()
+    @State private var selectedTab: Tab = .home
+
+    enum Tab: String {
+        case home, calls, bookings, messages, more
+    }
 
     var body: some View {
-        TabView {
+        TabView(selection: $selectedTab) {
             DashboardView()
                 .tabItem {
                     Label("Home", systemImage: "house.fill")
                 }
+                .tag(Tab.home)
 
             CallsView()
                 .tabItem {
                     Label("Calls", systemImage: "phone.fill")
                 }
+                .tag(Tab.calls)
+
+            AppointmentsView()
+                .tabItem {
+                    Label("Bookings", systemImage: "calendar")
+                }
+                .tag(Tab.bookings)
 
             MessagesView()
                 .tabItem {
                     Label("Messages", systemImage: "message.fill")
                 }
+                .tag(Tab.messages)
 
-            ContactsView()
+            MoreMenuView()
                 .tabItem {
-                    Label("Contacts", systemImage: "person.2.fill")
+                    Label("More", systemImage: "ellipsis.circle.fill")
                 }
-
-            AppointmentsView()
-                .tabItem {
-                    Label("Bookings", systemImage: "calendar.badge.checkmark")
-                }
-
-            SettingsView()
-                .tabItem {
-                    Label("Settings", systemImage: "gearshape.fill")
-                }
+                .tag(Tab.more)
                 .badge(badgeStore.unreadNotifications > 0 ? badgeStore.unreadNotifications : 0)
         }
-        .tint(HandyCallTheme.emeraldDark)
+        .tint(HandyCallTheme.emeraldFixed)
         .task {
             await badgeStore.refresh(using: container.apiClient)
         }

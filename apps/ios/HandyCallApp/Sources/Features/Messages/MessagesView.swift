@@ -130,7 +130,7 @@ private struct MessageThreadRow: View {
                 AvatarView(name: thread.displayName, size: 50)
                 if (thread.unreadCount ?? 0) > 0 {
                     Circle()
-                        .fill(HandyCallTheme.emerald)
+                        .fill(HandyCallTheme.emeraldFixed)
                         .frame(width: 12, height: 12)
                         .overlay(Circle().stroke(HandyCallTheme.surfaceWhite, lineWidth: 1.5))
                 }
@@ -234,7 +234,7 @@ struct MessageThreadView: View {
                         }
                     } label: {
                         Image(systemName: "phone.fill")
-                            .foregroundStyle(HandyCallTheme.emerald)
+                            .foregroundStyle(HandyCallTheme.emeraldFixed)
                     }
                 }
             }
@@ -326,7 +326,7 @@ private struct MessageBubble: View {
                         )
                         .shadow(
                             color: message.isOutbound
-                                ? HandyCallTheme.emeraldDark.opacity(0.25)
+                                ? HandyCallTheme.emeraldDarkFixed.opacity(0.25)
                                 : Color.black.opacity(0.06),
                             radius: 4, x: 0, y: 2
                         )

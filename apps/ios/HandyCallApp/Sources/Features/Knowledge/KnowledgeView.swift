@@ -28,6 +28,25 @@ final class KnowledgeViewModel: ObservableObject {
         defer { isLoading = false }
         do {
             items = try await api.getKnowledgeItems()
+            // Clear any previous errors if successful
+            if items.isEmpty {
+                // This is not an error, just no items yet
+                error = nil
+            }
+        } catch let decodingError as DecodingError {
+            // Provide more specific error for decoding issues
+            switch decodingError {
+            case .keyNotFound(let key, let context):
+                self.error = "Missing key '\(key.stringValue)' in response: \(context.debugDescription)"
+            case .typeMismatch(let type, let context):
+                self.error = "Type mismatch for \(type): \(context.debugDescription)"
+            case .valueNotFound(let type, let context):
+                self.error = "Value not found for \(type): \(context.debugDescription)"
+            case .dataCorrupted(let context):
+                self.error = "Data corrupted: \(context.debugDescription)"
+            @unknown default:
+                self.error = "Could not parse server data: \(decodingError.localizedDescription)"
+            }
         } catch {
             self.error = error.localizedDescription
         }

@@ -21,7 +21,9 @@
     "shared:build": "npm run build -w packages/shared",
     "qa:api-probe": "node scripts/qa/api-surface-probe.mjs",
     "qa:stress:web": "npx autocannon -c 25 -d 20 -p 10 http://localhost:3001/",
-    "qa:stress:api": "npx autocannon -c 40 -d 20 -p 10 http://localhost:3000/api/v1/health"
+    "qa:stress:api": "npx autocannon -c 40 -d 20 -p 10 http://localhost:3000/api/v1/health",
+    "finetune:export": "node packages/backend/scripts/export-finetune-dataset.js",
+    "finetune:openai": "bash scripts/openai/fine_tune.sh"
   },
   "devDependencies": {
     "@types/node": "^20.10.0",

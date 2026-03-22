@@ -688,7 +688,6 @@ function extractDateKey(text?: string): string | null {
 
 function selectAvailabilitySlot(requestedText: string | undefined, slots: string[], timeZone: string): string | null {
   if (!requestedText || !Array.isArray(slots) || slots.length === 0) return null;
-  if (slots.length === 1) return slots[0] || null;
   const dateKey = extractDateKey(requestedText);
   const needle = extractTimeNeedle(requestedText);
   if (!needle) return null;
@@ -763,6 +762,16 @@ function isGenericConfirmation(text?: string) {
     'uh huh',
     'sure',
   ].includes(t);
+}
+
+function isUsablePreferredTimeAnswer(text: string, hasSuggestedDateContext: boolean): boolean {
+  const trimmed = String(text || '').trim();
+  if (!trimmed) return false;
+  if (looksLikeIso(trimmed)) return true;
+  const hasTime = !!extractTimeNeedle(trimmed);
+  if (!hasTime) return false;
+  if (hasDateTokens(trimmed)) return true;
+  return hasSuggestedDateContext;
 }
 
 function isLowSignalTranscript(text?: string) {
@@ -1032,6 +1041,88 @@ function findMissingRequired(fields: string[], args: any): string[] {
   return fields.filter((field) => !isFieldPresent(field, args));
 }
 
+function buildTrustedExistingCustomerDetails(
+  existingCustomer?: { contact_id: string; name?: string; email?: string; address?: string; zip?: string } | null,
+): Record<string, any> {
+  const trusted: Record<string, any> = {};
+  if (!existingCustomer) return trusted;
+  if (existingCustomer.name && String(existingCustomer.name).trim()) {
+    trusted.full_name = String(existingCustomer.name).trim();
+    trusted.name = trusted.full_name;
+  }
+  if (existingCustomer.address && String(existingCustomer.address).trim()) {
+    trusted.address = String(existingCustomer.address).trim();
+    trusted.service_address = trusted.address;
+  }
+  if (existingCustomer.zip && String(existingCustomer.zip).trim()) {
+    trusted.zip = String(existingCustomer.zip).trim();
+  }
+  return trusted;
+}
+
+function applySelectedServiceDetails(details: Record<string, any>, serviceName?: string | null): Record<string, any> {
+  const normalized = String(serviceName || '').trim();
+  if (!normalized) return details;
+  const next = { ...details };
+  for (const key of ['selected_service_name', 'service_name', 'service_type', 'service']) {
+    if (!next[key] || String(next[key]).trim() === '') {
+      next[key] = normalized;
+    }
+  }
+  return next;
+}
+
+function extractServiceSelectionFromPrompt(prompt?: string): string | null {
+  const raw = String(prompt || '').trim();
+  if (!raw) return null;
+  if (/\b(which service|which option|which package|what service)\b/i.test(raw)) return null;
+  const patterns = [
+    /proceed with scheduling\s+(?:a|an|the)?\s*(.+?)(?:\?|$)/i,
+    /proceed with booking\s+(?:a|an|the)?\s*(.+?)(?:\?|$)/i,
+  ];
+  for (const pattern of patterns) {
+    const match = raw.match(pattern);
+    if (!match?.[1]) continue;
+    const candidate = match[1]
+      .replace(/[.!,]+$/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (candidate) return candidate;
+  }
+  return null;
+}
+
+function buildTrustedBookingArgs(
+  args: any,
+  options: {
+    existingCustomer?: { contact_id: string; name?: string; email?: string; address?: string; zip?: string } | null;
+  } = {},
+): any {
+  const baseArgs = args && typeof args === 'object' ? args : {};
+  let details = baseArgs.details && typeof baseArgs.details === 'object' ? { ...baseArgs.details } : {};
+  const trustedExisting = buildTrustedExistingCustomerDetails(options.existingCustomer);
+  for (const [key, value] of Object.entries(trustedExisting)) {
+    if (!details[key] || String(details[key]).trim() === '') {
+      details[key] = value;
+    }
+  }
+  const existingServiceKey = findMatchingDetailKey('selected_service_name', details);
+  if (existingServiceKey) {
+    details = applySelectedServiceDetails(details, String(details[existingServiceKey] || ''));
+  }
+  return { ...baseArgs, details };
+}
+
+function findMissingRequiredForBooking(
+  fields: string[],
+  args: any,
+  options: {
+    existingCustomer?: { contact_id: string; name?: string; email?: string; address?: string; zip?: string } | null;
+  } = {},
+): string[] {
+  return findMissingRequired(fields, buildTrustedBookingArgs(args, options));
+}
+
 function uniqueNormalizedFields(fields: string[]): string[] {
   const out: string[] = [];
   const seen = new Set<string>();
@@ -1199,6 +1290,7 @@ function looksLikeBookingIntent(text?: string): boolean {
 
 function buildIntakeQuestion(field: string, tenant: TenantInfo | null, details: Record<string, any>): string {
   const key = normalizeFieldKey(field);
+  if (key === 'preferred_time') return 'What day and time would you like for the appointment?';
   const configuredQuestion = getConfiguredQuestion(tenant, key);
   if (typeof configuredQuestion?.prompt === 'string' && configuredQuestion.prompt.trim()) {
     return configuredQuestion.prompt.trim();
@@ -1207,7 +1299,6 @@ function buildIntakeQuestion(field: string, tenant: TenantInfo | null, details: 
   if (isNameField(key)) return 'What is your full name?';
   if (isAddressField(key)) return 'What is the service address?';
   if (isEmailField(key)) return 'What is the best email for your confirmation?';
-  if (key === 'preferred_time') return 'What day and time would you like for the appointment?';
   if (isBillingChoiceField(key)) {
     return 'Is this for a one-time service or an ongoing plan?';
   }
@@ -1448,8 +1539,52 @@ function buildInstructions(tenant: TenantInfo, options: {
   const outboundEnabled = options.outbound?.enabled === true;
   const outboundContext = String(options.outbound?.context || '').trim();
   const outboundReason = String(options.outbound?.customMessage || '').trim();
+  // Build returning customer block early so it can be placed at top of prompt
+  const returningCustomerBlock = options.existingCustomer
+    ? (() => {
+        const cust = options.existingCustomer!;
+        const hasSubscription = Array.isArray(tenant.booking_services) &&
+          tenant.booking_services.some(s => s.billing_type === 'SUBSCRIPTION');
+        const streetOnly = cust.address
+          ? cust.address.replace(/,.*$/, '').trim()
+          : null;
+        const intentQ = hasSubscription
+          ? `"Are you calling about your current service, wanting to schedule a visit, or do you have a question?"`
+          : `"Are you calling about a previous job, want to book something new, or do you have a question I can help with?"`;
+        const emailOnFile = cust.email && !/placeholder|noreply|no-reply|@handycall|example\.com|test@|fake/i.test(cust.email)
+          ? cust.email : null;
+        const appts = options.startupAppointments ?? [];
+        const apptSummary = appts.length > 0
+          ? `Their existing appointments on file (${appts.length} total):\n` + appts.slice(0, 5).map(a => {
+              const dt = new Date(a.start_time);
+              const dateStr = dt.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric', timeZone: tenant.timezone || 'America/Chicago' });
+              const timeStr = dt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: tenant.timezone || 'America/Chicago' });
+              return `  - [${a.appointment_id}] ${a.service_type || 'Appointment'} on ${dateStr} at ${timeStr} (status: ${a.status || 'SCHEDULED'})`;
+            }).join('\n')
+          : null;
+        return [
+          `[RETURNING CUSTOMER — HIGHEST PRIORITY] This caller is a known customer. Follow these instructions BEFORE any intake flow.`,
+          `Their name on file: "${cust.name || 'Unknown'}".`,
+          cust.address ? `Their address on file: "${cust.address}".` : '',
+          cust.zip ? `Their ZIP on file: "${cust.zip}".` : '',
+          emailOnFile ? `Their email on file: "${emailOnFile}".` : '',
+          apptSummary || null,
+          `The caller has ALREADY been greeted with "Am I speaking with ${cust.name}?"`,
+          `After they confirm identity: the bridge will ask the intent question automatically. Do NOT ask intake questions until the caller says they want to book.`,
+          `Do NOT ask for name, address, or ZIP — these are already on file. Do NOT run check_service_area — they are already a known customer.`,
+          `If they want to book new: only collect fields NOT already on file (skip name, address, ZIP). Ask about the issue and urgency, then schedule.`,
+          `If they have questions about previous bookings: use list_appointments_by_phone and help them.`,
+          `If they want to reschedule: ask for the new preferred date/time, call get_availability, then call reschedule_appointment with the appointment_id and new start_time. Do NOT re-collect intake fields (urgency, issue type, address, etc.) — the original booking details carry over. Do NOT use create_booking for reschedules.`,
+          `If they want to cancel: confirm which appointment, then call cancel_appointment.`,
+          emailOnFile ? `For confirmation email, offer: "Should I send the confirmation to ${emailOnFile}?"` : `No valid email on file — ask: "What's the best email to send your confirmation to?"`,
+        ].filter(Boolean).join('\n');
+      })()
+    : null;
+
   const lines = [
     renderedTemplatePrompt || `You are the phone receptionist for ${name}.`,
+    // Place returning customer block right at the top so it takes priority
+    returningCustomerBlock,
     outboundEnabled
       ? `This is an OUTBOUND call initiated by ${name}. You are calling the customer; do not speak like they called you.`
       : `Greet the caller immediately and include the company name in the first sentence.`,
@@ -1470,10 +1605,12 @@ function buildInstructions(tenant: TenantInfo, options: {
     `You can answer FAQs and help callers book appointments directly.`,
     `Never ask for the caller's phone number. Use the caller ID.`,
     `Never ask the caller for their timezone. Use the company timezone (${tenant.timezone || 'America/Chicago'}) for all scheduling and when calling get_availability.`,
-    serviceAreaRequired
+    serviceAreaRequired && !options.existingCustomer
       ? `If the caller wants to book, ask for their 5-digit ZIP code first and call check_service_area(zip) before anything else.`
-      : `If service-area checks are enabled or the caller provides a ZIP, call check_service_area(zip) before booking.`,
-    `If the ZIP is not serviced, apologize and end the call politely.`,
+      : !options.existingCustomer
+        ? `If service-area checks are enabled or the caller provides a ZIP, call check_service_area(zip) before booking.`
+        : null,
+    !options.existingCustomer ? `If the ZIP is not serviced, apologize and end the call politely.` : null,
     requiredFields ? `Required intake fields to collect before booking: ${requiredFields}.` : null,
     optionalFields ? `Optional fields (collect only if relevant): ${optionalFields}.` : null,
     pricingProfileSummary
@@ -1487,15 +1624,20 @@ function buildInstructions(tenant: TenantInfo, options: {
     requiresServiceSelection(tenant)
       ? `Service or plan selection is REQUIRED before scheduling. Confirm the caller's exact choice and save it in details before asking for date/time. Use this question when needed: "${serviceSelectionQuestion || 'Which service option would you like to book?'}"`
       : null,
-    intakeFlowBlock,
+    // For returning customers, skip the mandatory intake flow — the returning customer prompt
+    // handles the conversation flow (intent question first, then only missing fields).
+    !options.existingCustomer ? intakeFlowBlock : null,
     `Do NOT invent extra intake questions. Only ask for fields that are in the required intake list or explicitly requested by the scripted intake flow. Never ask about topics not in the flow.`,
     `Never ask about insurance, payment responsibility, or coverage unless that exact field is required for this tenant.`,
-    `You MUST collect EVERY required intake field before asking about scheduling. Do not skip any. Ask one missing field at a time.`,
+    !options.existingCustomer
+      ? `You MUST collect EVERY required intake field before asking about scheduling. Do not skip any. Ask one missing field at a time.`
+      : `For returning customers: skip fields already on file (name, address, ZIP). Only collect missing intake fields that are NOT pre-filled.`,
     `Do NOT ask for preferred date/time until all non-time required fields are collected (including address when required).`,
     `When the bridge gives you an exact intake question, say that exact question only. Do not paraphrase it, do not add context, and do not ask a second question.`,
     `ALWAYS ask for the caller's full name if you have not collected it yet.`,
     `Do not provide recap/summary of collected details unless the caller explicitly asks for one.`,
     `Then call get_availability and offer available slots.`,
+    `Do NOT say "let me check availability" or "please hold on" or any filler before calling get_availability. Just call the tool silently and then state the result directly: "That time is available" or "That time isn't available."`,
     `Never claim a time is available unless get_availability returns it. If a requested time is unavailable, say so and offer available slots from get_availability.`,
     `If get_availability returns closed_day=true, tell the caller that day is closed and ask for another day.`,
     `If get_availability includes suggested_time_only, ONLY offer those times (max 3). Do not invent times.`,
@@ -1504,6 +1646,9 @@ function buildInstructions(tenant: TenantInfo, options: {
     `If requested_time_available is true, proceed directly to create_booking with confirmed=true. Do not ask the caller to re-confirm the same date/time.`,
     `Do not ask the caller to reconfirm severity, address, service choice, or billing choice once they already provided those answers.`,
     `Do not ask for general confirmation of previously collected details; only ask for missing fields.`,
+    `NEVER verify or repeat back information the caller just gave you (e.g. "just to confirm, is this the exact address?"). Accept their answer and move on immediately to the next step.`,
+    `NEVER recap or list collected details before booking ("Just to confirm, the service is X, the date is Y..."). Just proceed directly with the tool call.`,
+    `NEVER say "let me check" or "please hold on" or any filler before a tool call. Call the tool silently and report the result.`,
     `When calling create_booking, you MUST include ALL collected intake fields in the details object—not just the most recent ones. Include every field you gathered during the conversation (name, address, zip, service details, etc.).`,
     `If create_booking returns a MissingRequiredFields error, ask ONLY for the specific fields listed in missing_fields. Do NOT re-ask for information you already collected. Then retry create_booking with ALL collected fields (old and new) in the details object.`,
     `After create_booking succeeds, ask for the best email to send the confirmation link.`,
@@ -1513,56 +1658,7 @@ function buildInstructions(tenant: TenantInfo, options: {
     `Never read or say the booking link/URL aloud. After send_booking_link succeeds, just say the email was sent.`,
     `When asking for email: say "What's the best email to send your confirmation to?" — do NOT read email addresses back letter by letter unless the caller explicitly asks you to spell it.`,
     `If an email looks like a placeholder or test address (contains 'placeholder', 'noreply', 'no-reply', '@handycall', 'example.com', 'fake', 'test@'), ask for a real email instead of offering it.`,
-    options.existingCustomer
-      ? (() => {
-          const cust = options.existingCustomer!;
-          const hasSubscription = Array.isArray(tenant.booking_services) &&
-            tenant.booking_services.some(s => s.billing_type === 'SUBSCRIPTION');
-          const streetOnly = cust.address
-            ? cust.address.replace(/,.*$/, '').trim()  // strip ", City, ST ZIP" — keep street number+name only
-            : null;
-          // Intent question to ask after address confirmed, based on service type
-          const intentQ = hasSubscription
-            ? `"Are you calling about your current service, wanting to schedule a visit, or do you have a question?"`
-            : `"Are you calling about a previous job, want to book something new, or do you have a question I can help with?"`;
-          // Email: only show if it looks real (not a placeholder/test address)
-          const emailOnFile = cust.email && !/placeholder|noreply|no-reply|@handycall|example\.com|test@|fake/i.test(cust.email)
-            ? cust.email : null;
-          // Format any pre-loaded appointments as a brief summary
-          const appts = options.startupAppointments ?? [];
-          const apptSummary = appts.length > 0
-            ? `Their existing appointments on file (${appts.length} total):\n` + appts.slice(0, 5).map(a => {
-                const dt = new Date(a.start_time);
-                const dateStr = dt.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric', timeZone: tenant.timezone || 'America/Chicago' });
-                const timeStr = dt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: tenant.timezone || 'America/Chicago' });
-                return `  - [${a.appointment_id}] ${a.service_type || 'Appointment'} on ${dateStr} at ${timeStr} (status: ${a.status || 'SCHEDULED'})`;
-              }).join('\n')
-            : null;
-          return [
-            `[RETURNING CUSTOMER] This caller's phone number is linked to an existing customer profile on file.`,
-            `Their name on file: "${cust.name || 'Unknown'}".`,
-            cust.address ? `Their address on file (full, for use in booking): "${cust.address}".` : '',
-            cust.zip ? `Their ZIP on file: "${cust.zip}".` : '',
-            emailOnFile ? `Their email on file: "${emailOnFile}".` : '',
-            apptSummary || null,
-            `The caller has ALREADY been greeted with "Am I speaking with ${cust.name}?" — do NOT repeat that question.`,
-            `If they said YES (confirmed identity):`,
-            `  - Thank them warmly and briefly: "Great, welcome back!"`,
-            `  - IMMEDIATELY call list_appointments_by_phone to retrieve their full appointment history (range_days=365) — do this in the background before asking the next question.`,
-            `  - PRIVACY: When confirming address aloud, say ONLY the street number and street name — NEVER say city, state, or ZIP. Say: "Is your address still ${streetOnly || '[street on file]'}?" (nothing more).`,
-            `  - If they confirm the address, their ZIP is ALSO confirmed — do NOT ask for ZIP separately.`,
-            `  - PRE-FILLED DATA: The address "${cust.address || ''}" and ZIP "${cust.zip || ''}" are already locked in as collected intake fields. When calling create_booking, include address="${cust.address || ''}" and zip="${cust.zip || ''}" directly in the details object — do NOT ask for these again under any circumstance.`,
-            `  - After confirming address, ask what brought them in today: ${intentQ}`,
-            `  - They can ask about their appointments, reschedule, cancel, or book new — use the appointment IDs from list_appointments_by_phone for reschedule_appointment/cancel_appointment.`,
-            `  - They can also update info on file: if they mention a new address, email, etc., update it in the booking.`,
-            emailOnFile ? `  - For the confirmation email, offer the email on file: "Should I send the confirmation to ${emailOnFile}?"` : `  - No valid email on file — ask the caller: "What's the best email to send your confirmation to?"`,
-            `If they said NO (different person — number was reassigned/reused):`,
-            `  - Apologize briefly: "I'm sorry about that — I'll start fresh for you."`,
-            `  - Immediately call mark_number_reused with old_contact_id="${cust.contact_id}".`,
-            `  - Treat them as a brand-new customer and collect all required intake fields from scratch.`,
-          ].filter(Boolean).join('\n');
-        })()
-      : null,
+    // Returning customer block is now at the top of the prompt (returningCustomerBlock)
     !options.existingCustomer && !outboundEnabled
       ? `If the caller is an existing customer, ask if they want to manage an existing booking or create a new booking.`
       : null,
@@ -2166,12 +2262,15 @@ wss.on('connection', (twilioWs: WebSocket) => {
   let startupAppointments: Array<{ appointment_id: string; start_time: string; end_time?: string; service_type?: string; status?: string; notes?: string }> = [];
   let lastAssistantAskedFollowUp = false;
   let existingCustomer: { contact_id: string; name?: string; email?: string; address?: string; zip?: string } | null = null;
+  let returningCustomerIdentityConfirmed = false; // true after caller confirms "Am I speaking with X?" — drives intent question
+  let returningCustomerIntentAsked = false; // true after intent question has been asked
   let greetedAt = 0; // timestamp when first greeting was sent — used to suppress early VAD noise
   let lowSignalAttempts = 0;
   let lastSpeechStartAt = 0;
   let speechActive = false;
   let speechActiveStartedAt = 0;
   let pendingInterruptTimer: ReturnType<typeof setTimeout> | null = null;
+  let suppressAssistantAudioUntil = 0;
   let requiredIntakeFields: string[] = [];
   let orderedIntakeFields: string[] = [];
   let collectedDetails: Record<string, any> = {};
@@ -2229,6 +2328,13 @@ wss.on('connection', (twilioWs: WebSocket) => {
 
   function reprompt(attempt: number) {
     if (!openaiWs || !openaiReady) return;
+    // If we're in the middle of an intake question, re-ask that specific question
+    // instead of falling back to the generic "book or question?" prompt.
+    if (activeIntakeField && bookingIntentActive) {
+      const question = buildIntakeQuestion(activeIntakeField, activeTenant, collectedDetails);
+      askExactQuestion(`Sorry, I didn't catch that. ${question}`);
+      return;
+    }
     const msg =
       attempt <= 1
         ? "Sorry, didn't catch that. Are you calling to book an appointment, or do you have a quick question?"
@@ -2237,7 +2343,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
   }
 
   function askExactQuestion(question: string) {
-    const safe = String(question || '').replace(/"/g, '\\"').trim();
+    const safe = String(question || '').replace(/"/g, '\"').trim();
     if (!safe) return;
     // If the AI is currently generating or speaking a response, cancel it first
     // so our scripted question replaces whatever the AI was about to say.
@@ -2252,12 +2358,295 @@ wss.on('connection', (twilioWs: WebSocket) => {
     createResponse(`Say exactly: "${safe}" Then stop. Do not add any other sentence.`);
   }
 
-  function maybeDriveBookingIntake(): boolean {
+  function getKnownConfirmationEmail(): string | null {
+    const email = String(existingCustomer?.email || '').trim();
+    if (!email) return null;
+    if (/placeholder|noreply|no-reply|@handycall|example\.com|test@|fake/i.test(email)) return null;
+    return email;
+  }
+
+  function normalizeCollectedDetailsForRequiredFields() {
+    for (const reqField of requiredIntakeFields) {
+      const canonical = normalizeFieldKey(reqField);
+      if (collectedDetails[canonical] && String(collectedDetails[canonical]).trim()) continue;
+      const matchKey = findMatchingDetailKey(canonical, collectedDetails);
+      if (matchKey && matchKey !== canonical) {
+        collectedDetails[canonical] = collectedDetails[matchKey];
+      }
+    }
+  }
+
+  async function prepareCreateBookingArgs(baseArgs: any): Promise<{ args: any; validationError: any | null }> {
+    let args = baseArgs && typeof baseArgs === 'object' ? { ...baseArgs } : {};
+    if (args?.details && typeof args.details === 'object') {
+      collectedDetails = { ...collectedDetails, ...args.details };
+    }
+    if (args?.customer_name) collectedDetails.full_name = collectedDetails.full_name || args.customer_name;
+    if (args?.full_name) collectedDetails.full_name = args.full_name;
+    if (args?.zip) collectedDetails.zip = collectedDetails.zip || args.zip;
+
+    normalizeCollectedDetailsForRequiredFields();
+    args = buildTrustedBookingArgs({ ...args, details: { ...collectedDetails } }, { existingCustomer });
+
+    const requestedText =
+      typeof args?.start_time === 'string'
+        ? args.start_time
+        : typeof args?.preferred_time === 'string'
+          ? args.preferred_time
+          : '';
+    const availabilityFresh = Date.now() - lastAvailabilityAt < 5 * 60_000;
+    const tz = ctx?.timezone || lastAvailabilityTimezone || 'UTC';
+    const missingFields = findMissingRequiredForBooking(requiredIntakeFields, args, { existingCustomer });
+    if (missingFields.length) {
+      const nextMissingField = missingFields[0];
+      const presentFields = requiredIntakeFields.filter((f) => !missingFields.includes(f));
+      return {
+        args,
+        validationError: {
+          ok: false,
+          error: 'MissingRequiredFields',
+          missing_fields: [nextMissingField],
+          remaining_missing_fields: missingFields.slice(1),
+          already_collected: presentFields,
+          message: `The details object is missing ${titleizeField(nextMissingField)}. Ask ONLY for that field now in one short sentence. Do NOT recap or summarize yet. Do NOT use label-style wording like "Name:" or "Address:". Do NOT re-ask fields already collected (${presentFields.map((f) => titleizeField(f)).join(', ')}). After the caller answers, retry create_booking with ALL collected fields in details. If more fields are still missing, the tool will tell you the next one.`,
+        },
+      };
+    }
+
+    let resolvedSlot: string | null = null;
+    if (availabilityFresh && Array.isArray(lastAvailabilitySlots) && lastAvailabilitySlots.length) {
+      if (requestedText && looksLikeIso(requestedText) && lastAvailabilitySlots.includes(requestedText)) {
+        resolvedSlot = requestedText;
+      } else if (requestedText) {
+        let needleText = looksLikeIso(requestedText) ? isoToLocalNaive(requestedText) : requestedText;
+        if (isTimeOnlyText(needleText) && lastAvailabilityDateKey) {
+          needleText = `${lastAvailabilityDateKey} ${needleText}`;
+        }
+        const match = selectAvailabilitySlot(needleText, lastAvailabilitySlots, tz);
+        if (match) resolvedSlot = match;
+      }
+    } else if (requestedText && looksLikeIso(requestedText)) {
+      resolvedSlot = isoToLocalNaive(requestedText);
+    }
+
+    if (!resolvedSlot && requestedText && ctx) {
+      try {
+        let lookupText = looksLikeIso(requestedText) ? isoToLocalNaive(requestedText) : requestedText;
+        if (isTimeOnlyText(lookupText) && lastAvailabilityDateKey) {
+          lookupText = `${lastAvailabilityDateKey} ${lookupText}`;
+        }
+        const availability = await callTool(ctx, 'get_availability', {
+          start_time: lookupText,
+          timezone: tz,
+        });
+        if (Array.isArray((availability as any)?.slots)) {
+          lastAvailabilitySlots = (availability as any).slots.filter((slot: any) => typeof slot === 'string');
+          lastAvailabilityTimezone =
+            typeof (availability as any)?.timezone === 'string' ? (availability as any).timezone : tz;
+          lastAvailabilityAt = Date.now();
+          lastRequestedSlot =
+            typeof (availability as any)?.requested_slot === 'string' ? (availability as any).requested_slot : null;
+          if (lastAvailabilitySlots.length && lastAvailabilityTimezone) {
+            try {
+              lastAvailabilityDateKey = new Intl.DateTimeFormat('en-CA', {
+                timeZone: lastAvailabilityTimezone,
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+              }).format(new Date(lastAvailabilitySlots[0]));
+            } catch {
+              lastAvailabilityDateKey = null;
+            }
+          }
+        }
+        if ((availability as any)?.requested_slot) {
+          resolvedSlot = (availability as any).requested_slot;
+        } else if (Array.isArray(lastAvailabilitySlots) && lastAvailabilitySlots.length) {
+          const match = selectAvailabilitySlot(lookupText, lastAvailabilitySlots, tz);
+          if (match) resolvedSlot = match;
+        }
+      } catch (err: any) {
+        return { args, validationError: { ok: false, error: err?.message ?? String(err) } };
+      }
+    }
+
+    if (resolvedSlot) {
+      args = { ...args, start_time: resolvedSlot, timezone: tz };
+    } else {
+      args = { ...args, timezone: tz };
+    }
+    if (typeof args?.confirmed !== 'boolean') {
+      args = { ...args, confirmed: true };
+    }
+    if (args?.details && !args?.notes) {
+      const notes = buildNotesFromDetails(args.details);
+      if (notes) args = { ...args, notes };
+    }
+
+    return { args, validationError: null };
+  }
+
+  async function executePreparedCreateBooking(args: any): Promise<any> {
+    if (!ctx) return { ok: false, error: 'MissingCallContext' };
+    let result: any = null;
+    const slot = typeof args?.start_time === 'string' ? args.start_time : '';
+    const tz =
+      typeof args?.timezone === 'string'
+        ? args.timezone
+        : lastAvailabilityTimezone || ctx.timezone || 'UTC';
+    if (slot && looksLikeIso(slot)) {
+      try {
+        const hold = await callTool(ctx, 'hold_slot', { slot, timezone: tz, hold_minutes: 5 });
+        if ((hold as any)?.ok !== true) {
+          result = hold;
+        }
+      } catch (err: any) {
+        result = { ok: false, error: err?.message ?? String(err) };
+      }
+    }
+    if (!result) {
+      result = await callTool(ctx, 'create_booking', args);
+    }
+    if ((result as any)?.ok === true || (result as any)?.appointment_id) {
+      appointmentCreated = true;
+      if (args?.details) {
+        callTool(ctx, 'save_call', {
+          collected_info: args.details,
+          summary: 'Booked appointment.',
+        }).catch((err: any) => console.warn('[bridge] save_call after booking failed', err?.message ?? String(err)));
+      }
+    }
+    return result;
+  }
+
+  function syncAvailabilityState(result: any, fallbackTimezone: string) {
+    if (Array.isArray((result as any)?.slots)) {
+      lastAvailabilitySlots = (result as any).slots.filter((slot: any) => typeof slot === 'string');
+      lastAvailabilityTimezone =
+        typeof (result as any)?.timezone === 'string' ? (result as any).timezone : fallbackTimezone;
+      lastAvailabilityAt = Date.now();
+      lastRequestedSlot =
+        typeof (result as any)?.requested_slot === 'string' ? (result as any).requested_slot : null;
+      if (lastAvailabilitySlots.length && lastAvailabilityTimezone) {
+        try {
+          lastAvailabilityDateKey = new Intl.DateTimeFormat('en-CA', {
+            timeZone: lastAvailabilityTimezone,
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+          }).format(new Date(lastAvailabilitySlots[0]));
+        } catch {
+          lastAvailabilityDateKey = null;
+        }
+      } else {
+        lastAvailabilityDateKey = null;
+      }
+      return;
+    }
+    lastAvailabilitySlots = [];
+    lastAvailabilityTimezone = fallbackTimezone;
+    lastAvailabilityAt = Date.now();
+    lastRequestedSlot = null;
+    lastAvailabilityDateKey = null;
+  }
+
+  async function runDeterministicAvailabilityFlow(preferredTime: string): Promise<boolean> {
+    if (!ctx || !openaiWs) return false;
+    const requestedTime = String(preferredTime || '').trim();
+    if (!requestedTime) return false;
+
+    const timezone = ctx.timezone || lastAvailabilityTimezone || 'UTC';
+    const schedulingQuestion = buildIntakeQuestion('preferred_time', activeTenant, collectedDetails);
+    let availability: any;
+    try {
+      availability = await callTool(ctx, 'get_availability', {
+        start_time: requestedTime,
+        timezone,
+      });
+    } catch {
+      activeIntakeField = 'preferred_time';
+      askExactQuestion(`Sorry, I didn't catch that. ${schedulingQuestion}`);
+      return true;
+    }
+    syncAvailabilityState(availability, timezone);
+
+    if ((availability as any)?.ok === false || typeof (availability as any)?.error === 'string') {
+      activeIntakeField = 'preferred_time';
+      askExactQuestion(`Sorry, I didn't catch that. ${schedulingQuestion}`);
+      return true;
+    }
+
+    if ((availability as any)?.requested_time_available === true) {
+      const resolvedRequestedSlot =
+        typeof (availability as any)?.requested_slot === 'string' ? (availability as any).requested_slot : null;
+      const preparedBooking = await prepareCreateBookingArgs({
+        confirmed: true,
+        preferred_time: requestedTime,
+        start_time: resolvedRequestedSlot || requestedTime,
+        timezone,
+        details: { ...collectedDetails },
+      });
+      if (preparedBooking.validationError) {
+        const nextField = Array.isArray((preparedBooking.validationError as any)?.missing_fields)
+          ? (preparedBooking.validationError as any).missing_fields[0]
+          : null;
+        if (nextField) {
+          activeIntakeField = nextField;
+          askExactQuestion(`That time is available. ${buildIntakeQuestion(nextField, activeTenant, collectedDetails)}`);
+          return true;
+        }
+      }
+
+      const bookingResult = await executePreparedCreateBooking(preparedBooking.args);
+      if ((bookingResult as any)?.ok === true || (bookingResult as any)?.appointment_id) {
+        const emailOnFile = getKnownConfirmationEmail();
+        const followUpQuestion = emailOnFile
+          ? `Should I send the confirmation to ${emailOnFile}?`
+          : "What's the best email to send your confirmation to?";
+        createResponse(
+          `Say exactly: "That time is available. Let me book it for you. ${followUpQuestion}" Then stop. Do not recap any booking details.`
+        );
+        return true;
+      }
+
+      sendToOpenAI(openaiWs, {
+        type: 'conversation.item.create',
+        item: {
+          type: 'function_call_output',
+          call_id: `bridge_booking_${Date.now()}`,
+          output: JSON.stringify(bookingResult),
+        },
+      });
+      createResponse(
+        'The requested time was available, but the booking could not be finalized yet. Explain the result briefly and continue without re-asking fields already collected.'
+      );
+      return true;
+    }
+
+    const spokenAvail = typeof (availability as any)?.spoken_availability === 'string'
+      ? (availability as any).spoken_availability
+      : '';
+    if (spokenAvail) {
+      askExactQuestion(spokenAvail);
+      return true;
+    }
+
+    activeIntakeField = 'preferred_time';
+    askExactQuestion(`Sorry, I didn't catch that. ${schedulingQuestion}`);
+    return true;
+  }
+
+  async function maybeDriveBookingIntake(): Promise<boolean> {
+
     if (!bookingIntentActive || !ctx || !openaiReady || !openaiWs || appointmentCreated) return false;
 
     const intakeArgs = { details: { ...collectedDetails } };
     const plannedFields = orderedIntakeFields.length ? orderedIntakeFields : requiredIntakeFields;
     if (serviceAreaRequired) {
+      // Returning customers are already known to be in the service area — skip check_service_area.
+      if (existingCustomer && serviceAreaEligible === null) {
+        serviceAreaEligible = true;
+      }
       const zipValue = String(collectedDetails.zip || '').trim();
       if (zipValue && serviceAreaEligible === null) {
         activeIntakeField = null;
@@ -2278,7 +2667,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
     }
 
     const nonSchedulingFields = plannedFields.filter((field) => !isSchedulingField(field));
-    const missingNonScheduling = findMissingRequired(nonSchedulingFields, intakeArgs);
+    const missingNonScheduling = findMissingRequiredForBooking(nonSchedulingFields, intakeArgs, { existingCustomer });
     if (missingNonScheduling.length > 0) {
       const nextField = missingNonScheduling[0];
       activeIntakeField = nextField;
@@ -2288,7 +2677,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
     }
 
     const schedulingFields = plannedFields.filter((field) => isSchedulingField(field));
-    const missingScheduling = findMissingRequired(schedulingFields, intakeArgs);
+    const missingScheduling = findMissingRequiredForBooking(schedulingFields, intakeArgs, { existingCustomer });
     if (missingScheduling.length > 0) {
       const nextField = missingScheduling[0];
       activeIntakeField = nextField;
@@ -2299,10 +2688,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
 
     if (collectedDetails.preferred_time && String(collectedDetails.preferred_time).trim()) {
       activeIntakeField = null;
-      createResponse(
-        `All required intake fields are already collected. The caller requested "${String(collectedDetails.preferred_time).trim()}". Do not ask any more intake questions. Call get_availability now using that preferred time.`
-      );
-      return true;
+      return await runDeterministicAvailabilityFlow(String(collectedDetails.preferred_time).trim());
     }
 
     return false;
@@ -2327,6 +2713,19 @@ wss.on('connection', (twilioWs: WebSocket) => {
     pendingInterruptTimer = null;
   }
 
+  function suppressAssistantAudio(reason: string, durationMs = 1600) {
+    const now = Date.now();
+    suppressAssistantAudioUntil = Math.max(suppressAssistantAudioUntil, now + durationMs);
+    if (ctx?.streamSid) {
+      sendToTwilio(twilioWs, { event: 'clear', streamSid: ctx.streamSid });
+    }
+    diag('barge_in.suppress_audio', {
+      callSid: ctx?.callSid || '',
+      reason,
+      durationMs,
+    });
+  }
+
   function interruptAssistant(reason: string) {
     cancelPendingInterruptTimer();
     if (!assistantSpeaking) return;
@@ -2344,7 +2743,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
         // ignore
       }
     }
-    if (ctx?.streamSid) sendToTwilio(twilioWs, { event: 'clear', streamSid: ctx.streamSid });
+    suppressAssistantAudio(reason);
     // Do NOT send response.cancel — OpenAI auto-cancels via interrupt_response:true.
     // Sending it manually causes response_cancel_not_active errors.
     assistantSpeaking = false;
@@ -2690,6 +3089,9 @@ wss.on('connection', (twilioWs: WebSocket) => {
         if (useElevenLabs) return;
         const payload = msg?.delta;
         if (payload && ctx?.streamSid) {
+          if (Date.now() < suppressAssistantAudioUntil) {
+            return;
+          }
           const payloadStr = String(payload);
           diagOpenAIAudioChunks += 1;
           diagOpenAIAudioBytes += base64ByteLength(payloadStr);
@@ -2786,11 +3188,16 @@ wss.on('connection', (twilioWs: WebSocket) => {
           lastShortAckAt = now;
         }
 
-        if (!recentSpeech && trimmed.length < 6) {
+        // When activeIntakeField is set, the caller is answering a direct question
+        // (e.g. "What is your full name?"). Their answer may be short (1-2 word name)
+        // so we must NOT filter it as low-signal or too-short.
+        const answeringIntakeQuestion = !!activeIntakeField && bookingIntentActive;
+
+        if (!answeringIntakeQuestion && !recentSpeech && trimmed.length < 6) {
           return;
         }
 
-        if (isLowSignalTranscript(trimmed) || isFillerUtterance(trimmed)) {
+        if (!answeringIntakeQuestion && (isLowSignalTranscript(trimmed) || isFillerUtterance(trimmed))) {
           if (!recentSpeech) {
             return;
           }
@@ -2805,6 +3212,34 @@ wss.on('connection', (twilioWs: WebSocket) => {
         transcript.push(`Caller: ${trimmed}`);
         lastCallerUtterance = trimmed;
         lowSignalAttempts = 0;
+
+        // --- Returning customer: intercept identity confirmation and drive intent question ---
+        if (existingCustomer && !returningCustomerIdentityConfirmed && !returningCustomerIntentAsked) {
+          const norm = normalizeSpeech(trimmed);
+          const isYes = ['yes', 'yeah', 'yep', 'thats me', "that's me", 'correct', 'speaking', 'this is', 'uh huh', 'yea'].some(p => norm === p || norm.startsWith(p + ' '));
+          const isNo = ['no', 'nope', 'nah', 'wrong', 'not me', 'different'].some(p => norm === p || norm.startsWith(p + ' '));
+          if (isYes) {
+            returningCustomerIdentityConfirmed = true;
+            returningCustomerIntentAsked = true;
+            const hasSubscription = activeTenant && Array.isArray(activeTenant.booking_services) &&
+              activeTenant.booking_services.some((s: any) => s.billing_type === 'SUBSCRIPTION');
+            const intentQ = hasSubscription
+              ? 'Are you calling about your current service, wanting to schedule a visit, or do you have a question?'
+              : 'Are you calling about a previous job, want to book something new, or do you have a question I can help with?';
+            askExactQuestion(`Great, welcome back! ${intentQ}`);
+            return;
+          }
+          if (isNo) {
+            // Number reused — let AI handle with mark_number_reused per system prompt
+            returningCustomerIdentityConfirmed = false;
+            const previousName = existingCustomer?.name || 'the person on file';
+            existingCustomer = null;
+            collectedDetails = {};
+            createResponse(`The caller said they are NOT ${previousName}. Apologize briefly: "I'm sorry about that — I'll start fresh for you." Then call mark_number_reused and treat them as a brand-new customer.`);
+            return;
+          }
+        }
+
         const wasBookingActive = bookingIntentActive;
         if (looksLikeBookingIntent(trimmed)) {
           bookingIntentActive = true;
@@ -2815,12 +3250,27 @@ wss.on('connection', (twilioWs: WebSocket) => {
         if (inferredField) {
           bookingIntentActive = true;
         }
+        const normalizedInferredField = inferredField ? normalizeFieldKey(inferredField) : null;
+        if (normalizedInferredField === 'preferred_time') {
+          const hasSuggestedDateContext =
+            !!lastAvailabilityDateKey ||
+            (Date.now() - lastAvailabilityAt < 5 * 60_000 && Array.isArray(lastAvailabilitySlots) && lastAvailabilitySlots.length > 0);
+          if (!isUsablePreferredTimeAnswer(trimmed, hasSuggestedDateContext)) {
+            activeIntakeField = 'preferred_time';
+            askExactQuestion(`Sorry, I didn't catch that. ${buildIntakeQuestion('preferred_time', activeTenant, collectedDetails)}`);
+            return;
+          }
+        }
         if (inferredField) {
           const normalizedValue = stripFieldLeadIn(inferredField, trimmed);
           const existingValue = collectedDetails[inferredField];
+          // Don't store booking-intent phrases as a name (e.g. "I want to book an appointment"
+          // is not a valid name — the caller was responding to a generic reprompt, not the name question).
+          const isGarbageName = isNameField(inferredField) && looksLikeBookingIntent(normalizedValue);
           const shouldStore =
             normalizedValue &&
             !isGenericConfirmation(normalizedValue) &&
+            !isGarbageName &&
             (
               !existingValue ||
               String(existingValue).trim() === '' ||
@@ -2831,6 +3281,12 @@ wss.on('connection', (twilioWs: WebSocket) => {
             if (activeIntakeField && normalizeFieldKey(activeIntakeField) === normalizeFieldKey(inferredField)) {
               activeIntakeField = null;
             }
+          }
+        }
+        if (isGenericConfirmation(trimmed)) {
+          const confirmedService = extractServiceSelectionFromPrompt(lastAssistantPromptText);
+          if (confirmedService) {
+            collectedDetails = applySelectedServiceDetails(collectedDetails, confirmedService);
           }
         }
         if (assistantSpeaking && Date.now() - lastAssistantAudioAt < 1500) {
@@ -2850,7 +3306,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
           return;
         }
 
-        if (maybeDriveBookingIntake()) {
+        if (await maybeDriveBookingIntake()) {
           return;
         }
 
@@ -2859,24 +3315,42 @@ wss.on('connection', (twilioWs: WebSocket) => {
           !appointmentCreated &&
           (
             (serviceAreaRequired && String(collectedDetails.zip || '').trim() && serviceAreaEligible === null) ||
-            findMissingRequired(
+            findMissingRequiredForBooking(
               orderedIntakeFields.length ? orderedIntakeFields : requiredIntakeFields,
-              { details: { ...collectedDetails } }
+              { details: { ...collectedDetails } },
+              { existingCustomer }
             ).length > 0
           );
 
         if (pendingScriptedIntake) {
           // Don't silently drop — ask the next missing field explicitly.
           const planned = orderedIntakeFields.length ? orderedIntakeFields : requiredIntakeFields;
-          const missingNow = findMissingRequired(
+          const missingNow = findMissingRequiredForBooking(
             planned.filter((f) => !isSchedulingField(f)),
-            { details: { ...collectedDetails } }
+            { details: { ...collectedDetails } },
+            { existingCustomer }
           );
           if (missingNow.length > 0) {
             activeIntakeField = missingNow[0];
             askExactQuestion(buildIntakeQuestion(missingNow[0], activeTenant, collectedDetails));
           }
           return;
+        }
+
+        // Safety net: if booking is active and non-scheduling fields are still missing,
+        // force the next intake question instead of letting the AI freestyle.
+        if (bookingIntentActive && !appointmentCreated && openaiWs && openaiReady) {
+          const planned = orderedIntakeFields.length ? orderedIntakeFields : requiredIntakeFields;
+          const missingNonSched = findMissingRequiredForBooking(
+            planned.filter((f) => !isSchedulingField(f)),
+            { details: { ...collectedDetails } },
+            { existingCustomer },
+          );
+          if (missingNonSched.length > 0) {
+            activeIntakeField = missingNonSched[0];
+            askExactQuestion(buildIntakeQuestion(missingNonSched[0], activeTenant, collectedDetails));
+            return;
+          }
         }
 
         if (openaiWs && openaiReady) {
@@ -2895,9 +3369,10 @@ wss.on('connection', (twilioWs: WebSocket) => {
         // missing, immediately force the next missing question.
         if (bookingIntentActive && !appointmentCreated) {
           const planned = orderedIntakeFields.length ? orderedIntakeFields : requiredIntakeFields;
-          const missingNonSched = findMissingRequired(
+          const missingNonSched = findMissingRequiredForBooking(
             planned.filter((f) => !isSchedulingField(f)),
             { details: { ...collectedDetails } },
+            { existingCustomer },
           );
           if (missingNonSched.length > 0 && !activeIntakeField) {
             activeIntakeField = missingNonSched[0];
@@ -2911,6 +3386,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
         if (useElevenLabs) return;
         assistantSpeaking = false;
         openaiResponding = false;
+        suppressAssistantAudioUntil = 0;
         if (pendingHangup && !waitingForHangupMark) {
           setTimeout(() => {
             if (pendingHangup && !waitingForHangupMark) queueHangupMark();
@@ -2930,11 +3406,12 @@ wss.on('connection', (twilioWs: WebSocket) => {
         // Delay interruption slightly so brief noise / false VAD spikes do not cut off TTS.
         const hadRecentAudio = lastAssistantAudioAt > 0 && now - lastAssistantAudioAt < 4000;
         if (hadRecentAudio) {
+          suppressAssistantAudio('speech_started_detected', 1800);
           pendingInterruptTimer = setTimeout(() => {
             pendingInterruptTimer = null;
             if (!speechActive) return;
             interruptAssistant('speech_started_confirmed');
-          }, 220);
+          }, 120);
         }
         return;
       }
@@ -2988,9 +3465,10 @@ wss.on('connection', (twilioWs: WebSocket) => {
                 ...((args?.details && typeof args.details === 'object') ? args.details : {}),
               },
             };
-            const missingBeforeScheduling = findMissingRequired(
+            const missingBeforeScheduling = findMissingRequiredForBooking(
               requiredIntakeFields.filter((field) => !isSchedulingField(field)),
               availabilityArgs,
+              { existingCustomer },
             );
             if (missingBeforeScheduling.length) {
               const nextMissingField = missingBeforeScheduling[0];
@@ -3006,117 +3484,10 @@ wss.on('connection', (twilioWs: WebSocket) => {
           }
 
           if (toolName === 'create_booking') {
-            // Accumulate details across multiple create_booking attempts
-            if (args?.details && typeof args.details === 'object') {
-              collectedDetails = { ...collectedDetails, ...args.details };
-            }
-            // Also capture top-level fields the AI might pass outside details
-            if (args?.customer_name) collectedDetails.full_name = collectedDetails.full_name || args.customer_name;
-            if (args?.full_name) collectedDetails.full_name = args.full_name;
-            if (args?.zip) collectedDetails.zip = collectedDetails.zip || args.zip;
-
-            // Normalize aliased/fuzzy keys to canonical required field names
-            for (const reqField of requiredIntakeFields) {
-              const canonical = normalizeFieldKey(reqField);
-              if (collectedDetails[canonical] && String(collectedDetails[canonical]).trim()) continue;
-              const matchKey = findMatchingDetailKey(canonical, collectedDetails);
-              if (matchKey && matchKey !== canonical) {
-                collectedDetails[canonical] = collectedDetails[matchKey];
-              }
-            }
-
-            // Replace args.details with the accumulated state
-            args = { ...args, details: { ...collectedDetails } };
-
-            const requestedText =
-              typeof args?.start_time === 'string'
-                ? args.start_time
-                : typeof args?.preferred_time === 'string'
-                  ? args.preferred_time
-                  : '';
-            const availabilityFresh = Date.now() - lastAvailabilityAt < 5 * 60_000;
-            const tz = normalizedTimezone;
-            const missingFields = findMissingRequired(requiredIntakeFields, args);
-            if (missingFields.length) {
-              const nextMissingField = missingFields[0];
-              const presentFields = requiredIntakeFields.filter((f) => !missingFields.includes(f));
-              result = {
-                ok: false,
-                error: 'MissingRequiredFields',
-                missing_fields: [nextMissingField],
-                remaining_missing_fields: missingFields.slice(1),
-                already_collected: presentFields,
-                message: `The details object is missing ${titleizeField(nextMissingField)}. Ask ONLY for that field now in one short sentence. Do NOT recap or summarize yet. Do NOT use label-style wording like "Name:" or "Address:". Do NOT re-ask fields already collected (${presentFields.map((f) => titleizeField(f)).join(', ')}). After the caller answers, retry create_booking with ALL collected fields in details. If more fields are still missing, the tool will tell you the next one.`,
-              };
-            }
-            let resolvedSlot: string | null = null;
-            if (availabilityFresh && Array.isArray(lastAvailabilitySlots) && lastAvailabilitySlots.length) {
-              if (requestedText && looksLikeIso(requestedText) && lastAvailabilitySlots.includes(requestedText)) {
-                resolvedSlot = requestedText;
-              } else if (lastRequestedSlot) {
-                resolvedSlot = lastRequestedSlot;
-              } else if (requestedText) {
-                let needleText = looksLikeIso(requestedText) ? isoToLocalNaive(requestedText) : requestedText;
-                if (isTimeOnlyText(needleText) && lastAvailabilityDateKey) {
-                  needleText = `${lastAvailabilityDateKey} ${needleText}`;
-                }
-                const match = selectAvailabilitySlot(needleText, lastAvailabilitySlots, tz);
-                if (match) resolvedSlot = match;
-              }
-            } else if (requestedText && looksLikeIso(requestedText)) {
-              resolvedSlot = isoToLocalNaive(requestedText);
-            }
-            if (!resolvedSlot && requestedText) {
-              try {
-                let lookupText = looksLikeIso(requestedText) ? isoToLocalNaive(requestedText) : requestedText;
-                if (isTimeOnlyText(lookupText) && lastAvailabilityDateKey) {
-                  lookupText = `${lastAvailabilityDateKey} ${lookupText}`;
-                }
-                const availability = await callTool(ctx, 'get_availability', {
-                  start_time: lookupText,
-                  timezone: tz,
-                });
-                if (Array.isArray((availability as any)?.slots)) {
-                  lastAvailabilitySlots = (availability as any).slots.filter((slot: any) => typeof slot === 'string');
-                  lastAvailabilityTimezone =
-                    typeof (availability as any)?.timezone === 'string' ? (availability as any).timezone : tz;
-                  lastAvailabilityAt = Date.now();
-                  lastRequestedSlot =
-                    typeof (availability as any)?.requested_slot === 'string' ? (availability as any).requested_slot : null;
-                  if (lastAvailabilitySlots.length && lastAvailabilityTimezone) {
-                    try {
-                      lastAvailabilityDateKey = new Intl.DateTimeFormat('en-CA', {
-                        timeZone: lastAvailabilityTimezone,
-                        year: 'numeric',
-                        month: '2-digit',
-                        day: '2-digit',
-                      }).format(new Date(lastAvailabilitySlots[0]));
-                    } catch {
-                      lastAvailabilityDateKey = null;
-                    }
-                  }
-                }
-                if ((availability as any)?.requested_slot) {
-                  resolvedSlot = (availability as any).requested_slot;
-                } else if (Array.isArray(lastAvailabilitySlots) && lastAvailabilitySlots.length) {
-                  const match = selectAvailabilitySlot(lookupText, lastAvailabilitySlots, tz);
-                  if (match) resolvedSlot = match;
-                }
-              } catch (err: any) {
-                result = { ok: false, error: err?.message ?? String(err) };
-              }
-            }
-            if (resolvedSlot) {
-              args = { ...args, start_time: resolvedSlot, timezone: tz };
-            } else {
-              args = { ...args, timezone: tz };
-            }
-            if (typeof args?.confirmed !== 'boolean') {
-              args = { ...args, confirmed: true };
-            }
-            if (args?.details && !args?.notes) {
-              const notes = buildNotesFromDetails(args.details);
-              if (notes) args = { ...args, notes };
+            const preparedBooking = await prepareCreateBookingArgs(args);
+            args = preparedBooking.args;
+            if (preparedBooking.validationError) {
+              result = preparedBooking.validationError;
             }
           }
           if (toolName === 'end_call') {
@@ -3141,34 +3512,15 @@ wss.on('connection', (twilioWs: WebSocket) => {
             };
           } else {
             if (!result && toolName === 'create_booking') {
-              const slot = typeof args?.start_time === 'string' ? args.start_time : '';
-              const tz =
-                typeof args?.timezone === 'string'
-                  ? args.timezone
-                  : lastAvailabilityTimezone || ctx.timezone || 'UTC';
-              if (slot && looksLikeIso(slot)) {
-                try {
-                  const hold = await callTool(ctx, 'hold_slot', { slot, timezone: tz, hold_minutes: 5 });
-                  if ((hold as any)?.ok !== true) {
-                    result = hold;
-                  }
-                } catch (err: any) {
-                  result = { ok: false, error: err?.message ?? String(err) };
-                }
-              }
+              result = await executePreparedCreateBooking(args);
             }
             if (!result) {
               result = await callTool(ctx, toolName, args);
             }
-            if (toolName === 'create_booking') {
-              if ((result as any)?.ok === true || (result as any)?.appointment_id) {
+            if (toolName === 'reschedule_appointment') {
+              if ((result as any)?.ok === true || (result as any)?.appointment_id || (result as any)?.new_start) {
                 appointmentCreated = true;
-                if (args?.details) {
-                  callTool(ctx, 'save_call', {
-                    collected_info: args.details,
-                    summary: 'Booked appointment.',
-                  }).catch((err: any) => console.warn('[bridge] save_call after booking failed', err?.message ?? String(err)));
-                }
+                console.log('[bridge] reschedule succeeded — marking appointmentCreated=true');
               }
             }
           if (toolName === 'check_service_area') {
@@ -3195,7 +3547,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
                 // Build the exact next question so the AI doesn't freestyle.
                 const planned = orderedIntakeFields.length ? orderedIntakeFields : requiredIntakeFields;
                 const nonSched = planned.filter((f) => !isSchedulingField(f));
-                const missing = findMissingRequired(nonSched, { details: { ...collectedDetails } });
+                const missing = findMissingRequiredForBooking(nonSched, { details: { ...collectedDetails } }, { existingCustomer });
                 if (missing.length > 0) {
                   const nextField = missing[0];
                   activeIntakeField = nextField;
@@ -3223,8 +3575,90 @@ wss.on('connection', (twilioWs: WebSocket) => {
               }
             }
             if (toolName === 'get_availability') {
+              const spokenAvail = typeof (result as any)?.spoken_availability === 'string' ? (result as any).spoken_availability : '';
+              if ((result as any)?.ok === false || typeof (result as any)?.error === 'string') {
+                activeIntakeField = 'preferred_time';
+                askExactQuestion(`Sorry, I didn't catch that. ${buildIntakeQuestion('preferred_time', activeTenant, collectedDetails)}`);
+                return;
+              }
               if ((result as any)?.requested_time_available === true) {
                 (result as any).spoken_availability = 'That time is available. Let me book it for you.';
+                customToolResponseIssued = true;
+                sendToOpenAI(openaiWs, {
+                  type: 'conversation.item.create',
+                  item: {
+                    type: 'function_call_output',
+                    call_id: callId,
+                    output: JSON.stringify(result),
+                  },
+                });
+
+                const preferredTime =
+                  String(collectedDetails.preferred_time || args?.preferred_time || args?.start_time || '').trim();
+                const preparedBooking = await prepareCreateBookingArgs({
+                  confirmed: true,
+                  preferred_time: preferredTime,
+                  start_time:
+                    typeof (result as any)?.requested_slot === 'string'
+                      ? (result as any).requested_slot
+                      : args?.start_time || '',
+                  timezone: normalizedTimezone,
+                  details: { ...collectedDetails },
+                });
+                if (preparedBooking.validationError) {
+                  const nextField = Array.isArray((preparedBooking.validationError as any)?.missing_fields)
+                    ? (preparedBooking.validationError as any).missing_fields[0]
+                    : null;
+                  if (nextField) {
+                    activeIntakeField = nextField;
+                    askExactQuestion(`That time is available. ${buildIntakeQuestion(nextField, activeTenant, collectedDetails)}`);
+                    return;
+                  }
+                }
+
+                const bookingResult = await executePreparedCreateBooking(preparedBooking.args);
+                if ((bookingResult as any)?.ok === true || (bookingResult as any)?.appointment_id) {
+                  const emailOnFile = getKnownConfirmationEmail();
+                  const followUpQuestion = emailOnFile
+                    ? `Should I send the confirmation to ${emailOnFile}?`
+                    : "What's the best email to send your confirmation to?";
+                  createResponse(
+                    `Say exactly: "That time is available. Let me book it for you. ${followUpQuestion}" Then stop. Do not recap any booking details.`
+                  );
+                  return;
+                }
+
+                sendToOpenAI(openaiWs, {
+                  type: 'conversation.item.create',
+                  item: {
+                    type: 'function_call_output',
+                    call_id: callId,
+                    output: JSON.stringify(bookingResult),
+                  },
+                });
+                createResponse(
+                  'The requested time was available, but the booking could not be finalized yet. Explain the result briefly and continue without re-asking fields already collected.'
+                );
+                return;
+              }
+              // Force direct response for unavailable times too — no "let me check" filler
+              if ((result as any)?.requested_time_available === false && spokenAvail) {
+                customToolResponseIssued = true;
+                sendToOpenAI(openaiWs, {
+                  type: 'conversation.item.create',
+                  item: {
+                    type: 'function_call_output',
+                    call_id: callId,
+                    output: JSON.stringify(result),
+                  },
+                });
+                createResponse(`Say exactly: "${spokenAvail}" Do not add filler like "let me check" or "please hold on."`);
+                return;
+              }
+              if (!spokenAvail && typeof (result as any)?.requested_time_available !== 'boolean') {
+                activeIntakeField = 'preferred_time';
+                askExactQuestion(`Sorry, I didn't catch that. ${buildIntakeQuestion('preferred_time', activeTenant, collectedDetails)}`);
+                return;
               }
               if (Array.isArray((result as any)?.slots)) {
                 lastAvailabilitySlots = (result as any).slots.filter((slot: any) => typeof slot === 'string');
@@ -3270,7 +3704,7 @@ wss.on('connection', (twilioWs: WebSocket) => {
         if (toolName !== 'end_call' && !customToolResponseIssued) {
           // After tool calls that reveal missing fields, force the exact question
           // instead of letting the AI freestyle its response.
-          if (maybeDriveBookingIntake()) {
+          if (await maybeDriveBookingIntake()) {
             return;
           }
           const toolReturnedMissing =
@@ -3400,7 +3834,10 @@ wss.on('connection', (twilioWs: WebSocket) => {
           if (customer && (customer as any)?.contact_id) {
             existingCustomer = customer as { contact_id: string; name?: string; email?: string; address?: string; zip?: string };
             // Pre-populate collected details so create_booking won't re-ask for confirmed fields
-            if (existingCustomer.address) collectedDetails.address = existingCustomer.address;
+            if (existingCustomer.address) {
+              collectedDetails.address = existingCustomer.address;
+              collectedDetails.service_address = existingCustomer.address;
+            }
             if (existingCustomer.zip) collectedDetails.zip = existingCustomer.zip;
             if (existingCustomer.name) collectedDetails.full_name = existingCustomer.name;
           }

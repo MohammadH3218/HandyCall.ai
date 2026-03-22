@@ -1,4 +1,4 @@
-import { IsNumber, IsObject, IsOptional, IsString, Min } from 'class-validator';
+import { IsBoolean, IsNumber, IsObject, IsOptional, IsString, Min } from 'class-validator';
 
 export class PublicBookingRequestDto {
   @IsString()
@@ -32,6 +32,10 @@ export class PublicBookingRequestDto {
   @IsObject()
   @IsOptional()
   custom_fields?: Record<string, any>;
+
+  @IsBoolean()
+  @IsOptional()
+  sms_consent?: boolean;
 }
 
 export class PublicBookingUpdateDto {

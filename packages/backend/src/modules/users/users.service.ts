@@ -1,4 +1,11 @@
-import { Injectable, ConflictException, NotFoundException, BadRequestException, Inject, forwardRef } from '@nestjs/common';
+import {
+  Injectable,
+  ConflictException,
+  NotFoundException,
+  BadRequestException,
+  Inject,
+  forwardRef,
+} from '@nestjs/common';
 import { DynamoDBService } from '../../infrastructure/database/dynamodb.service';
 import { CognitoService } from '../auth/cognito.service';
 import {
@@ -77,7 +84,9 @@ export class UsersService {
       }
 
       const formattedPhone =
-        companyPhone && isValidPhoneNumber(companyPhone) ? formatPhoneNumber(companyPhone) : undefined;
+        companyPhone && isValidPhoneNumber(companyPhone)
+          ? formatPhoneNumber(companyPhone)
+          : undefined;
 
       const newCompany = await this.companiesService.createCompany(
         companyName,
@@ -89,7 +98,9 @@ export class UsersService {
       resolvedCompanyId = newCompany.company_id;
       companyName = newCompany.company_name;
     } else {
-      throw new BadRequestException('Either company_id or company_name must be provided for customer users');
+      throw new BadRequestException(
+        'Either company_id or company_name must be provided for customer users'
+      );
     }
 
     const resolvedRole = isAdminPool ? UserRole.ADMIN : role || UserRole.OWNER;
@@ -156,7 +167,10 @@ export class UsersService {
         try {
           await this.cognitoService.deleteUser(email, poolType);
         } catch (rollbackErr) {
-          console.error('[UsersService] Failed to rollback Cognito user after DB error:', rollbackErr);
+          console.error(
+            '[UsersService] Failed to rollback Cognito user after DB error:',
+            rollbackErr
+          );
         }
       }
       throw dbErr;
@@ -169,6 +183,7 @@ export class UsersService {
     email: string;
     firstName?: string;
     lastName?: string;
+    companyId?: string;
     companyName?: string;
     serviceType?: ServiceType;
     timezone?: string;
@@ -181,17 +196,27 @@ export class UsersService {
     const resolvedLastName = input.lastName?.trim() || 'Account';
     const resolvedTimezone = input.timezone?.trim() || 'America/New_York';
     const resolvedServiceType =
-      (input.serviceType && Object.values(ServiceType).includes(input.serviceType)) ? input.serviceType : ServiceType.OTHER;
-    const resolvedCompanyName = input.companyName?.trim() || `HandyCall Account ${uuidv4().slice(0, 8)}`;
+      input.serviceType && Object.values(ServiceType).includes(input.serviceType)
+        ? input.serviceType
+        : ServiceType.OTHER;
+    const resolvedCompanyName =
+      input.companyName?.trim() || `HandyCall Account ${uuidv4().slice(0, 8)}`;
 
-    const company = await this.companiesService.createCompany(
-      resolvedCompanyName,
-      resolvedServiceType,
-      email,
-      undefined,
-      resolvedTimezone,
-      { allowExisting: true, companyProfileCompleted: false, serviceAreaCompleted: false }
-    );
+    let company =
+      (input.companyId
+        ? await this.companiesService.findById(input.companyId).catch(() => null)
+        : null) || null;
+
+    if (!company) {
+      company = await this.companiesService.createCompany(
+        resolvedCompanyName,
+        resolvedServiceType,
+        email,
+        undefined,
+        resolvedTimezone,
+        { allowExisting: true, companyProfileCompleted: false, serviceAreaCompleted: false }
+      );
+    }
 
     const userId = uuidv4();
     const timestamp = Date.now();
@@ -224,7 +249,10 @@ export class UsersService {
       );
     } catch (error) {
       // Non-fatal: user can still proceed even if attributes fail to update
-      console.warn('[UsersService] Failed to update Cognito attributes for provisioned user', error);
+      console.warn(
+        '[UsersService] Failed to update Cognito attributes for provisioned user',
+        error
+      );
     }
 
     return user;
@@ -255,17 +283,14 @@ export class UsersService {
     });
 
     if (result.items.length === 0) {
-        return null;
+      return null;
     }
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { password_hash, ...user } = result.items[0] as any;
     return user as User;
   }
 
-  async findByEmailForCompany(
-    email: string,
-    companyId: string
-  ): Promise<User | null> {
+  async findByEmailForCompany(email: string, companyId: string): Promise<User | null> {
     // Production email index keys differ; safest is a filtered scan scoped by company_id + email.
     const result = await this.dynamodb.scan(this.tableName, {
       filterExpression: '#company_id = :company_id AND #email = :email',
@@ -275,7 +300,7 @@ export class UsersService {
     });
 
     if (result.items.length === 0) {
-        return null;
+      return null;
     }
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { password_hash, ...user } = result.items[0] as any;
@@ -385,7 +410,8 @@ export class UsersService {
     );
 
     const poolType: 'users' | 'admin' =
-      (user as any).pool_type === 'admin' || (user.role === UserRole.ADMIN && user.company_id === 'platform-admin')
+      (user as any).pool_type === 'admin' ||
+      (user.role === UserRole.ADMIN && user.company_id === 'platform-admin')
         ? 'admin'
         : 'users';
 
@@ -393,7 +419,9 @@ export class UsersService {
     if (firstName) attributesToUpdate['given_name'] = firstName;
     if (lastName) attributesToUpdate['family_name'] = lastName;
     if (firstName || lastName) {
-      attributesToUpdate['name'] = [firstName || user.first_name, lastName || user.last_name].filter(Boolean).join(' ');
+      attributesToUpdate['name'] = [firstName || user.first_name, lastName || user.last_name]
+        .filter(Boolean)
+        .join(' ');
     }
     if (nextEmail && nextEmail !== user.email) {
       attributesToUpdate['email'] = nextEmail;
@@ -408,7 +436,10 @@ export class UsersService {
       try {
         await this.cognitoService.updateUserAttributes(user.email, attributesToUpdate, poolType);
       } catch (err) {
-        console.warn('[UsersService] Failed to update Cognito name attributes for profile update', err);
+        console.warn(
+          '[UsersService] Failed to update Cognito name attributes for profile update',
+          err
+        );
       }
     }
 
@@ -457,10 +488,7 @@ export class UsersService {
 
     return users.map((user) => ({
       ...user,
-      company_name:
-        user.company_id === 'platform-admin'
-          ? 'Admin'
-          : company?.company_name,
+      company_name: user.company_id === 'platform-admin' ? 'Admin' : company?.company_name,
     }));
   }
 
@@ -541,7 +569,8 @@ export class UsersService {
     }
 
     const poolType: 'users' | 'admin' =
-      (user as any).pool_type === 'admin' || (user.role === UserRole.ADMIN && user.company_id === 'platform-admin')
+      (user as any).pool_type === 'admin' ||
+      (user.role === UserRole.ADMIN && user.company_id === 'platform-admin')
         ? 'admin'
         : 'users';
 
@@ -562,7 +591,8 @@ export class UsersService {
     }
 
     const poolType: 'users' | 'admin' =
-      (user as any).pool_type === 'admin' || (user.role === UserRole.ADMIN && user.company_id === 'platform-admin')
+      (user as any).pool_type === 'admin' ||
+      (user.role === UserRole.ADMIN && user.company_id === 'platform-admin')
         ? 'admin'
         : 'users';
 
@@ -591,7 +621,8 @@ export class UsersService {
     }
 
     const poolType: 'users' | 'admin' =
-      (user as any).pool_type === 'admin' || (user.role === UserRole.ADMIN && user.company_id === 'platform-admin')
+      (user as any).pool_type === 'admin' ||
+      (user.role === UserRole.ADMIN && user.company_id === 'platform-admin')
         ? 'admin'
         : 'users';
 

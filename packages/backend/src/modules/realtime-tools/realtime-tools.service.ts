@@ -2262,10 +2262,15 @@ Service selection and billing rules:
     const durationMs = appt.scheduled_end - appt.scheduled_start;
     const endMs = startMs + durationMs;
 
-    const updated = await this.appointmentsService.updateAppointment(dto.company_id, dto.appointment_id, {
+    // Reactivate the appointment if it was cancelled — rescheduling implies the customer wants it again.
+    const updatePayload: any = {
       scheduled_start: startMs,
       scheduled_end: endMs,
-    });
+    };
+    if (appt.status === 'CANCELLED' || appt.status === 'NO_SHOW') {
+      updatePayload.status = 'SCHEDULED';
+    }
+    const updated = await this.appointmentsService.updateAppointment(dto.company_id, dto.appointment_id, updatePayload);
 
     return {
       ok: true,

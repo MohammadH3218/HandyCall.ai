@@ -6,6 +6,7 @@ import { SchedulingService } from '../scheduling/scheduling.service';
 import { AppointmentsService } from '../appointments/appointments.service';
 import { StripeConnectService } from '../billing/stripe-connect.service';
 import { CustomerPaymentsService } from '../billing/customer-payments.service';
+import { TelephonyService } from '../telephony/telephony.service';
 import { parseHHmm, zonedTimeToUtcMs } from '../scheduling/timezone';
 import {
   PublicBookingCancelDto,
@@ -107,6 +108,7 @@ export class PublicBookingService {
     private readonly appointments: AppointmentsService,
     private readonly stripeConnect: StripeConnectService,
     private readonly customerPayments: CustomerPaymentsService,
+    private readonly telephony: TelephonyService,
   ) {}
 
   private getBookingSecret(): string {
@@ -151,6 +153,32 @@ export class PublicBookingService {
       company?.timezone ||
       fallback;
     return candidate || fallback;
+  }
+
+  private buildOptInConfirmationMessage(): string {
+    const baseUrl = this.getFrontendBaseUrl();
+    return `HandyCall Appointment SMS: You're opted in for appointment confirmations and reminders. Msg frequency varies. Msg and data rates may apply. Reply STOP to opt out, HELP for help. Terms: ${baseUrl}/terms Privacy: ${baseUrl}/privacy-policy`;
+  }
+
+  private async recordSmsConsent(companyId: string, contactId: string | undefined, consentGranted: boolean) {
+    if (!contactId || !consentGranted) return;
+    const now = Date.now();
+    try {
+      await this.dynamodb.update(
+        'contacts',
+        { company_id: companyId, contact_id: contactId },
+        {
+          sms_consent: true,
+          sms_consent_at: now,
+          sms_consent_source: 'WEB_BOOKING',
+          sms_opted_out: false,
+          updated_at: now,
+          last_contact_at: now,
+        },
+      );
+    } catch (err) {
+      console.warn('[public_booking] failed to persist sms consent', err);
+    }
   }
 
   private mapPaymentIntentStatus(status: string | null | undefined):
@@ -975,6 +1003,8 @@ export class PublicBookingService {
       status: AppointmentStatus.CONFIRMED,
     });
 
+    await this.recordSmsConsent(company.company_id, createdAppointment?.contact_id, dto.sms_consent === true);
+
     if (call?.call_id) {
       await this.dynamodb.update(
         'calls',
@@ -1033,6 +1063,14 @@ export class PublicBookingService {
         });
       } catch (err) {
         console.warn('[public_booking] failed to send confirmation email', err);
+      }
+    }
+
+    if (dto.sms_consent === true) {
+      try {
+        await this.telephony.sendSms(phone, this.buildOptInConfirmationMessage());
+      } catch (err) {
+        console.warn('[public_booking] failed to send opt-in confirmation sms', err);
       }
     }
 

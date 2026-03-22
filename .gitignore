@@ -114,6 +114,7 @@ test-*.json
 /.deploy/
 **/eb-logs-success/
 /.trash/
+/tmp/finetune/
 
 # Claude settings (may contain secrets)
 .claude/settings.local.json
