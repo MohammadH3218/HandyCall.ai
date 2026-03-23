@@ -5,7 +5,6 @@ import { SessionProvider } from '@/components/providers/session-provider';
 import { ThemeProvider } from '@/components/providers/theme-provider';
 import { Toaster } from '@/components/ui/toaster';
 import { MarketingLanguageProvider } from '@/components/providers/marketing-language-provider';
-import { GlobalLanguageToggle } from '@/components/global-language-toggle';
 
 const manrope = Manrope({
   subsets: ['latin'],
@@ -78,7 +77,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <SessionProvider>
           <ThemeProvider>
             <MarketingLanguageProvider>
-              <GlobalLanguageToggle />
               {children}
               <Toaster />
             </MarketingLanguageProvider>
