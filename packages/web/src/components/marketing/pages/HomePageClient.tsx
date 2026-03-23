@@ -94,44 +94,6 @@ const PRO_PERKS = [
   { icon: <IconCreditCard className="h-6 w-6 text-white" stroke={1.6} />, text: { en: 'Secure SAR payments', ar: 'مدفوعات آمنة بالريال' } },
 ];
 
-const TESTIMONIALS = [
-  {
-    stars: 5,
-    quote: {
-      en: 'Found a reliable AC technician in Riyadh within 20 minutes. The booking was smooth and the pro showed up on time. Highly recommend.',
-      ar: 'وجدت فني تكييف موثوقًا في الرياض خلال 20 دقيقة فقط. الحجز كان سهلًا ووصل المحترف في الوقت المحدد.',
-    },
-    name: 'Fatima A.',
-    location: 'Riyadh',
-    locationAr: 'الرياض',
-    service: 'AC Repair',
-    serviceAr: 'تصليح المكيفات',
-  },
-  {
-    stars: 5,
-    quote: {
-      en: 'The electrician was certified, professional, and transparent about pricing upfront. No surprises at the end. This is how it should work.',
-      ar: 'كان الكهربائي محترفًا وموثقًا وواضحًا جدًا في التسعير من البداية. لم تكن هناك أي مفاجآت في النهاية.',
-    },
-    name: 'Omar K.',
-    location: 'Jeddah',
-    locationAr: 'جدة',
-    service: 'Electrical',
-    serviceAr: 'الكهرباء',
-  },
-  {
-    stars: 5,
-    quote: {
-      en: 'Used HandyCall for a deep clean before Eid. The team was incredible, respectful, and fast. I booked again the following week.',
-      ar: 'استخدمت هاندي كول لتنظيف عميق قبل العيد. الفريق كان رائعًا ومحترفًا وسريعًا، وحجزت معهم مرة أخرى الأسبوع التالي.',
-    },
-    name: 'Nora S.',
-    location: 'Dammam',
-    locationAr: 'الدمام',
-    service: 'Deep Cleaning',
-    serviceAr: 'تنظيف عميق',
-  },
-];
 
 export function HomePageClient() {
   const { isArabic, language } = useMarketingLanguage();
@@ -154,8 +116,6 @@ export function HomePageClient() {
           'انضم إلى HandyCall وتواصل مع آلاف العملاء الباحثين عن مهاراتك اليوم. حدّد أسعارك، وأدر جدولك، وطوّر أعمالك بدعم من الذكاء الاصطناعي.',
         joinAsPro: 'انضم كمحترف ←',
         viewPricing: 'عرض الأسعار',
-        reviewsTag: 'التقييمات',
-        reviewsTitle: 'ماذا يقول العملاء',
         closingTitle: 'جاهز تنجز شغلتك؟',
         closingNote: 'لا تحتاج إلى حساب للبحث، واحصل على عروض مجانية من محترفين موثقين.',
       }
@@ -176,8 +136,6 @@ export function HomePageClient() {
           'Join HandyCall and connect with thousands of customers looking for your skills today. Set your own rates, manage your schedule, and grow your business with AI-powered tools.',
         joinAsPro: 'Join as a Pro →',
         viewPricing: 'View Pricing',
-        reviewsTag: 'Reviews',
-        reviewsTitle: 'What customers are saying',
         closingTitle: 'Ready to get something fixed?',
         closingNote: 'No sign-up required to search. Free quotes from verified pros.',
       };
@@ -358,73 +316,42 @@ export function HomePageClient() {
             </div>
           </FadeIn>
 
-          {/* 3-photo grid: large left, two stacked right */}
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 sm:grid-rows-2">
-            {/* Large card - spans 2 rows */}
-            <FadeIn direction="up" delay={0}>
-              <div className="sm:row-span-2">
-                <div className="relative h-64 overflow-hidden rounded-2xl sm:h-full" style={{ minHeight: '320px' }}>
-                  <img
-                    src="https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=600&h=700&fit=crop&q=80"
-                    alt="Electrician at work"
-                    className="h-full w-full object-cover"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-slate-900/70 via-transparent to-transparent" />
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            {[
+              {
+                img: 'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=600&h=480&fit=crop&q=80',
+                alt: 'Electrician at work',
+                tag: { en: 'Electrical', ar: 'كهرباء' },
+                title: { en: 'Certified electricians, at your door', ar: 'كهربائيون معتمدون في منزلك' },
+              },
+              {
+                img: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=600&h=480&fit=crop&q=80',
+                alt: 'AC technician',
+                tag: { en: 'AC & HVAC', ar: 'تكييف وتبريد' },
+                title: { en: 'AC maintenance & deep cleaning', ar: 'صيانة وتنظيف المكيفات' },
+              },
+              {
+                img: 'https://images.unsplash.com/photo-1563453392212-326f5e854473?w=600&h=480&fit=crop&q=80',
+                alt: 'Professional cleaning',
+                tag: { en: 'House Cleaning', ar: 'تنظيف منازل' },
+                title: { en: 'Deep & professional cleaning', ar: 'تنظيف عميق واحترافي' },
+              },
+            ].map((card, i) => (
+              <FadeIn key={i} direction="up" delay={i * 80}>
+                <div className="relative h-72 overflow-hidden rounded-2xl">
+                  <img src={card.img} alt={card.alt} className="h-full w-full object-cover" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-slate-900/70 via-slate-900/10 to-transparent" />
                   <div className="absolute bottom-0 left-0 p-5 text-white">
                     <p className="text-xs font-bold uppercase tracking-widest text-emerald-300">
-                      {isArabic ? 'كهرباء' : 'Electrical'}
+                      {isArabic ? card.tag.ar : card.tag.en}
                     </p>
-                    <p className="mt-1 text-lg font-bold leading-tight">
-                      {isArabic ? 'كهربائيون معتمدون في منزلك' : 'Certified electricians, at your door'}
+                    <p className="mt-1 text-base font-bold leading-tight">
+                      {isArabic ? card.title.ar : card.title.en}
                     </p>
                   </div>
                 </div>
-              </div>
-            </FadeIn>
-
-            {/* Top-right card */}
-            <FadeIn direction="up" delay={80}>
-              <div className="sm:col-span-2">
-                <div className="relative h-48 overflow-hidden rounded-2xl">
-                  <img
-                    src="https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=800&h=400&fit=crop&q=80"
-                    alt="AC technician"
-                    className="h-full w-full object-cover"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-slate-900/60 via-transparent to-transparent" />
-                  <div className="absolute bottom-0 left-0 p-5 text-white">
-                    <p className="text-xs font-bold uppercase tracking-widest text-emerald-300">
-                      {isArabic ? 'تكييف وتبريد' : 'AC & HVAC'}
-                    </p>
-                    <p className="mt-1 text-lg font-bold leading-tight">
-                      {isArabic ? 'صيانة وتنظيف المكيفات' : 'AC maintenance & deep cleaning'}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </FadeIn>
-
-            {/* Bottom-right card */}
-            <FadeIn direction="up" delay={160}>
-              <div className="sm:col-span-2">
-                <div className="relative h-48 overflow-hidden rounded-2xl">
-                  <img
-                    src="https://images.unsplash.com/photo-1563453392212-326f5e854473?w=800&h=400&fit=crop&q=80"
-                    alt="Professional cleaning"
-                    className="h-full w-full object-cover"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-slate-900/60 via-transparent to-transparent" />
-                  <div className="absolute bottom-0 left-0 p-5 text-white">
-                    <p className="text-xs font-bold uppercase tracking-widest text-emerald-300">
-                      {isArabic ? 'تنظيف منازل' : 'House Cleaning'}
-                    </p>
-                    <p className="mt-1 text-lg font-bold leading-tight">
-                      {isArabic ? 'تنظيف عميق واحترافي' : 'Deep & professional cleaning'}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </FadeIn>
+              </FadeIn>
+            ))}
           </div>
 
           <FadeIn direction="up" delay={200}>
@@ -484,46 +411,6 @@ export function HomePageClient() {
               ))}
             </div>
           </FadeIn>
-        </div>
-      </section>
-
-      <section className="border-t border-slate-100 bg-slate-50 px-4 py-24">
-        <div className="mx-auto max-w-5xl">
-          <FadeIn direction="up">
-            <div className="mb-10 text-center">
-              <span className="inline-block rounded-full bg-emerald-50 px-4 py-1.5 text-xs font-bold uppercase tracking-widest text-emerald-700">
-                {copy.reviewsTag}
-              </span>
-              <h2 className="mt-4 text-4xl font-extrabold tracking-tight text-slate-900">
-                {copy.reviewsTitle}
-              </h2>
-            </div>
-          </FadeIn>
-
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
-            {TESTIMONIALS.map((t, i) => (
-              <FadeIn key={t.name} direction="up" delay={i * 100}>
-                <div className="flex h-full flex-col rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                  <div className="text-lg text-amber-400">{'★'.repeat(t.stars)}</div>
-                  <p className="mt-3 flex-1 text-sm leading-relaxed text-slate-700">
-                    "{t.quote[language]}"
-                  </p>
-                  <div className="mt-4 border-t border-slate-100 pt-4">
-                    <p className="text-sm font-bold text-slate-900">{t.name}</p>
-                    <div className="mt-0.5 flex items-center gap-2">
-                      <span className="text-xs text-slate-400">
-                        {isArabic ? t.locationAr : t.location}
-                      </span>
-                      <span className="h-1 w-1 rounded-full bg-slate-300" />
-                      <span className="text-xs font-semibold text-emerald-600">
-                        {isArabic ? t.serviceAr : t.service}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </FadeIn>
-            ))}
-          </div>
         </div>
       </section>
 
