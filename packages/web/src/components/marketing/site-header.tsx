@@ -17,9 +17,7 @@ type SiteHeaderProps = {
 };
 
 const NAV_LINKS = [
-  { href: '/search', label: { en: 'Find Services', ar: 'ابحث عن خدمات' } },
-  { href: '/categories', label: { en: 'Categories', ar: 'الفئات' } },
-  { href: '/#how-it-works', label: { en: 'How It Works', ar: 'كيف يعمل' } },
+  { href: '/pricing', label: { en: 'Pricing', ar: 'الأسعار' } },
 ];
 
 function ProfileMenu() {

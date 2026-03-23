@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiClient } from '@/lib/api-client';
 import { useAuthStore } from '@/stores/auth-store';
+import { useMarketingLanguage } from '@/components/providers/marketing-language-provider';
 import { SAUDI_CITIES } from '@/constants/saudi-marketplace';
 import {
   MARKETPLACE_SERVICE_CATEGORIES,
@@ -23,6 +24,135 @@ const PAYMENT_METHODS = [
 const EMPLOYEE_OPTIONS = ['Just me (solo)', '2-5 employees', '6-20 employees', '20+ employees'];
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const TIMES = ['6:00 AM', '7:00 AM', '8:00 AM', '9:00 AM', '10:00 AM', '11:00 AM', '12:00 PM', '1:00 PM', '2:00 PM', '3:00 PM', '4:00 PM', '5:00 PM', '6:00 PM', '7:00 PM', '8:00 PM', '9:00 PM', '10:00 PM', '11:00 PM'];
+
+const EDITOR_TRANSLATIONS: Record<string, string> = {
+  'Villa / House': 'فيلا / منزل',
+  Apartment: 'شقة',
+  Townhouse: 'تاون هاوس',
+  Office: 'مكتب',
+  'Commercial / Warehouse': 'تجاري / مستودع',
+  'Government Building': 'مبنى حكومي',
+  Cash: 'نقدًا',
+  Mada: 'مدى',
+  'STC Pay': 'STC Pay',
+  'Apple Pay': 'Apple Pay',
+  'Credit / Debit Card': 'بطاقة ائتمانية / بطاقة مدى',
+  'Bank Transfer (IBAN)': 'حوالة بنكية (IBAN)',
+  'Just me (solo)': 'أنا فقط',
+  '2-5 employees': '2-5 موظفين',
+  '6-20 employees': '6-20 موظفًا',
+  '20+ employees': '20+ موظفًا',
+  Sunday: 'الأحد',
+  Monday: 'الاثنين',
+  Tuesday: 'الثلاثاء',
+  Wednesday: 'الأربعاء',
+  Thursday: 'الخميس',
+  Friday: 'الجمعة',
+  Saturday: 'السبت',
+  'Something went wrong. Please try again.': 'حدث خطأ ما. يرجى المحاولة مرة أخرى.',
+  'Marketplace profile': 'ملف السوق',
+  'Complete your marketplace profile': 'أكمل ملفك في السوق',
+  'Customers browse this profile before deciding to contact you. Keep it complete, specific, and trustworthy.':
+    'يتصفح العملاء هذا الملف قبل أن يقرروا التواصل معك. حافظ عليه كاملًا وواضحًا ويبعث على الثقة.',
+  'This is the first setup milestone for your': 'هذه هي أول محطة إعداد لباقة',
+  selected: 'المحددة',
+  tier: 'الخاصة بك',
+  "Finish your marketplace profile first, then we'll bring you back to the rest of the setup flow.":
+    'أكمل ملفك في السوق أولًا، ثم سنعيدك إلى بقية خطوات الإعداد.',
+  'About your business': 'نبذة عن نشاطك',
+  'Tell customers who you are and why they should hire you.': 'عرّف العملاء بك ولماذا ينبغي عليهم اختيارك.',
+  'Business bio *': 'نبذة النشاط *',
+  'Licensed AC technician with 12 years of experience in Riyadh. We service villas, apartments, and commercial sites with same-day appointments.':
+    'فني تكييف معتمد بخبرة 12 سنة في الرياض. نخدم الفلل والشقق والمواقع التجارية مع مواعيد في نفس اليوم.',
+  Overview: 'نظرة عامة',
+  'Key facts that appear on your profile card.': 'معلومات أساسية تظهر في بطاقة ملفك.',
+  'Years in business': 'سنوات الخبرة',
+  'e.g. 8': 'مثال: 8',
+  'Number of employees': 'عدد الموظفين',
+  'Select...': 'اختر...',
+  'I am licensed / certified in my trade': 'أنا مرخص / معتمد في مجالي',
+  'I agree to identity & background verification': 'أوافق على التحقق من الهوية والخلفية',
+  Credentials: 'الاعتمادات',
+  'License details appear as a trust badge on your public profile.':
+    'تظهر تفاصيل الترخيص كشارة ثقة في ملفك العام.',
+  'License type': 'نوع الترخيص',
+  'e.g. Electrician - Master': 'مثال: كهربائي - معلم',
+  'License / certificate number': 'رقم الترخيص / الشهادة',
+  Optional: 'اختياري',
+  'Services offered': 'الخدمات المقدمة',
+  'Choose your main category, then list the exact jobs customers should be able to find you for.':
+    'اختر الفئة الرئيسية، ثم حدد الأعمال الدقيقة التي يجب أن يتمكن العملاء من العثور عليك من خلالها.',
+  'Main category': 'الفئة الرئيسية',
+  'Select category...': 'اختر الفئة...',
+  'Help search understand what you do': 'ساعد البحث على فهم ما تقدمه',
+  'Add the exact services customers would type into search, not just the broad category name.':
+    'أضف الخدمات الدقيقة التي قد يكتبها العملاء في البحث، وليس اسم الفئة العامة فقط.',
+  'Suggested examples:': 'أمثلة مقترحة:',
+  'Specific services customers can search for': 'الخدمات الدقيقة التي يمكن للعملاء البحث عنها',
+  'Pick a category first, then add the exact services you offer below.':
+    'اختر الفئة أولًا، ثم أضف الخدمات الدقيقة التي تقدمها في الأسفل.',
+  'Add a custom specific service': 'أضف خدمة دقيقة مخصصة',
+  'Example:': 'مثال:',
+  'Add service': 'إضافة خدمة',
+  'Be specific. Customers may search exact phrases like “mesh Wi-Fi setup” or “water heater repair.”':
+    'كن دقيقًا. قد يبحث العملاء بعبارات محددة مثل "إعداد شبكة Mesh Wi‑Fi" أو "إصلاح سخان المياه".',
+  'Property types served': 'أنواع العقارات التي تخدمها',
+  'Cities you serve': 'المدن التي تخدمها',
+  'Customers search by city, so choose all areas you actively cover.':
+    'يبحث العملاء حسب المدينة، لذا اختر جميع المناطق التي تغطيها فعليًا.',
+  'Starting price': 'السعر الابتدائي',
+  'This sets customer expectations before they message you.':
+    'هذا يحدد توقعات العميل قبل أن يراسلك.',
+  'From SAR': 'ابتداءً من',
+  'e.g. 150': 'مثال: 150',
+  '/ service': '/ خدمة',
+  'Business hours': 'ساعات العمل',
+  'Saudi work week defaults to Sun-Thu. Update anything that differs.':
+    'أسبوع العمل السعودي الافتراضي من الأحد إلى الخميس. عدل أي شيء مختلف.',
+  Day: 'اليوم',
+  Open: 'مفتوح',
+  From: 'من',
+  To: 'إلى',
+  weekend: 'عطلة نهاية الأسبوع',
+  'Payment methods': 'وسائل الدفع',
+  'Tell customers how they can pay you once the job is booked.':
+    'أخبر العملاء كيف يمكنهم الدفع لك بعد حجز الخدمة.',
+  'Social media & website': 'وسائل التواصل والموقع الإلكتروني',
+  'Links shown on your profile so customers can see your work online.':
+    'روابط تظهر في ملفك حتى يتمكن العملاء من مشاهدة أعمالك عبر الإنترنت.',
+  'Instagram username': 'اسم مستخدم إنستغرام',
+  'Snapchat username': 'اسم مستخدم سناب شات',
+  'Twitter / X username': 'اسم مستخدم X / تويتر',
+  'Website URL': 'رابط الموقع الإلكتروني',
+  yourhandle: 'اسمك',
+  'https://yoursite.com': 'https://example.com',
+  'Projects & work photos': 'المشاريع وصور الأعمال',
+  'Photos improve trust and increase inquiry rates.': 'الصور تعزز الثقة وتزيد من معدل الاستفسارات.',
+  'Upload photos of your work': 'ارفع صورًا من أعمالك',
+  'Up to 10 photos · JPG, PNG · Max 5MB each': 'حتى 10 صور · JPG و PNG · بحد أقصى 5MB للصورة',
+  'Add photos': 'إضافة صور',
+  'Photo upload will be available once your account is fully set up. You can add photos from your dashboard settings.':
+    'سيصبح رفع الصور متاحًا بعد اكتمال إعداد حسابك. يمكنك إضافة الصور من إعدادات لوحة التحكم.',
+  'Describe your recent projects (optional)': 'صف مشاريعك الأخيرة (اختياري)',
+  'Installed 200+ AC units across Riyadh in 2025. Specialise in commercial buildings and villas.':
+    'تم تركيب أكثر من 200 وحدة تكييف في الرياض خلال 2025. متخصصون في المباني التجارية والفلل.',
+  'Marketplace profile updated successfully.': 'تم تحديث ملف السوق بنجاح.',
+  'Profile saved! Taking you back to setup...': 'تم حفظ الملف. جارٍ إعادتك إلى الإعداد...',
+  'Profile saved! Taking you to your dashboard...': 'تم حفظ الملف. جارٍ نقلك إلى لوحة التحكم...',
+  'Saving profile...': 'جارٍ حفظ الملف...',
+  'Save marketplace profile': 'حفظ ملف السوق',
+  'Save profile & continue setup ->': 'حفظ الملف ومتابعة الإعداد <-',
+  'Save profile & go to dashboard ->': 'حفظ الملف والانتقال إلى لوحة التحكم <-',
+  'Back to marketplace': 'العودة إلى السوق',
+  'Back to setup': 'العودة إلى الإعداد',
+  'Finish later': 'إكمال لاحقًا',
+  'You can update your marketplace profile anytime from Dashboard -> Marketplace -> Profile':
+    'يمكنك تحديث ملف السوق في أي وقت من لوحة التحكم -> السوق -> الملف الشخصي',
+};
+
+function editorText(text: string, isArabic: boolean) {
+  return isArabic ? EDITOR_TRANSLATIONS[text] || text : text;
+}
 
 interface BusinessHourEntry {
   open: boolean;
@@ -86,6 +216,8 @@ export function MarketplaceProfileEditor({
 }) {
   const router = useRouter();
   const { company } = useAuthStore();
+  const { isArabic } = useMarketingLanguage();
+  const t = (text: string) => editorText(text, isArabic);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
@@ -171,28 +303,30 @@ export function MarketplaceProfileEditor({
         router.replace(returnToSetup ? '/onboarding/setup?marketplace=done' : '/dashboard');
       }, 1200);
     } catch (e: any) {
-      setError(e.message || 'Something went wrong. Please try again.');
+      setError(e.message || t('Something went wrong. Please try again.'));
     } finally {
       setSaving(false);
     }
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" dir={isArabic ? 'rtl' : 'ltr'}>
       <div className="mb-2">
         <h1 className="text-2xl font-extrabold text-slate-900">
-          {mode === 'dashboard' ? 'Marketplace profile' : 'Complete your marketplace profile'}
+          {mode === 'dashboard' ? t('Marketplace profile') : t('Complete your marketplace profile')}
         </h1>
         <p className="mt-1 text-sm text-slate-500">
-          Customers browse this profile before deciding to contact you. Keep it complete, specific, and trustworthy.
+          {t(
+            'Customers browse this profile before deciding to contact you. Keep it complete, specific, and trustworthy.'
+          )}
         </p>
         {returnToSetup ? (
           <div className="mt-4 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
             <p className="font-semibold">
-              This is the first setup milestone for your {selectedTier || 'selected'} tier.
+              {t('This is the first setup milestone for your')} {selectedTier || t('selected')} {t('tier')}.
             </p>
             <p className="mt-1 text-emerald-800/80">
-              Finish your marketplace profile first, then we&apos;ll bring you back to the rest of the setup flow.
+              {t("Finish your marketplace profile first, then we'll bring you back to the rest of the setup flow.")}
             </p>
           </div>
         ) : null}
@@ -200,47 +334,49 @@ export function MarketplaceProfileEditor({
 
       <div className="flex flex-col gap-6">
         <section className={sectionClass}>
-          <h2 className={sectionTitleClass}>About your business</h2>
-          <p className={sectionSubClass}>Tell customers who you are and why they should hire you.</p>
-          <label className={labelClass}>Business bio *</label>
+          <h2 className={sectionTitleClass}>{t('About your business')}</h2>
+          <p className={sectionSubClass}>{t('Tell customers who you are and why they should hire you.')}</p>
+          <label className={labelClass}>{t('Business bio *')}</label>
           <textarea
             value={profile.bio}
             onChange={(e) => setProfile({ ...profile, bio: e.target.value })}
             rows={4}
             maxLength={500}
-            placeholder="Licensed AC technician with 12 years of experience in Riyadh. We service villas, apartments, and commercial sites with same-day appointments."
+            placeholder={t(
+              'Licensed AC technician with 12 years of experience in Riyadh. We service villas, apartments, and commercial sites with same-day appointments.'
+            )}
             className={`${inputClass} resize-none`}
           />
           <p className="mt-1 text-right text-xs text-slate-400">{profile.bio.length} / 500</p>
         </section>
 
         <section className={sectionClass}>
-          <h2 className={sectionTitleClass}>Overview</h2>
-          <p className={sectionSubClass}>Key facts that appear on your profile card.</p>
+          <h2 className={sectionTitleClass}>{t('Overview')}</h2>
+          <p className={sectionSubClass}>{t('Key facts that appear on your profile card.')}</p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
-              <label className={labelClass}>Years in business</label>
+              <label className={labelClass}>{t('Years in business')}</label>
               <input
                 type="number"
                 min={0}
                 max={100}
                 value={profile.years_in_business}
                 onChange={(e) => setProfile({ ...profile, years_in_business: e.target.value })}
-                placeholder="e.g. 8"
+                placeholder={t('e.g. 8')}
                 className={inputClass}
               />
             </div>
             <div>
-              <label className={labelClass}>Number of employees</label>
+              <label className={labelClass}>{t('Number of employees')}</label>
               <select
                 value={profile.employees}
                 onChange={(e) => setProfile({ ...profile, employees: e.target.value })}
                 className={inputClass}
               >
-                <option value="">Select...</option>
+                <option value="">{t('Select...')}</option>
                 {EMPLOYEE_OPTIONS.map((option) => (
                   <option key={option} value={option}>
-                    {option}
+                    {t(option)}
                   </option>
                 ))}
               </select>
@@ -254,7 +390,7 @@ export function MarketplaceProfileEditor({
                 onChange={(e) => setProfile({ ...profile, is_licensed: e.target.checked })}
                 className="h-4 w-4 rounded border-slate-300 accent-emerald-600"
               />
-              <span className="text-sm font-medium text-slate-700">I am licensed / certified in my trade</span>
+              <span className="text-sm font-medium text-slate-700">{t('I am licensed / certified in my trade')}</span>
             </label>
             <label className="flex cursor-pointer items-center gap-3">
               <input
@@ -263,32 +399,32 @@ export function MarketplaceProfileEditor({
                 onChange={(e) => setProfile({ ...profile, is_background_checked: e.target.checked })}
                 className="h-4 w-4 rounded border-slate-300 accent-emerald-600"
               />
-              <span className="text-sm font-medium text-slate-700">I agree to identity & background verification</span>
+              <span className="text-sm font-medium text-slate-700">{t('I agree to identity & background verification')}</span>
             </label>
           </div>
         </section>
 
         <section className={sectionClass}>
-          <h2 className={sectionTitleClass}>Credentials</h2>
-          <p className={sectionSubClass}>License details appear as a trust badge on your public profile.</p>
+          <h2 className={sectionTitleClass}>{t('Credentials')}</h2>
+          <p className={sectionSubClass}>{t('License details appear as a trust badge on your public profile.')}</p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
-              <label className={labelClass}>License type</label>
+              <label className={labelClass}>{t('License type')}</label>
               <input
                 type="text"
                 value={profile.license_type}
                 onChange={(e) => setProfile({ ...profile, license_type: e.target.value })}
-                placeholder="e.g. Electrician - Master"
+                placeholder={t('e.g. Electrician - Master')}
                 className={inputClass}
               />
             </div>
             <div>
-              <label className={labelClass}>License / certificate number</label>
+              <label className={labelClass}>{t('License / certificate number')}</label>
               <input
                 type="text"
                 value={profile.license_number}
                 onChange={(e) => setProfile({ ...profile, license_number: e.target.value })}
-                placeholder="Optional"
+                placeholder={t('Optional')}
                 className={inputClass}
               />
             </div>
@@ -296,11 +432,13 @@ export function MarketplaceProfileEditor({
         </section>
 
         <section className={sectionClass}>
-          <h2 className={sectionTitleClass}>Services offered</h2>
+          <h2 className={sectionTitleClass}>{t('Services offered')}</h2>
           <p className={sectionSubClass}>
-            Choose your main category, then list the exact jobs customers should be able to find you for.
+            {t(
+              'Choose your main category, then list the exact jobs customers should be able to find you for.'
+            )}
           </p>
-          <label className={labelClass}>Main category</label>
+          <label className={labelClass}>{t('Main category')}</label>
           <select
             value={profile.service_category}
             onChange={(e) =>
@@ -308,28 +446,30 @@ export function MarketplaceProfileEditor({
             }
             className={`${inputClass} mb-4`}
           >
-            <option value="">Select category...</option>
+            <option value="">{t('Select category...')}</option>
             {MARKETPLACE_SERVICE_CATEGORIES.map((category) => (
               <option key={category.key} value={category.title}>
-                {category.title}
+                {isArabic ? category.titleAr : category.title}
               </option>
             ))}
           </select>
 
           <div className="mb-4 rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
-            <p className="font-semibold">Help search understand what you do</p>
+            <p className="font-semibold">{t('Help search understand what you do')}</p>
             <p className="mt-1 text-emerald-800/80">
-              {selectedCategory?.setupGuidance ||
-                'Add the exact services customers would type into search, not just the broad category name.'}
+              {isArabic
+                ? t('Add the exact services customers would type into search, not just the broad category name.')
+                : selectedCategory?.setupGuidance ||
+                  'Add the exact services customers would type into search, not just the broad category name.'}
             </p>
             {selectedCategory ? (
               <p className="mt-2 text-xs font-medium uppercase tracking-wide text-emerald-700/90">
-                Suggested examples: {selectedCategory.services.slice(0, 4).join(', ')}
+                {t('Suggested examples:')} {selectedCategory.services.slice(0, 4).join(isArabic ? '، ' : ', ')}
               </p>
             ) : null}
           </div>
 
-          <label className={labelClass}>Specific services customers can search for</label>
+          <label className={labelClass}>{t('Specific services customers can search for')}</label>
           {serviceSubtypes.length > 0 ? (
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
               {serviceSubtypes.map((service) => (
@@ -351,12 +491,12 @@ export function MarketplaceProfileEditor({
             </div>
           ) : (
             <div className="rounded-xl border border-dashed border-slate-200 px-4 py-3 text-sm text-slate-500">
-              Pick a category first, then add the exact services you offer below.
+              {t('Pick a category first, then add the exact services you offer below.')}
             </div>
           )}
 
           <div className="mt-4">
-            <label className={labelClass}>Add a custom specific service</label>
+            <label className={labelClass}>{t('Add a custom specific service')}</label>
             <div className="flex flex-col gap-2 sm:flex-row">
               <input
                 type="text"
@@ -365,8 +505,10 @@ export function MarketplaceProfileEditor({
                 onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addCustomService())}
                 placeholder={
                   selectedCategory
-                    ? `Example: ${selectedCategory.services.slice(0, 1)[0] || 'Mesh network setup'}`
-                    : 'Example: Mesh network setup, ethernet cabling, satellite setup'
+                    ? `${t('Example:')} ${selectedCategory.services.slice(0, 1)[0] || 'Mesh network setup'}`
+                    : isArabic
+                      ? 'مثال: إعداد شبكة Mesh، تمديد إيثرنت، إعداد الستالايت'
+                      : 'Example: Mesh network setup, ethernet cabling, satellite setup'
                 }
                 className={inputClass}
               />
@@ -375,12 +517,13 @@ export function MarketplaceProfileEditor({
                 onClick={addCustomService}
                 className="rounded-xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-emerald-300 hover:text-emerald-700"
               >
-                Add service
+                {t('Add service')}
               </button>
             </div>
             <p className="mt-2 text-xs text-slate-500">
-              Be specific. Customers may search exact phrases like &ldquo;mesh Wi-Fi setup&rdquo; or
-              &ldquo;water heater repair.&rdquo;
+              {t(
+                'Be specific. Customers may search exact phrases like “mesh Wi-Fi setup” or “water heater repair.”'
+              )}
             </p>
           </div>
 
@@ -402,7 +545,7 @@ export function MarketplaceProfileEditor({
           ) : null}
 
           <div className="mt-5">
-            <label className={labelClass}>Property types served</label>
+            <label className={labelClass}>{t('Property types served')}</label>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
               {PROPERTY_TYPES.map((propertyType) => (
                 <label
@@ -417,7 +560,7 @@ export function MarketplaceProfileEditor({
                     }
                     className="h-4 w-4 rounded border-slate-300 accent-emerald-600"
                   />
-                  <span className="text-xs font-medium text-slate-700">{propertyType}</span>
+                  <span className="text-xs font-medium text-slate-700">{t(propertyType)}</span>
                 </label>
               ))}
             </div>
@@ -425,8 +568,8 @@ export function MarketplaceProfileEditor({
         </section>
 
         <section className={sectionClass}>
-          <h2 className={sectionTitleClass}>Cities you serve</h2>
-          <p className={sectionSubClass}>Customers search by city, so choose all areas you actively cover.</p>
+          <h2 className={sectionTitleClass}>{t('Cities you serve')}</h2>
+          <p className={sectionSubClass}>{t('Customers search by city, so choose all areas you actively cover.')}</p>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
             {SAUDI_CITIES.map((city) => (
               <label
@@ -448,33 +591,33 @@ export function MarketplaceProfileEditor({
         </section>
 
         <section className={sectionClass}>
-          <h2 className={sectionTitleClass}>Starting price</h2>
-          <p className={sectionSubClass}>This sets customer expectations before they message you.</p>
+          <h2 className={sectionTitleClass}>{t('Starting price')}</h2>
+          <p className={sectionSubClass}>{t('This sets customer expectations before they message you.')}</p>
           <div className="flex items-center gap-3">
-            <span className="whitespace-nowrap text-sm font-semibold text-slate-500">From SAR</span>
+            <span className="whitespace-nowrap text-sm font-semibold text-slate-500">{t('From SAR')}</span>
             <input
               type="number"
               min={0}
               value={profile.starting_price}
               onChange={(e) => setProfile({ ...profile, starting_price: e.target.value })}
-              placeholder="e.g. 150"
+              placeholder={t('e.g. 150')}
               className={`${inputClass} max-w-xs`}
             />
-            <span className="text-sm text-slate-400">/ service</span>
+            <span className="text-sm text-slate-400">{t('/ service')}</span>
           </div>
         </section>
 
         <section className={sectionClass}>
-          <h2 className={sectionTitleClass}>Business hours</h2>
-          <p className={sectionSubClass}>Saudi work week defaults to Sun-Thu. Update anything that differs.</p>
+          <h2 className={sectionTitleClass}>{t('Business hours')}</h2>
+          <p className={sectionSubClass}>{t('Saudi work week defaults to Sun-Thu. Update anything that differs.')}</p>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-slate-100">
-                  <th className="w-28 pb-2 text-left text-xs font-semibold text-slate-400">Day</th>
-                  <th className="w-20 pb-2 text-left text-xs font-semibold text-slate-400">Open</th>
-                  <th className="pb-2 text-left text-xs font-semibold text-slate-400">From</th>
-                  <th className="pb-2 text-left text-xs font-semibold text-slate-400">To</th>
+                  <th className="w-28 pb-2 text-left text-xs font-semibold text-slate-400">{t('Day')}</th>
+                  <th className="w-20 pb-2 text-left text-xs font-semibold text-slate-400">{t('Open')}</th>
+                  <th className="pb-2 text-left text-xs font-semibold text-slate-400">{t('From')}</th>
+                  <th className="pb-2 text-left text-xs font-semibold text-slate-400">{t('To')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -485,8 +628,8 @@ export function MarketplaceProfileEditor({
                     <tr key={day} className="border-b border-slate-50 last:border-none">
                       <td className="py-2.5 pr-4">
                         <span className={`text-sm font-medium ${isWeekend ? 'text-slate-400' : 'text-slate-700'}`}>
-                          {day}
-                          {isWeekend ? <span className="ml-1 text-xs text-slate-300">(weekend)</span> : null}
+                          {t(day)}
+                          {isWeekend ? <span className="ml-1 text-xs text-slate-300">({t('weekend')})</span> : null}
                         </span>
                       </td>
                       <td className="py-2.5 pr-4">
@@ -530,8 +673,8 @@ export function MarketplaceProfileEditor({
         </section>
 
         <section className={sectionClass}>
-          <h2 className={sectionTitleClass}>Payment methods</h2>
-          <p className={sectionSubClass}>Tell customers how they can pay you once the job is booked.</p>
+          <h2 className={sectionTitleClass}>{t('Payment methods')}</h2>
+          <p className={sectionSubClass}>{t('Tell customers how they can pay you once the job is booked.')}</p>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
             {PAYMENT_METHODS.map((paymentMethod) => (
               <label
@@ -554,62 +697,62 @@ export function MarketplaceProfileEditor({
                   className="h-4 w-4 rounded border-slate-300 accent-emerald-600"
                 />
                 <span className="text-xs font-semibold text-slate-700">{paymentMethod.icon}</span>
-                <span className="text-xs font-semibold text-slate-700">{paymentMethod.label}</span>
+                <span className="text-xs font-semibold text-slate-700">{t(paymentMethod.label)}</span>
               </label>
             ))}
           </div>
         </section>
 
         <section className={sectionClass}>
-          <h2 className={sectionTitleClass}>Social media & website</h2>
-          <p className={sectionSubClass}>Links shown on your profile so customers can see your work online.</p>
+          <h2 className={sectionTitleClass}>{t('Social media & website')}</h2>
+          <p className={sectionSubClass}>{t('Links shown on your profile so customers can see your work online.')}</p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
-              <label className={labelClass}>Instagram username</label>
+              <label className={labelClass}>{t('Instagram username')}</label>
               <div className="flex items-center overflow-hidden rounded-xl border border-slate-200 focus-within:border-emerald-400 focus-within:ring-2 focus-within:ring-emerald-100">
                 <span className="border-r border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-400">@</span>
                 <input
                   type="text"
                   value={profile.instagram}
                   onChange={(e) => setProfile({ ...profile, instagram: e.target.value })}
-                  placeholder="yourhandle"
+                  placeholder={t('yourhandle')}
                   className="flex-1 bg-white px-3 py-3 text-sm text-slate-800 outline-none placeholder:text-slate-400"
                 />
               </div>
             </div>
             <div>
-              <label className={labelClass}>Snapchat username</label>
+              <label className={labelClass}>{t('Snapchat username')}</label>
               <div className="flex items-center overflow-hidden rounded-xl border border-slate-200 focus-within:border-emerald-400 focus-within:ring-2 focus-within:ring-emerald-100">
                 <span className="border-r border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-400">@</span>
                 <input
                   type="text"
                   value={profile.snapchat}
                   onChange={(e) => setProfile({ ...profile, snapchat: e.target.value })}
-                  placeholder="yourhandle"
+                  placeholder={t('yourhandle')}
                   className="flex-1 bg-white px-3 py-3 text-sm text-slate-800 outline-none placeholder:text-slate-400"
                 />
               </div>
             </div>
             <div>
-              <label className={labelClass}>Twitter / X username</label>
+              <label className={labelClass}>{t('Twitter / X username')}</label>
               <div className="flex items-center overflow-hidden rounded-xl border border-slate-200 focus-within:border-emerald-400 focus-within:ring-2 focus-within:ring-emerald-100">
                 <span className="border-r border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-400">@</span>
                 <input
                   type="text"
                   value={profile.twitter}
                   onChange={(e) => setProfile({ ...profile, twitter: e.target.value })}
-                  placeholder="yourhandle"
+                  placeholder={t('yourhandle')}
                   className="flex-1 bg-white px-3 py-3 text-sm text-slate-800 outline-none placeholder:text-slate-400"
                 />
               </div>
             </div>
             <div>
-              <label className={labelClass}>Website URL</label>
+              <label className={labelClass}>{t('Website URL')}</label>
               <input
                 type="url"
                 value={profile.website}
                 onChange={(e) => setProfile({ ...profile, website: e.target.value })}
-                placeholder="https://yoursite.com"
+                placeholder={t('https://yoursite.com')}
                 className={inputClass}
               />
             </div>
@@ -617,30 +760,36 @@ export function MarketplaceProfileEditor({
         </section>
 
         <section className={sectionClass}>
-          <h2 className={sectionTitleClass}>Projects & work photos</h2>
-          <p className={sectionSubClass}>Photos improve trust and increase inquiry rates.</p>
+          <h2 className={sectionTitleClass}>{t('Projects & work photos')}</h2>
+          <p className={sectionSubClass}>{t('Photos improve trust and increase inquiry rates.')}</p>
           <div className="flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-200 bg-slate-50 px-6 py-10 text-center transition hover:border-emerald-300">
             <div className="mb-3 text-4xl">📷</div>
-            <p className="text-sm font-semibold text-slate-700">Upload photos of your work</p>
-            <p className="mt-1 text-xs text-slate-400">Up to 10 photos · JPG, PNG · Max 5MB each</p>
+            <p className="text-sm font-semibold text-slate-700">{t('Upload photos of your work')}</p>
+            <p className="mt-1 text-xs text-slate-400">{t('Up to 10 photos · JPG, PNG · Max 5MB each')}</p>
             <button
               type="button"
               className="mt-4 rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700"
               onClick={() =>
-                window.alert('Photo upload will be available once your account is fully set up. You can add photos from your dashboard settings.')
+                window.alert(
+                  t(
+                    'Photo upload will be available once your account is fully set up. You can add photos from your dashboard settings.'
+                  )
+                )
               }
             >
-              Add photos
+              {t('Add photos')}
             </button>
           </div>
           <div className="mt-4">
-            <label className={labelClass}>Describe your recent projects (optional)</label>
+            <label className={labelClass}>{t('Describe your recent projects (optional)')}</label>
             <textarea
               value={profile.portfolio_note}
               onChange={(e) => setProfile({ ...profile, portfolio_note: e.target.value })}
               rows={3}
               maxLength={300}
-              placeholder="Installed 200+ AC units across Riyadh in 2025. Specialise in commercial buildings and villas."
+              placeholder={t(
+                'Installed 200+ AC units across Riyadh in 2025. Specialise in commercial buildings and villas.'
+              )}
               className={`${inputClass} resize-none`}
             />
           </div>
@@ -657,8 +806,10 @@ export function MarketplaceProfileEditor({
             <div className="text-4xl">✅</div>
             <p className="text-base font-bold text-emerald-800">
               {mode === 'dashboard'
-                ? 'Marketplace profile updated successfully.'
-                : `Profile saved! Taking you ${returnToSetup ? 'back to setup' : 'to your dashboard'}...`}
+                ? t('Marketplace profile updated successfully.')
+                : returnToSetup
+                  ? t('Profile saved! Taking you back to setup...')
+                  : t('Profile saved! Taking you to your dashboard...')}
             </p>
           </div>
         ) : null}
@@ -669,7 +820,13 @@ export function MarketplaceProfileEditor({
             disabled={saving}
             className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-6 py-3.5 text-sm font-bold text-white shadow-sm transition hover:bg-emerald-700 disabled:opacity-60"
           >
-            {saving ? 'Saving profile...' : mode === 'dashboard' ? 'Save marketplace profile' : returnToSetup ? 'Save profile & continue setup ->' : 'Save profile & go to dashboard ->'}
+            {saving
+              ? t('Saving profile...')
+              : mode === 'dashboard'
+                ? t('Save marketplace profile')
+                : returnToSetup
+                  ? t('Save profile & continue setup ->')
+                  : t('Save profile & go to dashboard ->')}
           </button>
           <button
             onClick={() =>
@@ -683,12 +840,16 @@ export function MarketplaceProfileEditor({
             }
             className="rounded-xl border border-slate-200 px-6 py-3.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
           >
-            {mode === 'dashboard' ? 'Back to marketplace' : returnToSetup ? 'Back to setup' : 'Finish later'}
+            {mode === 'dashboard'
+              ? t('Back to marketplace')
+              : returnToSetup
+                ? t('Back to setup')
+                : t('Finish later')}
           </button>
         </div>
 
         <p className="pb-4 text-center text-xs text-slate-400">
-          You can update your marketplace profile anytime from Dashboard -> Marketplace -> Profile
+          {t('You can update your marketplace profile anytime from Dashboard -> Marketplace -> Profile')}
         </p>
       </div>
     </div>

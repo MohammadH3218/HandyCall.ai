@@ -15,27 +15,24 @@ import { IconArrowRight } from '@tabler/icons-react';
 
 const PRO_SETUP_STEPS = [
   {
-    title: { en: 'Activate subscription', ar: 'تفعيل الاشتراك' },
-    description: { en: 'Choose a plan and add a payment method.', ar: 'اختر الخطة وأضف وسيلة الدفع.' },
+    title: { en: 'Build your pro profile', ar: 'أنشئ ملفك المهني' },
+    description: { en: 'Add your photo, services, city, and a short bio.', ar: 'أضف صورتك وخدماتك ومدينتك ونبذة عنك.' },
   },
   {
-    title: { en: 'Company profile', ar: 'ملف الشركة' },
-    description: { en: 'Company name, service type, and timezone.', ar: 'اسم الشركة ونوع الخدمة والمنطقة الزمنية.' },
+    title: { en: 'Set your services & pricing', ar: 'حدد خدماتك وأسعارك' },
+    description: { en: 'List what you offer and your starting rates in SAR.', ar: 'أدرج ما تقدمه وأسعارك الابتدائية بالريال.' },
   },
   {
-    title: { en: 'Service area', ar: 'منطقة الخدمة' },
-    description: { en: 'Cities and zip codes you cover.', ar: 'المدن والرموز البريدية التي تخدمها.' },
+    title: { en: 'Get matched with customers', ar: 'تواصل مع العملاء' },
+    description: { en: 'Customers in your city find and message you directly.', ar: 'يجدك العملاء في مدينتك ويتواصلون معك مباشرة.' },
   },
   {
-    title: { en: 'Knowledge base', ar: 'قاعدة المعرفة' },
-    description: { en: 'Pricing, FAQs, and service details.', ar: 'الأسعار والأسئلة الشائعة وتفاصيل الخدمات.' },
+    title: { en: 'Manage bookings & schedule', ar: 'إدارة الحجوزات والجدول' },
+    description: { en: 'Confirm jobs, set availability, and track your work.', ar: 'أكّد الأعمال وحدد إتاحتك وتابع مشاريعك.' },
   },
   {
-    title: { en: 'Calendar + phone', ar: 'التقويم + الهاتف' },
-    description: {
-      en: 'Connect scheduling, claim your line, and set call handling.',
-      ar: 'اربط الجدولة، وفعّل رقمك، واضبط أسلوب الرد على المكالمات.',
-    },
+    title: { en: 'Get paid securely', ar: 'استلم المدفوعات بأمان' },
+    description: { en: 'Accept Mada, STC Pay, Apple Pay, or cash on-site.', ar: 'اقبل مدى وSTC Pay وApple Pay أو نقدًا في الموقع.' },
   },
 ];
 
@@ -135,11 +132,11 @@ export default function RegisterPage() {
 
   const copy = isArabic
     ? {
-        eyebrow: 'ابدأ مجانًا',
-        title: 'فعّل موظف الاستقبال الذكي خلال 10 دقائق.',
-        subtitle: 'نرافقك خطوة بخطوة من أول مكالمة حتى أول حجز.',
+        eyebrow: 'انضم كمحترف',
+        title: 'ابدأ في الوصول إلى آلاف العملاء في السعودية.',
+        subtitle: 'أنشئ ملفك المهني، حدد خدماتك وأسعارك، وابدأ في استقبال الحجوزات اليوم.',
         afterSignup: 'ماذا يحدث بعد التسجيل',
-        bullets: ['بدون عقود', 'احتفظ برقمك', 'مكالمة تهيئة مجانية'],
+        bullets: ['مجاني للانضمام', 'لا عقود ملزمة', 'ابدأ في دقائق'],
         createTitle: 'أنشئ حسابك',
         createSubtitle: 'سنرسل لك رمز التحقق عبر البريد الإلكتروني بعد ذلك.',
         google: 'المتابعة باستخدام Google',
@@ -165,11 +162,11 @@ export default function RegisterPage() {
         signIn: 'تسجيل الدخول',
       }
     : {
-        eyebrow: 'Get started free',
-        title: 'Set up your AI receptionist in 10 minutes.',
-        subtitle: 'We walk you through every step, from your first call to your first booking.',
+        eyebrow: 'Join as a Pro',
+        title: 'Start reaching thousands of customers across Saudi Arabia.',
+        subtitle: 'Create your profile, set your services and rates, and start getting booked today.',
         afterSignup: 'What happens after signup',
-        bullets: ['No contracts', 'Keep your number', 'Free onboarding call'],
+        bullets: ['Free to join', 'No long-term contracts', 'Get started in minutes'],
         createTitle: 'Create your account',
         createSubtitle: "We'll email you a verification code next.",
         google: 'Continue with Google',
@@ -178,7 +175,7 @@ export default function RegisterPage() {
         appleLoading: 'Connecting to Apple…',
         emailDivider: 'or sign up with email',
         fullName: 'Full name',
-        fullNamePlaceholder: 'Jane Owner',
+        fullNamePlaceholder: 'Ahmed Al-Zahrani',
         email: 'Email',
         emailPlaceholder: 'you@business.com',
         password: 'Password',
