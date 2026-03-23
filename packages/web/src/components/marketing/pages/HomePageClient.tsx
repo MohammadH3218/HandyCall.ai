@@ -8,7 +8,6 @@ import { AnimatedCounter } from '@/components/marketing/animated-counter';
 import { ProductPreview } from '@/components/marketing/ProductPreview';
 import { SearchBar } from '@/components/marketing/SearchBar';
 import { CategoryCard } from '@/components/marketing/CategoryCard';
-import { ProviderCard } from '@/components/marketing/ProviderCard';
 import { useMarketingLanguage } from '@/components/providers/marketing-language-provider';
 import {
   IconHeadset,
@@ -34,25 +33,25 @@ const TRUST_STATS = [
     label: { en: 'Average Response', ar: 'متوسط وقت الرد' },
   },
   {
-    value: '7',
-    suffix: '',
+    value: '20',
+    suffix: '+',
     label: { en: 'Cities Covered', ar: 'مدن مغطاة' },
   },
 ];
 
 const CATEGORIES = [
-  { nameEn: 'AC & HVAC', nameAr: 'التكييف والتبريد', proCount: '320+', slug: 'ac-repair' },
-  { nameEn: 'Plumbing', nameAr: 'السباكة', proCount: '280+', slug: 'plumbing' },
-  { nameEn: 'Electrical', nameAr: 'الكهرباء', proCount: '215+', slug: 'electrical' },
-  { nameEn: 'House Cleaning', nameAr: 'تنظيف المنازل', proCount: '490+', slug: 'cleaning' },
-  { nameEn: 'Car Washing', nameAr: 'غسيل السيارات', proCount: '240+', slug: 'car-washing' },
-  { nameEn: 'Appliance Repair', nameAr: 'إصلاح الأجهزة', proCount: '185+', slug: 'appliance-repair' },
-  { nameEn: 'Moving & Delivery', nameAr: 'النقل والتوصيل', proCount: '200+', slug: 'moving' },
-  { nameEn: 'Pest Control', nameAr: 'مكافحة الحشرات', proCount: '160+', slug: 'pest-control' },
-  { nameEn: 'Painting', nameAr: 'الدهان', proCount: '175+', slug: 'painting' },
-  { nameEn: 'Carpentry', nameAr: 'النجارة', proCount: '130+', slug: 'carpentry' },
-  { nameEn: 'Landscaping', nameAr: 'تنسيق الحدائق', proCount: '95+', slug: 'landscaping' },
-  { nameEn: 'Handyman', nameAr: 'الأعمال العامة', proCount: '350+', slug: 'handyman' },
+  { nameEn: 'AC & HVAC', nameAr: 'التكييف والتبريد', slug: 'ac-repair' },
+  { nameEn: 'Plumbing', nameAr: 'السباكة', slug: 'plumbing' },
+  { nameEn: 'Electrical', nameAr: 'الكهرباء', slug: 'electrical' },
+  { nameEn: 'House Cleaning', nameAr: 'تنظيف المنازل', slug: 'cleaning' },
+  { nameEn: 'Car Washing', nameAr: 'غسيل السيارات', slug: 'car-washing' },
+  { nameEn: 'Appliance Repair', nameAr: 'إصلاح الأجهزة', slug: 'appliance-repair' },
+  { nameEn: 'Moving & Delivery', nameAr: 'النقل والتوصيل', slug: 'moving' },
+  { nameEn: 'Pest Control', nameAr: 'مكافحة الحشرات', slug: 'pest-control' },
+  { nameEn: 'Painting', nameAr: 'الدهان', slug: 'painting' },
+  { nameEn: 'Carpentry', nameAr: 'النجارة', slug: 'carpentry' },
+  { nameEn: 'Landscaping', nameAr: 'تنسيق الحدائق', slug: 'landscaping' },
+  { nameEn: 'Handyman', nameAr: 'الأعمال العامة', slug: 'handyman' },
 ];
 
 const POPULAR_TAGS = {
@@ -99,57 +98,6 @@ const STEPS = [
         <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2z" />
       </svg>
     ),
-  },
-];
-
-const FEATURED_PROS = [
-  {
-    photo: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400&h=400&fit=crop&q=80',
-    name: 'Khalid Al-Rashidi',
-    serviceEn: 'AC & HVAC Repair',
-    serviceAr: 'تصليح وصيانة التكييف',
-    city: 'Riyadh',
-    cityAr: 'الرياض',
-    rating: '4.9',
-    reviewCount: 142,
-    startingFrom: 150,
-    badgeEn: 'Top Pro',
-    badgeAr: 'محترف مميز',
-    badgeVariant: 'top' as const,
-    replyTimeEn: 'Replies in about 15 min',
-    replyTimeAr: 'يرد خلال 15 دقيقة',
-  },
-  {
-    photo: 'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=400&h=400&fit=crop&q=80',
-    name: 'Ahmed Al-Zahrani',
-    serviceEn: 'Electrical Work',
-    serviceAr: 'خدمات كهربائية',
-    city: 'Jeddah',
-    cityAr: 'جدة',
-    rating: '4.8',
-    reviewCount: 97,
-    startingFrom: 120,
-    badgeEn: 'Verified',
-    badgeAr: 'موثق',
-    badgeVariant: 'verified' as const,
-    replyTimeEn: 'Replies in about 20 min',
-    replyTimeAr: 'يرد خلال 20 دقيقة',
-  },
-  {
-    photo: 'https://images.unsplash.com/photo-1563453392212-326f5e854473?w=400&h=400&fit=crop&q=80',
-    name: 'Sara Al-Mutairi',
-    serviceEn: 'Deep Cleaning',
-    serviceAr: 'تنظيف عميق',
-    city: 'Dammam',
-    cityAr: 'الدمام',
-    rating: '4.9',
-    reviewCount: 203,
-    startingFrom: 200,
-    badgeEn: 'Top Pro',
-    badgeAr: 'محترف مميز',
-    badgeVariant: 'top' as const,
-    replyTimeEn: 'Replies in about 10 min',
-    replyTimeAr: 'يرد خلال 10 دقائق',
   },
 ];
 
@@ -214,10 +162,6 @@ export function HomePageClient() {
         howItWorksTag: 'كيف يعمل',
         howItWorksTitle: 'احجز محترفك في 3 خطوات سهلة',
         stepLabel: 'الخطوة',
-        topProsTag: 'أفضل المحترفين',
-        topProsTitle: 'محترفون بتقييمات عالية بالقرب منك',
-        topProsDescription: 'بناءً على التقييمات الموثقة، وسرعة الرد، وعدد الأعمال المنجزة.',
-        browseAllPros: 'تصفح جميع المحترفين ←',
         proTag: 'للمحترفين',
         proTitle: 'هل تعمل في مجال الخدمات المنزلية داخل السعودية؟',
         proDescription:
@@ -240,10 +184,6 @@ export function HomePageClient() {
         howItWorksTag: 'How It Works',
         howItWorksTitle: 'Book a pro in 3 easy steps',
         stepLabel: 'Step',
-        topProsTag: 'Top Pros',
-        topProsTitle: 'Top-rated pros near you',
-        topProsDescription: 'Based on verified reviews, response time, and completed jobs.',
-        browseAllPros: 'Browse all pros →',
         proTag: 'For Professionals',
         proTitle: 'Are you a service professional in Saudi Arabia?',
         proDescription:
@@ -419,45 +359,95 @@ export function HomePageClient() {
           <FadeIn direction="up">
             <div className="mb-10 text-center">
               <span className="inline-block rounded-full bg-emerald-50 px-4 py-1.5 text-xs font-bold uppercase tracking-widest text-emerald-700">
-                {copy.topProsTag}
+                {isArabic ? 'محترفون موثوقون' : 'Trusted Professionals'}
               </span>
               <h2 className="mt-4 text-4xl font-extrabold tracking-tight text-slate-900">
-                {copy.topProsTitle}
+                {isArabic ? 'متخصصون في كل ما تحتاجه' : 'Specialists for every job'}
               </h2>
-              <p className="mt-3 text-slate-500">{copy.topProsDescription}</p>
+              <p className="mt-3 text-slate-500">
+                {isArabic
+                  ? 'من تصليح المكيفات إلى التنظيف العميق، محترفونا موثوقون ومستعدون.'
+                  : 'From AC repair to deep cleaning — verified pros ready when you are.'}
+              </p>
             </div>
           </FadeIn>
 
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
-            {FEATURED_PROS.map((pro, i) => (
-              <FadeIn key={pro.name} direction="up" delay={i * 100}>
-                <ProviderCard
-                  photo={pro.photo}
-                  name={pro.name}
-                  serviceEn={pro.serviceEn}
-                  serviceAr={pro.serviceAr}
-                  city={pro.city}
-                  cityAr={pro.cityAr}
-                  rating={pro.rating}
-                  reviewCount={pro.reviewCount}
-                  startingFrom={pro.startingFrom}
-                  badgeEn={pro.badgeEn}
-                  badgeAr={pro.badgeAr}
-                  badgeVariant={pro.badgeVariant}
-                  replyTimeEn={pro.replyTimeEn}
-                  replyTimeAr={pro.replyTimeAr}
-                />
-              </FadeIn>
-            ))}
+          {/* 3-photo grid: large left, two stacked right */}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 sm:grid-rows-2">
+            {/* Large card - spans 2 rows */}
+            <FadeIn direction="up" delay={0}>
+              <div className="sm:row-span-2">
+                <div className="relative h-64 overflow-hidden rounded-2xl sm:h-full" style={{ minHeight: '320px' }}>
+                  <img
+                    src="https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=600&h=700&fit=crop&q=80"
+                    alt="Electrician at work"
+                    className="h-full w-full object-cover"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-slate-900/70 via-transparent to-transparent" />
+                  <div className="absolute bottom-0 left-0 p-5 text-white">
+                    <p className="text-xs font-bold uppercase tracking-widest text-emerald-300">
+                      {isArabic ? 'كهرباء' : 'Electrical'}
+                    </p>
+                    <p className="mt-1 text-lg font-bold leading-tight">
+                      {isArabic ? 'كهربائيون معتمدون في منزلك' : 'Certified electricians, at your door'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </FadeIn>
+
+            {/* Top-right card */}
+            <FadeIn direction="up" delay={80}>
+              <div className="sm:col-span-2">
+                <div className="relative h-48 overflow-hidden rounded-2xl">
+                  <img
+                    src="https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=800&h=400&fit=crop&q=80"
+                    alt="AC technician"
+                    className="h-full w-full object-cover"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-slate-900/60 via-transparent to-transparent" />
+                  <div className="absolute bottom-0 left-0 p-5 text-white">
+                    <p className="text-xs font-bold uppercase tracking-widest text-emerald-300">
+                      {isArabic ? 'تكييف وتبريد' : 'AC & HVAC'}
+                    </p>
+                    <p className="mt-1 text-lg font-bold leading-tight">
+                      {isArabic ? 'صيانة وتنظيف المكيفات' : 'AC maintenance & deep cleaning'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </FadeIn>
+
+            {/* Bottom-right card */}
+            <FadeIn direction="up" delay={160}>
+              <div className="sm:col-span-2">
+                <div className="relative h-48 overflow-hidden rounded-2xl">
+                  <img
+                    src="https://images.unsplash.com/photo-1563453392212-326f5e854473?w=800&h=400&fit=crop&q=80"
+                    alt="Professional cleaning"
+                    className="h-full w-full object-cover"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-slate-900/60 via-transparent to-transparent" />
+                  <div className="absolute bottom-0 left-0 p-5 text-white">
+                    <p className="text-xs font-bold uppercase tracking-widest text-emerald-300">
+                      {isArabic ? 'تنظيف منازل' : 'House Cleaning'}
+                    </p>
+                    <p className="mt-1 text-lg font-bold leading-tight">
+                      {isArabic ? 'تنظيف عميق واحترافي' : 'Deep & professional cleaning'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </FadeIn>
           </div>
 
           <FadeIn direction="up" delay={200}>
             <div className="mt-8 text-center">
               <Link
-                href="/search"
+                href="/categories"
                 className="inline-flex items-center gap-2 rounded-xl border border-emerald-200 px-6 py-3 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-50"
               >
-                {copy.browseAllPros}
+                {isArabic ? 'تصفح جميع الفئات ←' : 'Browse all categories →'}
               </Link>
             </div>
           </FadeIn>

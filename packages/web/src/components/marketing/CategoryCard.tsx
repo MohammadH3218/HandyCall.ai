@@ -7,21 +7,29 @@ import { CATEGORY_ICON_MAP, type CategoryIconSlug } from '@/lib/category-icons';
 interface CategoryCardProps {
   nameEn: string;
   nameAr: string;
-  proCount: string;
+  proCount?: string;
   slug: string;
+  /** When false, renders a plain <div> instead of a <Link>. Defaults to true. */
+  clickable?: boolean;
+  /** When false, hides the proCount line. Defaults to true. */
+  showCount?: boolean;
   /** @deprecated pass iconSlug instead — emoji are no longer supported */
   emoji?: string;
 }
 
-export function CategoryCard({ nameEn, nameAr, proCount, slug }: CategoryCardProps) {
+export function CategoryCard({
+  nameEn,
+  nameAr,
+  proCount,
+  slug,
+  clickable = true,
+  showCount = true,
+}: CategoryCardProps) {
   const { isArabic } = useMarketingLanguage();
   const config = CATEGORY_ICON_MAP[slug as CategoryIconSlug];
 
-  return (
-    <Link
-      href={`/categories/${slug}`}
-      className="group flex flex-col items-center gap-2.5 rounded-2xl border border-slate-100 bg-white p-5 text-center shadow-sm transition-all hover:-translate-y-0.5 hover:border-emerald-200 hover:shadow-md"
-    >
+  const inner = (
+    <>
       {config ? (
         <div
           className={`flex h-12 w-12 items-center justify-center rounded-xl ${config.bg} transition group-hover:brightness-95`}
@@ -37,9 +45,24 @@ export function CategoryCard({ nameEn, nameAr, proCount, slug }: CategoryCardPro
         </div>
       )}
       <p className="text-sm font-bold text-slate-900">{isArabic ? nameAr : nameEn}</p>
-      <p className="text-xs font-semibold text-emerald-600">
-        {proCount} {isArabic ? 'محترف' : 'pros'}
-      </p>
+      {showCount && proCount !== undefined && (
+        <p className="text-xs font-semibold text-emerald-600">
+          {proCount} {isArabic ? 'محترف' : 'pros'}
+        </p>
+      )}
+    </>
+  );
+
+  const sharedClassName =
+    'group flex flex-col items-center gap-2.5 rounded-2xl border border-slate-100 bg-white p-5 text-center shadow-sm transition-all hover:-translate-y-0.5 hover:border-emerald-200 hover:shadow-md';
+
+  if (!clickable) {
+    return <div className={sharedClassName}>{inner}</div>;
+  }
+
+  return (
+    <Link href={`/categories/${slug}`} className={sharedClassName}>
+      {inner}
     </Link>
   );
 }

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { signOut } from 'next-auth/react';
 import { OnboardingProvider, useOnboarding } from '@/components/onboarding/onboarding-context';
+import { LanguageSwitcher } from '@/components/language-switcher';
 import { ONBOARDING_STEPS } from '@/constants/onboarding';
 import { Logo } from '@/components/ui/logo';
 import { IconCircleCheck, IconCircle } from '@tabler/icons-react';
@@ -176,6 +177,7 @@ function OnboardingShell({ children }: { children: React.ReactNode }) {
               <Logo width={130} height={32} />
             </Link>
             <div className="flex items-center gap-3">
+              <LanguageSwitcher />
               <span className="hidden items-center rounded-full border border-emerald-100 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 sm:inline-flex">
                 AI Setup Assistant
               </span>

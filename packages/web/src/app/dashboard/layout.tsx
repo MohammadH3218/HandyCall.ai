@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { useAuthStore } from '@/stores/auth-store';
 import { apiClient } from '@/lib/api-client';
 import { computeOnboardingStatus } from '@/lib/setup-status';
+import { LanguageSwitcher } from '@/components/language-switcher';
 import { Logo } from '@/components/ui/logo';
 import { ProfileDropdown } from '@/components/profile-dropdown';
 import { NotificationBell } from '@/components/notifications/notification-bell';
@@ -407,6 +408,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
         {/* Bottom user area — profile + notification bell */}
         <div className="flex-none border-t border-border/80 px-3 py-3">
+          <div className="mb-3 flex justify-center">
+            <LanguageSwitcher />
+          </div>
           <div className="flex items-center gap-2">
             <div className="flex-1 min-w-0">
               <ProfileDropdown />

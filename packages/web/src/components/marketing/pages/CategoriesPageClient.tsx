@@ -51,8 +51,9 @@ export function CategoriesPageClient() {
               key={cat.slug}
               nameEn={cat.title}
               nameAr={cat.titleAr}
-              proCount={cat.proCount}
               slug={cat.slug}
+              clickable={false}
+              showCount={false}
             />
           ))}
         </div>

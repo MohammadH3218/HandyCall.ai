@@ -7,9 +7,10 @@ export type ServiceGroup = {
   /** Icon slug — maps to CATEGORY_ICON_MAP in lib/category-icons.tsx. No emoji. */
   iconSlug: CategoryIconSlug;
   slug: string;
-  proCount: string;
+  proCount?: string;
   description: string;
   services: string[];
+  arServices?: string[];
 };
 
 export const HOME_SERVICE_GROUPS: ServiceGroup[] = [
@@ -19,7 +20,6 @@ export const HOME_SERVICE_GROUPS: ServiceGroup[] = [
     titleAr: 'تكييف وتبريد',
     iconSlug: 'ac-repair',
     slug: 'ac-repair',
-    proCount: '320+',
     description: 'AC installation, repair, maintenance, and ventilation.',
     services: [
       'AC Repair',
@@ -40,7 +40,6 @@ export const HOME_SERVICE_GROUPS: ServiceGroup[] = [
     titleAr: 'سباكة',
     iconSlug: 'plumbing',
     slug: 'plumbing',
-    proCount: '280+',
     description: 'Pipe repair, water heaters, fixtures, and drain cleaning.',
     services: [
       'Plumbing Repair',
@@ -66,7 +65,6 @@ export const HOME_SERVICE_GROUPS: ServiceGroup[] = [
     titleAr: 'كهرباء',
     iconSlug: 'electrical',
     slug: 'electrical',
-    proCount: '215+',
     description: 'Wiring, lighting, circuit breakers, and smart home.',
     services: [
       'Electrical Repair',
@@ -92,7 +90,6 @@ export const HOME_SERVICE_GROUPS: ServiceGroup[] = [
     titleAr: 'تنظيف منازل',
     iconSlug: 'cleaning',
     slug: 'cleaning',
-    proCount: '490+',
     description: 'Regular, deep, move-in/out, and specialty cleaning.',
     services: [
       'House Cleaning',
@@ -119,7 +116,6 @@ export const HOME_SERVICE_GROUPS: ServiceGroup[] = [
     titleAr: 'دهان',
     iconSlug: 'painting',
     slug: 'painting',
-    proCount: '175+',
     description: 'Interior, exterior, texture, and specialty finishes.',
     services: [
       'Interior Painting',
@@ -141,7 +137,6 @@ export const HOME_SERVICE_GROUPS: ServiceGroup[] = [
     titleAr: 'نجارة',
     iconSlug: 'carpentry',
     slug: 'carpentry',
-    proCount: '130+',
     description: 'Furniture, cabinets, doors, shelving, and custom woodwork.',
     services: [
       'Furniture Assembly',
@@ -166,7 +161,6 @@ export const HOME_SERVICE_GROUPS: ServiceGroup[] = [
     titleAr: 'مكافحة حشرات',
     iconSlug: 'pest-control',
     slug: 'pest-control',
-    proCount: '160+',
     description: 'Cockroach, termite, rodent, scorpion, and mosquito control.',
     services: [
       'Pest Control',
@@ -189,7 +183,6 @@ export const HOME_SERVICE_GROUPS: ServiceGroup[] = [
     titleAr: 'تنسيق حدائق',
     iconSlug: 'landscaping',
     slug: 'landscaping',
-    proCount: '95+',
     description: 'Garden design, lawn care, trees, and irrigation.',
     services: [
       'Garden Design',
@@ -214,7 +207,6 @@ export const HOME_SERVICE_GROUPS: ServiceGroup[] = [
     titleAr: 'غسيل وتلميع السيارات',
     iconSlug: 'car-washing',
     slug: 'car-washing',
-    proCount: '240+',
     description: 'Mobile car wash, full detail, polish, and interior cleaning.',
     services: [
       'Car Washing',
@@ -237,7 +229,6 @@ export const HOME_SERVICE_GROUPS: ServiceGroup[] = [
     titleAr: 'إصلاح الأجهزة',
     iconSlug: 'appliance-repair',
     slug: 'appliance-repair',
-    proCount: '185+',
     description: 'Washing machine, dryer, fridge, oven, and more.',
     services: [
       'Appliance Repair',
@@ -263,7 +254,6 @@ export const HOME_SERVICE_GROUPS: ServiceGroup[] = [
     titleAr: 'نقل وتوصيل',
     iconSlug: 'moving',
     slug: 'moving',
-    proCount: '200+',
     description: 'Home moving, furniture delivery, packing, and storage.',
     services: [
       'Home Moving',
@@ -286,7 +276,6 @@ export const HOME_SERVICE_GROUPS: ServiceGroup[] = [
     titleAr: 'سيراميك وأرضيات',
     iconSlug: 'tile-flooring',
     slug: 'tile-flooring',
-    proCount: '145+',
     description: 'Tile installation, marble polishing, and floor repairs.',
     services: [
       'Tile Installation',
@@ -310,7 +299,6 @@ export const HOME_SERVICE_GROUPS: ServiceGroup[] = [
     titleAr: 'أنظمة الأمان',
     iconSlug: 'security',
     slug: 'security',
-    proCount: '75+',
     description: 'CCTV, alarm systems, smart locks, and access control.',
     services: [
       'CCTV Installation',
@@ -331,7 +319,6 @@ export const HOME_SERVICE_GROUPS: ServiceGroup[] = [
     titleAr: 'أبواب ونوافذ',
     iconSlug: 'doors-windows',
     slug: 'doors-windows',
-    proCount: '110+',
     description: 'Door and window installation, repair, and glazing.',
     services: [
       'Door Installation',
@@ -354,7 +341,6 @@ export const HOME_SERVICE_GROUPS: ServiceGroup[] = [
     titleAr: 'تجديد الحمام',
     iconSlug: 'bathroom',
     slug: 'bathroom',
-    proCount: '85+',
     description: 'Full remodels, fixtures, shower, and waterproofing.',
     services: [
       'Bathroom Renovation',
@@ -375,7 +361,6 @@ export const HOME_SERVICE_GROUPS: ServiceGroup[] = [
     titleAr: 'أعمال المنزل العامة',
     iconSlug: 'handyman',
     slug: 'handyman',
-    proCount: '350+',
     description: 'General repairs, assembly, mounting, and home fixes.',
     services: [
       'Handyman Services',
@@ -399,7 +384,6 @@ export const HOME_SERVICE_GROUPS: ServiceGroup[] = [
     titleAr: 'أحواض السباحة',
     iconSlug: 'pool-service',
     slug: 'pool-service',
-    proCount: '60+',
     description: 'Pool cleaning, maintenance, repair, and water features.',
     services: [
       'Pool Cleaning',
@@ -418,7 +402,6 @@ export const HOME_SERVICE_GROUPS: ServiceGroup[] = [
     titleAr: 'أسطح وعزل مائي',
     iconSlug: 'roofing',
     slug: 'roofing',
-    proCount: '80+',
     description: 'Roof repair, waterproofing, thermal insulation, and leaks.',
     services: [
       'Roof Repair',
@@ -438,7 +421,6 @@ export const HOME_SERVICE_GROUPS: ServiceGroup[] = [
     titleAr: 'ستائر وبلايند',
     iconSlug: 'curtains-blinds',
     slug: 'curtains-blinds',
-    proCount: '120+',
     description: 'Curtain and blind installation, cleaning, and motorized options.',
     services: [
       'Curtain Installation',
@@ -457,7 +439,6 @@ export const HOME_SERVICE_GROUPS: ServiceGroup[] = [
     titleAr: 'الصرف الصحي والخزانات',
     iconSlug: 'sanitation',
     slug: 'sanitation',
-    proCount: '70+',
     description: 'Water tank cleaning, septic service, and drain sanitation.',
     services: [
       'Water Tank Cleaning',
@@ -467,6 +448,111 @@ export const HOME_SERVICE_GROUPS: ServiceGroup[] = [
       'Drain Unblocking',
       'Sewage Pump Service',
       'Sanitation Inspection',
+    ],
+  },
+  {
+    key: 'nanny-childcare',
+    title: 'Nanny & Childcare',
+    titleAr: 'خادمة ومربية أطفال',
+    iconSlug: 'nanny-childcare',
+    slug: 'nanny-childcare',
+    description: 'Nannies, babysitters, elderly care, and special needs support.',
+    services: [
+      'Nanny Service', 'Live-In Nanny', 'Babysitting', 'Newborn Care', 'Elderly Care',
+      'Special Needs Care', 'After-School Care', 'Overnight Babysitting',
+    ],
+  },
+  {
+    key: 'private-tutoring',
+    title: 'Private Tutoring',
+    titleAr: 'دروس خصوصية',
+    iconSlug: 'private-tutoring',
+    slug: 'private-tutoring',
+    description: 'Home tutoring for all grades, Quran teaching, and language lessons.',
+    services: [
+      'Math Tutoring', 'Science Tutoring', 'Arabic Language Tutor', 'English Tutor',
+      'Quran Teaching', 'Elementary Tutoring', 'High School Tutoring', 'University Tutoring',
+      'Online Tutoring', 'French Tutor', 'Exam Preparation',
+    ],
+  },
+  {
+    key: 'driver-services',
+    title: 'Driver Services',
+    titleAr: 'خدمات السائق',
+    iconSlug: 'driver-services',
+    slug: 'driver-services',
+    description: 'Personal drivers, school runs, airport transfers, and delivery.',
+    services: [
+      'Personal Driver', 'Part-Time Driver', 'Full-Time Driver', 'School Run',
+      'Airport Transfer', 'Shopping Driver', 'Medical Appointment Driver',
+      'Corporate Driver', 'Event Driver',
+    ],
+  },
+  {
+    key: 'network-it',
+    title: 'Network & IT Setup',
+    titleAr: 'شبكات وتقنية',
+    iconSlug: 'network-it',
+    slug: 'network-it',
+    description: 'Home network setup, mesh Wi-Fi, ethernet cabling, and smart devices.',
+    services: [
+      'Router Setup', 'Mesh Wi-Fi Install', 'Ethernet Cabling', 'Smart TV Setup',
+      'Home Network Setup', 'Wi-Fi Extender Install', 'CCTV Network Setup',
+      'IT Support at Home', 'Structured Cabling', 'Fiber Optic Install',
+      'Network Troubleshooting',
+    ],
+  },
+  {
+    key: 'healthcare-home',
+    title: 'Healthcare at Home',
+    titleAr: 'رعاية صحية منزلية',
+    iconSlug: 'healthcare-home',
+    slug: 'healthcare-home',
+    description: 'Nursing care, blood tests, physiotherapy, and IV drips at home.',
+    services: [
+      'Home Nursing', 'Blood Test at Home', 'IV Drip at Home', 'Physiotherapy',
+      'Wound Care', 'Post-Surgery Care', 'Diabetes Care', 'Blood Pressure Monitoring',
+      'Dietitian Consultation', 'Home Doctor Visit', 'Vaccination at Home',
+      'Medical Equipment Rental',
+    ],
+  },
+  {
+    key: 'laundry-ironing',
+    title: 'Laundry & Ironing',
+    titleAr: 'غسيل وكي',
+    iconSlug: 'laundry-ironing',
+    slug: 'laundry-ironing',
+    description: 'Pickup and delivery laundry, dry cleaning, and ironing services.',
+    services: [
+      'Laundry Service', 'Ironing Service', 'Dry Cleaning', 'Laundry Pickup & Delivery',
+      'Curtain Laundry', 'Bedding Wash', 'Suit Dry Cleaning', 'Shoe Cleaning',
+      'Carpet Dry Cleaning',
+    ],
+  },
+  {
+    key: 'photography-video',
+    title: 'Photography & Video',
+    titleAr: 'تصوير وفيديو',
+    iconSlug: 'photography-video',
+    slug: 'photography-video',
+    description: 'Family portraits, events, real estate, and video production.',
+    services: [
+      'Family Photography', 'Wedding Photography', 'Event Photography', 'Real Estate Photography',
+      'Product Photography', 'Video Production', 'Drone Photography', 'Portrait Session',
+      'Birthday Photography', 'Graduation Photography',
+    ],
+  },
+  {
+    key: 'personal-training',
+    title: 'Personal Training',
+    titleAr: 'تدريب رياضي',
+    iconSlug: 'personal-training',
+    slug: 'personal-training',
+    description: 'Personal trainers, yoga instructors, and fitness coaches at home.',
+    services: [
+      'Personal Trainer', 'Home Gym Setup', 'Yoga Instructor', 'Pilates at Home',
+      'Weight Loss Coaching', 'Strength Training', 'Kids Fitness', 'Nutrition Coaching',
+      'Stretching & Mobility', 'Swimming Coach',
     ],
   },
 ];
@@ -479,4 +565,10 @@ export const ALL_HOME_SERVICES: string[] = Array.from(
 export const SERVICE_AUTOCOMPLETE_LIST: Array<{ label: string; category: string }> =
   HOME_SERVICE_GROUPS.flatMap((g) =>
     g.services.map((s) => ({ label: s, category: g.title })),
+  );
+
+// Arabic autocomplete — uses titleAr as category; service labels stay English for now
+export const SERVICE_AUTOCOMPLETE_LIST_AR: Array<{ label: string; category: string }> =
+  HOME_SERVICE_GROUPS.flatMap((g) =>
+    g.services.map((s) => ({ label: s, category: g.titleAr })),
   );

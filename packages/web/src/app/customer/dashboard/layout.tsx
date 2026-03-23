@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuthStore } from '@/stores/auth-store';
+import { LanguageSwitcher } from '@/components/language-switcher';
 import { Logo } from '@/components/ui/logo';
 import {
   IconHome,
@@ -184,6 +185,7 @@ export default function CustomerDashboardLayout({ children }: { children: React.
           </div>
 
           <div className="flex items-center gap-2">
+            <LanguageSwitcher />
             {/* Notification bell */}
             <button className="relative rounded-lg p-2 text-slate-500 hover:bg-slate-100">
               <IconBell className="h-5 w-5" stroke={1.5} />

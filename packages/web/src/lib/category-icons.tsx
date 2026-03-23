@@ -31,6 +31,14 @@ import {
   IconHome,
   IconWindow,
   IconFilter,
+  IconBabyCarriage,
+  IconBook,
+  IconSteeringWheel,
+  IconWifi,
+  IconStethoscope,
+  IconWash,
+  IconCamera,
+  IconBarbell,
 } from '@tabler/icons-react';
 
 export type CategoryIconSlug =
@@ -53,7 +61,15 @@ export type CategoryIconSlug =
   | 'pool-service'
   | 'roofing'
   | 'curtains-blinds'
-  | 'sanitation';
+  | 'sanitation'
+  | 'nanny-childcare'
+  | 'private-tutoring'
+  | 'driver-services'
+  | 'network-it'
+  | 'healthcare-home'
+  | 'laundry-ironing'
+  | 'photography-video'
+  | 'personal-training';
 
 interface IconConfig {
   Icon: React.ComponentType<{ className?: string; stroke?: number }>;
@@ -80,8 +96,16 @@ export const CATEGORY_ICON_MAP: Record<CategoryIconSlug, IconConfig> = {
   'bathroom':        { Icon: IconBath,          bg: 'bg-sky-100',     color: 'text-sky-500' },
   'pool-service':    { Icon: IconDroplets,      bg: 'bg-cyan-100',    color: 'text-cyan-700' },
   'roofing':         { Icon: IconHome,          bg: 'bg-slate-100',   color: 'text-slate-700' },
-  'curtains-blinds': { Icon: IconWindow,        bg: 'bg-indigo-100',  color: 'text-indigo-600' },
-  'sanitation':      { Icon: IconFilter,        bg: 'bg-teal-100',    color: 'text-teal-600' },
+  'curtains-blinds':   { Icon: IconWindow,         bg: 'bg-indigo-100',  color: 'text-indigo-600' },
+  'sanitation':        { Icon: IconFilter,         bg: 'bg-teal-100',    color: 'text-teal-600' },
+  'nanny-childcare':   { Icon: IconBabyCarriage,   bg: 'bg-rose-100',    color: 'text-rose-500' },
+  'private-tutoring':  { Icon: IconBook,           bg: 'bg-indigo-100',  color: 'text-indigo-600' },
+  'driver-services':   { Icon: IconSteeringWheel,  bg: 'bg-slate-100',   color: 'text-slate-700' },
+  'network-it':        { Icon: IconWifi,           bg: 'bg-blue-100',    color: 'text-blue-600' },
+  'healthcare-home':   { Icon: IconStethoscope,    bg: 'bg-red-100',     color: 'text-red-600' },
+  'laundry-ironing':   { Icon: IconWash,           bg: 'bg-sky-100',     color: 'text-sky-600' },
+  'photography-video': { Icon: IconCamera,         bg: 'bg-amber-100',   color: 'text-amber-600' },
+  'personal-training': { Icon: IconBarbell,        bg: 'bg-emerald-100', color: 'text-emerald-600' },
 };
 
 /** Renders the icon element for a given category slug, ready to drop into CategoryCard */

@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { IconMenu2, IconX, IconChevronDown } from '@tabler/icons-react';
+import { LanguageSwitcher } from '@/components/language-switcher';
 import { useMarketingLanguage } from '@/components/providers/marketing-language-provider';
 import { useAuthStore } from '@/stores/auth-store';
 import { Logo } from '../ui/logo';
@@ -171,15 +172,7 @@ export function SiteHeader({
 
         {!hideLogin && (
           <div className="hidden items-center gap-2 md:flex">
-            {/* Language toggle */}
-            <button
-              type="button"
-              onClick={handleLanguageToggle}
-              className="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600 transition hover:border-emerald-300 hover:text-emerald-700"
-              aria-label={copy.toggleAria}
-            >
-              {copy.toggleLabel}
-            </button>
+            <LanguageSwitcher />
 
             {/* Auth area: profile or sign up/login */}
             {!isLoading && isAuthenticated ? (

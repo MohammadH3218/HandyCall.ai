@@ -10,16 +10,32 @@ import { Label } from '@/components/ui/label';
 import { Logo } from '@/components/ui/logo';
 import { SiteFooter } from '@/components/marketing/site-footer';
 import { SiteHeader } from '@/components/marketing/site-header';
+import { useMarketingLanguage } from '@/components/providers/marketing-language-provider';
 import { IconArrowRight } from '@tabler/icons-react';
 
 const PRO_SETUP_STEPS = [
-  { title: 'Activate subscription', description: 'Choose a plan and add a payment method.' },
-  { title: 'Company profile', description: 'Company name, service type, and timezone.' },
-  { title: 'Service area', description: 'Cities and zip codes you cover.' },
-  { title: 'Knowledge base', description: 'Pricing, FAQs, and service details.' },
   {
-    title: 'Calendar + phone',
-    description: 'Connect scheduling, claim your line, and set call handling.',
+    title: { en: 'Activate subscription', ar: 'تفعيل الاشتراك' },
+    description: { en: 'Choose a plan and add a payment method.', ar: 'اختر الخطة وأضف وسيلة الدفع.' },
+  },
+  {
+    title: { en: 'Company profile', ar: 'ملف الشركة' },
+    description: { en: 'Company name, service type, and timezone.', ar: 'اسم الشركة ونوع الخدمة والمنطقة الزمنية.' },
+  },
+  {
+    title: { en: 'Service area', ar: 'منطقة الخدمة' },
+    description: { en: 'Cities and zip codes you cover.', ar: 'المدن والرموز البريدية التي تخدمها.' },
+  },
+  {
+    title: { en: 'Knowledge base', ar: 'قاعدة المعرفة' },
+    description: { en: 'Pricing, FAQs, and service details.', ar: 'الأسعار والأسئلة الشائعة وتفاصيل الخدمات.' },
+  },
+  {
+    title: { en: 'Calendar + phone', ar: 'التقويم + الهاتف' },
+    description: {
+      en: 'Connect scheduling, claim your line, and set call handling.',
+      ar: 'اربط الجدولة، وفعّل رقمك، واضبط أسلوب الرد على المكالمات.',
+    },
   },
 ];
 
@@ -59,6 +75,7 @@ const AppleIcon = ({ className }: { className?: string }) => (
 
 export default function RegisterPage() {
   const router = useRouter();
+  const { language, isArabic } = useMarketingLanguage();
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -116,8 +133,70 @@ export default function RegisterPage() {
     }
   };
 
+  const copy = isArabic
+    ? {
+        eyebrow: 'ابدأ مجانًا',
+        title: 'فعّل موظف الاستقبال الذكي خلال 10 دقائق.',
+        subtitle: 'نرافقك خطوة بخطوة من أول مكالمة حتى أول حجز.',
+        afterSignup: 'ماذا يحدث بعد التسجيل',
+        bullets: ['بدون عقود', 'احتفظ برقمك', 'مكالمة تهيئة مجانية'],
+        createTitle: 'أنشئ حسابك',
+        createSubtitle: 'سنرسل لك رمز التحقق عبر البريد الإلكتروني بعد ذلك.',
+        google: 'المتابعة باستخدام Google',
+        apple: 'المتابعة باستخدام Apple',
+        googleLoading: 'جارٍ الاتصال بـ Google…',
+        appleLoading: 'جارٍ الاتصال بـ Apple…',
+        emailDivider: 'أو أنشئ الحساب باستخدام البريد',
+        fullName: 'الاسم الكامل',
+        fullNamePlaceholder: 'محمد صاحب الشركة',
+        email: 'البريد الإلكتروني',
+        emailPlaceholder: 'you@business.com',
+        password: 'كلمة المرور',
+        passwordPlaceholder: '8 أحرف على الأقل',
+        confirmPassword: 'تأكيد كلمة المرور',
+        confirmPasswordPlaceholder: 'أعد إدخال كلمة المرور',
+        creating: 'جارٍ إنشاء الحساب…',
+        create: 'إنشاء الحساب',
+        termsIntro: 'بإنشاء الحساب فإنك توافق على',
+        terms: 'الشروط',
+        privacy: 'سياسة الخصوصية',
+        and: 'و',
+        alreadyHaveAccount: 'لديك حساب بالفعل؟',
+        signIn: 'تسجيل الدخول',
+      }
+    : {
+        eyebrow: 'Get started free',
+        title: 'Set up your AI receptionist in 10 minutes.',
+        subtitle: 'We walk you through every step, from your first call to your first booking.',
+        afterSignup: 'What happens after signup',
+        bullets: ['No contracts', 'Keep your number', 'Free onboarding call'],
+        createTitle: 'Create your account',
+        createSubtitle: "We'll email you a verification code next.",
+        google: 'Continue with Google',
+        apple: 'Continue with Apple',
+        googleLoading: 'Connecting to Google…',
+        appleLoading: 'Connecting to Apple…',
+        emailDivider: 'or sign up with email',
+        fullName: 'Full name',
+        fullNamePlaceholder: 'Jane Owner',
+        email: 'Email',
+        emailPlaceholder: 'you@business.com',
+        password: 'Password',
+        passwordPlaceholder: 'Minimum 8 characters',
+        confirmPassword: 'Confirm password',
+        confirmPasswordPlaceholder: 'Re-enter your password',
+        creating: 'Creating account…',
+        create: 'Create account',
+        termsIntro: 'By creating an account you agree to our',
+        terms: 'Terms',
+        privacy: 'Privacy Policy',
+        and: 'and',
+        alreadyHaveAccount: 'Already have an account?',
+        signIn: 'Sign in',
+      };
+
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background" dir={isArabic ? 'rtl' : 'ltr'}>
       <SiteHeader hideLogin={true} />
 
       <main className="mx-auto grid max-w-6xl items-start gap-12 px-4 pb-20 pt-14 lg:grid-cols-[1.1fr_0.9fr] lg:items-start lg:pt-16">
@@ -125,20 +204,20 @@ export default function RegisterPage() {
         <div className="space-y-8 lg:pt-4">
           <div>
             <span className="text-xs font-bold uppercase tracking-widest text-emerald-700">
-              Get started free
+              {copy.eyebrow}
             </span>
             <h1 className="mt-3 text-[2.6rem] font-bold leading-[1.08] tracking-tight text-slate-900 dark:text-slate-100 md:text-5xl">
-              Set up your AI receptionist in 10 minutes.
+              {copy.title}
             </h1>
             <p className="mt-4 max-w-md text-lg text-slate-500 dark:text-slate-400">
-              We walk you through every step — from your first call to your first booking.
+              {copy.subtitle}
             </p>
           </div>
 
           {/* Setup steps */}
           <div className="space-y-3">
             <p className="text-xs font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">
-              What happens after signup
+              {copy.afterSignup}
             </p>
             {PRO_SETUP_STEPS.map((step, index) => (
               <div
@@ -150,10 +229,10 @@ export default function RegisterPage() {
                 </div>
                 <div>
                   <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-                    {step.title}
+                    {step.title[language]}
                   </p>
                   <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
-                    {step.description}
+                    {step.description[language]}
                   </p>
                 </div>
               </div>
@@ -161,7 +240,7 @@ export default function RegisterPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-4 text-sm text-slate-500 dark:text-slate-400">
-            {['No contracts', 'Keep your number', 'Free onboarding call'].map((item) => (
+            {copy.bullets.map((item) => (
               <span key={item} className="inline-flex items-center gap-1.5">
                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
                 {item}
@@ -175,10 +254,10 @@ export default function RegisterPage() {
           <div className="overflow-hidden rounded-2xl border border-border/80 bg-card/88 p-8 shadow-[0_24px_70px_-38px_rgba(15,23,42,0.42)] backdrop-blur-sm">
             <div className="mb-6 text-center">
               <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
-                Create your account
+                {copy.createTitle}
               </h2>
               <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                We'll email you a verification code next.
+                {copy.createSubtitle}
               </p>
             </div>
 
@@ -198,8 +277,8 @@ export default function RegisterPage() {
               >
                 <GoogleIcon className="h-4 w-4" />
                 {socialLoading === 'cognito-google'
-                  ? 'Connecting to Google…'
-                  : 'Continue with Google'}
+                  ? copy.googleLoading
+                  : copy.google}
               </button>
               <button
                 type="button"
@@ -208,14 +287,14 @@ export default function RegisterPage() {
                 className="flex h-11 w-full items-center justify-center gap-3 rounded-lg border border-border/80 bg-card/75 text-sm font-medium text-slate-700 shadow-sm backdrop-blur-sm transition-colors hover:bg-accent/80 dark:text-slate-200 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <AppleIcon className="h-4 w-4" />
-                {socialLoading === 'cognito-apple' ? 'Connecting to Apple…' : 'Continue with Apple'}
+                {socialLoading === 'cognito-apple' ? copy.appleLoading : copy.apple}
               </button>
             </div>
 
             <div className="my-5 flex items-center gap-3">
               <span className="h-px flex-1 bg-border" />
               <span className="text-xs text-slate-400 dark:text-slate-500">
-                or sign up with email
+                {copy.emailDivider}
               </span>
               <span className="h-px flex-1 bg-border" />
             </div>
@@ -226,13 +305,13 @@ export default function RegisterPage() {
                   htmlFor="full-name"
                   className="text-xs font-semibold text-slate-700 dark:text-slate-300"
                 >
-                  Full name
+                  {copy.fullName}
                 </Label>
                 <Input
                   id="full-name"
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
-                  placeholder="Jane Owner"
+                  placeholder={copy.fullNamePlaceholder}
                   disabled={isSubmitting}
                   required
                   className="h-11"
@@ -243,14 +322,14 @@ export default function RegisterPage() {
                   htmlFor="email"
                   className="text-xs font-semibold text-slate-700 dark:text-slate-300"
                 >
-                  Email
+                  {copy.email}
                 </Label>
                 <Input
                   id="email"
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="you@business.com"
+                  placeholder={copy.emailPlaceholder}
                   required
                   disabled={isSubmitting}
                   className="h-11"
@@ -261,14 +340,14 @@ export default function RegisterPage() {
                   htmlFor="password"
                   className="text-xs font-semibold text-slate-700 dark:text-slate-300"
                 >
-                  Password
+                  {copy.password}
                 </Label>
                 <Input
                   id="password"
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Minimum 8 characters"
+                  placeholder={copy.passwordPlaceholder}
                   required
                   disabled={isSubmitting}
                   className="h-11"
@@ -279,14 +358,14 @@ export default function RegisterPage() {
                   htmlFor="confirm-password"
                   className="text-xs font-semibold text-slate-700 dark:text-slate-300"
                 >
-                  Confirm password
+                  {copy.confirmPassword}
                 </Label>
                 <Input
                   id="confirm-password"
                   type="password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="Re-enter your password"
+                  placeholder={copy.confirmPasswordPlaceholder}
                   required
                   disabled={isSubmitting}
                   className="h-11"
@@ -298,26 +377,26 @@ export default function RegisterPage() {
                 disabled={isSubmitting}
                 className="flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-emerald-600 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {isSubmitting ? 'Creating account…' : 'Create account'}
+                {isSubmitting ? copy.creating : copy.create}
                 {!isSubmitting && <IconArrowRight className="h-4 w-4" stroke={1.5} />}
               </button>
             </form>
 
             <p className="mt-4 text-center text-xs text-slate-400 dark:text-slate-500">
-              By creating an account you agree to our{' '}
+              {copy.termsIntro}{' '}
               <Link href="/terms" className="underline hover:text-slate-600">
-                Terms
+                {copy.terms}
               </Link>{' '}
-              and{' '}
+              {copy.and}{' '}
               <Link href="/privacy-policy" className="underline hover:text-slate-600">
-                Privacy Policy
+                {copy.privacy}
               </Link>
               .
             </p>
             <p className="mt-3 text-center text-sm text-slate-500 dark:text-slate-400">
-              Already have an account?{' '}
+              {copy.alreadyHaveAccount}{' '}
               <Link href="/login" className="font-semibold text-emerald-700 hover:text-emerald-600">
-                Sign in
+                {copy.signIn}
               </Link>
             </p>
           </div>
