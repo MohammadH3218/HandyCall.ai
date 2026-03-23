@@ -214,7 +214,6 @@ const SETUP_TRANSLATIONS: Record<string, string> = {
   'Apple Calendar': 'تقويم Apple',
   'Connect iCloud Calendar with an app-specific password.': 'اربط تقويم iCloud باستخدام كلمة مرور خاصة بالتطبيق.',
   'How to generate an app-specific password': 'كيفية إنشاء كلمة مرور خاصة بالتطبيق',
-  'Connect Apple Calendar': 'ربط تقويم Apple',
   'Forward my current business number': 'حوّل رقم نشاطي الحالي',
   'Best if customers already know your number and you want the AI to answer first.':
     'الأفضل إذا كان العملاء يعرفون رقمك بالفعل وتريد أن يرد الذكاء الاصطناعي أولاً.',
@@ -262,8 +261,6 @@ const SETUP_TRANSLATIONS: Record<string, string> = {
   'Check status': 'تحقق من الحالة',
   'Checking...': 'جارٍ التحقق...',
   'Skip and collect payments yourself': 'تخطَّ هذه الخطوة واحصل المدفوعات بنفسك',
-  'You will appear in search, receive lead requests, and pay only when you unlock the customer contact details.':
-    'ستظهر في البحث، وتتلقى طلبات العملاء، وتدفع فقط عند فتح بيانات تواصل العميل.',
   'Starter is marketplace-only': 'Starter مخصص للسوق فقط',
   'Your listing goes live for free. When a customer inquires, you will see the request summary first, then unlock the full lead details when you are ready.':
     'يتم نشر ملفك مجانًا. عندما يرسل العميل طلبًا سترى ملخص الطلب أولاً، ثم تفتح كامل بيانات العميل عندما تكون مستعدًا.',
@@ -492,7 +489,7 @@ function getPhaseGroup(phase: Phase, plan: SubscriptionPlan | null | undefined) 
     case 'billing_connect':
       return plan === SubscriptionPlan.STARTER ? 4 : 5;
     case 'complete':
-      return getSetupGroups(plan).length + 1;
+      return getSetupGroups(plan, false).length + 1;
     default:
       return 0;
   }
@@ -886,6 +883,19 @@ function OnboardingSetupContent() {
   const currentGroup = getPhaseGroup(phase, resolvedPlan);
   const t = useCallback((text: string) => setupText(text, isArabic), [isArabic]);
 
+  const isConnectReady = useCallback(
+    (statusOverride?: any) => {
+      const currentStatus = statusOverride ?? connectStatus;
+      return Boolean(
+        currentStatus?.connected &&
+          (currentStatus?.charges_enabled ||
+            currentStatus?.details_submitted ||
+            (company as any)?.stripe_connect_onboarding_complete)
+      );
+    },
+    [company, connectStatus]
+  );
+
   const isPhaseComplete = useCallback(
     (candidate: Phase) => {
       switch (candidate) {
@@ -991,18 +1001,6 @@ function OnboardingSetupContent() {
     window.history.replaceState(window.history.state, '', nextUrl);
   }, []);
 
-  const isConnectReady = useCallback(
-    (statusOverride?: any) => {
-      const currentStatus = statusOverride ?? connectStatus;
-      return Boolean(
-        currentStatus?.connected &&
-          (currentStatus?.charges_enabled ||
-            currentStatus?.details_submitted ||
-            (company as any)?.stripe_connect_onboarding_complete)
-      );
-    },
-    [company, connectStatus]
-  );
 
   const hasActiveBilling = useCallback(() => {
     return Boolean(
