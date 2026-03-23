@@ -4,6 +4,7 @@ import './globals.css';
 import { SessionProvider } from '@/components/providers/session-provider';
 import { ThemeProvider } from '@/components/providers/theme-provider';
 import { Toaster } from '@/components/ui/toaster';
+import { MarketingLanguageProvider } from '@/components/providers/marketing-language-provider';
 
 const manrope = Manrope({
   subsets: ['latin'],
@@ -75,8 +76,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className={`${manrope.variable} ${spaceGrotesk.variable} font-sans antialiased`}>
         <SessionProvider>
           <ThemeProvider>
-            {children}
-            <Toaster />
+            <MarketingLanguageProvider>
+              {children}
+              <Toaster />
+            </MarketingLanguageProvider>
           </ThemeProvider>
         </SessionProvider>
       </body>

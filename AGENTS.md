@@ -86,3 +86,76 @@ Key domains:
 3. Make smallest cohesive changes per area (shared -> backend -> web/iOS)
 4. Run targeted validation before push
 5. Update docs when feature behavior or deployment flow changes
+
+---
+
+## Marketing Surface — Saudi Arabia Marketplace Pivot (2026-03)
+
+### Context
+The public-facing homepage (`handycall.org/`) has been repositioned from a US-focused AI SaaS landing page to a **Saudi Arabia home services marketplace** (Thumbtack/TaskRabbit model). The backend, dashboard, auth, and billing are unchanged. The pivot is frontend-only.
+
+### Audience Duality
+- **Consumer**: Homeowners searching for service pros. Entry at `/`.
+- **Pro**: Service professionals signing up. Entry at `/register?audience=pro`.
+
+### New/Changed Marketing Files
+| File | Change |
+|------|--------|
+| `packages/web/src/app/page.tsx` | Full marketplace homepage (9 sections, Saudi-specific) |
+| `packages/web/src/components/marketing/site-header.tsx` | Consumer-first nav (Find Services, Categories, How It Works, For Pros pill, Find a Pro CTA) |
+| `packages/web/src/components/marketing/site-footer.tsx` | 4-column dark `bg-slate-900` footer with bilingual links |
+| `packages/web/src/components/marketing/ProductPreview.tsx` | Marketplace UI mockup (Search Results / Provider Profile / Booking Confirmed tabs) |
+| `packages/web/src/components/marketing/SearchBar.tsx` | NEW: service + Saudi city search bar |
+| `packages/web/src/components/marketing/CategoryCard.tsx` | NEW: bilingual category grid card |
+| `packages/web/src/components/marketing/ProviderCard.tsx` | NEW: pro profile card with SAR pricing |
+| `packages/web/src/app/categories/page.tsx` | NEW: browse all categories page |
+| `packages/web/src/app/search/page.tsx` | NEW: search results stub page |
+
+### Bilingual Policy
+All consumer-facing copy is English-primary with Arabic subtitle/label inline.
+Arabic text uses `dir="rtl" lang="ar"` on the element + Arabic system font fallback.
+No separate `/ar` route. No `lang` change on `<html>`. Decorative/supplemental at this stage.
+
+### Saudi Context
+- Target cities: Riyadh, Jeddah, Dammam, Khobar, Mecca, Medina, Abha
+- Currency: SAR (ريال)
+- Key services: AC Repair (critical in Saudi heat), Plumbing, Electrical, Cleaning, Painting, Carpentry, Pest Control, Landscaping
+- Business week: Sunday–Thursday (Fri–Sat weekend)
+
+### Do NOT Change
+- `/dashboard/*` routes (pro business OS)
+- `/login`, `/register` (auth flows — separate issue)
+- `/admin/*`
+- Voice bridge, Twilio, OpenAI integrations
+- Stripe billing logic
+- `packages/backend/`
+
+---
+
+## Icon Policy — Marketing Surface
+
+### Single Icon Library: `@tabler/icons-react` (v3.37.1)
+All icons across marketing pages **must** come from `@tabler/icons-react`. Do not add a second icon package. Tabler is the same library browsable at [icones.js.org/collection/tabler](https://icones.js.org/collection/tabler).
+
+### No Emoji as Icons
+Emoji are **banned** as UI icons on marketing pages. Use a proper Tabler SVG component instead (e.g. `IconSearch`, `IconBolt`). Emoji in visible body copy (e.g. reviews, testimonials) are fine.
+
+### Category Icon Map
+`packages/web/src/lib/category-icons.tsx` is the single source of truth for service-category icon configs:
+- Exports `CategoryIconSlug` union type (all valid slugs)
+- Exports `CATEGORY_ICON_MAP: Record<CategoryIconSlug, { Icon, bg, color }>` — colored Tabler icon per category
+- `CategoryCard` resolves its icon via `CATEGORY_ICON_MAP[slug]`
+- `home-services.ts` `ServiceGroup` type uses `iconSlug: CategoryIconSlug` (not `emoji: string`)
+
+### Adding a New Category
+1. Add the slug to the `CategoryIconSlug` union in `category-icons.tsx`
+2. Add a matching entry in `CATEGORY_ICON_MAP` (pick a Tabler icon + bg/color pair)
+3. Add `iconSlug: 'your-slug'` to the `ServiceGroup` entry in `home-services.ts`
+
+### Recommended Usage
+```tsx
+import { IconSearch } from '@tabler/icons-react';
+// ...
+<IconSearch className="h-5 w-5 text-slate-500" stroke={1.8} />
+```
+Standard stroke weight for marketing UI: **1.8**. Use **2** for small inline icons (≤14 px).

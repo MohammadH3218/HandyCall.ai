@@ -5,7 +5,8 @@ export type OnboardingStepId =
   | 'service-area'
   | 'knowledge'
   | 'calendar'
-  | 'phone';
+  | 'phone'
+  | 'marketplace-profile';
 
 export const ONBOARDING_STEPS: Array<{
   id: OnboardingStepId;
@@ -46,5 +47,10 @@ export const ONBOARDING_STEPS: Array<{
     id: 'phone',
     label: 'Phone number',
     description: 'Choose call handling and forward your line.',
+  },
+  {
+    id: 'marketplace-profile',
+    label: 'Marketplace Profile',
+    description: 'Set up your public profile for customers.',
   },
 ];

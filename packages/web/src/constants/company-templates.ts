@@ -19,31 +19,31 @@ type QuestionSeed = {
 const questionSeeds = {
   pest: [
     { field_key: 'full_name', label: 'Customer name', prompt: 'What is your full name?' },
-    { field_key: 'zip', label: 'Service ZIP code', prompt: 'Could you give me your 5-digit ZIP code?' },
+    { field_key: 'city', label: 'Service city', prompt: 'Which city are you located in?' },
     { field_key: 'pest_type_or_symptoms', label: 'Pest or issue', prompt: 'What pest type or symptoms are you dealing with?' },
-    { field_key: 'where_seen', label: 'Where the issue is', prompt: 'Where have you seen the issue?' },
+    { field_key: 'where_seen', label: 'Where the issue is', prompt: 'Where have you seen the issue — inside, outside, or both?' },
     { field_key: 'severity', label: 'Severity', prompt: 'How severe would you say the problem is: mild, moderate, or severe?' },
     { field_key: 'address', label: 'Service address', prompt: 'What is the service address?' },
-    { field_key: 'selected_billing_type', label: 'Service plan', prompt: 'Would you like a one-time treatment or recurring monthly service?' },
+    { field_key: 'selected_billing_type', label: 'Service plan', prompt: 'Would you prefer a one-time treatment or a recurring monthly service?' },
   ],
   plumbing: [
     { field_key: 'full_name', label: 'Customer name', prompt: 'What is your full name?' },
-    { field_key: 'zip', label: 'Service ZIP code', prompt: 'Could you give me your 5-digit ZIP code?', required: false },
+    { field_key: 'city', label: 'Service city', prompt: 'Which city are you in?', required: false },
     { field_key: 'issue_type', label: 'Issue type', prompt: 'What plumbing issue are you dealing with today?' },
     { field_key: 'urgency', label: 'Urgency', prompt: 'Is this urgent, or is it something that can wait a bit?' },
     { field_key: 'service_address', label: 'Service address', prompt: 'What is the service address?' },
   ],
   hvac: [
     { field_key: 'full_name', label: 'Customer name', prompt: 'What is your full name?' },
-    { field_key: 'zip', label: 'Service ZIP code', prompt: 'Could you give me your 5-digit ZIP code?', required: false },
-    { field_key: 'system_type', label: 'System type', prompt: 'Is this for your AC, heater, or another HVAC system?' },
-    { field_key: 'symptoms', label: 'Symptoms', prompt: 'What issue are you noticing with the system?' },
+    { field_key: 'city', label: 'Service city', prompt: 'Which city are you in?', required: false },
+    { field_key: 'system_type', label: 'System type', prompt: 'Is this for your AC, split unit, central system, or another HVAC unit?' },
+    { field_key: 'symptoms', label: 'Symptoms', prompt: 'What issue are you noticing with the system — not cooling, strange noise, water leaking, or something else?' },
     { field_key: 'urgency', label: 'Urgency', prompt: 'How urgent does this feel right now?' },
     { field_key: 'service_address', label: 'Service address', prompt: 'What is the service address?' },
   ],
   electrical: [
     { field_key: 'full_name', label: 'Customer name', prompt: 'What is your full name?' },
-    { field_key: 'zip', label: 'Service ZIP code', prompt: 'Could you give me your 5-digit ZIP code?', required: false },
+    { field_key: 'city', label: 'Service city', prompt: 'Which city are you in?', required: false },
     { field_key: 'issue_summary', label: 'Issue summary', prompt: 'What electrical issue are you calling about?' },
     { field_key: 'urgency', label: 'Urgency', prompt: 'Is this urgent or more routine?' },
     { field_key: 'service_address', label: 'Service address', prompt: 'What is the service address?' },
@@ -58,22 +58,47 @@ const questionSeeds = {
   ],
   cleaning: [
     { field_key: 'full_name', label: 'Customer name', prompt: 'What is your full name?' },
-    { field_key: 'zip', label: 'Service ZIP code', prompt: 'Could you give me your 5-digit ZIP code?', required: false },
-    { field_key: 'home_size_sqft', label: 'Home size', prompt: 'About how large is the home in square feet?' },
-    { field_key: 'num_beds', label: 'Bedrooms', prompt: 'How many bedrooms are there?' },
-    { field_key: 'num_baths', label: 'Bathrooms', prompt: 'How many bathrooms are there?' },
+    { field_key: 'city', label: 'Service city', prompt: 'Which city are you in?', required: false },
+    { field_key: 'cleaning_type', label: 'Cleaning type', prompt: 'What kind of cleaning do you need — regular, deep clean, move-in/out, or post-construction?' },
+    { field_key: 'home_size', label: 'Home size', prompt: 'About how large is the home or space in square meters?' },
+    { field_key: 'num_rooms', label: 'Number of rooms', prompt: 'How many rooms are there?' },
     { field_key: 'service_address', label: 'Service address', prompt: 'What is the service address?' },
+  ],
+  car_wash: [
+    { field_key: 'full_name', label: 'Customer name', prompt: 'What is your full name?' },
+    { field_key: 'city', label: 'Service city', prompt: 'Which city are you in?' },
+    { field_key: 'service_type', label: 'Wash type', prompt: 'What kind of car service are you looking for — basic wash, full detail, interior cleaning, polishing, or something else?' },
+    { field_key: 'vehicle_make', label: 'Vehicle make/model', prompt: 'What is the make and model of the vehicle?' },
+    { field_key: 'location_type', label: 'Location', prompt: 'Would you like us to come to your location, or will you bring the vehicle to us?' },
+  ],
+  appliance_repair: [
+    { field_key: 'full_name', label: 'Customer name', prompt: 'What is your full name?' },
+    { field_key: 'city', label: 'Service city', prompt: 'Which city are you in?', required: false },
+    { field_key: 'appliance_type', label: 'Appliance type', prompt: 'Which appliance needs repair — washing machine, dryer, refrigerator, oven, dishwasher, or something else?' },
+    { field_key: 'brand', label: 'Brand', prompt: 'What brand is the appliance?', required: false },
+    { field_key: 'issue_summary', label: 'Issue details', prompt: 'What issue are you experiencing with the appliance?' },
+    { field_key: 'urgency', label: 'Urgency', prompt: 'Is this urgent or can it wait a day or two?' },
+    { field_key: 'service_address', label: 'Service address', prompt: 'What is the service address?' },
+  ],
+  moving: [
+    { field_key: 'full_name', label: 'Customer name', prompt: 'What is your full name?' },
+    { field_key: 'move_type', label: 'Move type', prompt: 'Is this a home move, office move, or furniture/item delivery?' },
+    { field_key: 'from_city', label: 'Moving from', prompt: 'Which city are you moving from?' },
+    { field_key: 'to_city', label: 'Moving to', prompt: 'Which city are you moving to?' },
+    { field_key: 'property_size', label: 'Property size', prompt: 'About how large is the place — studio, 1-bed, 2-bed, villa, or office?' },
+    { field_key: 'preferred_date', label: 'Preferred date', prompt: 'Do you have a preferred date or timeframe for the move?' },
+    { field_key: 'special_items', label: 'Special items', prompt: 'Are there any heavy or fragile items like pianos, large appliances, or artwork?', required: false },
   ],
   landscaping: [
     { field_key: 'full_name', label: 'Customer name', prompt: 'What is your full name?' },
-    { field_key: 'zip', label: 'Service ZIP code', prompt: 'Could you give me your 5-digit ZIP code?', required: false },
-    { field_key: 'service_type', label: 'Service type', prompt: 'What kind of landscaping or lawn care help do you need?' },
-    { field_key: 'lot_approx_size', label: 'Property size', prompt: 'About how large is the property or yard?' },
+    { field_key: 'city', label: 'Service city', prompt: 'Which city are you in?', required: false },
+    { field_key: 'service_type', label: 'Service type', prompt: 'What kind of landscaping help do you need — garden design, lawn care, tree trimming, irrigation, or something else?' },
+    { field_key: 'property_size', label: 'Property size', prompt: 'About how large is the garden or outdoor area?' },
     { field_key: 'service_address', label: 'Service address', prompt: 'What is the service address?' },
   ],
   general: [
     { field_key: 'full_name', label: 'Customer name', prompt: 'What is your full name?' },
-    { field_key: 'zip', label: 'Service ZIP code', prompt: 'Could you give me your 5-digit ZIP code?', required: false },
+    { field_key: 'city', label: 'Service city', prompt: 'Which city are you in?', required: false },
     { field_key: 'service_request_type', label: 'Service needed', prompt: 'What can we help you with today?' },
     { field_key: 'issue_summary', label: 'Issue details', prompt: 'Can you tell me a little more about the job or issue?' },
     { field_key: 'service_address', label: 'Service address', prompt: 'What is the service address?' },
@@ -85,12 +110,12 @@ const templateFamilyByServiceType: Record<ServiceType, keyof typeof questionSeed
   [ServiceType.PLUMBING]: 'plumbing',
   [ServiceType.HVAC]: 'hvac',
   [ServiceType.ELECTRICIAN]: 'electrical',
-  [ServiceType.AUTO_MECHANIC]: 'mechanic',
+  [ServiceType.AUTO_MECHANIC]: 'car_wash',
   [ServiceType.CLEANING]: 'cleaning',
   [ServiceType.CARPET_CLEANING]: 'cleaning',
   [ServiceType.WINDOW_CLEANING]: 'cleaning',
   [ServiceType.PRESSURE_WASHING]: 'cleaning',
-  [ServiceType.POOL_SERVICE]: 'cleaning',
+  [ServiceType.POOL_SERVICE]: 'general',
   [ServiceType.LANDSCAPING]: 'landscaping',
   [ServiceType.LAWN_CARE]: 'landscaping',
   [ServiceType.TREE_SERVICE]: 'landscaping',
@@ -102,9 +127,9 @@ const templateFamilyByServiceType: Record<ServiceType, keyof typeof questionSeed
   [ServiceType.FLOORING]: 'general',
   [ServiceType.REMODELING]: 'general',
   [ServiceType.GARAGE_DOOR]: 'general',
-  [ServiceType.APPLIANCE_REPAIR]: 'general',
+  [ServiceType.APPLIANCE_REPAIR]: 'appliance_repair',
   [ServiceType.LOCKSMITH]: 'general',
-  [ServiceType.MOVING]: 'general',
+  [ServiceType.MOVING]: 'moving',
   [ServiceType.JUNK_REMOVAL]: 'general',
   [ServiceType.FENCING]: 'general',
   [ServiceType.CONCRETE]: 'general',
@@ -114,15 +139,90 @@ const templateFamilyByServiceType: Record<ServiceType, keyof typeof questionSeed
 };
 
 export const COMPANY_TEMPLATE_OPTIONS: CompanyTemplateOption[] = [
-  { serviceType: ServiceType.PEST_CONTROL, title: 'Pest Control', category: 'Home services', description: 'Built for treatments, inspections, and recurring plans.', highlights: ['ZIP check first', 'Pest and severity intake', 'One-time vs recurring'] },
-  { serviceType: ServiceType.PLUMBING, title: 'Plumbing', category: 'Home services', description: 'Focused on issue type, urgency, and the job address.', highlights: ['Leak / clog triage', 'Urgency capture', 'Fast booking'] },
-  { serviceType: ServiceType.HVAC, title: 'HVAC', category: 'Home services', description: 'Covers AC, heating, tune-ups, and emergency symptoms.', highlights: ['System type', 'Symptoms', 'Urgency'] },
-  { serviceType: ServiceType.ELECTRICIAN, title: 'Electrical', category: 'Home services', description: 'Collects issue details safely before booking.', highlights: ['Safety-first phrasing', 'Urgency capture', 'Service address'] },
-  { serviceType: ServiceType.CLEANING, title: 'Cleaning', category: 'Home services', description: 'Good for one-time, deep clean, and recurring home cleaning.', highlights: ['Beds and baths', 'Home size', 'Address'] },
-  { serviceType: ServiceType.LANDSCAPING, title: 'Landscaping', category: 'Outdoor services', description: 'Quote-oriented flow for lawn care and property work.', highlights: ['Service type', 'Property size', 'Address'] },
-  { serviceType: ServiceType.AUTO_MECHANIC, title: 'Auto Repair', category: 'Auto services', description: 'Captures vehicle details before offering a slot.', highlights: ['Make / model / year', 'Issue summary', 'Service request type'] },
-  { serviceType: ServiceType.HANDYMAN, title: 'General Home Services', category: 'Flexible template', description: 'Broad template for handyman, remodeling, garage door, and similar work.', highlights: ['Flexible intake', 'Address capture', 'Easy to customize'] },
-  { serviceType: ServiceType.OTHER, title: 'Other / Custom', category: 'Flexible template', description: 'Start from a general template and tailor the call flow yourself.', highlights: ['Generic intake', 'Editable questions', 'Works for niche services'] },
+  {
+    serviceType: ServiceType.HVAC,
+    title: 'AC & HVAC',
+    category: 'Home services',
+    description: 'AC repair, installation, maintenance, and duct cleaning.',
+    highlights: ['System type capture', 'Symptom intake', 'Urgency triage'],
+  },
+  {
+    serviceType: ServiceType.PLUMBING,
+    title: 'Plumbing',
+    category: 'Home services',
+    description: 'Pipe repair, leaks, drains, water heaters, and fixtures.',
+    highlights: ['Issue type intake', 'Urgency capture', 'Fast booking flow'],
+  },
+  {
+    serviceType: ServiceType.ELECTRICIAN,
+    title: 'Electrical',
+    category: 'Home services',
+    description: 'Wiring, outlets, circuit breakers, lighting, and smart home.',
+    highlights: ['Safety-first phrasing', 'Urgency capture', 'Service address'],
+  },
+  {
+    serviceType: ServiceType.CLEANING,
+    title: 'House Cleaning',
+    category: 'Home services',
+    description: 'Regular, deep clean, move-in/out, post-construction, and maid service.',
+    highlights: ['Cleaning type', 'Home size & rooms', 'Address capture'],
+  },
+  {
+    serviceType: ServiceType.AUTO_MECHANIC,
+    title: 'Car Washing & Detailing',
+    category: 'Auto services',
+    description: 'Mobile car wash, full detail, polishing, and interior cleaning.',
+    highlights: ['Wash type', 'Vehicle make/model', 'Mobile or drop-off'],
+  },
+  {
+    serviceType: ServiceType.APPLIANCE_REPAIR,
+    title: 'Appliance Repair',
+    category: 'Home services',
+    description: 'Washing machine, dryer, fridge, oven, dishwasher, and more.',
+    highlights: ['Appliance type', 'Brand intake', 'Issue details & urgency'],
+  },
+  {
+    serviceType: ServiceType.MOVING,
+    title: 'Moving & Delivery',
+    category: 'Logistics',
+    description: 'Home moving, office relocation, furniture delivery, and packing.',
+    highlights: ['From/to cities', 'Property size', 'Special items note'],
+  },
+  {
+    serviceType: ServiceType.PEST_CONTROL,
+    title: 'Pest Control',
+    category: 'Home services',
+    description: 'Cockroach, termite, scorpion, rodent, and mosquito treatment.',
+    highlights: ['Pest type & severity', 'Location in home', 'One-time vs recurring'],
+  },
+  {
+    serviceType: ServiceType.PAINTING,
+    title: 'Painting',
+    category: 'Home services',
+    description: 'Interior, exterior, texture, epoxy, and decorative finishes.',
+    highlights: ['Flexible intake', 'Address capture', 'Easy to customize'],
+  },
+  {
+    serviceType: ServiceType.LANDSCAPING,
+    title: 'Landscaping & Garden',
+    category: 'Outdoor services',
+    description: 'Garden design, lawn care, tree trimming, and irrigation.',
+    highlights: ['Service type', 'Property size', 'Address capture'],
+  },
+  {
+    serviceType: ServiceType.HANDYMAN,
+    title: 'Handyman & General Repairs',
+    category: 'Home services',
+    description: 'Furniture assembly, mounting, carpentry, tiling, and general fixes.',
+    highlights: ['Flexible intake', 'Address capture', 'Easy to customize'],
+  },
+  {
+    serviceType: ServiceType.OTHER,
+    title: 'Other / Custom',
+    category: 'Flexible template',
+    description: 'Start from a general template and tailor the call flow yourself.',
+    highlights: ['Generic intake', 'Editable questions', 'Works for niche services'],
+  },
 ];
 
 export function createDefaultCallFlowQuestions(serviceType: ServiceType): CompanyCallFlowQuestion[] {
@@ -151,14 +251,35 @@ export function getKnowledgeBasePromptSuggestions(serviceType?: ServiceType | nu
     return [
       ...base,
       'Which pests do you treat, and do you offer one-time vs recurring plans?',
-      'What should the AI say about inspection timing, prep steps, pets, and re-service policies?',
+      'What should the AI say about prep steps, pets on-site, re-service policies, and fumigation certificates?',
     ];
   }
   if (serviceType === ServiceType.HVAC) {
     return [
       ...base,
-      'What systems do you service, and what emergency or after-hours rules apply?',
+      'What AC systems do you service, and what emergency or after-hours rules apply?',
       'What maintenance plans, diagnostic fees, or seasonal tune-up offers should the AI know?',
+    ];
+  }
+  if (serviceType === ServiceType.APPLIANCE_REPAIR) {
+    return [
+      ...base,
+      'Which brands and appliance types do you repair?',
+      'What is your diagnostic fee policy, and do you offer warranties on repairs?',
+    ];
+  }
+  if (serviceType === ServiceType.MOVING) {
+    return [
+      ...base,
+      'What is your pricing model — flat rate, hourly, or by volume?',
+      'Which cities or routes do you cover, and do you offer packing materials or storage?',
+    ];
+  }
+  if (serviceType === ServiceType.CLEANING) {
+    return [
+      ...base,
+      'What types of cleaning do you offer — regular, deep, move-in/out, post-construction?',
+      'Do you bring your own supplies, and are there any surfaces or items you do not clean?',
     ];
   }
   return base;

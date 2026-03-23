@@ -741,7 +741,7 @@ function OnboardingSetupContent() {
       await goTo('billing_plan');
     } else {
       await goTo('complete');
-      setTimeout(() => router.replace('/dashboard'), 2000);
+      setTimeout(() => router.replace('/onboarding/marketplace-profile'), 2000);
     }
   };
 
@@ -1980,18 +1980,23 @@ function OnboardingSetupContent() {
             <div className="mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-900/40">
               <IconCheck className="h-10 w-10 text-emerald-600 dark:text-emerald-400" stroke={2} />
             </div>
-            <h1 className="text-3xl font-bold tracking-tight text-foreground">You're all set!</h1>
+            <h1 className="text-3xl font-bold tracking-tight text-foreground">Your AI is ready!</h1>
             <p className="mt-3 max-w-md text-lg text-muted-foreground">
-              Your AI receptionist is configured and ready to start handling calls for your
-              business.
+              One last step — complete your marketplace profile so customers can find and book you.
             </p>
             <PrimaryButton
-              onClick={() => router.replace('/dashboard')}
+              onClick={() => router.replace('/onboarding/marketplace-profile')}
               className="mt-8 px-8 py-3"
             >
-              Go to dashboard
+              Set up marketplace profile
               <IconArrowRight className="h-4 w-4" stroke={2} />
             </PrimaryButton>
+            <button
+              onClick={() => router.replace('/dashboard')}
+              className="mt-3 text-sm text-muted-foreground underline hover:text-foreground"
+            >
+              Skip for now, go to dashboard
+            </button>
           </div>
         );
 
