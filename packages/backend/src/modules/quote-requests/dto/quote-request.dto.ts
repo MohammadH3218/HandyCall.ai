@@ -43,6 +43,10 @@ export class RespondToQuoteDto {
   @IsString()
   message: string;
 
+  @IsString()
+  @IsOptional()
+  status?: string;
+
   @IsNumber()
   @IsOptional()
   estimated_price_cents?: number;

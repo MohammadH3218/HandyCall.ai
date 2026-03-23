@@ -165,9 +165,11 @@ export interface Company {
   service_area_zipcodes?: string[];
   service_area_cities?: string[];
   pricing_profile?: CompanyPricingProfile;
+  marketplace_profile?: Record<string, any>;
   call_flow_questions?: CompanyCallFlowQuestion[];
   company_profile_completed?: boolean;
   service_area_completed?: boolean;
+  marketplace_profile_completed?: boolean;
 
   // Calendar / scheduling setup
   calendar_setup_completed?: boolean;

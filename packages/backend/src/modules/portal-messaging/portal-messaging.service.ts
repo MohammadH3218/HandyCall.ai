@@ -24,8 +24,11 @@ export class PortalMessagingService {
       if (!existing || msg.created_at > existing.last_at) {
         threads.set(tid, {
           thread_id: tid,
-          customer_name: msg.customer_name || 'Customer',
+          customer_name: msg.customer_name || existing?.customer_name || 'Customer',
           customer_email: msg.customer_email,
+          customer_phone: msg.customer_phone || existing?.customer_phone,
+          quote_context: msg.quote_context || existing?.quote_context,
+          request_status: msg.request_status || existing?.request_status,
           last_message: msg.body,
           last_at: msg.created_at,
           unread: msg.direction === 'INBOUND' && !msg.read_at,
@@ -53,7 +56,18 @@ export class PortalMessagingService {
   }
 
   // Pro sends a message to customer
-  async sendProMessage(companyId: string, threadId: string, body: string, customerEmail?: string) {
+  async sendProMessage(
+    companyId: string,
+    threadId: string,
+    body: string,
+    options?: {
+      customer_email?: string;
+      customer_name?: string;
+      customer_phone?: string;
+      request_status?: string;
+      quote_context?: any;
+    }
+  ) {
     const now = Date.now();
     const messageId = `${now}-${uuidv4()}`;
 
@@ -63,7 +77,11 @@ export class PortalMessagingService {
       thread_id: threadId,
       direction: 'OUTBOUND',
       body,
-      customer_email: customerEmail,
+      customer_email: options?.customer_email,
+      customer_name: options?.customer_name,
+      customer_phone: options?.customer_phone,
+      request_status: options?.request_status,
+      quote_context: options?.quote_context,
       created_at: now,
       updated_at: now,
     });
@@ -72,7 +90,15 @@ export class PortalMessagingService {
   }
 
   // Customer sends a message (uses company_id of the pro they're messaging)
-  async sendCustomerMessage(companyId: string, threadId: string, body: string, customerName?: string, customerEmail?: string) {
+  async sendCustomerMessage(
+    companyId: string,
+    threadId: string,
+    body: string,
+    customerName?: string,
+    customerEmail?: string,
+    customerPhone?: string,
+    quoteContext?: any
+  ) {
     const now = Date.now();
     const messageId = `${now}-${uuidv4()}`;
 
@@ -84,6 +110,8 @@ export class PortalMessagingService {
       body,
       customer_name: customerName,
       customer_email: customerEmail,
+      customer_phone: customerPhone,
+      quote_context: quoteContext,
       created_at: now,
       updated_at: now,
     });

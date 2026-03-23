@@ -7,9 +7,10 @@ import { signOut } from 'next-auth/react';
 import { OnboardingProvider, useOnboarding } from '@/components/onboarding/onboarding-context';
 import { LanguageSwitcher } from '@/components/language-switcher';
 import { ONBOARDING_STEPS } from '@/constants/onboarding';
+import { normalizePlan } from '@/constants/plans';
 import { Logo } from '@/components/ui/logo';
 import { IconCircleCheck, IconCircle } from '@tabler/icons-react';
-import { UserRole } from '@handycall/shared';
+import { SubscriptionPlan, UserRole } from '@handycall/shared';
 import { useAuthStore } from '@/stores/auth-store';
 import { apiClient } from '@/lib/api-client';
 import {
@@ -33,7 +34,7 @@ export default function OnboardingLayout({ children }: { children: React.ReactNo
 function OnboardingShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { loading, isAuthenticated, userRole, status } = useOnboarding();
+  const { loading, isAuthenticated, userRole, status, company } = useOnboarding();
   const { logout } = useAuthStore();
   const { toast } = useToast();
   const [signingOut, setSigningOut] = useState(false);
@@ -47,17 +48,20 @@ function OnboardingShell({ children }: { children: React.ReactNode }) {
     pathname !== '/onboarding' &&
     !isSetupPage;
 
+  const companyPlan = normalizePlan(company?.subscription_plan as SubscriptionPlan | null | undefined);
+  const aiSetupOptional = companyPlan === SubscriptionPlan.STARTER;
+
   const stepMap = useMemo(
     () => ({
       profile: status.profile,
-      billing: status.billing,
       company: status.companyProfile,
-      'service-area': status.serviceArea,
-      knowledge: status.knowledge,
-      calendar: status.calendar,
-      phone: status.phone,
+      'marketplace-profile': status.marketplaceProfile,
+      knowledge: status.knowledge || aiSetupOptional,
+      calendar: status.calendar || aiSetupOptional,
+      phone: status.phone || aiSetupOptional,
+      billing: status.billing,
     }),
-    [status]
+    [aiSetupOptional, status]
   );
 
   const currentStepId = (pathname?.split('/')[2] || 'billing') as keyof typeof stepMap;
@@ -178,9 +182,6 @@ function OnboardingShell({ children }: { children: React.ReactNode }) {
             </Link>
             <div className="flex items-center gap-3">
               <LanguageSwitcher />
-              <span className="hidden items-center rounded-full border border-emerald-100 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 sm:inline-flex">
-                AI Setup Assistant
-              </span>
               <button
                 type="button"
                 onClick={() => {

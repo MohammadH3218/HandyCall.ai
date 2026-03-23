@@ -1,3 +1,4 @@
+import { Suspense } from 'react';
 import { Metadata } from 'next';
 import { SearchPageClient } from '@/components/marketing/pages/SearchPageClient';
 
@@ -8,5 +9,9 @@ export const metadata: Metadata = {
 };
 
 export default function SearchPage() {
-  return <SearchPageClient />;
+  return (
+    <Suspense fallback={null}>
+      <SearchPageClient />
+    </Suspense>
+  );
 }

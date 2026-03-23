@@ -3,6 +3,7 @@ type OnboardingStatus = {
   billing: boolean;
   companyProfile: boolean;
   serviceArea: boolean;
+  marketplaceProfile: boolean;
   knowledge: boolean;
   calendar: boolean;
   phone: boolean;
@@ -45,6 +46,19 @@ function hasServiceAreaEntry(company: any | null) {
   return zips.length > 0 || cities.length > 0;
 }
 
+function hasMarketplaceProfileEntry(company: any | null) {
+  const profile = company?.marketplace_profile;
+  if (!profile || typeof profile !== 'object') return false;
+  const serviceCities = Array.isArray(profile.service_cities) ? profile.service_cities : [];
+  const servicesOffered = Array.isArray(profile.services_offered) ? profile.services_offered : [];
+  return Boolean(
+    String(profile.bio || '').trim() &&
+      String(profile.service_category || '').trim() &&
+      serviceCities.length > 0 &&
+      servicesOffered.length > 0
+  );
+}
+
 function hasInternalCalendarEntry(company: any | null) {
   if (!company || company.calendar_mode !== 'INTERNAL') return false;
   const hours = company.business_hours;
@@ -73,6 +87,7 @@ export function computeOnboardingStatus(input: {
       billing: false,
       companyProfile: false,
       serviceArea: false,
+      marketplaceProfile: false,
       knowledge: false,
       calendar: false,
       phone: false,
@@ -95,6 +110,10 @@ export function computeOnboardingStatus(input: {
     company.service_area_completed,
     hasServiceAreaEntry(company),
   );
+  const marketplaceProfile = resolveBooleanStep(
+    company.marketplace_profile_completed,
+    hasMarketplaceProfileEntry(company),
+  );
   const calendar = resolveBooleanStep(
     company.calendar_setup_completed,
     hasInternalCalendarEntry(company) || hasExternalCalendarEntry(company),
@@ -109,6 +128,7 @@ export function computeOnboardingStatus(input: {
     billing,
     companyProfile,
     serviceArea,
+    marketplaceProfile,
     knowledge,
     calendar,
     phone,

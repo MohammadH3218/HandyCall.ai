@@ -1,12 +1,11 @@
 export type OnboardingStepId =
   | 'profile'
-  | 'billing'
   | 'company'
-  | 'service-area'
+  | 'marketplace-profile'
   | 'knowledge'
   | 'calendar'
   | 'phone'
-  | 'marketplace-profile';
+  | 'billing';
 
 export const ONBOARDING_STEPS: Array<{
   id: OnboardingStepId;
@@ -19,38 +18,33 @@ export const ONBOARDING_STEPS: Array<{
     description: 'Confirm your contact details.',
   },
   {
-    id: 'billing',
-    label: 'Subscription',
-    description: 'Pick a plan and add a payment method.',
-  },
-  {
     id: 'company',
-    label: 'Company profile',
-    description: 'Name, type, and timezone details.',
-  },
-  {
-    id: 'service-area',
-    label: 'Service area',
-    description: 'Cities and zip codes you serve.',
-  },
-  {
-    id: 'knowledge',
-    label: 'Knowledge base',
-    description: 'Sync pricing profile, add FAQs, and policies.',
-  },
-  {
-    id: 'calendar',
-    label: 'Calendar',
-    description: 'Connect or create a booking calendar.',
-  },
-  {
-    id: 'phone',
-    label: 'Phone number',
-    description: 'Choose call handling and forward your line.',
+    label: 'Business basics',
+    description: 'Name, trade, and business setup details.',
   },
   {
     id: 'marketplace-profile',
     label: 'Marketplace Profile',
-    description: 'Set up your public profile for customers.',
+    description: 'Build the public profile customers see first.',
+  },
+  {
+    id: 'calendar',
+    label: 'AI scheduling',
+    description: 'Set business hours or connect your calendar.',
+  },
+  {
+    id: 'phone',
+    label: 'AI phone setup',
+    description: 'Route calls to HandyCall with a demo or live number.',
+  },
+  {
+    id: 'knowledge',
+    label: 'AI knowledge',
+    description: 'Teach the receptionist how your business works.',
+  },
+  {
+    id: 'billing',
+    label: 'Billing',
+    description: 'Activate Starter or add billing for Pro/Max.',
   },
 ];

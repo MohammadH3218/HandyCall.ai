@@ -52,7 +52,6 @@ export function CategoriesPageClient() {
               nameEn={cat.title}
               nameAr={cat.titleAr}
               slug={cat.slug}
-              clickable={false}
               showCount={false}
             />
           ))}

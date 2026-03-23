@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { useAuthStore } from '@/stores/auth-store';
 import { apiClient } from '@/lib/api-client';
 import { computeOnboardingStatus } from '@/lib/setup-status';
+import { normalizePlan } from '@/constants/plans';
 import { LanguageSwitcher } from '@/components/language-switcher';
 import { Logo } from '@/components/ui/logo';
 import { ProfileDropdown } from '@/components/profile-dropdown';
@@ -31,8 +32,9 @@ import {
   IconPhoneOutgoing,
   IconMenu2,
   IconX,
+  IconUser,
 } from '@tabler/icons-react';
-import { UserRole } from '@handycall/shared';
+import { SubscriptionPlan, UserRole } from '@handycall/shared';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -58,17 +60,22 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     });
   }, [company, knowledgeCount, companyNumber]);
 
+  const companyPlan = normalizePlan(company?.subscription_plan as SubscriptionPlan | null | undefined);
+  const aiSetupOptional = companyPlan === SubscriptionPlan.STARTER;
+
   const needsSetup = useMemo(() => {
     if (!company) return false;
     return (
       !setupStatus.billing ||
       !setupStatus.companyProfile ||
-      !setupStatus.serviceArea ||
-      !setupStatus.calendar ||
-      !setupStatus.knowledge ||
-      !setupStatus.phone
+      !setupStatus.marketplaceProfile ||
+      (!aiSetupOptional &&
+        (!setupStatus.serviceArea ||
+          !setupStatus.calendar ||
+          !setupStatus.knowledge ||
+          !setupStatus.phone))
     );
-  }, [company, setupStatus]);
+  }, [aiSetupOptional, company, setupStatus]);
 
   useEffect(() => {
     if (!company || userRole === UserRole.ADMIN) return;
@@ -285,20 +292,42 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               Customers
             </NavLink>
             <NavLink
-              href="/dashboard/lead-inbox"
-              icon={<IconUsers stroke={1.5} className="h-5 w-5" />}
-              active={pathname?.startsWith('/dashboard/lead-inbox')}
-              onClick={() => setSidebarOpen(false)}
-            >
-              Lead Inbox
-            </NavLink>
-            <NavLink
               href="/dashboard/appointments"
               icon={<IconCalendar stroke={1.5} className="h-5 w-5" />}
               active={pathname?.startsWith('/dashboard/appointments')}
               onClick={() => setSidebarOpen(false)}
             >
               Appointments
+            </NavLink>
+          </div>
+
+          <div className="space-y-0.5 border-t border-border/80 pt-3">
+            <p className="px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Marketplace
+            </p>
+            <NavLink
+              href="/dashboard/marketplace/requests"
+              icon={<IconFileText stroke={1.5} className="h-5 w-5" />}
+              active={pathname?.startsWith('/dashboard/marketplace/requests')}
+              onClick={() => setSidebarOpen(false)}
+            >
+              Requests
+            </NavLink>
+            <NavLink
+              href="/dashboard/marketplace/inbox"
+              icon={<IconMessageCircle stroke={1.5} className="h-5 w-5" />}
+              active={pathname?.startsWith('/dashboard/marketplace/inbox')}
+              onClick={() => setSidebarOpen(false)}
+            >
+              Inbox
+            </NavLink>
+            <NavLink
+              href="/dashboard/marketplace/profile"
+              icon={<IconUser stroke={1.5} className="h-5 w-5" />}
+              active={pathname?.startsWith('/dashboard/marketplace/profile')}
+              onClick={() => setSidebarOpen(false)}
+            >
+              Profile
             </NavLink>
           </div>
 

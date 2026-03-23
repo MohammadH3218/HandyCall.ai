@@ -79,6 +79,7 @@ export class QuoteRequestsService {
       response_id: uuidv4(),
       company_id: companyId,
       message: dto.message,
+      status: dto.status || 'RESPONDED',
       estimated_price_cents: dto.estimated_price_cents,
       estimated_duration: dto.estimated_duration,
       responded_at: Date.now(),

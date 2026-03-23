@@ -9,6 +9,7 @@ import { ProductPreview } from '@/components/marketing/ProductPreview';
 import { SearchBar } from '@/components/marketing/SearchBar';
 import { CategoryCard } from '@/components/marketing/CategoryCard';
 import { useMarketingLanguage } from '@/components/providers/marketing-language-provider';
+import { FEATURED_MARKETPLACE_CATEGORIES } from '@/constants/marketplace-service-categories';
 import {
   IconHeadset,
   IconBellRinging,
@@ -39,24 +40,9 @@ const TRUST_STATS = [
   },
 ];
 
-const CATEGORIES = [
-  { nameEn: 'AC & HVAC', nameAr: 'التكييف والتبريد', slug: 'ac-repair' },
-  { nameEn: 'Plumbing', nameAr: 'السباكة', slug: 'plumbing' },
-  { nameEn: 'Electrical', nameAr: 'الكهرباء', slug: 'electrical' },
-  { nameEn: 'House Cleaning', nameAr: 'تنظيف المنازل', slug: 'cleaning' },
-  { nameEn: 'Car Washing', nameAr: 'غسيل السيارات', slug: 'car-washing' },
-  { nameEn: 'Appliance Repair', nameAr: 'إصلاح الأجهزة', slug: 'appliance-repair' },
-  { nameEn: 'Moving & Delivery', nameAr: 'النقل والتوصيل', slug: 'moving' },
-  { nameEn: 'Pest Control', nameAr: 'مكافحة الحشرات', slug: 'pest-control' },
-  { nameEn: 'Painting', nameAr: 'الدهان', slug: 'painting' },
-  { nameEn: 'Carpentry', nameAr: 'النجارة', slug: 'carpentry' },
-  { nameEn: 'Landscaping', nameAr: 'تنسيق الحدائق', slug: 'landscaping' },
-  { nameEn: 'Handyman', nameAr: 'الأعمال العامة', slug: 'handyman' },
-];
-
 const POPULAR_TAGS = {
-  en: ['AC Repair', 'House Cleaning', 'Plumbing', 'Car Washing', 'Appliance Repair', 'Electrical', 'Pest Control', 'Moving'],
-  ar: ['تصليح المكيفات', 'تنظيف المنازل', 'السباكة', 'غسيل السيارات', 'إصلاح الأجهزة', 'الكهرباء', 'مكافحة الحشرات', 'النقل'],
+  en: ['AC Repair', 'House Cleaning', 'Plumbing', 'Mesh Network Setup', 'Appliance Repair', 'Electrical', 'Pest Control', 'Moving'],
+  ar: ['تصليح المكيفات', 'تنظيف المنازل', 'السباكة', 'إعداد الشبكات', 'إصلاح الأجهزة', 'الكهرباء', 'مكافحة الحشرات', 'النقل'],
 };
 
 const STEPS = [
@@ -298,9 +284,9 @@ export function HomePageClient() {
           </FadeIn>
 
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-            {CATEGORIES.map((cat, i) => (
+            {FEATURED_MARKETPLACE_CATEGORIES.map((cat, i) => (
               <FadeIn key={cat.slug} direction="up" delay={i * 50}>
-                <CategoryCard {...cat} />
+                <CategoryCard nameEn={cat.title} nameAr={cat.titleAr} slug={cat.slug} />
               </FadeIn>
             ))}
           </div>

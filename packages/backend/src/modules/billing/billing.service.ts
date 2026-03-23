@@ -17,7 +17,7 @@ export class BillingService {
   ) {}
 
   private static readonly PLAN_MONTHLY_PRICE_CENTS: Record<SubscriptionPlan, number> = {
-    [SubscriptionPlan.STARTER]: 1999,
+    [SubscriptionPlan.STARTER]: 0,
     [SubscriptionPlan.PRO]: 3999,
     [SubscriptionPlan.MAX]: 9999,
   };
@@ -64,6 +64,10 @@ export class BillingService {
     plan: SubscriptionPlan,
     paymentMethodId: string
   ): Promise<{ subscription: any }> {
+    if (plan === SubscriptionPlan.STARTER) {
+      return this.activateStarterPlan(companyId);
+    }
+
     const company = await this.companiesService.findById(companyId);
     if (!company) {
       throw new NotFoundException('Company not found');
@@ -168,8 +172,8 @@ export class BillingService {
       cancel_at_period_end: false,
       status: CompanyStatus.ACTIVE,
       trial_ends_at: null,
-      calls_enabled: true,
-      sms_enabled: true,
+      calls_enabled: plan !== SubscriptionPlan.STARTER,
+      sms_enabled: plan !== SubscriptionPlan.STARTER,
     });
 
     return {
@@ -232,6 +236,44 @@ export class BillingService {
     });
 
     return { subscription };
+  }
+
+  async activateStarterPlan(companyId: string): Promise<{ subscription: any }> {
+    const company = await this.companiesService.findById(companyId);
+    if (!company) {
+      throw new NotFoundException('Company not found');
+    }
+
+    if (company.stripe_subscription_id) {
+      throw new BadRequestException(
+        'Company already has an active paid subscription. Use the plan change flow instead.'
+      );
+    }
+
+    const now = Date.now();
+
+    await this.companiesService.updateCompany(companyId, {
+      subscription_plan: SubscriptionPlan.STARTER,
+      subscription_status: SubscriptionStatus.ACTIVE,
+      current_period_start: now,
+      current_period_end: null,
+      cancel_at_period_end: false,
+      status: CompanyStatus.ACTIVE,
+      trial_ends_at: null,
+      calls_enabled: false,
+      sms_enabled: false,
+    });
+
+    return {
+      subscription: {
+        id: `starter_free_${companyId}`,
+        plan: SubscriptionPlan.STARTER,
+        status: 'active',
+        current_period_start: Math.floor(now / 1000),
+        current_period_end: null,
+        amount_cents: 0,
+      },
+    };
   }
 
   /**

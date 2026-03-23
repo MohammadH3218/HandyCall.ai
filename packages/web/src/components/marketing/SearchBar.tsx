@@ -89,14 +89,14 @@ export function SearchBar({ className = '', size = 'default' }: SearchBarProps) 
 
   const copy = isArabic
     ? {
-        placeholder: 'ما الخدمة التي تحتاجها؟',
+        placeholder: 'ابحث بالفئة أو بالخدمة الدقيقة',
         cityPlaceholder: 'اختر مدينتك',
         search: 'بحث',
         categoryLabel: 'فئة',
         saudiArabia: 'المملكة العربية السعودية',
       }
     : {
-        placeholder: 'What service do you need?',
+        placeholder: 'Search by category or exact service',
         cityPlaceholder: 'Your city',
         search: 'Search',
         categoryLabel: 'Category',

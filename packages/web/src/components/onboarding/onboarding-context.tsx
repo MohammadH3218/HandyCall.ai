@@ -11,6 +11,7 @@ type OnboardingStatus = {
   billing: boolean;
   companyProfile: boolean;
   serviceArea: boolean;
+  marketplaceProfile: boolean;
   knowledge: boolean;
   calendar: boolean;
   phone: boolean;

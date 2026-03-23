@@ -563,12 +563,14 @@ export const ALL_HOME_SERVICES: string[] = Array.from(
 
 // Flat list of { label, category } for autocomplete suggestions
 export const SERVICE_AUTOCOMPLETE_LIST: Array<{ label: string; category: string }> =
-  HOME_SERVICE_GROUPS.flatMap((g) =>
-    g.services.map((s) => ({ label: s, category: g.title })),
-  );
+  HOME_SERVICE_GROUPS.flatMap((g) => [
+    { label: g.title, category: 'Category' },
+    ...g.services.map((s) => ({ label: s, category: g.title })),
+  ]);
 
 // Arabic autocomplete — uses titleAr as category; service labels stay English for now
 export const SERVICE_AUTOCOMPLETE_LIST_AR: Array<{ label: string; category: string }> =
-  HOME_SERVICE_GROUPS.flatMap((g) =>
-    g.services.map((s) => ({ label: s, category: g.titleAr })),
-  );
+  HOME_SERVICE_GROUPS.flatMap((g) => [
+    { label: g.titleAr, category: 'فئة' },
+    ...g.services.map((s) => ({ label: s, category: g.titleAr })),
+  ]);

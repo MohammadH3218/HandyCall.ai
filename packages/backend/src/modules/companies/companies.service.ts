@@ -325,6 +325,7 @@ export class CompaniesService {
       service_area_zipcodes?: string[];
       service_area_cities?: string[];
       pricing_profile?: Record<string, any>;
+      marketplace_profile?: Record<string, any>;
       call_flow_questions?: Array<{
         id: string;
         field_key: string;
@@ -337,6 +338,7 @@ export class CompaniesService {
       }>;
       company_profile_completed?: boolean;
       service_area_completed?: boolean;
+      marketplace_profile_completed?: boolean;
       service_template_id?: string;
     }
   ): Promise<Company> {

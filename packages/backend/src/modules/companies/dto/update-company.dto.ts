@@ -232,6 +232,10 @@ export class UpdateCompanyDto {
   pricing_profile?: Record<string, any>;
 
   @IsOptional()
+  @IsObject()
+  marketplace_profile?: Record<string, any>;
+
+  @IsOptional()
   @IsArray()
   @IsObject({ each: true })
   @Transform(({ value }) => normalizeCallFlowQuestions(value))
@@ -253,6 +257,10 @@ export class UpdateCompanyDto {
   @IsOptional()
   @IsBoolean()
   service_area_completed?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  marketplace_profile_completed?: boolean;
 
   @IsOptional()
   @IsString()

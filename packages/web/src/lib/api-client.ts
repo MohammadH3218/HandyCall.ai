@@ -773,6 +773,13 @@ class ApiClient {
     return response.data ?? response;
   }
 
+  async activateStarterPlan(): Promise<any> {
+    const response = await this.request<any>('/billing/subscription/starter', {
+      method: 'POST',
+    });
+    return response.data ?? response;
+  }
+
   async getMySubscription(): Promise<any> {
     const response = await this.request<any>('/billing/subscription', {
       method: 'GET',
@@ -1391,10 +1398,20 @@ class ApiClient {
     return (res as any)?.messages ?? res ?? [];
   }
 
-  async sendProMessage(threadId: string, content: string): Promise<any> {
+  async sendProMessage(
+    threadId: string,
+    data: {
+      message: string;
+      customer_email?: string;
+      customer_name?: string;
+      customer_phone?: string;
+      request_status?: string;
+      quote_context?: any;
+    }
+  ): Promise<any> {
     return this.request<any>(`/portal-messaging/pro/threads/${threadId}/send`, {
       method: 'POST',
-      body: JSON.stringify({ content }),
+      body: JSON.stringify(data),
     });
   }
 

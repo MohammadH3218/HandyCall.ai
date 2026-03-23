@@ -29,9 +29,23 @@ export class PortalMessagingController {
   async sendProMessage(
     @CompanyId() companyId: string,
     @Param('threadId') threadId: string,
-    @Body() body: { message: string; customer_email?: string },
+    @Body()
+    body: {
+      message: string;
+      customer_email?: string;
+      customer_name?: string;
+      customer_phone?: string;
+      request_status?: string;
+      quote_context?: any;
+    },
   ) {
-    return this.service.sendProMessage(companyId, threadId, body.message, body.customer_email);
+    return this.service.sendProMessage(companyId, threadId, body.message, {
+      customer_email: body.customer_email,
+      customer_name: body.customer_name,
+      customer_phone: body.customer_phone,
+      request_status: body.request_status,
+      quote_context: body.quote_context,
+    });
   }
 
   // Public/Customer: send message to a provider (by companyId)
@@ -39,7 +53,14 @@ export class PortalMessagingController {
   @Post('customer/send/:companyId')
   async sendCustomerMessage(
     @Param('companyId') companyId: string,
-    @Body() body: { message: string; customer_name?: string; customer_email?: string },
+    @Body()
+    body: {
+      message: string;
+      customer_name?: string;
+      customer_email?: string;
+      customer_phone?: string;
+      quote_context?: any;
+    },
   ) {
     const threadId = body.customer_email
       ? this.service.getThreadId(companyId, body.customer_email)
@@ -50,6 +71,8 @@ export class PortalMessagingController {
       body.message,
       body.customer_name,
       body.customer_email,
+      body.customer_phone,
+      body.quote_context,
     );
   }
 

@@ -61,7 +61,7 @@ export function CategoryCard({
   }
 
   return (
-    <Link href={`/categories/${slug}`} className={sharedClassName}>
+    <Link href={`/search?category=${encodeURIComponent(slug)}`} className={sharedClassName}>
       {inner}
     </Link>
   );

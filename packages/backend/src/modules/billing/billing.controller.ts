@@ -67,6 +67,15 @@ export class BillingController {
   }
 
   /**
+   * Activate the free Starter tier without collecting a payment method
+   * POST /billing/subscription/starter
+   */
+  @Post('subscription/starter')
+  async activateStarterSubscription(@CompanyId() companyId: string) {
+    return this.billingService.activateStarterPlan(companyId);
+  }
+
+  /**
    * Update subscription (upgrade/downgrade)
    * PUT /billing/subscription
    */
