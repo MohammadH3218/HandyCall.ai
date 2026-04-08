@@ -3,14 +3,14 @@ import { PLAN_FEATURES, SubscriptionPlan } from '@handycall/shared';
 import { v4 as uuidv4 } from 'uuid';
 import { DynamoDBService } from '../../infrastructure/database/dynamodb.service';
 import { CompaniesService } from '../companies/companies.service';
-import { TelephonyService } from '../telephony/telephony.service';
+import { SmsService } from '../../infrastructure/sms/sms.service';
 
 @Injectable()
 export class FollowUpSequencesService {
   constructor(
     private readonly dynamodb: DynamoDBService,
     private readonly companies: CompaniesService,
-    private readonly telephony: TelephonyService,
+    private readonly sms: SmsService,
   ) {}
 
   async scheduleAfterCall(params: {
@@ -181,7 +181,7 @@ export class FollowUpSequencesService {
       if (!companyId || !messageId || !toNumber || !body) continue;
 
       try {
-        await this.telephony.sendSms(toNumber, body);
+        await this.sms.sendSms(toNumber, body);
         await this.dynamodb.update(
           'scheduled_messages',
           { company_id: companyId, message_id: messageId },

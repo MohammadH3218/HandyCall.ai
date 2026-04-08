@@ -4,9 +4,7 @@ type OnboardingStatus = {
   companyProfile: boolean;
   serviceArea: boolean;
   marketplaceProfile: boolean;
-  knowledge: boolean;
   calendar: boolean;
-  phone: boolean;
 };
 
 function resolveBooleanStep(
@@ -76,10 +74,8 @@ export function computeOnboardingStatus(input: {
   userFirstName?: string | null;
   userLastName?: string | null;
   userEmail?: string | null;
-  knowledgeCount: number | null;
-  companyNumber: string | null;
 }): OnboardingStatus {
-  const { company, knowledgeCount, companyNumber, userEmail, userFirstName, userLastName } = input;
+  const { company, userEmail, userFirstName, userLastName } = input;
 
   if (!company) {
     return {
@@ -88,9 +84,7 @@ export function computeOnboardingStatus(input: {
       companyProfile: false,
       serviceArea: false,
       marketplaceProfile: false,
-      knowledge: false,
       calendar: false,
-      phone: false,
     };
   }
 
@@ -118,8 +112,6 @@ export function computeOnboardingStatus(input: {
     company.calendar_setup_completed,
     hasInternalCalendarEntry(company) || hasExternalCalendarEntry(company),
   );
-  const knowledge = (knowledgeCount !== null ? knowledgeCount > 0 : false) || hasPricingProfileData(company);
-  const phone = Boolean(companyNumber || String(company.phone_number || '').trim());
   const ownerName = String(company.owner_name || '').trim();
   const hasProfileName = Boolean(userFirstName || userLastName || ownerName);
 
@@ -129,8 +121,6 @@ export function computeOnboardingStatus(input: {
     companyProfile,
     serviceArea,
     marketplaceProfile,
-    knowledge,
     calendar,
-    phone,
   };
 }

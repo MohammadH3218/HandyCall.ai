@@ -33,7 +33,6 @@ The Voice Bridge connects Twilio Media Streams to OpenAI Realtime API.
    - In Twilio Console: Phone Number > Voice > Webhook
    - URL: `https://your-domain.com/twilio/voice`
 
-See [RUNBOOK.md](../RUNBOOK.md) for detailed tuning and troubleshooting.
-
+See [RUNBOOK.md](../docs/reference/RUNBOOK.md) for detailed tuning and troubleshooting.
 
 

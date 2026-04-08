@@ -44,6 +44,14 @@ export class QuoteRequestsController {
     return { quotes: await this.service.listForPro(companyId, category) };
   }
 
+  @Get('pro/past')
+  async listPastForPro(
+    @CompanyId() companyId: string,
+    @Query('category') category?: string,
+  ) {
+    return { quotes: await this.service.listPastForPro(companyId, category) };
+  }
+
   // Pro: respond to a quote request
   @Post(':quoteId/respond')
   async respondToQuote(

@@ -7,40 +7,51 @@ import { useAuthStore } from '@/stores/auth-store';
 
 function AuthInitializer({ children }: { children: React.ReactNode }) {
   const checkAuth = useAuthStore((state) => state.checkAuth);
-  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  // Subscribe only to lastAuthCheckAt, NOT isAuthenticated.
+  // Including isAuthenticated in deps caused a feedback loop: checkAuth sets
+  // isAuthenticated → effect re-runs → condition re-evaluates → calls checkAuth again.
   const lastAuthCheckAt = useAuthStore((state) => state._lastAuthCheckAt);
   const { status } = useSession();
   const pathname = usePathname();
 
   useEffect(() => {
     if (!pathname) return;
-    const shouldCheck =
+    const isProtectedPath =
       pathname.startsWith('/dashboard') ||
       pathname.startsWith('/admin') ||
-      pathname.startsWith('/onboarding');
+      pathname.startsWith('/onboarding') ||
+      pathname.startsWith('/customer/dashboard');
 
-    if (shouldCheck) {
-      // While NextAuth is still determining auth status, keep isLoading=true.
-      // Prematurely setting isLoading=false here would cause layout to redirect to
-      // /login before checkAuth has a chance to run (e.g. after returning from Stripe).
-      if (status === 'loading') return;
-
-      if (status === 'authenticated') {
-        if (!isAuthenticated) {
-          checkAuth();
-          return;
-        }
-        if (!lastAuthCheckAt) {
-          checkAuth();
-        }
-      } else {
-        // status === 'unauthenticated'
+    if (status === 'loading') {
+      if (!isProtectedPath) {
         useAuthStore.setState({ isLoading: false, _checkAuthInProgress: false });
       }
-    } else {
-      useAuthStore.setState({ isLoading: false, _checkAuthInProgress: false });
+      return;
     }
-  }, [checkAuth, pathname, status, isAuthenticated, lastAuthCheckAt]);
+
+    if (status === 'authenticated') {
+      // Only call checkAuth when we have no recent check recorded.
+      // The 30-second guard inside checkAuth prevents duplicate calls even if this
+      // effect fires multiple times. lastAuthCheckAt is reset to null on logout,
+      // so the next login always triggers a fresh check.
+      if (!lastAuthCheckAt) {
+        checkAuth();
+      }
+    } else {
+      // unauthenticated — clear all auth state so header immediately shows logged-out UI
+      useAuthStore.setState({
+        isLoading: false,
+        _checkAuthInProgress: false,
+        isAuthenticated: false,
+        user: null,
+        accessToken: null,
+        idToken: null,
+        refreshToken: null,
+        email: null,
+        userRole: null,
+      });
+    }
+  }, [checkAuth, pathname, status, lastAuthCheckAt]);
 
   return <>{children}</>;
 }

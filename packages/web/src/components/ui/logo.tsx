@@ -5,11 +5,12 @@ import { cn } from '@/lib/utils';
 export interface LogoProps {
   variant?: 'words' | 'icon';
   className?: string;
+  imageClassName?: string;
   width?: number;
   height?: number;
 }
 
-export function Logo({ variant = 'words', className, width, height }: LogoProps) {
+export function Logo({ variant = 'words', className, imageClassName, width, height }: LogoProps) {
   // Default sizes based on variant
   const defaultWidth = variant === 'words' ? 200 : 40;
   const defaultHeight = variant === 'words' ? 50 : 40;
@@ -24,7 +25,7 @@ export function Logo({ variant = 'words', className, width, height }: LogoProps)
         alt={alt}
         width={width || defaultWidth}
         height={height || defaultHeight}
-        className="object-contain"
+        className={cn('object-contain', imageClassName)}
         priority
       />
     </div>

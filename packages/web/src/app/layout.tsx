@@ -22,18 +22,30 @@ const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? 'https://handycall.ai';
 export const metadata: Metadata = {
   metadataBase: new URL(BASE_URL),
   title: {
-    default: 'HandyCall — Find & Book Trusted Home Service Pros',
+    default: 'HandyCall — Find & Book Trusted Home Service Pros in Houston, TX',
     template: '%s | HandyCall',
   },
   description:
-    'Book local plumbers, electricians, HVAC techs, cleaners, and more in your area. Compare providers, schedule quickly, and pay securely.',
+    'Find trusted plumbers, electricians, HVAC techs, cleaners, and handymen in Houston, TX. Serving Harris, Fort Bend, Montgomery, Brazoria, and Galveston counties. Compare pros, book fast, pay securely.',
   keywords: [
-    'home services',
-    'book a plumber',
-    'local handyman',
-    'HVAC repair',
-    'find electricians near me',
-    'house cleaning service',
+    'home services Houston TX',
+    'handyman Houston',
+    'Houston plumber',
+    'AC repair Houston',
+    'Houston electrician',
+    'house cleaning Houston',
+    'find a pro Houston',
+    'home repair Houston',
+    'The Woodlands home services',
+    'Sugar Land handyman',
+    'Katy TX home services',
+    'Pearland home repair',
+    'Humble TX handyman',
+    'Houston metro home services',
+    'book a plumber Houston',
+    'HVAC repair Houston',
+    'pest control Houston',
+    'painting contractor Houston',
     'handycall',
   ],
   openGraph: {
@@ -41,9 +53,9 @@ export const metadata: Metadata = {
     locale: 'en_US',
     url: BASE_URL,
     siteName: 'HandyCall',
-    title: 'HandyCall — Find & Book Trusted Home Service Pros',
+    title: 'HandyCall — Find & Book Trusted Home Service Pros in Houston, TX',
     description:
-      'Browse local providers, compare service details, and book home services in minutes.',
+      'Browse Houston-area pros, compare reviews and prices, and book home services in minutes. Serving the entire Houston metro.',
     images: [
       {
         url: '/og-image.png',
@@ -72,7 +84,10 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    // lang/dir are set client-side by LocaleProvider for [locale] routes.
+    // suppressHydrationWarning prevents React mismatch warnings when the locale layout
+    // updates the attributes after SSR.
+    <html suppressHydrationWarning>
       <body className={`${manrope.variable} ${spaceGrotesk.variable} font-sans antialiased`}>
         <SessionProvider>
           <ThemeProvider>

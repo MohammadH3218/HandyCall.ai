@@ -21,6 +21,13 @@ type AppointmentInfo = {
   contact_phone?: string;
   address?: { street?: string; city?: string; state?: string; zip?: string };
   notes?: string;
+  cancellation?: {
+    can_cancel: boolean;
+    policy_mode: 'ANYTIME' | 'BEFORE_HOURS' | 'NO_CANCELLATIONS';
+    policy_hours?: number;
+    cutoff_at?: number;
+    message: string;
+  };
 };
 
 type BookingInfo = {
@@ -31,6 +38,10 @@ type BookingInfo = {
   phone_number?: string;
   email?: string;
   appointment?: AppointmentInfo;
+  appointment_cancellation_policy?: {
+    mode: 'ANYTIME' | 'BEFORE_HOURS' | 'NO_CANCELLATIONS';
+    window_hours?: number;
+  };
   collected_info?: Record<string, any>;
   intake_schema?: {
     required?: string[];
@@ -693,6 +704,7 @@ export default function BookingPage() {
   const selectedPaymentService = (paymentInfo?.services || []).find((service) => service.service_id === selectedServiceId)
     || (paymentInfo?.services || [])[0]
     || null;
+  const canCancelAppointment = Boolean(appointment?.cancellation?.can_cancel);
   const selectedServiceBillingLabel =
     selectedPaymentService?.billing_type === 'SUBSCRIPTION'
       ? `Subscription${selectedPaymentService?.billing_interval ? ` · every ${selectedPaymentService.billing_interval_count || 1} ${selectedPaymentService.billing_interval}${(selectedPaymentService.billing_interval_count || 1) > 1 ? 's' : ''}` : ''}`
@@ -898,15 +910,30 @@ export default function BookingPage() {
                       <CardTitle>Cancel Appointment</CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4">
+                      {appointment?.cancellation ? (
+                        <div className={`rounded-lg border px-3 py-2 text-sm ${
+                          canCancelAppointment
+                            ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                            : 'border-amber-200 bg-amber-50 text-amber-700'
+                        }`}>
+                          <div className="font-medium">{appointment.cancellation.message}</div>
+                          {appointment.cancellation.cutoff_at ? (
+                            <div className="mt-1 text-xs opacity-80">
+                              Cutoff: {formatSlotLabel(new Date(appointment.cancellation.cutoff_at).toISOString(), info?.timezone)}
+                            </div>
+                          ) : null}
+                        </div>
+                      ) : null}
                       <div className="space-y-2">
                         <Label>Reason (optional)</Label>
                         <Textarea
                           value={cancelReason}
                           onChange={(e) => setCancelReason(e.target.value)}
                           placeholder="Let us know why you're cancelling"
+                          disabled={!canCancelAppointment}
                         />
                       </div>
-                      <Button variant="destructive" onClick={handleCancel} disabled={cancelling}>
+                      <Button variant="destructive" onClick={handleCancel} disabled={cancelling || !canCancelAppointment}>
                         {cancelling ? 'Cancelling...' : 'Cancel Appointment'}
                       </Button>
                     </CardContent>

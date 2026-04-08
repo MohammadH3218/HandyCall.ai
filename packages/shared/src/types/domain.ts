@@ -23,12 +23,6 @@ export enum CompanyStatus {
   CANCELLED = 'CANCELLED',
 }
 
-export enum CallHandlingMode {
-  ALWAYS = 'ALWAYS',
-  MISSED = 'MISSED',
-  AFTER_HOURS = 'AFTER_HOURS',
-}
-
 export enum ServiceType {
   HANDYMAN = 'HANDYMAN',
   PEST_CONTROL = 'PEST_CONTROL',
@@ -96,6 +90,16 @@ export interface CompanyPricingProfile {
   updated_at?: Timestamp;
 }
 
+export type AppointmentCancellationPolicyMode =
+  | 'ANYTIME'
+  | 'BEFORE_HOURS'
+  | 'NO_CANCELLATIONS';
+
+export interface AppointmentCancellationPolicy {
+  mode: AppointmentCancellationPolicyMode;
+  window_hours?: number;
+}
+
 export interface BookingService {
   service_id: UUID;
   name: string;
@@ -109,17 +113,6 @@ export interface BookingService {
   billing_interval?: 'day' | 'week' | 'month' | 'year';
   billing_interval_count?: number;
   trial_period_days?: number;
-}
-
-export interface CompanyCallFlowQuestion {
-  id: UUID;
-  field_key: string;
-  label: string;
-  prompt: string;
-  helper_text?: string;
-  required?: boolean;
-  enabled?: boolean;
-  order?: number;
 }
 
 export interface Company {
@@ -152,21 +145,11 @@ export interface Company {
   };
   booking_from_email?: string;
   email_from?: string;
-  transfer_enabled?: boolean;
-  transfer_number?: PhoneNumber;
-  call_handling_mode?: CallHandlingMode;
-
-  // AWS Connect integration
-  connect_phone_number_id?: string; // Phone number ID from AWS Connect
-  connect_phone_number?: PhoneNumber; // E.164 format (e.g., +16057052030)
-  connect_instance_id?: string; // Connect instance ID
-
   use_simple_scheduling?: boolean; // Fallback to simple time slots
   service_area_zipcodes?: string[];
   service_area_cities?: string[];
   pricing_profile?: CompanyPricingProfile;
   marketplace_profile?: Record<string, any>;
-  call_flow_questions?: CompanyCallFlowQuestion[];
   company_profile_completed?: boolean;
   service_area_completed?: boolean;
   marketplace_profile_completed?: boolean;
@@ -189,6 +172,7 @@ export interface Company {
   schedule_overrides?: ScheduleOverride[];
   appointment_duration_minutes?: number;
   slot_interval_minutes?: number;
+  appointment_cancellation_policy?: AppointmentCancellationPolicy;
 
   // Billing fields
   stripe_customer_id?: string;
@@ -427,82 +411,6 @@ export interface Contact {
 // Call
 // ============================================================================
 
-export enum CallDirection {
-  INBOUND = 'INBOUND',
-  OUTBOUND = 'OUTBOUND',
-}
-
-export enum CallStatus {
-  RINGING = 'RINGING',
-  IN_PROGRESS = 'IN_PROGRESS',
-  COMPLETED = 'COMPLETED',
-  FAILED = 'FAILED',
-  NO_ANSWER = 'NO_ANSWER',
-  BUSY = 'BUSY',
-}
-
-export enum CallIntent {
-  QUESTION = 'QUESTION',
-  BOOKING = 'BOOKING',
-  EMERGENCY = 'EMERGENCY',
-  COMPLAINT = 'COMPLAINT',
-  GENERAL = 'GENERAL',
-  UNKNOWN = 'UNKNOWN',
-}
-
-export enum CallOutcome {
-  APPOINTMENT_BOOKED = 'APPOINTMENT_BOOKED', // Green
-  LEAD = 'LEAD', // Yellow/Orange
-  NO_INTEREST = 'NO_INTEREST', // Red
-  INFO_ONLY = 'INFO_ONLY', // Gray
-}
-
-export enum LeadQuality {
-  HOT = 'HOT', // Expressed strong interest
-  WARM = 'WARM', // Interested but needs to think
-  COLD = 'COLD', // Slight interest, low priority
-}
-
-export interface Call {
-  call_id: UUID;
-  company_id: UUID;
-  contact_id?: UUID;
-  direction: CallDirection;
-  from_number: PhoneNumber;
-  to_number: PhoneNumber;
-  status: CallStatus;
-  intent?: CallIntent;
-  duration_seconds?: number;
-  recording_url?: string;
-  transcript_url?: string;
-  summary?: string;
-  ai_handled: boolean;
-  escalated: boolean;
-  appointment_created?: boolean;
-  lead_captured?: boolean;
-  started_at: Timestamp;
-  ended_at?: Timestamp;
-  created_at: Timestamp;
-
-  // Call outcome classification
-  outcome?: CallOutcome;
-  outcome_confidence?: number; // 0-1
-  appointment_id?: UUID; // Link to created appointment
-  lead_quality?: LeadQuality;
-  lead_reason?: string;
-  lead_progress_stage?: 'INTERESTED' | 'INTAKE_STARTED' | 'READY_TO_BOOK';
-}
-
-export interface CallHighlight {
-  highlight_id: UUID;
-  call_id: UUID;
-  company_id: UUID;
-  timestamp_seconds: number; // Position in call
-  type: 'PRICING' | 'APPOINTMENT' | 'COMPLAINT' | 'UNANSWERED_QUESTION' | 'IMPORTANT';
-  description: string;
-  created_at: Timestamp;
-}
-
 // ============================================================================
 // Appointment
 // ============================================================================
@@ -515,12 +423,6 @@ export enum AppointmentStatus {
   COMPLETED = 'COMPLETED',
   CANCELLED = 'CANCELLED',
   NO_SHOW = 'NO_SHOW',
-}
-
-export enum BookingMode {
-  PROPOSE_TIMES = 'PROPOSE_TIMES', // AI suggests times, owner confirms
-  CALENDAR_BOOKING = 'CALENDAR_BOOKING', // AI books directly into calendar
-  INTERNAL_ONLY = 'INTERNAL_ONLY', // AI takes info, creates internal task
 }
 
 export interface Appointment {
@@ -560,6 +462,21 @@ export interface Appointment {
   updated_at: Timestamp;
 }
 
+export interface AppointmentCancellationInfo {
+  can_cancel: boolean;
+  policy_mode: AppointmentCancellationPolicyMode;
+  policy_hours?: number;
+  cutoff_at?: Timestamp;
+  reason_code?:
+    | 'ALLOWED'
+    | 'NO_CANCELLATIONS'
+    | 'WINDOW_PASSED'
+    | 'ALREADY_STARTED'
+    | 'ALREADY_CANCELLED'
+    | 'ALREADY_COMPLETED';
+  message: string;
+}
+
 export interface Address {
   street: string;
   city: string;
@@ -569,104 +486,7 @@ export interface Address {
 }
 
 // ============================================================================
-// Knowledge Base (RAG)
-// ============================================================================
-
-export enum KnowledgeItemType {
-  FAQ = 'FAQ',
-  SERVICE = 'SERVICE',
-  POLICY = 'POLICY',
-  SAFETY = 'SAFETY',
-  WARRANTY = 'WARRANTY',
-  PRICING_INFO = 'PRICING_INFO',
-}
-
-export enum KnowledgeStatus {
-  ACTIVE = 'ACTIVE',
-  DRAFT = 'DRAFT',
-  ARCHIVED = 'ARCHIVED',
-}
-
-export interface KnowledgeItem {
-  knowledge_id: UUID;
-  company_id: UUID;
-  type: KnowledgeItemType;
-  question: string;
-  answer: string;
-  status: KnowledgeStatus;
-  created_by: UUID; // user_id
-  source?: 'MANUAL' | 'FLAGGED_QUESTION' | 'IMPORT';
-  use_count?: number; // How many times retrieved
-  last_used_at?: Timestamp;
-  created_at: Timestamp;
-  updated_at: Timestamp;
-}
-
-export interface KnowledgeChunk {
-  chunk_id: UUID;
-  knowledge_id: UUID;
-  company_id: UUID;
-  chunk_text: string;
-  embedding?: number[]; // Vector embedding
-  chunk_index: number; // Position in original content
-  created_at: Timestamp;
-}
-
-// ============================================================================
-// Flagged Questions (Learning Loop)
-// ============================================================================
-
-export enum FlaggedQuestionStatus {
-  PENDING = 'PENDING',
-  ANSWERED = 'ANSWERED',
-  DISMISSED = 'DISMISSED',
-}
-
-export interface FlaggedQuestion {
-  flagged_id: UUID;
-  company_id: UUID;
-  call_id: UUID;
-  question_text: string;
-  context?: string; // Conversation context
-  timestamp_in_call?: number; // Seconds into call
-  status: FlaggedQuestionStatus;
-  resolved_by?: UUID; // user_id who answered
-  resolution_answer?: string;
-  knowledge_item_created?: UUID; // knowledge_id if KB entry created
-  created_at: Timestamp;
-  resolved_at?: Timestamp;
-}
-
-// ============================================================================
-// Agent Configuration
-// ============================================================================
-
-export enum GreetingTone {
-  PROFESSIONAL = 'PROFESSIONAL',
-  FRIENDLY = 'FRIENDLY',
-  CASUAL = 'CASUAL',
-}
-
-export interface AgentConfig {
-  config_id: UUID;
-  company_id: UUID;
-  greeting_tone: GreetingTone;
-  custom_greeting?: string;
-  booking_mode: BookingMode;
-  can_discuss_pricing: boolean;
-  can_handle_emergencies: boolean;
-  escalation_threshold: number; // Confidence threshold 0-1
-  require_callback_confirmation: boolean;
-  send_sms_summary: boolean;
-  realtime_model?: string; // e.g. "gpt-realtime-mini"
-  realtime_voice?: string; // e.g. "alloy"
-  realtime_instructions?: string; // optional additional system instructions
-  created_at: Timestamp;
-  updated_at: Timestamp;
-}
-
-// ============================================================================
-// Pricing Rules (Structured, not LLM-based)
+// Pricing Rules
 // ============================================================================
 
 export interface PricingRule {

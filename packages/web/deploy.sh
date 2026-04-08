@@ -71,9 +71,17 @@ cat > "${TMP_DIR}/Dockerrun.aws.json" <<EOF
 }
 EOF
 
+mkdir -p "${TMP_DIR}/.platform/nginx/conf.d"
+cat > "${TMP_DIR}/.platform/nginx/conf.d/proxy_buffers.conf" <<'NGINX'
+proxy_buffer_size 128k;
+proxy_buffers 4 256k;
+proxy_busy_buffers_size 256k;
+NGINX
+
 (
   cd "${TMP_DIR}"
   zip -q "${ZIP_FILE}" Dockerrun.aws.json
+  zip -qr "${ZIP_FILE}" .platform/
 )
 
 echo "===== Uploading bundle to S3 ====="

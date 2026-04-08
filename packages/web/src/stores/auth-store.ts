@@ -25,7 +25,7 @@ interface AuthState {
   login: (email: string, password: string) => Promise<{ requiresPasswordChange: boolean; userRole: UserRole | null }>;
   changePassword: (email: string, newPassword: string, session: string, poolType?: 'users' | 'admin' | 'customer', firstName?: string, lastName?: string) => Promise<void>;
   register: (data: any) => Promise<void>;
-  logout: () => Promise<void>;
+  logout: (callbackUrl?: string) => Promise<void>;
   setTokens: (accessToken: string, idToken: string, refreshToken: string) => void;
   checkAuth: () => Promise<void>;
   setCompany: (company: Company | null) => void;
@@ -125,21 +125,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
-  logout: async () => {
-    // Clear local client state
+  logout: async (callbackUrl = '/pro/login') => {
     apiClient.setAccessToken(null);
 
-    if (typeof window !== 'undefined') {
-      // Cleanup legacy auth keys that may still exist from previous builds.
-      localStorage.removeItem('access_token');
-      localStorage.removeItem('id_token');
-      localStorage.removeItem('refresh_token');
-      localStorage.removeItem('email');
-      localStorage.removeItem('user_role');
-      // Trigger NextAuth sign-out so server session is cleared
-      await signOut({ callbackUrl: '/login' });
-    }
-
+    // Reset Zustand BEFORE navigating so any component that stays mounted
+    // immediately sees the logged-out state.
     set({
       user: null,
       company: null,
@@ -150,10 +140,26 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       userRole: null,
       isAuthenticated: false,
       isLoading: false,
+      companyHydrated: false,
+      _lastAuthCheckAt: null,
       requiresPasswordChange: false,
       passwordChangeSession: null,
       passwordChangePoolType: null,
     });
+
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('id_token');
+      localStorage.removeItem('refresh_token');
+      localStorage.removeItem('email');
+      localStorage.removeItem('user_role');
+      // Sign out without NextAuth's redirect so we control navigation.
+      // This clears the server-side session cookie.
+      await signOut({ redirect: false });
+      // Hard redirect so the full page reloads and all React/Zustand state
+      // starts fresh — prevents any stale "logged-in" UI from lingering.
+      window.location.href = callbackUrl;
+    }
   },
 
   setTokens: (accessToken: string, idToken: string, refreshToken: string) => {
@@ -179,8 +185,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
 
     const now = Date.now();
-    if (state.isAuthenticated && state._lastAuthCheckAt && now - state._lastAuthCheckAt < 10000) {
-      // Avoid rechecking auth too frequently during normal navigation
+    if (state._lastAuthCheckAt && now - state._lastAuthCheckAt < 30_000) {
+      // Checked within the last 30 seconds — skip to prevent request spam.
+      set({ isLoading: false });
       return;
     }
 
@@ -305,6 +312,48 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         _checkAuthInProgress: false,
         _lastAuthCheckAt: now,
       });
+
+      if (sessionPoolType === 'customer') {
+        try {
+          await apiClient.getCustomerProfile();
+          set({ companyHydrated: true });
+        } catch (error: any) {
+          const msg = String(error?.message || '');
+          if (
+            msg.includes('Customer account not found') ||
+            msg.includes('Unauthorized') ||
+            msg.includes('Invalid customer token') ||
+            msg.includes('Invalid or expired token')
+          ) {
+            set({
+              user: null,
+              company: null,
+              accessToken: null,
+              idToken: null,
+              refreshToken: null,
+              email: null,
+              userRole: null,
+              isAuthenticated: false,
+              isLoading: false,
+              companyHydrated: true,
+              _checkAuthInProgress: false,
+              _lastAuthCheckAt: now,
+            });
+            try {
+              await signOut({ redirect: false });
+            } catch {
+              // ignore
+            }
+            if (typeof window !== 'undefined') {
+              window.location.assign('/customer/login?reason=account_not_found');
+            }
+            return;
+          }
+
+          set({ companyHydrated: true });
+        }
+        return;
+      }
 
       const hydrateCompany = async () => {
         try {

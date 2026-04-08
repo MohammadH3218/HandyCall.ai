@@ -22,126 +22,133 @@ import {
 const plans = [
   {
     name: 'Starter',
-    originalPrice: '$29.99',
-    price: '$19.99',
-    cadence: '/mo',
-    bestFor: 'Solo operators getting started with AI answering.',
+    originalPrice: null,
+    price: 'Free',
+    cadence: '',
+    bestFor: 'Get your free marketplace listing and start receiving job requests.',
     badge: null,
     trialLabel: null,
     highlight: false,
-    limits: { minutes: 100, sms: 200, contacts: 300 },
+    limits: { minutes: 0, sms: 0, contacts: 300 },
     features: [
-      { label: '100 minutes / month', included: true },
-      { label: '200 SMS / month', included: true },
-      { label: '300 contacts', included: true },
-      { label: 'AI receptionist with brand voice', included: true },
-      { label: 'Smart appointment booking', included: true },
-      { label: 'Lead capture & qualification', included: true },
-      { label: 'Automated SMS confirmations', included: true },
-      { label: 'Spam & robocall filtering', included: true },
-      { label: 'Call recording (7-day)', included: true },
+      { label: 'Free marketplace profile', included: true },
+      { label: 'Appear in customer search results', included: true },
+      { label: 'Receive lead requests & job inquiries', included: true },
+      { label: 'Preview request before unlocking', included: true },
+      { label: 'Pay per unlocked lead only', included: true },
+      { label: 'AI receptionist for inbound calls', included: false },
       { label: 'Call summaries & transcripts', included: false },
-      { label: 'After-hours routing', included: false },
-      { label: 'Human transfer', included: false },
+      { label: 'Follow-up sequences', included: false },
+      { label: 'Sponsored placement in search', included: false },
       { label: 'CRM integrations', included: false },
     ],
   },
   {
     name: 'Pro',
-    originalPrice: '$49.99',
-    price: '$39.99',
+    originalPrice: '$29.99',
+    price: '$19.99',
     cadence: '/mo',
-    bestFor: 'Growing teams that want full coverage and smart follow-ups.',
+    bestFor: 'Pros who want AI calling + full marketplace coverage.',
     badge: 'Most popular',
     trialLabel: '14-day free trial',
     highlight: true,
     limits: { minutes: 300, sms: 600, contacts: 1000 },
     features: [
-      { label: '300 minutes / month', included: true },
+      { label: 'Everything in Starter', included: true },
+      { label: '300 AI call minutes / month', included: true },
       { label: '600 SMS / month', included: true },
       { label: '1,000 contacts', included: true },
-      { label: 'Everything in Starter', included: true },
+      { label: 'AI receptionist for inbound calls', included: true },
+      { label: 'Lead qualification & booking intake', included: true },
       { label: 'Call summaries & transcripts', included: true },
-      { label: 'After-hours routing', included: true },
-      { label: 'Human transfer to your phone', included: true },
       { label: 'Smart follow-up sequences', included: true },
       { label: 'Call recording (30-day)', included: true },
-      { label: 'Priority support', included: true },
+      { label: 'Sponsored placement in search', included: false },
       { label: 'CRM integrations', included: false },
     ],
   },
   {
     name: 'Max',
-    originalPrice: '$149.99',
-    price: '$99.99',
+    originalPrice: '$79.99',
+    price: '$49.99',
     cadence: '/mo',
-    bestFor: 'Busy crews that need high volume, integrations, and full power.',
+    bestFor: 'Top pros and teams that need full coverage and growth tools.',
     badge: 'Best for teams',
     trialLabel: null,
     highlight: false,
     limits: { minutes: 750, sms: 1500, contacts: 3000 },
     features: [
-      { label: '750 minutes / month', included: true },
+      { label: 'Everything in Pro', included: true },
+      { label: '750 AI call minutes / month', included: true },
       { label: '1,500 SMS / month', included: true },
       { label: '3,000 contacts', included: true },
-      { label: 'Everything in Pro', included: true },
+      { label: 'Sponsored placement in search results', included: true },
       { label: 'CRM integrations (Zapier, webhooks)', included: true },
-      { label: 'Advanced routing (overflow + multi-location)', included: true },
+      { label: 'Advanced routing & multi-location', included: true },
       { label: 'Call recording (90-day)', included: true },
-      { label: 'Priority phone support', included: true },
+      { label: 'Dedicated account manager', included: true },
     ],
   },
 ];
 
 const inclusions = [
-  'AI receptionist with your brand voice',
-  'Real-time call handling and booking',
-  'Lead capture and qualification',
-  'Smart appointment booking',
-  'Automated confirmations and reminders',
-  'Spam call filtering and robocall blocking',
-  'Usage dashboard with call recordings',
+  'Free marketplace profile',
+  'Appear in customer search results',
+  'Receive and preview job requests',
+  'Verified badge on your profile',
+  'Customer messaging and inquiry management',
+  'Mobile-friendly dashboard',
+  'U.S.-friendly onboarding and support',
 ];
 
 const featureComparisons = [
-  { label: 'Minutes / SMS / contacts per month', values: { Starter: '100 / 200 / 300', Pro: '300 / 600 / 1,000', Max: '750 / 1,500 / 3,000' } },
-  { label: 'Call recording retention', values: { Starter: '7 days', Pro: '30 days', Max: '90 days' } },
+  { label: 'Monthly price', values: { Starter: 'Free', Pro: '$19.99', Max: '$49.99' } },
+  { label: 'Marketplace profile', values: { Starter: true, Pro: true, Max: true } },
+  { label: 'Appear in search results', values: { Starter: true, Pro: true, Max: true } },
+  { label: 'Sponsored placement', values: { Starter: false, Pro: false, Max: true } },
+  { label: 'Lead requests (pay-per-unlock)', values: { Starter: true, Pro: true, Max: true } },
+  { label: 'AI call minutes / month', values: { Starter: '—', Pro: '300 min', Max: '750 min' } },
+  { label: 'SMS / month', values: { Starter: '—', Pro: '600', Max: '1,500' } },
+  { label: 'Active contacts', values: { Starter: '300', Pro: '1,000', Max: '3,000' } },
+  { label: 'AI receptionist for inbound calls', values: { Starter: false, Pro: true, Max: true } },
   { label: 'Call summaries & transcripts', values: { Starter: false, Pro: true, Max: true } },
-  { label: 'AI bookings & SMS confirmations', values: { Starter: 'Included', Pro: 'Included', Max: 'Included' } },
-  { label: 'After-hours routing', values: { Starter: false, Pro: true, Max: true } },
-  { label: 'Human transfer', values: { Starter: false, Pro: true, Max: true } },
   { label: 'Smart follow-up sequences', values: { Starter: false, Pro: true, Max: true } },
+  { label: 'Call recording retention', values: { Starter: '—', Pro: '30 days', Max: '90 days' } },
   { label: 'CRM integrations (Zapier, webhooks)', values: { Starter: false, Pro: false, Max: true } },
-  { label: 'Advanced routing', values: { Starter: false, Pro: false, Max: true } },
-  { label: 'Support', values: { Starter: 'Standard', Pro: 'Priority', Max: 'Priority + phone' } },
+  { label: 'Advanced routing & multi-location', values: { Starter: false, Pro: false, Max: true } },
+  { label: 'Support', values: { Starter: 'Standard', Pro: 'Priority', Max: 'Dedicated manager' } },
   { label: 'Free trial', values: { Starter: false, Pro: '14 days', Max: false } },
 ];
 
 const faqs = [
   {
-    q: 'Do I need to change my business phone number?',
-    a: 'No. You simply forward your existing number to HandyCall. Keep your current number — your customers will never notice the difference.',
+    q: 'Is Starter really free?',
+    a: 'Yes — creating your marketplace profile and appearing in search results is completely free. You only pay when you choose to unlock a customer lead to see their full contact details.',
   },
   {
-    q: 'What happens when I exceed my plan limits?',
-    a: 'We notify you before you hit your limit. You can purchase add-on minute or SMS packs, or upgrade your plan at any time.',
+    q: 'What does "pay per unlocked lead" mean?',
+    a: 'When a customer submits a job request, you can preview the job details before deciding to unlock it. Unlocking gives you the customer\'s contact info so you can follow up. Each unlock costs a small fee.',
+  },
+  {
+    q: 'What does Pro add on top of Starter?',
+    a: 'Pro adds an AI receptionist that handles your inbound calls 24/7 — qualifying leads, booking appointments, and sending automated SMS follow-ups. It also includes call summaries, transcripts, and 300 AI call minutes per month.',
   },
   {
     q: 'Can I cancel anytime?',
-    a: 'Yes — no contracts, no cancellation fees. You can cancel from your billing settings at any time.',
+    a: 'Yes — no contracts, no cancellation fees. You can downgrade or cancel from your dashboard settings at any time.',
   },
   {
-    q: 'How long does setup take?',
-    a: 'Most pros are fully live within 10 minutes. We walk you through every step: company profile, forwarding, and knowledge base configuration.',
+    q: 'Is there a free trial for Pro?',
+    a: 'Yes — the Pro plan includes a 14-day free trial with no credit card required. You can cancel before the trial ends at no charge.',
   },
   {
-    q: 'Is there a free trial?',
-    a: 'Yes — the Pro plan includes a 14-day free trial with no credit card required.',
+    q: 'Are prices in U.S. dollars?',
+    a: 'Yes. Starter is free, Pro is $19.99/month, and Max is $49.99/month.',
   },
 ];
 
 const sliders = [
-  { key: 'minutes', label: 'Call minutes / month', icon: IconPhone, min: 0, max: 900, step: 10, unit: 'min' },
+  { key: 'minutes', label: 'AI call minutes / month', icon: IconPhone, min: 0, max: 900, step: 10, unit: 'min' },
   { key: 'sms', label: 'SMS messages / month', icon: IconMessage, min: 0, max: 1800, step: 25, unit: 'SMS' },
   { key: 'contacts', label: 'Active contacts', icon: IconUsers, min: 0, max: 3600, step: 50, unit: 'contacts' },
 ];
@@ -214,11 +221,11 @@ export default function PricingPage() {
               </div>
               <div className="flex items-center md:border-l md:border-slate-200 md:pl-8">
                 <div className="rounded-2xl border border-emerald-100 bg-white px-6 py-5 text-center shadow-sm min-w-[180px]">
-                  <p className="text-xs font-semibold text-slate-500 mb-1">Receptionist (part-time)</p>
-                  <p className="text-2xl font-bold text-slate-400 line-through">$3,200/mo</p>
+                  <p className="text-xs font-semibold text-slate-500 mb-1">Part-time receptionist</p>
+                  <p className="text-2xl font-bold text-slate-400 line-through">$4,000/mo</p>
                   <p className="mt-3 text-xs font-semibold text-emerald-700 mb-1">HandyCall Pro</p>
-                  <p className="text-2xl font-bold text-emerald-600">$39.99/mo</p>
-                  <p className="mt-1 text-xs text-slate-400">24/7 coverage included</p>
+                  <p className="text-2xl font-bold text-emerald-600">$19.99/mo</p>
+                  <p className="mt-1 text-xs text-slate-400">24/7 AI coverage included</p>
                 </div>
               </div>
             </div>
@@ -271,16 +278,20 @@ export default function PricingPage() {
                         </span>
                       )}
                     </div>
-                    <div className="flex items-baseline gap-1.5">
-                      <span className={`text-sm line-through ${plan.highlight ? 'text-slate-500' : 'text-slate-400'}`}>
-                        {plan.originalPrice}
-                      </span>
+                    <div className="flex items-baseline gap-1.5 flex-wrap">
+                      {plan.originalPrice && (
+                        <span className={`text-sm line-through ${plan.highlight ? 'text-slate-500' : 'text-slate-400'}`}>
+                          {plan.originalPrice}
+                        </span>
+                      )}
                       <span className={`text-4xl font-bold tracking-tight ${plan.highlight ? 'text-white' : 'text-slate-900'}`}>
                         {plan.price}
                       </span>
-                      <span className={`text-sm ${plan.highlight ? 'text-slate-400' : 'text-slate-500'}`}>
-                        {plan.cadence}
-                      </span>
+                      {plan.cadence && (
+                        <span className={`text-sm ${plan.highlight ? 'text-slate-400' : 'text-slate-500'}`}>
+                          {plan.cadence}
+                        </span>
+                      )}
                     </div>
                     <p className={`mt-2 text-sm leading-relaxed ${plan.highlight ? 'text-slate-400' : 'text-slate-500'}`}>
                       {plan.bestFor}
@@ -311,7 +322,7 @@ export default function PricingPage() {
 
                   {/* CTA */}
                   <Link
-                    href="/register"
+                    href="/register?audience=pro"
                     className={`group flex items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold transition ${
                       plan.highlight
                         ? 'bg-emerald-500 text-white hover:bg-emerald-400'
@@ -423,14 +434,14 @@ export default function PricingPage() {
                     <p className="mt-1.5 text-4xl font-bold tracking-tight text-slate-900">
                       {recommended}
                       <span className="ml-2 text-xl font-normal text-slate-500">
-                        {plans.find((p) => p.name === recommended)?.price}/mo
+                        {plans.find((p) => p.name === recommended)?.price}{plans.find((p) => p.name === recommended)?.cadence}
                       </span>
                     </p>
                     <p className="mt-1.5 text-sm text-slate-500">
                       {plans.find((p) => p.name === recommended)?.bestFor}
                     </p>
                     <Link
-                      href="/register"
+                      href="/register?audience=pro"
                       className="inline-flex items-center gap-2 mt-5 rounded-xl bg-emerald-600 px-6 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 transition"
                     >
                       Start with {recommended}
@@ -470,7 +481,7 @@ export default function PricingPage() {
                         <th key={plan.name} className="p-4 text-left">
                           <p className="font-bold text-slate-900">{plan.name}</p>
                           <p className="text-xs text-slate-400 font-normal">
-                            <span className="line-through mr-1">{plan.originalPrice}</span>{plan.price}/mo
+                            {plan.originalPrice ? <><span className="line-through mr-1">{plan.originalPrice}</span>{plan.price}{plan.cadence}</> : plan.price}
                           </p>
                         </th>
                       ))}

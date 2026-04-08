@@ -17,9 +17,9 @@ This is a monorepo containing:
 
 ## 📚 Documentation
 
-- [PROJECT_CONTEXT.md](./PROJECT_CONTEXT.md) - Single source of truth for the entire project
-- [DB_SCHEMA.md](./DB_SCHEMA.md) - DynamoDB table designs and access patterns
-- [API_REFERENCE.md](./API_REFERENCE.md) - Complete API endpoint documentation
+- [PROJECT_CONTEXT.md](./docs/reference/PROJECT_CONTEXT.md) - Single source of truth for the entire project
+- [DB_SCHEMA.md](./docs/reference/DB_SCHEMA.md) - DynamoDB table designs and access patterns
+- [API_REFERENCE.md](./docs/reference/API_REFERENCE.md) - Complete API endpoint documentation
 - [docs/REALTIME_SIP_REWORK.md](./docs/REALTIME_SIP_REWORK.md) - **Realtime Voice Architecture** (Twilio Media Streams + OpenAI)
 - [docs/TWILIO_MEDIA_STREAMS_SETUP.md](./docs/TWILIO_MEDIA_STREAMS_SETUP.md) - Twilio Bridge Setup Guide
 
@@ -64,7 +64,7 @@ The voice bridge is on port 8082. On `npm run dev`, the startup script automatic
 1. Starts ngrok with static domain `consuelo-harmful-cathy.ngrok-free.dev`
 2. Updates the Twilio webhook for `+18324605974` via Twilio CLI
 
-See [RUNBOOK.md](./RUNBOOK.md) for voice bridge details and tuning.
+See [RUNBOOK.md](./docs/reference/RUNBOOK.md) for voice bridge details and tuning.
 
 ## 🏢 Multi-Tenancy
 

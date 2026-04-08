@@ -14,10 +14,10 @@ const SEARCH_RESULTS = [
   {
     name: 'Khalid Al-Rashidi',
     service: { en: 'AC & HVAC Repair', ar: 'تصليح وصيانة التكييف' },
-    location: { en: 'Al-Malqa, Riyadh', ar: 'الملقا، الرياض' },
+    location: { en: 'Austin, TX', ar: 'Austin, TX' },
     rating: '4.9',
     reviews: 142,
-    price: { en: 'From SAR 150', ar: 'ابتداءً من 150 ريال' },
+    price: { en: 'From $150', ar: 'From $150' },
     badge: { en: 'Top Pro', ar: 'محترف مميز' },
     badgeColor: '#10b981',
     avatar: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=56&h=56&fit=crop&q=80',
@@ -25,10 +25,10 @@ const SEARCH_RESULTS = [
   {
     name: 'Mohammed Al-Ghamdi',
     service: { en: 'AC & HVAC Repair', ar: 'تصليح وصيانة التكييف' },
-    location: { en: 'Al-Rawdah, Riyadh', ar: 'الروضة، الرياض' },
+    location: { en: 'Dallas, TX', ar: 'Dallas, TX' },
     rating: '4.7',
     reviews: 88,
-    price: { en: 'From SAR 120', ar: 'ابتداءً من 120 ريال' },
+    price: { en: 'From $120', ar: 'From $120' },
     badge: { en: 'Verified', ar: 'موثق' },
     badgeColor: '#3b82f6',
     avatar: 'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=56&h=56&fit=crop&q=80',
@@ -36,10 +36,10 @@ const SEARCH_RESULTS = [
   {
     name: 'Abdullah Al-Otaibi',
     service: { en: 'AC & HVAC Repair', ar: 'تصليح وصيانة التكييف' },
-    location: { en: 'Al-Nakheel, Riyadh', ar: 'النخيل، الرياض' },
+    location: { en: 'Houston, TX', ar: 'Houston, TX' },
     rating: '4.8',
     reviews: 65,
-    price: { en: 'From SAR 180', ar: 'ابتداءً من 180 ريال' },
+    price: { en: 'From $180', ar: 'From $180' },
     badge: { en: '', ar: '' },
     badgeColor: '',
     avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=56&h=56&fit=crop&q=80',
@@ -50,7 +50,7 @@ const PROFILE_REVIEWS = [
   {
     text: {
       en: 'Fixed our unit in under an hour. Fast and professional.',
-      ar: 'تم إصلاح الوحدة خلال أقل من ساعة. خدمة سريعة واحترافية.',
+      ar: 'Fixed our unit in under an hour. Fast and professional.',
     },
     author: 'Abdullah M.',
     stars: 5,
@@ -58,7 +58,7 @@ const PROFILE_REVIEWS = [
   {
     text: {
       en: 'Arrived on time, fair pricing, would book again.',
-      ar: 'وصل في الموعد المحدد، والأسعار كانت عادلة. سأحجز معه مرة أخرى.',
+      ar: 'Arrived on time, fair pricing, would book again.',
     },
     author: 'Hessa K.',
     stars: 5,
@@ -66,7 +66,7 @@ const PROFILE_REVIEWS = [
   {
     text: {
       en: 'Good work overall, explained everything clearly.',
-      ar: 'العمل كان ممتازًا بشكل عام، وشرح كل شيء بوضوح.',
+      ar: 'Good work overall, explained everything clearly.',
     },
     author: 'Tariq F.',
     stars: 4,
@@ -75,7 +75,9 @@ const PROFILE_REVIEWS = [
 
 export function ProductPreview() {
   const [activeView, setActiveView] = useState<'search' | 'profile' | 'booking'>('search');
-  const { language, isArabic } = useMarketingLanguage();
+  const { language: _language, isArabic: _isArabic } = useMarketingLanguage();
+  const language = 'en';
+  const isArabic = false;
 
   const copy = isArabic
     ? {
@@ -122,18 +124,18 @@ export function ProductPreview() {
       }
     : {
         heading: 'Your home, in good hands.',
-        description: 'Browse thousands of verified pros across Saudi Arabia, from AC repair to deep cleaning. Compare, message, and book in minutes.',
+        description: 'Browse verified pros in your area, from AC repair to deep cleaning. Compare, message, and book in minutes.',
         tabSearch: 'Search Results',
         tabProfile: 'Provider Profile',
         tabBooking: 'Booking Confirmed',
-        country: 'Saudi Arabia',
+        country: 'United States',
         search: 'Search',
-        searchSummary: 'AC Repair · Riyadh',
+        searchSummary: 'AC Repair · Austin',
         prosFound: '3 pros found',
         filters: 'Filters',
         topProOnly: 'Top Pro only',
         availableToday: 'Available today',
-        under200: 'Under SAR 200',
+        under200: 'Under $200',
         sort: 'Sort',
         bestMatch: 'Best Match',
         results: '3 results',
@@ -146,7 +148,7 @@ export function ProductPreview() {
         message: 'Message',
         getQuote: 'Get a Quote →',
         about: 'About',
-        aboutText: '12 years of experience servicing all major AC brands in Riyadh. Licensed technician, all work guaranteed, and available 7 days a week.',
+        aboutText: '12 years of experience servicing all major AC brands in the Austin area. Licensed technician, all work guaranteed, and available 7 days a week.',
         servicesPricing: 'Services & Pricing',
         recentReviews: 'Recent Reviews',
         bookingConfirmed: 'Booking Confirmed!',
@@ -656,7 +658,7 @@ export function ProductPreview() {
                   <div style={{ flex: 1 }}>
                     <div className="pp-profile-name">Khalid Al-Rashidi</div>
                     <div className="pp-profile-title">
-                      {copy.profileTitle} · {isArabic ? 'الرياض' : 'Riyadh'}
+                      {copy.profileTitle} · {isArabic ? 'Austin, TX' : 'Austin, TX'}
                     </div>
                     <div className="pp-profile-meta">
                       <span>★ 4.9 · 142 {copy.reviews}</span>
@@ -678,9 +680,9 @@ export function ProductPreview() {
 
                   <div className="pp-section-title">{copy.servicesPricing}</div>
                   {[
-                    { en: 'AC installation', ar: 'تركيب مكيف', priceEn: 'SAR 350+', priceAr: '350+ ريال' },
-                    { en: 'AC repair & maintenance', ar: 'تصليح وصيانة مكيف', priceEn: 'SAR 150+', priceAr: '150+ ريال' },
-                    { en: 'Duct cleaning', ar: 'تنظيف مجاري الهواء', priceEn: 'SAR 200+', priceAr: '200+ ريال' },
+                    { en: 'AC installation', ar: 'AC installation', priceEn: '$350+', priceAr: '$350+' },
+                    { en: 'AC repair & maintenance', ar: 'AC repair & maintenance', priceEn: '$150+', priceAr: '$150+' },
+                    { en: 'Duct cleaning', ar: 'Duct cleaning', priceEn: '$200+', priceAr: '$200+' },
                   ].map((item, i) => (
                     <div key={i} className="pp-service-row">
                       <span style={{ color: '#334155', fontWeight: 500 }}>{isArabic ? item.ar : item.en}</span>
@@ -711,10 +713,10 @@ export function ProductPreview() {
                   {[
                     { label: copy.service, value: isArabic ? 'تصليح وصيانة التكييف' : 'AC Repair & Maintenance' },
                     { label: copy.pro, value: 'Khalid Al-Rashidi' },
-                    { label: copy.date, value: isArabic ? 'الأربعاء 26 مارس 2026' : 'Wed, 26 March 2026' },
+                    { label: copy.date, value: isArabic ? 'Wed, March 26, 2026' : 'Wed, March 26, 2026' },
                     { label: copy.time, value: '10:00 AM' },
-                    { label: copy.location, value: isArabic ? 'الملقا، الرياض' : 'Al-Malqa, Riyadh' },
-                    { label: copy.estimate, value: isArabic ? '180 ريال' : 'SAR 180', valueClass: 'pp-booking-total' },
+                    { label: copy.location, value: isArabic ? 'Austin, TX' : 'Austin, TX' },
+                    { label: copy.estimate, value: isArabic ? '$180' : '$180', valueClass: 'pp-booking-total' },
                     { label: copy.payment, value: copy.paymentValue },
                   ].map((row, i) => (
                     <div key={i} className="pp-booking-row">

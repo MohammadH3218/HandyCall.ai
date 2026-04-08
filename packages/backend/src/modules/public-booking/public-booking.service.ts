@@ -6,7 +6,7 @@ import { SchedulingService } from '../scheduling/scheduling.service';
 import { AppointmentsService } from '../appointments/appointments.service';
 import { StripeConnectService } from '../billing/stripe-connect.service';
 import { CustomerPaymentsService } from '../billing/customer-payments.service';
-import { TelephonyService } from '../telephony/telephony.service';
+import { SmsService } from '../../infrastructure/sms/sms.service';
 import { parseHHmm, zonedTimeToUtcMs } from '../scheduling/timezone';
 import {
   PublicBookingCancelDto,
@@ -20,7 +20,6 @@ import { renderHandycallEmail } from '../../common/email-templates';
 import { AppointmentStatus, isValidEmail } from '@handycall/shared';
 import { signBookingToken, verifyBookingToken } from './booking-link.util';
 import { v4 as uuidv4 } from 'uuid';
-import { applyCompanyCallFlowToTemplate } from '../companies/company-call-flow.util';
 
 type BookingTemplate = {
   intake_schema?: {
@@ -108,7 +107,7 @@ export class PublicBookingService {
     private readonly appointments: AppointmentsService,
     private readonly stripeConnect: StripeConnectService,
     private readonly customerPayments: CustomerPaymentsService,
-    private readonly telephony: TelephonyService,
+    private readonly sms: SmsService,
   ) {}
 
   private getBookingSecret(): string {
@@ -327,7 +326,7 @@ export class PublicBookingService {
     const templateId = (company as any).service_template_id || 'tmpl_handyman_v1';
     try {
       const template = await this.dynamodb.get('service_templates', { template_id: templateId });
-      return applyCompanyCallFlowToTemplate(template as BookingTemplate, (company as any).call_flow_questions) as BookingTemplate;
+      return template as BookingTemplate;
     } catch {
       return undefined;
     }
@@ -479,8 +478,10 @@ export class PublicBookingService {
             contact_phone: appointment.contact_phone,
             address: appointment.address,
             notes: appointment.notes,
+            cancellation: this.appointments.getAppointmentCancellationInfo(company, appointment),
           }
         : undefined,
+      appointment_cancellation_policy: this.appointments.getAppointmentCancellationPolicy(company),
       collected_info: call?.collected_info,
       intake_schema: {
         required: fields.required,
@@ -1068,7 +1069,7 @@ export class PublicBookingService {
 
     if (dto.sms_consent === true) {
       try {
-        await this.telephony.sendSms(phone, this.buildOptInConfirmationMessage());
+        await this.sms.sendSms(phone, this.buildOptInConfirmationMessage());
       } catch (err) {
         console.warn('[public_booking] failed to send opt-in confirmation sms', err);
       }
@@ -1279,6 +1280,11 @@ export class PublicBookingService {
     if (!appointment) throw new NotFoundException('Appointment not found for this booking link');
     if (this.isAppointmentExpired(appointment)) {
       throw new BadRequestException('This booking link has expired.');
+    }
+
+    const cancellation = this.appointments.getAppointmentCancellationInfo(company, appointment);
+    if (!cancellation.can_cancel) {
+      throw new BadRequestException(cancellation.message);
     }
 
     await this.appointments.cancelAppointment(company.company_id, appointment.appointment_id);

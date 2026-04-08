@@ -3,7 +3,10 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Logo } from '@/components/ui/logo';
+import { signIn } from 'next-auth/react';
+import { SiteHeader } from '@/components/marketing/site-header';
+import { SiteFooter } from '@/components/marketing/site-footer';
+import { apiClient } from '@/lib/api-client';
 import {
   IconEye,
   IconEyeOff,
@@ -13,6 +16,22 @@ import {
   IconCircleCheck,
 } from '@tabler/icons-react';
 
+const GoogleIcon = ({ className }: { className?: string }) => (
+  <svg viewBox="0 0 48 48" className={className} aria-hidden="true">
+    <path fill="#EA4335" d="M24 9.5c3.54 0 6.72 1.22 9.22 3.6l6.9-6.9C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l8.04 6.24C12.6 13.09 17.86 9.5 24 9.5z" />
+    <path fill="#4285F4" d="M46.5 24c0-1.64-.15-3.22-.43-4.74H24v9h12.7c-.55 3-2.2 5.55-4.7 7.27l7.2 5.6C43.94 36.5 46.5 30.8 46.5 24z" />
+    <path fill="#FBBC05" d="M10.6 28.46c-.48-1.44-.76-2.98-.76-4.46s.27-3.02.76-4.46l-8.04-6.24C.92 16.16 0 19.97 0 24c0 4.03.92 7.84 2.56 11.2l8.04-6.24z" />
+    <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.9-5.77l-7.2-5.6c-2 1.35-4.56 2.13-8.7 2.13-6.14 0-11.4-3.59-13.4-8.72l-8.04 6.24C6.51 42.62 14.62 48 24 48z" />
+  </svg>
+);
+
+const AppleIcon = ({ className }: { className?: string }) => (
+  <svg viewBox="0 0 24 24" className={className} aria-hidden="true">
+    <path fill="currentColor" d="M16.7 12.3c0-2.1 1.7-3.1 1.7-3.1-1-1.5-2.6-1.7-3.1-1.7-1.3-.1-2.6.8-3.3.8-.7 0-1.8-.8-3-.8-1.5 0-2.9.9-3.7 2.2-1.6 2.7-.4 6.7 1.1 8.9.7 1.1 1.6 2.4 2.8 2.3 1.1 0 1.6-.7 2.9-.7 1.3 0 1.7.7 3 .7 1.2 0 2-.9 2.7-2 .9-1.3 1.2-2.6 1.2-2.7-.1 0-2.3-.9-2.3-3.9z" />
+    <path fill="currentColor" d="M14.9 4.2c.6-.7 1-1.7.9-2.7-.9.1-1.9.6-2.5 1.3-.6.7-1.1 1.7-.9 2.7 1 .1 2-.5 2.5-1.3z" />
+  </svg>
+);
+
 const BENEFITS = [
   { icon: IconStar, text: 'Read verified reviews from real customers' },
   { icon: IconCircleCheck, text: 'Book in minutes — no phone tag' },
@@ -21,47 +40,60 @@ const BENEFITS = [
 
 export default function SignUpPage() {
   const router = useRouter();
-  const [form, setForm] = useState({ name: '', email: '', password: '' });
+  const [form, setForm] = useState({ email: '', password: '', confirmPassword: '' });
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [agreed, setAgreed] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [socialLoading, setSocialLoading] = useState<'cognito-google-customer' | 'cognito-apple-customer' | null>(null);
 
   const set = (key: keyof typeof form, value: string) =>
     setForm((f) => ({ ...f, [key]: value }));
+
+  const handleSocialSignUp = async (provider: 'cognito-google-customer' | 'cognito-apple-customer') => {
+    setError(null);
+    setSocialLoading(provider);
+    try {
+      const result = await signIn(provider, { callbackUrl: '/customer/onboarding' });
+      if (result?.error) {
+        setError(result.error);
+        setSocialLoading(null);
+      }
+    } catch (err: any) {
+      setError(err?.message || 'Unable to start social sign-up.');
+      setSocialLoading(null);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!agreed) { setError('Please agree to the Terms and Privacy Policy.'); return; }
     if (form.password.length < 8) { setError('Password must be at least 8 characters.'); return; }
+    if (form.password !== form.confirmPassword) { setError('Passwords do not match.'); return; }
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch('/api/auth/signup', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+      await apiClient.register({
+        email: form.email.trim(),
+        password: form.password,
+        pool_type: 'customer',
       });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data?.message || 'Sign up failed. Please try again.');
-      }
-      router.push('/login?message=Account+created%21+Please+log+in.');
+      router.push(`/verify-email?email=${encodeURIComponent(form.email.trim())}&audience=customer`);
     } catch (err: any) {
-      setError(err.message);
+      setError(err?.message || 'Sign up failed. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="flex min-h-screen bg-white">
+    <div className="flex min-h-screen flex-col bg-white">
+      <SiteHeader hideLogin={true} />
+      <div className="flex flex-1">
       {/* Left panel — benefits */}
       <div className="hidden lg:flex lg:w-1/2 flex-col justify-center bg-slate-50 border-r border-slate-100 px-16 py-20">
-        <Link href="/">
-          <Logo width={148} height={36} />
-        </Link>
-        <div className="mt-14">
+        <div>
           <h2 className="text-3xl font-extrabold text-slate-900 leading-tight">
             Find trusted pros<br />for any home project.
           </h2>
@@ -87,18 +119,11 @@ export default function SignUpPage() {
 
       {/* Right panel — form */}
       <div className="flex flex-1 flex-col items-center justify-center px-6 py-12">
-        {/* Mobile logo */}
-        <div className="mb-8 lg:hidden">
-          <Link href="/">
-            <Logo width={140} height={34} />
-          </Link>
-        </div>
-
         <div className="w-full max-w-sm">
           <h1 className="text-2xl font-bold text-slate-900">Create your account</h1>
           <p className="mt-1 text-sm text-slate-500">
             Already have one?{' '}
-            <Link href="/login" className="font-semibold text-emerald-600 hover:text-emerald-700">
+            <Link href="/customer/login" className="font-semibold text-emerald-600 hover:text-emerald-700">
               Log in
             </Link>
           </p>
@@ -109,19 +134,35 @@ export default function SignUpPage() {
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="mt-6 space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">Full name</label>
-              <input
-                type="text"
-                required
-                placeholder="Jane Smith"
-                value={form.name}
-                onChange={(e) => set('name', e.target.value)}
-                className="w-full rounded-lg border border-slate-200 px-3.5 py-2.5 text-sm text-slate-900 placeholder-slate-400 outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
-              />
-            </div>
+          {/* Social sign-up */}
+          <div className="mt-6 space-y-2.5">
+            <button
+              type="button"
+              onClick={() => handleSocialSignUp('cognito-google-customer')}
+              disabled={loading || Boolean(socialLoading)}
+              className="flex h-11 w-full items-center justify-center gap-3 rounded-lg border border-slate-200 bg-white text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <GoogleIcon className="h-4 w-4" />
+              {socialLoading === 'cognito-google-customer' ? 'Connecting to Google…' : 'Continue with Google'}
+            </button>
+            <button
+              type="button"
+              onClick={() => handleSocialSignUp('cognito-apple-customer')}
+              disabled={loading || Boolean(socialLoading)}
+              className="flex h-11 w-full items-center justify-center gap-3 rounded-lg border border-slate-200 bg-white text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <AppleIcon className="h-4 w-4" />
+              {socialLoading === 'cognito-apple-customer' ? 'Connecting to Apple…' : 'Continue with Apple'}
+            </button>
+          </div>
 
+          <div className="my-5 flex items-center gap-3">
+            <span className="h-px flex-1 bg-slate-200" />
+            <span className="text-xs text-slate-400">or sign up with email</span>
+            <span className="h-px flex-1 bg-slate-200" />
+          </div>
+
+          <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1.5">Email</label>
               <input
@@ -156,6 +197,37 @@ export default function SignUpPage() {
                   }
                 </button>
               </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1.5">Confirm password</label>
+              <div className="relative">
+                <input
+                  type={showConfirmPassword ? 'text' : 'password'}
+                  required
+                  placeholder="Re-enter your password"
+                  value={form.confirmPassword}
+                  onChange={(e) => set('confirmPassword', e.target.value)}
+                  className={`w-full rounded-lg border px-3.5 py-2.5 pr-10 text-sm text-slate-900 placeholder-slate-400 outline-none focus:ring-2 ${
+                    form.confirmPassword && form.confirmPassword !== form.password
+                      ? 'border-red-300 focus:border-red-400 focus:ring-red-100'
+                      : 'border-slate-200 focus:border-emerald-400 focus:ring-emerald-100'
+                  }`}
+                />
+                <button
+                  type="button"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                >
+                  {showConfirmPassword
+                    ? <IconEyeOff className="h-4 w-4" stroke={1.5} />
+                    : <IconEye className="h-4 w-4" stroke={1.5} />
+                  }
+                </button>
+              </div>
+              {form.confirmPassword && form.confirmPassword !== form.password && (
+                <p className="mt-1 text-xs text-red-500">Passwords do not match</p>
+              )}
             </div>
 
             <label className="flex items-start gap-2.5 cursor-pointer">
@@ -193,6 +265,8 @@ export default function SignUpPage() {
           </p>
         </div>
       </div>
+      </div>
+      <SiteFooter />
     </div>
   );
 }

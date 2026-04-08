@@ -1,6 +1,6 @@
-import { IsString, IsOptional, IsObject, IsBoolean, IsNumber, IsIn, IsArray, IsEnum } from 'class-validator';
+import { IsString, IsOptional, IsObject, IsBoolean, IsNumber, IsIn, IsArray, IsEnum } from 'class-validator'; // IsEnum kept for ServiceType
 import { Transform } from 'class-transformer';
-import { BusinessHours, ServiceType, CallHandlingMode } from '@handycall/shared';
+import { BusinessHours, ServiceType, AppointmentCancellationPolicy } from '@handycall/shared';
 
 const normalizeScheduleOverrides = (value: any) => {
   if (!value) return value;
@@ -42,73 +42,6 @@ const normalizeScheduleOverrides = (value: any) => {
       })
       .filter(Boolean);
   }
-  return value;
-};
-
-const normalizeCallFlowQuestions = (value: any) => {
-  if (!value) return value;
-
-  const normalizeEntry = (entry: any, index: number) => {
-    if (!entry) return null;
-
-    if (typeof entry === 'string') {
-      try {
-        entry = JSON.parse(entry);
-      } catch {
-        return null;
-      }
-    }
-
-    if (typeof entry !== 'object' || Array.isArray(entry)) {
-      return null;
-    }
-
-    const prompt = typeof entry.prompt === 'string' ? entry.prompt.trim() : '';
-    if (!prompt) return null;
-
-    const label =
-      typeof entry.label === 'string' && entry.label.trim()
-        ? entry.label.trim()
-        : `Question ${index + 1}`;
-
-    const fieldKeyRaw =
-      typeof entry.field_key === 'string' && entry.field_key.trim()
-        ? entry.field_key.trim()
-        : `custom_question_${index + 1}`;
-
-    const fieldKey = fieldKeyRaw
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '_')
-      .replace(/^_+|_+$/g, '') || `custom_question_${index + 1}`;
-
-    return {
-      id:
-        typeof entry.id === 'string' && entry.id.trim()
-          ? entry.id.trim()
-          : `${fieldKey}-${index + 1}`,
-      field_key: fieldKey,
-      label,
-      prompt,
-      helper_text: typeof entry.helper_text === 'string' ? entry.helper_text : undefined,
-      required: entry.required !== false,
-      enabled: entry.enabled !== false,
-      order: Number.isFinite(Number(entry.order)) ? Number(entry.order) : index,
-    };
-  };
-
-  if (Array.isArray(value)) {
-    return value.map(normalizeEntry).filter(Boolean);
-  }
-
-  if (typeof value === 'string') {
-    try {
-      const parsed = JSON.parse(value);
-      return Array.isArray(parsed) ? parsed.map(normalizeEntry).filter(Boolean) : value;
-    } catch {
-      return value;
-    }
-  }
-
   return value;
 };
 
@@ -160,37 +93,16 @@ export class UpdateCompanyDto {
   slot_interval_minutes?: number;
 
   @IsOptional()
+  @IsObject()
+  appointment_cancellation_policy?: AppointmentCancellationPolicy;
+
+  @IsOptional()
   @IsBoolean()
   calls_enabled?: boolean;
 
   @IsOptional()
   @IsBoolean()
   sms_enabled?: boolean;
-
-  @IsOptional()
-  @IsBoolean()
-  transfer_enabled?: boolean;
-
-  @IsOptional()
-  @IsString()
-  transfer_number?: string;
-
-  @IsOptional()
-  @IsEnum(CallHandlingMode)
-  call_handling_mode?: CallHandlingMode;
-
-  // AWS Connect fields
-  @IsOptional()
-  @IsString()
-  connect_phone_number_id?: string;
-
-  @IsOptional()
-  @IsString()
-  connect_phone_number?: string;
-
-  @IsOptional()
-  @IsString()
-  connect_instance_id?: string;
 
   @IsOptional()
   @IsBoolean()
@@ -236,21 +148,6 @@ export class UpdateCompanyDto {
   marketplace_profile?: Record<string, any>;
 
   @IsOptional()
-  @IsArray()
-  @IsObject({ each: true })
-  @Transform(({ value }) => normalizeCallFlowQuestions(value))
-  call_flow_questions?: Array<{
-    id: string;
-    field_key: string;
-    label: string;
-    prompt: string;
-    helper_text?: string;
-    required?: boolean;
-    enabled?: boolean;
-    order?: number;
-  }>;
-
-  @IsOptional()
   @IsBoolean()
   company_profile_completed?: boolean;
 
@@ -261,6 +158,10 @@ export class UpdateCompanyDto {
   @IsOptional()
   @IsBoolean()
   marketplace_profile_completed?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  public_profile_enabled?: boolean;
 
   @IsOptional()
   @IsString()

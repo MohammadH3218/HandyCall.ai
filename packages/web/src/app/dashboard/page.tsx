@@ -2,6 +2,7 @@
 
 import { type ReactNode, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import {
   IconAlertTriangle,
   IconArrowRight,
@@ -12,6 +13,8 @@ import {
 } from '@tabler/icons-react';
 import { apiClient } from '@/lib/api-client';
 import { useAuthStore } from '@/stores/auth-store';
+import { normalizePlan } from '@/constants/plans';
+import { SubscriptionPlan } from '@handycall/shared';
 import { PageHeader } from '@/components/portal/page-header';
 
 type DashboardOverview = {
@@ -69,10 +72,20 @@ function formatDate(ts?: number) {
 
 export default function DashboardPage() {
   const { company } = useAuthStore();
+  const router = useRouter();
+  const companyPlan = normalizePlan(company?.subscription_plan as SubscriptionPlan | null | undefined);
+  const isStarter = companyPlan === SubscriptionPlan.STARTER;
   const [overview, setOverview] = useState<DashboardOverview | null>(null);
   const [connectStatus, setConnectStatus] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Starter plan has no main dashboard — redirect to marketplace
+  useEffect(() => {
+    if (isStarter) {
+      router.replace('/dashboard/marketplace/requests');
+    }
+  }, [isStarter, router]);
 
   const load = async () => {
     try {
@@ -98,7 +111,12 @@ export default function DashboardPage() {
   const usageBlocked = useMemo(() => {
     const usage = overview?.usage_summary;
     if (!usage) return false;
-    return usage.minutes.blocked || usage.sms.blocked || usage.contacts.blocked;
+    // Only show the banner if there is actually a limit set (limit > 0).
+    // Starter plan has no AI minutes so limit is 0 — don't flag that as "blocked".
+    const minutesBlocked = usage.minutes.blocked && usage.minutes.limit > 0;
+    const smsBlocked = usage.sms.blocked && usage.sms.limit > 0;
+    const contactsBlocked = usage.contacts.blocked && usage.contacts.limit > 0;
+    return minutesBlocked || smsBlocked || contactsBlocked;
   }, [overview]);
 
   if (loading) {

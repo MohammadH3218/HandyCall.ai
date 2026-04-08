@@ -15,7 +15,6 @@ import { loadStripe } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useElements, useStripe } from '@stripe/react-stripe-js';
 import {
   IconArrowRight,
-  IconBrain,
   IconBrandApple,
   IconBrandGoogle,
   IconBrandWindows,
@@ -25,7 +24,6 @@ import {
   IconCreditCard,
   IconLoader2,
   IconMapPin,
-  IconPhone,
   IconSparkles,
   IconUser,
   IconX,
@@ -33,16 +31,13 @@ import {
 import { useOnboarding } from '@/components/onboarding/onboarding-context';
 import { useAuthStore } from '@/stores/auth-store';
 import { apiClient } from '@/lib/api-client';
-import {
-  createDefaultCallFlowQuestions,
-  getKnowledgeBasePromptSuggestions,
-} from '@/constants/company-templates';
+
 import { DEFAULT_TIMEZONE } from '@/constants/timezones';
 import { PLAN_CATALOG, getPlanPriceDisplay, normalizePlan } from '@/constants/plans';
-import { SAUDI_CITIES } from '@/constants/saudi-marketplace';
+import { HOUSTON_CITIES } from '@/constants/houston-marketplace';
 import { MARKETPLACE_SERVICE_CATEGORIES } from '@/constants/marketplace-service-categories';
-import { CompanyCallFlowQuestion, ServiceType, SubscriptionPlan } from '@handycall/shared';
-import { CallFlowEditor } from '@/components/company/call-flow-editor';
+import { ServiceType, SubscriptionPlan } from '@handycall/shared';
+
 import { useMarketingLanguage } from '@/components/providers/marketing-language-provider';
 import { cn } from '@/lib/utils';
 
@@ -57,10 +52,6 @@ type Phase =
   | 'calendar_hours'
   | 'calendar_provider'
   | 'calendar_apple'
-  | 'phone_choice'
-  | 'phone_forward'
-  | 'knowledge_chat'
-  | 'call_flow_editor'
   | 'billing_payment_mode'
   | 'billing_plan'
   | 'billing_payment'
@@ -128,7 +119,7 @@ const SETUP_TRANSLATIONS: Record<string, string> = {
   'For Pro and Max, the AI receptionist needs live availability before it can book qualified leads.':
     'في خطتي Pro و Max يحتاج موظف الاستقبال الذكي إلى توفر مباشر قبل حجز العملاء المؤهلين.',
   'Set your working hours': 'حدد ساعات العمل',
-  'We default to the Saudi work week. Customers will only be offered times inside these hours.':
+  'We default to Mon-Fri. Customers will only be offered times inside these hours.':
     'نستخدم أسبوع العمل السعودي افتراضيًا. سيُعرض على العملاء فقط الأوقات ضمن هذه الساعات.',
   'Connect your calendar': 'اربط التقويم الخاص بك',
   'Sync with Google, Microsoft, or Apple so the AI books around your real schedule.':
@@ -137,7 +128,7 @@ const SETUP_TRANSLATIONS: Record<string, string> = {
   'Use an app-specific password from your Apple ID settings.':
     'استخدم كلمة مرور خاصة بالتطبيق من إعدادات Apple ID.',
   'How should calls reach your AI receptionist?': 'كيف يجب أن تصل المكالمات إلى موظف الاستقبال الذكي؟',
-  'You can forward your existing Saudi business number or use a temporary HandyCall number while you test.':
+  'You can forward your existing business number or use a temporary HandyCall number while you test.':
     'يمكنك تحويل رقم نشاطك الحالي في السعودية أو استخدام رقم مؤقت من HandyCall أثناء التجربة.',
   'Enter the number you already use': 'أدخل الرقم الذي تستخدمه الآن',
   'Customers keep calling the same number while HandyCall handles the first touch.':
@@ -191,7 +182,7 @@ const SETUP_TRANSLATIONS: Record<string, string> = {
   'What you will set up here': 'ما الذي ستقوم بإعداده هنا',
   'Your public profile includes the cities you serve, services offered, starting price, trust badges, business hours, payment methods, and project photos.':
     'يتضمن ملفك العام المدن التي تخدمها والخدمات التي تقدمها والسعر الابتدائي وعناصر الثقة وساعات العمل ووسائل الدفع وصور المشاريع.',
-  'Saudi service coverage': 'نطاق الخدمة داخل السعودية',
+  'Houston service coverage': 'نطاق الخدمة داخل السعودية',
   'Thumbtack-style trust signals': 'عناصر الثقة على طريقة Thumbtack',
   'Build marketplace profile': 'أنشئ ملف السوق',
   'Change tier': 'غيّر الباقة',
@@ -201,7 +192,7 @@ const SETUP_TRANSLATIONS: Record<string, string> = {
   'Connect my existing calendar': 'اربط تقويمي الحالي',
   'Use Google, Outlook, or Apple if your team already lives in another calendar.':
     'استخدم Google أو Outlook أو Apple إذا كان فريقك يعتمد بالفعل على تقويم آخر.',
-  'Default Saudi work week': 'أسبوع العمل السعودي الافتراضي',
+  'Standard work week (Mon-Fri)': 'أسبوع العمل السعودي الافتراضي',
   'Sunday through Thursday starts open by default. Friday and Saturday start closed, but you can adjust any day.':
     'يبدأ الأحد إلى الخميس كمفتوح افتراضيًا. ويبدأ الجمعة والسبت كمغلقين، لكن يمكنك تعديل أي يوم.',
   Open: 'مفتوح',
@@ -222,7 +213,7 @@ const SETUP_TRANSLATIONS: Record<string, string> = {
     'مفيد أثناء اختبار الذكاء الاصطناعي قبل تحويل خطك الفعلي.',
   'Dedicated long-term number sourcing can still be configured later from your dashboard settings.':
     'لا يزال بإمكانك إعداد رقم مخصص طويل المدى لاحقًا من إعدادات لوحة التحكم.',
-  'Example: We handle split AC repair in Riyadh and Khobar. Standard diagnostics start at SAR 149 and same-day emergency visits add SAR 90. Customers should switch the unit off if water is leaking...':
+  'Example: We handle AC repair in Houston Heights and Katy. Standard diagnostics start at $99 and same-day emergency visits add $75. Customers should switch the unit off if water is leaking...':
     'مثال: نحن نقدم إصلاح المكيفات السبلت في الرياض والخبر. تبدأ رسوم المعاينة من 149 ريال، وتضاف 90 ريالًا للزيارات الطارئة في نفس اليوم. يجب على العميل إطفاء الوحدة إذا كان هناك تسرب مياه...',
   'Save number': 'حفظ الرقم',
   'What to include here': 'ما الذي ينبغي إضافته هنا',
@@ -353,56 +344,6 @@ function normalizeHours(source: any): CalendarHours {
   return base;
 }
 
-function normalizeCallFlowQuestions(
-  questions: CompanyCallFlowQuestion[] | undefined | null
-): CompanyCallFlowQuestion[] {
-  if (!Array.isArray(questions)) return [];
-  return questions
-    .map((question, index) => ({
-      ...question,
-      id: String(question?.id || `${question?.field_key || 'question'}-${index + 1}`),
-      field_key: String(question?.field_key || '').trim(),
-      label: String(question?.label || '').trim(),
-      prompt: String(question?.prompt || '').trim(),
-      required: question?.required !== false,
-      enabled: question?.enabled !== false,
-      order: Number.isFinite(Number(question?.order)) ? Number(question?.order) : index,
-    }))
-    .filter((question) => question.field_key && question.label && question.prompt)
-    .sort((a, b) => Number(a.order || 0) - Number(b.order || 0))
-    .map((question, index) => ({ ...question, order: index }));
-}
-
-function sanitizeCallFlowQuestions(
-  questions: CompanyCallFlowQuestion[]
-): CompanyCallFlowQuestion[] {
-  return normalizeCallFlowQuestions(questions)
-    .filter((question) => question.enabled !== false)
-    .map((question, index) => {
-      const prompt = String(question.prompt || '').trim();
-      const label =
-        String(question.label || `Question ${index + 1}`).trim() || `Question ${index + 1}`;
-      const fieldKey =
-        String(question.field_key || '')
-          .trim()
-          .toLowerCase()
-          .replace(/[^a-z0-9]+/g, '_')
-          .replace(/^_+|_+$/g, '') || `custom_question_${index + 1}`;
-
-      return {
-        id: String(question.id || `${fieldKey}-${index + 1}`),
-        field_key: fieldKey,
-        label,
-        prompt,
-        helper_text: question.helper_text ? String(question.helper_text) : undefined,
-        required: true,
-        enabled: true,
-        order: index,
-      };
-    })
-    .filter((question) => question.prompt.length > 0);
-}
-
 function isPaidTier(plan: SubscriptionPlan | null | undefined) {
   return plan === SubscriptionPlan.PRO || plan === SubscriptionPlan.MAX;
 }
@@ -421,8 +362,8 @@ function getSetupGroups(plan: SubscriptionPlan | null | undefined, isArabic: boo
     { group: 1, label: setupText('Choose tier', isArabic) },
     { group: 2, label: setupText('Business basics', isArabic) },
     { group: 3, label: setupText('Marketplace profile', isArabic) },
-    { group: 4, label: setupText('AI calling setup', isArabic) },
-    { group: 5, label: setupText('Billing & launch', isArabic) },
+
+    { group: 4, label: setupText('Billing & launch', isArabic) },
   ];
 }
 
@@ -449,10 +390,6 @@ function getPhaseSequence(plan: SubscriptionPlan | null | undefined): Phase[] {
     'calendar_hours',
     'calendar_provider',
     'calendar_apple',
-    'phone_choice',
-    'phone_forward',
-    'knowledge_chat',
-    'call_flow_editor',
     'billing_payment_mode',
     'billing_plan',
     'billing_connect',
@@ -478,12 +415,8 @@ function getPhaseGroup(phase: Phase, plan: SubscriptionPlan | null | undefined) 
     case 'calendar_hours':
     case 'calendar_provider':
     case 'calendar_apple':
-    case 'phone_choice':
-    case 'phone_forward':
-    case 'knowledge_chat':
-    case 'call_flow_editor':
     case 'billing_payment_mode':
-      return plan === SubscriptionPlan.STARTER ? 4 : 4;
+      return 4;
     case 'billing_plan':
     case 'billing_payment':
     case 'billing_connect':
@@ -546,7 +479,7 @@ function getStepMeta(
       meta = {
         title: 'Set your working hours',
         description:
-          'We default to the Saudi work week. Customers will only be offered times inside these hours.',
+          'We default to Mon-Fri. Customers will only be offered times inside these hours.',
       };
       break;
     case 'calendar_provider':
@@ -559,33 +492,6 @@ function getStepMeta(
       meta = {
         title: 'Connect Apple Calendar',
         description: 'Use an app-specific password from your Apple ID settings.',
-      };
-      break;
-    case 'phone_choice':
-      meta = {
-        title: 'How should calls reach your AI receptionist?',
-        description:
-          'You can forward your existing Saudi business number or use a temporary HandyCall number while you test.',
-      };
-      break;
-    case 'phone_forward':
-      meta = {
-        title: 'Enter the number you already use',
-        description: 'Customers keep calling the same number while HandyCall handles the first touch.',
-      };
-      break;
-    case 'knowledge_chat':
-      meta = {
-        title: 'Teach the AI how your business works',
-        description:
-          'Add service details, pricing expectations, what is included, and the policies your team repeats every day.',
-      };
-      break;
-    case 'call_flow_editor':
-      meta = {
-        title: 'Shape the intake questions your AI will ask',
-        description:
-          'Keep the questions tight and relevant so customers qualify quickly before booking or payment.',
       };
       break;
     case 'billing_payment_mode':
@@ -827,7 +733,7 @@ function StripePaymentForm({
 
 function OnboardingSetupContent() {
   const { isArabic } = useMarketingLanguage();
-  const { loading, company, status, refreshAll, refreshKnowledge, refreshCompanyNumber } =
+  const { loading, company, status, refreshAll } =
     useOnboarding();
   const { setCompany } = useAuthStore();
   const router = useRouter();
@@ -841,18 +747,14 @@ function OnboardingSetupContent() {
   const [errMsg, setErrMsg] = useState<string | null>(null);
 
   const [nameInput, setNameInput] = useState('');
+  const [phoneInput, setPhoneInput] = useState('');
   const [companyInput, setCompanyInput] = useState('');
   const [calendarHours, setCalendarHours] = useState<CalendarHours>(defaultHours());
   const [calendarTimezone, setCalendarTimezone] = useState(DEFAULT_TIMEZONE);
   const [appleEmail, setAppleEmail] = useState('');
   const [applePass, setApplePass] = useState('');
-  const [forwardNumber, setForwardNumber] = useState('');
   const [showOtherInput, setShowOtherInput] = useState(false);
   const [otherServiceInput, setOtherServiceInput] = useState('');
-  const [callFlowQuestions, setCallFlowQuestions] = useState<CompanyCallFlowQuestion[]>([]);
-  const [kbInput, setKbInput] = useState('');
-  const [kbGenerating, setKbGenerating] = useState(false);
-  const [kbError, setKbError] = useState<string | null>(null);
   const [selectedPlan, setSelectedPlan] = useState<SubscriptionPlan | null>(null);
   const [selectedPaymentMode, setSelectedPaymentMode] = useState<
     'HANDYCALL_MANAGED' | 'SELF_MANAGED' | null
@@ -913,16 +815,7 @@ function OnboardingSetupContent() {
         case 'calendar_provider':
         case 'calendar_apple':
           return status.calendar || resolvedPlan === SubscriptionPlan.STARTER;
-        case 'phone_choice':
-        case 'phone_forward':
-          return status.phone || resolvedPlan === SubscriptionPlan.STARTER;
-        case 'knowledge_chat':
-          return status.knowledge || resolvedPlan === SubscriptionPlan.STARTER;
-        case 'call_flow_editor':
-          return (
-            resolvedPlan === SubscriptionPlan.STARTER ||
-            Boolean(normalizeCallFlowQuestions((company as any)?.call_flow_questions).length)
-          );
+
         case 'billing_payment_mode':
           return (
             resolvedPlan === SubscriptionPlan.STARTER ||
@@ -1077,32 +970,8 @@ function OnboardingSetupContent() {
     if (company?.company_name) setCompanyInput(String(company.company_name));
     if (company?.timezone) setCalendarTimezone(String(company.timezone));
     if (company?.business_hours) setCalendarHours(normalizeHours(company.business_hours));
-    if (company?.phone_number) setForwardNumber(String(company.phone_number));
     if ((company as any)?.booking_payment_mode) {
       setSelectedPaymentMode((company as any).booking_payment_mode);
-    }
-    if (Array.isArray((company as any)?.call_flow_questions) && (company as any).call_flow_questions.length > 0) {
-      setCallFlowQuestions(normalizeCallFlowQuestions((company as any).call_flow_questions));
-    } else if (company?.service_type) {
-      setCallFlowQuestions(createDefaultCallFlowQuestions(company.service_type as ServiceType));
-    }
-
-    const companyMarketplaceProfile = (company as any)?.marketplace_profile;
-    if (!status.knowledge && companyMarketplaceProfile?.bio) {
-      const draft = [
-        companyMarketplaceProfile.bio,
-        Array.isArray(companyMarketplaceProfile.services_offered) &&
-        companyMarketplaceProfile.services_offered.length > 0
-          ? `Services offered: ${companyMarketplaceProfile.services_offered.join(', ')}`
-          : null,
-        Array.isArray(companyMarketplaceProfile.service_cities) &&
-        companyMarketplaceProfile.service_cities.length > 0
-          ? `Cities served: ${companyMarketplaceProfile.service_cities.join(', ')}`
-          : null,
-      ]
-        .filter(Boolean)
-        .join('\n');
-      setKbInput(draft);
     }
 
     void (async () => {
@@ -1146,12 +1015,6 @@ function OnboardingSetupContent() {
         }
       } else if (!status.calendar) {
         goTo('calendar_mode');
-      } else if (!status.phone) {
-        goTo('phone_choice');
-      } else if (!status.knowledge) {
-        goTo('knowledge_chat');
-      } else if (!(company as any)?.call_flow_questions?.length) {
-        goTo('call_flow_editor');
       } else if (!(company as any)?.booking_payment_mode_confirmed) {
         goTo('billing_payment_mode');
       } else if (needsManagedConnect) {
@@ -1211,34 +1074,34 @@ function OnboardingSetupContent() {
       goTo('calendar_mode');
       return;
     }
-    if (!status.phone) {
-      goTo('phone_choice');
-      return;
-    }
-    if (!status.knowledge) {
-      goTo('knowledge_chat');
-      return;
-    }
     goTo('billing_plan');
   };
 
   const handleProfileName = async () => {
     const name = nameInput.trim();
     if (!name) return;
+    const phone = phoneInput.trim();
+    if (!phone) {
+      setErrMsg(isArabic ? 'رقم الهاتف مطلوب.' : 'Phone number is required.');
+      return;
+    }
     const nameParts = name.split(/\s+/).filter(Boolean);
     const firstName = nameParts[0];
     const lastName = nameParts.slice(1).join(' ') || undefined;
+    const phoneNumber = `+1${phone.replace(/\D/g, '').slice(0, 10)}`;
     setIsSaving(true);
     try {
       await Promise.all([
         apiClient.updateMyProfile({
           first_name: firstName || undefined,
           last_name: lastName,
+          phone_number: phoneNumber,
         }),
         apiClient.updateMyCompany({ owner_name: name }),
       ]);
       await refreshAll();
       setNameInput('');
+      setPhoneInput('');
       goTo('company_name');
     } catch {
       setErrMsg('Could not save your name. Try again.');
@@ -1263,7 +1126,6 @@ function OnboardingSetupContent() {
   }) => {
     setShowOtherInput(false);
     setOtherServiceInput('');
-    const defaultQuestions = createDefaultCallFlowQuestions(serviceType);
     setIsSaving(true);
     try {
       await apiClient.updateMyCompany({
@@ -1271,13 +1133,11 @@ function OnboardingSetupContent() {
         timezone: DEFAULT_TIMEZONE,
         company_profile_completed: true,
         service_type: serviceType,
-        call_flow_questions: defaultQuestions,
         marketplace_profile: {
           ...(((company as any)?.marketplace_profile || {}) as Record<string, any>),
           service_category: categoryTitle,
         },
       });
-      setCallFlowQuestions(defaultQuestions);
       setCalendarTimezone(DEFAULT_TIMEZONE);
       await refreshAll();
       goTo('marketplace_profile_intro');
@@ -1320,7 +1180,7 @@ function OnboardingSetupContent() {
       });
       setCompany(updated);
       await refreshAll();
-      goTo('phone_choice');
+      goTo('billing_payment_mode');
     } catch {
       setErrMsg('Could not save your calendar settings.');
     } finally {
@@ -1368,99 +1228,9 @@ function OnboardingSetupContent() {
       });
       await apiClient.connectAppleCalendar(appleEmail, applePass);
       await refreshAll();
-      goTo('phone_choice');
-    } catch (err: any) {
-      setErrMsg(err?.message || 'Could not connect Apple Calendar.');
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  const handlePhoneChoice = async (choice: 'forward' | 'demo') => {
-    if (choice === 'forward') {
-      goTo('phone_forward');
-      return;
-    }
-    setIsSaving(true);
-    try {
-      await apiClient.claimDemoPhoneNumber();
-      await refreshCompanyNumber();
-      await refreshAll();
-      goTo('knowledge_chat');
-    } catch (err: any) {
-      setErrMsg(err?.message || 'Could not assign a temporary setup number.');
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  const handleSaveForwarding = async () => {
-    if (!forwardNumber.trim()) {
-      setErrMsg('Enter your business number.');
-      return;
-    }
-    setIsSaving(true);
-    try {
-      const updated = await apiClient.updateMyCompany({ phone_number: forwardNumber.trim() });
-      setCompany(updated);
-      await refreshAll();
-      goTo('knowledge_chat');
-    } catch {
-      setErrMsg('Could not save your number.');
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  const handleGenerateKnowledge = async () => {
-    setKbGenerating(true);
-    setKbError(null);
-    const draft = kbInput.trim();
-    if (!draft) {
-      setKbError('Add some business details first so we can build your knowledge base.');
-      setKbGenerating(false);
-      return;
-    }
-    const messages = [{ role: 'user' as const, content: draft }];
-    try {
-      await Promise.all([
-        apiClient.knowledgeAssistantGenerate(messages, true),
-        apiClient.knowledgeExtractProducts(messages).catch(() => ({ created_count: 0 })),
-      ]);
-      await refreshKnowledge();
-      await refreshAll();
-      goTo('call_flow_editor');
-    } catch (err: any) {
-      setKbError(err?.message || 'Could not generate the knowledge base. Try again.');
-    } finally {
-      setKbGenerating(false);
-    }
-  };
-
-  const handleSaveCallFlow = async () => {
-    const normalized = sanitizeCallFlowQuestions(callFlowQuestions);
-    if (normalized.length === 0) {
-      setErrMsg('Keep at least one intake question before continuing.');
-      return;
-    }
-    setIsSaving(true);
-    try {
-      await apiClient.updateMyCompany({
-        call_flow_questions: normalized.map((question) => ({
-          id: question.id,
-          field_key: question.field_key,
-          label: question.label,
-          prompt: question.prompt,
-          helper_text: question.helper_text,
-          required: true,
-          enabled: true,
-          order: question.order,
-        })),
-      });
-      await refreshAll();
       goTo('billing_payment_mode');
     } catch (err: any) {
-      setErrMsg(err?.message || 'Could not save your AI intake flow.');
+      setErrMsg(err?.message || 'Could not connect Apple Calendar.');
     } finally {
       setIsSaving(false);
     }
@@ -1658,14 +1428,34 @@ function OnboardingSetupContent() {
               type="text"
               value={nameInput}
               onChange={(event) => setNameInput(event.target.value)}
-              onKeyDown={(event) => event.key === 'Enter' && void handleProfileName()}
+              onKeyDown={(event) => event.key === 'Enter' && phoneInput.trim() && void handleProfileName()}
               placeholder={isArabic ? 'مثال: محمد الحمدالله' : 'e.g. Mohammad Hamdallah'}
               disabled={isSaving}
               className="w-full rounded-xl border border-input bg-background px-4 py-3 text-base text-foreground placeholder:text-muted-foreground/70 outline-none ring-offset-background transition-all focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50"
             />
+            <div>
+              <p className="mb-1.5 text-sm font-medium text-foreground">
+                {isArabic ? 'رقم الهاتف' : 'Phone number'}
+              </p>
+              <div className="flex overflow-hidden rounded-xl border border-input focus-within:ring-2 focus-within:ring-ring">
+                <span className="flex items-center bg-muted px-3 text-sm font-medium text-muted-foreground border-r border-input shrink-0">
+                  +1
+                </span>
+                <input
+                  type="tel"
+                  inputMode="numeric"
+                  value={phoneInput}
+                  onChange={(e) => setPhoneInput(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                  onKeyDown={(event) => event.key === 'Enter' && nameInput.trim() && phoneInput.trim() && void handleProfileName()}
+                  placeholder={isArabic ? '(555) 123-4567' : '(555) 123-4567'}
+                  disabled={isSaving}
+                  className="flex-1 bg-background px-4 py-3 text-base text-foreground placeholder:text-muted-foreground/70 outline-none disabled:opacity-50"
+                />
+              </div>
+            </div>
             <PrimaryButton
               onClick={handleProfileName}
-              disabled={!nameInput.trim() || isSaving}
+              disabled={!nameInput.trim() || !phoneInput.trim() || isSaving}
               loading={isSaving}
             >
               {t('Continue')}
@@ -1685,7 +1475,7 @@ function OnboardingSetupContent() {
               onKeyDown={(event) =>
                 event.key === 'Enter' && companyInput.trim() && void handleCompanyName()
               }
-              placeholder={isArabic ? 'مثال: خدمات تكييف النخبة بالرياض' : 'e.g. Riyadh Elite AC Services'}
+              placeholder={isArabic ? 'مثال: خدمات تكييف النخبة بالرياض' : 'e.g. Houston Heights AC Services'}
               disabled={isSaving}
               className="w-full rounded-xl border border-input bg-background px-4 py-3 text-base text-foreground placeholder:text-muted-foreground/70 outline-none ring-offset-background transition-all focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50"
             />
@@ -1832,11 +1622,11 @@ function OnboardingSetupContent() {
               </div>
               <div className="mt-5 grid gap-3 sm:grid-cols-2">
                 <div className="rounded-2xl bg-muted/60 p-4">
-                  <p className="text-sm font-semibold text-foreground">{t('Saudi service coverage')}</p>
+                  <p className="text-sm font-semibold text-foreground">{t('Houston service coverage')}</p>
                   <p className="mt-1 text-sm text-muted-foreground">
                     {isArabic
-                      ? `اختر مدنًا مثل ${SAUDI_CITIES.slice(0, 4).join('، ')} وغيرها.`
-                      : `Choose cities like ${SAUDI_CITIES.slice(0, 4).join(', ')}, and more.`}
+                      ? `اختر مدنًا مثل ${HOUSTON_CITIES.slice(0, 4).join('، ')} وغيرها.`
+                      : `Choose cities like ${HOUSTON_CITIES.slice(0, 4).join(', ')}, and more.`}
                   </p>
                 </div>
                 <div className="rounded-2xl bg-muted/60 p-4">
@@ -1887,7 +1677,7 @@ function OnboardingSetupContent() {
         return (
           <div className="space-y-4">
             <div className="rounded-2xl border border-border bg-card p-4">
-              <p className="text-sm font-semibold text-foreground">{t('Default Saudi work week')}</p>
+              <p className="text-sm font-semibold text-foreground">{t('Standard work week (Mon-Fri)')}</p>
               <p className="mt-1 text-sm text-muted-foreground">
                 {t(
                   'Sunday through Thursday starts open by default. Friday and Saturday start closed, but you can adjust any day.'
@@ -2027,128 +1817,6 @@ function OnboardingSetupContent() {
             >
               <IconCheck className="h-4 w-4" stroke={2} />
               {t('Connect Apple Calendar')}
-            </PrimaryButton>
-          </div>
-        );
-
-      case 'phone_choice':
-        return (
-          <div className="space-y-3">
-            <OptionCard
-              onClick={() => void handlePhoneChoice('forward')}
-              disabled={isSaving}
-              icon={<IconPhone className="h-5 w-5" stroke={1.5} />}
-              label={t('Forward my current business number')}
-              description={t(
-                'Best if customers already know your number and you want the AI to answer first.'
-              )}
-              recommended
-              recommendedLabel={t('Recommended')}
-            />
-            <OptionCard
-              onClick={() => void handlePhoneChoice('demo')}
-              disabled={isSaving}
-              icon={<IconPhone className="h-5 w-5" stroke={1.5} />}
-              label={t('Use a temporary HandyCall setup number')}
-              description={t('Useful while you test the AI before routing your live line.')}
-            />
-            <div className="rounded-2xl border border-border bg-card/70 p-4 text-sm text-muted-foreground">
-              {t(
-                'Dedicated long-term number sourcing can still be configured later from your dashboard settings.'
-              )}
-            </div>
-          </div>
-        );
-
-      case 'phone_forward':
-        return (
-          <div className="space-y-4">
-            <input
-              autoFocus
-              type="tel"
-              value={forwardNumber}
-              onChange={(event) => setForwardNumber(event.target.value)}
-              placeholder={isArabic ? 'مثال: +9665XXXXXXXX' : '+9665XXXXXXXX'}
-              className="w-full rounded-xl border border-input bg-background px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/70 outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            />
-            <PrimaryButton
-              onClick={handleSaveForwarding}
-              disabled={isSaving || !forwardNumber.trim()}
-              loading={isSaving}
-            >
-              <IconCheck className="h-4 w-4" stroke={2} />
-              {t('Save number')}
-            </PrimaryButton>
-          </div>
-        );
-
-      case 'knowledge_chat':
-        return (
-          <div className="space-y-4">
-            <div className="rounded-2xl border border-emerald-200/60 bg-emerald-50/50 p-4 dark:border-emerald-900/50 dark:bg-emerald-950/20">
-              <p className="text-sm font-semibold text-foreground">{t('What to include here')}</p>
-              <p className="mt-1.5 text-sm leading-6 text-muted-foreground">
-                {t(
-                  'Add the details your team repeats all day: what you service, pricing rules, emergency surcharges, city coverage, cancellation windows, warranty notes, deposits, and anything the AI should answer consistently.'
-                )}
-              </p>
-              <div className="mt-3 flex flex-wrap gap-2">
-                {getKnowledgeBasePromptSuggestions(
-                  (company?.service_type as ServiceType | undefined) || undefined
-                ).map((item) => (
-                  <button
-                    key={item}
-                    type="button"
-                    onClick={() => setKbInput((prev) => (prev ? `${prev}\n- ${item}` : item))}
-                    className="rounded-full border border-emerald-200 bg-card px-3 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-50 dark:border-emerald-800/50 dark:text-emerald-400 dark:hover:bg-emerald-950/40"
-                  >
-                    {item}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <textarea
-              value={kbInput}
-              onChange={(event) => setKbInput(event.target.value)}
-              placeholder={t(
-                'Example: We handle split AC repair in Riyadh and Khobar. Standard diagnostics start at SAR 149 and same-day emergency visits add SAR 90. Customers should switch the unit off if water is leaking...'
-              )}
-              rows={6}
-              className="w-full rounded-2xl border border-input bg-background px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/60 outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            />
-            {kbError ? (
-              <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300">
-                {kbError}
-              </div>
-            ) : null}
-            <PrimaryButton
-              onClick={() => void handleGenerateKnowledge()}
-              disabled={kbGenerating || !kbInput.trim()}
-              loading={kbGenerating}
-            >
-              <IconBrain className="h-4 w-4" stroke={1.5} />
-              {kbGenerating ? t('Building knowledge base...') : t('Build knowledge base')}
-            </PrimaryButton>
-          </div>
-        );
-
-      case 'call_flow_editor':
-        return (
-          <div className="space-y-4">
-            <div className="rounded-2xl border border-border bg-card p-5">
-              <p className="text-sm font-semibold text-foreground">
-                {t('Control the questions your AI asks before booking or quoting')}
-              </p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                {t(
-                  'Keep questions relevant to the issue, location, urgency, and any details your team truly needs before taking the next step.'
-                )}
-              </p>
-            </div>
-            <CallFlowEditor questions={callFlowQuestions} onChange={setCallFlowQuestions} />
-            <PrimaryButton onClick={handleSaveCallFlow} disabled={isSaving} loading={isSaving}>
-              <IconCheck className="h-4 w-4" stroke={1.5} />
-              {t('Save call flow')}
             </PrimaryButton>
           </div>
         );

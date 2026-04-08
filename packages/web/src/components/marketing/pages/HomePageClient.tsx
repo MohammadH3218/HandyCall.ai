@@ -4,11 +4,8 @@ import Link from 'next/link';
 import { SiteHeader } from '@/components/marketing/site-header';
 import { SiteFooter } from '@/components/marketing/site-footer';
 import { FadeIn } from '@/components/marketing/fade-in';
-import { AnimatedCounter } from '@/components/marketing/animated-counter';
-import { ProductPreview } from '@/components/marketing/ProductPreview';
 import { SearchBar } from '@/components/marketing/SearchBar';
 import { CategoryCard } from '@/components/marketing/CategoryCard';
-import { useMarketingLanguage } from '@/components/providers/marketing-language-provider';
 import { FEATURED_MARKETPLACE_CATEGORIES } from '@/constants/marketplace-service-categories';
 import {
   IconHeadset,
@@ -17,32 +14,9 @@ import {
   IconCreditCard,
 } from '@tabler/icons-react';
 
-const TRUST_STATS = [
-  {
-    value: '2500',
-    suffix: '+',
-    label: { en: 'Verified Pros', ar: 'محترفون موثقون' },
-  },
-  {
-    value: '4.8',
-    suffix: '★',
-    label: { en: 'Average Rating', ar: 'متوسط التقييم' },
-  },
-  {
-    value: '<30',
-    suffix: { en: ' min', ar: ' دقيقة' },
-    label: { en: 'Average Response', ar: 'متوسط وقت الرد' },
-  },
-  {
-    value: '20',
-    suffix: '+',
-    label: { en: 'Cities Covered', ar: 'مدن مغطاة' },
-  },
-];
-
 const POPULAR_TAGS = {
-  en: ['AC Repair', 'House Cleaning', 'Plumbing', 'Mesh Network Setup', 'Appliance Repair', 'Electrical', 'Pest Control', 'Moving'],
-  ar: ['تصليح المكيفات', 'تنظيف المنازل', 'السباكة', 'إعداد الشبكات', 'إصلاح الأجهزة', 'الكهرباء', 'مكافحة الحشرات', 'النقل'],
+  en: ['AC Repair', 'House Cleaning', 'Plumbing', 'Electrical', 'Handyman', 'Pest Control', 'Painting', 'Appliance Repair'],
+  ar: ['تصليح المكيفات', 'تنظيف المنازل', 'السباكة', 'إصلاح الأجهزة', 'الكهرباء', 'مكافحة الحشرات', 'الدهان', 'النقل'],
 };
 
 const STEPS = [
@@ -50,14 +24,9 @@ const STEPS = [
     num: '01',
     title: { en: 'Search for a service', ar: 'ابحث عن الخدمة' },
     description: {
-      en: 'Tell us what you need and your city. Browse pros by service category across Saudi Arabia.',
-      ar: 'أخبرنا بالخدمة التي تحتاجها ومدينتك، ثم تصفح المحترفين حسب الفئة في مختلف مدن المملكة.',
+      en: 'Tell us what you need and your Houston-area neighborhood or zip code. Browse local pros by service category.',
+      ar: 'أخبرنا بالخدمة التي تحتاجها والرمز البريدي، ثم تصفح المحترفين حسب الفئة في منطقتك.',
     },
-    icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} style={{ width: 32, height: 32 }}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
-      </svg>
-    ),
   },
   {
     num: '02',
@@ -66,24 +35,14 @@ const STEPS = [
       en: 'Read verified reviews, compare prices, and message pros before you commit to anything.',
       ar: 'اطلع على التقييمات الموثقة، وقارن الأسعار، وتواصل مع المحترفين قبل تأكيد الحجز.',
     },
-    icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} style={{ width: 32, height: 32 }}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 1 1-18 0 9 9 0 0 1 18 0z" />
-      </svg>
-    ),
   },
   {
     num: '03',
     title: { en: 'Book and relax', ar: 'احجز واسترح' },
     description: {
-      en: 'Pick your slot, confirm your booking, and leave the rest to your professional.',
+      en: 'Pick your time slot, confirm your booking, and leave the rest to your Houston-area professional.',
       ar: 'اختر الموعد المناسب، وأكد الحجز، واترك الباقي للمحترف الذي اخترته.',
     },
-    icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} style={{ width: 32, height: 32 }}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2z" />
-      </svg>
-    ),
   },
 ];
 
@@ -91,27 +50,49 @@ const PRO_PERKS = [
   { icon: <IconHeadset className="h-6 w-6 text-white" stroke={1.6} />, text: { en: 'AI-powered call handling', ar: 'إدارة المكالمات بالذكاء الاصطناعي' } },
   { icon: <IconBellRinging className="h-6 w-6 text-white" stroke={1.6} />, text: { en: 'Instant booking alerts', ar: 'تنبيهات فورية للحجوزات' } },
   { icon: <IconCalendarEvent className="h-6 w-6 text-white" stroke={1.6} />, text: { en: 'Built-in CRM & scheduling', ar: 'إدارة عملاء وجدولة مدمجة' } },
-  { icon: <IconCreditCard className="h-6 w-6 text-white" stroke={1.6} />, text: { en: 'Secure SAR payments', ar: 'مدفوعات آمنة بالريال' } },
+  { icon: <IconCreditCard className="h-6 w-6 text-white" stroke={1.6} />, text: { en: 'Secure payments', ar: 'مدفوعات آمنة' } },
 ];
 
+const SERVICE_PHOTOS = [
+  {
+    src: 'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=600&h=400&fit=crop&q=80',
+    alt: 'Electrician working',
+    label: { en: 'Electrical', ar: 'كهرباء' },
+  },
+  {
+    src: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=600&h=400&fit=crop&q=80',
+    alt: 'AC technician',
+    label: { en: 'AC & HVAC', ar: 'تكييف وتبريد' },
+  },
+  {
+    src: 'https://images.unsplash.com/photo-1585771724684-38269d6639fd?w=600&h=400&fit=crop&q=80',
+    alt: 'House cleaning professional',
+    label: { en: 'House Cleaning', ar: 'تنظيف منازل' },
+  },
+  {
+    src: 'https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=600&h=400&fit=crop&q=80',
+    alt: 'Plumber at work',
+    label: { en: 'Plumbing', ar: 'سباكة' },
+  },
+];
 
 export function HomePageClient() {
-  const { isArabic, language } = useMarketingLanguage();
+  const isArabic = false;
+  const language = 'en';
 
   const copy = isArabic
     ? {
-        badge: 'منصة خدمات المنازل في السعودية',
+        badge: 'منصة خدمات المنازل',
         title: 'خدمات المنزل، بكل سهولة.',
-        subtitle: 'احجز محترفين موثوقين في مدينتك، وقارن بينهم، وتواصل معهم، واحجز خلال دقائق.',
+        subtitle: 'احجز محترفين موثوقين في منطقتك، وقارن بينهم، وتواصل معهم، واحجز خلال دقائق.',
         popular: 'الأكثر طلبًا:',
         servicesTag: 'الخدمات',
         servicesTitle: 'كيف نقدر نخدمك؟',
         viewAllCategories: 'عرض كل الفئات ←',
         howItWorksTag: 'كيف يعمل',
         howItWorksTitle: 'احجز محترفك في 3 خطوات سهلة',
-        stepLabel: 'الخطوة',
         proTag: 'للمحترفين',
-        proTitle: 'هل تعمل في مجال الخدمات المنزلية داخل السعودية؟',
+        proTitle: 'هل تعمل في مجال الخدمات المنزلية؟',
         proDescription:
           'انضم إلى HandyCall وتواصل مع آلاف العملاء الباحثين عن مهاراتك اليوم. حدّد أسعارك، وأدر جدولك، وطوّر أعمالك بدعم من الذكاء الاصطناعي.',
         joinAsPro: 'انضم كمحترف ←',
@@ -120,28 +101,27 @@ export function HomePageClient() {
         closingNote: 'لا تحتاج إلى حساب للبحث، واحصل على عروض مجانية من محترفين موثقين.',
       }
     : {
-        badge: "Saudi Arabia's Home Services Marketplace",
+        badge: "Houston's Home Services Marketplace",
         title: 'Home services, handled.',
-        subtitle: 'Find trusted pros near you, read reviews, compare options, and book in minutes.',
-        popular: 'Popular:',
+        subtitle: 'Find trusted pros in the Houston metro area — read reviews, compare options, and book in minutes.',
+        popular: 'Popular in Houston:',
         servicesTag: 'Services',
         servicesTitle: 'What can we help you with?',
         viewAllCategories: 'View all categories →',
         howItWorksTag: 'How It Works',
-        howItWorksTitle: 'Book a pro in 3 easy steps',
-        stepLabel: 'Step',
+        howItWorksTitle: 'Book a Houston pro in 3 easy steps',
         proTag: 'For Professionals',
-        proTitle: 'Are you a service professional in Saudi Arabia?',
+        proTitle: 'Are you a home service pro in the Houston area?',
         proDescription:
-          'Join HandyCall and connect with thousands of customers looking for your skills today. Set your own rates, manage your schedule, and grow your business with AI-powered tools.',
-        joinAsPro: 'Join as a Pro →',
-        viewPricing: 'View Pricing',
+          'Join HandyCall and connect with Houston homeowners looking for your skills. Set your own rates, manage your schedule, and grow your business with AI-powered tools.',
+        joinAsPro: 'Join as a Pro — Free →',
+        viewPricing: 'Learn More',
         closingTitle: 'Ready to get something fixed?',
-        closingNote: 'No sign-up required to search. Free quotes from verified pros.',
+        closingNote: 'No sign-up required to search. Free quotes from verified Houston-area pros.',
       };
 
   return (
-    <div className="flex min-h-screen flex-col bg-white" dir={isArabic ? 'rtl' : 'ltr'}>
+    <div className="flex min-h-screen flex-col bg-white">
       <style>{`
         @keyframes hc-shimmer {
           0%   { background-position: -200% center; }
@@ -160,7 +140,8 @@ export function HomePageClient() {
 
       <SiteHeader />
 
-      <section className="relative overflow-hidden bg-white px-4 pb-20 pt-20">
+      {/* ── Hero ─────────────────────────────────────────────────────────── */}
+      <section className="relative overflow-hidden bg-white px-4 pb-20 pt-24">
         <div
           className="pointer-events-none absolute inset-0"
           style={{
@@ -170,11 +151,6 @@ export function HomePageClient() {
         />
         <div className="relative mx-auto max-w-3xl text-center">
           <FadeIn direction="up" duration={700}>
-            <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-emerald-100 bg-emerald-50 px-4 py-1.5 text-xs font-semibold text-emerald-700">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-              {copy.badge}
-            </div>
-
             <h1 className="text-5xl font-extrabold tracking-tight text-slate-900 sm:text-6xl lg:text-7xl">
               {isArabic ? (
                 <>
@@ -199,7 +175,7 @@ export function HomePageClient() {
               {POPULAR_TAGS[language].map((tag) => (
                 <Link
                   key={tag}
-                  href={`/search?q=${encodeURIComponent(tag)}`}
+                href={`/search?q=${encodeURIComponent(tag)}`}
                   className="transition-colors hover:text-emerald-600 hover:underline"
                 >
                   {tag}
@@ -210,17 +186,22 @@ export function HomePageClient() {
         </div>
       </section>
 
-      <section className="border-y border-slate-100 bg-slate-50 py-12">
-        <div className="mx-auto max-w-4xl px-4">
-          <div className="grid grid-cols-2 gap-8 text-center sm:grid-cols-4">
-            {TRUST_STATS.map((stat, i) => (
-              <FadeIn key={stat.label.en} direction="up" delay={i * 80}>
-                <div className="flex flex-col items-center">
-                  <p className="text-4xl font-extrabold text-slate-900">
-                    <AnimatedCounter value={stat.value} />
-                    <span>{typeof stat.suffix === 'string' ? stat.suffix : stat.suffix[language]}</span>
-                  </p>
-                  <p className="mt-1 text-sm font-semibold text-slate-700">{stat.label[language]}</p>
+      {/* ── Service Photos Strip ─────────────────────────────────────────── */}
+      <section className="bg-slate-50 px-4 py-10">
+        <div className="mx-auto max-w-5xl">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {SERVICE_PHOTOS.map((photo, i) => (
+              <FadeIn key={photo.alt} direction="up" delay={i * 60}>
+                <div className="group relative overflow-hidden rounded-xl">
+                  <img
+                    src={photo.src}
+                    alt={photo.alt}
+                    className="h-36 w-full object-cover transition-transform duration-300 group-hover:scale-105 sm:h-44"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-slate-900/60 via-transparent to-transparent" />
+                  <span className="absolute bottom-3 left-3 text-xs font-semibold text-white drop-shadow">
+                    {isArabic ? photo.label.ar : photo.label.en}
+                  </span>
                 </div>
               </FadeIn>
             ))}
@@ -228,6 +209,7 @@ export function HomePageClient() {
         </div>
       </section>
 
+      {/* ── Category Grid ────────────────────────────────────────────────── */}
       <section className="bg-white px-4 py-24">
         <div className="mx-auto max-w-5xl">
           <FadeIn direction="up">
@@ -262,10 +244,11 @@ export function HomePageClient() {
         </div>
       </section>
 
+      {/* ── How It Works ─────────────────────────────────────────────────── */}
       <section id="how-it-works" className="border-t border-slate-100 bg-slate-50 px-4 py-24">
         <div className="mx-auto max-w-5xl">
           <FadeIn direction="up">
-            <div className="mb-12 text-center">
+            <div className="mb-14 text-center">
               <span className="inline-block rounded-full bg-emerald-50 px-4 py-1.5 text-xs font-bold uppercase tracking-widest text-emerald-700">
                 {copy.howItWorksTag}
               </span>
@@ -275,21 +258,14 @@ export function HomePageClient() {
             </div>
           </FadeIn>
 
-          <div className="relative grid grid-cols-1 gap-8 sm:grid-cols-3">
-            <div
-              className="absolute left-0 right-0 top-10 hidden border-t-2 border-dashed border-emerald-200 sm:block"
-              style={{ zIndex: 0 }}
-            />
+          <div className="grid grid-cols-1 gap-10 sm:grid-cols-3">
             {STEPS.map((step, i) => (
               <FadeIn key={step.num} direction="up" delay={i * 120}>
-                <div className="relative z-10 flex flex-col items-center text-center">
-                  <div className="flex h-20 w-20 items-center justify-center rounded-full border-2 border-emerald-200 bg-white text-emerald-600 shadow-sm">
-                    {step.icon}
-                  </div>
-                  <span className="mt-4 text-xs font-bold uppercase tracking-widest text-emerald-500">
-                    {copy.stepLabel} {step.num}
+                <div className="flex flex-col">
+                  <span className="text-5xl font-black text-emerald-100 leading-none select-none">
+                    {step.num}
                   </span>
-                  <h3 className="mt-2 text-lg font-bold text-slate-900">{step.title[language]}</h3>
+                  <h3 className="mt-3 text-lg font-bold text-slate-900">{step.title[language]}</h3>
                   <p className="mt-2 text-sm leading-relaxed text-slate-500">{step.description[language]}</p>
                 </div>
               </FadeIn>
@@ -298,6 +274,7 @@ export function HomePageClient() {
         </div>
       </section>
 
+      {/* ── Featured Service Scenes ──────────────────────────────────────── */}
       <section className="bg-white px-4 py-24">
         <div className="mx-auto max-w-5xl">
           <FadeIn direction="up">
@@ -306,12 +283,12 @@ export function HomePageClient() {
                 {isArabic ? 'محترفون موثوقون' : 'Trusted Professionals'}
               </span>
               <h2 className="mt-4 text-4xl font-extrabold tracking-tight text-slate-900">
-                {isArabic ? 'متخصصون في كل ما تحتاجه' : 'Specialists for every job'}
+                {isArabic ? 'متخصصون في كل ما تحتاجه' : 'Specialists for every job in Houston'}
               </h2>
               <p className="mt-3 text-slate-500">
                 {isArabic
                   ? 'من تصليح المكيفات إلى التنظيف العميق، محترفونا موثوقون ومستعدون.'
-                  : 'From AC repair to deep cleaning — verified pros ready when you are.'}
+                  : 'From AC repair to deep cleaning — verified Houston-area pros ready when you are.'}
               </p>
             </div>
           </FadeIn>
@@ -319,19 +296,19 @@ export function HomePageClient() {
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             {[
               {
-                img: 'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=600&h=480&fit=crop&q=80',
-                alt: 'Electrician at work',
-                tag: { en: 'Electrical', ar: 'كهرباء' },
-                title: { en: 'Certified electricians, at your door', ar: 'كهربائيون معتمدون في منزلك' },
+                img: 'https://images.unsplash.com/photo-1581578731548-c64695cc6952?w=800&h=560&fit=crop&q=80',
+                alt: 'Handyman at work',
+                tag: { en: 'Handyman', ar: 'أعمال يدوية' },
+                title: { en: 'Handymen for every fix, large or small', ar: 'خبراء لكل إصلاح صغير أو كبير' },
               },
               {
-                img: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=600&h=480&fit=crop&q=80',
-                alt: 'AC technician',
-                tag: { en: 'AC & HVAC', ar: 'تكييف وتبريد' },
-                title: { en: 'AC maintenance & deep cleaning', ar: 'صيانة وتنظيف المكيفات' },
+                img: 'https://images.unsplash.com/photo-1562259949-e8e7689d7828?w=800&h=560&fit=crop&q=80',
+                alt: 'Painter at work',
+                tag: { en: 'Painting', ar: 'دهان' },
+                title: { en: 'Interior & exterior painting pros', ar: 'محترفو دهان داخلي وخارجي' },
               },
               {
-                img: 'https://images.unsplash.com/photo-1563453392212-326f5e854473?w=600&h=480&fit=crop&q=80',
+                img: 'https://images.unsplash.com/photo-1563453392212-326f5e854473?w=800&h=560&fit=crop&q=80',
                 alt: 'Professional cleaning',
                 tag: { en: 'House Cleaning', ar: 'تنظيف منازل' },
                 title: { en: 'Deep & professional cleaning', ar: 'تنظيف عميق واحترافي' },
@@ -367,11 +344,21 @@ export function HomePageClient() {
         </div>
       </section>
 
-      <ProductPreview />
-
+      {/* ── Pro CTA ──────────────────────────────────────────────────────── */}
       <section id="pro-cta" className="bg-emerald-600 px-4 py-20">
         <div className="mx-auto max-w-4xl text-center">
           <FadeIn direction="up">
+            {/* Free listing banner — first thing pros see */}
+            <div className="mx-auto mb-8 inline-flex flex-wrap items-center justify-center gap-4 rounded-2xl bg-white px-6 py-4 shadow-lg">
+              <span className="text-2xl font-black text-emerald-600">100% FREE</span>
+              <span className="hidden h-6 w-px bg-slate-200 sm:block" />
+              <span className="text-sm font-semibold text-slate-700">Free to list your business</span>
+              <span className="hidden h-6 w-px bg-slate-200 sm:block" />
+              <span className="text-sm font-semibold text-slate-700">No lead fees — ever</span>
+              <span className="hidden h-6 w-px bg-slate-200 sm:block" />
+              <span className="text-sm font-semibold text-slate-700">No commissions on jobs</span>
+            </div>
+
             <span className="inline-block rounded-full bg-white/20 px-4 py-1.5 text-xs font-bold uppercase tracking-widest text-white">
               {copy.proTag}
             </span>
@@ -414,6 +401,7 @@ export function HomePageClient() {
         </div>
       </section>
 
+      {/* ── Closing CTA ──────────────────────────────────────────────────── */}
       <section
         className="px-4 py-24"
         style={{

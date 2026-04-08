@@ -5,19 +5,11 @@ import { AuthModule } from './modules/auth/auth.module';
 import { CompaniesModule } from './modules/companies/companies.module';
 import { UsersModule } from './modules/users/users.module';
 import { ContactsModule } from './modules/contacts/contacts.module';
-import { CallsModule } from './modules/calls/calls.module';
 import { AppointmentsModule } from './modules/appointments/appointments.module';
-import { KnowledgeModule } from './modules/knowledge/knowledge.module';
-import { FlaggedQuestionsModule } from './modules/flagged-questions/flagged-questions.module';
-import { AgentConfigModule } from './modules/agent-config/agent-config.module';
 import { PricingRulesModule } from './modules/pricing-rules/pricing-rules.module';
-import { TelephonyModule } from './modules/telephony/telephony.module';
-import { RagModule } from './modules/rag/rag.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { BillingModule } from './modules/billing/billing.module';
-import { CompanyNumbersModule } from './modules/company-numbers/company-numbers.module';
-import { RealtimeToolsModule } from './modules/realtime-tools/realtime-tools.module';
 import { SchedulingModule } from './modules/scheduling/scheduling.module';
 import { CalendarIntegrationModule } from './modules/calendar-integration/calendar-integration.module';
 import { PublicBookingModule } from './modules/public-booking/public-booking.module';
@@ -25,7 +17,6 @@ import { WebhooksModule } from './modules/webhooks/webhooks.module';
 import { MessagesModule } from './modules/messages/messages.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { FollowUpSequencesModule } from './modules/follow-up-sequences/follow-up-sequences.module';
-import { OutboundCallsModule } from './modules/outbound-calls/outbound-calls.module';
 import { SmsAutomationModule } from './modules/sms-automation/sms-automation.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { InvoicingModule } from './modules/invoicing/invoicing.module';
@@ -62,26 +53,17 @@ import { AppService } from './app.service';
     CompaniesModule,
     UsersModule,
     ContactsModule,
-    CallsModule,
     AppointmentsModule,
-    KnowledgeModule,
-    FlaggedQuestionsModule,
-    AgentConfigModule,
     PricingRulesModule,
-    TelephonyModule,
-    RagModule,
     DashboardModule,
     AdminModule,
     BillingModule,
-    CompanyNumbersModule,
-    RealtimeToolsModule,
     CalendarIntegrationModule,
     PublicBookingModule,
     WebhooksModule,
     MessagesModule,
     NotificationsModule,
     FollowUpSequencesModule,
-    OutboundCallsModule,
     SmsAutomationModule,
     AnalyticsModule,
     InvoicingModule,

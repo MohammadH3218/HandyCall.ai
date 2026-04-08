@@ -8,7 +8,6 @@ import { ContactSource, LeadStatus, PLAN_FEATURES, SubscriptionPlan } from '@han
 import { v4 as uuidv4 } from 'uuid';
 import { DynamoDBService } from '../../infrastructure/database/dynamodb.service';
 import { CompaniesService } from '../companies/companies.service';
-import { KnowledgeService } from '../knowledge/knowledge.service';
 import { WebhooksService } from '../webhooks/webhooks.service';
 import { CreateChatSessionDto, RequestCallbackDto, SendChatMessageDto } from './dto/chat-widget.dto';
 
@@ -41,7 +40,6 @@ export class ChatService {
   constructor(
     private readonly dynamodb: DynamoDBService,
     private readonly companies: CompaniesService,
-    private readonly knowledge: KnowledgeService,
     private readonly webhooks: WebhooksService,
   ) {}
 
@@ -291,21 +289,10 @@ export class ChatService {
   }
 
   private async buildAssistantReply(
-    companyId: string,
-    message: string,
+    _companyId: string,
+    _message: string,
     companyName: string,
   ): Promise<string> {
-    try {
-      const matches = await this.knowledge.searchKnowledge(companyId, message, 3);
-      const top = matches.find((item) => Number(item.similarity || 0) >= 0.35) || matches[0];
-      if (top) {
-        const sourceText = this.clean(top.text, 700) || this.clean(top.item?.content, 700);
-        if (sourceText) return sourceText;
-      }
-    } catch {
-      // Best effort: fallback response below.
-    }
-
     return `Thanks for your message to ${companyName}. I can help with questions, scheduling, and callback requests. If you'd like a callback, reply with your phone number.`;
   }
 

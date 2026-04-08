@@ -3,7 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { DynamoDBService } from '../../infrastructure/database/dynamodb.service';
 import { CompaniesService } from '../companies/companies.service';
 import { ContactsService } from '../contacts/contacts.service';
-import { TelephonyService } from '../telephony/telephony.service';
+import { SmsService } from '../../infrastructure/sms/sms.service';
 import { UsageGateService } from '../billing/usage-gate.service';
 import { CreateTemplateDto, UpdateTemplateDto } from './dto/create-template.dto';
 import { SendCampaignDto, SendSingleSmsDto } from './dto/send-campaign.dto';
@@ -14,7 +14,7 @@ export class SmsAutomationService {
     private readonly dynamodb: DynamoDBService,
     private readonly companies: CompaniesService,
     private readonly contacts: ContactsService,
-    private readonly telephony: TelephonyService,
+    private readonly sms: SmsService,
     private readonly usageGate: UsageGateService,
   ) {}
 
@@ -133,7 +133,7 @@ export class SmsAutomationService {
           } else {
             const allowed = await this.usageGate.isServiceAllowed(companyId, 'sms');
             if (!allowed) { skipped++; continue; }
-            await this.telephony.sendSms(toNumber, body);
+            await this.sms.sendSms(toNumber, body);
             immediate++;
           }
         } else {
@@ -156,7 +156,7 @@ export class SmsAutomationService {
       throw new BadRequestException('Cannot send SMS during quiet hours (9pm–8am). Schedule for later.');
     }
 
-    const result = await this.telephony.sendSms(dto.to_number, dto.body);
+    const result = await this.sms.sendSms(dto.to_number, dto.body);
     return { sid: result.sid || '', status: result.status || 'sent' };
   }
 

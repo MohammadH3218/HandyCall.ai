@@ -23,7 +23,7 @@ export const PLAN_CATALOG: Record<SubscriptionPlan, PlanCatalogEntry> = {
     price: 0,
     originalPrice: 0,
     cadence: 'month',
-    badge: 'Free to list, pay per unlocked lead',
+    badge: 'Free to list',
     limits: { minutes: 0, sms: 0, contacts: 300 },
     featureHighlights: [
       'Free marketplace profile',
@@ -36,45 +36,45 @@ export const PLAN_CATALOG: Record<SubscriptionPlan, PlanCatalogEntry> = {
   },
   [SubscriptionPlan.PRO]: {
     name: 'Pro',
-    price: 39.99,
-    originalPrice: 49.99,
+    price: 19.99,
+    originalPrice: 29.99,
     cadence: 'month',
     badge: 'Marketplace + AI calling',
-    trialLabel: 'Free trial — 14 days',
+    trialLabel: '14-day free trial',
     limits: { minutes: 300, sms: 600, contacts: 1000 },
     featureHighlights: [
       'Everything in Starter, plus:',
       'AI receptionist for inbound calls',
       'Lead qualification and booking intake',
-      'Managed or self-managed customer payments',
-      'Call summaries, transcripts, and follow-up sequences',
+      'Call summaries, transcripts & follow-up sequences',
       '30-day call recording retention',
+      'Priority support',
     ],
   },
   [SubscriptionPlan.MAX]: {
     name: 'Max',
-    price: 99.99,
-    originalPrice: 149.99,
+    price: 49.99,
+    originalPrice: 79.99,
     cadence: 'month',
     badge: 'Growth plan for top pros',
     limits: { minutes: 750, sms: 1500, contacts: 3000 },
     featureHighlights: [
       'Everything in Pro, plus:',
-      'CRM integrations and deeper analytics',
       'Sponsored placement in search results',
-      'Advanced routing and multi-location support',
+      'CRM integrations (Zapier, webhooks)',
+      'Advanced routing & multi-location support',
       '90-day call recording retention',
-      'Priority support',
+      'Dedicated account manager',
     ],
   },
 };
 
+export function formatSar(amount: number) {
+  return formatUsd(amount);
+}
+
 export function formatUsd(amount: number) {
-  return amount.toLocaleString('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 2,
-  });
+  return `$${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 export function getPlanPriceDisplay(plan: SubscriptionPlan) {

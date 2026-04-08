@@ -2,11 +2,18 @@ import { Injectable, NotFoundException, Inject, forwardRef } from '@nestjs/commo
 import { DynamoDBService } from '../../infrastructure/database/dynamodb.service';
 import { v4 as uuidv4 } from 'uuid';
 import { BadRequestException } from '@nestjs/common';
-import { AppointmentStatus } from '@handycall/shared';
+import {
+  Appointment,
+  AppointmentCancellationInfo,
+  AppointmentCancellationPolicy,
+  AppointmentStatus,
+  Company,
+} from '@handycall/shared';
 import { CalendarIntegrationService } from '../calendar-integration/calendar-integration.service';
 import { ConfigService } from '@nestjs/config';
 import { WebhooksService } from '../webhooks/webhooks.service';
 import { FollowUpSequencesService } from '../follow-up-sequences/follow-up-sequences.service';
+import { CompaniesService } from '../companies/companies.service';
 
 function asE164(input: string): string {
   const trimmed = (input || '').trim();
@@ -14,6 +21,11 @@ function asE164(input: string): string {
   const digits = trimmed.replace(/\D/g, '');
   if (!digits) return trimmed;
   return `+${digits}`;
+}
+
+function normalizeEmail(input?: string) {
+  const value = String(input || '').trim().toLowerCase();
+  return value || undefined;
 }
 
 @Injectable()
@@ -25,7 +37,103 @@ export class AppointmentsService {
     private configService: ConfigService,
     private webhooks: WebhooksService,
     private followUps: FollowUpSequencesService,
+    private companiesService: CompaniesService,
   ) {}
+
+  getAppointmentCancellationPolicy(company: Partial<Company> | null | undefined): AppointmentCancellationPolicy {
+    const raw = company?.appointment_cancellation_policy as AppointmentCancellationPolicy | undefined;
+    const mode = raw?.mode || 'ANYTIME';
+    if (mode === 'BEFORE_HOURS') {
+      return {
+        mode,
+        window_hours: Math.max(1, Number(raw?.window_hours || 24)),
+      };
+    }
+    if (mode === 'NO_CANCELLATIONS') {
+      return { mode };
+    }
+    return { mode: 'ANYTIME' };
+  }
+
+  getAppointmentCancellationInfo(
+    company: Partial<Company> | null | undefined,
+    appointment: Partial<Appointment> | null | undefined,
+    now = Date.now(),
+  ): AppointmentCancellationInfo {
+    const policy = this.getAppointmentCancellationPolicy(company);
+    const startAt = Number(appointment?.scheduled_start || 0);
+    const status = String(appointment?.status || '').toUpperCase();
+
+    if (status === AppointmentStatus.CANCELLED) {
+      return {
+        can_cancel: false,
+        policy_mode: policy.mode,
+        policy_hours: policy.window_hours,
+        reason_code: 'ALREADY_CANCELLED',
+        message: 'This appointment has already been cancelled.',
+      };
+    }
+
+    if (status === AppointmentStatus.COMPLETED || status === AppointmentStatus.NO_SHOW) {
+      return {
+        can_cancel: false,
+        policy_mode: policy.mode,
+        policy_hours: policy.window_hours,
+        reason_code: 'ALREADY_COMPLETED',
+        message: 'Completed appointments cannot be cancelled.',
+      };
+    }
+
+    if (startAt && now >= startAt) {
+      return {
+        can_cancel: false,
+        policy_mode: policy.mode,
+        policy_hours: policy.window_hours,
+        reason_code: 'ALREADY_STARTED',
+        message: 'This appointment has already started or passed.',
+      };
+    }
+
+    if (policy.mode === 'NO_CANCELLATIONS') {
+      return {
+        can_cancel: false,
+        policy_mode: policy.mode,
+        reason_code: 'NO_CANCELLATIONS',
+        message: 'This pro does not allow self-service appointment cancellations.',
+      };
+    }
+
+    if (policy.mode === 'BEFORE_HOURS') {
+      const hours = Math.max(1, Number(policy.window_hours || 24));
+      const cutoffAt = startAt - hours * 60 * 60 * 1000;
+      if (now > cutoffAt) {
+        return {
+          can_cancel: false,
+          policy_mode: policy.mode,
+          policy_hours: hours,
+          cutoff_at: cutoffAt,
+          reason_code: 'WINDOW_PASSED',
+          message: `Cancellations must be made at least ${hours} hour${hours === 1 ? '' : 's'} before the appointment.`,
+        };
+      }
+
+      return {
+        can_cancel: true,
+        policy_mode: policy.mode,
+        policy_hours: hours,
+        cutoff_at: cutoffAt,
+        reason_code: 'ALLOWED',
+        message: `You can cancel up to ${hours} hour${hours === 1 ? '' : 's'} before the appointment.`,
+      };
+    }
+
+    return {
+      can_cancel: true,
+      policy_mode: policy.mode,
+      reason_code: 'ALLOWED',
+      message: 'You can cancel this appointment any time before it starts.',
+    };
+  }
 
   private getAddressValidationKey(): string | null {
     return (
@@ -201,7 +309,7 @@ export class AppointmentsService {
           ...(first && { first_name: first }),
           ...(last && { last_name: last }),
           ...(phone && { phone, phone_number: phone }),
-          ...(input.contact_email && { email: input.contact_email.trim() }),
+          ...(input.contact_email && { email: normalizeEmail(input.contact_email) }),
           ...(addressLine && { address: addressLine }),
           ...(input.address?.zip && { zipcode: input.address.zip }),
           updated_at: nowIso,
@@ -227,7 +335,7 @@ export class AppointmentsService {
       phone_number: phone,
       first_name: first || undefined,
       last_name: last || undefined,
-      email: input.contact_email?.trim() || undefined,
+      email: normalizeEmail(input.contact_email),
       address: addressLine,
       zipcode: input.address?.zip || undefined,
       source: 'MANUAL',
@@ -403,7 +511,7 @@ export class AppointmentsService {
       service_type: input.service_type ?? 'Service',
       contact_id,
       contact_name: input.contact_name,
-      contact_email: input.contact_email,
+      contact_email: normalizeEmail(input.contact_email),
       contact_phone: input.contact_phone,
       address: input.address,
       ...(input.address ? { address_raw: input.address } : {}),
@@ -515,7 +623,7 @@ export class AppointmentsService {
     if (input.scheduled_start !== undefined) updateFields.scheduled_start = input.scheduled_start;
     if (input.scheduled_end !== undefined) updateFields.scheduled_end = input.scheduled_end;
     if (input.contact_name !== undefined) updateFields.contact_name = input.contact_name;
-    if (input.contact_email !== undefined) updateFields.contact_email = input.contact_email;
+    if (input.contact_email !== undefined) updateFields.contact_email = normalizeEmail(input.contact_email);
     if (input.contact_phone !== undefined) updateFields.contact_phone = input.contact_phone;
     if (input.service_type !== undefined) updateFields.service_type = input.service_type;
     if (input.notes !== undefined) updateFields.notes = input.notes;
@@ -577,6 +685,111 @@ export class AppointmentsService {
     );
     const cancelled = updated ?? { ...appt, status: AppointmentStatus.CANCELLED, updated_at: now };
     void this.webhooks.emitEvent(companyId, 'appointment.cancelled', { appointment: cancelled });
+    return cancelled;
+  }
+
+  async listAppointmentsForCustomer(identity: { email?: string; phone?: string }) {
+    const email = String(identity.email || '').trim().toLowerCase();
+    const phone = identity.phone ? asE164(identity.phone) : '';
+
+    if (!email && !phone) {
+      return [];
+    }
+
+    const filterParts: string[] = [];
+    const expressionAttributeNames: Record<string, string> = {};
+    const expressionAttributeValues: Record<string, any> = {};
+
+    if (email) {
+      filterParts.push('#contact_email = :contact_email');
+      expressionAttributeNames['#contact_email'] = 'contact_email';
+      expressionAttributeValues[':contact_email'] = email;
+    }
+
+    if (phone) {
+      filterParts.push('#contact_phone = :contact_phone');
+      expressionAttributeNames['#contact_phone'] = 'contact_phone';
+      expressionAttributeValues[':contact_phone'] = phone;
+    }
+
+    const matches: any[] = [];
+    let lastEvaluatedKey: Record<string, any> | undefined;
+
+    do {
+      const result = await this.dynamodb.scan('appointments', {
+        filterExpression: filterParts.join(' OR '),
+        expressionAttributeNames,
+        expressionAttributeValues,
+        exclusiveStartKey: lastEvaluatedKey,
+      });
+      matches.push(...(result.items || []));
+      lastEvaluatedKey = result.lastEvaluatedKey;
+    } while (lastEvaluatedKey);
+
+    const deduped = Array.from(
+      new Map(
+        matches.map((item: any) => [`${item.company_id}:${item.appointment_id}`, item]),
+      ).values(),
+    ) as Appointment[];
+
+    const companyIds = Array.from(new Set(deduped.map((item) => item.company_id).filter(Boolean)));
+    const companyEntries = await Promise.all(
+      companyIds.map(async (companyId) => [companyId, await this.companiesService.findById(companyId)] as const),
+    );
+    const companiesById = new Map(companyEntries);
+
+    return deduped
+      .sort((a, b) => Number(b.scheduled_start || 0) - Number(a.scheduled_start || 0))
+      .map((appointment) => {
+        const company = companiesById.get(appointment.company_id) || null;
+        return {
+          ...appointment,
+          company_name: company?.company_name || 'HandyCall Pro',
+          company_service_type: company?.service_type || null,
+          cancellation: this.getAppointmentCancellationInfo(company, appointment),
+        };
+      });
+  }
+
+  async cancelAppointmentAsCustomer(
+    identity: { email?: string; phone?: string },
+    appointmentId: string,
+    reason?: string,
+  ) {
+    const appointments = await this.listAppointmentsForCustomer(identity);
+    const appointment = appointments.find((item: any) => item?.appointment_id === appointmentId);
+    if (!appointment) {
+      throw new NotFoundException('Appointment not found');
+    }
+
+    const company = await this.companiesService.findById(appointment.company_id);
+    if (!company) {
+      throw new NotFoundException('Company not found');
+    }
+
+    const cancellation = this.getAppointmentCancellationInfo(company, appointment);
+    if (!cancellation.can_cancel) {
+      throw new BadRequestException(cancellation.message);
+    }
+
+    const cancelled = await this.cancelAppointment(appointment.company_id, appointmentId);
+
+    if (reason) {
+      const existingNotes = String((appointment as any)?.notes || '').trim();
+      const nextNotes = [existingNotes, `Cancellation reason: ${reason}`, `Updated at: ${new Date().toISOString()}`]
+        .filter(Boolean)
+        .join('\n');
+      await this.dynamodb.update(
+        'appointments',
+        { company_id: appointment.company_id, appointment_id: appointmentId },
+        { notes: nextNotes },
+      );
+      return {
+        ...cancelled,
+        notes: nextNotes,
+      };
+    }
+
     return cancelled;
   }
 

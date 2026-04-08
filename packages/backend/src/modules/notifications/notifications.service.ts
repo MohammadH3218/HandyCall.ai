@@ -65,6 +65,12 @@ const EVENT_CATALOG: Record<NotificationEventKey, EventCatalogItem> = {
     category: 'LEADS',
     description: 'Sent when a new contact/lead is created.',
   },
+  marketplace_message_received: {
+    event_key: 'marketplace_message_received',
+    label: 'Marketplace message',
+    category: 'MESSAGES',
+    description: 'Sent when a customer sends a new marketplace message.',
+  },
   payment_posted: {
     event_key: 'payment_posted',
     label: 'Payment posted',
@@ -128,6 +134,7 @@ const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferencesMap = {
   appointment_completed: { in_app: true, push: true },
   call_completed: { in_app: true, push: true },
   lead_created: { in_app: true, push: true },
+  marketplace_message_received: { in_app: true, push: true },
   payment_posted: { in_app: true, push: true },
   subscription_posted: { in_app: true, push: true },
   usage_threshold_25: { in_app: true, push: false },
@@ -547,6 +554,35 @@ export class NotificationsService {
         payment_status: payment?.payment_status,
         amount_cents: amount,
         currency: payment?.currency || 'usd',
+      },
+    });
+  }
+
+  async emitMarketplaceMessageReceived(
+    companyId: string,
+    input: {
+      threadId: string;
+      customerName?: string;
+      body?: string;
+      quoteId?: string;
+    },
+  ): Promise<void> {
+    const sender = String(input.customerName || 'Customer').trim() || 'Customer';
+    const preview = String(input.body || '').trim();
+    const body = preview
+      ? `${sender}: ${preview.slice(0, 140)}`
+      : `${sender} sent a new marketplace message.`;
+
+    await this.createForCompanyUsers(companyId, {
+      eventKey: 'marketplace_message_received',
+      category: 'MESSAGES',
+      title: 'New marketplace message',
+      body,
+      actionUrl: `/dashboard/marketplace/inbox/${input.threadId}`,
+      payload: {
+        thread_id: input.threadId,
+        quote_id: input.quoteId,
+        source: 'marketplace',
       },
     });
   }

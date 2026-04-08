@@ -162,6 +162,17 @@ export const authOptions: NextAuthOptions = {
             name: "Apple",
             identityProvider: COGNITO_APPLE_IDP,
           }),
+          // Customer-specific OAuth providers — set poolType='customer' in JWT callback
+          buildCognitoProvider({
+            id: "cognito-google-customer",
+            name: "Google",
+            identityProvider: COGNITO_GOOGLE_IDP,
+          }),
+          buildCognitoProvider({
+            id: "cognito-apple-customer",
+            name: "Apple",
+            identityProvider: COGNITO_APPLE_IDP,
+          }),
         ]
       : []),
     CredentialsProvider({
@@ -249,11 +260,19 @@ export const authOptions: NextAuthOptions = {
             throw new Error("Invalid response from authentication server");
           }
 
+          const refreshToken = data.refresh_token || data.refreshToken;
+          const decodedUserToken = idToken ? decodeJWT(idToken) : null;
+          const resolvedUserId =
+            (decodedUserToken?.sub as string | undefined) ||
+            (data.user_id as string | undefined) ||
+            credentials.email;
+
           // Return user info and tokens for NextAuth to store
           return {
-            id: credentials.email,
+            id: resolvedUserId,
             email: credentials.email,
             idToken: idToken,
+            refreshToken: refreshToken,
             userRole: resolvedUserRole,
             poolType: poolType,
             name: resolvedName,
@@ -285,7 +304,11 @@ export const authOptions: NextAuthOptions = {
           (decoded?.email as string | undefined) ||
           ((profile as any)?.email as string | undefined);
         token.userRole = token.userRole || derivedRole || UserRole.OWNER;
-        token.poolType = token.poolType || "users";
+        // Customer-specific OAuth providers get poolType='customer'
+        const isCustomerOAuth = account.provider.endsWith("-customer");
+        token.poolType = token.poolType || (isCustomerOAuth ? "customer" : "users");
+        // Track that this session came from an OAuth provider (not credentials)
+        token.authProvider = 'oauth';
         token.name = token.name || (decoded?.name as string | undefined) || ((profile as any)?.name as string | undefined);
         token.given_name =
           token.given_name ||
@@ -302,6 +325,11 @@ export const authOptions: NextAuthOptions = {
         if ((user as any).idToken) {
           token.idToken = (user as any).idToken ?? token.idToken;
         }
+        if ((user as any).refreshToken) {
+          token.refreshToken = (user as any).refreshToken;
+        }
+        // Track that this session came from the credentials provider
+        if (!token.authProvider) token.authProvider = 'credentials';
         token.sub = token.sub || user.id;
         token.email = token.email || user.email;
         token.userRole = token.userRole || (user as any).userRole;
@@ -356,6 +384,7 @@ export const authOptions: NextAuthOptions = {
         (session.user as any).role = derivedRole;
         (session as any).userRole = derivedRole;
         (session as any).poolType = poolType;
+        (session as any).authProvider = token.authProvider || 'credentials';
         (session as any).error = token.error;
       }
       return session;
@@ -370,7 +399,7 @@ export const authOptions: NextAuthOptions = {
   },
   secret: process.env.NEXTAUTH_SECRET,
   pages: {
-    signIn: '/login',
+    signIn: '/pro/login',
   },
   // Set the base URL for NextAuth callbacks
   useSecureCookies: process.env.NODE_ENV === 'production',

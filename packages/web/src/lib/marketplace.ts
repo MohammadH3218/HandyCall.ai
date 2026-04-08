@@ -1,7 +1,9 @@
-export function buildMarketplaceThreadId(companyId: string, customerEmail: string) {
-  const raw = `${String(companyId || '').trim()}::${String(customerEmail || '')
-    .trim()
-    .toLowerCase()}`;
+export function buildMarketplaceThreadId(companyId: string, quoteId?: string, customerEmail?: string) {
+  const normalizedQuoteId = String(quoteId || '').trim();
+  const normalizedEmail = String(customerEmail || '').trim().toLowerCase();
+  const raw = normalizedQuoteId
+    ? `${String(companyId || '').trim()}::quote::${normalizedQuoteId}`
+    : `${String(companyId || '').trim()}::${normalizedEmail}`;
   const base64 = globalThis.btoa(raw);
 
   return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '').slice(0, 32);

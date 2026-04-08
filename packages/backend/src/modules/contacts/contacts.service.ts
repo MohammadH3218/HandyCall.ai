@@ -98,6 +98,35 @@ export class ContactsService {
     };
   }
 
+  private async findExistingContact(
+    companyId: string,
+    identity: { phone?: string; email?: string },
+  ): Promise<ContactUi | null> {
+    const email = String(identity.email || '').trim().toLowerCase();
+    const phoneVariants = buildPhoneVariants(identity.phone || '');
+
+    if (!email && phoneVariants.length === 0) {
+      return null;
+    }
+
+    const result = await this.dynamodb.scan('contacts', {
+      filterExpression: '#company_id = :company_id',
+      expressionAttributeNames: { '#company_id': 'company_id' },
+      expressionAttributeValues: { ':company_id': companyId },
+      limit: 500,
+    });
+
+    const match = (result.items || []).find((item: any) => {
+      const itemEmail = String(item?.email || '').trim().toLowerCase();
+      const itemPhone = String(item?.phone_number || item?.phone || '').trim();
+      const itemPhoneVariants = buildPhoneVariants(itemPhone);
+      return (email && itemEmail && itemEmail === email) ||
+        phoneVariants.some((variant) => itemPhoneVariants.includes(variant));
+    });
+
+    return match ? this.toUiContact(match) : null;
+  }
+
   async getContacts(
     companyId: string,
     options?: {
@@ -207,6 +236,60 @@ export class ContactsService {
     void this.webhooks.emitEvent(companyId, 'contact.created', { contact: created });
 
     return created;
+  }
+
+  async upsertMarketplaceContact(
+    companyId: string,
+    data: CreateContactDto & {
+      city?: string;
+      state?: string;
+      source_quote_id?: string;
+    },
+  ): Promise<ContactUi> {
+    const existing = await this.findExistingContact(companyId, {
+      phone: data.phone_number || data.phone,
+      email: data.email,
+    });
+
+    const now = Date.now();
+    const addressParts = [data.address, data.city, data.state].filter(Boolean).join(', ').trim();
+    const notes = data.source_quote_id
+      ? `Marketplace request ${data.source_quote_id}`
+      : data.notes;
+
+    if (!existing) {
+      return this.createContact(companyId, {
+        ...data,
+        address: addressParts || data.address,
+        notes,
+        source: data.source ?? ContactSource.MANUAL,
+        lead_status: data.lead_status ?? LeadStatus.CONTACTED,
+      });
+    }
+
+    return this.updateContact(companyId, existing.contact_id, {
+      phone_number: data.phone_number || data.phone || existing.phone_number,
+      email: data.email || existing.email,
+      first_name: data.first_name || existing.first_name,
+      last_name: data.last_name || existing.last_name,
+      address: addressParts || data.address || existing.address,
+      zipcode: data.zipcode || existing.zipcode,
+      lead_status: data.lead_status ?? existing.lead_status ?? LeadStatus.CONTACTED,
+      notes: notes || existing.notes,
+    }).then(async (updated) => {
+      await this.dynamodb.update(
+        'contacts',
+        { company_id: companyId, contact_id: existing.contact_id },
+        {
+          city: data.city || (existing as any).city,
+          state: data.state || (existing as any).state,
+          source: data.source ?? (existing as any).source ?? ContactSource.MANUAL,
+          last_contact_at: now,
+          updated_at: now,
+        },
+      );
+      return this.getContactById(companyId, existing.contact_id);
+    });
   }
 
   async updateContact(

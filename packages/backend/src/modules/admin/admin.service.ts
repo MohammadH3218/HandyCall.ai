@@ -6,7 +6,6 @@ import { Company } from '@handycall/shared';
 export interface SystemStats {
   total_companies: number;
   total_users: number;
-  total_calls: number;
   total_revenue: number;
   active_companies: number;
   trial_companies: number;
@@ -14,14 +13,12 @@ export interface SystemStats {
 }
 
 export interface CompanyWithStats extends Company {
-  total_calls: number;
   total_users: number;
-  ai_handled_percentage: number;
 }
 
 export interface ActivityItem {
   id: string;
-  type: 'COMPANY_CREATED' | 'USER_CREATED' | 'CALL_COMPLETED' | 'APPOINTMENT_CREATED';
+  type: 'COMPANY_CREATED' | 'USER_CREATED' | 'APPOINTMENT_CREATED';
   description: string;
   company_id?: string;
   company_name?: string;
@@ -55,9 +52,6 @@ export class AdminService {
     // Get all users
     const usersResult = await this.dynamodb.scan('users');
 
-    // Get all calls
-    const callsResult = await this.dynamodb.scan('calls');
-
     // Count companies by status
     const activeCompanies = companies.filter((c) => c.status === 'ACTIVE').length;
     const trialCompanies = companies.filter((c) => c.status === 'TRIAL').length;
@@ -66,7 +60,6 @@ export class AdminService {
     return {
       total_companies: companies.length,
       total_users: usersResult.items.length,
-      total_calls: callsResult.items.length,
       total_revenue: 0, // TODO: Calculate from billing data
       active_companies: activeCompanies,
       trial_companies: trialCompanies,
@@ -86,14 +79,12 @@ export class AdminService {
 
       companiesWithStats.push({
         ...company,
-        total_calls: stats.total_calls,
         total_users: stats.total_users,
-        ai_handled_percentage: stats.ai_handled_percentage,
       });
     }
 
-    // Sort by total calls (descending)
-    companiesWithStats.sort((a, b) => b.total_calls - a.total_calls);
+    // Sort by total users (descending)
+    companiesWithStats.sort((a, b) => b.total_users - a.total_users);
 
     return companiesWithStats.slice(0, limit);
   }
@@ -134,25 +125,6 @@ export class AdminService {
         company_id: user.company_id,
         company_name: company?.company_name,
         timestamp: user.created_at,
-      });
-    }
-
-    // Get recent calls
-    const callsResult = await this.dynamodb.scan('calls');
-    const recentCalls = callsResult.items
-      .filter((call: any) => call.status === 'COMPLETED')
-      .sort((a: any, b: any) => b.created_at - a.created_at)
-      .slice(0, 5);
-
-    for (const call of recentCalls) {
-      const company = companies.find((c) => c.company_id === call.company_id);
-      activities.push({
-        id: `call-${call.call_id}`,
-        type: 'CALL_COMPLETED',
-        description: `Call completed${call.ai_handled ? ' (AI handled)' : ''}`,
-        company_id: call.company_id,
-        company_name: company?.company_name,
-        timestamp: call.created_at,
       });
     }
 

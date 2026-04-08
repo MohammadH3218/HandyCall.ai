@@ -4,13 +4,14 @@ import { PassportModule } from '@nestjs/passport';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { UsersModule } from '../users/users.module';
 import { CompaniesModule } from '../companies/companies.module';
-import { AgentConfigModule } from '../agent-config/agent-config.module';
 import { CustomerProfilesModule } from '../customer-profiles/customer-profiles.module';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { CognitoService } from './cognito.service';
+import { SmsService } from './sms.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { AdminJwtStrategy } from './strategies/admin-jwt.strategy';
+import { CustomerJwtStrategy } from './strategies/customer-jwt.strategy';
 
 @Module({
   imports: [
@@ -18,7 +19,6 @@ import { AdminJwtStrategy } from './strategies/admin-jwt.strategy';
     PassportModule.register({ defaultStrategy: 'jwt' }),
     forwardRef(() => UsersModule),
     CompaniesModule,
-    AgentConfigModule,
     CustomerProfilesModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
@@ -32,7 +32,7 @@ import { AdminJwtStrategy } from './strategies/admin-jwt.strategy';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, CognitoService, JwtStrategy, AdminJwtStrategy],
-  exports: [PassportModule, JwtStrategy, AdminJwtStrategy, AuthService, CognitoService],
+  providers: [AuthService, CognitoService, SmsService, JwtStrategy, AdminJwtStrategy, CustomerJwtStrategy],
+  exports: [PassportModule, JwtStrategy, AdminJwtStrategy, CustomerJwtStrategy, AuthService, CognitoService],
 })
 export class AuthModule {}

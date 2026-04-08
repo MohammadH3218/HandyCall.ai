@@ -3,8 +3,9 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { UsersService } from '../users/users.service';
 import { CompaniesService } from '../companies/companies.service';
-import { AgentConfigService } from '../agent-config/agent-config.service';
 import { CognitoService } from './cognito.service';
+import { SmsService } from './sms.service';
+import { DynamoDBService } from '../../infrastructure/database/dynamodb.service';
 import { CustomerProfilesService } from '../customer-profiles/customer-profiles.service';
 import {
   LoginResponse,
@@ -20,6 +21,12 @@ import { randomBytes, createHash } from 'crypto';
 import { sendSesEmail } from '../public-booking/email.util';
 import { renderHandycallEmail } from '../../common/email-templates';
 
+const PHONE_VERIFY_TABLE = 'phone_verification_codes';
+const PHONE_CODE_TTL_SECONDS = 10 * 60; // 10 minutes
+
+const LOGIN_OTP_TABLE = 'login_otp_sessions';
+const LOGIN_OTP_TTL_SECONDS = 5 * 60; // 5 minutes
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -27,8 +34,9 @@ export class AuthService {
     private configService: ConfigService,
     private usersService: UsersService,
     private companiesService: CompaniesService,
-    private agentConfigService: AgentConfigService,
     private cognitoService: CognitoService,
+    private smsService: SmsService,
+    private dynamodbService: DynamoDBService,
     private customerProfilesService: CustomerProfilesService,
   ) {}
 
@@ -108,6 +116,7 @@ export class AuthService {
         family_name: derivedLastName,
         'custom:company_id': company.company_id,
         'custom:company_name': company.company_name,
+        ...(formattedPhone ? { phone_number: formattedPhone } : {}),
       };
       await this.cognitoService.signUpUser(email, password, attributes);
     } catch (error) {
@@ -155,9 +164,6 @@ export class AuthService {
       }
       throw error;
     }
-
-    // Create default agent config
-    await this.agentConfigService.createDefaultConfig(company.company_id);
 
     return {
       ok: true,
@@ -891,6 +897,232 @@ export class AuthService {
 
     await this.cognitoService.login(user.email, currentPassword, 'auto');
     await this.cognitoService.setUserPassword(user.email, newPassword, 'auto');
+
+    return { ok: true };
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // Phone verification methods
+  // ──────────────────────────────────────────────────────────────────────────
+
+  private generateSixDigitCode(): string {
+    return Math.floor(100000 + Math.random() * 900000).toString();
+  }
+
+  async sendPhoneCode(email: string, poolType: 'users' | 'customer' = 'customer'): Promise<{ ok: boolean; phone_hint: string }> {
+    const trimmedEmail = email.trim();
+
+    // Fetch phone number from Cognito user attributes
+    const attrs = await this.cognitoService.getUserAttributes(trimmedEmail, poolType);
+    const phoneNumber = attrs['phone_number'];
+
+    if (!phoneNumber) {
+      throw new BadRequestException('No phone number on file. Please update your phone number first.');
+    }
+
+    const code = this.generateSixDigitCode();
+    const expiresAt = Math.floor(Date.now() / 1000) + PHONE_CODE_TTL_SECONDS;
+
+    await this.dynamodbService.put(PHONE_VERIFY_TABLE, {
+      email: trimmedEmail,
+      pool_type: poolType,
+      code,
+      expires_at: expiresAt,
+    });
+
+    await this.smsService.sendSms(
+      phoneNumber,
+      `Your HandyCall verification code is: ${code}. It expires in 10 minutes.`,
+    );
+
+    return { ok: true, phone_hint: phoneNumber };
+  }
+
+  async verifyPhoneCode(email: string, code: string, poolType: 'users' | 'customer' = 'customer'): Promise<{ ok: boolean }> {
+    const trimmedEmail = email.trim();
+
+    const record = await this.dynamodbService.get(PHONE_VERIFY_TABLE, {
+      email: trimmedEmail,
+      pool_type: poolType,
+    });
+
+    if (!record) {
+      throw new BadRequestException('No pending phone verification found. Please request a new code.');
+    }
+
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    if (record.expires_at && record.expires_at < nowSeconds) {
+      throw new BadRequestException('Verification code has expired. Please request a new one.');
+    }
+
+    if (record.code !== code.trim()) {
+      throw new BadRequestException('Incorrect verification code. Please try again.');
+    }
+
+    // Mark phone as verified in Cognito
+    await this.cognitoService.updateUserAttributes(
+      trimmedEmail,
+      { phone_number_verified: 'true' },
+      poolType,
+    );
+
+    // Clean up verification record
+    await this.dynamodbService.delete(PHONE_VERIFY_TABLE, {
+      email: trimmedEmail,
+      pool_type: poolType,
+    });
+
+    return { ok: true };
+  }
+
+  async updatePhoneAndResend(email: string, phoneNumber: string, poolType: 'users' | 'customer' = 'customer'): Promise<{ ok: boolean; phone_hint: string }> {
+    const trimmedEmail = email.trim();
+    const trimmedPhone = phoneNumber.trim();
+
+    if (!isValidPhoneNumber(trimmedPhone)) {
+      throw new BadRequestException('Invalid phone number format. Use E.164 format: +12223334444');
+    }
+
+    const formattedPhone = formatPhoneNumber(trimmedPhone);
+
+    // Update phone in Cognito
+    await this.cognitoService.updateUserAttributes(
+      trimmedEmail,
+      {
+        phone_number: formattedPhone,
+        phone_number_verified: 'false',
+      },
+      poolType,
+    );
+
+    // For customers, also update the customer_profiles record
+    if (poolType === 'customer') {
+      const profile = await this.customerProfilesService.getByUserId(trimmedEmail);
+      if (profile) {
+        await this.customerProfilesService.update(trimmedEmail, { phone: formattedPhone });
+      }
+    }
+
+    // Send new SMS code to the updated number
+    return this.sendPhoneCode(trimmedEmail, poolType);
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // Login SMS OTP (2-step login)
+  // ──────────────────────────────────────────────────────────────────────────
+
+  async preLogin(email: string, password: string, poolType: 'users' | 'customer' = 'customer'): Promise<{ pre_login_session: string; phone: string }> {
+    const trimmedEmail = email.trim();
+
+    // 1. Validate credentials — get the real Cognito tokens
+    let loginResult: any;
+    try {
+      loginResult = await this.cognitoService.login(trimmedEmail, password, poolType);
+    } catch (err: any) {
+      // Re-throw auth errors unchanged (wrong password, etc.)
+      throw err;
+    }
+
+    // 2. Get the phone number from Cognito
+    const attrs = await this.cognitoService.getUserAttributes(trimmedEmail, poolType);
+    const phoneNumber = attrs['phone_number'];
+    if (!phoneNumber) {
+      throw new BadRequestException('No phone number on file. Please contact support.');
+    }
+
+    // 3. Generate OTP + session ID
+    const sessionId = uuidv4();
+    const otp = this.generateSixDigitCode();
+    const expiresAt = Math.floor(Date.now() / 1000) + LOGIN_OTP_TTL_SECONDS;
+
+    // 4. Store everything in DynamoDB (tokens + otp + session)
+    await this.dynamodbService.put(LOGIN_OTP_TABLE, {
+      session_id: sessionId,
+      email: trimmedEmail,
+      pool_type: poolType,
+      otp,
+      expires_at: expiresAt,
+      id_token: loginResult.idToken,
+      access_token: loginResult.accessToken,
+      refresh_token: loginResult.refreshToken || null,
+      user_attributes: loginResult.userAttributes || {},
+    });
+
+    // 5. Send SMS
+    await this.smsService.sendSms(
+      phoneNumber,
+      `Your HandyCall login code is: ${otp}. It expires in 5 minutes.`,
+    );
+
+    return { pre_login_session: sessionId, phone: phoneNumber };
+  }
+
+  async verifyLoginOtp(sessionId: string, otp: string, poolType: 'users' | 'customer' = 'customer'): Promise<any> {
+    const record = await this.dynamodbService.get(LOGIN_OTP_TABLE, { session_id: sessionId });
+
+    if (!record) {
+      throw new BadRequestException('Login session not found or expired. Please sign in again.');
+    }
+
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    if (record.expires_at && record.expires_at < nowSeconds) {
+      throw new BadRequestException('Login code has expired. Please sign in again.');
+    }
+
+    if (record.otp !== otp.trim()) {
+      throw new BadRequestException('Incorrect code. Please try again.');
+    }
+
+    // Delete session — single use
+    await this.dynamodbService.delete(LOGIN_OTP_TABLE, { session_id: sessionId });
+
+    // Return the stored Cognito tokens + user info so NextAuth can build its session
+    return {
+      email: record.email,
+      id_token: record.id_token,
+      access_token: record.access_token,
+      refresh_token: record.refresh_token,
+      pool_type: record.pool_type,
+      user_attributes: record.user_attributes || {},
+    };
+  }
+
+  async deleteUnverifiedAccount(email: string, poolType: 'users' | 'customer' = 'customer'): Promise<{ ok: boolean }> {
+    const trimmedEmail = email.trim();
+
+    // Safety check: only delete if there IS a pending phone verification record.
+    // This prevents this endpoint from being abused to delete arbitrary accounts.
+    const record = await this.dynamodbService.get(PHONE_VERIFY_TABLE, {
+      email: trimmedEmail,
+      pool_type: poolType,
+    });
+
+    if (!record) {
+      // No pending verification — either already verified or never started.
+      // Return ok silently to avoid revealing account existence.
+      return { ok: true };
+    }
+
+    // Delete verification record first
+    await this.dynamodbService.delete(PHONE_VERIFY_TABLE, {
+      email: trimmedEmail,
+      pool_type: poolType,
+    });
+
+    // Delete the Cognito user
+    try {
+      await this.cognitoService.deleteUser(trimmedEmail, poolType);
+    } catch {
+      // Ignore if user was already deleted
+    }
+
+    // For customers, delete the DynamoDB profile record
+    if (poolType === 'customer') {
+      const profile = await this.customerProfilesService.getByUserId(trimmedEmail).catch(() => null);
+      if (profile) {
+        await this.customerProfilesService.deleteByUserId(trimmedEmail).catch(() => null);
+      }
+    }
 
     return { ok: true };
   }

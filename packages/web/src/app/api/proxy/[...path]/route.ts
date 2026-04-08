@@ -12,6 +12,12 @@ const PUBLIC_PATHS = [
   "auth/resend-confirmation",
   "auth/refresh",
   "auth/change-password", // Allow password changes without auth
+  "auth/send-phone-code",
+  "auth/verify-phone-code",
+  "auth/update-phone",
+  "auth/delete-unverified",
+  "auth/pre-login",
+  "auth/verify-login-otp",
   // Marketplace is public — consumers browse without an account
   "marketplace/search",
   "marketplace/ai-search",
@@ -77,7 +83,7 @@ async function handleRequest(
 
   // 3. Get request body if applicable
   let body: string | undefined;
-  if (method !== "GET" && method !== "HEAD" && method !== "DELETE") {
+  if (method !== "GET" && method !== "HEAD") {
     try {
       body = await req.text();
     } catch (error) {

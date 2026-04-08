@@ -40,9 +40,18 @@ export default function BillingPage() {
   const router = useRouter();
   const { toast } = useToast();
   const { company, setCompany } = useAuthStore();
+  const companyPlan = (company?.subscription_plan as SubscriptionPlan | undefined);
+  const isStarter = companyPlan === SubscriptionPlan.STARTER || !companyPlan;
   const [subscription, setSubscription] = useState<any>(null);
   const [usage, setUsage] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+
+  // Starter plan is free — no billing page needed
+  useEffect(() => {
+    if (isStarter) {
+      router.replace('/dashboard/marketplace/requests');
+    }
+  }, [isStarter, router]);
   const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [planLimits, setPlanLimits] = useState<{ minutes: number; sms: number; contacts: number }>();

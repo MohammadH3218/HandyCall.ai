@@ -7,21 +7,14 @@ import type {
   Company,
   User,
   Contact,
-  Call,
-  CallHighlight,
   Appointment,
-  KnowledgeItem,
-  FlaggedQuestion,
-  AgentConfig,
   PricingRule,
-  CallHandlingMode,
+  AppointmentCancellationPolicy,
   UUID,
   Timestamp,
 } from './domain';
+import type { AuthPoolType } from './auth';
 
-import type {
-  CallTranscript,
-} from './telephony';
 
 import type {
   NotificationDevice,
@@ -80,8 +73,6 @@ export interface DateRangeFilter {
 // ============================================================================
 // Auth Endpoints
 // ============================================================================
-
-export type AuthPoolType = 'users' | 'admin' | 'customer';
 
 export interface LoginRequest {
   email: string;
@@ -159,11 +150,9 @@ export interface UpdateCompanyRequest {
   service_area_zipcodes?: string[];
   service_area_cities?: string[];
   pricing_profile?: Company['pricing_profile'];
+  appointment_cancellation_policy?: AppointmentCancellationPolicy;
   company_profile_completed?: boolean;
   service_area_completed?: boolean;
-  transfer_enabled?: boolean;
-  transfer_number?: string;
-  call_handling_mode?: CallHandlingMode;
 }
 
 export type GetCompanyResponse = Company;
@@ -192,30 +181,6 @@ export interface ListContactsResponse {
   contacts: Contact[];
   pagination: PaginationMeta;
 }
-
-// ============================================================================
-// Call Endpoints
-// ============================================================================
-
-export interface ListCallsRequest extends PaginationParams, DateRangeFilter {
-  contact_id?: UUID;
-  status?: string;
-  ai_handled?: boolean;
-}
-
-export interface ListCallsResponse {
-  calls: Call[];
-  pagination: PaginationMeta;
-}
-
-export interface GetCallResponse {
-  call: Call;
-  transcript?: CallTranscript;
-  highlights?: CallHighlight[];
-}
-
-// CallTranscript is imported from telephony.ts
-// CallHighlight is imported from domain.ts
 
 // ============================================================================
 // Appointment Endpoints
@@ -253,75 +218,6 @@ export interface UpdateAppointmentRequest {
 }
 
 // ============================================================================
-// Knowledge Base Endpoints
-// ============================================================================
-
-export interface CreateKnowledgeItemRequest {
-  type: string;
-  question: string;
-  answer: string;
-  status?: string;
-}
-
-export interface UpdateKnowledgeItemRequest {
-  question?: string;
-  answer?: string;
-  status?: string;
-}
-
-export interface ListKnowledgeItemsRequest extends PaginationParams {
-  type?: string;
-  status?: string;
-  search?: string;
-}
-
-export interface ListKnowledgeItemsResponse {
-  knowledge_items: KnowledgeItem[];
-  pagination: PaginationMeta;
-}
-
-// ============================================================================
-// Flagged Questions Endpoints
-// ============================================================================
-
-export interface ListFlaggedQuestionsRequest extends PaginationParams {
-  status?: string;
-}
-
-export interface ListFlaggedQuestionsResponse {
-  flagged_questions: FlaggedQuestion[];
-  pagination: PaginationMeta;
-}
-
-export interface ResolveFlaggedQuestionRequest {
-  answer: string;
-  create_knowledge_item?: boolean;
-  knowledge_type?: string;
-}
-
-export interface ResolveFlaggedQuestionResponse {
-  flagged_question: FlaggedQuestion;
-  knowledge_item?: KnowledgeItem;
-}
-
-// ============================================================================
-// Agent Config Endpoints
-// ============================================================================
-
-export interface UpdateAgentConfigRequest {
-  greeting_tone?: string;
-  custom_greeting?: string;
-  booking_mode?: string;
-  can_discuss_pricing?: boolean;
-  can_handle_emergencies?: boolean;
-  escalation_threshold?: number;
-  require_callback_confirmation?: boolean;
-  send_sms_summary?: boolean;
-}
-
-export type GetAgentConfigResponse = AgentConfig;
-
-// ============================================================================
 // Pricing Rules Endpoints
 // ============================================================================
 
@@ -341,45 +237,24 @@ export interface ListPricingRulesResponse {
 }
 
 // ============================================================================
-// Mock Telephony (Development)
-// ============================================================================
-
-export interface MockInboundCallRequest {
-  from_number: string;
-  caller_intent?: string;
-  caller_questions?: string[];
-}
-
-export interface MockInboundSMSRequest {
-  from_number: string;
-  message_body: string;
-}
-
-// ============================================================================
 // Dashboard/Analytics
 // ============================================================================
 
 export interface DashboardStatsResponse {
   today: {
-    total_calls: number;
-    ai_handled_calls: number;
     new_leads: number;
     appointments_scheduled: number;
-    flagged_questions: number;
   };
   week: {
-    total_calls: number;
-    ai_handled_calls: number;
     new_leads: number;
     appointments_scheduled: number;
   };
-  recent_calls: Call[];
   recent_leads: Contact[];
   urgent_items: UrgentItem[];
 }
 
 export interface UrgentItem {
-  type: 'FLAGGED_QUESTION' | 'MISSED_CALL' | 'COMPLAINT';
+  type: 'COMPLAINT';
   id: UUID;
   description: string;
   created_at: Timestamp;

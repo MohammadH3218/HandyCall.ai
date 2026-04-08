@@ -261,7 +261,13 @@ Reply with just the slug — no punctuation, no explanation.`,
     if (params.category) {
       providers = providers.filter((p) => {
         const cats = p.categories || p.service_types || [];
-        return cats.some((c: string) => c.toUpperCase().includes(params.category!.toUpperCase()));
+        const mpCategory: string = (p.marketplace_profile?.service_category || '').toUpperCase();
+        const paramCat = params.category!.toUpperCase();
+        return (
+          cats.some((c: string) => c.toUpperCase().includes(paramCat)) ||
+          mpCategory.includes(paramCat) ||
+          paramCat.includes(mpCategory.split('&')[0].trim())
+        );
       });
     }
 
@@ -277,7 +283,16 @@ Reply with just the slug — no punctuation, no explanation.`,
       providers = providers.filter((p) => {
         const name = String(p.company_name || '').toLowerCase();
         const desc = String(p.public_description || p.description || '').toLowerCase();
-        return name.includes(q) || desc.includes(q);
+        const mpCategory = String((p.marketplace_profile?.service_category) || '').toLowerCase();
+        const mpBio = String((p.marketplace_profile?.bio) || '').toLowerCase();
+        const services = (p.marketplace_profile?.services_offered || []) as string[];
+        return (
+          name.includes(q) ||
+          desc.includes(q) ||
+          mpCategory.includes(q) ||
+          mpBio.includes(q) ||
+          services.some((s: string) => s.toLowerCase().includes(q))
+        );
       });
     }
 
@@ -334,22 +349,26 @@ Reply with just the slug — no punctuation, no explanation.`,
   }
 
   private sanitizeProvider(p: any) {
+    const mp = p.marketplace_profile || {};
     return {
       company_id: p.company_id,
       company_name: p.company_name,
       public_slug: p.public_slug,
-      public_description: p.public_description || p.description,
-      profile_photo_url: p.profile_photo_url,
-      gallery_urls: p.gallery_urls || [],
+      public_description: mp.bio || p.public_description || p.description,
+      profile_photo_url: mp.profile_photo || p.profile_photo_url,
+      gallery_urls: mp.portfolio_photos || p.gallery_urls || [],
       categories: p.categories || p.service_types || [],
       overall_rating: p.overall_rating || 0,
       total_reviews: p.total_reviews || 0,
       response_time_minutes: p.response_time_minutes,
-      verified: p.verified || false,
+      verified: p.verified || mp.is_licensed || false,
       badges: p.badges || [],
-      city: p.city,
+      city: p.city || (p.service_area_cities || [])[0] || null,
       state: p.state,
       service_area_zips: p.service_area_zips || [],
+      service_area_cities: p.service_area_cities || [],
+      marketplace_profile: mp,
+      subscription_plan: p.subscription_plan || null,
     };
   }
 

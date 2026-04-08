@@ -2,9 +2,7 @@ export type OnboardingStepId =
   | 'profile'
   | 'company'
   | 'marketplace-profile'
-  | 'knowledge'
   | 'calendar'
-  | 'phone'
   | 'billing';
 
 export const ONBOARDING_STEPS: Array<{
@@ -41,20 +39,6 @@ export const ONBOARDING_STEPS: Array<{
     labelAr: 'جدولة الذكاء الاصطناعي',
     description: 'Set business hours or connect your calendar.',
     descriptionAr: 'حدد ساعات العمل أو اربط التقويم الخاص بك.',
-  },
-  {
-    id: 'phone',
-    label: 'AI phone setup',
-    labelAr: 'إعداد هاتف الذكاء الاصطناعي',
-    description: 'Route calls to HandyCall with a demo or live number.',
-    descriptionAr: 'وجّه المكالمات إلى HandyCall برقم تجريبي أو مباشر.',
-  },
-  {
-    id: 'knowledge',
-    label: 'AI knowledge',
-    labelAr: 'معرفة الذكاء الاصطناعي',
-    description: 'Teach the receptionist how your business works.',
-    descriptionAr: 'علّم موظف الاستقبال كيف يعمل نشاطك.',
   },
   {
     id: 'billing',

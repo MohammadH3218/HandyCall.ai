@@ -5,33 +5,20 @@ import { SiteHeader } from '@/components/marketing/site-header';
 import { SiteFooter } from '@/components/marketing/site-footer';
 import { CategoryCard } from '@/components/marketing/CategoryCard';
 import { HOME_SERVICE_GROUPS } from '@/constants/home-services';
-import { useMarketingLanguage } from '@/components/providers/marketing-language-provider';
 
 export function CategoriesPageClient() {
-  const { isArabic } = useMarketingLanguage();
-
-  const copy = isArabic
-    ? {
-        home: 'الرئيسية',
-        categories: 'الفئات',
-        title: 'تصفح جميع الفئات',
-        description: 'اعثر على محترفين مهرة لكل احتياجات الخدمات المنزلية في مختلف مدن السعودية.',
-        ctaTitle: 'لم تجد خدمتك؟',
-        ctaDescription: 'أخبرنا بما تحتاجه وسنساعدك في الوصول إلى المحترف المناسب.',
-        ctaButton: 'تواصل معنا',
-      }
-    : {
-        home: 'Home',
-        categories: 'Categories',
-        title: 'Browse All Categories',
-        description: 'Find skilled professionals for every home service need across Saudi Arabia.',
-        ctaTitle: "Don't see your service?",
-        ctaDescription: "Tell us what you need and we'll match you with the right pro.",
-        ctaButton: 'Contact Us',
-      };
+  const copy = {
+    home: 'Home',
+    categories: 'Categories',
+    title: 'Browse All Categories',
+    description: 'Find skilled professionals for every home service need in your area.',
+    ctaTitle: "Don't see your service?",
+    ctaDescription: "Tell us what you need and we'll match you with the right pro.",
+    ctaButton: 'Contact Us',
+  };
 
   return (
-    <div className="flex min-h-screen flex-col bg-white" dir={isArabic ? 'rtl' : 'ltr'}>
+    <div className="flex min-h-screen flex-col bg-white">
       <SiteHeader />
       <main className="mx-auto w-full max-w-6xl px-4 py-16">
         <nav className="mb-6 text-sm text-slate-400">

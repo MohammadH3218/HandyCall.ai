@@ -1,61 +1,36 @@
 'use client';
 
 import Link from 'next/link';
-import { useMarketingLanguage } from '@/components/providers/marketing-language-provider';
 import { Logo } from '@/components/ui/logo';
 
 export function SiteFooter() {
-  const { isArabic } = useMarketingLanguage();
-
-  const copy = isArabic
-    ? {
-        tagline: 'نربط منازل السعودية بمحترفي الخدمات الموثوقين.',
-        customers: 'للعملاء',
-        pros: 'للمحترفين',
-        company: 'الشركة',
-        legal: 'قانوني',
-        findServices: 'ابحث عن خدمات',
-        browseCategories: 'تصفح الفئات',
-        howItWorks: 'كيف يعمل',
-        signIn: 'تسجيل الدخول',
-        joinAsPro: 'انضم كمحترف',
-        whyHandyCall: 'لماذا HandyCall',
-        pricing: 'الأسعار',
-        proDashboard: 'لوحة المحترف',
-        contact: 'تواصل معنا',
-        terms: 'شروط الخدمة',
-        privacy: 'سياسة الخصوصية',
-        smsConsent: 'موافقة الرسائل النصية',
-        rights: 'جميع الحقوق محفوظة.',
-        country: 'المملكة العربية السعودية',
-      }
-    : {
-        tagline: "Connecting Saudi Arabia's homes with trusted service professionals.",
-        customers: 'For Customers',
-        pros: 'For Pros',
-        company: 'Company',
-        legal: 'Legal',
-        findServices: 'Find Services',
-        browseCategories: 'Browse Categories',
-        howItWorks: 'How It Works',
-        signIn: 'Sign In',
-        joinAsPro: 'Join as a Pro',
-        whyHandyCall: 'Why HandyCall',
-        pricing: 'Pricing',
-        proDashboard: 'Pro Dashboard',
-        contact: 'Contact',
-        terms: 'Terms of Service',
-        privacy: 'Privacy Policy',
-        smsConsent: 'SMS Consent',
-        rights: 'All rights reserved.',
-        country: 'Saudi Arabia',
-      };
+  const copy = {
+    tagline: 'Connecting Houston homeowners with trusted local service professionals across Harris, Fort Bend, Montgomery, and surrounding counties.',
+    customers: 'For Customers',
+    pros: 'For Pros',
+    company: 'Company',
+    legal: 'Legal',
+    findServices: 'Find Services',
+    browseCategories: 'Browse Categories',
+    howItWorks: 'How It Works',
+    signIn: 'Sign In',
+    joinAsPro: 'Join as a Pro',
+    whyHandyCall: 'Why HandyCall',
+    pricing: 'Pricing',
+    proDashboard: 'Pro Dashboard',
+    contact: 'Contact',
+    terms: 'Terms of Service',
+    privacy: 'Privacy Policy',
+    smsConsent: 'SMS Consent',
+    rights: 'All rights reserved.',
+    country: 'United States',
+  };
 
   return (
-    <footer className="bg-slate-900" dir={isArabic ? 'rtl' : 'ltr'}>
+    <footer className="bg-slate-900">
       <div className="mx-auto max-w-6xl px-4 py-14">
         <div className="mb-10 border-b border-slate-800 pb-10">
-          <Logo width={130} height={32} className="brightness-0 invert" />
+          <Logo width={130} height={32} imageClassName="brightness-0 invert" />
           <p className="mt-3 max-w-sm text-sm text-slate-400">{copy.tagline}</p>
         </div>
 
@@ -68,7 +43,7 @@ export function SiteFooter() {
               <li><Link href="/search" className="text-sm text-slate-400 transition-colors hover:text-white">{copy.findServices}</Link></li>
               <li><Link href="/categories" className="text-sm text-slate-400 transition-colors hover:text-white">{copy.browseCategories}</Link></li>
               <li><Link href="/#how-it-works" className="text-sm text-slate-400 transition-colors hover:text-white">{copy.howItWorks}</Link></li>
-              <li><Link href="/login" className="text-sm text-slate-400 transition-colors hover:text-white">{copy.signIn}</Link></li>
+              <li><Link href="/customer/login" className="text-sm text-slate-400 transition-colors hover:text-white">{copy.signIn}</Link></li>
             </ul>
           </div>
 

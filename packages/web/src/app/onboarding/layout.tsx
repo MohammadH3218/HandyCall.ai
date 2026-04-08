@@ -63,9 +63,7 @@ function OnboardingShell({ children }: { children: React.ReactNode }) {
       profile: status.profile,
       company: status.companyProfile,
       'marketplace-profile': status.marketplaceProfile,
-      knowledge: status.knowledge || aiSetupOptional,
       calendar: status.calendar || aiSetupOptional,
-      phone: status.phone || aiSetupOptional,
       billing: status.billing,
     }),
     [aiSetupOptional, status]
@@ -224,7 +222,7 @@ function OnboardingShell({ children }: { children: React.ReactNode }) {
               <DialogTitle>{t('Are you sure you want to delete your account?', 'هل أنت متأكد أنك تريد حذف حسابك؟')}</DialogTitle>
               <DialogDescription>
                 {t(
-                  'This will permanently remove your account and related company data, including calls, contacts, appointments, knowledge base entries, and other saved setup data.',
+                  'This will permanently remove your account and related company data, including contacts, appointments, messages, and other saved setup data.',
                   'سيؤدي هذا إلى حذف حسابك وبيانات الشركة المرتبطة به نهائيًا، بما في ذلك المكالمات وجهات الاتصال والمواعيد وعناصر قاعدة المعرفة وبيانات الإعداد المحفوظة الأخرى.'
                 )}
               </DialogDescription>

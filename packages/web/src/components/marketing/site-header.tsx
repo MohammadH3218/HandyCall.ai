@@ -1,12 +1,12 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useSession } from 'next-auth/react';
 import { IconMenu2, IconX, IconChevronDown } from '@tabler/icons-react';
-import { LanguageSwitcher } from '@/components/language-switcher';
-import { useMarketingLanguage } from '@/components/providers/marketing-language-provider';
 import { useAuthStore } from '@/stores/auth-store';
 import { Logo } from '../ui/logo';
+import type { User } from '@handycall/shared';
 
 type SiteHeaderVariant = 'default' | 'minimal' | 'pro';
 
@@ -14,16 +14,20 @@ type SiteHeaderProps = {
   variant?: SiteHeaderVariant;
   hideLogin?: boolean;
   hideLoginLink?: boolean;
+  proLinks?: boolean;
 };
 
-const NAV_LINKS = [
-  { href: '/pricing', label: { en: 'Pricing', ar: 'الأسعار' } },
+const NAV_BASE = [
+  { path: '/search', label: 'Find Services' },
+  { path: '/categories', label: 'Categories' },
+  { path: '/#how-it-works', label: 'How It Works' },
 ];
 
-function ProfileMenu() {
+function ProfileMenu({ fallbackUser, isPro = false }: { fallbackUser: Partial<User> | null; isPro?: boolean }) {
   const { user, logout } = useAuthStore();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const profile = user || (fallbackUser as User | null);
 
   useEffect(() => {
     function handleOutside(e: MouseEvent) {
@@ -34,15 +38,17 @@ function ProfileMenu() {
   }, []);
 
   const initials =
-    user?.first_name && user?.last_name
-      ? `${user.first_name[0]}${user.last_name[0]}`.toUpperCase()
-      : user?.first_name
-        ? user.first_name[0].toUpperCase()
-        : user?.email?.[0]?.toUpperCase() ?? '?';
+    profile?.first_name && profile?.last_name
+      ? `${profile.first_name[0]}${profile.last_name[0]}`.toUpperCase()
+      : profile?.first_name
+        ? profile.first_name[0].toUpperCase()
+        : profile?.email?.[0]?.toUpperCase() ?? '?';
 
-  const displayName = user?.first_name
-    ? `${user.first_name}${user.last_name ? ' ' + user.last_name : ''}`
-    : user?.email ?? 'Account';
+  const displayName = profile?.first_name
+    ? `${profile.first_name}${profile.last_name ? ' ' + profile.last_name : ''}`
+    : profile?.email ?? 'Account';
+
+  const logoutHref = isPro ? '/pro/login' : '/customer/login';
 
   return (
     <div ref={ref} className="relative">
@@ -50,9 +56,14 @@ function ProfileMenu() {
         onClick={() => setOpen((v) => !v)}
         className="flex items-center gap-2 rounded-full border border-slate-200 bg-white py-1 pl-1 pr-3 text-sm font-medium text-slate-700 shadow-sm transition hover:border-emerald-300 hover:shadow"
       >
-        <span className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-600 text-xs font-bold text-white">
+        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-xs font-bold text-white">
           {initials}
         </span>
+        {isPro && (
+          <span className="rounded-full bg-amber-400 px-1.5 py-0.5 text-[9px] font-extrabold uppercase tracking-wide text-amber-900 leading-none">
+            PRO
+          </span>
+        )}
         <span className="max-w-[120px] truncate">{displayName}</span>
         <IconChevronDown className={`h-3.5 w-3.5 text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`} stroke={2} />
       </button>
@@ -60,44 +71,66 @@ function ProfileMenu() {
       {open && (
         <div className="absolute right-0 top-full z-50 mt-2 w-52 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg">
           <div className="border-b border-slate-100 px-4 py-3">
-            <p className="text-xs font-semibold text-slate-800 truncate">{displayName}</p>
-            <p className="text-xs text-slate-400 truncate">{user?.email}</p>
+            <div className="flex items-center gap-2">
+              <p className="text-xs font-semibold text-slate-800 truncate">{displayName}</p>
+              {isPro && (
+                <span className="shrink-0 rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-extrabold uppercase tracking-wide text-amber-700">
+                  PRO
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-slate-400 truncate">{profile?.email}</p>
           </div>
           <div className="py-1">
-            <Link
-              href="/customer/dashboard"
-              onClick={() => setOpen(false)}
-              className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-700 transition hover:bg-slate-50"
-            >
-              <svg className="h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-              </svg>
-              Dashboard
-            </Link>
-            <Link
-              href="/customer/dashboard/inbox"
-              onClick={() => setOpen(false)}
-              className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-700 transition hover:bg-slate-50"
-            >
-              <svg className="h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
-              </svg>
-              Inbox
-            </Link>
-            <Link
-              href="/customer/dashboard/bookings"
-              onClick={() => setOpen(false)}
-              className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-700 transition hover:bg-slate-50"
-            >
-              <svg className="h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-              </svg>
-              Bookings
-            </Link>
+            {isPro ? (
+              <Link
+                href="/dashboard"
+                onClick={() => setOpen(false)}
+                className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-700 transition hover:bg-slate-50"
+              >
+                <svg className="h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                </svg>
+                Dashboard
+              </Link>
+            ) : (
+              <>
+                <Link
+                  href="/customer/dashboard"
+                  onClick={() => setOpen(false)}
+                  className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-700 transition hover:bg-slate-50"
+                >
+                  <svg className="h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                  </svg>
+                  Dashboard
+                </Link>
+                <Link
+                  href="/customer/dashboard/inbox"
+                  onClick={() => setOpen(false)}
+                  className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-700 transition hover:bg-slate-50"
+                >
+                  <svg className="h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                  </svg>
+                  Inbox
+                </Link>
+                <Link
+                  href="/customer/dashboard/bookings"
+                  onClick={() => setOpen(false)}
+                  className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-700 transition hover:bg-slate-50"
+                >
+                  <svg className="h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                  Bookings
+                </Link>
+              </>
+            )}
           </div>
           <div className="border-t border-slate-100 py-1">
             <button
-              onClick={() => { setOpen(false); logout(); }}
+              onClick={() => { setOpen(false); logout(logoutHref); }}
               className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm text-red-600 transition hover:bg-red-50"
             >
               <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
@@ -116,77 +149,114 @@ export function SiteHeader({
   variant = 'default',
   hideLogin = false,
   hideLoginLink = false,
+  proLinks = false,
 }: SiteHeaderProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const isMinimal = variant === 'minimal';
-  const { language, isArabic, setLanguage } = useMarketingLanguage();
-  const { isAuthenticated, isLoading } = useAuthStore();
+  const navLinks = NAV_BASE.map((n) => ({ ...n, href: n.path }));
+  const { user, isAuthenticated, isLoading, checkAuth } = useAuthStore();
+  const { data: session, status } = useSession();
+  const isSessionLoading = status === 'loading';
+  const isCustomerSession = status === 'authenticated' && session?.poolType === 'customer';
+  const isProSession = status === 'authenticated' && (session as any)?.poolType === 'users';
 
-  const copy = isArabic
-    ? {
-        forPros: 'للمحترفين',
-        signIn: 'تسجيل الدخول',
-        signUp: 'إنشاء حساب',
-        findAPro: 'اعثر على محترف',
-        toggleLabel: 'English',
-        toggleAria: 'التبديل إلى الإنجليزية',
-        menuAria: 'فتح القائمة',
-      }
-    : {
-        forPros: 'For Pros',
-        signIn: 'Log In',
-        signUp: 'Sign Up',
-        findAPro: 'Find a Pro',
-        toggleLabel: 'العربية',
-        toggleAria: 'Switch to Arabic',
-        menuAria: 'Toggle menu',
-      };
+  const fallbackCustomerUser = useMemo<Partial<User> | null>(() => {
+    if (!isCustomerSession) return null;
 
-  const handleLanguageToggle = () => {
-    setLanguage(language === 'ar' ? 'en' : 'ar');
-    setMobileOpen(false);
+    const name = session?.user?.name?.trim() || '';
+    const firstName =
+      session?.user?.given_name?.trim() ||
+      (name ? name.split(' ')[0] : '') ||
+      undefined;
+    const lastName =
+      session?.user?.family_name?.trim() ||
+      (name ? name.split(' ').slice(1).join(' ') : '') ||
+      undefined;
+
+    return {
+      email: session?.user?.email || undefined,
+      first_name: firstName,
+      last_name: lastName,
+    };
+  }, [isCustomerSession, session]);
+
+
+  useEffect(() => {
+    if (!isCustomerSession) return;
+    if (user?.email) return;
+    void checkAuth();
+  }, [checkAuth, isCustomerSession, user?.email]);
+
+  const shouldShowProAuth = isProSession;
+  const shouldShowCustomerAuth =
+    !isProSession &&
+    !isSessionLoading &&
+    isAuthenticated &&
+    Boolean(user?.email);
+  const shouldShowLoggedOutActions = !shouldShowCustomerAuth && !isSessionLoading && !isLoading;
+
+  const copy = {
+    forPros: 'For Pros',
+    signIn: 'Log In',
+    signUp: 'Sign Up',
+    menuAria: 'Toggle menu',
   };
 
   return (
-    <header className="sticky top-0 z-20 border-b border-slate-200 bg-white" dir={isArabic ? 'rtl' : 'ltr'}>
-      <div className="mx-auto flex max-w-6xl items-center justify-between gap-8 px-4 py-3.5">
-        <Link href="/" className="flex shrink-0 items-center">
-          <Logo width={140} height={34} />
-        </Link>
+    <header className="sticky top-0 z-20 border-b border-slate-200 bg-white">
+      <div className="mx-auto flex max-w-6xl items-center justify-between gap-6 px-4 py-3.5">
+        <div className="flex shrink-0 items-center gap-3">
+          <Link href="/" className="flex items-center">
+            <Logo width={140} height={34} />
+          </Link>
+        </div>
 
+        {/* Center: Nav */}
         {!isMinimal && (
           <nav className="hidden flex-1 items-center gap-6 md:flex">
-            {NAV_LINKS.map((link) => (
+            {navLinks.map((link) => (
               <Link
                 key={link.href}
                 href={link.href}
                 className="text-sm font-medium text-slate-600 transition-colors hover:text-slate-900"
               >
-                {link.label[language]}
+                {link.label}
               </Link>
             ))}
           </nav>
         )}
 
+        {/* Right: Pro links or auth */}
+        {proLinks && (
+          <div className="hidden items-center gap-3 text-xs text-slate-500 md:flex">
+            Already have a pro account?{' '}
+            <Link href="/pro/login" className="font-semibold text-emerald-600 hover:underline">
+              Sign in
+            </Link>
+            <span className="text-slate-300">·</span>
+            <Link href="/pricing" className="text-slate-500 hover:text-slate-700 hover:underline">
+              View pricing
+            </Link>
+          </div>
+        )}
+
         {!hideLogin && (
           <div className="hidden items-center gap-2 md:flex">
-            <LanguageSwitcher />
-
             {/* Auth area: profile or sign up/login */}
-            {!isLoading && isAuthenticated ? (
-              <ProfileMenu />
-            ) : (
+            {shouldShowCustomerAuth ? (
+              <ProfileMenu fallbackUser={fallbackCustomerUser} />
+            ) : shouldShowLoggedOutActions ? (
               <>
                 {!hideLoginLink && (
                   <>
                     <Link
-                      href="/login"
+                      href="/customer/login"
                       className="px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:text-slate-900"
                     >
                       {copy.signIn}
                     </Link>
                     <Link
-                      href="/register"
+                      href="/signup"
                       className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-emerald-300 hover:text-emerald-700"
                     >
                       {copy.signUp}
@@ -203,7 +273,7 @@ export function SiteHeader({
                   {copy.forPros}
                 </Link>
               </>
-            )}
+            ) : null}
           </div>
         )}
 
@@ -222,28 +292,20 @@ export function SiteHeader({
 
       {mobileOpen && (
         <div className="space-y-1 border-t border-slate-100 bg-white px-4 py-4 md:hidden">
-          <button
-            type="button"
-            onClick={handleLanguageToggle}
-            className="mb-2 block w-full rounded-lg border border-slate-200 px-3 py-2.5 text-left text-sm font-semibold text-slate-700 hover:bg-slate-50"
-          >
-            {copy.toggleLabel}
-          </button>
-
           {!isMinimal &&
-            NAV_LINKS.map((link) => (
+            navLinks.map((link) => (
               <Link
                 key={link.href}
                 href={link.href}
                 className="block rounded-lg px-3 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
                 onClick={() => setMobileOpen(false)}
               >
-                {link.label[language]}
+                {link.label}
               </Link>
             ))}
 
           <div className="mt-2 space-y-2 border-t border-slate-100 pt-3">
-            {!isLoading && isAuthenticated ? (
+            {shouldShowCustomerAuth ? (
               <>
                 <Link
                   href="/customer/dashboard"
@@ -260,7 +322,7 @@ export function SiteHeader({
                   Inbox
                 </Link>
               </>
-            ) : (
+            ) : shouldShowLoggedOutActions ? (
               <>
                 <Link
                   href="/register?audience=pro"
@@ -274,7 +336,7 @@ export function SiteHeader({
                   <>
                     {!hideLoginLink && (
                       <Link
-                        href="/login"
+                        href="/customer/login"
                         className="block w-full rounded-lg border border-slate-300 px-4 py-2.5 text-center text-sm font-semibold text-slate-700 hover:bg-slate-50"
                         onClick={() => setMobileOpen(false)}
                       >
@@ -282,7 +344,7 @@ export function SiteHeader({
                       </Link>
                     )}
                     <Link
-                      href="/register"
+                      href="/signup"
                       className="block w-full rounded-lg bg-emerald-600 px-4 py-2.5 text-center text-sm font-semibold text-white hover:bg-emerald-700"
                       onClick={() => setMobileOpen(false)}
                     >
@@ -291,7 +353,7 @@ export function SiteHeader({
                   </>
                 )}
               </>
-            )}
+            ) : null}
           </div>
         </div>
       )}

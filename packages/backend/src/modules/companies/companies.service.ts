@@ -13,16 +13,13 @@ import {
   BusinessHours,
   SubscriptionPlan,
   SubscriptionStatus,
-  CallHandlingMode,
+  AppointmentCancellationPolicy,
 } from '@handycall/shared';
 import { v4 as uuidv4 } from 'uuid';
 import { resolveServiceTemplateId } from './service-template-map';
 
 export interface CompanyStats {
-  total_calls: number;
   total_users: number;
-  ai_handled_calls: number;
-  ai_handled_percentage: number;
   total_contacts: number;
   total_appointments: number;
   revenue?: number;
@@ -176,7 +173,6 @@ export class CompaniesService {
       status: CompanyStatus.INACTIVE,
       timezone,
       business_hours: defaultBusinessHours,
-      call_handling_mode: CallHandlingMode.ALWAYS,
       service_area_zipcodes: options?.serviceAreaZipcodes ?? [],
       service_area_cities: options?.serviceAreaCities ?? [],
       company_profile_completed: options?.companyProfileCompleted ?? false,
@@ -187,6 +183,9 @@ export class CompaniesService {
       sms_enabled: false, // Start disabled until a plan is active
       calendar_setup_completed: false,
       schedule_setup_completed: false,
+      appointment_cancellation_policy: {
+        mode: 'ANYTIME',
+      },
       calendar_mode: 'INTERNAL',
       calendar_provider: 'NONE',
       stripe_connect_onboarding_complete: false,
@@ -255,6 +254,7 @@ export class CompaniesService {
       schedule_overrides?: any;
       appointment_duration_minutes?: number;
       slot_interval_minutes?: number;
+      appointment_cancellation_policy?: AppointmentCancellationPolicy;
       status?: CompanyStatus;
       subscription_tier?: string;
       trial_ends_at?: number | null;
@@ -266,9 +266,6 @@ export class CompaniesService {
         sms?: boolean;
         updated_at?: number;
       };
-      transfer_enabled?: boolean;
-      transfer_number?: string;
-      call_handling_mode?: CallHandlingMode;
       use_simple_scheduling?: boolean;
       // Billing fields
       stripe_customer_id?: string;
@@ -326,19 +323,10 @@ export class CompaniesService {
       service_area_cities?: string[];
       pricing_profile?: Record<string, any>;
       marketplace_profile?: Record<string, any>;
-      call_flow_questions?: Array<{
-        id: string;
-        field_key: string;
-        label: string;
-        prompt: string;
-        helper_text?: string;
-        required?: boolean;
-        enabled?: boolean;
-        order?: number;
-      }>;
       company_profile_completed?: boolean;
       service_area_completed?: boolean;
       marketplace_profile_completed?: boolean;
+      public_profile_enabled?: boolean;
       service_template_id?: string;
     }
   ): Promise<Company> {
@@ -354,6 +342,11 @@ export class CompaniesService {
 
     if (updates.service_type && !updates.service_template_id) {
       updatedData.service_template_id = resolveServiceTemplateId(updates.service_type);
+    }
+
+    // Auto-enable public profile when marketplace profile is marked complete
+    if (updates.marketplace_profile_completed === true && updatedData.public_profile_enabled === undefined) {
+      updatedData.public_profile_enabled = true;
     }
 
     const nextStatus = updates.status ?? company.status;
@@ -374,64 +367,6 @@ export class CompaniesService {
   /**
    * Update AWS Connect phone number details for a company
    */
-  async updateConnectPhoneNumber(
-    companyId: string,
-    phoneData: {
-      connect_phone_number_id?: string;
-      connect_phone_number?: string;
-      connect_instance_id?: string;
-    }
-  ): Promise<Company> {
-    const company = await this.findById(companyId);
-    if (!company) {
-      throw new NotFoundException('Company not found');
-    }
-
-    const updatedData = {
-      ...phoneData,
-      updated_at: Date.now(),
-    };
-
-    const result = await this.dynamodb.update(
-      this.tableName,
-      { company_id: companyId },
-      updatedData
-    );
-    return result as Company;
-  }
-
-  /**
-   * Find company by AWS Connect phone number
-   */
-  async findByConnectPhoneNumber(phoneNumber: string): Promise<Company | null> {
-    try {
-      // Query using connect-phone-index GSI (PK: connect_phone_number)
-      const result = await this.dynamodb.query(
-        this.tableName,
-        '#connect_phone_number = :phone',
-        { '#connect_phone_number': 'connect_phone_number' },
-        { ':phone': phoneNumber },
-        { indexName: 'connect-phone-index', limit: 1 }
-      );
-
-      if (!result || result.items.length === 0) {
-        // Fallback to scan if GSI doesn't exist yet
-        const scanResult = await this.dynamodb.scan(this.tableName, {
-          filterExpression: 'connect_phone_number = :phone',
-          expressionAttributeValues: { ':phone': phoneNumber },
-          limit: 1,
-        });
-
-        return scanResult.items.length > 0 ? (scanResult.items[0] as Company) : null;
-      }
-
-      return result.items[0] as Company;
-    } catch (error: any) {
-      console.error('Error finding company by Connect phone number:', error);
-      return null;
-    }
-  }
-
   /**
    * List all companies (admin only)
    */
@@ -468,14 +403,9 @@ export class CompaniesService {
     await this.s3Service.deleteCompanyArtifacts(companyId);
 
     await Promise.all([
-      this.deleteRelatedData('company_numbers', companyId),
       this.deleteRelatedData('users', companyId),
-      this.deleteRelatedData('calls', companyId),
       this.deleteRelatedData('contacts', companyId),
       this.deleteRelatedData('appointments', companyId),
-      this.deleteRelatedData('knowledge_items', companyId),
-      this.deleteRelatedData('flagged_questions', companyId),
-      this.deleteRelatedData('agent_configs', companyId),
       this.deleteRelatedData('pricing_rules', companyId),
       this.deleteRelatedData('webhook_configs', companyId),
       this.deleteRelatedData('notification_preferences', companyId),
@@ -489,7 +419,6 @@ export class CompaniesService {
       this.deleteRelatedData('follow_up_sequences', companyId),
       this.deleteRelatedData('scheduled_messages', companyId),
       this.deleteRelatedData('invoices', companyId),
-      this.deleteRelatedData('outbound_calls', companyId),
       this.deleteRelatedData('portal_messages', companyId),
       this.deleteRelatedData('quote_requests', companyId),
       this.deleteRelatedData('sms_templates', companyId),
@@ -497,7 +426,6 @@ export class CompaniesService {
       this.deleteRelatedData('team_members', companyId),
       this.deleteRelatedData('billing_events', companyId),
       this.deleteRelatedDataByAttribute('reviews', 'provider_company_id', companyId),
-      this.deleteRelatedDataByAttribute('realtime_cache', 'company_id', companyId),
     ]);
 
     await this.dynamodb.delete(this.tableName, { company_id: companyId });
@@ -576,13 +504,8 @@ export class CompaniesService {
   private getTableKeys(tableName: string, item: any): any {
     const keyMap: Record<string, string[]> = {
       users: ['company_id', 'user_id'],
-      company_numbers: ['did_e164'],
-      calls: ['company_id', 'call_id'],
       contacts: ['company_id', 'contact_id'],
       appointments: ['company_id', 'appointment_id'],
-      knowledge_items: ['company_id', 'knowledge_id'],
-      flagged_questions: ['company_id', 'flagged_id'],
-      agent_configs: ['company_id', 'config_id'],
       pricing_rules: ['company_id', 'pricing_id'],
       webhook_configs: ['company_id'],
       notification_preferences: ['company_id', 'user_id'],
@@ -597,10 +520,8 @@ export class CompaniesService {
       follow_up_sequences: ['company_id', 'sequence_id'],
       scheduled_messages: ['company_id', 'message_id'],
       invoices: ['company_id', 'invoice_id'],
-      outbound_calls: ['company_id', 'call_id'],
       portal_messages: ['company_id', 'message_id'],
       quote_requests: ['company_id', 'quote_id'],
-      realtime_cache: ['contact_id'],
       reviews: ['provider_company_id', 'review_id'],
       sms_templates: ['company_id', 'template_id'],
       sms: ['company_id', 'sms_id'],
@@ -661,17 +582,6 @@ export class CompaniesService {
       { ':company_id': companyId }
     );
 
-    // Get total calls
-    const callsResult = await this.dynamodb.query(
-      'calls',
-      '#company_id = :company_id',
-      { '#company_id': 'company_id' },
-      { ':company_id': companyId }
-    );
-
-    // Count AI handled calls
-    const aiHandledCalls = callsResult.items.filter((call: any) => call.ai_handled === true).length;
-
     // Get total contacts
     const contactsResult = await this.dynamodb.query(
       'contacts',
@@ -688,14 +598,8 @@ export class CompaniesService {
       { ':company_id': companyId }
     );
 
-    const totalCalls = callsResult.items.length;
-    const aiHandledPercentage = totalCalls > 0 ? (aiHandledCalls / totalCalls) * 100 : 0;
-
     return {
-      total_calls: totalCalls,
       total_users: usersResult.items.length,
-      ai_handled_calls: aiHandledCalls,
-      ai_handled_percentage: Math.round(aiHandledPercentage * 100) / 100,
       total_contacts: contactsResult.items.length,
       total_appointments: appointmentsResult.items.length,
     };

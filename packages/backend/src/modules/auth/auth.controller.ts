@@ -1,4 +1,4 @@
-import { Controller, Post, Body, HttpCode, HttpStatus, UseGuards } from '@nestjs/common';
+import { Controller, Post, Delete, Body, HttpCode, HttpStatus, UseGuards } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { Public } from '../../common/decorators/public.decorator';
 import { RegisterDto } from './dto/register.dto';
@@ -10,6 +10,12 @@ import { ChangePasswordDto } from './dto/change-password.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ConfirmForgotPasswordDto } from './dto/confirm-forgot-password.dto';
 import { UpdatePasswordDto } from './dto/update-password.dto';
+import { SendPhoneCodeDto } from './dto/send-phone-code.dto';
+import { VerifyPhoneCodeDto } from './dto/verify-phone-code.dto';
+import { UpdatePhoneDto } from './dto/update-phone.dto';
+import { DeleteUnverifiedDto } from './dto/delete-unverified.dto';
+import { PreLoginDto } from './dto/pre-login.dto';
+import { VerifyLoginOtpDto } from './dto/verify-login-otp.dto';
 import { RegisterResponse } from '@handycall/shared';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CompanyId, UserId } from '../../common/decorators/auth.decorator';
@@ -108,5 +114,47 @@ export class AuthController {
     @Body() dto: UpdatePasswordDto
   ) {
     return this.authService.updatePassword(companyId, userId, dto.current_password, dto.new_password);
+  }
+
+  @Public()
+  @Post('send-phone-code')
+  @HttpCode(HttpStatus.OK)
+  async sendPhoneCode(@Body() dto: SendPhoneCodeDto) {
+    return this.authService.sendPhoneCode(dto.email, dto.pool_type || 'customer');
+  }
+
+  @Public()
+  @Post('verify-phone-code')
+  @HttpCode(HttpStatus.OK)
+  async verifyPhoneCode(@Body() dto: VerifyPhoneCodeDto) {
+    return this.authService.verifyPhoneCode(dto.email, dto.code, dto.pool_type || 'customer');
+  }
+
+  @Public()
+  @Post('update-phone')
+  @HttpCode(HttpStatus.OK)
+  async updatePhone(@Body() dto: UpdatePhoneDto) {
+    return this.authService.updatePhoneAndResend(dto.email, dto.phone_number, dto.pool_type || 'customer');
+  }
+
+  @Public()
+  @Delete('delete-unverified')
+  @HttpCode(HttpStatus.OK)
+  async deleteUnverified(@Body() dto: DeleteUnverifiedDto) {
+    return this.authService.deleteUnverifiedAccount(dto.email, dto.pool_type || 'customer');
+  }
+
+  @Public()
+  @Post('pre-login')
+  @HttpCode(HttpStatus.OK)
+  async preLogin(@Body() dto: PreLoginDto) {
+    return this.authService.preLogin(dto.email, dto.password, dto.pool_type || 'customer');
+  }
+
+  @Public()
+  @Post('verify-login-otp')
+  @HttpCode(HttpStatus.OK)
+  async verifyLoginOtp(@Body() dto: VerifyLoginOtpDto) {
+    return this.authService.verifyLoginOtp(dto.pre_login_session, dto.otp, dto.pool_type || 'customer');
   }
 }

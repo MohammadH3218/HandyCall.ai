@@ -7,10 +7,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { CALL_HANDLING_OPTIONS } from '@/constants/call-handling';
 import { DEFAULT_TIMEZONE, TIMEZONE_OPTIONS, hasTimezoneOption } from '@/constants/timezones';
-import { CallHandlingMode, CompanyCallFlowQuestion, ServiceType } from '@handycall/shared';
-import { CallForwardingGuide } from '@/components/telephony/call-forwarding-guide';
+import { AppointmentCancellationPolicy, ServiceType } from '@handycall/shared';
 import { PageHeader } from '@/components/portal/page-header';
 import {
   Dialog,
@@ -22,30 +20,20 @@ import {
 } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { usePlanFeatures } from '@/hooks/use-plan-features';
-import { IconCopy, IconPhone, IconRefresh, IconSettings, IconShield, IconLink, IconBuilding, IconPhoneCall, IconBrain, IconCreditCard, IconWebhook, IconBell, IconUser, IconMapPin, IconMessageDots } from '@tabler/icons-react';
-import { ServiceAreaTab } from '@/app/dashboard/knowledge/service-area-tab';
-import { KnowledgeTab } from '@/app/dashboard/knowledge/knowledge-tab';
-import { CallFlowEditor } from '@/components/company/call-flow-editor';
-import { createDefaultCallFlowQuestions } from '@/constants/company-templates';
+import { IconCopy, IconRefresh, IconShield, IconLink, IconBuilding, IconCreditCard, IconWebhook, IconBell, IconUser } from '@tabler/icons-react';
 
 export default function SettingsPage() {
   const { toast } = useToast();
-  const { company } = useAuthStore();
+  const { company, setCompany } = useAuthStore();
   const { hasFeature } = usePlanFeatures();
   const crmEnabled = hasFeature('crm_integrations');
   const [formData, setFormData] = useState({
     company_name: '',
     phone_number: '',
     timezone: DEFAULT_TIMEZONE,
-    transfer_enabled: false,
-    transfer_number: '',
-    call_handling_mode: CallHandlingMode.ALWAYS,
   });
   const [isSavingBusiness, setIsSavingBusiness] = useState(false);
-  const [isSavingCall, setIsSavingCall] = useState(false);
-  const [myNumber, setMyNumber] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'business' | 'call' | 'call_flow' | 'payments' | 'integrations' | 'notifications' | 'account' | 'service_area' | 'knowledge'>('business');
-  const [callFlowQuestions, setCallFlowQuestions] = useState<CompanyCallFlowQuestion[]>([]);
+  const [activeTab, setActiveTab] = useState<'business' | 'payments' | 'integrations' | 'notifications' | 'account'>('business');
   const [editOpen, setEditOpen] = useState(false);
   const [editDraft, setEditDraft] = useState({
     company_name: '',
@@ -87,6 +75,10 @@ export default function SettingsPage() {
   const [notificationEvents, setNotificationEvents] = useState<Array<{ event_key: string; label: string; category: string; description: string }>>([]);
   const [notificationPrefs, setNotificationPrefs] = useState<Record<string, { in_app: boolean; push: boolean }>>({});
   const [integrationsEditMode, setIntegrationsEditMode] = useState(false);
+  const [cancellationPolicyDraft, setCancellationPolicyDraft] = useState<AppointmentCancellationPolicy>({
+    mode: 'ANYTIME',
+  });
+  const [cancellationPolicySaving, setCancellationPolicySaving] = useState(false);
 
   const statusLabel = company?.cancel_at_period_end
     ? 'Cancelled'
@@ -100,9 +92,6 @@ export default function SettingsPage() {
       company_name: company.company_name,
       phone_number: company.phone_number ?? '',
       timezone: company.timezone || DEFAULT_TIMEZONE,
-      transfer_enabled: company.transfer_enabled ?? false,
-      transfer_number: company.transfer_number ?? '',
-      call_handling_mode: (company.call_handling_mode as CallHandlingMode) || CallHandlingMode.ALWAYS,
     });
     setEditDraft({
       company_name: company.company_name,
@@ -135,27 +124,18 @@ export default function SettingsPage() {
           }))
         : [],
     );
-    setCallFlowQuestions(
-      Array.isArray((company as any).call_flow_questions) && (company as any).call_flow_questions.length > 0
-        ? ((company as any).call_flow_questions as CompanyCallFlowQuestion[])
-        : createDefaultCallFlowQuestions(((company as any).service_type || ServiceType.HANDYMAN) as ServiceType),
+    const rawPolicy = (company as any)?.appointment_cancellation_policy as AppointmentCancellationPolicy | undefined;
+    setCancellationPolicyDraft(
+      rawPolicy?.mode === 'BEFORE_HOURS'
+        ? {
+            mode: 'BEFORE_HOURS',
+            window_hours: Math.max(1, Number(rawPolicy.window_hours || 24)),
+          }
+        : rawPolicy?.mode === 'NO_CANCELLATIONS'
+          ? { mode: 'NO_CANCELLATIONS' }
+          : { mode: 'ANYTIME' },
     );
   }, [company]);
-
-  useEffect(() => {
-    apiClient
-      .getMyTelephonyNumber()
-      .then((res: any) => {
-        const phone =
-          res?.phoneNumber ??
-          res?.phone_number ??
-          res?.data?.phoneNumber ??
-          res?.data?.phone_number ??
-          null;
-        setMyNumber(phone || null);
-      })
-      .catch(() => setMyNumber(null));
-  }, []);
 
   useEffect(() => {
     if (activeTab !== 'integrations') return;
@@ -240,10 +220,16 @@ export default function SettingsPage() {
     };
   }, [activeTab, toast]);
 
-  const inboundSummary = useMemo(
-    () => myNumber ?? 'Not assigned yet',
-    [myNumber]
-  );
+  const cancellationPolicySummary = useMemo(() => {
+    if (cancellationPolicyDraft.mode === 'NO_CANCELLATIONS') {
+      return 'Customers must contact you directly to cancel.';
+    }
+    if (cancellationPolicyDraft.mode === 'BEFORE_HOURS') {
+      const hours = Math.max(1, Number(cancellationPolicyDraft.window_hours || 24));
+      return `Customers can cancel only ${hours} hour${hours === 1 ? '' : 's'} before the appointment or earlier.`;
+    }
+    return 'Customers can cancel any time before the appointment starts.';
+  }, [cancellationPolicyDraft]);
 
   const handleSaveBusiness = async () => {
     setIsSavingBusiness(true);
@@ -275,55 +261,38 @@ export default function SettingsPage() {
     }
   };
 
-  const handleSaveCallHandling = async () => {
-    setIsSavingCall(true);
+  const handleSaveCancellationPolicy = async () => {
     try {
-      await apiClient.updateMyCompany({
-        call_handling_mode: formData.call_handling_mode,
-        transfer_enabled: formData.transfer_enabled,
-        transfer_number: formData.transfer_enabled ? formData.transfer_number : '',
-      });
-      toast({
-        title: 'Call handling updated',
-        description: 'Your call routing preferences were saved.',
-      });
-    } catch (error: any) {
-      toast({
-        title: 'Update failed',
-        description: error?.message || 'Failed to save call handling settings.',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsSavingCall(false);
-    }
-  };
+      setCancellationPolicySaving(true);
+      const nextPolicy: AppointmentCancellationPolicy =
+        cancellationPolicyDraft.mode === 'BEFORE_HOURS'
+          ? {
+              mode: 'BEFORE_HOURS',
+              window_hours: Math.max(1, Number(cancellationPolicyDraft.window_hours || 24)),
+            }
+          : cancellationPolicyDraft.mode === 'NO_CANCELLATIONS'
+            ? { mode: 'NO_CANCELLATIONS' }
+            : { mode: 'ANYTIME' };
 
-  const handleSaveCallFlow = async () => {
-    try {
-      setIsSavingCall(true);
       await apiClient.updateMyCompany({
-        call_flow_questions: callFlowQuestions.map((question, index) => ({
-          ...question,
-          field_key: String(question.field_key || '').trim(),
-          label: String(question.label || '').trim(),
-          prompt: String(question.prompt || '').trim(),
-          required: question.required !== false,
-          enabled: question.enabled !== false,
-          order: index,
-        })).filter((question) => question.field_key && question.label && question.prompt),
+        appointment_cancellation_policy: nextPolicy,
       });
+
+      const refreshed = await apiClient.getMyCompany();
+      setCompany(refreshed);
+
       toast({
-        title: 'Call flow updated',
-        description: 'Your AI intake questions and order were saved.',
+        title: 'Cancellation policy updated',
+        description: 'Customers will now see the updated cancellation rules on their bookings.',
       });
     } catch (error: any) {
       toast({
-        title: 'Update failed',
-        description: error?.message || 'Failed to save AI call flow settings.',
+        title: 'Failed to save cancellation policy',
+        description: error?.message || 'Please try again.',
         variant: 'destructive',
       });
     } finally {
-      setIsSavingCall(false);
+      setCancellationPolicySaving(false);
     }
   };
 
@@ -505,14 +474,10 @@ export default function SettingsPage() {
       <div className="flex flex-wrap gap-2 rounded-2xl border border-border bg-card p-2 shadow-sm">
         {[
           { key: 'business', label: 'Company profile', Icon: IconBuilding },
-          { key: 'call', label: 'Call handling', Icon: IconPhoneCall },
-          { key: 'call_flow', label: 'AI call flow', Icon: IconBrain },
           { key: 'payments', label: 'Payments', Icon: IconCreditCard },
           { key: 'integrations', label: 'CRM integrations', Icon: IconWebhook },
           { key: 'notifications', label: 'Notifications', Icon: IconBell },
           { key: 'account', label: 'Account', Icon: IconUser },
-          { key: 'service_area', label: 'Service Area', Icon: IconMapPin },
-          { key: 'knowledge', label: 'Knowledge Base', Icon: IconMessageDots },
         ].map((tab) => (
           <button
             key={tab.key}
@@ -564,184 +529,78 @@ export default function SettingsPage() {
                 <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Timezone</p>
                 <p className="mt-2 text-sm font-semibold text-foreground">{formData.timezone || 'Not set'}</p>
               </div>
-              <div className="rounded-xl border border-emerald-100 bg-emerald-50/70 p-4 hover:border-border/80 transition dark:border-emerald-900 dark:bg-emerald-950/30">
-                <div className="flex items-center gap-2">
-                  <IconPhone className="h-3.5 w-3.5 text-emerald-600" stroke={1.5} />
-                  <p className="text-xs font-bold uppercase tracking-widest text-emerald-700 dark:text-emerald-300">Inbound number</p>
+            </div>
+            <div className="border-t border-slate-100 px-5 py-5 dark:border-slate-800">
+              <div className="rounded-2xl border border-border bg-muted/40 p-5">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <h3 className="text-sm font-semibold text-foreground">Appointment cancellation policy</h3>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Choose how early customers can cancel their bookings on their own.
+                    </p>
+                  </div>
+                  <div className="rounded-full bg-background px-3 py-1 text-xs font-medium text-muted-foreground">
+                    {cancellationPolicySummary}
+                  </div>
                 </div>
-                <p className="mt-2 text-sm font-semibold text-foreground">{inboundSummary}</p>
-                {!myNumber && (
-                  <p className="mt-1.5 text-xs text-slate-500">
-                    HandyCall assigns this number. Contact support if you need a specific area code.
-                  </p>
-                )}
+                <div className="mt-5 grid gap-4 md:grid-cols-[minmax(0,1fr)_180px_auto]">
+                  <div className="space-y-2">
+                    <Label>Policy</Label>
+                    <Select
+                      value={cancellationPolicyDraft.mode}
+                      onValueChange={(value: AppointmentCancellationPolicy['mode']) =>
+                        setCancellationPolicyDraft((prev) => ({
+                          ...prev,
+                          mode: value,
+                          window_hours:
+                            value === 'BEFORE_HOURS'
+                              ? Math.max(1, Number(prev.window_hours || 24))
+                              : undefined,
+                        }))
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Choose a cancellation policy" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="ANYTIME">Allow anytime before start</SelectItem>
+                        <SelectItem value="BEFORE_HOURS">Allow until a set number of hours before</SelectItem>
+                        <SelectItem value="NO_CANCELLATIONS">Do not allow self-service cancellations</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Hours before start</Label>
+                    <Input
+                      type="number"
+                      min={1}
+                      value={cancellationPolicyDraft.mode === 'BEFORE_HOURS' ? String(cancellationPolicyDraft.window_hours || 24) : ''}
+                      onChange={(e) =>
+                        setCancellationPolicyDraft((prev) => ({
+                          ...prev,
+                          window_hours: Math.max(1, Number(e.target.value || 24)),
+                        }))
+                      }
+                      disabled={cancellationPolicyDraft.mode !== 'BEFORE_HOURS'}
+                      placeholder="24"
+                    />
+                  </div>
+
+                  <div className="flex items-end">
+                    <Button onClick={handleSaveCancellationPolicy} disabled={cancellationPolicySaving}>
+                      {cancellationPolicySaving ? 'Saving...' : 'Save policy'}
+                    </Button>
+                  </div>
+                </div>
               </div>
             </div>
             <div className="border-t border-slate-100 px-5 py-4 dark:border-slate-800">
-              <div className="grid gap-3 md:grid-cols-3">
-                <button type="button" onClick={() => setActiveTab('call_flow')} className="rounded-xl border border-border bg-muted/50 p-4 text-left hover:border-emerald-200 hover:bg-emerald-50/60 dark:hover:border-emerald-700 dark:hover:bg-emerald-950/40">
-                  <p className="text-sm font-semibold text-foreground">AI call flow</p>
-                  <p className="mt-1 text-xs text-muted-foreground">Edit the exact intake questions and their order.</p>
-                </button>
-                <a href="/dashboard/knowledge" className="rounded-xl border border-border bg-muted/50 p-4 text-left hover:border-emerald-200 hover:bg-emerald-50/60 dark:hover:border-emerald-700 dark:hover:bg-emerald-950/40">
-                  <p className="text-sm font-semibold text-foreground">Knowledge base</p>
-                  <p className="mt-1 text-xs text-muted-foreground">Manage business-specific answers, FAQs, and service details.</p>
-                </a>
+              <div className="grid gap-3 md:grid-cols-2">
                 <button type="button" onClick={() => setActiveTab('payments')} className="rounded-xl border border-border bg-muted/50 p-4 text-left hover:border-emerald-200 hover:bg-emerald-50/60 dark:hover:border-emerald-700 dark:hover:bg-emerald-950/40">
                   <p className="text-sm font-semibold text-foreground">Payments and subscriptions</p>
                   <p className="mt-1 text-xs text-muted-foreground">Manage Stripe Connect, booking payments, and billing setup.</p>
                 </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {activeTab === 'call' && (
-        <div className="space-y-5">
-          <div className="rounded-2xl border border-border bg-card shadow-sm">
-            <div className="border-b border-slate-100 px-5 py-4 dark:border-slate-800">
-              <h2 className="text-base font-semibold text-slate-900 pl-3 border-l-2 border-emerald-500 dark:text-slate-100">Call handling</h2>
-              <p className="text-xs text-slate-500">Choose how HandyCall answers and routes calls.</p>
-            </div>
-            <div className="space-y-4 p-5">
-              <div className="grid gap-3 md:grid-cols-3">
-                {CALL_HANDLING_OPTIONS.map((option) => {
-                  const selected = formData.call_handling_mode === option.value;
-                  return (
-                    <button
-                      key={option.value}
-                      type="button"
-                      onClick={() =>
-                        setFormData((prev) => ({
-                          ...prev,
-                          call_handling_mode: option.value,
-                        }))
-                      }
-                      className={`rounded-2xl border p-4 text-left text-sm transition ${
-                        selected
-                          ? 'border-emerald-400 bg-emerald-50/70 shadow-sm dark:bg-emerald-950/30 dark:border-emerald-700'
-                          : 'border-border bg-card hover:border-emerald-200 dark:hover:border-emerald-700'
-                      }`}
-                    >
-                      <div className="flex items-start gap-3">
-                        <span
-                          className={`mt-1 h-3 w-3 rounded-full border ${
-                            selected ? 'border-emerald-600 bg-emerald-600' : 'border-border bg-background'
-                          }`}
-                        />
-                        <div>
-                          <div className="font-semibold text-foreground">{option.label}</div>
-                          <div className="text-xs text-muted-foreground">{option.description}</div>
-                        </div>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-              <p className="text-xs text-slate-500">
-                Use your carrier forwarding settings to match this choice.
-              </p>
-            </div>
-          </div>
-
-          <div className="rounded-2xl border border-border bg-card shadow-sm">
-            <div className="border-b border-slate-100 px-5 py-4 dark:border-slate-800">
-              <h2 className="text-base font-semibold text-slate-900 pl-3 border-l-2 border-emerald-500 dark:text-slate-100">Human transfer</h2>
-              <p className="text-xs text-slate-500">Let callers reach a person when needed.</p>
-            </div>
-            <div className="space-y-4 p-5">
-              <div className="flex items-center justify-between rounded-2xl border border-border bg-muted/50 p-4">
-                <div className="flex items-center gap-3">
-                  <div className="rounded-full bg-emerald-100 p-2 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
-                    <IconSettings className="h-4 w-4" stroke={1.5} />
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-foreground">Enable call transfer</p>
-                    <p className="text-xs text-muted-foreground">Route urgent calls to a human team member.</p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  aria-pressed={formData.transfer_enabled}
-                  onClick={() =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      transfer_enabled: !prev.transfer_enabled,
-                    }))
-                  }
-                  className={`relative h-7 w-12 rounded-full transition ${
-                    formData.transfer_enabled ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-600'
-                  }`}
-                >
-                  <span
-                    className={`absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow transition ${
-                      formData.transfer_enabled ? 'translate-x-5' : 'translate-x-0'
-                    }`}
-                  />
-                </button>
-              </div>
-
-              {formData.transfer_enabled && (
-                <div className="rounded-2xl border border-emerald-100 bg-emerald-50/50 p-4 dark:border-emerald-900 dark:bg-emerald-950/30">
-                  <Label htmlFor="transfer_number">Forwarding number</Label>
-                  <div className="mt-2 flex flex-col gap-2 sm:flex-row">
-                    <Input
-                      id="transfer_number"
-                      value={formData.transfer_number}
-                      onChange={(e) => setFormData({ ...formData, transfer_number: e.target.value })}
-                      placeholder="+15551234567"
-                    />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() =>
-                        setFormData({
-                          ...formData,
-                          transfer_number: formData.phone_number,
-                        })
-                      }
-                      disabled={!formData.phone_number}
-                    >
-                      Use business number
-                    </Button>
-                  </div>
-                </div>
-              )}
-
-              <div className="flex justify-end">
-                <Button onClick={handleSaveCallHandling} disabled={isSavingCall}>
-                  {isSavingCall ? 'Saving…' : 'Save changes'}
-                </Button>
-              </div>
-            </div>
-          </div>
-
-          <CallForwardingGuide forwardToNumber={myNumber} callHandlingMode={formData.call_handling_mode} />
-        </div>
-      )}
-
-      {activeTab === 'call_flow' && (
-        <div className="space-y-5">
-          <div className="rounded-2xl border border-border bg-card shadow-sm">
-            <div className="border-b border-slate-100 px-5 py-4 dark:border-slate-800">
-              <h2 className="text-base font-semibold text-slate-900 pl-3 border-l-2 border-emerald-500 dark:text-slate-100">AI intake flow</h2>
-              <p className="text-xs text-slate-500">
-                Control which questions HandyCall asks before it ever asks for a date and time.
-              </p>
-            </div>
-            <div className="space-y-4 p-5">
-              <div className="rounded-2xl border border-border bg-muted/50 p-4">
-                <p className="text-sm font-semibold text-foreground">How this works</p>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  These are the exact intake questions the AI will use for this company. Reorder them, edit the wording, disable ones you do not need, or add custom questions. Scheduling stays automatic and always comes last.
-                </p>
-              </div>
-              <CallFlowEditor questions={callFlowQuestions} onChange={setCallFlowQuestions} />
-              <div className="flex justify-end">
-                <Button onClick={handleSaveCallFlow} disabled={isSavingCall}>
-                  {isSavingCall ? 'Saving…' : 'Save call flow'}
-                </Button>
               </div>
             </div>
           </div>
@@ -1346,14 +1205,6 @@ export default function SettingsPage() {
           </div>
         </DialogContent>
       </Dialog>
-
-      {activeTab === 'service_area' && (
-        <ServiceAreaTab />
-      )}
-
-      {activeTab === 'knowledge' && (
-        <KnowledgeTab />
-      )}
     </div>
   );
 }

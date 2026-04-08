@@ -41,6 +41,8 @@ async function bootstrap() {
   const apiPrefix = configService.get<string>('API_PREFIX') || 'api/v1';
   app.use(`/${apiPrefix}/billing/webhook`, bodyParser.raw({ type: 'application/json' }));
   app.use(`/${apiPrefix}/billing/connect/webhook`, bodyParser.raw({ type: 'application/json' }));
+  app.use(bodyParser.json({ limit: '10mb' }));
+  app.use(bodyParser.urlencoded({ extended: true, limit: '10mb' }));
 
   app.useGlobalPipes(
     new ValidationPipe({

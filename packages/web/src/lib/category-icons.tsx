@@ -72,7 +72,11 @@ export type CategoryIconSlug =
   | 'personal-training';
 
 interface IconConfig {
-  Icon: React.ComponentType<{ className?: string; stroke?: number }>;
+  Icon: React.ComponentType<{
+    className?: string;
+    stroke?: string | number;
+    style?: React.CSSProperties;
+  }>;
   bg: string;
   color: string;
 }

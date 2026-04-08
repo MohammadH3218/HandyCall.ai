@@ -109,7 +109,9 @@ class ApiClient {
     } catch {
       // no-op
     } finally {
-      window.location.assign('/login?reason=session_expired');
+      const isCustomerPath = typeof window !== 'undefined' && window.location.pathname.startsWith('/customer');
+      const loginUrl = isCustomerPath ? '/customer/login?reason=session_expired' : '/pro/login?reason=session_expired';
+      window.location.assign(loginUrl);
     }
   }
 
@@ -252,6 +254,47 @@ class ApiClient {
 
   async deleteMyAccount(): Promise<{ message: string }> {
     return this.delete<{ message: string }>('/companies/me/account');
+  }
+
+  async deleteMyCustomerAccount(): Promise<{ message: string }> {
+    // Use a direct fetch here to avoid the force-logout behavior on 401.
+    // The settings page handles the error and shows it in-place.
+    const url = `${this.baseUrl}/customer/account`;
+    const response = await fetch(url, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    let data: any;
+    try { data = await response.json(); } catch { data = {}; }
+    if (!response.ok) {
+      const msg =
+        (Array.isArray(data?.message) ? data.message.join(', ') : data?.message) ||
+        data?.error?.message ||
+        (typeof data?.error === 'string' ? data.error : undefined) ||
+        `Request failed with status ${response.status}`;
+      throw new Error(msg);
+    }
+    return data?.data ?? data;
+  }
+
+  async sendPhoneCode(email: string, poolType: 'users' | 'customer'): Promise<{ ok: boolean; phone_hint: string }> {
+    return this.post('/auth/send-phone-code', { email, pool_type: poolType });
+  }
+
+  async verifyPhoneCode(email: string, code: string, poolType: 'users' | 'customer'): Promise<{ ok: boolean }> {
+    return this.post('/auth/verify-phone-code', { email, code, pool_type: poolType });
+  }
+
+  async updatePhone(email: string, phoneNumber: string, poolType: 'users' | 'customer'): Promise<{ ok: boolean; phone_hint: string }> {
+    return this.post('/auth/update-phone', { email, phone_number: phoneNumber, pool_type: poolType });
+  }
+
+  async deleteUnverifiedAccount(email: string, poolType: 'users' | 'customer'): Promise<{ ok: boolean }> {
+    const response = await this.request<{ ok: boolean }>('/auth/delete-unverified', {
+      method: 'DELETE',
+      body: JSON.stringify({ email, pool_type: poolType }),
+    });
+    return (response as any)?.data ?? (response as any);
   }
 
   async login(data: LoginRequest): Promise<any> {
@@ -398,6 +441,21 @@ class ApiClient {
     return (response.data ?? response) as { appointments: any[] };
   }
 
+  async getCustomerAppointments(): Promise<{ appointments: any[] }> {
+    const response = await this.request<{ appointments: any[] }>(`/customer/appointments`, {
+      method: 'GET',
+    });
+    return (response.data ?? response) as { appointments: any[] };
+  }
+
+  async cancelCustomerAppointment(appointmentId: string, reason?: string): Promise<any> {
+    const response = await this.request<any>(`/customer/appointments/${appointmentId}/cancel`, {
+      method: 'POST',
+      body: JSON.stringify(reason ? { reason } : {}),
+    });
+    return response.data ?? response;
+  }
+
   async getAppointmentById(appointmentId: string): Promise<any> {
     const response = await this.request<any>(`/appointments/${appointmentId}`, { method: 'GET' });
     return response.data ?? response;
@@ -509,171 +567,6 @@ class ApiClient {
     });
     const payload: any = response.data ?? response;
     return payload || [];
-  }
-
-  // Telephony endpoints
-  async getMyTelephonyNumber(): Promise<any> {
-    const response = await this.request<any>('/telephony/my-number', { method: 'GET' });
-    return response.data ?? response;
-  }
-
-  async getAvailablePhoneNumbers(params: {
-    country?: string;
-    type?: string;
-    maxResults?: number;
-    areaCode?: string;
-    contains?: string;
-  }): Promise<any[]> {
-    const query = new URLSearchParams();
-    if (params.country) query.append('country', params.country);
-    if (params.type) query.append('type', params.type);
-    if (typeof params.maxResults === 'number')
-      query.append('maxResults', String(params.maxResults));
-    if (params.areaCode) query.append('areaCode', params.areaCode);
-    if (params.contains) query.append('contains', params.contains);
-
-    const response = await this.request<any>(`/telephony/available-numbers?${query.toString()}`, {
-      method: 'GET',
-    });
-    const payload: any = response.data ?? response;
-    return Array.isArray(payload) ? payload : payload?.data || [];
-  }
-
-  async claimPhoneNumber(phoneNumber: string, description?: string): Promise<any> {
-    const response = await this.request<any>('/telephony/claim-number', {
-      method: 'POST',
-      body: JSON.stringify({ phoneNumber, description }),
-    });
-    return response.data ?? response;
-  }
-
-  async claimDemoPhoneNumber(): Promise<any> {
-    const response = await this.request<any>('/telephony/claim-demo', {
-      method: 'POST',
-    });
-    return response.data ?? response;
-  }
-
-  // Knowledge endpoints
-  async getKnowledgeItems(type?: string, status?: string, limit?: number): Promise<any> {
-    const params = new URLSearchParams();
-    if (type) params.append('type', type);
-    if (status) params.append('status', status);
-    if (limit) params.append('limit', limit.toString());
-
-    const response = await this.request<any>(`/knowledge-items?${params.toString()}`, {
-      method: 'GET',
-    });
-    return response.data ?? response;
-  }
-
-  async getKnowledgeItem(knowledgeId: string): Promise<any> {
-    const response = await this.request<any>(`/knowledge-items/${knowledgeId}`, {
-      method: 'GET',
-    });
-    return response.data ?? response;
-  }
-
-  async createKnowledgeItem(data: any): Promise<any> {
-    const response = await this.request<any>('/knowledge-items', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
-    return response.data ?? response;
-  }
-
-  async updateKnowledgeItem(knowledgeId: string, data: any): Promise<any> {
-    const response = await this.request<any>(`/knowledge-items/${knowledgeId}`, {
-      method: 'PUT',
-      body: JSON.stringify(data),
-    });
-    return response.data ?? response;
-  }
-
-  async deleteKnowledgeItem(knowledgeId: string): Promise<any> {
-    const response = await this.request<any>(`/knowledge-items/${knowledgeId}`, {
-      method: 'DELETE',
-    });
-    return response.data ?? response;
-  }
-
-  async searchKnowledge(query: string, topK?: number): Promise<any> {
-    const params = new URLSearchParams({ q: query });
-    if (topK) params.append('topK', topK.toString());
-
-    const response = await this.request<any>(`/knowledge-items/search?${params.toString()}`, {
-      method: 'GET',
-    });
-    return response.data ?? response;
-  }
-
-  async knowledgeAssistantRespond(
-    messages: Array<{ role: 'user' | 'assistant'; content: string }>
-  ): Promise<any> {
-    const response = await this.request<any>('/knowledge-items/assistant/respond', {
-      method: 'POST',
-      body: JSON.stringify({ messages }),
-    });
-    return response.data ?? response;
-  }
-
-  async knowledgeAssistantGenerate(
-    messages: Array<{ role: 'user' | 'assistant'; content: string }>,
-    autoCreate: boolean = true
-  ): Promise<any> {
-    const response = await this.request<any>('/knowledge-items/assistant/generate', {
-      method: 'POST',
-      body: JSON.stringify({
-        messages,
-        auto_create: autoCreate,
-      }),
-    });
-    return response.data ?? response;
-  }
-
-  async knowledgeExtractProducts(
-    messages: Array<{ role: 'user' | 'assistant'; content: string }>
-  ): Promise<{ created_count: number; skipped_count: number }> {
-    const response = await this.request<any>('/knowledge-items/assistant/extract-products', {
-      method: 'POST',
-      body: JSON.stringify({ messages }),
-    });
-    return response.data ?? response;
-  }
-
-  // Flagged Questions endpoints
-  async getFlaggedQuestions(status?: string, callId?: string, limit?: number): Promise<any> {
-    const params = new URLSearchParams();
-    if (status) params.append('status', status);
-    if (callId) params.append('call_id', callId);
-    if (limit) params.append('limit', limit.toString());
-
-    const response = await this.request<any>(`/flagged-questions?${params.toString()}`, {
-      method: 'GET',
-    });
-    return response.data ?? response;
-  }
-
-  async getFlaggedQuestion(flaggedId: string): Promise<any> {
-    const response = await this.request<any>(`/flagged-questions/${flaggedId}`, {
-      method: 'GET',
-    });
-    return response.data ?? response;
-  }
-
-  async resolveFlaggedQuestion(flaggedId: string, data: any): Promise<any> {
-    const response = await this.request<any>(`/flagged-questions/${flaggedId}/resolve`, {
-      method: 'PUT',
-      body: JSON.stringify(data),
-    });
-    return response.data ?? response;
-  }
-
-  async dismissFlaggedQuestion(flaggedId: string): Promise<any> {
-    const response = await this.request<any>(`/flagged-questions/${flaggedId}/dismiss`, {
-      method: 'PUT',
-    });
-    return response.data ?? response;
   }
 
   // Contacts endpoints
@@ -1146,6 +1039,11 @@ class ApiClient {
     return response.data ?? response;
   }
 
+  async getMyProfile(): Promise<any> {
+    const response = await this.request<any>('/users/me', { method: 'GET' });
+    return response.data ?? response;
+  }
+
   async updateMyProfile(data: {
     first_name?: string;
     last_name?: string;
@@ -1311,6 +1209,11 @@ class ApiClient {
     return (res as any)?.provider ?? res;
   }
 
+  async getProviderById(id: string): Promise<any> {
+    const res = await this.request<any>(`/marketplace/provider-by-id/${id}`);
+    return (res as any)?.provider ?? res;
+  }
+
   async getMyMarketplaceProfile(): Promise<any> {
     const res = await this.request<any>('/marketplace/profile');
     return (res as any)?.profile ?? res;
@@ -1361,6 +1264,19 @@ class ApiClient {
     return this.request<any>('/quote-requests', { method: 'POST', body: JSON.stringify(data) });
   }
 
+  async getCustomerQuoteRequests(): Promise<any[]> {
+    const res = await this.request<any>('/customer/quote-requests');
+    return (res as any)?.quotes ?? res ?? [];
+  }
+
+  async updateCustomerQuoteRequest(quoteId: string, data: any): Promise<any> {
+    const res = await this.request<any>(`/customer/quote-requests/${quoteId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+    return (res as any)?.quote ?? res;
+  }
+
   async browseQuoteRequests(category?: string, zipcode?: string): Promise<any[]> {
     const params = new URLSearchParams();
     if (category) params.set('category', category);
@@ -1377,6 +1293,11 @@ class ApiClient {
 
   async getAvailableQuotes(): Promise<any[]> {
     const res = await this.request<any>('/quote-requests/pro/available');
+    return (res as any)?.quotes ?? res ?? [];
+  }
+
+  async getPastQuoteRequests(): Promise<any[]> {
+    const res = await this.request<any>('/quote-requests/pro/past');
     return (res as any)?.quotes ?? res ?? [];
   }
 
@@ -1405,8 +1326,18 @@ class ApiClient {
       customer_email?: string;
       customer_name?: string;
       customer_phone?: string;
+      customer_user_id?: string;
       request_status?: string;
       quote_context?: any;
+      attachments?: Array<{
+        url: string;
+        width?: number;
+        height?: number;
+        mime_type?: string;
+        name?: string;
+      }>;
+      message_type?: string;
+      system_event?: string;
     }
   ): Promise<any> {
     return this.request<any>(`/portal-messaging/pro/threads/${threadId}/send`, {
@@ -1422,9 +1353,12 @@ class ApiClient {
     });
   }
 
-  async getCustomerThreads(email: string): Promise<any[]> {
+  async getCustomerThreads(identity: { email?: string; userId?: string }): Promise<any[]> {
+    const params = new URLSearchParams();
+    if (identity.email) params.set('email', identity.email);
+    if (identity.userId) params.set('user_id', identity.userId);
     const res = await this.request<any>(
-      `/portal-messaging/customer/threads?email=${encodeURIComponent(email)}`
+      `/portal-messaging/customer/threads?${params.toString()}`
     );
     return (res as any)?.threads ?? res ?? [];
   }
@@ -1434,6 +1368,27 @@ class ApiClient {
       `/portal-messaging/customer/threads/${threadId}?company_id=${encodeURIComponent(companyId)}`
     );
     return (res as any)?.messages ?? res ?? [];
+  }
+
+  async getCustomerProfile(): Promise<{ profile: any; is_complete: boolean }> {
+    const res = await this.request<{ profile: any; is_complete: boolean }>('/customer/profile');
+    return (res as any)?.data ?? res;
+  }
+
+  async updateCustomerProfile(data: {
+    name?: string;
+    phone?: string;
+    address_line1?: string;
+    address_line2?: string;
+    city?: string;
+    state?: string;
+    zipcode?: string;
+  }): Promise<{ profile: any; is_complete: boolean }> {
+    const res = await this.request<{ profile: any; is_complete: boolean }>('/customer/profile', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+    return (res as any)?.data ?? res;
   }
 
   // Refunds

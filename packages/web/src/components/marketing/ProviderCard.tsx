@@ -37,7 +37,8 @@ export function ProviderCard({
   replyTimeAr,
 }: ProviderCardProps) {
   const router = useRouter();
-  const { isArabic } = useMarketingLanguage();
+  const { isArabic: _isArabic } = useMarketingLanguage();
+  const isArabic = false;
   const badgeClass = badgeVariant === 'top' ? 'bg-emerald-600 text-white' : 'bg-blue-600 text-white';
 
   return (
@@ -74,7 +75,7 @@ export function ProviderCard({
           <p className="text-sm font-semibold text-slate-900">
             {isArabic ? 'ابتداءً من ' : 'From '}
             <span className="text-emerald-600">
-              {startingFrom} {isArabic ? 'ريال' : 'SAR'}
+              ${startingFrom}
             </span>
           </p>
           <button
