@@ -154,14 +154,13 @@ export function SiteHeader({
   const [mobileOpen, setMobileOpen] = useState(false);
   const isMinimal = variant === 'minimal';
   const navLinks = NAV_BASE.map((n) => ({ ...n, href: n.path }));
-  const { user, isAuthenticated, isLoading, checkAuth } = useAuthStore();
+  const { user, checkAuth } = useAuthStore();
   const { data: session, status } = useSession();
-  const isSessionLoading = status === 'loading';
   const isCustomerSession = status === 'authenticated' && session?.poolType === 'customer';
   const isProSession = status === 'authenticated' && (session as any)?.poolType === 'users';
 
-  const fallbackCustomerUser = useMemo<Partial<User> | null>(() => {
-    if (!isCustomerSession) return null;
+  const fallbackSessionUser = useMemo<Partial<User> | null>(() => {
+    if (status !== 'authenticated') return null;
 
     const name = session?.user?.name?.trim() || '';
     const firstName =
@@ -178,7 +177,7 @@ export function SiteHeader({
       first_name: firstName,
       last_name: lastName,
     };
-  }, [isCustomerSession, session]);
+  }, [session, status]);
 
 
   useEffect(() => {
@@ -187,18 +186,21 @@ export function SiteHeader({
     void checkAuth();
   }, [checkAuth, isCustomerSession, user?.email]);
 
+  const hasConfirmedCustomerIdentity = Boolean(user?.email || fallbackSessionUser?.email);
   const shouldShowProAuth = isProSession;
   const shouldShowCustomerAuth =
     !isProSession &&
-    !isSessionLoading &&
-    isAuthenticated &&
-    Boolean(user?.email);
-  const shouldShowLoggedOutActions = !shouldShowCustomerAuth && !isSessionLoading && !isLoading;
+    isCustomerSession &&
+    hasConfirmedCustomerIdentity;
+  const shouldShowLoggedOutActions = !shouldShowCustomerAuth && !shouldShowProAuth;
 
   const copy = {
     forPros: 'For Pros',
     signIn: 'Log In',
     signUp: 'Sign Up',
+    pricing: 'Pricing',
+    proSignUp: 'Pro Sign Up',
+    proLogin: 'Pro Login',
     menuAria: 'Toggle menu',
   };
 
@@ -226,25 +228,34 @@ export function SiteHeader({
           </nav>
         )}
 
-        {/* Right: Pro links or auth */}
-        {proLinks && (
-          <div className="hidden items-center gap-3 text-xs text-slate-500 md:flex">
-            Already have a pro account?{' '}
-            <Link href="/pro/login" className="font-semibold text-emerald-600 hover:underline">
-              Sign in
+        {proLinks ? (
+          <div className="hidden items-center gap-2 md:flex">
+            <Link
+              href="/for-pros#pricing"
+              className="px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:text-slate-900"
+            >
+              {copy.pricing}
             </Link>
-            <span className="text-slate-300">·</span>
-            <Link href="/pricing" className="text-slate-500 hover:text-slate-700 hover:underline">
-              View pricing
+            <Link
+              href="/register"
+              className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-emerald-300 hover:text-emerald-700"
+            >
+              {copy.proSignUp}
+            </Link>
+            <Link
+              href="/pro/login"
+              className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700"
+            >
+              {copy.proLogin}
             </Link>
           </div>
-        )}
-
-        {!hideLogin && (
+        ) : !hideLogin && (
           <div className="hidden items-center gap-2 md:flex">
             {/* Auth area: profile or sign up/login */}
-            {shouldShowCustomerAuth ? (
-              <ProfileMenu fallbackUser={fallbackCustomerUser} />
+            {shouldShowProAuth ? (
+              <ProfileMenu fallbackUser={fallbackSessionUser} isPro />
+            ) : shouldShowCustomerAuth ? (
+              <ProfileMenu fallbackUser={fallbackSessionUser} />
             ) : shouldShowLoggedOutActions ? (
               <>
                 {!hideLoginLink && (
@@ -267,7 +278,7 @@ export function SiteHeader({
                 <span className="mx-1 h-4 border-l border-slate-200" />
 
                 <Link
-                  href="/register?audience=pro"
+                  href="/for-pros"
                   className="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-500 transition hover:border-emerald-300 hover:text-emerald-700"
                 >
                   {copy.forPros}
@@ -305,7 +316,31 @@ export function SiteHeader({
             ))}
 
           <div className="mt-2 space-y-2 border-t border-slate-100 pt-3">
-            {shouldShowCustomerAuth ? (
+            {proLinks ? (
+              <>
+                <Link
+                  href="/for-pros#pricing"
+                  className="block rounded-lg px-3 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                  onClick={() => setMobileOpen(false)}
+                >
+                  {copy.pricing}
+                </Link>
+                <Link
+                  href="/register"
+                  className="block w-full rounded-lg border border-slate-300 px-4 py-2.5 text-center text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                  onClick={() => setMobileOpen(false)}
+                >
+                  {copy.proSignUp}
+                </Link>
+                <Link
+                  href="/pro/login"
+                  className="block w-full rounded-lg bg-emerald-600 px-4 py-2.5 text-center text-sm font-semibold text-white hover:bg-emerald-700"
+                  onClick={() => setMobileOpen(false)}
+                >
+                  {copy.proLogin}
+                </Link>
+              </>
+            ) : shouldShowCustomerAuth ? (
               <>
                 <Link
                   href="/customer/dashboard"
@@ -322,10 +357,29 @@ export function SiteHeader({
                   Inbox
                 </Link>
               </>
+            ) : shouldShowProAuth ? (
+              <>
+                <Link
+                  href="/dashboard"
+                  className="block rounded-lg px-3 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                  onClick={() => setMobileOpen(false)}
+                >
+                  Dashboard
+                </Link>
+                <button
+                  className="block w-full rounded-lg border border-slate-300 px-4 py-2.5 text-center text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                  onClick={async () => {
+                    setMobileOpen(false);
+                    await useAuthStore.getState().logout('/pro/login');
+                  }}
+                >
+                  Log out
+                </button>
+              </>
             ) : shouldShowLoggedOutActions ? (
               <>
                 <Link
-                  href="/register?audience=pro"
+                  href="/for-pros"
                   className="block rounded-lg px-3 py-2.5 text-sm font-semibold text-slate-500 hover:bg-slate-50"
                   onClick={() => setMobileOpen(false)}
                 >
@@ -335,9 +389,9 @@ export function SiteHeader({
                 {!hideLogin && (
                   <>
                     {!hideLoginLink && (
-                      <Link
-                        href="/customer/login"
-                        className="block w-full rounded-lg border border-slate-300 px-4 py-2.5 text-center text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                    <Link
+                      href="/customer/login"
+                      className="block w-full rounded-lg border border-slate-300 px-4 py-2.5 text-center text-sm font-semibold text-slate-700 hover:bg-slate-50"
                         onClick={() => setMobileOpen(false)}
                       >
                         {copy.signIn}

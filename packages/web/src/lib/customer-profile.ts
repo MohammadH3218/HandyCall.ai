@@ -44,7 +44,6 @@ export function isCustomerProfileComplete(profile?: CustomerProfile | null) {
   return Boolean(
     profile &&
       String(profile.name || '').trim() &&
-      String(profile.phone || '').trim() &&
       String(profile.address_line1 || '').trim() &&
       String(profile.city || '').trim() &&
       String(profile.state || '').trim() &&

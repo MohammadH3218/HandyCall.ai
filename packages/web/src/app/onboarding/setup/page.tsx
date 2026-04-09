@@ -34,7 +34,6 @@ import { apiClient } from '@/lib/api-client';
 
 import { DEFAULT_TIMEZONE } from '@/constants/timezones';
 import { PLAN_CATALOG, getPlanPriceDisplay, normalizePlan } from '@/constants/plans';
-import { HOUSTON_CITIES } from '@/constants/houston-marketplace';
 import { MARKETPLACE_SERVICE_CATEGORIES } from '@/constants/marketplace-service-categories';
 import { ServiceType, SubscriptionPlan } from '@handycall/shared';
 
@@ -371,7 +370,6 @@ function getPhaseSequence(plan: SubscriptionPlan | null | undefined): Phase[] {
   if (plan === SubscriptionPlan.STARTER) {
     return [
       'plan_selection',
-      'profile_name',
       'company_name',
       'service_type',
       'marketplace_profile_intro',
@@ -382,17 +380,10 @@ function getPhaseSequence(plan: SubscriptionPlan | null | undefined): Phase[] {
 
   return [
     'plan_selection',
-    'profile_name',
     'company_name',
     'service_type',
     'marketplace_profile_intro',
-    'calendar_mode',
-    'calendar_hours',
-    'calendar_provider',
-    'calendar_apple',
-    'billing_payment_mode',
     'billing_plan',
-    'billing_connect',
     'billing_payment',
     'complete',
   ];
@@ -407,20 +398,14 @@ function getPhaseGroup(phase: Phase, plan: SubscriptionPlan | null | undefined) 
     case 'profile_name':
     case 'company_name':
     case 'service_type':
+      return 2;
     case 'marketplace_profile_intro':
       return 3;
     case 'starter_activation':
       return 4;
-    case 'calendar_mode':
-    case 'calendar_hours':
-    case 'calendar_provider':
-    case 'calendar_apple':
-    case 'billing_payment_mode':
-      return 4;
     case 'billing_plan':
     case 'billing_payment':
-    case 'billing_connect':
-      return plan === SubscriptionPlan.STARTER ? 4 : 5;
+      return 4;
     case 'complete':
       return getSetupGroups(plan, false).length + 1;
     default:
@@ -439,7 +424,7 @@ function getStepMeta(
       meta = {
         title: 'Choose how you want to grow on HandyCall',
         description:
-          'Starter is marketplace-only. Pro and Max add AI calling, automation, and payment setup.',
+          'Starter gets you listed for free. Pro adds search priority, CRM, and payments. Teams adds multi-user tools for larger Riyadh businesses.',
       };
       break;
     case 'profile_name':
@@ -465,40 +450,7 @@ function getStepMeta(
       meta = {
         title: 'Build your marketplace profile first',
         description:
-          'Customers will see this before they inquire. Add your cities, services, pricing cues, and trust signals now.',
-      };
-      break;
-    case 'calendar_mode':
-      meta = {
-        title: 'How should the AI handle availability?',
-        description:
-          'For Pro and Max, the AI receptionist needs live availability before it can book qualified leads.',
-      };
-      break;
-    case 'calendar_hours':
-      meta = {
-        title: 'Set your working hours',
-        description:
-          'We default to Mon-Fri. Customers will only be offered times inside these hours.',
-      };
-      break;
-    case 'calendar_provider':
-      meta = {
-        title: 'Connect your calendar',
-        description: 'Sync with Google, Microsoft, or Apple so the AI books around your real schedule.',
-      };
-      break;
-    case 'calendar_apple':
-      meta = {
-        title: 'Connect Apple Calendar',
-        description: 'Use an app-specific password from your Apple ID settings.',
-      };
-      break;
-    case 'billing_payment_mode':
-      meta = {
-        title: 'How should customer payments work?',
-        description:
-          'Pro and Max can either collect payments inside HandyCall or let your team handle payment offline.',
+          'Customers will see this before they inquire. Add your Riyadh service districts, exact services, starting prices, and trust signals now.',
       };
       break;
     case 'billing_plan':
@@ -507,7 +459,7 @@ function getStepMeta(
         description:
           plan === SubscriptionPlan.STARTER
             ? 'Starter is free to activate. You only pay when you unlock a lead.'
-            : 'Billing happens at the end of setup, after your marketplace and AI flows are ready.',
+            : 'Billing happens at the end of setup, after your Riyadh marketplace listing is ready to launch.',
       };
       break;
     case 'billing_payment':
@@ -536,7 +488,7 @@ function getStepMeta(
         description:
           plan === SubscriptionPlan.STARTER
             ? 'Your marketplace profile is live and ready for customer inquiries.'
-            : 'Your marketplace profile, AI calling, and billing setup are all ready to go.',
+            : 'Your marketplace profile and paid plan are active, and you are ready to receive Riyadh customer inquiries.',
       };
       break;
     default:
@@ -735,7 +687,7 @@ function OnboardingSetupContent() {
   const { isArabic } = useMarketingLanguage();
   const { loading, company, status, refreshAll } =
     useOnboarding();
-  const { setCompany } = useAuthStore();
+  const { setCompany, user, email } = useAuthStore();
   const router = useRouter();
   const searchParams = useSearchParams();
   const initialized = useRef(false);
@@ -747,7 +699,6 @@ function OnboardingSetupContent() {
   const [errMsg, setErrMsg] = useState<string | null>(null);
 
   const [nameInput, setNameInput] = useState('');
-  const [phoneInput, setPhoneInput] = useState('');
   const [companyInput, setCompanyInput] = useState('');
   const [calendarHours, setCalendarHours] = useState<CalendarHours>(defaultHours());
   const [calendarTimezone, setCalendarTimezone] = useState(DEFAULT_TIMEZONE);
@@ -767,6 +718,13 @@ function OnboardingSetupContent() {
   const [stripePublishableKey, setStripePublishableKey] = useState<string | null>(
     process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || null
   );
+
+  const getDerivedOwnerName = useCallback(() => {
+    const existingOwnerName = String((company as any)?.owner_name || '').trim();
+    const existingUserName = [user?.first_name, user?.last_name].filter(Boolean).join(' ').trim();
+    const fallbackEmailName = String(email || '').split('@')[0].trim();
+    return existingOwnerName || nameInput.trim() || existingUserName || fallbackEmailName;
+  }, [company, email, nameInput, user?.first_name, user?.last_name]);
 
   const stripePromise = useMemo(() => {
     const key = stripePublishableKey;
@@ -804,36 +762,23 @@ function OnboardingSetupContent() {
         case 'plan_selection':
           return Boolean(resolvedPlan);
         case 'profile_name':
-          return status.profile;
+          return Boolean(getDerivedOwnerName());
         case 'company_name':
         case 'service_type':
           return status.companyProfile;
         case 'marketplace_profile_intro':
           return status.marketplaceProfile;
-        case 'calendar_mode':
-        case 'calendar_hours':
-        case 'calendar_provider':
-        case 'calendar_apple':
-          return status.calendar || resolvedPlan === SubscriptionPlan.STARTER;
-
-        case 'billing_payment_mode':
-          return (
-            resolvedPlan === SubscriptionPlan.STARTER ||
-            Boolean((company as any)?.booking_payment_mode_confirmed)
-          );
         case 'billing_plan':
         case 'billing_payment':
         case 'starter_activation':
           return status.billing;
-        case 'billing_connect':
-          return isConnectReady();
         case 'complete':
           return true;
         default:
           return false;
       }
     },
-    [company, isConnectReady, resolvedPlan, status]
+    [company, getDerivedOwnerName, isConnectReady, resolvedPlan, status]
   );
 
   const nextPhase = useMemo(() => {
@@ -968,6 +913,11 @@ function OnboardingSetupContent() {
     }
 
     if (company?.company_name) setCompanyInput(String(company.company_name));
+      const existingOwnerName = String((company as any)?.owner_name || '').trim();
+      const existingUserName = [user?.first_name, user?.last_name].filter(Boolean).join(' ').trim();
+      if (existingOwnerName || existingUserName) {
+        setNameInput(existingOwnerName || existingUserName);
+      }
     if (company?.timezone) setCalendarTimezone(String(company.timezone));
     if (company?.business_hours) setCalendarHours(normalizeHours(company.business_hours));
     if ((company as any)?.booking_payment_mode) {
@@ -977,18 +927,8 @@ function OnboardingSetupContent() {
     void (async () => {
       const paymentsFlow = searchParams?.get('payments');
       const connectState = searchParams?.get('state');
-      const bookingPaymentMode = (company as any)?.booking_payment_mode as
-        | 'HANDYCALL_MANAGED'
-        | 'SELF_MANAGED'
-        | undefined;
-      const needsManagedConnect =
-        bookingPaymentMode === 'HANDYCALL_MANAGED' &&
-        !(company as any)?.stripe_connect_onboarding_complete;
-
       if (paymentsFlow === 'connect' && (connectState === 'return' || connectState === 'refresh')) {
-        goTo('billing_connect');
-        await refreshConnectStatus({ clearQuery: true });
-        return;
+        clearConnectQueryParams();
       }
 
       if (!companyPlan && !normalizePlan(typeof window !== 'undefined' ? window.localStorage.getItem(PLAN_DRAFT_STORAGE_KEY) : null)) {
@@ -1000,9 +940,7 @@ function OnboardingSetupContent() {
         companyPlan ??
         normalizePlan(typeof window !== 'undefined' ? window.localStorage.getItem(PLAN_DRAFT_STORAGE_KEY) : null);
 
-      if (!status.profile) {
-        goTo('profile_name');
-      } else if (!status.companyProfile) {
+      if (!status.companyProfile) {
         goTo('company_name');
       } else if (!status.marketplaceProfile) {
         goTo('marketplace_profile_intro');
@@ -1013,13 +951,6 @@ function OnboardingSetupContent() {
           clearPlanDraft();
           goTo('complete');
         }
-      } else if (!status.calendar) {
-        goTo('calendar_mode');
-      } else if (!(company as any)?.booking_payment_mode_confirmed) {
-        goTo('billing_payment_mode');
-      } else if (needsManagedConnect) {
-        goTo('billing_connect');
-        await refreshConnectStatus();
       } else if (!status.billing) {
         goTo('billing_plan');
       } else {
@@ -1030,11 +961,13 @@ function OnboardingSetupContent() {
   }, [
     clearPlanDraft,
     company,
+    clearConnectQueryParams,
     goTo,
     loading,
-    refreshConnectStatus,
     searchParams,
     status,
+    user?.first_name,
+    user?.last_name,
   ]);
 
   useEffect(() => {
@@ -1054,10 +987,6 @@ function OnboardingSetupContent() {
   const handleTierSelect = async (plan: SubscriptionPlan) => {
     setSelectedPlan(plan);
     setSetupClientSecret(null);
-    if (!status.profile) {
-      goTo('profile_name');
-      return;
-    }
     if (!status.companyProfile) {
       goTo('company_name');
       return;
@@ -1070,44 +999,14 @@ function OnboardingSetupContent() {
       goTo('starter_activation');
       return;
     }
-    if (!status.calendar) {
-      goTo('calendar_mode');
-      return;
-    }
     goTo('billing_plan');
   };
 
   const handleProfileName = async () => {
     const name = nameInput.trim();
     if (!name) return;
-    const phone = phoneInput.trim();
-    if (!phone) {
-      setErrMsg(isArabic ? 'رقم الهاتف مطلوب.' : 'Phone number is required.');
-      return;
-    }
-    const nameParts = name.split(/\s+/).filter(Boolean);
-    const firstName = nameParts[0];
-    const lastName = nameParts.slice(1).join(' ') || undefined;
-    const phoneNumber = `+1${phone.replace(/\D/g, '').slice(0, 10)}`;
-    setIsSaving(true);
-    try {
-      await Promise.all([
-        apiClient.updateMyProfile({
-          first_name: firstName || undefined,
-          last_name: lastName,
-          phone_number: phoneNumber,
-        }),
-        apiClient.updateMyCompany({ owner_name: name }),
-      ]);
-      await refreshAll();
-      setNameInput('');
-      setPhoneInput('');
-      goTo('company_name');
-    } catch {
-      setErrMsg('Could not save your name. Try again.');
-    } finally {
-      setIsSaving(false);
-    }
+    setErrMsg(null);
+    goTo('company_name');
   };
 
   const handleCompanyName = () => {
@@ -1128,7 +1027,9 @@ function OnboardingSetupContent() {
     setOtherServiceInput('');
     setIsSaving(true);
     try {
+      const derivedOwnerName = getDerivedOwnerName();
       await apiClient.updateMyCompany({
+        owner_name: derivedOwnerName || undefined,
         company_name: companyInput.trim(),
         timezone: DEFAULT_TIMEZONE,
         company_profile_completed: true,
@@ -1413,7 +1314,7 @@ function OnboardingSetupContent() {
               <p className="text-sm font-semibold text-foreground">{t('How the paths differ')}</p>
               <p className="mt-1 text-sm text-muted-foreground">
                 {t(
-                  'Starter stops after your marketplace profile and activates a free listing. Pro and Max then continue into AI calling, payment flows, and final billing.'
+                  'Starter stops after your marketplace profile and activates a free listing. Pro and Teams continue into billing so you can launch with better placement, CRM, and marketplace payments.'
                 )}
               </p>
             </div>
@@ -1428,34 +1329,14 @@ function OnboardingSetupContent() {
               type="text"
               value={nameInput}
               onChange={(event) => setNameInput(event.target.value)}
-              onKeyDown={(event) => event.key === 'Enter' && phoneInput.trim() && void handleProfileName()}
+              onKeyDown={(event) => event.key === 'Enter' && nameInput.trim() && void handleProfileName()}
               placeholder={isArabic ? 'مثال: محمد الحمدالله' : 'e.g. Mohammad Hamdallah'}
               disabled={isSaving}
               className="w-full rounded-xl border border-input bg-background px-4 py-3 text-base text-foreground placeholder:text-muted-foreground/70 outline-none ring-offset-background transition-all focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50"
             />
-            <div>
-              <p className="mb-1.5 text-sm font-medium text-foreground">
-                {isArabic ? 'رقم الهاتف' : 'Phone number'}
-              </p>
-              <div className="flex overflow-hidden rounded-xl border border-input focus-within:ring-2 focus-within:ring-ring">
-                <span className="flex items-center bg-muted px-3 text-sm font-medium text-muted-foreground border-r border-input shrink-0">
-                  +1
-                </span>
-                <input
-                  type="tel"
-                  inputMode="numeric"
-                  value={phoneInput}
-                  onChange={(e) => setPhoneInput(e.target.value.replace(/\D/g, '').slice(0, 10))}
-                  onKeyDown={(event) => event.key === 'Enter' && nameInput.trim() && phoneInput.trim() && void handleProfileName()}
-                  placeholder={isArabic ? '(555) 123-4567' : '(555) 123-4567'}
-                  disabled={isSaving}
-                  className="flex-1 bg-background px-4 py-3 text-base text-foreground placeholder:text-muted-foreground/70 outline-none disabled:opacity-50"
-                />
-              </div>
-            </div>
             <PrimaryButton
               onClick={handleProfileName}
-              disabled={!nameInput.trim() || !phoneInput.trim() || isSaving}
+              disabled={!nameInput.trim() || isSaving}
               loading={isSaving}
             >
               {t('Continue')}
@@ -1475,7 +1356,7 @@ function OnboardingSetupContent() {
               onKeyDown={(event) =>
                 event.key === 'Enter' && companyInput.trim() && void handleCompanyName()
               }
-              placeholder={isArabic ? 'مثال: خدمات تكييف النخبة بالرياض' : 'e.g. Houston Heights AC Services'}
+              placeholder={isArabic ? 'مثال: خدمات تكييف النخبة بالرياض' : 'e.g. Riyadh Elite AC Services'}
               disabled={isSaving}
               className="w-full rounded-xl border border-input bg-background px-4 py-3 text-base text-foreground placeholder:text-muted-foreground/70 outline-none ring-offset-background transition-all focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50"
             />
@@ -1615,26 +1496,24 @@ function OnboardingSetupContent() {
                 <div>
                   <h2 className="text-lg font-semibold text-foreground">{t('What you will set up here')}</h2>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    Your public profile includes the cities you serve, services offered, starting price,
-                    trust badges, business hours, payment methods, and project photos.
+                    Your public profile includes the Riyadh districts you serve, exact services offered,
+                    starting price in SAR, trust badges, business hours, payment methods, and project photos.
                   </p>
                 </div>
               </div>
               <div className="mt-5 grid gap-3 sm:grid-cols-2">
                 <div className="rounded-2xl bg-muted/60 p-4">
-                  <p className="text-sm font-semibold text-foreground">{t('Houston service coverage')}</p>
+                  <p className="text-sm font-semibold text-foreground">Riyadh district coverage</p>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    {isArabic
-                      ? `اختر مدنًا مثل ${HOUSTON_CITIES.slice(0, 4).join('، ')} وغيرها.`
-                      : `Choose cities like ${HOUSTON_CITIES.slice(0, 4).join(', ')}, and more.`}
+                    Select the districts you actually cover, from Al Olaya and Hittin to Al Rawdah,
+                    Diriyah, and the rest of Riyadh.
                   </p>
                 </div>
                 <div className="rounded-2xl bg-muted/60 p-4">
-                  <p className="text-sm font-semibold text-foreground">{t('Thumbtack-style trust signals')}</p>
+                  <p className="text-sm font-semibold text-foreground">Marketplace trust signals</p>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    {t(
-                      'Add bio, years in business, certifications, supported payment methods, and work examples.'
-                    )}
+                    Add your bio, years in business, certifications, supported payment methods,
+                    and recent project photos so homeowners know why to choose you.
                   </p>
                 </div>
               </div>
@@ -2020,9 +1899,9 @@ function OnboardingSetupContent() {
                 <div className="rounded-2xl bg-white/80 p-4 dark:bg-emerald-950/30">
                   <p className="text-sm font-semibold text-foreground">{t('Not included on Starter')}</p>
                   <ul className="mt-2 space-y-2 text-sm text-muted-foreground">
-                    <li>{t('No AI receptionist or automated call handling')}</li>
-                    <li>{t('No automated payments or scheduling assistant')}</li>
-                    <li>{t('Upgrade to Pro or Max anytime')}</li>
+                    <li>No priority placement in Riyadh search</li>
+                    <li>No built-in payment collection or invoicing</li>
+                    <li>Upgrade to Pro or Teams anytime</li>
                   </ul>
                 </div>
               </div>
@@ -2051,9 +1930,7 @@ function OnboardingSetupContent() {
                 ? t(
                     'Customers can now discover your marketplace profile and send lead requests. You can unlock the best-fit leads from your dashboard.'
                   )
-                : t(
-                    'Your marketplace profile is live, your AI calling flow is configured, and you can now manage leads, calls, bookings, and billing from the dashboard.'
-                  )}
+                : 'Your marketplace profile is live, your plan is active, and you can now manage leads, bookings, customers, and billing from the dashboard.'}
             </p>
             <PrimaryButton onClick={() => router.replace('/dashboard')} className="mt-8 px-8 py-3">
               {t('Go to dashboard')}

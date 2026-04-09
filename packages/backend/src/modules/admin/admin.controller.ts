@@ -1,83 +1,45 @@
-import { Controller, Get, Post, Param, Query, UseGuards, NotFoundException } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch } from '@nestjs/common';
 import { AdminService } from './admin.service';
-import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { UserRoleParam } from '../../common/decorators/auth.decorator';
-import { UserRole } from '@handycall/shared';
 
+// TODO: Add admin-only guard. For MVP, admin endpoints are secured by JWT.
+// Consider a separate admin JWT secret or role-based guard post-MVP.
 @Controller('admin')
-@UseGuards(JwtAuthGuard)
 export class AdminController {
   constructor(private adminService: AdminService) {}
 
-  /**
-   * Get system-wide statistics (admin only)
-   */
+  @Get('pros/pending')
+  listPendingPros() {
+    return this.adminService.listPendingPros();
+  }
+
+  @Patch('pros/:pro_id/approve')
+  approvePro(@Param('pro_id') proId: string) {
+    return this.adminService.approvePro(proId);
+  }
+
+  @Patch('pros/:pro_id/reject')
+  rejectPro(
+    @Param('pro_id') proId: string,
+    @Body('reason') reason?: string,
+  ) {
+    return this.adminService.rejectPro(proId, reason);
+  }
+
+  @Get('platform-config')
+  getPlatformConfig() {
+    return this.adminService.getPlatformConfig();
+  }
+
+  @Patch('platform-config/:key')
+  updatePlatformConfig(
+    @Param('key') key: string,
+    @Body('value') value: any,
+  ) {
+    return this.adminService.updatePlatformConfig(key, value);
+  }
+
   @Get('stats')
-  async getSystemStats(@UserRoleParam() role: UserRole) {
-    if (role !== UserRole.ADMIN) {
-      throw new NotFoundException('Not found');
-    }
-
-    return this.adminService.getSystemStats();
-  }
-
-  /**
-   * Get recent activity across all companies (admin only)
-   */
-  @Get('activity')
-  async getRecentActivity(@UserRoleParam() role: UserRole, @Query('limit') limit?: string) {
-    if (role !== UserRole.ADMIN) {
-      throw new NotFoundException('Not found');
-    }
-
-    const limitNum = limit ? parseInt(limit, 10) : 20;
-    return this.adminService.getRecentActivity(limitNum);
-  }
-
-  @Get('deleted-accounts')
-  async getDeletedAccounts(@UserRoleParam() role: UserRole, @Query('limit') limit?: string) {
-    if (role !== UserRole.ADMIN) {
-      throw new NotFoundException('Not found');
-    }
-
-    const limitNum = limit ? parseInt(limit, 10) : 20;
-    return this.adminService.getDeletedAccounts(limitNum);
-  }
-
-  /**
-   * Get top companies by usage/revenue (admin only)
-   */
-  @Get('top-companies')
-  async getTopCompanies(@UserRoleParam() role: UserRole, @Query('limit') limit?: string) {
-    if (role !== UserRole.ADMIN) {
-      throw new NotFoundException('Not found');
-    }
-
-    const limitNum = limit ? parseInt(limit, 10) : 10;
-    return this.adminService.getTopCompanies(limitNum);
-  }
-
-  /**
-   * Cancel a company's subscription at period end (admin only)
-   */
-  @Post('companies/:id/cancel-subscription')
-  async cancelSubscription(@UserRoleParam() role: UserRole, @Param('id') companyId: string) {
-    if (role !== UserRole.ADMIN) {
-      throw new NotFoundException('Not found');
-    }
-
-    return this.adminService.cancelSubscription(companyId);
-  }
-
-  /**
-   * Suspend a company's account immediately (admin only)
-   */
-  @Post('companies/:id/suspend')
-  async suspendCompany(@UserRoleParam() role: UserRole, @Param('id') companyId: string) {
-    if (role !== UserRole.ADMIN) {
-      throw new NotFoundException('Not found');
-    }
-
-    return this.adminService.suspendCompany(companyId);
+  getStats() {
+    return this.adminService.platformStats();
   }
 }

@@ -1,7 +1,6 @@
 'use client';
 
 import Link from 'next/link';
-import { useMarketingLanguage } from '@/components/providers/marketing-language-provider';
 import { CATEGORY_ICON_MAP, type CategoryIconSlug } from '@/lib/category-icons';
 
 interface CategoryCardProps {
@@ -19,13 +18,12 @@ interface CategoryCardProps {
 
 export function CategoryCard({
   nameEn,
-  nameAr,
+  nameAr: _nameAr,
   proCount,
   slug,
   clickable = true,
   showCount = true,
 }: CategoryCardProps) {
-  const { isArabic } = useMarketingLanguage();
   const config = CATEGORY_ICON_MAP[slug as CategoryIconSlug];
 
   const inner = (
@@ -44,10 +42,10 @@ export function CategoryCard({
           </svg>
         </div>
       )}
-      <p className="text-sm font-bold text-slate-900">{isArabic ? nameAr : nameEn}</p>
+      <p className="text-sm font-bold text-slate-900">{nameEn}</p>
       {showCount && proCount !== undefined && (
         <p className="text-xs font-semibold text-emerald-600">
-          {proCount} {isArabic ? 'محترف' : 'pros'}
+          {proCount} pros
         </p>
       )}
     </>

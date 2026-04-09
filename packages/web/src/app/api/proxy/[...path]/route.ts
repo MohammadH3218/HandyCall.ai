@@ -8,6 +8,10 @@ const NEST_API_URL = process.env.NEXT_PUBLIC_API_URL || "https://api.handycall.o
 const PUBLIC_PATHS = [
   "auth/login",
   "auth/register",
+  "auth/customer/register",
+  "auth/pro/register",
+  "auth/oauth/exchange",
+  "auth/verify-email",
   "auth/confirm-signup",
   "auth/resend-confirmation",
   "auth/refresh",

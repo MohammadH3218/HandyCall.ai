@@ -17,58 +17,51 @@ const spaceGrotesk = Space_Grotesk({
   display: 'swap',
 });
 
-const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? 'https://handycall.ai';
+const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? 'https://handycall.org';
 
 export const metadata: Metadata = {
   metadataBase: new URL(BASE_URL),
   title: {
-    default: 'HandyCall — Find & Book Trusted Home Service Pros in Houston, TX',
+    default: 'HandyCall — Home Services in Riyadh',
     template: '%s | HandyCall',
   },
   description:
-    'Find trusted plumbers, electricians, HVAC techs, cleaners, and handymen in Houston, TX. Serving Harris, Fort Bend, Montgomery, Brazoria, and Galveston counties. Compare pros, book fast, pay securely.',
+    'Find home services in Riyadh by category and district. Browse AC repair, plumbing, electrical, cleaning, painting, carpentry, landscaping, and more.',
   keywords: [
-    'home services Houston TX',
-    'handyman Houston',
-    'Houston plumber',
-    'AC repair Houston',
-    'Houston electrician',
-    'house cleaning Houston',
-    'find a pro Houston',
-    'home repair Houston',
-    'The Woodlands home services',
-    'Sugar Land handyman',
-    'Katy TX home services',
-    'Pearland home repair',
-    'Humble TX handyman',
-    'Houston metro home services',
-    'book a plumber Houston',
-    'HVAC repair Houston',
-    'pest control Houston',
-    'painting contractor Houston',
+    'riyadh home services',
+    'riyadh ac repair',
+    'riyadh plumber',
+    'riyadh electrician',
+    'riyadh cleaning',
+    'riyadh painting',
+    'riyadh carpentry',
+    'riyadh landscaping',
+    'riyadh district services',
+    'riyadh neighborhood services',
+    'riyadh handyman',
+    'riyadh home maintenance',
     'handycall',
   ],
   openGraph: {
     type: 'website',
-    locale: 'en_US',
     url: BASE_URL,
     siteName: 'HandyCall',
-    title: 'HandyCall — Find & Book Trusted Home Service Pros in Houston, TX',
+    title: 'HandyCall — Home Services in Riyadh',
     description:
-      'Browse Houston-area pros, compare reviews and prices, and book home services in minutes. Serving the entire Houston metro.',
+      'Browse home service categories in Riyadh, compare options, and search by district.',
     images: [
       {
         url: '/og-image.png',
         width: 1200,
         height: 630,
-        alt: 'HandyCall — Home Services Marketplace',
+        alt: 'HandyCall — Home Services in Riyadh',
       },
     ],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'HandyCall — Find & Book Trusted Home Service Pros',
-    description: 'Browse local providers and book home services in minutes.',
+    title: 'HandyCall — Home Services in Riyadh',
+    description: 'Browse home service categories in Riyadh and search by district.',
     images: ['/og-image.png'],
   },
   robots: {

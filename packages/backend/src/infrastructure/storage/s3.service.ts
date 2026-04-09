@@ -17,6 +17,7 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 export class S3Service implements OnModuleInit {
   private client!: S3Client;
   private recordingsBucket!: string;
+  private documentsBucket!: string;
   private transcriptsBucket!: string;
   private localMode = false;
   private localStorageDir = '';
@@ -34,6 +35,7 @@ export class S3Service implements OnModuleInit {
 
     this.recordingsBucket = this.configService.get<string>('S3_BUCKET_RECORDINGS') || '';
     this.transcriptsBucket = this.configService.get<string>('S3_BUCKET_TRANSCRIPTS') || '';
+    this.documentsBucket = this.configService.get<string>('S3_BUCKET_DOCUMENTS') || '';
 
     if (this.localMode) {
       return;
@@ -264,6 +266,25 @@ export class S3Service implements OnModuleInit {
       }
       throw error;
     }
+  }
+
+  /** Generic file upload to the documents bucket (ID scans, profile photos, service photos). */
+  async uploadFile(buffer: Buffer, key: string, contentType: string): Promise<string> {
+    if (this.localMode) {
+      const filePath = path.join(this.localStorageDir, "documents", key);
+      await this.ensureParentDir(filePath);
+      await fs.writeFile(filePath, buffer);
+      return key;
+    }
+    await this.client.send(
+      new PutObjectCommand({
+        Bucket: this.documentsBucket,
+        Key: key,
+        Body: buffer,
+        ContentType: contentType,
+      })
+    );
+    return key;
   }
 
   async deleteCompanyArtifacts(companyId: string): Promise<void> {

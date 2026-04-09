@@ -14,10 +14,10 @@ const SEARCH_RESULTS = [
   {
     name: 'Khalid Al-Rashidi',
     service: { en: 'AC & HVAC Repair', ar: 'تصليح وصيانة التكييف' },
-    location: { en: 'Austin, TX', ar: 'Austin, TX' },
+    location: { en: 'Riyadh', ar: 'الرياض' },
     rating: '4.9',
     reviews: 142,
-    price: { en: 'From $150', ar: 'From $150' },
+    price: { en: 'From SAR 180', ar: 'ابتداءً من 180 ريال' },
     badge: { en: 'Top Pro', ar: 'محترف مميز' },
     badgeColor: '#10b981',
     avatar: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=56&h=56&fit=crop&q=80',
@@ -25,10 +25,10 @@ const SEARCH_RESULTS = [
   {
     name: 'Mohammed Al-Ghamdi',
     service: { en: 'AC & HVAC Repair', ar: 'تصليح وصيانة التكييف' },
-    location: { en: 'Dallas, TX', ar: 'Dallas, TX' },
+    location: { en: 'Jeddah', ar: 'جدة' },
     rating: '4.7',
     reviews: 88,
-    price: { en: 'From $120', ar: 'From $120' },
+    price: { en: 'From SAR 150', ar: 'ابتداءً من 150 ريال' },
     badge: { en: 'Verified', ar: 'موثق' },
     badgeColor: '#3b82f6',
     avatar: 'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=56&h=56&fit=crop&q=80',
@@ -36,10 +36,10 @@ const SEARCH_RESULTS = [
   {
     name: 'Abdullah Al-Otaibi',
     service: { en: 'AC & HVAC Repair', ar: 'تصليح وصيانة التكييف' },
-    location: { en: 'Houston, TX', ar: 'Houston, TX' },
+    location: { en: 'Khobar', ar: 'الخبر' },
     rating: '4.8',
     reviews: 65,
-    price: { en: 'From $180', ar: 'From $180' },
+    price: { en: 'From SAR 220', ar: 'ابتداءً من 220 ريال' },
     badge: { en: '', ar: '' },
     badgeColor: '',
     avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=56&h=56&fit=crop&q=80',
@@ -124,18 +124,18 @@ export function ProductPreview() {
       }
     : {
         heading: 'Your home, in good hands.',
-        description: 'Browse verified pros in your area, from AC repair to deep cleaning. Compare, message, and book in minutes.',
+        description: 'Browse verified pros across Saudi Arabia, from AC repair to deep cleaning. Compare, message, and book in minutes.',
         tabSearch: 'Search Results',
         tabProfile: 'Provider Profile',
         tabBooking: 'Booking Confirmed',
-        country: 'United States',
+        country: 'Saudi Arabia',
         search: 'Search',
-        searchSummary: 'AC Repair · Austin',
+        searchSummary: 'AC Repair · Riyadh',
         prosFound: '3 pros found',
         filters: 'Filters',
         topProOnly: 'Top Pro only',
         availableToday: 'Available today',
-        under200: 'Under $200',
+        under200: 'Under SAR 200',
         sort: 'Sort',
         bestMatch: 'Best Match',
         results: '3 results',
@@ -148,7 +148,7 @@ export function ProductPreview() {
         message: 'Message',
         getQuote: 'Get a Quote →',
         about: 'About',
-        aboutText: '12 years of experience servicing all major AC brands in the Austin area. Licensed technician, all work guaranteed, and available 7 days a week.',
+        aboutText: '12 years of experience servicing major AC brands across Riyadh. Licensed technician, all work guaranteed, and available Sunday through Thursday with emergency visits on weekends.',
         servicesPricing: 'Services & Pricing',
         recentReviews: 'Recent Reviews',
         bookingConfirmed: 'Booking Confirmed!',
@@ -658,7 +658,7 @@ export function ProductPreview() {
                   <div style={{ flex: 1 }}>
                     <div className="pp-profile-name">Khalid Al-Rashidi</div>
                     <div className="pp-profile-title">
-                      {copy.profileTitle} · {isArabic ? 'Austin, TX' : 'Austin, TX'}
+                      {copy.profileTitle} · {isArabic ? 'الرياض' : 'Riyadh'}
                     </div>
                     <div className="pp-profile-meta">
                       <span>★ 4.9 · 142 {copy.reviews}</span>
@@ -715,7 +715,7 @@ export function ProductPreview() {
                     { label: copy.pro, value: 'Khalid Al-Rashidi' },
                     { label: copy.date, value: isArabic ? 'Wed, March 26, 2026' : 'Wed, March 26, 2026' },
                     { label: copy.time, value: '10:00 AM' },
-                    { label: copy.location, value: isArabic ? 'Austin, TX' : 'Austin, TX' },
+                    { label: copy.location, value: isArabic ? 'الرياض' : 'Riyadh' },
                     { label: copy.estimate, value: isArabic ? '$180' : '$180', valueClass: 'pp-booking-total' },
                     { label: copy.payment, value: copy.paymentValue },
                   ].map((row, i) => (

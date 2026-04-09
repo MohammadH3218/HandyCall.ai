@@ -3,9 +3,9 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { signIn } from 'next-auth/react';
 import { SiteHeader } from '@/components/marketing/site-header';
 import { SiteFooter } from '@/components/marketing/site-footer';
+import { SocialAuthButtons } from '@/components/auth/social-auth-buttons';
 import { apiClient } from '@/lib/api-client';
 import {
   IconEye,
@@ -14,79 +14,42 @@ import {
   IconCircleCheck,
 } from '@tabler/icons-react';
 
-const GoogleIcon = ({ className }: { className?: string }) => (
-  <svg viewBox="0 0 48 48" className={className} aria-hidden="true">
-    <path fill="#EA4335" d="M24 9.5c3.54 0 6.72 1.22 9.22 3.6l6.9-6.9C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l8.04 6.24C12.6 13.09 17.86 9.5 24 9.5z" />
-    <path fill="#4285F4" d="M46.5 24c0-1.64-.15-3.22-.43-4.74H24v9h12.7c-.55 3-2.2 5.55-4.7 7.27l7.2 5.6C43.94 36.5 46.5 30.8 46.5 24z" />
-    <path fill="#FBBC05" d="M10.6 28.46c-.48-1.44-.76-2.98-.76-4.46s.27-3.02.76-4.46l-8.04-6.24C.92 16.16 0 19.97 0 24c0 4.03.92 7.84 2.56 11.2l8.04-6.24z" />
-    <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.9-5.77l-7.2-5.6c-2 1.35-4.56 2.13-8.7 2.13-6.14 0-11.4-3.59-13.4-8.72l-8.04 6.24C6.51 42.62 14.62 48 24 48z" />
-  </svg>
-);
-
-const AppleIcon = ({ className }: { className?: string }) => (
-  <svg viewBox="0 0 24 24" className={className} aria-hidden="true">
-    <path fill="currentColor" d="M16.7 12.3c0-2.1 1.7-3.1 1.7-3.1-1-1.5-2.6-1.7-3.1-1.7-1.3-.1-2.6.8-3.3.8-.7 0-1.8-.8-3-.8-1.5 0-2.9.9-3.7 2.2-1.6 2.7-.4 6.7 1.1 8.9.7 1.1 1.6 2.4 2.8 2.3 1.1 0 1.6-.7 2.9-.7 1.3 0 1.7.7 3 .7 1.2 0 2-.9 2.7-2 .9-1.3 1.2-2.6 1.2-2.7-.1 0-2.3-.9-2.3-3.9z" />
-    <path fill="currentColor" d="M14.9 4.2c.6-.7 1-1.7.9-2.7-.9.1-1.9.6-2.5 1.3-.6.7-1.1 1.7-.9 2.7 1 .1 2-.5 2.5-1.3z" />
-  </svg>
-);
-
 const BENEFITS = [
   { text: 'Free to join — no long-term contracts' },
-  { text: 'Get matched with customers in your city' },
+  { text: 'Get matched with customers across Riyadh districts' },
   { text: 'Manage bookings, schedule, and payments' },
-  { text: 'AI-powered call handling and CRM built in' },
+  { text: 'Build your profile, collect reviews, and grow repeat business' },
 ];
 
 export default function RegisterPage() {
   const router = useRouter();
-  const [form, setForm] = useState({ name: '', email: '', phone: '', password: '', confirmPassword: '' });
+  const [form, setForm] = useState({ name: '', email: '', password: '', confirmPassword: '' });
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [agreed, setAgreed] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [socialLoading, setSocialLoading] = useState<'cognito-google' | 'cognito-apple' | null>(null);
 
   const set = (key: keyof typeof form, value: string) =>
     setForm((f) => ({ ...f, [key]: value }));
-
-  const handleSocialSignUp = async (provider: 'cognito-google' | 'cognito-apple') => {
-    setError(null);
-    setSocialLoading(provider);
-    try {
-      const result = await signIn(provider, { callbackUrl: '/onboarding' });
-      if (result?.error) {
-        setError(result.error);
-        setSocialLoading(null);
-      }
-    } catch (err: any) {
-      setError(err?.message || 'Unable to start social sign-up.');
-      setSocialLoading(null);
-    }
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!agreed) { setError('Please agree to the Terms and Privacy Policy.'); return; }
     if (form.password.length < 8) { setError('Password must be at least 8 characters.'); return; }
     if (form.password !== form.confirmPassword) { setError('Passwords do not match.'); return; }
-    if (form.phone.replace(/\D/g, '').length !== 10) { setError('Please enter a valid 10-digit US phone number.'); return; }
     setLoading(true);
     setError(null);
     try {
       const nameParts = form.name.trim().split(' ').filter(Boolean);
-      const phoneDigits = form.phone.replace(/\D/g, '');
-      const phoneNumber = phoneDigits.length === 10 ? `+1${phoneDigits}` : undefined;
-      if (!phoneNumber) { setError('Please enter a valid 10-digit US phone number.'); setLoading(false); return; }
       await apiClient.register({
         email: form.email.trim(),
         password: form.password,
         first_name: nameParts[0] || undefined,
         last_name: nameParts.slice(1).join(' ') || undefined,
-        phone_number: phoneNumber,
         pool_type: 'users',
       });
-      router.push(`/verify-email?email=${encodeURIComponent(form.email.trim())}&audience=pro`);
+      router.push(`/verify-email?audience=pro&email=${encodeURIComponent(form.email.trim())}`);
     } catch (err: any) {
       setError(err?.message || 'Sign up failed. Please try again.');
     } finally {
@@ -136,41 +99,23 @@ export default function RegisterPage() {
               </Link>
             </p>
 
+            <div className="mt-6">
+              <SocialAuthButtons audience="pro" callbackUrl="/onboarding/setup" />
+            </div>
+
+            <div className="mt-6 flex items-center gap-4 text-xs uppercase tracking-[0.2em] text-slate-300">
+              <div className="h-px flex-1 bg-slate-200" />
+              <span>or continue with email</span>
+              <div className="h-px flex-1 bg-slate-200" />
+            </div>
+
             {error && (
               <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                 {error}
               </div>
             )}
 
-            {/* Social sign-up */}
-            <div className="mt-6 space-y-2.5">
-              <button
-                type="button"
-                onClick={() => handleSocialSignUp('cognito-google')}
-                disabled={loading || Boolean(socialLoading)}
-                className="flex h-11 w-full items-center justify-center gap-3 rounded-lg border border-slate-200 bg-white text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <GoogleIcon className="h-4 w-4" />
-                {socialLoading === 'cognito-google' ? 'Connecting to Google…' : 'Continue with Google'}
-              </button>
-              <button
-                type="button"
-                onClick={() => handleSocialSignUp('cognito-apple')}
-                disabled={loading || Boolean(socialLoading)}
-                className="flex h-11 w-full items-center justify-center gap-3 rounded-lg border border-slate-200 bg-white text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <AppleIcon className="h-4 w-4" />
-                {socialLoading === 'cognito-apple' ? 'Connecting to Apple…' : 'Continue with Apple'}
-              </button>
-            </div>
-
-            <div className="my-5 flex items-center gap-3">
-              <span className="h-px flex-1 bg-slate-200" />
-              <span className="text-xs text-slate-400">or sign up with email</span>
-              <span className="h-px flex-1 bg-slate-200" />
-            </div>
-
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit} className="mt-6 space-y-4">
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1.5">Full name</label>
                 <input
@@ -193,26 +138,6 @@ export default function RegisterPage() {
                   onChange={(e) => set('email', e.target.value)}
                   className="w-full rounded-lg border border-slate-200 px-3.5 py-2.5 text-sm text-slate-900 placeholder-slate-400 outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
                 />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1.5">Phone number</label>
-                <div className="flex rounded-lg border border-slate-200 focus-within:border-emerald-400 focus-within:ring-2 focus-within:ring-emerald-100 overflow-hidden">
-                  <span className="flex items-center gap-1.5 border-r border-slate-200 bg-slate-50 px-3 text-sm text-slate-600 shrink-0 select-none">
-                    🇺🇸 +1
-                  </span>
-                  <input
-                    type="tel"
-                    required
-                    placeholder="(832) 404-1336"
-                    value={form.phone}
-                    onChange={(e) => {
-                      const digits = e.target.value.replace(/\D/g, '').slice(0, 10);
-                      set('phone', digits);
-                    }}
-                    className="w-full px-3.5 py-2.5 text-sm text-slate-900 placeholder-slate-400 outline-none bg-white"
-                  />
-                </div>
               </div>
 
               <div>

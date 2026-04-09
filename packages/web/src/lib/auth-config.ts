@@ -2,7 +2,7 @@ import { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import CognitoProvider from "next-auth/providers/cognito";
 import { UserRole } from "@handycall/shared";
-import { decodeJWT, extractUserRole } from "@/lib/jwt";
+import { decodeJWT } from "@/lib/jwt";
 import type { JWT } from "next-auth/jwt";
 
 // Prefer injected env, but fall back to production defaults; avoid mutating env to keep
@@ -58,10 +58,14 @@ function getTokenExpiryMs(token?: string) {
   return exp * 1000;
 }
 
-async function refreshCognitoTokens(token: JWT): Promise<JWT> {
+function poolTypeToUserType(poolType?: string): "CUSTOMER" | "PRO" {
+  return poolType === "customer" ? "CUSTOMER" : "PRO";
+}
+
+async function refreshAppTokens(token: JWT): Promise<JWT> {
   const refreshToken = token.refreshToken as string | undefined;
-  const idToken = token.idToken as string | undefined;
-  const decoded = idToken ? decodeJWT(idToken) : null;
+  const bearerToken = (token.accessToken as string | undefined) || (token.idToken as string | undefined);
+  const decoded = bearerToken ? decodeJWT(bearerToken) : null;
   const email =
     (token.email as string | undefined) ||
     (decoded?.email as string | undefined) ||
@@ -69,6 +73,7 @@ async function refreshCognitoTokens(token: JWT): Promise<JWT> {
   if (!refreshToken || !email) {
     return {
       ...token,
+      accessToken: undefined,
       idToken: undefined,
       error: "RefreshAccessTokenError",
     };
@@ -80,8 +85,7 @@ async function refreshCognitoTokens(token: JWT): Promise<JWT> {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         refresh_token: refreshToken,
-        email,
-        pool_type: (token.poolType as string | undefined) || 'auto',
+        email: email,
       }),
     });
 
@@ -94,18 +98,20 @@ async function refreshCognitoTokens(token: JWT): Promise<JWT> {
     }
 
     const data = await response.json();
-    const idToken = data.id_token || data.idToken;
+    const accessToken = data.access_token || data.accessToken || data.id_token || data.idToken;
     const nextRefreshToken = data.refresh_token || data.refreshToken || refreshToken;
 
     return {
       ...token,
-      idToken: idToken || token.idToken,
+      accessToken: accessToken || token.accessToken,
+      idToken: accessToken || token.idToken,
       refreshToken: nextRefreshToken,
       error: undefined,
     };
   } catch {
     return {
       ...token,
+      accessToken: undefined,
       idToken: undefined,
       error: "RefreshAccessTokenError",
     };
@@ -198,7 +204,7 @@ export const authOptions: NextAuthOptions = {
             body: JSON.stringify({
               email: credentials.email,
               password: credentials.password,
-              pool_type: (credentials as any).pool_type || 'auto',
+              user_type: poolTypeToUserType((credentials as any).pool_type || "users"),
             }),
           });
 
@@ -224,14 +230,28 @@ export const authOptions: NextAuthOptions = {
 
           // Backend returns Cognito tokens via loginWithCognito
           // Extract tokens from response
-          const idToken = data.id_token || data.idToken;
-          const nameFromResponse = (data.name as string | undefined) || (data.fullName as string | undefined);
-          const givenNameFromResponse = (data.first_name as string | undefined) || (data.given_name as string | undefined);
-          const familyNameFromResponse = (data.last_name as string | undefined) || (data.family_name as string | undefined);
+          const accessToken = data.access_token || data.accessToken || data.id_token || data.idToken;
+          const userPayload = data.user || {};
+          const nameFromResponse =
+            (data.name as string | undefined) ||
+            (data.fullName as string | undefined) ||
+            (userPayload.name as string | undefined);
+          const givenNameFromResponse =
+            (data.first_name as string | undefined) ||
+            (data.given_name as string | undefined) ||
+            (userPayload.first_name as string | undefined) ||
+            (userPayload.given_name as string | undefined);
+          const familyNameFromResponse =
+            (data.last_name as string | undefined) ||
+            (data.family_name as string | undefined) ||
+            (userPayload.last_name as string | undefined) ||
+            (userPayload.family_name as string | undefined);
           const poolTypeFromResponse =
-            (data.poolType as string | undefined) ||
-            (data.pool_type as string | undefined) ||
-            (data.isAdmin ? 'admin' : undefined);
+            (data.user_type as string | undefined) === "CUSTOMER"
+              ? "customer"
+              : (data.poolType as string | undefined) ||
+                (data.pool_type as string | undefined) ||
+                (data.isAdmin ? "admin" : undefined);
           const isAdminUser =
             poolTypeFromResponse === 'admin' ||
             data.isAdmin === true ||
@@ -245,7 +265,7 @@ export const authOptions: NextAuthOptions = {
               : poolTypeFromResponse === 'customer'
               ? 'customer'
               : 'users';
-          const decoded = idToken ? decodeJWT(idToken) : null;
+          const decoded = accessToken ? decodeJWT(accessToken) : null;
           const resolvedName =
             nameFromResponse ||
             decoded?.name ||
@@ -256,14 +276,16 @@ export const authOptions: NextAuthOptions = {
           const resolvedGivenName = givenNameFromResponse || (decoded?.given_name as string | undefined);
           const resolvedFamilyName = familyNameFromResponse || (decoded?.family_name as string | undefined);
 
-          if (!idToken) {
+          if (!accessToken) {
             throw new Error("Invalid response from authentication server");
           }
 
           const refreshToken = data.refresh_token || data.refreshToken;
-          const decodedUserToken = idToken ? decodeJWT(idToken) : null;
+          const decodedUserToken = accessToken ? decodeJWT(accessToken) : null;
           const resolvedUserId =
             (decodedUserToken?.sub as string | undefined) ||
+            (data.user?.customer_id as string | undefined) ||
+            (data.user?.pro_id as string | undefined) ||
             (data.user_id as string | undefined) ||
             credentials.email;
 
@@ -271,7 +293,8 @@ export const authOptions: NextAuthOptions = {
           return {
             id: resolvedUserId,
             email: credentials.email,
-            idToken: idToken,
+            accessToken: accessToken,
+            idToken: accessToken,
             refreshToken: refreshToken,
             userRole: resolvedUserRole,
             poolType: poolType,
@@ -292,36 +315,76 @@ export const authOptions: NextAuthOptions = {
   callbacks: {
     async jwt({ token, user, account, profile }) {
       if (account && account.provider !== "credentials") {
-        const idToken = (account as any).id_token as string | undefined;
-        if (idToken) token.idToken = idToken;
-
-        const decoded = idToken ? decodeJWT(idToken) : null;
-        const derivedRole = idToken ? extractUserRole(idToken) : null;
-
-        token.sub = token.sub || (decoded?.sub as string | undefined);
-        token.email =
-          token.email ||
-          (decoded?.email as string | undefined) ||
-          ((profile as any)?.email as string | undefined);
-        token.userRole = token.userRole || derivedRole || UserRole.OWNER;
-        // Customer-specific OAuth providers get poolType='customer'
+        const oauthIdToken = (account as any).id_token as string | undefined;
+        const decoded = oauthIdToken ? decodeJWT(oauthIdToken) : null;
         const isCustomerOAuth = account.provider.endsWith("-customer");
-        token.poolType = token.poolType || (isCustomerOAuth ? "customer" : "users");
-        // Track that this session came from an OAuth provider (not credentials)
-        token.authProvider = 'oauth';
-        token.name = token.name || (decoded?.name as string | undefined) || ((profile as any)?.name as string | undefined);
-        token.given_name =
-          token.given_name ||
+        const email =
+          (decoded?.email as string | undefined) ||
+          ((profile as any)?.email as string | undefined) ||
+          (token.email as string | undefined);
+        const name =
+          (decoded?.name as string | undefined) ||
+          ((profile as any)?.name as string | undefined) ||
+          undefined;
+        const givenName =
           (decoded?.given_name as string | undefined) ||
-          ((profile as any)?.given_name as string | undefined);
-        token.family_name =
-          token.family_name ||
+          ((profile as any)?.given_name as string | undefined) ||
+          undefined;
+        const familyName =
           (decoded?.family_name as string | undefined) ||
-          ((profile as any)?.family_name as string | undefined);
+          ((profile as any)?.family_name as string | undefined) ||
+          undefined;
+
+        if (!email) {
+          token.error = "OAuthEmailMissing";
+          return token;
+        }
+
+        const exchangeResponse = await fetch(`${API_URL}/auth/oauth/exchange`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email,
+            user_type: isCustomerOAuth ? "CUSTOMER" : "PRO",
+            provider: account.provider,
+            name,
+            given_name: givenName,
+            family_name: familyName,
+          }),
+        });
+
+        if (!exchangeResponse.ok) {
+          token.error = "OAuthExchangeFailed";
+          return token;
+        }
+
+        const data = await exchangeResponse.json();
+        const accessToken = data.access_token || data.accessToken;
+        const refreshToken = data.refresh_token || data.refreshToken;
+        const resolvedPoolType = data.user_type === "CUSTOMER" ? "customer" : "users";
+
+        token.accessToken = accessToken;
+        token.idToken = accessToken;
+        token.refreshToken = refreshToken;
+        token.sub =
+          data.user?.customer_id ||
+          data.user?.pro_id ||
+          token.sub ||
+          (decoded?.sub as string | undefined);
+        token.email = email;
+        token.userRole = UserRole.OWNER;
+        token.poolType = resolvedPoolType;
+        token.authProvider = "oauth";
+        token.name = name || token.name;
+        token.given_name = givenName || token.given_name;
+        token.family_name = familyName || token.family_name;
       }
 
       // Persist tokens from credentials provider without clobbering OAuth tokens
       if (user) {
+        if ((user as any).accessToken) {
+          token.accessToken = (user as any).accessToken ?? token.accessToken;
+        }
         if ((user as any).idToken) {
           token.idToken = (user as any).idToken ?? token.idToken;
         }
@@ -350,9 +413,9 @@ export const authOptions: NextAuthOptions = {
       }
 
       const expiryMs =
-        getTokenExpiryMs(token.idToken as string | undefined);
+        getTokenExpiryMs((token.accessToken as string | undefined) || (token.idToken as string | undefined));
       if (expiryMs && Date.now() > expiryMs - TOKEN_REFRESH_BUFFER_MS) {
-        token = await refreshCognitoTokens(token);
+        token = await refreshAppTokens(token);
       }
 
       return token;
@@ -360,7 +423,9 @@ export const authOptions: NextAuthOptions = {
     async session({ session, token }) {
       // Store tokens and role in session for server-side proxy to use
       if (token) {
-        (session as any).idToken = token.idToken as string;
+        (session as any).accessToken = token.accessToken as string;
+        (session as any).idToken = (token.idToken as string) || (token.accessToken as string);
+        (session as any).refreshToken = token.refreshToken as string;
         const email = (token.email as string | undefined) || session.user?.email;
         const derivedRole =
           (token.userRole as UserRole | undefined) ||

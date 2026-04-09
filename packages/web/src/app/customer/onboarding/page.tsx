@@ -9,14 +9,12 @@ import { SiteFooter } from '@/components/marketing/site-footer';
 import { apiClient } from '@/lib/api-client';
 import {
   CustomerProfile,
-  formatUsPhoneDigits,
   isCustomerProfileComplete,
-  sanitizeUsPhoneDigits,
   sanitizeZip,
   splitFullName,
 } from '@/lib/customer-profile';
 import { useAuthStore } from '@/stores/auth-store';
-import { IconArrowRight, IconHome, IconMapPin, IconPhone, IconSparkles } from '@tabler/icons-react';
+import { IconArrowRight, IconHome, IconMapPin, IconSparkles } from '@tabler/icons-react';
 
 const US_STATES = [
   'AL', 'AK', 'AZ', 'AR', 'CA', 'CO', 'CT', 'DE', 'FL', 'GA',
@@ -40,7 +38,6 @@ function CustomerOnboardingContent() {
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState({
     name: '',
-    phoneDigits: '',
     address_line1: '',
     address_line2: '',
     city: '',
@@ -77,7 +74,6 @@ function CustomerOnboardingContent() {
 
         setForm({
           name: profile.name || String(session?.user?.name || ''),
-          phoneDigits: sanitizeUsPhoneDigits(profile.phone || ''),
           address_line1: profile.address_line1 || '',
           address_line2: profile.address_line2 || '',
           city: profile.city || '',
@@ -102,7 +98,6 @@ function CustomerOnboardingContent() {
     () =>
       Boolean(
         form.name.trim() &&
-          form.phoneDigits.length === 10 &&
           form.address_line1.trim() &&
           form.city.trim() &&
           form.state.trim() &&
@@ -123,7 +118,6 @@ function CustomerOnboardingContent() {
     try {
       const result = await apiClient.updateCustomerProfile({
         name: form.name.trim(),
-        phone: `+1${form.phoneDigits}`,
         address_line1: form.address_line1.trim(),
         address_line2: form.address_line2.trim() || undefined,
         city: form.city.trim(),
@@ -192,12 +186,11 @@ function CustomerOnboardingContent() {
               </div>
               <div className="rounded-[28px] border border-white/80 bg-white/80 p-5 shadow-[0_20px_60px_rgba(15,23,42,0.06)] backdrop-blur">
                 <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100 text-slate-700">
-                  <IconPhone className="h-5 w-5" stroke={1.8} />
+                  <IconSparkles className="h-5 w-5" stroke={1.8} />
                 </div>
-                <h2 className="mt-4 text-base font-bold text-slate-900">Required phone number</h2>
+                <h2 className="mt-4 text-base font-bold text-slate-900">Faster future requests</h2>
                 <p className="mt-2 text-sm leading-6 text-slate-500">
-                  This closes the Google and Apple signup gap too, so every customer account ends with the same required
-                  contact info.
+                  Your account keeps your saved details together so future requests and bookings are quicker to complete.
                 </p>
               </div>
             </div>
@@ -240,24 +233,6 @@ function CustomerOnboardingContent() {
                       placeholder="Jane Smith"
                       className={INPUT_CLS}
                     />
-                  </div>
-
-                  <div>
-                    <label className="mb-1.5 block text-sm font-medium text-slate-700">Phone number</label>
-                    <div className="flex overflow-hidden rounded-2xl border border-slate-200 bg-white focus-within:border-emerald-400 focus-within:ring-4 focus-within:ring-emerald-100">
-                      <div className="flex items-center gap-2 border-r border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-700">
-                        <span aria-hidden="true">🇺🇸</span>
-                        <span>+1</span>
-                      </div>
-                      <input
-                        type="tel"
-                        inputMode="numeric"
-                        value={formatUsPhoneDigits(form.phoneDigits)}
-                        onChange={(event) => set('phoneDigits', sanitizeUsPhoneDigits(event.target.value))}
-                        placeholder="(555) 123-4567"
-                        className="w-full px-4 py-3 text-sm text-slate-900 outline-none placeholder:text-slate-400"
-                      />
-                    </div>
                   </div>
 
                   <div>

@@ -30,47 +30,52 @@ export const PLAN_CATALOG: Record<SubscriptionPlan, PlanCatalogEntry> = {
       'Appear in customer search results',
       'Receive lead requests and job inquiries',
       'Preview the request before unlocking',
+      'Customer reviews on your profile',
       'Pay only when you unlock a lead',
-      'No AI receptionist or call automation included',
     ],
   },
   [SubscriptionPlan.PRO]: {
     name: 'Pro',
-    price: 19.99,
-    originalPrice: 29.99,
+    price: 149,
+    originalPrice: 0,
     cadence: 'month',
-    badge: 'Marketplace + AI calling',
-    trialLabel: '14-day free trial',
-    limits: { minutes: 300, sms: 600, contacts: 1000 },
+    badge: 'Most popular',
+    limits: { minutes: 0, sms: 0, contacts: 1000 },
     featureHighlights: [
       'Everything in Starter, plus:',
-      'AI receptionist for inbound calls',
-      'Lead qualification and booking intake',
-      'Call summaries, transcripts & follow-up sequences',
-      '30-day call recording retention',
-      'Priority support',
+      'No per-lead unlock fee',
+      'Priority placement in search',
+      'CRM dashboard',
+      'In-app payment collection',
+      'Invoices and payout tracking',
+      'Calendar sync and booking alerts',
     ],
   },
   [SubscriptionPlan.MAX]: {
-    name: 'Max',
-    price: 49.99,
-    originalPrice: 79.99,
+    name: 'Teams',
+    price: 349,
+    originalPrice: 0,
     cadence: 'month',
-    badge: 'Growth plan for top pros',
-    limits: { minutes: 750, sms: 1500, contacts: 3000 },
+    badge: 'Best for growing teams',
+    limits: { minutes: 0, sms: 0, contacts: 5000 },
     featureHighlights: [
       'Everything in Pro, plus:',
-      'Sponsored placement in search results',
-      'CRM integrations (Zapier, webhooks)',
-      'Advanced routing & multi-location support',
-      '90-day call recording retention',
-      'Dedicated account manager',
+      'Multi-user team access',
+      'Advanced routing and assignment',
+      'Performance analytics',
+      'Multi-location support',
+      'Priority support',
     ],
   },
 };
 
 export function formatSar(amount: number) {
-  return formatUsd(amount);
+  return new Intl.NumberFormat('en-SA', {
+    style: 'currency',
+    currency: 'SAR',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(amount);
 }
 
 export function formatUsd(amount: number) {
@@ -80,8 +85,8 @@ export function formatUsd(amount: number) {
 export function getPlanPriceDisplay(plan: SubscriptionPlan) {
   const details = PLAN_CATALOG[plan];
   return {
-    current: details.price === 0 ? 'Free' : formatUsd(details.price),
-    original: details.originalPrice === 0 ? null : formatUsd(details.originalPrice),
+    current: details.price === 0 ? 'Free' : formatSar(details.price),
+    original: details.originalPrice === 0 ? null : formatSar(details.originalPrice),
     cadence: `per ${details.cadence}`,
   };
 }

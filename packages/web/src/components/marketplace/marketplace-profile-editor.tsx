@@ -6,14 +6,14 @@ import { apiClient } from '@/lib/api-client';
 import { optimizeImageFile } from '@/lib/image-upload';
 import { useAuthStore } from '@/stores/auth-store';
 import { useMarketingLanguage } from '@/components/providers/marketing-language-provider';
-import { HOUSTON_CITIES } from '@/constants/houston-marketplace';
+import { RIYADH_DISTRICT_GROUPS } from '@/constants/houston-areas';
 import {
   MARKETPLACE_SERVICE_CATEGORIES,
   getMarketplaceCategoryByTitle,
   getSpecificServicesForCategory,
 } from '@/constants/marketplace-service-categories';
 
-const PROPERTY_TYPES = ['House', 'Apartment', 'Townhouse', 'Office', 'Commercial / Warehouse', 'Government Building'];
+const PROPERTY_TYPES = ['Villa', 'Apartment', 'Townhouse', 'Office', 'Commercial', 'Government Building'];
 const PAYMENT_METHOD_ICONS: Record<string, React.ReactNode> = {
   cash: (
     <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={1.6}>
@@ -34,35 +34,28 @@ const PAYMENT_METHOD_ICONS: Record<string, React.ReactNode> = {
       <path d="M6 15h4" strokeLinecap="round" />
     </svg>
   ),
-  zelle: (
-    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor">
-      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.5 13.5h-5.83l5.58-7H8.5v-2h7.83L10.75 13.5H16.5v2z" style={{fill:'#6d1ed4'}}/>
-    </svg>
-  ),
-  venmo: (
-    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor">
-      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm2.74 5c.26.43.38.88.38 1.46 0 1.82-1.55 4.19-2.82 5.85L11.2 17h-2.7l-1.07-8.93 2.36-.23.57 4.58c.53-.86 1.19-2.22 1.19-3.14 0-.51-.09-.85-.23-1.14L13.2 7h1.54z" style={{fill:'#3d95ce'}}/>
-    </svg>
-  ),
-  check: (
+  mada: (
     <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={1.6}>
-      <rect x="3" y="6" width="18" height="13" rx="1.5" />
-      <path d="M3 10h18" />
-      <path d="M7 14h4M7 17h3" strokeLinecap="round" />
+      <rect x="3" y="5.5" width="18" height="13" rx="2" />
+      <path d="M7 10h10M7 14h5" strokeLinecap="round" />
+    </svg>
+  ),
+  bank_transfer: (
+    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={1.6}>
+      <path d="M4 10h16M6 10V7h12v3M7 10v7M12 10v7M17 10v7M4 17h16" strokeLinecap="round" />
     </svg>
   ),
 };
 
 const PAYMENT_METHODS = [
   { id: 'cash', label: 'Cash' },
+  { id: 'mada', label: 'Mada' },
   { id: 'apple_pay', label: 'Apple Pay' },
   { id: 'card', label: 'Credit / Debit Card' },
-  { id: 'zelle', label: 'Zelle' },
-  { id: 'venmo', label: 'Venmo' },
-  { id: 'check', label: 'Check' },
+  { id: 'bank_transfer', label: 'Bank transfer' },
 ];
 const EMPLOYEE_OPTIONS = ['Just me (solo)', '2-5 employees', '6-20 employees', '20+ employees'];
-const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const TIMES = ['6:00 AM', '7:00 AM', '8:00 AM', '9:00 AM', '10:00 AM', '11:00 AM', '12:00 PM', '1:00 PM', '2:00 PM', '3:00 PM', '4:00 PM', '5:00 PM', '6:00 PM', '7:00 PM', '8:00 PM', '9:00 PM', '10:00 PM', '11:00 PM'];
 
 const EDITOR_TRANSLATIONS: Record<string, string> = {
@@ -243,19 +236,6 @@ interface BusinessHourEntry {
 type BusinessHoursMap = Record<string, BusinessHourEntry>;
 
 interface MarketplaceProfile {
-  // Identity & verification
-  account_type: 'individual' | 'company' | '';
-  id_number: string;
-  phone_number: string;
-  home_address_street: string;
-  home_address_city: string;
-  home_address_state: string;
-  home_address_zip: string;
-  // Company-only
-  company_name_legal: string;
-  cr_number: string;
-  vat_number: string;
-  company_address: string;
   // Profile
   profile_photo: string;
   bio: string;
@@ -275,20 +255,20 @@ interface MarketplaceProfile {
   website: string;
   starting_price: string;
   contact_for_price: boolean;
-  service_cities: string[];
+  service_districts: string[];
   business_hours: BusinessHoursMap;
   portfolio_note: string;
   portfolio_photos: string[];
 }
 
 const defaultHours: BusinessHoursMap = {
+  Sunday: { open: true, from: '8:00 AM', to: '6:00 PM' },
   Monday: { open: true, from: '8:00 AM', to: '6:00 PM' },
   Tuesday: { open: true, from: '8:00 AM', to: '6:00 PM' },
   Wednesday: { open: true, from: '8:00 AM', to: '6:00 PM' },
   Thursday: { open: true, from: '8:00 AM', to: '6:00 PM' },
-  Friday: { open: true, from: '8:00 AM', to: '6:00 PM' },
+  Friday: { open: false, from: '8:00 AM', to: '6:00 PM' },
   Saturday: { open: false, from: '8:00 AM', to: '6:00 PM' },
-  Sunday: { open: false, from: '8:00 AM', to: '6:00 PM' },
 };
 
 const inputClass =
@@ -302,74 +282,109 @@ function toggle<T>(items: T[], item: T): T[] {
   return items.includes(item) ? items.filter((entry) => entry !== item) : [...items, item];
 }
 
-function CitySearch({ selected, onChange }: { selected: string[]; onChange: (cities: string[]) => void }) {
+function DistrictSelector({
+  selected,
+  onChange,
+}: {
+  selected: string[];
+  onChange: (districts: string[]) => void;
+}) {
   const [query, setQuery] = useState('');
-  const [open, setOpen] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const normalizedQuery = query.trim().toLowerCase();
 
-  const filtered = query.trim()
-    ? HOUSTON_CITIES.filter((c) => c.toLowerCase().includes(query.toLowerCase()) && !selected.includes(c))
-    : HOUSTON_CITIES.filter((c) => !selected.includes(c));
+  const filteredGroups = Object.entries(RIYADH_DISTRICT_GROUPS)
+    .map(([region, districts]) => [
+      region,
+      districts.filter((district) =>
+        !normalizedQuery
+          ? true
+          : district.label.toLowerCase().includes(normalizedQuery) ||
+            district.region.toLowerCase().includes(normalizedQuery),
+      ),
+    ] as const)
+    .filter(([, districts]) => districts.length > 0);
 
-  const add = (city: string) => {
-    onChange([...selected, city]);
-    setQuery('');
+  const toggleDistrict = (district: string) => {
+    onChange(
+      selected.includes(district)
+        ? selected.filter((item) => item !== district)
+        : [...selected, district],
+    );
   };
 
-  const remove = (city: string) => onChange(selected.filter((c) => c !== city));
-
-  // Close on outside click
-  useState(() => {
-    const handler = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  });
-
   return (
-    <div ref={containerRef} className="space-y-3">
-      {/* Selected chips */}
-      {selected.length > 0 && (
+    <div className="space-y-4">
+      {selected.length > 0 ? (
         <div className="flex flex-wrap gap-2">
-          {selected.map((city) => (
-            <span key={city} className="flex items-center gap-1.5 rounded-full bg-emerald-50 border border-emerald-200 px-3 py-1 text-xs font-medium text-emerald-700">
-              {city}
-              <button type="button" onClick={() => remove(city)} className="text-emerald-400 hover:text-emerald-700 leading-none">×</button>
+          {selected.map((district) => (
+            <span
+              key={district}
+              className="flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700"
+            >
+              {district}
+              <button
+                type="button"
+                onClick={() => toggleDistrict(district)}
+                className="leading-none text-emerald-400 hover:text-emerald-700"
+              >
+                ×
+              </button>
             </span>
           ))}
         </div>
-      )}
+      ) : null}
 
-      {/* Search input */}
-      <div className="relative">
+      <div>
         <input
           type="text"
           value={query}
-          onChange={(e) => { setQuery(e.target.value); setOpen(true); }}
-          onFocus={() => setOpen(true)}
-          placeholder="Search Houston neighborhoods & cities…"
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search Riyadh districts…"
           className="w-full rounded-lg border border-slate-200 px-3.5 py-2.5 text-sm text-slate-900 placeholder-slate-400 outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
         />
-        {open && filtered.length > 0 && (
-          <div className="absolute z-20 mt-1 max-h-52 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-lg">
-            {filtered.map((city) => (
-              <button
-                key={city}
-                type="button"
-                onMouseDown={(e) => { e.preventDefault(); add(city); }}
-                className="w-full px-4 py-2.5 text-left text-sm text-slate-700 hover:bg-emerald-50 hover:text-emerald-700"
-              >
-                {city}
-              </button>
-            ))}
+        <p className="mt-2 text-xs text-slate-500">
+          Choose every district you actively serve. Your public profile will still show Riyadh as your city.
+        </p>
+      </div>
+
+      <div className="max-h-[28rem] space-y-4 overflow-y-auto rounded-2xl border border-slate-200 bg-slate-50 p-4">
+        {filteredGroups.map(([region, districts]) => (
+          <div key={region}>
+            <div className="mb-2 flex items-center justify-between">
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">{region}</p>
+              <p className="text-xs text-slate-400">{districts.length} districts</p>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {districts.map((district) => {
+                const checked = selected.includes(district.label);
+                return (
+                  <label
+                    key={district.value}
+                    className={`flex cursor-pointer items-center gap-2 rounded-xl border px-3 py-2.5 transition ${
+                      checked
+                        ? 'border-emerald-300 bg-emerald-50'
+                        : 'border-slate-200 bg-white hover:border-emerald-200 hover:bg-emerald-50/40'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => toggleDistrict(district.label)}
+                      className="h-4 w-4 rounded border-slate-300 accent-emerald-600"
+                    />
+                    <span className="text-sm text-slate-700">{district.label}</span>
+                  </label>
+                );
+              })}
+            </div>
           </div>
-        )}
-        {open && filtered.length === 0 && query.trim() && (
-          <div className="absolute z-20 mt-1 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-400 shadow-lg">
-            No matching areas found.
+        ))}
+
+        {filteredGroups.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-slate-200 bg-white px-4 py-6 text-center text-sm text-slate-400">
+            No Riyadh districts matched your search.
           </div>
-        )}
+        ) : null}
       </div>
     </div>
   );
@@ -399,23 +414,12 @@ export function MarketplaceProfileEditor({
   const [isDragging, setIsDragging] = useState(false);
 
   const existingProfile = ((company as any)?.marketplace_profile || {}) as Partial<MarketplaceProfile>;
-  const existingCities =
-    Array.isArray((company as any)?.service_area_cities) && (company as any)?.service_area_cities.length > 0
-      ? ((company as any)?.service_area_cities as string[])
+  const existingDistricts =
+    Array.isArray((company as any)?.service_area_zipcodes) && (company as any)?.service_area_zipcodes.length > 0
+      ? ((company as any)?.service_area_zipcodes as string[])
       : [];
 
   const [profile, setProfile] = useState<MarketplaceProfile>({
-    account_type: (existingProfile.account_type as any) || '',
-    id_number: existingProfile.id_number || '',
-    phone_number: existingProfile.phone_number || '',
-    home_address_street: existingProfile.home_address_street || '',
-    home_address_city: existingProfile.home_address_city || '',
-    home_address_state: existingProfile.home_address_state || '',
-    home_address_zip: existingProfile.home_address_zip || '',
-    company_name_legal: existingProfile.company_name_legal || '',
-    cr_number: existingProfile.cr_number || '',
-    vat_number: existingProfile.vat_number || '',
-    company_address: existingProfile.company_address || '',
     profile_photo: existingProfile.profile_photo || '',
     bio: existingProfile.bio || '',
     years_in_business: existingProfile.years_in_business || '',
@@ -437,10 +441,10 @@ export function MarketplaceProfileEditor({
     website: existingProfile.website || '',
     starting_price: existingProfile.starting_price || '',
     contact_for_price: Boolean(existingProfile.contact_for_price),
-    service_cities:
-      Array.isArray(existingProfile.service_cities) && existingProfile.service_cities.length > 0
-        ? existingProfile.service_cities
-        : existingCities,
+    service_districts:
+      Array.isArray(existingProfile.service_districts) && existingProfile.service_districts.length > 0
+        ? existingProfile.service_districts
+        : existingDistricts,
     business_hours: existingProfile.business_hours || defaultHours,
     portfolio_note: existingProfile.portfolio_note || '',
     portfolio_photos: Array.isArray(existingProfile.portfolio_photos) ? existingProfile.portfolio_photos : [],
@@ -548,13 +552,19 @@ export function MarketplaceProfileEditor({
       setSaving(false);
       return;
     }
+    if (profile.service_districts.length === 0) {
+      setError('Select at least one Riyadh district before saving.');
+      setSaving(false);
+      return;
+    }
     try {
       // Step 1: Save all profile data WITHOUT photos (always small, always succeeds)
       const profileWithoutPhotos = { ...profile, portfolio_photos: [] };
       await apiClient.updateMyCompany({
         marketplace_profile: profileWithoutPhotos,
-        service_area_cities: profile.service_cities,
-        service_area_completed: profile.service_cities.length > 0,
+        service_area_cities: ['Riyadh'],
+        service_area_zipcodes: profile.service_districts,
+        service_area_completed: profile.service_districts.length > 0,
         marketplace_profile_completed: true,
         public_profile_enabled: true,
       } as any);
@@ -671,195 +681,25 @@ export function MarketplaceProfileEditor({
           />
         </section>
 
-        {/* ── Verification & identity ────────────────────────────────── */}
         <section className={sectionClass}>
-          <h2 className={sectionTitleClass}>{t('Verification & identity')}</h2>
+          <h2 className={sectionTitleClass}>Riyadh marketplace basics</h2>
           <p className={sectionSubClass}>
-            {t(
-              'We use this to verify who you are and ensure customers can trust the pros on HandyCall. Your ID number is kept private and never shown publicly.'
-            )}
+            Set up the public details homeowners in Riyadh will actually use when deciding whether to contact you.
           </p>
-
-          {/* Account type */}
-          <p className={labelClass}>{t('I am registering as:')}</p>
-          <div className="mb-5 grid grid-cols-2 gap-3">
-            {(['individual', 'company'] as const).map((type) => {
-              const active = profile.account_type === type;
-              return (
-                <button
-                  key={type}
-                  type="button"
-                  onClick={() => setProfile({ ...profile, account_type: type })}
-                  className={`flex items-start gap-3 rounded-xl border p-4 text-left transition ${
-                    active
-                      ? 'border-emerald-400 bg-emerald-50 ring-1 ring-emerald-300'
-                      : 'border-slate-200 bg-white hover:border-emerald-200 hover:bg-emerald-50/40'
-                  }`}
-                >
-                  <span className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 ${active ? 'border-emerald-500' : 'border-slate-300'}`}>
-                    {active && <span className="h-2 w-2 rounded-full bg-emerald-500" />}
-                  </span>
-                  <div>
-                    <p className="text-sm font-bold text-slate-800">
-                      {type === 'individual' ? t('Solo / Freelancer') : t('Company')}
-                    </p>
-                    <p className="mt-0.5 text-xs text-slate-500">
-                      {type === 'individual' ? t('Work under your own name') : t('Registered business or team')}
-                    </p>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Government-issued ID */}
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <label className={labelClass}>{t('Government-issued ID *')}</label>
-              <input
-                type="text"
-                inputMode="numeric"
-                maxLength={10}
-                value={profile.id_number}
-                onChange={(e) => setProfile({ ...profile, id_number: e.target.value.replace(/\D/g, '') })}
-                placeholder={t("Driver's license or ID number")}
-                className={inputClass}
-              />
+              <label className={labelClass}>Business city</label>
+              <input value="Riyadh" disabled className={`${inputClass} cursor-not-allowed bg-slate-50 text-slate-500`} />
             </div>
             <div>
-              <label className={labelClass}>{t('Mobile number *')}</label>
-              <div className="flex overflow-hidden rounded-xl border border-slate-200 bg-white focus-within:border-emerald-400 focus-within:ring-2 focus-within:ring-emerald-100 transition">
-                <span className="flex items-center border-r border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-600 whitespace-nowrap">
-                  +1
-                </span>
-                <input
-                  type="tel"
-                  inputMode="numeric"
-                  maxLength={10}
-                  value={profile.phone_number}
-                  onChange={(e) => setProfile({ ...profile, phone_number: e.target.value.replace(/\D/g, '') })}
-                  placeholder={t('Mobile number')}
-                  className="flex-1 bg-transparent px-3 py-3 text-sm text-slate-800 outline-none placeholder:text-slate-400"
-                />
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-4 space-y-3">
-            <div>
-              <label className={labelClass}>
-                Home address <span className="text-red-500">*</span>
-                <span className="ml-1 text-xs font-normal text-slate-400">(private — not shown to customers)</span>
-              </label>
+              <label className={labelClass}>Primary service market</label>
               <input
-                type="text"
-                required
-                value={profile.home_address_street}
-                onChange={(e) => setProfile({ ...profile, home_address_street: e.target.value })}
-                placeholder="Street address"
-                className={inputClass}
-              />
-            </div>
-            <div className="grid grid-cols-3 gap-2">
-              <input
-                type="text"
-                required
-                value={profile.home_address_city}
-                onChange={(e) => setProfile({ ...profile, home_address_city: e.target.value })}
-                placeholder="City"
-                className={inputClass}
-              />
-              <input
-                type="text"
-                required
-                maxLength={2}
-                value={profile.home_address_state}
-                onChange={(e) => setProfile({ ...profile, home_address_state: e.target.value.toUpperCase() })}
-                placeholder="State"
-                className={inputClass}
-              />
-              <input
-                type="text"
-                required
-                maxLength={5}
-                inputMode="numeric"
-                value={profile.home_address_zip}
-                onChange={(e) => setProfile({ ...profile, home_address_zip: e.target.value.replace(/\D/g, '') })}
-                placeholder="ZIP"
-                className={inputClass}
+                value={`${selectedTier || 'Marketplace'} plan for Riyadh`}
+                disabled
+                className={`${inputClass} cursor-not-allowed bg-slate-50 text-slate-500`}
               />
             </div>
           </div>
-
-          {/* Company-only fields */}
-          {profile.account_type === 'company' && (
-            <div className="mt-5 space-y-4 rounded-xl border border-slate-100 bg-slate-50 p-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                {isArabic ? 'معلومات الشركة' : 'Company details'}
-              </p>
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div>
-                  <label className={labelClass}>{t('Company legal name *')}</label>
-                  <input
-                    type="text"
-                    value={profile.company_name_legal}
-                    onChange={(e) => setProfile({ ...profile, company_name_legal: e.target.value })}
-                    placeholder={t('As it appears on your commercial registration')}
-                    className={inputClass}
-                  />
-                </div>
-                <div>
-                  <label className={labelClass}>{t('Commercial Registration (CR) number *')}</label>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    maxLength={10}
-                    value={profile.cr_number}
-                    onChange={(e) => setProfile({ ...profile, cr_number: e.target.value.replace(/\D/g, '') })}
-                    placeholder={t('Business license number')}
-                    className={inputClass}
-                  />
-                </div>
-                <div>
-                  <label className={labelClass}>{t('EIN (Employer ID)')}</label>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    maxLength={15}
-                    value={profile.vat_number}
-                    onChange={(e) => setProfile({ ...profile, vat_number: e.target.value.replace(/\D/g, '') })}
-                    placeholder={t('EIN number (optional)')}
-                    className={inputClass}
-                  />
-                </div>
-                <div>
-                  <label className={labelClass}>{t('Company address')}</label>
-                  <input
-                    type="text"
-                    value={profile.company_address}
-                    onChange={(e) => setProfile({ ...profile, company_address: e.target.value })}
-                    placeholder={t('City, district, street')}
-                    className={inputClass}
-                  />
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Consent checkbox — SMS-consent card style */}
-          <label className="mt-5 flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-white p-4 transition hover:border-emerald-300 hover:bg-emerald-50/30">
-            <input
-              type="checkbox"
-              checked={profile.is_background_checked}
-              onChange={(e) => setProfile({ ...profile, is_background_checked: e.target.checked })}
-              className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 accent-emerald-600"
-            />
-            <span className="text-sm leading-relaxed text-slate-700">
-              {t(
-                'I confirm this information is accurate and I consent to identity verification as part of joining HandyCall as a Pro.'
-              )}
-            </span>
-          </label>
         </section>
 
         {/* ── About your business ────────────────────────────────────── */}
@@ -873,7 +713,7 @@ export function MarketplaceProfileEditor({
             rows={4}
             maxLength={500}
             placeholder={t(
-              'Licensed AC technician with 12 years of experience in Houston. We service homes, apartments, and commercial sites with same-day appointments.'
+              'Trusted Riyadh service pro with 12 years of experience. We cover selected districts across the city, arrive on time, and keep homeowners updated from first message to completed job.'
             )}
             className={`${inputClass} resize-none`}
           />
@@ -1111,16 +951,18 @@ export function MarketplaceProfileEditor({
         </section>
 
         <section className={sectionClass}>
-          <h2 className={sectionTitleClass}>{t('Cities you serve')}</h2>
-          <p className={sectionSubClass}>{t('Customers search by city, so choose all areas you actively cover.')}</p>
-          <CitySearch
-            selected={profile.service_cities}
-            onChange={(cities) => setProfile({ ...profile, service_cities: cities })}
+          <h2 className={sectionTitleClass}>Riyadh districts you serve</h2>
+          <p className={sectionSubClass}>
+            Select the neighborhoods and districts you actively cover so homeowners see accurate service availability.
+          </p>
+          <DistrictSelector
+            selected={profile.service_districts}
+            onChange={(districts) => setProfile({ ...profile, service_districts: districts })}
           />
         </section>
 
         <section className={sectionClass}>
-          <h2 className={sectionTitleClass}>{t('Starting price')}</h2>
+          <h2 className={sectionTitleClass}>Starting price</h2>
           <p className={sectionSubClass}>{t('This sets customer expectations before they message you.')}</p>
           <label className="mb-4 flex cursor-pointer items-center gap-3 rounded-xl border border-slate-200 bg-white p-4 transition hover:border-emerald-300 hover:bg-emerald-50/30">
             <input
@@ -1142,13 +984,13 @@ export function MarketplaceProfileEditor({
           </label>
           {!profile.contact_for_price && (
             <div className="flex items-center gap-3">
-              <span className="whitespace-nowrap text-sm font-semibold text-slate-500">{t('From $')}</span>
+              <span className="whitespace-nowrap text-sm font-semibold text-slate-500">From SAR</span>
               <input
                 type="number"
                 min={0}
                 value={profile.starting_price}
                 onChange={(e) => setProfile({ ...profile, starting_price: e.target.value })}
-                placeholder={t('e.g. 150')}
+                placeholder="e.g. 150"
                 className={`${inputClass} max-w-xs`}
               />
               <span className="text-sm text-slate-400">{t('/ service')}</span>
@@ -1172,7 +1014,7 @@ export function MarketplaceProfileEditor({
               <tbody>
                 {DAYS.map((day) => {
                   const hours = profile.business_hours[day];
-                  const isWeekend = day === 'Saturday' || day === 'Sunday';
+                  const isWeekend = day === 'Friday' || day === 'Saturday';
                   return (
                     <tr key={day} className="border-b border-slate-50 last:border-none">
                       <td className="py-2.5 pr-4">
@@ -1414,7 +1256,7 @@ export function MarketplaceProfileEditor({
               rows={3}
               maxLength={300}
               placeholder={t(
-                'Installed 200+ AC units across Houston in 2025. Specialise in commercial buildings and homes.'
+                'Completed AC maintenance in Al Olaya, plumbing visits in Hittin, and same-day handyman jobs across North Riyadh during the last quarter.'
               )}
               className={`${inputClass} resize-none`}
             />

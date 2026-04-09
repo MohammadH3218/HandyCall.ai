@@ -6,25 +6,10 @@ import Link from 'next/link';
 import { signIn, useSession } from 'next-auth/react';
 import { SiteHeader } from '@/components/marketing/site-header';
 import { SiteFooter } from '@/components/marketing/site-footer';
+import { SocialAuthButtons } from '@/components/auth/social-auth-buttons';
 import {
   IconEye, IconEyeOff, IconBriefcase, IconCalendar, IconStar,
 } from '@tabler/icons-react';
-
-const GoogleIcon = ({ className }: { className?: string }) => (
-  <svg viewBox="0 0 48 48" className={className} aria-hidden="true">
-    <path fill="#EA4335" d="M24 9.5c3.54 0 6.72 1.22 9.22 3.6l6.9-6.9C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l8.04 6.24C12.6 13.09 17.86 9.5 24 9.5z" />
-    <path fill="#4285F4" d="M46.5 24c0-1.64-.15-3.22-.43-4.74H24v9h12.7c-.55 3-2.2 5.55-4.7 7.27l7.2 5.6C43.94 36.5 46.5 30.8 46.5 24z" />
-    <path fill="#FBBC05" d="M10.6 28.46c-.48-1.44-.76-2.98-.76-4.46s.27-3.02.76-4.46l-8.04-6.24C.92 16.16 0 19.97 0 24c0 4.03.92 7.84 2.56 11.2l8.04-6.24z" />
-    <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.9-5.77l-7.2-5.6c-2 1.35-4.56 2.13-8.7 2.13-6.14 0-11.4-3.59-13.4-8.72l-8.04 6.24C6.51 42.62 14.62 48 24 48z" />
-  </svg>
-);
-
-const AppleIcon = ({ className }: { className?: string }) => (
-  <svg viewBox="0 0 24 24" className={className} aria-hidden="true">
-    <path fill="currentColor" d="M16.7 12.3c0-2.1 1.7-3.1 1.7-3.1-1-1.5-2.6-1.7-3.1-1.7-1.3-.1-2.6.8-3.3.8-.7 0-1.8-.8-3-.8-1.5 0-2.9.9-3.7 2.2-1.6 2.7-.4 6.7 1.1 8.9.7 1.1 1.6 2.4 2.8 2.3 1.1 0 1.6-.7 2.9-.7 1.3 0 1.7.7 3 .7 1.2 0 2-.9 2.7-2 .9-1.3 1.2-2.6 1.2-2.7-.1 0-2.3-.9-2.3-3.9z" />
-    <path fill="currentColor" d="M14.9 4.2c.6-.7 1-1.7.9-2.7-.9.1-1.9.6-2.5 1.3-.6.7-1.1 1.7-.9 2.7 1 .1 2-.5 2.5-1.3z" />
-  </svg>
-);
 
 const BENEFITS = [
   { icon: IconBriefcase, title: 'Manage your marketplace profile', desc: 'Keep your services, rates, and availability up to date from one place.' },
@@ -34,18 +19,23 @@ const BENEFITS = [
 
 function ProLoginInner() {
   const searchParams = useSearchParams();
-  const callbackUrl = searchParams?.get('callbackUrl') || '/dashboard';
+  const callbackUrl = searchParams?.get('callbackUrl') || '/onboarding/setup';
   const reasonParam = searchParams?.get('reason');
+  const verifiedParam = searchParams?.get('verified');
+  const emailParam = searchParams?.get('email') || '';
   const { data: session, status } = useSession();
 
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(emailParam);
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState(
-    reasonParam === 'session_expired' ? 'Your session expired. Please sign in again.' : ''
+    reasonParam === 'session_expired'
+      ? 'Your session expired. Please sign in again.'
+      : verifiedParam === '1'
+      ? 'Email verified. Sign in to continue to your setup.'
+      : ''
   );
   const [isLoading, setIsLoading] = useState(false);
-  const [socialLoading, setSocialLoading] = useState<'cognito-google' | 'cognito-apple' | null>(null);
 
   useEffect(() => {
     if (status !== 'authenticated') return;
@@ -53,21 +43,6 @@ function ProLoginInner() {
     const hasTokens = Boolean((session as any)?.idToken || (session as any)?.accessToken);
     if (poolType !== 'customer' && hasTokens) window.location.replace(callbackUrl);
   }, [callbackUrl, session, status]);
-
-  const handleSocialSignIn = async (provider: 'cognito-google' | 'cognito-apple') => {
-    setError('');
-    setSocialLoading(provider);
-    try {
-      const result = await signIn(provider, { callbackUrl });
-      if (result?.error) {
-        setError(result.error);
-        setSocialLoading(null);
-      }
-    } catch (err: any) {
-      setError(err?.message || 'Unable to start social sign-in.');
-      setSocialLoading(null);
-    }
-  };
 
   const handleCredentialsSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -151,34 +126,17 @@ function ProLoginInner() {
               <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
             ) : null}
 
-            <div className="mt-6 space-y-2.5">
-              <button
-                type="button"
-                onClick={() => handleSocialSignIn('cognito-google')}
-                disabled={isLoading || Boolean(socialLoading)}
-                className="flex h-11 w-full items-center justify-center gap-3 rounded-xl border border-slate-200 bg-white text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <GoogleIcon className="h-4 w-4" />
-                {socialLoading === 'cognito-google' ? 'Connecting to Google...' : 'Continue with Google'}
-              </button>
-              <button
-                type="button"
-                onClick={() => handleSocialSignIn('cognito-apple')}
-                disabled={isLoading || Boolean(socialLoading)}
-                className="flex h-11 w-full items-center justify-center gap-3 rounded-xl border border-slate-200 bg-white text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <AppleIcon className="h-4 w-4" />
-                {socialLoading === 'cognito-apple' ? 'Connecting to Apple...' : 'Continue with Apple'}
-              </button>
+            <div className="mt-6">
+              <SocialAuthButtons audience="pro" callbackUrl="/onboarding/setup" />
             </div>
 
-            <div className="my-5 flex items-center gap-3">
-              <span className="h-px flex-1 bg-slate-200" />
-              <span className="text-xs text-slate-400">or sign in with email</span>
-              <span className="h-px flex-1 bg-slate-200" />
+            <div className="mt-6 flex items-center gap-4 text-xs uppercase tracking-[0.2em] text-slate-300">
+              <div className="h-px flex-1 bg-slate-200" />
+              <span>or continue with email</span>
+              <div className="h-px flex-1 bg-slate-200" />
             </div>
 
-            <form onSubmit={handleCredentialsSubmit} className="space-y-4">
+            <form onSubmit={handleCredentialsSubmit} className="mt-6 space-y-4">
               <div>
                 <label htmlFor="email" className="mb-1.5 block text-sm font-medium text-slate-700">Email address</label>
                 <input

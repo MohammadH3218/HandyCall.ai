@@ -229,11 +229,18 @@ class ApiClient {
 
   // Auth endpoints
   async register(data: RegisterRequest): Promise<RegisterResponse> {
-    const response = await this.request<RegisterResponse>('/auth/register', {
+    const isCustomer = data.pool_type === 'customer';
+    const endpoint = isCustomer ? '/auth/customer/register' : '/auth/pro/register';
+    const response = await this.request<RegisterResponse>(endpoint, {
       method: 'POST',
-      body: JSON.stringify(data),
+      body: JSON.stringify({
+        email: data.email,
+        password: data.password,
+        first_name: data.first_name,
+        last_name: data.last_name,
+      }),
     });
-    return response.data!;
+    return ((response as any).data ?? response) as RegisterResponse;
   }
 
   async confirmSignUp(data: ConfirmSignUpRequest): Promise<ConfirmSignUpResponse> {
@@ -244,12 +251,22 @@ class ApiClient {
     return response.data!;
   }
 
+  async verifyEmailToken(token: string): Promise<{ message: string }> {
+    const response = await this.request<{ message: string }>(
+      `/auth/verify-email?token=${encodeURIComponent(token)}`,
+      {
+        method: 'GET',
+      },
+    );
+    return ((response as any).data ?? response) as { message: string };
+  }
+
   async resendConfirmation(data: ResendConfirmationRequest): Promise<ResendConfirmationResponse> {
     const response = await this.request<ResendConfirmationResponse>('/auth/resend-confirmation', {
       method: 'POST',
       body: JSON.stringify(data),
     });
-    return response.data!;
+    return ((response as any).data ?? response) as ResendConfirmationResponse;
   }
 
   async deleteMyAccount(): Promise<{ message: string }> {

@@ -1,12 +1,7 @@
-import { IsString, IsNotEmpty, IsOptional, IsNumber, IsIn, Min, Max, MaxLength } from 'class-validator';
+import { IsIn, IsNumber, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
 
 export class CreateReviewDto {
   @IsString()
-  @IsNotEmpty()
-  provider_company_id: string;
-
-  @IsString()
-  @IsNotEmpty()
   booking_id: string;
 
   @IsNumber()
@@ -14,19 +9,19 @@ export class CreateReviewDto {
   @Max(5)
   rating: number;
 
-  @IsString()
   @IsOptional()
+  @IsString()
   @MaxLength(2000)
   comment?: string;
 
-  @IsString()
   @IsOptional()
-  service_type?: string;
+  @IsString()
+  @MaxLength(2000)
+  comment_ar?: string;
 }
 
-export class RespondToReviewDto {
+export class ProReplyDto {
   @IsString()
-  @IsNotEmpty()
   @MaxLength(2000)
-  response: string;
+  pro_reply: string;
 }

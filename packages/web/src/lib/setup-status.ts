@@ -47,12 +47,13 @@ function hasServiceAreaEntry(company: any | null) {
 function hasMarketplaceProfileEntry(company: any | null) {
   const profile = company?.marketplace_profile;
   if (!profile || typeof profile !== 'object') return false;
+  const serviceDistricts = Array.isArray(profile.service_districts) ? profile.service_districts : [];
   const serviceCities = Array.isArray(profile.service_cities) ? profile.service_cities : [];
   const servicesOffered = Array.isArray(profile.services_offered) ? profile.services_offered : [];
   return Boolean(
     String(profile.bio || '').trim() &&
       String(profile.service_category || '').trim() &&
-      serviceCities.length > 0 &&
+      (serviceDistricts.length > 0 || serviceCities.length > 0) &&
       servicesOffered.length > 0
   );
 }
@@ -110,7 +111,7 @@ export function computeOnboardingStatus(input: {
   );
   const calendar = resolveBooleanStep(
     company.calendar_setup_completed,
-    hasInternalCalendarEntry(company) || hasExternalCalendarEntry(company),
+    true,
   );
   const ownerName = String(company.owner_name || '').trim();
   const hasProfileName = Boolean(userFirstName || userLastName || ownerName);

@@ -1,159 +1,168 @@
-/**
- * Houston metro area neighborhoods, cities, and towns.
- * Covers all incorporated municipalities in the Greater Houston MSA:
- * Harris, Fort Bend, Montgomery, Brazoria, Galveston, Liberty, Waller, Chambers counties.
- */
+export type RiyadhDistrict = {
+  value: string;
+  label: string;
+  region: string;
+  popular?: boolean;
+};
+
+const makeDistrict = (
+  label: string,
+  region: string,
+  options?: { value?: string; popular?: boolean },
+): RiyadhDistrict => ({
+  value:
+    options?.value ||
+    label
+      .toLowerCase()
+      .replace(/&/g, 'and')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, ''),
+  label,
+  region,
+  popular: options?.popular,
+});
+
+export const SAUDI_MARKETPLACE_CITIES: RiyadhDistrict[] = [
+  makeDistrict('Al Bat’ha', 'Central Riyadh'),
+  makeDistrict('Al Deerah', 'Central Riyadh', { popular: true }),
+  makeDistrict("Mi'kal", 'Central Riyadh'),
+  makeDistrict('Manfuhah', 'Central Riyadh'),
+  makeDistrict('Manfuha Al Jadidah', 'Central Riyadh'),
+  makeDistrict("Al 'Oud", 'Central Riyadh'),
+  makeDistrict('Al Mansorah', 'Central Riyadh'),
+  makeDistrict('Al Margab', 'Central Riyadh'),
+  makeDistrict('Salam', 'Central Riyadh'),
+  makeDistrict('Jabrah', 'Central Riyadh'),
+  makeDistrict('Al Yamamah', 'Central Riyadh'),
+  makeDistrict("Otayyigah", 'Central Riyadh'),
+
+  makeDistrict('Al Olaya', 'Al Olaya', { popular: true }),
+  makeDistrict('Al Sulaymaniyyah', 'Al Olaya', { popular: true }),
+  makeDistrict('Al Izdihar', 'North Riyadh'),
+  makeDistrict('King Fahd District', 'North Riyadh', { popular: true }),
+  makeDistrict('Al Masif', 'North Riyadh', { popular: true }),
+  makeDistrict('Al Murooj', 'North Riyadh', { popular: true }),
+  makeDistrict('Al Mugharrazat', 'North Riyadh'),
+  makeDistrict('Al Wurood', 'North Riyadh'),
+  makeDistrict('King Abdullah Financial District', 'North Riyadh', { popular: true }),
+
+  makeDistrict('Nemar', 'Nemar'),
+  makeDistrict('Dharat Nemar', 'Nemar'),
+  makeDistrict('Tuwaiq', 'Nemar', { popular: true }),
+  makeDistrict('Hazm', 'Nemar'),
+  makeDistrict('Deerab', 'Nemar'),
+
+  makeDistrict('Irqah', 'Irqah'),
+  makeDistrict('Al Khozama', 'Irqah'),
+  makeDistrict('Diplomatic Quarter', 'Irqah', { popular: true }),
+
+  makeDistrict('Al Shumaisi', 'Al Shumaisi'),
+  makeDistrict('Eleyshah', 'Al Shumaisi'),
+  makeDistrict("Al Badi'ah", 'Al Shumaisi'),
+  makeDistrict('Syah', 'Al Shumaisi'),
+  makeDistrict('Al Nasriyyah', 'Al Shumaisi'),
+  makeDistrict('Umm Sulaim', 'Al Shumaisi'),
+  makeDistrict('Al Ma’athar', 'Al Shumaisi'),
+  makeDistrict('Umm Al Hamam East', 'Al Shumaisi'),
+
+  makeDistrict('Al Nakheel', 'Al Maathar', { popular: true }),
+  makeDistrict('King Saud University', 'Al Maathar'),
+  makeDistrict('Umm Al Hamam West', 'Al Maathar'),
+  makeDistrict('Al Ma’athar Al Shamali', 'Al Maathar'),
+  makeDistrict('Al Rahmaniyyah', 'Al Maathar', { popular: true }),
+  makeDistrict('Al Muhammadiyya', 'Al Maathar', { popular: true }),
+  makeDistrict('Al Ra’id', 'Al Maathar'),
+
+  makeDistrict('Al Hayir', 'Al Hayir'),
+  makeDistrict('Al Ghannamiyyah', 'Al Hayir'),
+  makeDistrict('Uraydh', 'Al Hayir'),
+
+  makeDistrict('Al Aziziyah', 'Al Aziziyyah'),
+  makeDistrict('Ad Dar Al Baida', 'Al Aziziyyah'),
+  makeDistrict('Taybah', 'Al Aziziyyah'),
+  makeDistrict('Al Mansurah', 'Al Aziziyyah'),
+
+  makeDistrict('Al Malaz', 'Al Malaz', { popular: true }),
+  makeDistrict('Al Rabwah', 'Al Malaz'),
+  makeDistrict('Al Rayyan', 'Al Malaz'),
+  makeDistrict('Jarir', 'Al Malaz'),
+  makeDistrict('Al Murabba’', 'Al Malaz'),
+  makeDistrict('Sinaiyah Al Qadimah', 'Al Malaz'),
+
+  makeDistrict('Al Masani’', 'Al Shifa'),
+  makeDistrict('Al Shifa', 'Al Shifa', { popular: true }),
+  makeDistrict('Al Mansuriyya', 'Al Shifa'),
+  makeDistrict('Al Marwah', 'Al Shifa'),
+
+  makeDistrict('Al Urayja', 'Al Urayja'),
+  makeDistrict('Al Urayja Al Wusta', 'Al Urayja'),
+  makeDistrict('Al Urayja West', 'Al Urayja'),
+  makeDistrict('Shubra', 'Al Urayja'),
+  makeDistrict('Dharat Laban', 'Al Urayja', { popular: true }),
+  makeDistrict('Hijrat Laban', 'Al Urayja'),
+  makeDistrict('Al Suwaidi', 'Al Urayja', { popular: true }),
+  makeDistrict('Al Suwaidi West', 'Al Urayja'),
+  makeDistrict("Dahrat Al Badi'ah", 'Al Urayja'),
+  makeDistrict('Sultanah', 'Al Urayja'),
+
+  makeDistrict('Al Malga', 'Al Shamal', { popular: true }),
+  makeDistrict('Al Sahafa', 'Al Shamal', { popular: true }),
+  makeDistrict('Hittin', 'Al Shamal', { popular: true }),
+  makeDistrict('Al Wadi', 'Al Shamal'),
+  makeDistrict('Al Ghadir', 'Al Shamal'),
+  makeDistrict('Al Nafil', 'Al Shamal'),
+  makeDistrict('Imam Mohammad Ibn Saud University', 'Al Shamal'),
+  makeDistrict('Al Qayrawan', 'Al Shamal'),
+  makeDistrict('Al Aqiq', 'Al Shamal', { popular: true }),
+  makeDistrict('Al Arid', 'Al Shamal'),
+
+  makeDistrict('Al Naseem East', 'Al Naseem'),
+  makeDistrict('Al Naseem West', 'Al Naseem'),
+  makeDistrict('As Salam', 'Al Naseem'),
+  makeDistrict('Al Manar', 'Al Naseem'),
+  makeDistrict('Al Rimayah', 'Al Naseem'),
+  makeDistrict('Al Nadheem', 'Al Naseem'),
+
+  makeDistrict('Al Rawdhah', 'Al Rawdhah', { popular: true }),
+  makeDistrict('Al Qadisiyah', 'Al Rawdhah'),
+  makeDistrict("Al Ma'aizliyyah", 'Al Rawdhah'),
+  makeDistrict('Al Nahdhah', 'Al Rawdhah'),
+  makeDistrict('Gharnatah', 'Al Rawdhah'),
+  makeDistrict('Qortubah', 'Al Rawdhah'),
+  makeDistrict('Al Andalus', 'Al Rawdhah'),
+  makeDistrict('Al Hamra', 'Al Rawdhah'),
+  makeDistrict('Al Qouds', 'Al Rawdhah'),
+
+  makeDistrict('Al Sulay', 'Al Sulay'),
+  makeDistrict("Ad Difa'", 'Al Sulay'),
+  makeDistrict('Al Iskan', 'Al Sulay'),
+  makeDistrict("Khashm Al Aan", 'Al Sulay'),
+  makeDistrict("Al Sa'adah", 'Al Sulay'),
+  makeDistrict('Al Fayha', 'Al Sulay'),
+  makeDistrict('Al Manakh', 'Al Sulay'),
+
+  makeDistrict('Diriyah', 'Riyadh Outskirts', { popular: true }),
+];
+
+export const RIYADH_DISTRICT_GROUPS = SAUDI_MARKETPLACE_CITIES.reduce<Record<string, RiyadhDistrict[]>>(
+  (groups, district) => {
+    groups[district.region] = groups[district.region] || [];
+    groups[district.region].push(district);
+    return groups;
+  },
+  {},
+);
+
 export interface HoustonArea {
   zip: string;
   area: string;
   region: string;
 }
 
-export const HOUSTON_METRO_AREAS: HoustonArea[] = [
-  // ── Inner Houston / Harris County ─────────────────────────────────────
-  { zip: '77002', area: 'Downtown Houston',              region: 'Harris' },
-  { zip: '77003', area: 'EaDo / East Downtown',          region: 'Harris' },
-  { zip: '77004', area: 'Midtown Houston',               region: 'Harris' },
-  { zip: '77005', area: 'West University Place',         region: 'Harris' },
-  { zip: '77006', area: 'Montrose',                      region: 'Harris' },
-  { zip: '77007', area: 'Houston Heights',               region: 'Harris' },
-  { zip: '77008', area: 'Heights / Woodland Heights',    region: 'Harris' },
-  { zip: '77009', area: 'Northside Village',             region: 'Harris' },
-  { zip: '77018', area: 'Garden Oaks / Oak Forest',      region: 'Harris' },
-  { zip: '77019', area: 'River Oaks',                    region: 'Harris' },
-  { zip: '77024', area: 'Memorial / Bunker Hill',        region: 'Harris' },
-  { zip: '77025', area: 'Braeswood / Astrodome',         region: 'Harris' },
-  { zip: '77027', area: 'Upper Kirby / Highland Village',region: 'Harris' },
-  { zip: '77030', area: 'Texas Medical Center',          region: 'Harris' },
-  { zip: '77035', area: 'Meyerland',                     region: 'Harris' },
-  { zip: '77036', area: 'Sharpstown / Harwin',           region: 'Harris' },
-  { zip: '77040', area: 'Jersey Village / NW Houston',   region: 'Harris' },
-  { zip: '77042', area: 'Westchase',                     region: 'Harris' },
-  { zip: '77043', area: 'Spring Branch',                 region: 'Harris' },
-  { zip: '77055', area: 'Spring Branch Central',         region: 'Harris' },
-  { zip: '77056', area: 'Galleria / Uptown',             region: 'Harris' },
-  { zip: '77057', area: 'Westheimer / Briargrove',       region: 'Harris' },
-  { zip: '77058', area: 'Clear Lake / NASA Area',        region: 'Harris' },
-  { zip: '77059', area: 'Clear Lake Bay Area',           region: 'Harris' },
-  { zip: '77062', area: 'Clear Lake City',               region: 'Harris' },
-  { zip: '77063', area: 'Westheimer Corridor',           region: 'Harris' },
-  { zip: '77070', area: 'Cypress / Copperfield',         region: 'Harris' },
-  { zip: '77079', area: 'Energy Corridor',               region: 'Harris' },
-  { zip: '77080', area: 'Spring Branch West',            region: 'Harris' },
-  { zip: '77082', area: 'Westheimer / Barker Cypress',   region: 'Harris' },
-  { zip: '77084', area: 'Katy East / Bear Creek',        region: 'Harris' },
-  { zip: '77090', area: 'Greenspoint / Aldine',          region: 'Harris' },
-  { zip: '77095', area: 'Copperfield',                   region: 'Harris' },
-  { zip: '77096', area: 'Meyerland South',               region: 'Harris' },
-  { zip: '77098', area: 'Greenway Plaza',                region: 'Harris' },
-  { zip: '77401', area: 'Bellaire',                      region: 'Harris' },
-  { zip: '77429', area: 'Cypress North',                 region: 'Harris' },
-  { zip: '77433', area: 'Cypress / Bridgeland',          region: 'Harris' },
-  // ── Harris County — Incorporated Cities ───────────────────────────────
-  { zip: '77338', area: 'Humble',                        region: 'Harris' },
-  { zip: '77339', area: 'Kingwood',                      region: 'Harris' },
-  { zip: '77345', area: 'Kingwood South',                region: 'Harris' },
-  { zip: '77346', area: 'Atascocita',                    region: 'Harris' },
-  { zip: '77373', area: 'Spring',                        region: 'Harris' },
-  { zip: '77375', area: 'Tomball',                       region: 'Harris' },
-  { zip: '77377', area: 'Tomball South',                 region: 'Harris' },
-  { zip: '77379', area: 'Klein / Spring',                region: 'Harris' },
-  { zip: '77388', area: 'Spring North',                  region: 'Harris' },
-  { zip: '77449', area: 'Katy',                          region: 'Harris' },
-  { zip: '77450', area: 'Katy South',                    region: 'Harris' },
-  { zip: '77502', area: 'Pasadena',                      region: 'Harris' },
-  { zip: '77503', area: 'Pasadena East',                 region: 'Harris' },
-  { zip: '77504', area: 'Pasadena South',                region: 'Harris' },
-  { zip: '77505', area: 'Pasadena West',                 region: 'Harris' },
-  { zip: '77506', area: 'Deer Park',                     region: 'Harris' },
-  { zip: '77507', area: 'Pasadena / La Porte',           region: 'Harris' },
-  { zip: '77520', area: 'Baytown',                       region: 'Harris' },
-  { zip: '77521', area: 'Baytown North',                 region: 'Harris' },
-  { zip: '77523', area: 'Baytown / Mont Belvieu',        region: 'Harris' },
-  { zip: '77536', area: 'Deer Park',                     region: 'Harris' },
-  { zip: '77547', area: 'Galena Park',                   region: 'Harris' },
-  { zip: '77562', area: 'Highlands',                     region: 'Harris' },
-  { zip: '77571', area: 'La Porte',                      region: 'Harris' },
-  { zip: '77572', area: 'La Porte South',                region: 'Harris' },
-  { zip: '77586', area: 'Seabrook / El Lago',            region: 'Harris' },
-  { zip: '77587', area: 'South Houston',                 region: 'Harris' },
-  { zip: '77598', area: 'Webster',                       region: 'Harris' },
-  // ── Montgomery County ─────────────────────────────────────────────────
-  { zip: '77301', area: 'Conroe',                        region: 'Montgomery' },
-  { zip: '77302', area: 'Conroe East',                   region: 'Montgomery' },
-  { zip: '77303', area: 'Conroe North / Cut and Shoot',  region: 'Montgomery' },
-  { zip: '77304', area: 'Conroe / Panorama Village',     region: 'Montgomery' },
-  { zip: '77316', area: 'Montgomery',                    region: 'Montgomery' },
-  { zip: '77318', area: 'Willis',                        region: 'Montgomery' },
-  { zip: '77353', area: 'Magnolia',                      region: 'Montgomery' },
-  { zip: '77354', area: 'Magnolia East',                 region: 'Montgomery' },
-  { zip: '77355', area: 'Stagecoach',                    region: 'Montgomery' },
-  { zip: '77356', area: 'Montgomery / Lake Conroe',      region: 'Montgomery' },
-  { zip: '77357', area: 'New Caney / Woodbranch',        region: 'Montgomery' },
-  { zip: '77358', area: 'New Waverly',                   region: 'Montgomery' },
-  { zip: '77362', area: 'Pinehurst',                     region: 'Montgomery' },
-  { zip: '77372', area: 'Splendora',                     region: 'Montgomery' },
-  { zip: '77380', area: 'The Woodlands',                 region: 'Montgomery' },
-  { zip: '77381', area: 'The Woodlands (Research Forest)',region: 'Montgomery' },
-  { zip: '77382', area: 'The Woodlands (Panther Creek)', region: 'Montgomery' },
-  { zip: '77384', area: 'The Woodlands (Creekside)',     region: 'Montgomery' },
-  { zip: '77385', area: 'The Woodlands East / Oak Ridge North', region: 'Montgomery' },
-  { zip: '77386', area: 'Spring / Harmony',              region: 'Montgomery' },
-  { zip: '77389', area: 'Spring / Grand Pines',          region: 'Montgomery' },
-  { zip: '77447', area: 'Hockley',                       region: 'Montgomery' },
-  // ── Fort Bend County ──────────────────────────────────────────────────
-  { zip: '77406', area: 'Richmond / Long Meadow Farms',  region: 'Fort Bend' },
-  { zip: '77407', area: 'Richmond / Grand Lakes',        region: 'Fort Bend' },
-  { zip: '77441', area: 'Fulshear',                      region: 'Fort Bend' },
-  { zip: '77459', area: 'Missouri City / Sienna',        region: 'Fort Bend' },
-  { zip: '77461', area: 'Needville',                     region: 'Fort Bend' },
-  { zip: '77464', area: 'Orchard',                       region: 'Fort Bend' },
-  { zip: '77469', area: 'Richmond / Rosenberg',          region: 'Fort Bend' },
-  { zip: '77471', area: 'Rosenberg',                     region: 'Fort Bend' },
-  { zip: '77476', area: 'Simonton',                      region: 'Fort Bend' },
-  { zip: '77477', area: 'Stafford / Meadows Place',      region: 'Fort Bend' },
-  { zip: '77478', area: 'Sugar Land North',              region: 'Fort Bend' },
-  { zip: '77479', area: 'Sugar Land South',              region: 'Fort Bend' },
-  { zip: '77489', area: 'Missouri City East',            region: 'Fort Bend' },
-  { zip: '77494', area: 'Katy / Grand Parkway',          region: 'Fort Bend' },
-  { zip: '77498', area: 'Sugar Land West',               region: 'Fort Bend' },
-  { zip: '77583', area: 'Arcola / Iowa Colony',          region: 'Fort Bend' },
-  // ── Brazoria County ───────────────────────────────────────────────────
-  { zip: '77511', area: 'Alvin',                         region: 'Brazoria' },
-  { zip: '77512', area: 'Alvin East',                    region: 'Brazoria' },
-  { zip: '77515', area: 'Angleton',                      region: 'Brazoria' },
-  { zip: '77531', area: 'Clute',                         region: 'Brazoria' },
-  { zip: '77539', area: 'Dickinson',                     region: 'Galveston' },
-  { zip: '77546', area: 'Friendswood',                   region: 'Galveston' },
-  { zip: '77578', area: 'Manvel',                        region: 'Brazoria' },
-  { zip: '77581', area: 'Pearland East / Brookside Village', region: 'Brazoria' },
-  { zip: '77584', area: 'Pearland / Shadow Creek',       region: 'Brazoria' },
-  { zip: '77588', area: 'Pearland South',                region: 'Brazoria' },
-  // ── Galveston County ──────────────────────────────────────────────────
-  { zip: '77510', area: 'Santa Fe',                      region: 'Galveston' },
-  { zip: '77517', area: 'Santa Fe South',                region: 'Galveston' },
-  { zip: '77550', area: 'Galveston',                     region: 'Galveston' },
-  { zip: '77551', area: 'Galveston East',                region: 'Galveston' },
-  { zip: '77554', area: 'Galveston West / Jamaica Beach',region: 'Galveston' },
-  { zip: '77563', area: 'Hitchcock',                     region: 'Galveston' },
-  { zip: '77565', area: 'Kemah / Clear Lake Shores',     region: 'Galveston' },
-  { zip: '77568', area: 'La Marque',                     region: 'Galveston' },
-  { zip: '77573', area: 'League City',                   region: 'Galveston' },
-  { zip: '77574', area: 'League City South',             region: 'Galveston' },
-  { zip: '77590', area: 'Texas City',                    region: 'Galveston' },
-  { zip: '77591', area: 'Texas City North',              region: 'Galveston' },
-  { zip: '77592', area: 'Texas City / La Marque',        region: 'Galveston' },
-  // ── Liberty County ────────────────────────────────────────────────────
-  { zip: '77336', area: 'Huffman',                       region: 'Liberty' },
-  { zip: '77535', area: 'Dayton',                        region: 'Liberty' },
-  { zip: '77575', area: 'Liberty',                       region: 'Liberty' },
-  { zip: '77327', area: 'Cleveland',                     region: 'Liberty' },
-  // ── Waller County ─────────────────────────────────────────────────────
-  { zip: '77423', area: 'Brookshire',                    region: 'Waller' },
-  { zip: '77445', area: 'Hempstead',                     region: 'Waller' },
-  { zip: '77446', area: 'Prairie View',                  region: 'Waller' },
-  { zip: '77484', area: 'Waller',                        region: 'Waller' },
-  // ── Chambers County ───────────────────────────────────────────────────
-  { zip: '77514', area: 'Anahuac',                       region: 'Chambers' },
-  { zip: '77523', area: 'Mont Belvieu',                  region: 'Chambers' },
-];
+export const HOUSTON_METRO_AREAS: HoustonArea[] = SAUDI_MARKETPLACE_CITIES.map((district) => ({
+  zip: district.value,
+  area: district.label,
+  region: district.region,
+}));
+
+export const RIYADH_DISTRICT_VALUES = SAUDI_MARKETPLACE_CITIES.map((district) => district.label);
