@@ -20,12 +20,12 @@ import { FEATURED_MARKETPLACE_CATEGORIES } from '@/constants/marketplace-service
  */
 const CATEGORY_PHOTOS: Record<string, string> = {
   'ac-repair':       'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400&h=260&q=82&fit=crop&auto=format',
-  'plumbing':        'https://images.unsplash.com/photo-1585771724684-38269d6639fd?w=400&h=260&q=82&fit=crop&auto=format',
+  'plumbing':        'https://images.unsplash.com/photo-1607472586893-edb57bdc0e39?w=400&h=260&q=82&fit=crop&auto=format',
   'electrical':      'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=400&h=260&q=82&fit=crop&auto=format',
   'cleaning':        'https://images.unsplash.com/photo-1581578731548-c64695cc6952?w=400&h=260&q=82&fit=crop&auto=format',
-  'painting':        'https://images.unsplash.com/photo-1562259929-b4e1fd3aef09?w=400&h=260&q=82&fit=crop&auto=format',
+  'painting':        'https://images.unsplash.com/photo-1589939705384-5185137a7f0f?w=400&h=260&q=82&fit=crop&auto=format',
   'carpentry':       'https://images.unsplash.com/photo-1504148455328-c376907d081c?w=400&h=260&q=82&fit=crop&auto=format',
-  'pest-control':    'https://images.unsplash.com/photo-1580974852861-7a9b3f5be2b7?w=400&h=260&q=82&fit=crop&auto=format',
+  'pest-control':    'https://images.unsplash.com/photo-1558618047-3c8c76ca7d13?w=400&h=260&q=82&fit=crop&auto=format',
   'landscaping':     'https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=400&h=260&q=82&fit=crop&auto=format',
   'appliance-repair':'https://images.unsplash.com/photo-1567016432779-094069958ea5?w=400&h=260&q=82&fit=crop&auto=format',
   'moving':          'https://images.unsplash.com/photo-1600518464441-9154a4dea21b?w=400&h=260&q=82&fit=crop&auto=format',

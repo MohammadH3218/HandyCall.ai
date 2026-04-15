@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Logo } from '@/components/ui/logo';
+import { SiteHeader } from '@/components/marketing/site-header';
 import {
   IconEye,
   IconEyeOff,
@@ -61,13 +62,13 @@ export default function SignUpPage() {
   };
 
   return (
-    <div className="flex min-h-screen bg-white">
+    <div className="flex min-h-screen flex-col bg-white">
+      <SiteHeader hideLogin />
+
+      <div className="flex flex-1">
       {/* Left panel — benefits */}
       <div className="hidden lg:flex lg:w-1/2 flex-col justify-center bg-slate-50 border-r border-slate-100 px-16 py-20">
-        <Link href="/">
-          <Logo width={148} height={36} />
-        </Link>
-        <div className="mt-14">
+        <div className="mt-0">
           <h2 className="text-3xl font-extrabold text-slate-900 leading-tight">
             Find trusted pros<br />anywhere in Riyadh.
           </h2>
@@ -93,13 +94,6 @@ export default function SignUpPage() {
 
       {/* Right panel — form */}
       <div className="flex flex-1 flex-col items-center justify-center px-6 py-12">
-        {/* Mobile logo */}
-        <div className="mb-8 lg:hidden">
-          <Link href="/">
-            <Logo width={140} height={34} />
-          </Link>
-        </div>
-
         <div className="w-full max-w-sm">
           <h1 className="text-2xl font-bold text-slate-900">Create your account</h1>
           <p className="mt-1 text-sm text-slate-500">
@@ -191,6 +185,7 @@ export default function SignUpPage() {
             </Link>
           </p>
         </div>
+      </div>
       </div>
     </div>
   );

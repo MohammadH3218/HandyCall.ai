@@ -48,7 +48,7 @@ function ProfileMenu({ fallbackUser, isPro = false }: { fallbackUser: Partial<Us
     ? `${profile.first_name}${profile.last_name ? ' ' + profile.last_name : ''}`
     : profile?.email ?? 'Account';
 
-  const logoutHref = isPro ? '/pro/login' : '/customer/login';
+  const logoutHref = isPro ? '/pro/login' : '/login';
 
   return (
     <div ref={ref} className="relative">
@@ -281,7 +281,7 @@ export function SiteHeader({
                 {!hideLoginLink && (
                   <>
                     <Link
-                      href="/customer/login"
+                      href="/login"
                       className="px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:text-slate-900"
                     >
                       {copy.signIn}
@@ -416,7 +416,7 @@ export function SiteHeader({
                   <>
                     {!hideLoginLink && (
                     <Link
-                      href="/customer/login"
+                      href="/login"
                       className="block w-full rounded-lg border border-slate-300 px-4 py-2.5 text-center text-sm font-semibold text-slate-700 hover:bg-slate-50"
                         onClick={() => setMobileOpen(false)}
                       >
