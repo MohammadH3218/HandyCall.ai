@@ -78,11 +78,11 @@ export function SearchBar({ className = '', size = 'default' }: SearchBarProps) 
   }
 
   return (
-    <div className={`relative z-[70] w-full ${className}`}>
-      {/* The form uses overflow-hidden so rounded-2xl corners clip cleanly */}
+    <div className={`relative z-[70] w-full`}>
+      {/* overflow-hidden + rounded-2xl clips all child corners cleanly; shadow on the form so it follows the rounded shape */}
       <form
         onSubmit={handleSubmit}
-        className="relative z-[75] flex w-full flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm sm:flex-row"
+        className={`relative z-[75] flex w-full flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white sm:flex-row ${className}`}
       >
         {/* Service input */}
         <div ref={serviceWrapperRef} className="flex flex-1 items-center px-4">
