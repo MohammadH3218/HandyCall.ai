@@ -1,0 +1,14 @@
+{
+  "name": "handycall",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "packages/shared",
+    "packages/backend"
+  ],
+  "scripts": {
+    "build": "npm run build --workspace=packages/shared && npm run build --workspace=packages/backend",
+    "start:dev": "npm run start:dev --workspace=packages/backend",
+    "deploy": "bash scripts/deploy.sh"
+  }
+}

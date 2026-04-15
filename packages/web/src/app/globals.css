@@ -1,0 +1,206 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 150 28% 98%;
+    --foreground: 210 24% 12%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 210 24% 12%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 210 24% 12%;
+
+    --primary: 160 84% 34%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 150 20% 95%;
+    --secondary-foreground: 210 20% 16%;
+
+    --muted: 160 18% 94%;
+    --muted-foreground: 215 12% 40%;
+
+    --accent: 160 42% 90%;
+    --accent-foreground: 160 35% 18%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 160 14% 84%;
+    --input: 160 16% 88%;
+
+    --ring: 160 84% 34%;
+
+    --radius: 0.75rem;
+  }
+
+  .dark {
+    /* Deep navy-slate background palette */
+    --background: 224 27% 7%;
+    --foreground: 210 30% 96%;
+
+    --card: 222 24% 10%;
+    --card-foreground: 210 30% 96%;
+
+    --popover: 222 24% 11%;
+    --popover-foreground: 210 30% 96%;
+
+    --primary: 156 72% 44%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 220 20% 15%;
+    --secondary-foreground: 210 25% 88%;
+
+    --muted: 220 20% 13%;
+    --muted-foreground: 215 18% 58%;
+
+    --accent: 220 18% 18%;
+    --accent-foreground: 210 28% 92%;
+
+    --destructive: 0 70% 52%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 220 20% 20%;
+    --input: 220 20% 16%;
+
+    --ring: 156 72% 44%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    color-scheme: light;
+  }
+
+  html.dark {
+    color-scheme: dark;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+
+  html.dark body {
+    background-color: #070a12;
+  }
+
+  /* Force light-mode CSS variables regardless of the .dark class on <html>.
+     Apply this class to any page/section that must always render in light mode. */
+  .force-light {
+    --background: 150 28% 98%;
+    --foreground: 210 24% 12%;
+    --card: 0 0% 100%;
+    --card-foreground: 210 24% 12%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 210 24% 12%;
+    --primary: 160 84% 34%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 150 20% 95%;
+    --secondary-foreground: 210 20% 16%;
+    --muted: 160 18% 94%;
+    --muted-foreground: 215 12% 40%;
+    --accent: 160 42% 90%;
+    --accent-foreground: 160 35% 18%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 160 14% 84%;
+    --input: 160 16% 88%;
+    --ring: 160 84% 34%;
+    color-scheme: light;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-display);
+    letter-spacing: -0.02em;
+  }
+
+  ::selection {
+    background: rgba(16, 185, 129, 0.18);
+  }
+}
+
+@layer utilities {
+  /* ── Range slider (pricing calculator) ── */
+  .calc-slider {
+    -webkit-appearance: none;
+    appearance: none;
+    height: 8px;
+    border-radius: 9999px;
+    background: transparent;
+    outline: none;
+    cursor: pointer;
+    margin: 0;
+  }
+
+  .calc-slider::-webkit-slider-runnable-track {
+    height: 8px;
+    border-radius: 9999px;
+    background: transparent;
+  }
+
+  .calc-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 20px;
+    height: 20px;
+    border-radius: 9999px;
+    background: white;
+    border: 3px solid #059669;
+    box-shadow: 0 1px 6px rgba(0, 0, 0, 0.12);
+    cursor: grab;
+    margin-top: -6px;
+    transition:
+      box-shadow 0.15s ease,
+      transform 0.15s ease;
+  }
+
+  .calc-slider::-webkit-slider-thumb:hover {
+    box-shadow:
+      0 1px 8px rgba(0, 0, 0, 0.18),
+      0 0 0 4px rgba(5, 150, 105, 0.1);
+    transform: scale(1.15);
+  }
+
+  .calc-slider::-webkit-slider-thumb:active {
+    cursor: grabbing;
+    transform: scale(1.05);
+    box-shadow:
+      0 1px 8px rgba(0, 0, 0, 0.18),
+      0 0 0 4px rgba(5, 150, 105, 0.15);
+  }
+
+  .calc-slider::-moz-range-track {
+    height: 8px;
+    border-radius: 9999px;
+    background: transparent;
+    border: none;
+  }
+
+  .calc-slider::-moz-range-thumb {
+    width: 20px;
+    height: 20px;
+    border-radius: 9999px;
+    background: white;
+    border: 3px solid #059669;
+    box-shadow: 0 1px 6px rgba(0, 0, 0, 0.12);
+    cursor: grab;
+    transition:
+      box-shadow 0.15s ease,
+      transform 0.15s ease;
+  }
+
+  .calc-slider::-moz-range-thumb:hover {
+    box-shadow:
+      0 1px 8px rgba(0, 0, 0, 0.18),
+      0 0 0 4px rgba(5, 150, 105, 0.1);
+  }
+}
