@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useState } from 'react';
 import {
   IconChecklist,
   IconMapPin,
@@ -11,8 +12,26 @@ import { SiteHeader } from '@/components/marketing/site-header';
 import { SiteFooter } from '@/components/marketing/site-footer';
 import { FadeIn } from '@/components/marketing/fade-in';
 import { SearchBar } from '@/components/marketing/SearchBar';
-import { CategoryCard } from '@/components/marketing/CategoryCard';
 import { FEATURED_MARKETPLACE_CATEGORIES } from '@/constants/marketplace-service-categories';
+
+/**
+ * High-quality Unsplash photos keyed by category slug.
+ * Using direct photo IDs for stable, reliable URLs.
+ */
+const CATEGORY_PHOTOS: Record<string, string> = {
+  'ac-repair':       'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400&h=260&q=82&fit=crop&auto=format',
+  'plumbing':        'https://images.unsplash.com/photo-1607472586893-edb57bdc0e39?w=400&h=260&q=82&fit=crop&auto=format',
+  'electrical':      'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=400&h=260&q=82&fit=crop&auto=format',
+  'cleaning':        'https://images.unsplash.com/photo-1581578731548-c64695cc6952?w=400&h=260&q=82&fit=crop&auto=format',
+  'painting':        'https://images.unsplash.com/photo-1589939705384-5185137a7f0f?w=400&h=260&q=82&fit=crop&auto=format',
+  'carpentry':       'https://images.unsplash.com/photo-1504148455328-c376907d081c?w=400&h=260&q=82&fit=crop&auto=format',
+  'pest-control':    'https://images.unsplash.com/photo-1558618047-3c8c76ca7d13?w=400&h=260&q=82&fit=crop&auto=format',
+  'landscaping':     'https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=400&h=260&q=82&fit=crop&auto=format',
+  'appliance-repair':'https://images.unsplash.com/photo-1567016432779-094069958ea5?w=400&h=260&q=82&fit=crop&auto=format',
+  'moving':          'https://images.unsplash.com/photo-1600518464441-9154a4dea21b?w=400&h=260&q=82&fit=crop&auto=format',
+  'handyman':        'https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=400&h=260&q=82&fit=crop&auto=format',
+  'network-it':      'https://images.unsplash.com/photo-1558494949-ef010cbdcc31?w=400&h=260&q=82&fit=crop&auto=format',
+};
 
 const STEPS = [
   {
@@ -53,6 +72,73 @@ const TRUST_POINTS = [
   },
 ];
 
+/** Auto-scrolling category carousel with real photos — pauses on hover */
+function CategoryCarousel() {
+  const [paused, setPaused] = useState(false);
+
+  // Duplicate for seamless infinite loop (animate 0 → -50%)
+  const items = [...FEATURED_MARKETPLACE_CATEGORIES, ...FEATURED_MARKETPLACE_CATEGORIES];
+
+  return (
+    <div
+      className="relative overflow-hidden"
+      style={{
+        WebkitMaskImage:
+          'linear-gradient(to right, transparent 0%, black 7%, black 93%, transparent 100%)',
+        maskImage:
+          'linear-gradient(to right, transparent 0%, black 7%, black 93%, transparent 100%)',
+      }}
+      onMouseEnter={() => setPaused(true)}
+      onMouseLeave={() => setPaused(false)}
+    >
+      <div
+        className="flex gap-4 py-2"
+        style={{
+          animation: 'hc-carousel-scroll 32s linear infinite',
+          animationPlayState: paused ? 'paused' : 'running',
+          width: 'max-content',
+        }}
+      >
+        {items.map((category, index) => {
+          const photoSrc = CATEGORY_PHOTOS[category.slug];
+          return (
+            <Link
+              key={`${category.slug}-${index}`}
+              href={`/search?category=${encodeURIComponent(category.slug)}`}
+              className="group flex w-[160px] shrink-0 flex-col overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm transition-all duration-300 hover:-translate-y-1.5 hover:shadow-lg"
+            >
+              {/* Photo area */}
+              <div className="relative h-[120px] w-full overflow-hidden bg-slate-100">
+                {photoSrc ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={photoSrc}
+                    alt={category.title}
+                    className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                    loading="lazy"
+                    decoding="async"
+                  />
+                ) : (
+                  <div className="h-full w-full bg-slate-200" />
+                )}
+                {/* Subtle dark overlay on hover */}
+                <div className="absolute inset-0 bg-black/0 transition-colors duration-300 group-hover:bg-black/10" />
+              </div>
+
+              {/* Label */}
+              <div className="px-3 py-3 text-center">
+                <p className="text-sm font-bold leading-snug text-slate-800 transition-colors duration-200 group-hover:text-emerald-700">
+                  {category.title}
+                </p>
+              </div>
+            </Link>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export function HomePageClient() {
   return (
     <div className="flex min-h-screen flex-col bg-white">
@@ -70,10 +156,15 @@ export function HomePageClient() {
           animation: hc-shimmer 3s linear infinite;
           display: inline;
         }
+        @keyframes hc-carousel-scroll {
+          from { transform: translateX(0); }
+          to   { transform: translateX(-50%); }
+        }
       `}</style>
 
       <SiteHeader />
 
+      {/* Hero */}
       <section className="relative z-10 overflow-visible bg-white px-4 pb-28 pt-24">
         <div
           className="pointer-events-none absolute inset-0"
@@ -99,6 +190,7 @@ export function HomePageClient() {
         </div>
       </section>
 
+      {/* Categories — auto-scroll carousel */}
       <section className="relative z-0 bg-slate-50 px-4 py-24">
         <div className="mx-auto max-w-6xl">
           <FadeIn direction="up">
@@ -115,18 +207,9 @@ export function HomePageClient() {
             </div>
           </FadeIn>
 
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 lg:grid-cols-6">
-            {FEATURED_MARKETPLACE_CATEGORIES.map((category, index) => (
-              <FadeIn key={category.slug} direction="up" delay={index * 40}>
-                <CategoryCard
-                  nameEn={category.title}
-                  nameAr={category.titleAr}
-                  slug={category.slug}
-                  showCount={false}
-                />
-              </FadeIn>
-            ))}
-          </div>
+          <FadeIn direction="up" delay={80}>
+            <CategoryCarousel />
+          </FadeIn>
 
           <div className="mt-8 text-center">
             <Link
@@ -139,6 +222,7 @@ export function HomePageClient() {
         </div>
       </section>
 
+      {/* How It Works */}
       <section id="how-it-works" className="border-t border-slate-100 bg-white px-4 py-24">
         <div className="mx-auto max-w-5xl">
           <FadeIn direction="up">
@@ -156,7 +240,7 @@ export function HomePageClient() {
             {STEPS.map((step, index) => (
               <FadeIn key={step.num} direction="up" delay={index * 120}>
                 <div className="flex flex-col">
-                  <span className="text-5xl font-black leading-none text-emerald-100">
+                  <span className="text-5xl font-black leading-none text-slate-300">
                     {step.num}
                   </span>
                   <h3 className="mt-3 text-lg font-bold text-slate-900">{step.title}</h3>
@@ -170,6 +254,7 @@ export function HomePageClient() {
         </div>
       </section>
 
+      {/* Why HandyCall */}
       <section className="border-t border-slate-100 bg-slate-50 px-4 py-20">
         <div className="mx-auto max-w-5xl">
           <FadeIn direction="up">
@@ -196,6 +281,7 @@ export function HomePageClient() {
         </div>
       </section>
 
+      {/* For Pros CTA */}
       <section className="bg-emerald-600 px-4 py-20">
         <div className="mx-auto max-w-4xl text-center">
           <FadeIn direction="up">
