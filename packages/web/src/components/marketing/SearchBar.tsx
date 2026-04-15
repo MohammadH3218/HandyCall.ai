@@ -132,7 +132,7 @@ export function SearchBar({ className = '', size = 'default' }: SearchBarProps) 
 
         <button
           type="submit"
-          className="flex-shrink-0 bg-emerald-600 px-6 py-3.5 text-sm font-semibold text-white transition hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-1"
+          className={`flex-shrink-0 bg-emerald-600 px-7 ${paddingY} text-sm font-semibold text-white transition hover:bg-emerald-700 focus:outline-none`}
         >
           Search
         </button>
