@@ -173,10 +173,26 @@ fly apps create handycall-api
 
 ## Routine Deploys
 
-### Auto-deploy (recommended)
+### Auto-deploy via GitHub (recommended)
 
-Connect your GitHub repo to:
-- **Vercel**: Dashboard → project → Git integration → push to `main` auto-deploys
+**GitHub repo:** `MohammadH3218/HandyCall.ai`
+
+#### Connect Vercel → GitHub (do this once in the dashboard)
+
+1. Go to [vercel.com/mohammadh3218s-projects/handycall-web/settings/git](https://vercel.com/mohammadh3218s-projects/handycall-web/settings/git)
+2. Click **Connect Git Repository** → choose GitHub → select `MohammadH3218/HandyCall.ai`
+3. Set **Production Branch** → `master`
+4. Set **Root Directory** → `packages/web` ← critical, must match
+5. The build commands come from `packages/web/vercel.json` (already committed):
+   ```json
+   {
+     "installCommand": "cd ../../ && npm install",
+     "buildCommand":   "cd ../../packages/shared && npm run build && cd ../web && npm run build"
+   }
+   ```
+
+After connecting, every push to `master` auto-deploys to `handycall.org`. Preview deploys are created for every other branch/PR.
+
 - **Fly.io**: See GitHub Actions section below (optional)
 
 ### Manual deploy
