@@ -7,7 +7,7 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "npm run dev --workspaces --if-present",
+    "dev": "npm run shared:build && concurrently --names 'shared,backend,web,voice,realtime' --prefix-colors 'cyan,green,blue,yellow,magenta' \"npm run dev -w packages/shared\" \"npm run dev -w packages/backend\" \"npm run dev -w packages/web\" \"bash scripts/local/start-voice-bridge-dev.sh\" \"npm run dev -w packages/realtime-controller\"",
     "build": "npm run build --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present",
@@ -21,10 +21,13 @@
     "shared:build": "npm run build -w packages/shared",
     "qa:api-probe": "node scripts/qa/api-surface-probe.mjs",
     "qa:stress:web": "npx autocannon -c 25 -d 20 -p 10 http://localhost:3001/",
-    "qa:stress:api": "npx autocannon -c 40 -d 20 -p 10 http://localhost:3000/api/v1/health"
+    "qa:stress:api": "npx autocannon -c 40 -d 20 -p 10 http://localhost:3000/api/v1/health",
+    "finetune:export": "node packages/backend/scripts/export-finetune-dataset.js",
+    "finetune:openai": "bash scripts/openai/fine_tune.sh"
   },
   "devDependencies": {
     "@types/node": "^20.10.0",
+    "concurrently": "^9.2.1",
     "eslint": "^8.56.0",
     "prettier": "^3.1.0",
     "typescript": "^5.3.3"

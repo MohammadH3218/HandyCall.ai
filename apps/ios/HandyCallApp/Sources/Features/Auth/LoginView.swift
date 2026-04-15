@@ -50,13 +50,15 @@ struct LoginView: View {
             .opacity(headerAppeared ? 1 : 0)
 
             VStack(spacing: 14) {
-                Picker("Auth mode", selection: $mode) {
-                    Text(AuthMode.signIn.rawValue).tag(AuthMode.signIn)
-                    Text(AuthMode.signUp.rawValue).tag(AuthMode.signUp)
-                }
-                .pickerStyle(.segmented)
-                .onChange(of: mode) { _, _ in
-                    localError = nil
+                // Only show picker for non-sign-in modes (forgot password, etc.)
+                if mode != .signIn && mode != .signUp {
+                    Picker("Auth mode", selection: $mode) {
+                        Text(AuthMode.signIn.rawValue).tag(AuthMode.signIn)
+                    }
+                    .pickerStyle(.segmented)
+                    .onChange(of: mode) { _, _ in
+                        localError = nil
+                    }
                 }
 
                 formFields
@@ -162,6 +164,20 @@ struct LoginView: View {
                 }
                 .font(.footnote.weight(.semibold))
                 .foregroundStyle(HandyCallTheme.emeraldDark)
+                
+                // Web sign-up link
+                HStack(spacing: 4) {
+                    Text("Don't have an account?")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                    Button("Sign up on web") {
+                        if let url = URL(string: "https://handycall.org/register") {
+                            UIApplication.shared.open(url)
+                        }
+                    }
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(HandyCallTheme.emeraldDark)
+                }
             }
 
             if mode == .verifyEmail {
@@ -175,12 +191,15 @@ struct LoginView: View {
                 .foregroundStyle(HandyCallTheme.emeraldDark)
             }
 
-            Button(secondaryButtonTitle) {
-                localError = nil
-                mode = secondaryMode
+            // Only show "Back to sign in" for non-sign-in modes
+            if mode != .signIn {
+                Button(secondaryButtonTitle) {
+                    localError = nil
+                    mode = secondaryMode
+                }
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(.secondary)
             }
-            .font(.footnote.weight(.semibold))
-            .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, alignment: .center)
     }
@@ -188,8 +207,8 @@ struct LoginView: View {
     private var socialButtons: some View {
         VStack(spacing: 10) {
             Divider()
-            socialButton(title: "Continue with Google", provider: .google)
-            socialButton(title: "Continue with Apple", provider: .apple)
+            socialButton(title: "Sign in with Google", provider: .google)
+            socialButton(title: "Sign in with Apple", provider: .apple)
             Text("Native secure sign-in with your provider.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -302,7 +321,7 @@ struct LoginView: View {
 
     private var secondaryMode: AuthMode {
         switch mode {
-        case .signIn: return .signUp
+        case .signIn: return .signIn // No toggle from sign in
         case .signUp: return .signIn
         case .verifyEmail: return .signIn
         case .forgotPassword: return .signIn
@@ -312,7 +331,7 @@ struct LoginView: View {
 
     private var secondaryButtonTitle: String {
         switch mode {
-        case .signIn: return "Need an account? Sign up"
+        case .signIn: return "" // No secondary button for sign in
         case .signUp: return "Already have an account? Sign in"
         case .verifyEmail: return "Back to sign in"
         case .forgotPassword: return "Back to sign in"

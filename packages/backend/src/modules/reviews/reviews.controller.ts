@@ -1,50 +1,51 @@
-import { Body, Controller, Get, Param, Post, Request } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  ForbiddenException,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+} from '@nestjs/common';
 import { ReviewsService } from './reviews.service';
-import { CreateReviewDto, RespondToReviewDto } from './dto/review.dto';
-import { CompanyId } from '../../common/decorators/auth.decorator';
+import { CreateReviewDto, ProReplyDto } from './dto/review.dto';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
+import { MarketplaceAuthContext } from '@handycall/shared';
 
 @Controller('reviews')
 export class ReviewsController {
-  constructor(private readonly service: ReviewsService) {}
+  constructor(private reviewsService: ReviewsService) {}
 
+  /** Customer: submit a review for a completed booking */
   @Post()
-  createReview(@Request() req: any, @Body() dto: CreateReviewDto) {
-    const customerId = req.user?.sub || req.user?.userId || 'anonymous';
-    return this.service.createReview(customerId, dto);
-  }
-
-  @Get('provider/:companyId')
-  @Public()
-  listReviews(@Param('companyId') companyId: string) {
-    return this.service.listReviews(companyId, { visible: true });
-  }
-
-  @Get('provider/:companyId/summary')
-  @Public()
-  getRatingSummary(@Param('companyId') companyId: string) {
-    return this.service.getProviderRatingSummary(companyId);
-  }
-
-  @Post(':reviewId/respond')
-  respondToReview(
-    @CompanyId() companyId: string,
-    @Param('reviewId') reviewId: string,
-    @Body() dto: RespondToReviewDto,
+  async create(
+    @CurrentUser() user: MarketplaceAuthContext,
+    @Body() dto: CreateReviewDto,
   ) {
-    return this.service.respondToReview(companyId, reviewId, dto);
+    if (user.user_type !== 'CUSTOMER') throw new ForbiddenException('Only customers can leave reviews');
+    return this.reviewsService.create(user.user_id, dto);
   }
 
-  @Post(':reviewId/report')
-  reportReview(
-    @CompanyId() companyId: string,
-    @Param('reviewId') reviewId: string,
+  /** Pro: add a reply to a review */
+  @Patch(':review_id/reply')
+  async reply(
+    @CurrentUser() user: MarketplaceAuthContext,
+    @Param('review_id') reviewId: string,
+    @Body() dto: ProReplyDto,
   ) {
-    return this.service.reportReview(reviewId, companyId);
+    if (user.user_type !== 'PRO') throw new ForbiddenException();
+    return this.reviewsService.addProReply(user.user_id, reviewId, dto);
   }
 
-  @Get('my-reviews')
-  getMyProviderReviews(@CompanyId() companyId: string) {
-    return this.service.listReviews(companyId);
+  /** Public: list reviews for a pro */
+  @Public()
+  @Get('pro/:pro_id')
+  async listByPro(
+    @Param('pro_id') proId: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.reviewsService.listByPro(proId, limit ? parseInt(limit, 10) : 20);
   }
 }

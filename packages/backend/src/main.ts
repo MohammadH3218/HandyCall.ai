@@ -10,10 +10,7 @@ async function bootstrap() {
   const configService = app.get(ConfigService);
 
   const corsOriginsRaw = configService.get<string>('CORS_ORIGINS') || '';
-  const corsOrigins = corsOriginsRaw
-    .split(',')
-    .map((o) => o.trim())
-    .filter(Boolean);
+  const corsOrigins = corsOriginsRaw.split(',').map((o) => o.trim()).filter(Boolean);
 
   app.enableCors({
     origin: (origin, callback) => {
@@ -37,28 +34,28 @@ async function bootstrap() {
     next();
   });
 
-  // Stripe webhooks need raw body for signature verification
+  // HyperPay/Moyasar payment webhooks need raw body for signature verification
   const apiPrefix = configService.get<string>('API_PREFIX') || 'api/v1';
-  app.use(`/${apiPrefix}/billing/webhook`, bodyParser.raw({ type: 'application/json' }));
-  app.use(`/${apiPrefix}/billing/connect/webhook`, bodyParser.raw({ type: 'application/json' }));
+  app.use(`/${apiPrefix}/payments/webhook`, bodyParser.raw({ type: 'application/json' }));
+  app.use(bodyParser.json({ limit: '10mb' }));
+  app.use(bodyParser.urlencoded({ extended: true, limit: '10mb' }));
 
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
       forbidNonWhitelisted: true,
       transform: true,
-      transformOptions: {
-        enableImplicitConversion: true,
-      },
-    })
+      transformOptions: { enableImplicitConversion: true },
+    }),
   );
 
   app.setGlobalPrefix(apiPrefix);
 
-  const port = process.env.PORT || configService.get<number>('PORT') || 3000;
+  const port = process.env['PORT'] || configService.get<number>('PORT') || 3000;
   await app.listen(port, '0.0.0.0');
 
-  console.log(`HandyCall API is running on: http://localhost:${port}/${apiPrefix}`);
+  console.log(`HandyCall Saudi Marketplace API running on: http://localhost:${port}/${apiPrefix}`);
+  console.log(`Region: ${configService.get<string>('AWS_REGION') || 'me-central-1'}`);
   console.log(`Environment: ${configService.get<string>('NODE_ENV')}`);
 }
 

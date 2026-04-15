@@ -2,6 +2,7 @@
 
 import { type ReactNode, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import {
   IconAlertTriangle,
   IconArrowRight,
@@ -9,11 +10,11 @@ import {
   IconClock,
   IconCurrencyDollar,
   IconUsers,
-  IconCheck,
-  IconX,
 } from '@tabler/icons-react';
 import { apiClient } from '@/lib/api-client';
 import { useAuthStore } from '@/stores/auth-store';
+import { normalizePlan } from '@/constants/plans';
+import { SubscriptionPlan } from '@handycall/shared';
 import { PageHeader } from '@/components/portal/page-header';
 
 type DashboardOverview = {
@@ -53,15 +54,6 @@ type DashboardOverview = {
     created_at: number;
     action_url?: string;
   }>;
-  pending_booking_requests?: Array<{
-    appointment_id: string;
-    contact_name?: string;
-    contact_phone?: string;
-    service_type?: string;
-    scheduled_start?: number;
-    notes?: string;
-    created_at?: number;
-  }>;
 };
 
 function formatMoney(cents = 0) {
@@ -80,12 +72,20 @@ function formatDate(ts?: number) {
 
 export default function DashboardPage() {
   const { company } = useAuthStore();
+  const router = useRouter();
+  const companyPlan = normalizePlan(company?.subscription_plan as SubscriptionPlan | null | undefined);
+  const isStarter = companyPlan === SubscriptionPlan.STARTER;
   const [overview, setOverview] = useState<DashboardOverview | null>(null);
   const [connectStatus, setConnectStatus] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [acceptingId, setAcceptingId] = useState<string | null>(null);
-  const [decliningId, setDecliningId] = useState<string | null>(null);
+
+  // Starter plan has no main dashboard — redirect to marketplace
+  useEffect(() => {
+    if (isStarter) {
+      router.replace('/dashboard/marketplace/requests');
+    }
+  }, [isStarter, router]);
 
   const load = async () => {
     try {
@@ -111,39 +111,20 @@ export default function DashboardPage() {
   const usageBlocked = useMemo(() => {
     const usage = overview?.usage_summary;
     if (!usage) return false;
-    return usage.minutes.blocked || usage.sms.blocked || usage.contacts.blocked;
+    // Only show the banner if there is actually a limit set (limit > 0).
+    // Starter plan has no AI minutes so limit is 0 — don't flag that as "blocked".
+    const minutesBlocked = usage.minutes.blocked && usage.minutes.limit > 0;
+    const smsBlocked = usage.sms.blocked && usage.sms.limit > 0;
+    const contactsBlocked = usage.contacts.blocked && usage.contacts.limit > 0;
+    return minutesBlocked || smsBlocked || contactsBlocked;
   }, [overview]);
-
-  const handleAccept = async (appointmentId: string) => {
-    setAcceptingId(appointmentId);
-    try {
-      await apiClient.acceptAppointment(appointmentId);
-      await load();
-    } catch {
-      // ignore, page will still reload
-    } finally {
-      setAcceptingId(null);
-    }
-  };
-
-  const handleDecline = async (appointmentId: string) => {
-    setDecliningId(appointmentId);
-    try {
-      await apiClient.declineAppointment(appointmentId);
-      await load();
-    } catch {
-      // ignore
-    } finally {
-      setDecliningId(null);
-    }
-  };
 
   if (loading) {
     return (
       <div className="space-y-4">
-        <div className="h-8 w-48 animate-pulse rounded bg-slate-100" />
+        <div className="h-8 w-48 animate-pulse rounded bg-muted" />
         <div className="grid gap-4 md:grid-cols-4">
-          {[1, 2, 3, 4].map((i) => <div key={i} className="h-24 animate-pulse rounded-xl bg-slate-100" />)}
+          {[1, 2, 3, 4].map((i) => <div key={i} className="h-24 animate-pulse rounded-xl bg-muted" />)}
         </div>
       </div>
     );
@@ -166,7 +147,7 @@ export default function DashboardPage() {
         actions={
           <button
             onClick={() => void load()}
-            className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+            className="rounded-lg border border-border bg-card px-4 py-2 text-sm font-medium text-foreground transition hover:bg-slate-50 dark:hover:bg-slate-800"
           >
             Refresh
           </button>
@@ -198,76 +179,32 @@ export default function DashboardPage() {
           label="Minutes used"
           value={`${Math.round(overview?.usage_summary.minutes.percent || 0)}%`}
           detail={`${Math.round(overview?.usage_summary.minutes.used || 0)} / ${Math.round(overview?.usage_summary.minutes.limit || 0)}`}
-          icon={<IconClock stroke={1.5} className="h-4 w-4 text-slate-500" />}
+          icon={<IconClock stroke={1.5} className="h-4 w-4 text-muted-foreground" />}
         />
         <StatCard
           label="Active leads"
           value={String(overview?.metrics.active_leads || 0)}
           detail={`${overview?.metrics.total_customers || 0} total customers`}
-          icon={<IconUsers stroke={1.5} className="h-4 w-4 text-slate-500" />}
+          icon={<IconUsers stroke={1.5} className="h-4 w-4 text-muted-foreground" />}
         />
         <StatCard
           label="Appointments this week"
           value={String(overview?.metrics.appointments_this_week || 0)}
           detail={`${overview?.quick_insights.appointments_next_24h || 0} in next 24h`}
-          icon={<IconCalendar stroke={1.5} className="h-4 w-4 text-slate-500" />}
+          icon={<IconCalendar stroke={1.5} className="h-4 w-4 text-muted-foreground" />}
         />
         <StatCard
           label="Revenue this month"
           value={connectStatus?.connected ? formatMoney(overview?.metrics.revenue_this_month_cents || 0) : '—'}
           detail={connectStatus?.connected ? 'From customer payments' : 'Connect Stripe to view'}
-          icon={<IconCurrencyDollar stroke={1.5} className="h-4 w-4 text-slate-500" />}
+          icon={<IconCurrencyDollar stroke={1.5} className="h-4 w-4 text-muted-foreground" />}
         />
       </div>
 
-      {(overview?.pending_booking_requests || []).length > 0 && (
-        <div className="rounded-xl border border-amber-200 bg-amber-50">
-          <div className="flex items-center justify-between border-b border-amber-100 px-5 py-4">
-            <div>
-              <h2 className="text-sm font-semibold text-amber-900">Pending booking requests</h2>
-              <p className="text-xs text-amber-700">These customers are waiting for you to accept or decline their request.</p>
-            </div>
-            <Link href="/dashboard/appointments/requests" className="text-xs font-medium text-amber-700 hover:text-amber-900 underline">
-              View all
-            </Link>
-          </div>
-          <div className="divide-y divide-amber-100">
-            {(overview?.pending_booking_requests || []).slice(0, 3).map((req) => (
-              <div key={req.appointment_id} className="flex items-center justify-between gap-3 px-5 py-3">
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-slate-900">{req.contact_name || req.contact_phone || 'Customer'}</p>
-                  <p className="truncate text-xs text-slate-600">
-                    {req.service_type || 'Service'}{req.scheduled_start ? ` · ${formatDate(req.scheduled_start)}` : ''}
-                  </p>
-                </div>
-                <div className="flex shrink-0 gap-2">
-                  <button
-                    onClick={() => void handleAccept(req.appointment_id)}
-                    disabled={acceptingId === req.appointment_id || !!decliningId}
-                    className="flex items-center gap-1 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-50"
-                  >
-                    <IconCheck stroke={2} className="h-3.5 w-3.5" />
-                    Accept
-                  </button>
-                  <button
-                    onClick={() => void handleDecline(req.appointment_id)}
-                    disabled={decliningId === req.appointment_id || !!acceptingId}
-                    className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
-                  >
-                    <IconX stroke={2} className="h-3.5 w-3.5" />
-                    Decline
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      <div className="rounded-xl border border-slate-200 bg-white">
-        <div className="border-b border-slate-100 px-5 py-4">
-          <h2 className="text-sm font-semibold text-slate-900">Quick actions</h2>
-          <p className="text-xs text-slate-500">Prioritized items that need attention right now.</p>
+      <div className="rounded-xl border border-border bg-card">
+        <div className="border-b border-border px-5 py-4">
+          <h2 className="text-sm font-semibold text-foreground">Quick actions</h2>
+          <p className="text-xs text-muted-foreground">Prioritized items that need attention right now.</p>
         </div>
         <div className="grid gap-3 p-5 md:grid-cols-3">
           {(overview?.quick_insights.quick_actions || []).length ? (
@@ -275,20 +212,20 @@ export default function DashboardPage() {
               <Link
                 key={action.id}
                 href={action.action_url}
-                className="rounded-xl border border-slate-200 bg-slate-50 p-4 transition hover:border-emerald-200 hover:bg-white"
+                className="rounded-xl border border-border bg-muted/50 p-4 transition hover:border-emerald-200 dark:hover:border-emerald-900 hover:bg-card"
               >
-                <p className="text-sm font-semibold text-slate-900">{action.title}</p>
-                <p className="mt-1 text-xs text-slate-600">{action.description}</p>
+                <p className="text-sm font-semibold text-foreground">{action.title}</p>
+                <p className="mt-1 text-xs text-muted-foreground">{action.description}</p>
                 <div className="mt-3 flex items-center justify-between">
-                  <span className="rounded-full border border-emerald-200 bg-white px-2 py-0.5 text-xs font-semibold text-emerald-700">
+                  <span className="rounded-full border border-emerald-200 dark:border-emerald-900 bg-card px-2 py-0.5 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
                     {action.count}
                   </span>
-                  <IconArrowRight stroke={1.5} className="h-4 w-4 text-slate-400" />
+                  <IconArrowRight stroke={1.5} className="h-4 w-4 text-muted-foreground" />
                 </div>
               </Link>
             ))
           ) : (
-            <p className="text-sm text-slate-500">No urgent actions right now.</p>
+            <p className="text-sm text-muted-foreground">No urgent actions right now.</p>
           )}
         </div>
       </div>
@@ -306,31 +243,31 @@ function ActivityFeed({ feed }: { feed: DashboardOverview['activity_feed'] }) {
   const hasMore = feed.length > ACTIVITY_PREVIEW;
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white">
-      <div className="border-b border-slate-100 px-5 py-4">
-        <h2 className="text-sm font-semibold text-slate-900">Activity feed</h2>
-        <p className="text-xs text-slate-500">Latest events across calls, leads, appointments, and payments.</p>
+    <div className="rounded-xl border border-border bg-card">
+      <div className="border-b border-border px-5 py-4">
+        <h2 className="text-sm font-semibold text-foreground">Activity feed</h2>
+        <p className="text-xs text-muted-foreground">Latest events across calls, leads, appointments, and payments.</p>
       </div>
-      <div className="divide-y divide-slate-100">
+      <div className="divide-y divide-border">
         {visible.map((item) => (
           <Link
             key={item.id}
             href={item.action_url || '/dashboard'}
-            className="flex items-center justify-between gap-3 px-5 py-3 transition hover:bg-slate-50"
+            className="flex items-center justify-between gap-3 px-5 py-3 transition hover:bg-slate-50 dark:hover:bg-slate-800"
           >
             <div className="min-w-0">
-              <p className="truncate text-sm font-semibold text-slate-900">{item.title}</p>
-              <p className="truncate text-xs text-slate-600">{item.description}</p>
+              <p className="truncate text-sm font-semibold text-foreground">{item.title}</p>
+              <p className="truncate text-xs text-muted-foreground">{item.description}</p>
             </div>
-            <span className="shrink-0 text-xs text-slate-400">{formatDate(item.created_at)}</span>
+            <span className="shrink-0 text-xs text-muted-foreground">{formatDate(item.created_at)}</span>
           </Link>
         ))}
         {feed.length === 0 && (
-          <p className="px-5 py-5 text-sm text-slate-500">No activity yet.</p>
+          <p className="px-5 py-5 text-sm text-muted-foreground">No activity yet.</p>
         )}
       </div>
       {hasMore && (
-        <div className="border-t border-slate-100 px-5 py-3">
+        <div className="border-t border-border px-5 py-3">
           <button
             onClick={() => setExpanded((v) => !v)}
             className="flex items-center gap-1.5 text-sm font-medium text-emerald-600 transition hover:text-emerald-700"
@@ -362,15 +299,15 @@ function StatCard({
   icon: ReactNode;
 }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4">
+    <div className="rounded-xl border border-border bg-card p-4">
       <div className="flex items-center justify-between">
-        <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">{label}</p>
-        <div className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-slate-50">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
+        <div className="flex h-7 w-7 items-center justify-center rounded-lg border border-border bg-muted">
           {icon}
         </div>
       </div>
-      <p className="mt-2 text-2xl font-bold tracking-tight text-slate-900">{value}</p>
-      <p className="mt-1 text-xs text-slate-500">{detail}</p>
+      <p className="mt-2 text-2xl font-bold tracking-tight text-foreground">{value}</p>
+      <p className="mt-1 text-xs text-muted-foreground">{detail}</p>
     </div>
   );
 }

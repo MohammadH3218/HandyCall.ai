@@ -237,6 +237,32 @@ final class APIClient: @unchecked Sendable {
         _ = try await request(path: "/notifications/read-all", method: "POST") as Empty
     }
 
+    // MARK: - Leads
+
+    func getLeads(limit: Int = 50) async throws -> [LeadItem] {
+        try await request(path: "/leads?limit=\(limit)", method: "GET")
+    }
+
+    // MARK: - Invoices
+
+    func getInvoices() async throws -> [Invoice] {
+        try await request(path: "/invoices", method: "GET")
+    }
+
+    func getInvoiceStats() async throws -> InvoiceStats {
+        try await request(path: "/invoices/stats", method: "GET")
+    }
+
+    func sendInvoice(invoiceID: String) async throws {
+        struct Empty: Decodable {}
+        _ = try await request(path: "/invoices/\(invoiceID)/send", method: "POST") as Empty
+    }
+
+    func markInvoicePaid(invoiceID: String) async throws {
+        struct Empty: Decodable {}
+        _ = try await request(path: "/invoices/\(invoiceID)/paid", method: "POST") as Empty
+    }
+
     // MARK: - Messages
 
     func getMessageThreads(limit: Int = 50) async throws -> [MessageThread] {
@@ -260,12 +286,35 @@ final class APIClient: @unchecked Sendable {
         var path = "/knowledge-items?limit=\(limit)"
         if let type { path += "&type=\(type)" }
         if let status { path += "&status=\(status)" }
+        
+        // Try multiple response formats
         struct Response: Decodable {
             let items: [KnowledgeItem]?
             let knowledge: [KnowledgeItem]?
+            let data: [KnowledgeItem]?
+            let knowledgeItems: [KnowledgeItem]?
+            
+            enum CodingKeys: String, CodingKey {
+                case items
+                case knowledge
+                case data
+                case knowledgeItems = "knowledge_items"
+            }
         }
+        
+        // First try to decode as a response object
+        if let response = try? await request(path: path, method: "GET") as Response {
+            return response.items ?? response.knowledge ?? response.data ?? response.knowledgeItems ?? []
+        }
+        
+        // If that fails, try to decode as a direct array
+        if let directArray = try? await request(path: path, method: "GET") as [KnowledgeItem] {
+            return directArray
+        }
+        
+        // If both fail, try the standard request which will throw a proper error
         let response: Response = try await request(path: path, method: "GET")
-        return response.items ?? response.knowledge ?? []
+        return response.items ?? response.knowledge ?? response.data ?? response.knowledgeItems ?? []
     }
 
     func createKnowledgeItem(title: String, content: String, type: String, status: String, tags: [String]) async throws -> KnowledgeItem {

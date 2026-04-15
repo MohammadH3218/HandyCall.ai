@@ -8,16 +8,18 @@ HandyCall is a production-grade SaaS platform that provides AI-powered reception
 
 This is a monorepo containing:
 
-- **Backend API** (`packages/backend`) - NestJS + TypeScript + DynamoDB
-- **Web Dashboard** (`packages/web`) - Next.js + TypeScript + Tailwind CSS + shadcn/ui
+- **Backend API** (`packages/backend`) - NestJS + TypeScript + DynamoDB — port 3000
+- **Web Dashboard** (`packages/web`) - Next.js + TypeScript + Tailwind CSS + shadcn/ui — port 3001
+- **Voice Bridge** (`packages/voice-bridge`) - Twilio Media Streams ↔ OpenAI Realtime — port 8082
+- **Realtime Controller** (`packages/realtime-controller`) - SIP session controller
 - **Mobile App** (`packages/mobile`) - React Native + Expo
 - **Shared Types** (`packages/shared`) - Common TypeScript types and utilities
 
 ## 📚 Documentation
 
-- [PROJECT_CONTEXT.md](./PROJECT_CONTEXT.md) - Single source of truth for the entire project
-- [DB_SCHEMA.md](./DB_SCHEMA.md) - DynamoDB table designs and access patterns
-- [API_REFERENCE.md](./API_REFERENCE.md) - Complete API endpoint documentation
+- [PROJECT_CONTEXT.md](./docs/reference/PROJECT_CONTEXT.md) - Single source of truth for the entire project
+- [DB_SCHEMA.md](./docs/reference/DB_SCHEMA.md) - DynamoDB table designs and access patterns
+- [API_REFERENCE.md](./docs/reference/API_REFERENCE.md) - Complete API endpoint documentation
 - [docs/REALTIME_SIP_REWORK.md](./docs/REALTIME_SIP_REWORK.md) - **Realtime Voice Architecture** (Twilio Media Streams + OpenAI)
 - [docs/TWILIO_MEDIA_STREAMS_SETUP.md](./docs/TWILIO_MEDIA_STREAMS_SETUP.md) - Twilio Bridge Setup Guide
 
@@ -27,8 +29,10 @@ This is a monorepo containing:
 
 - Node.js >= 18.0.0
 - npm >= 9.0.0
+- Docker (for DynamoDB local)
 - AWS CLI configured
-- AWS account with appropriate permissions
+- ngrok (`brew install ngrok/ngrok/ngrok`) with auth token set
+- Twilio CLI
 
 ### Installation
 
@@ -36,21 +40,31 @@ This is a monorepo containing:
 # Install all dependencies
 npm install
 
-# Build shared types
-npm run shared:build
+# Start local infrastructure (DynamoDB)
+npm run local:start
 ```
 
 ### Development
 
 ```bash
-# Run all services in development mode
+# Run ALL services in one terminal (recommended)
 npm run dev
-
-# Or run individually:
-npm run backend:dev  # API server
-npm run web:dev      # Web dashboard
-npm run mobile:dev   # Mobile app
 ```
+
+This starts shared, backend, web, voice-bridge (with ngrok), and realtime-controller in parallel — color-coded, all in one terminal. `Ctrl+C` stops everything.
+
+```bash
+# Or run individually:
+npm run backend:dev  # API server (port 3000)
+npm run web:dev      # Web dashboard (port 3001)
+```
+
+### Voice / Twilio
+The voice bridge is on port 8082. On `npm run dev`, the startup script automatically:
+1. Starts ngrok with static domain `consuelo-harmful-cathy.ngrok-free.dev`
+2. Updates the Twilio webhook for `+18324605974` via Twilio CLI
+
+See [RUNBOOK.md](./docs/reference/RUNBOOK.md) for voice bridge details and tuning.
 
 ## 🏢 Multi-Tenancy
 
@@ -95,12 +109,15 @@ Every resource in the system is scoped by `company_id`. Data isolation is enforc
 ```
 HandyCall/
 ├── packages/
-│   ├── backend/       # NestJS API server
-│   ├── web/           # Next.js web dashboard
-│   ├── mobile/        # React Native mobile app
-│   └── shared/        # Shared TypeScript types
-├── docs/              # Additional documentation
-├── scripts/           # Deployment and utility scripts
+│   ├── backend/              # NestJS API server (port 3000)
+│   ├── web/                  # Next.js web dashboard (port 3001)
+│   ├── voice-bridge/         # Twilio ↔ OpenAI Realtime bridge (port 8082)
+│   ├── realtime-controller/  # SIP session controller
+│   ├── mobile/               # React Native mobile app
+│   └── shared/               # Shared TypeScript types
+├── docs/                     # Additional documentation
+├── scripts/
+│   └── local/                # Local dev scripts (start, stop, voice-bridge tunnel)
 └── [documentation files]
 ```
 

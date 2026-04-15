@@ -1,56 +1,108 @@
 import SwiftUI
 
 enum HandyCallTheme {
-    // MARK: - Core Colors (existing)
-    static let emerald = Color(red: 0.05, green: 0.63, blue: 0.44)
-    static let emeraldDark = Color(red: 0.02, green: 0.49, blue: 0.34)
-    static let slate = Color(red: 0.09, green: 0.14, blue: 0.20)
-    static let canvas = Color(red: 0.96, green: 0.98, blue: 0.97)
+    // MARK: - Brand Colors (fixed, not adaptive)
+    static let emeraldFixed = Color(red: 0.02, green: 0.59, blue: 0.41)       // #059669
+    static let emeraldDarkFixed = Color(red: 0.02, green: 0.49, blue: 0.34)   // #047857
 
-    // MARK: - Extended Colors
-    static let emeraldLight = Color(red: 0.85, green: 0.95, blue: 0.90)
-    static let emeraldMist = Color(red: 0.92, green: 0.97, blue: 0.94)
-    static let callerBubble = Color(red: 0.93, green: 0.95, blue: 0.98)
-    static let surfaceWhite = Color.white
-    static let surfaceGray = Color(red: 0.95, green: 0.95, blue: 0.95)
-    static let pageBackground = Color(red: 0.95, green: 0.98, blue: 0.96)
+    // MARK: - Adaptive Core Colors (brighter in dark mode for contrast)
+    static var emerald: Color {
+        Color(light: Color(red: 0.02, green: 0.59, blue: 0.41),
+              dark: Color(red: 0.20, green: 0.78, blue: 0.60))
+    }
+
+    static var emeraldDark: Color {
+        Color(light: Color(red: 0.02, green: 0.49, blue: 0.34),
+              dark: Color(red: 0.05, green: 0.63, blue: 0.44))
+    }
+
+    // MARK: - Surface Colors (adaptive)
+    static var canvas: Color {
+        Color(light: Color(red: 0.96, green: 0.98, blue: 0.97),
+              dark: Color(red: 0.07, green: 0.07, blue: 0.07))
+    }
+
+    static var pageBackground: Color {
+        Color(light: Color(red: 0.95, green: 0.98, blue: 0.96),
+              dark: Color(red: 0.0, green: 0.0, blue: 0.0))
+    }
+
+    static var surfaceWhite: Color {
+        Color(light: .white,
+              dark: Color(red: 0.11, green: 0.11, blue: 0.12))
+    }
+
+    static var surfaceGray: Color {
+        Color(light: Color(red: 0.95, green: 0.95, blue: 0.95),
+              dark: Color(red: 0.17, green: 0.17, blue: 0.18))
+    }
+
+    static var surfaceElevated: Color {
+        Color(light: .white,
+              dark: Color(red: 0.14, green: 0.14, blue: 0.15))
+    }
+
+    // MARK: - Text Colors (adaptive)
+    static var slate: Color {
+        Color(light: Color(red: 0.09, green: 0.14, blue: 0.20),
+              dark: Color(red: 0.93, green: 0.93, blue: 0.94))
+    }
+
+    static let textPrimary = slate
+    static let textSecondary = Color.secondary
+
+    // MARK: - Accent Surfaces (adaptive)
+    static var emeraldLight: Color {
+        Color(light: Color(red: 0.85, green: 0.95, blue: 0.90),
+              dark: Color(red: 0.02, green: 0.20, blue: 0.14))
+    }
+
+    static var emeraldMist: Color {
+        Color(light: Color(red: 0.92, green: 0.97, blue: 0.94),
+              dark: Color(red: 0.04, green: 0.16, blue: 0.11))
+    }
+
+    static var callerBubble: Color {
+        Color(light: Color(red: 0.93, green: 0.95, blue: 0.98),
+              dark: Color(red: 0.15, green: 0.17, blue: 0.21))
+    }
+
+    // MARK: - Status Colors
     static let destructive = Color(red: 0.90, green: 0.25, blue: 0.20)
     static let warning = Color(red: 0.95, green: 0.68, blue: 0.14)
     static let info = Color(red: 0.20, green: 0.50, blue: 0.90)
 
-    // MARK: - Semantic Aliases
-    static let textPrimary = slate
-    static let textSecondary = Color.secondary
-
     // MARK: - Gradients
     static let topGradient = LinearGradient(
-        colors: [emeraldDark, emerald],
+        colors: [emeraldDarkFixed, emeraldFixed],
         startPoint: .topLeading,
         endPoint: .bottomTrailing
     )
 
     static let heroGradient = LinearGradient(
-        colors: [emeraldDark, emerald, emerald.opacity(0.9)],
+        colors: [emeraldDarkFixed, emeraldFixed, emeraldFixed.opacity(0.9)],
         startPoint: .topLeading,
         endPoint: .bottomTrailing
     )
 
-    static let cardGradient = LinearGradient(
-        colors: [emerald.opacity(0.08), emeraldDark.opacity(0.03)],
-        startPoint: .topLeading,
-        endPoint: .bottomTrailing
-    )
+    static var cardGradient: LinearGradient {
+        LinearGradient(
+            colors: [emeraldFixed.opacity(0.08), emeraldDarkFixed.opacity(0.03)],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+    }
 
     // MARK: - Status Color Mapping
     static func statusColor(for status: String?) -> Color {
         switch status?.lowercased().replacingOccurrences(of: "_", with: " ") {
-        case "completed", "confirmed", "qualified":
-            return emerald
+        case "completed", "confirmed", "qualified", "paid":
+            return emeraldFixed
         case "in progress", "active", "new":
             return info
-        case "scheduled", "pending", "contacted":
+        case "scheduled", "pending", "contacted", "sent", "viewed":
             return warning
-        case "cancelled", "missed", "lost":
+        case "cancelled", "missed", "lost", "overdue":
             return destructive
         default:
             return .secondary
@@ -97,23 +149,62 @@ enum HandyCallTheme {
     }
 }
 
+// MARK: - Adaptive Color Helper
+
+extension Color {
+    init(light: Color, dark: Color) {
+        self.init(uiColor: UIColor { traits in
+            traits.userInterfaceStyle == .dark
+                ? UIColor(dark)
+                : UIColor(light)
+        })
+    }
+}
+
 // MARK: - Shadow Modifiers
 
 struct CardShadow: ViewModifier {
+    @Environment(\.colorScheme) private var colorScheme
+
     func body(content: Content) -> some View {
-        content.shadow(color: .black.opacity(0.06), radius: 8, x: 0, y: 3)
+        content.shadow(
+            color: colorScheme == .dark
+                ? .black.opacity(0.3)
+                : .black.opacity(0.06),
+            radius: colorScheme == .dark ? 4 : 8,
+            x: 0,
+            y: colorScheme == .dark ? 1 : 3
+        )
     }
 }
 
 struct ElevatedShadow: ViewModifier {
+    @Environment(\.colorScheme) private var colorScheme
+
     func body(content: Content) -> some View {
-        content.shadow(color: .black.opacity(0.12), radius: 16, x: 0, y: 6)
+        content.shadow(
+            color: colorScheme == .dark
+                ? .black.opacity(0.4)
+                : .black.opacity(0.12),
+            radius: colorScheme == .dark ? 6 : 16,
+            x: 0,
+            y: colorScheme == .dark ? 2 : 6
+        )
     }
 }
 
 struct SubtleShadow: ViewModifier {
+    @Environment(\.colorScheme) private var colorScheme
+
     func body(content: Content) -> some View {
-        content.shadow(color: .black.opacity(0.04), radius: 4, x: 0, y: 2)
+        content.shadow(
+            color: colorScheme == .dark
+                ? .black.opacity(0.2)
+                : .black.opacity(0.04),
+            radius: colorScheme == .dark ? 2 : 4,
+            x: 0,
+            y: colorScheme == .dark ? 1 : 2
+        )
     }
 }
 

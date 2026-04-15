@@ -22,7 +22,7 @@ struct HCKeyValueRow: View {
             if let icon {
                 Image(systemName: icon)
                     .font(.footnote)
-                    .foregroundStyle(HandyCallTheme.emerald)
+                    .foregroundStyle(HandyCallTheme.emeraldFixed)
                     .frame(width: 20)
             }
             Text(title)
@@ -113,7 +113,7 @@ struct SectionCard<Content: View>: View {
                 if let icon {
                     Image(systemName: icon)
                         .font(.subheadline)
-                        .foregroundStyle(HandyCallTheme.emerald)
+                        .foregroundStyle(HandyCallTheme.emeraldFixed)
                 }
                 Text(title)
                     .font(HandyCallTheme.Typography.headline)
@@ -216,7 +216,7 @@ struct HCEmptyState: View {
         VStack(spacing: 16) {
             Image(systemName: icon)
                 .font(.system(size: 44))
-                .foregroundStyle(HandyCallTheme.emerald.opacity(0.5))
+                .foregroundStyle(HandyCallTheme.emeraldFixed.opacity(0.5))
             Text(title)
                 .font(HandyCallTheme.Typography.headline)
                 .foregroundStyle(HandyCallTheme.slate)
@@ -264,7 +264,7 @@ struct StaggeredAppearance: ViewModifier {
             .offset(y: isVisible ? 0 : 12)
             .animation(
                 .spring(response: 0.4, dampingFraction: 0.8)
-                    .delay(Double(index) * 0.05),
+                    .delay(Double(min(index, 10)) * 0.04),
                 value: isVisible
             )
             .onAppear { isVisible = true }

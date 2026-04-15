@@ -10,9 +10,6 @@ export const TIMEZONE_OPTIONS: TimezoneOption[] = [
   { value: 'America/Chicago', label: 'Central Time (CT)' },
   { value: 'America/Denver', label: 'Mountain Time (MT)' },
   { value: 'America/Los_Angeles', label: 'Pacific Time (PT)' },
-  { value: 'America/Phoenix', label: 'Arizona (MST)' },
-  { value: 'America/Anchorage', label: 'Alaska (AKT)' },
-  { value: 'Pacific/Honolulu', label: 'Hawaii (HST)' },
 ];
 
 export function hasTimezoneOption(value?: string | null) {

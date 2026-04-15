@@ -963,6 +963,158 @@ else
   wait_for_table "$TABLE_NAME"
 fi
 
+# =============================================================================
+# 32. SERVICE PRODUCTS TABLE
+# =============================================================================
+TABLE_NAME="${TABLE_PREFIX}service_products"
+if [ -n "$(table_exists $TABLE_NAME)" ]; then
+  echo "⚠️  Table $TABLE_NAME already exists, skipping..."
+else
+  echo "📦 Creating table: $TABLE_NAME"
+  aws dynamodb create-table \
+    --table-name "$TABLE_NAME" \
+    --region "$REGION" \
+    --billing-mode "$BILLING_MODE" \
+    --attribute-definitions \
+      AttributeName=company_id,AttributeType=S \
+      AttributeName=product_id,AttributeType=S \
+    --key-schema \
+      AttributeName=company_id,KeyType=HASH \
+      AttributeName=product_id,KeyType=RANGE \
+    --tags Key=Environment,Value="$ENV" Key=Project,Value=HandyCall
+  wait_for_table "$TABLE_NAME"
+fi
+
+# =============================================================================
+# 33. USAGE METRICS TABLE
+# =============================================================================
+TABLE_NAME="${TABLE_PREFIX}usage_metrics"
+if [ -n "$(table_exists $TABLE_NAME)" ]; then
+  echo "⚠️  Table $TABLE_NAME already exists, skipping..."
+else
+  echo "📦 Creating table: $TABLE_NAME"
+  aws dynamodb create-table \
+    --table-name "$TABLE_NAME" \
+    --region "$REGION" \
+    --billing-mode "$BILLING_MODE" \
+    --attribute-definitions \
+      AttributeName=company_id,AttributeType=S \
+      AttributeName=date,AttributeType=S \
+    --key-schema \
+      AttributeName=company_id,KeyType=HASH \
+      AttributeName=date,KeyType=RANGE \
+    --tags Key=Environment,Value="$ENV" Key=Project,Value=HandyCall
+  wait_for_table "$TABLE_NAME"
+fi
+
+# =============================================================================
+# 34. BILLING EVENTS TABLE
+# =============================================================================
+TABLE_NAME="${TABLE_PREFIX}billing_events"
+if [ -n "$(table_exists $TABLE_NAME)" ]; then
+  echo "⚠️  Table $TABLE_NAME already exists, skipping..."
+else
+  echo "📦 Creating table: $TABLE_NAME"
+  aws dynamodb create-table \
+    --table-name "$TABLE_NAME" \
+    --region "$REGION" \
+    --billing-mode "$BILLING_MODE" \
+    --attribute-definitions \
+      AttributeName=company_id,AttributeType=S \
+      AttributeName=event_id,AttributeType=S \
+    --key-schema \
+      AttributeName=company_id,KeyType=HASH \
+      AttributeName=event_id,KeyType=RANGE \
+    --tags Key=Environment,Value="$ENV" Key=Project,Value=HandyCall
+  wait_for_table "$TABLE_NAME"
+fi
+
+# =============================================================================
+# 35. DELETED ACCOUNTS TABLE
+# =============================================================================
+TABLE_NAME="${TABLE_PREFIX}deleted_accounts"
+if [ -n "$(table_exists $TABLE_NAME)" ]; then
+  echo "⚠️  Table $TABLE_NAME already exists, skipping..."
+else
+  echo "📦 Creating table: $TABLE_NAME"
+  aws dynamodb create-table \
+    --table-name "$TABLE_NAME" \
+    --region "$REGION" \
+    --billing-mode "$BILLING_MODE" \
+    --attribute-definitions \
+      AttributeName=company_id,AttributeType=S \
+      AttributeName=audit_id,AttributeType=S \
+    --key-schema \
+      AttributeName=company_id,KeyType=HASH \
+      AttributeName=audit_id,KeyType=RANGE \
+    --tags Key=Environment,Value="$ENV" Key=Project,Value=HandyCall
+  wait_for_table "$TABLE_NAME"
+fi
+
+# =============================================================================
+# 36. PHONE VERIFICATION CODES TABLE
+# =============================================================================
+TABLE_NAME="${TABLE_PREFIX}phone_verification_codes"
+if [ -n "$(table_exists $TABLE_NAME)" ]; then
+  echo "⚠️  Table $TABLE_NAME already exists, skipping..."
+else
+  echo "📦 Creating table: $TABLE_NAME"
+  aws dynamodb create-table \
+    --table-name "$TABLE_NAME" \
+    --region "$REGION" \
+    --billing-mode "$BILLING_MODE" \
+    --attribute-definitions \
+      AttributeName=email,AttributeType=S \
+      AttributeName=pool_type,AttributeType=S \
+    --key-schema \
+      AttributeName=email,KeyType=HASH \
+      AttributeName=pool_type,KeyType=RANGE \
+    --tags Key=Environment,Value="$ENV" Key=Project,Value=HandyCall
+  wait_for_table "$TABLE_NAME"
+fi
+
+# =============================================================================
+# 37. LOGIN OTP SESSIONS TABLE
+# =============================================================================
+TABLE_NAME="${TABLE_PREFIX}login_otp_sessions"
+if [ -n "$(table_exists $TABLE_NAME)" ]; then
+  echo "⚠️  Table $TABLE_NAME already exists, skipping..."
+else
+  echo "📦 Creating table: $TABLE_NAME"
+  aws dynamodb create-table \
+    --table-name "$TABLE_NAME" \
+    --region "$REGION" \
+    --billing-mode "$BILLING_MODE" \
+    --attribute-definitions \
+      AttributeName=session_id,AttributeType=S \
+    --key-schema \
+      AttributeName=session_id,KeyType=HASH \
+    --tags Key=Environment,Value="$ENV" Key=Project,Value=HandyCall
+  wait_for_table "$TABLE_NAME"
+fi
+
+# =============================================================================
+# 38. REALTIME CACHE TABLE
+# =============================================================================
+TABLE_NAME="${TABLE_PREFIX}realtime_cache"
+if [ -n "$(table_exists $TABLE_NAME)" ]; then
+  echo "⚠️  Table $TABLE_NAME already exists, skipping..."
+else
+  echo "📦 Creating table: $TABLE_NAME"
+  aws dynamodb create-table \
+    --table-name "$TABLE_NAME" \
+    --region "$REGION" \
+    --billing-mode "$BILLING_MODE" \
+    --attribute-definitions \
+      AttributeName=contact_id,AttributeType=S \
+      AttributeName=created_at,AttributeType=N \
+    --key-schema \
+      AttributeName=contact_id,KeyType=HASH \
+      AttributeName=created_at,KeyType=RANGE \
+    --tags Key=Environment,Value="$ENV" Key=Project,Value=HandyCall
+  wait_for_table "$TABLE_NAME"
+fi
+
 echo ""
 echo "=================================================="
 echo "✅ All DynamoDB tables created successfully!"

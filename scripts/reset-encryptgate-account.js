@@ -36,6 +36,7 @@
 const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
 const {
   DynamoDBDocumentClient,
+  GetCommand,
   QueryCommand,
   ScanCommand,
   BatchWriteCommand,
@@ -45,39 +46,69 @@ const {
 const { S3Client, ListObjectsV2Command, DeleteObjectsCommand } = require('@aws-sdk/client-s3');
 
 const REGION = process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION || 'us-east-1';
-const TABLE_PREFIX = process.env.DYNAMODB_TABLE_PREFIX || 'handycall_prod_';
+const TABLE_PREFIX = process.env.DYNAMODB_TABLE_PREFIX || 'handycall_dev_';
 const COMPANY_ID_OVERRIDE = process.env.COMPANY_ID || '';
-const COMPANY_NAME = process.env.COMPANY_NAME || 'EncryptGate';
+const COMPANY_NAME = process.env.COMPANY_NAME || 'Toushe Plumbing';
 
 const KEEP_KNOWLEDGE = process.env.KEEP_KNOWLEDGE !== '0' && process.env.KEEP_KNOWLEDGE !== 'false';
 const RESET_SUBSCRIPTION = process.env.RESET_SUBSCRIPTION === '1';
 const RESET_SCHEDULING = process.env.RESET_SCHEDULING === '1';
 const DRY_RUN = process.env.DRY_RUN === '1' || process.env.DRY_RUN === 'true';
 
-const RECORDINGS_BUCKET = process.env.RECORDINGS_BUCKET || 'handycall-recordings-prod';
-const TRANSCRIPTS_BUCKET = process.env.TRANSCRIPTS_BUCKET || 'handycall-transcripts-prod';
+const RECORDINGS_BUCKET =
+  process.env.RECORDINGS_BUCKET ||
+  (TABLE_PREFIX.startsWith('handycall_dev_')
+    ? 'handycall-recordings-dev-982081079378'
+    : 'handycall-recordings-prod');
+const TRANSCRIPTS_BUCKET =
+  process.env.TRANSCRIPTS_BUCKET ||
+  (TABLE_PREFIX.startsWith('handycall_dev_')
+    ? 'handycall-transcripts-dev-982081079378'
+    : 'handycall-transcripts-prod');
 
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({ region: REGION }), {
   marshallOptions: { removeUndefinedValues: true, convertClassInstanceToMap: true },
 });
 const s3 = new S3Client({ region: REGION });
 
+function isResourceNotFoundError(error) {
+  const name = String(error?.name || '');
+  const code = String(error?.code || '');
+  const type = String(error?.__type || '');
+  const message = String(error?.message || '');
+  return (
+    name === 'ResourceNotFoundException' ||
+    code === 'ResourceNotFoundException' ||
+    type.includes('ResourceNotFoundException') ||
+    message.includes('Requested resource not found') ||
+    message.includes('NoSuchBucket')
+  );
+}
+
 async function queryAll({ TableName, KeyConditionExpression, ExpressionAttributeValues, ExpressionAttributeNames }) {
   const items = [];
   let ExclusiveStartKey;
-  do {
-    const res = await ddb.send(
-      new QueryCommand({
-        TableName,
-        KeyConditionExpression,
-        ExpressionAttributeValues,
-        ExpressionAttributeNames,
-        ExclusiveStartKey,
-      })
-    );
-    if (res.Items) items.push(...res.Items);
-    ExclusiveStartKey = res.LastEvaluatedKey;
-  } while (ExclusiveStartKey);
+  try {
+    do {
+      const res = await ddb.send(
+        new QueryCommand({
+          TableName,
+          KeyConditionExpression,
+          ExpressionAttributeValues,
+          ExpressionAttributeNames,
+          ExclusiveStartKey,
+        })
+      );
+      if (res.Items) items.push(...res.Items);
+      ExclusiveStartKey = res.LastEvaluatedKey;
+    } while (ExclusiveStartKey);
+  } catch (error) {
+    if (isResourceNotFoundError(error)) {
+      console.warn(`Skipping missing table: ${TableName}`);
+      return [];
+    }
+    throw error;
+  }
   return items;
 }
 
@@ -90,20 +121,28 @@ async function scanAll({
 }) {
   const items = [];
   let ExclusiveStartKey;
-  do {
-    const res = await ddb.send(
-      new ScanCommand({
-        TableName,
-        FilterExpression,
-        ExpressionAttributeValues,
-        ExpressionAttributeNames,
-        ProjectionExpression,
-        ExclusiveStartKey,
-      })
-    );
-    if (res.Items) items.push(...res.Items);
-    ExclusiveStartKey = res.LastEvaluatedKey;
-  } while (ExclusiveStartKey);
+  try {
+    do {
+      const res = await ddb.send(
+        new ScanCommand({
+          TableName,
+          FilterExpression,
+          ExpressionAttributeValues,
+          ExpressionAttributeNames,
+          ProjectionExpression,
+          ExclusiveStartKey,
+        })
+      );
+      if (res.Items) items.push(...res.Items);
+      ExclusiveStartKey = res.LastEvaluatedKey;
+    } while (ExclusiveStartKey);
+  } catch (error) {
+    if (isResourceNotFoundError(error)) {
+      console.warn(`Skipping missing table: ${TableName}`);
+      return [];
+    }
+    throw error;
+  }
   return items;
 }
 
@@ -122,8 +161,17 @@ async function batchDelete(TableName, keys) {
 
     let attempt = 0;
     while (pending && attempt < 5) {
-      // eslint-disable-next-line no-await-in-loop
-      const res = await ddb.send(new BatchWriteCommand(pending));
+      let res;
+      try {
+        // eslint-disable-next-line no-await-in-loop
+        res = await ddb.send(new BatchWriteCommand(pending));
+      } catch (error) {
+        if (isResourceNotFoundError(error)) {
+          console.warn(`Skipping missing table during delete: ${TableName}`);
+          return deleted;
+        }
+        throw error;
+      }
       const unprocessed = res.UnprocessedItems || {};
       pending = Object.keys(unprocessed).length ? { RequestItems: unprocessed } : null;
       attempt += 1;
@@ -142,24 +190,32 @@ async function deleteS3Prefix(bucket, prefix) {
   let deleted = 0;
   let ContinuationToken;
 
-  do {
-    // eslint-disable-next-line no-await-in-loop
-    const list = await s3.send(new ListObjectsV2Command({ Bucket: bucket, Prefix: prefix, ContinuationToken }));
-    const contents = list.Contents || [];
-    if (contents.length) {
-      if (!DRY_RUN) {
-        // eslint-disable-next-line no-await-in-loop
-        await s3.send(
-          new DeleteObjectsCommand({
-            Bucket: bucket,
-            Delete: { Objects: contents.map((o) => ({ Key: o.Key })) },
-          })
-        );
+  try {
+    do {
+      // eslint-disable-next-line no-await-in-loop
+      const list = await s3.send(new ListObjectsV2Command({ Bucket: bucket, Prefix: prefix, ContinuationToken }));
+      const contents = list.Contents || [];
+      if (contents.length) {
+        if (!DRY_RUN) {
+          // eslint-disable-next-line no-await-in-loop
+          await s3.send(
+            new DeleteObjectsCommand({
+              Bucket: bucket,
+              Delete: { Objects: contents.map((o) => ({ Key: o.Key })) },
+            })
+          );
+        }
+        deleted += contents.length;
       }
-      deleted += contents.length;
+      ContinuationToken = list.IsTruncated ? list.NextContinuationToken : undefined;
+    } while (ContinuationToken);
+  } catch (error) {
+    if (isResourceNotFoundError(error)) {
+      console.warn(`Skipping missing bucket: ${bucket}`);
+      return 0;
     }
-    ContinuationToken = list.IsTruncated ? list.NextContinuationToken : undefined;
-  } while (ContinuationToken);
+    throw error;
+  }
 
   return deleted;
 }
@@ -170,8 +226,16 @@ async function deleteRealtimeCacheForContacts(contactIds, realtimeCacheTable) {
 
   let deleted = 0;
   for (const contactId of contactIds) {
-    // eslint-disable-next-line no-await-in-loop
-    await ddb.send(new DeleteCommand({ TableName: realtimeCacheTable, Key: { contact_id: contactId } }));
+    try {
+      // eslint-disable-next-line no-await-in-loop
+      await ddb.send(new DeleteCommand({ TableName: realtimeCacheTable, Key: { contact_id: contactId } }));
+    } catch (error) {
+      if (isResourceNotFoundError(error)) {
+        console.warn(`Skipping missing table: ${realtimeCacheTable}`);
+        return deleted;
+      }
+      throw error;
+    }
     deleted += 1;
   }
   return deleted;
@@ -181,14 +245,14 @@ async function resolveCompany() {
   const companiesTable = `${TABLE_PREFIX}companies`;
 
   if (COMPANY_ID_OVERRIDE) {
-    const items = await scanAll({
-      TableName: companiesTable,
-      FilterExpression: '#company_id = :id',
-      ExpressionAttributeNames: { '#company_id': 'company_id' },
-      ExpressionAttributeValues: { ':id': COMPANY_ID_OVERRIDE },
-    });
-    if (!items.length) throw new Error(`Company not found by COMPANY_ID=${COMPANY_ID_OVERRIDE}`);
-    return items[0];
+    const result = await ddb.send(
+      new GetCommand({
+        TableName: companiesTable,
+        Key: { company_id: COMPANY_ID_OVERRIDE },
+      })
+    );
+    if (!result.Item) throw new Error(`Company not found by COMPANY_ID=${COMPANY_ID_OVERRIDE}`);
+    return result.Item;
   }
 
   const matches = await scanAll({

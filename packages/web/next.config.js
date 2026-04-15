@@ -47,10 +47,13 @@ const securityHeaders = [
 ];
 
 const nextConfig = {
-  // Monorepo: root the file tracer at the workspace root to avoid symlink loops (ELOOP/-70)
-  experimental: {
-    outputFileTracingRoot: path.join(__dirname, '../../'),
-  },
+  // Keep custom tracing root only for production builds.
+  // In local dev, this can stall startup on large workspaces.
+  experimental: isProduction
+    ? {
+        outputFileTracingRoot: path.join(__dirname, '../../'),
+      }
+    : {},
   transpilePackages: ['@handycall/shared'],
   typescript: {
     // Pre-existing type errors in shared types and third-party @types packages.

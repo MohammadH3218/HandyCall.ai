@@ -176,31 +176,32 @@ function timeToMinutes(value?: string) {
 function statusBadge(status?: string): { label: string; className: string } {
   const s = String(status || '').toUpperCase();
   if (s === 'SCHEDULED') return { label: 'Scheduled', className: 'bg-amber-50 text-amber-700 border border-amber-100' };
-  if (s === 'CONFIRMED') return { label: 'Confirmed', className: 'bg-emerald-50 text-emerald-700 border border-emerald-100' };
+  if (s === 'CONFIRMED') return { label: 'Confirmed', className: 'bg-emerald-50 text-emerald-700 border border-emerald-100 dark:bg-emerald-950/30 dark:border-emerald-900 dark:text-emerald-300' };
   if (s === 'CANCELLED') return { label: 'Cancelled', className: 'bg-red-50 text-red-700 border border-red-100' };
-  if (s === 'COMPLETED') return { label: 'Completed', className: 'bg-slate-100 text-slate-600' };
-  return { label: status || 'Unknown', className: 'bg-slate-100 text-slate-600' };
+  if (s === 'COMPLETED') return { label: 'Completed', className: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400' };
+  return { label: status || 'Unknown', className: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400' };
 }
 
 function eventTone(status?: string) {
   const s = String(status || '').toUpperCase();
   if (s === 'CANCELLED') return 'bg-red-50 text-red-700 border border-red-100';
-  if (s === 'COMPLETED') return 'bg-slate-100 text-slate-600 border border-slate-200';
-  if (s === 'CONFIRMED') return 'bg-emerald-50 text-emerald-700 border border-emerald-100';
+  if (s === 'COMPLETED') return 'bg-slate-100 text-slate-600 border border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700';
+  if (s === 'CONFIRMED') return 'bg-emerald-50 text-emerald-700 border border-emerald-100 dark:bg-emerald-950/30 dark:text-emerald-300 dark:border-emerald-900';
   return 'bg-amber-50 text-amber-700 border border-amber-100';
 }
 
-const inputCls = 'w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-100 focus:border-emerald-400 bg-white';
+const inputCls = 'w-full rounded-lg border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-100 focus:border-emerald-400 bg-card text-foreground';
 const primaryBtnCls = 'bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed';
-const outlineBtnCls = 'border border-slate-200 text-slate-700 hover:bg-slate-50 rounded-lg px-4 py-2 text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed';
+const outlineBtnCls = 'border border-border text-foreground hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg px-4 py-2 text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed';
 const destructiveBtnCls = 'bg-red-600 hover:bg-red-700 text-white rounded-lg px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed';
-const iconBtnCls = 'border border-slate-200 text-slate-700 hover:bg-slate-50 rounded-lg p-2 transition-colors disabled:opacity-50 flex items-center justify-center';
+const iconBtnCls = 'border border-border text-foreground hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg p-2 transition-colors disabled:opacity-50 flex items-center justify-center';
 
 export default function AppointmentsPage() {
   const { toast } = useToast();
   const [company, setCompany] = useState<any>(null);
   const setCompanyInStore = useAuthStore((state) => state.setCompany);
   const [appointments, setAppointments] = useState<any[]>([]);
+  const [contacts, setContacts] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -254,9 +255,12 @@ export default function AppointmentsPage() {
 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [createDraft, setCreateDraft] = useState<any>({
+    selected_contact_id: 'MANUAL',
     contact_name: '',
     contact_email: '',
     contact_phone: '',
+    pricing_mode: 'CUSTOM',
+    selected_service_id: '',
     service_type: '',
     date: '',
     start_time: '09:00',
@@ -386,6 +390,11 @@ export default function AppointmentsPage() {
     return Array.from(set.values());
   }, [appointments]);
 
+  const bookingServiceOptions = useMemo(() => {
+    if (!Array.isArray(company?.booking_services)) return [];
+    return (company.booking_services as any[]).filter((service: any) => service?.active !== false);
+  }, [company]);
+
   const focusKey = useMemo(() => ymd(toZonedDate(focusDate, displayTimezone)), [focusDate, displayTimezone]);
   const focusAppointments = useMemo(() => apptsByDay.get(focusKey) ?? [], [apptsByDay, focusKey]);
 
@@ -403,15 +412,20 @@ export default function AppointmentsPage() {
   }, [filteredAppointments, displayTimezone]);
 
   const weekDays = useMemo(() => {
-    const base = new Date(focusDate);
-    const start = new Date(base);
-    start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
+    // Use the timezone-aware parts of focusDate to compute the week start,
+    // then generate each day as UTC noon to avoid day-boundary shifts across timezones.
+    const parts = getZonedParts(focusDate, displayTimezone);
+    const anchor = new Date(Date.UTC(parts.year, parts.month - 1, parts.day, 12, 0, 0));
+    const dayOfWeek = anchor.getUTCDay(); // 0=Sun, 1=Mon, ...
+    const mondayOffset = (dayOfWeek + 6) % 7; // shift so Mon=0
+    const monday = new Date(anchor);
+    monday.setUTCDate(monday.getUTCDate() - mondayOffset);
     return Array.from({ length: 7 }, (_, idx) => {
-      const d = new Date(start);
-      d.setDate(start.getDate() + idx);
+      const d = new Date(monday);
+      d.setUTCDate(monday.getUTCDate() + idx);
       return d;
     });
-  }, [focusDate]);
+  }, [focusDate, displayTimezone]);
 
   const viewLabel = useMemo(() => {
     if (calendarView === 'month') return monthLabel;
@@ -506,9 +520,10 @@ export default function AppointmentsPage() {
       } catch (err: any) {
         console.warn('Calendar connection check failed:', err);
       }
-      const [c, a] = await Promise.all([
+      const [c, a, contactsResponse] = await Promise.all([
         apiClient.getMyCompany(),
         apiClient.getAppointmentsRange(visibleRange.start.toISOString(), visibleRange.end.toISOString()),
+        apiClient.getContacts(200).catch(() => ({ contacts: [] })),
       ]);
       setCompany(c);
       setCompanyInStore(c);
@@ -517,6 +532,7 @@ export default function AppointmentsPage() {
       setDateOverridesDraft(normalizeOverrides(c?.schedule_overrides));
       setSetupTimezone(c?.calendar_connection?.timezone || c?.calendar_connection?.timeZone || c?.timezone || DEFAULT_TIMEZONE);
       setAppointments(a.appointments || []);
+      setContacts(Array.isArray(contactsResponse?.contacts) ? contactsResponse.contacts : []);
     } catch (err: any) {
       console.error('Error loading appointments:', err);
       setError(err?.message || 'Failed to load appointments');
@@ -655,9 +671,13 @@ export default function AppointmentsPage() {
       setIsCreateOpen(false);
       setCreateDraft((p: any) => ({
         ...p,
+        selected_contact_id: 'MANUAL',
         contact_name: '',
         contact_email: '',
         contact_phone: '',
+        pricing_mode: 'CUSTOM',
+        selected_service_id: '',
+        service_type: '',
         notes: '',
         address_street: '',
         address_city: '',
@@ -670,6 +690,60 @@ export default function AppointmentsPage() {
     } catch (err: any) {
       setError(err?.message || 'Failed to create appointment');
     }
+  };
+
+  const handleSelectCreateContact = (contactId: string) => {
+    if (contactId === 'MANUAL') {
+      setCreateDraft((p: any) => ({
+        ...p,
+        selected_contact_id: 'MANUAL',
+        contact_name: '',
+        contact_email: '',
+        contact_phone: '',
+        address_street: '',
+        address_city: '',
+        address_state: '',
+        address_zip: '',
+      }));
+      return;
+    }
+
+    const selected = contacts.find((contact: any) => String(contact.contact_id) === contactId);
+    if (!selected) return;
+
+    setCreateDraft((p: any) => ({
+      ...p,
+      selected_contact_id: contactId,
+      contact_name: selected.name || [selected.first_name, selected.last_name].filter(Boolean).join(' '),
+      contact_email: selected.email || '',
+      contact_phone: selected.phone_number || selected.phone || '',
+      address_street: selected.address || '',
+      address_city: p.address_city || '',
+      address_state: p.address_state || '',
+      address_zip: selected.zipcode || '',
+    }));
+  };
+
+  const handleCreatePricingModeChange = (value: string) => {
+    if (value === 'CUSTOM') {
+      setCreateDraft((p: any) => ({
+        ...p,
+        pricing_mode: 'CUSTOM',
+        selected_service_id: '',
+      }));
+      return;
+    }
+
+    const selectedService = bookingServiceOptions.find((service: any) => service.service_id === value);
+    if (!selectedService) return;
+
+    setCreateDraft((p: any) => ({
+      ...p,
+      pricing_mode: value,
+      selected_service_id: selectedService.service_id,
+      service_type: selectedService.name || p.service_type,
+      price: typeof selectedService.amount_cents === 'number' ? (selectedService.amount_cents / 100).toFixed(2) : '',
+    }));
   };
 
   const [appleEmail, setAppleEmail] = useState('');
@@ -934,11 +1008,11 @@ export default function AppointmentsPage() {
       />
 
       {!isCalendarSetupComplete ? (
-        <div className="rounded-xl border border-slate-200 bg-white p-6">
+        <div className="rounded-xl border border-border bg-card p-6">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
-              <div className="text-base font-semibold text-slate-900">Set up your appointments calendar</div>
-              <div className="text-sm text-slate-500 mt-1">
+              <div className="text-base font-semibold text-foreground">Set up your appointments calendar</div>
+              <div className="text-sm text-muted-foreground mt-1">
                 Choose your timezone and how you want to manage scheduling before taking bookings.
               </div>
             </div>
@@ -952,8 +1026,8 @@ export default function AppointmentsPage() {
           {/* Left sidebar */}
           <div className="space-y-6">
             {/* Mini calendar card */}
-            <div className="rounded-xl border border-slate-200 bg-white p-4">
-              <div className="text-sm font-semibold text-slate-900 mb-3">Calendar</div>
+            <div className="rounded-xl border border-border bg-card p-4">
+              <div className="text-sm font-semibold text-foreground mb-3">Calendar</div>
               <div className="flex flex-wrap gap-2 mb-4">
                 <button className={outlineBtnCls + ' text-xs px-3 py-1.5'} onClick={handleToday}>
                   Today
@@ -968,9 +1042,9 @@ export default function AppointmentsPage() {
                 </button>
               </div>
 
-              <div className="rounded-lg border border-slate-200 bg-white p-3">
+              <div className="rounded-lg border border-border bg-card p-3">
                 <div className="flex items-center justify-between mb-3">
-                  <div className="text-sm font-semibold text-slate-900">{monthLabel}</div>
+                  <div className="text-sm font-semibold text-foreground">{monthLabel}</div>
                   <div className="flex items-center gap-1">
                     <button className={iconBtnCls + ' p-1'} onClick={() => shiftMonthCursor(-1)}>
                       <IconChevronLeft stroke={1.5} className="h-4 w-4" />
@@ -980,7 +1054,7 @@ export default function AppointmentsPage() {
                     </button>
                   </div>
                 </div>
-                <div className="grid grid-cols-7 text-[11px] text-slate-500 mb-2">
+                <div className="grid grid-cols-7 text-[11px] text-muted-foreground mb-2">
                   {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => (
                     <div key={i} className="text-center">{d}</div>
                   ))}
@@ -1004,8 +1078,8 @@ export default function AppointmentsPage() {
                             : isToday
                               ? 'border border-emerald-300 text-emerald-700'
                               : isInMonth
-                                ? 'text-slate-800 hover:bg-slate-100'
-                                : 'text-slate-400 hover:bg-slate-100'
+                                ? 'text-foreground hover:bg-accent/70'
+                                : 'text-muted-foreground hover:bg-slate-100 dark:hover:bg-slate-800'
                         }`}
                         onClick={() => {
                           const parts = getZonedParts(d, displayTimezone);
@@ -1021,15 +1095,15 @@ export default function AppointmentsPage() {
                   })}
                 </div>
               </div>
-              <div className="text-xs text-slate-500 mt-3">Timezone: {calendarTimezone || 'Not set'}</div>
+              <div className="text-xs text-muted-foreground mt-3">Timezone: {calendarTimezone || 'Not set'}</div>
             </div>
 
             {/* Filters card */}
-            <div className="rounded-xl border border-slate-200 bg-white p-4">
-              <div className="text-sm font-semibold text-slate-900 mb-4">Filters</div>
+            <div className="rounded-xl border border-border bg-card p-4">
+              <div className="text-sm font-semibold text-foreground mb-4">Filters</div>
               <div className="space-y-4">
                 <div className="space-y-1.5">
-                  <div className="text-xs text-slate-500">Search</div>
+                  <div className="text-xs text-muted-foreground">Search</div>
                   <input
                     className={inputCls}
                     placeholder="Search appointments"
@@ -1038,7 +1112,7 @@ export default function AppointmentsPage() {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <div className="text-xs text-slate-500">Status</div>
+                  <div className="text-xs text-muted-foreground">Status</div>
                   <select
                     className={inputCls}
                     value={statusFilter}
@@ -1052,7 +1126,7 @@ export default function AppointmentsPage() {
                   </select>
                 </div>
                 <div className="space-y-1.5">
-                  <div className="text-xs text-slate-500">Service type</div>
+                  <div className="text-xs text-muted-foreground">Service type</div>
                   <select
                     className={inputCls}
                     value={serviceFilter}
@@ -1065,21 +1139,21 @@ export default function AppointmentsPage() {
                   </select>
                 </div>
                 <div className="space-y-1.5">
-                  <div className="text-xs text-slate-500">Date range</div>
+                  <div className="text-xs text-muted-foreground">Date range</div>
                   <div className="grid grid-cols-2 gap-2">
                     <input type="date" className={inputCls} value={rangeStart} onChange={(e) => setRangeStart(e.target.value)} />
                     <input type="date" className={inputCls} value={rangeEnd} onChange={(e) => setRangeEnd(e.target.value)} />
                   </div>
                 </div>
                 <div className="space-y-1.5">
-                  <div className="text-xs text-slate-500">Time range</div>
+                  <div className="text-xs text-muted-foreground">Time range</div>
                   <div className="grid grid-cols-2 gap-2">
                     <input type="time" className={inputCls} value={timeStart} onChange={(e) => setTimeStart(e.target.value)} />
                     <input type="time" className={inputCls} value={timeEnd} onChange={(e) => setTimeEnd(e.target.value)} />
                   </div>
                 </div>
                 <div className="flex items-center justify-between pt-1">
-                  <div className="text-xs text-slate-500">{isLoading ? 'Loading...' : `${filteredAppointments.length} appointments`}</div>
+                  <div className="text-xs text-muted-foreground">{isLoading ? 'Loading...' : `${filteredAppointments.length} appointments`}</div>
                   <button className={outlineBtnCls + ' text-xs px-3 py-1.5'} onClick={handleClearFilters}>
                     Clear
                   </button>
@@ -1090,21 +1164,21 @@ export default function AppointmentsPage() {
 
           {/* Main calendar area */}
           <div className="min-w-0 space-y-6">
-            <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+            <div className="rounded-xl border border-border bg-card overflow-hidden">
               {/* Calendar header */}
-              <div className="border-b border-slate-100 px-4 py-3">
+              <div className="border-b border-border px-4 py-3">
                 <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                   <div className="flex flex-wrap items-center gap-3">
                     <div className="flex items-center gap-2">
                       <IconCalendar stroke={1.5} className="h-5 w-5 text-emerald-600" />
-                      <span className="text-base font-semibold text-slate-900">{viewLabel}</span>
+                      <span className="text-base font-semibold text-foreground">{viewLabel}</span>
                     </div>
-                    <span className="inline-flex items-center rounded-md bg-emerald-50 border border-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700">
+                    <span className="inline-flex items-center rounded-md bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-100 dark:border-emerald-900 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:text-emerald-300">
                       {filteredAppointments.length} total
                     </span>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
-                    <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white p-1">
+                    <div className="flex items-center gap-1 rounded-lg border border-border bg-card p-1">
                       <button className={iconBtnCls + ' border-0 p-1.5'} onClick={handlePrevRange}>
                         <IconChevronLeft stroke={1.5} className="h-4 w-4" />
                       </button>
@@ -1115,14 +1189,14 @@ export default function AppointmentsPage() {
                         <IconChevronRight stroke={1.5} className="h-4 w-4" />
                       </button>
                     </div>
-                    <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white p-1">
+                    <div className="flex items-center gap-1 rounded-lg border border-border bg-card p-1">
                       {(['day', 'week', 'month', 'list'] as const).map((view) => (
                         <button
                           key={view}
                           className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
                             calendarView === view
                               ? 'bg-emerald-600 text-white'
-                              : 'text-slate-600 hover:bg-slate-50'
+                              : 'text-muted-foreground hover:bg-slate-50 dark:hover:bg-slate-800'
                           }`}
                           onClick={() => {
                             if (view === 'month') {
@@ -1141,15 +1215,15 @@ export default function AppointmentsPage() {
 
               {/* Calendar body */}
               {isLoading ? (
-                <div className="p-8 text-sm text-slate-500">Loading appointments...</div>
+                <div className="p-8 text-sm text-muted-foreground">Loading appointments...</div>
               ) : calendarView === 'month' ? (
                 <div className="overflow-x-auto">
-                  <div className="grid grid-cols-7 min-w-[560px] text-xs font-semibold text-slate-500 border-b border-slate-100 bg-slate-50">
+                  <div className="grid grid-cols-7 min-w-[560px] text-xs font-semibold text-muted-foreground border-b border-border bg-muted/50">
                     {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((d) => (
                       <div key={d} className="px-3 py-3 text-center">{d}</div>
                     ))}
                   </div>
-                  <div className="grid grid-cols-7 min-w-[560px] divide-x divide-y divide-slate-100">
+                  <div className="grid grid-cols-7 min-w-[560px] divide-x divide-y divide-border">
                     {monthDays.map((d) => {
                       const dayParts = getZonedParts(d, displayTimezone);
                       const key = ymdFromParts(dayParts);
@@ -1161,8 +1235,8 @@ export default function AppointmentsPage() {
                       return (
                         <button
                           key={key}
-                          className={`min-h-[110px] p-2 text-left hover:bg-slate-50 transition relative ${
-                            inMonth ? 'bg-white' : 'bg-slate-50/50'
+                          className={`min-h-[110px] p-2 text-left hover:bg-slate-50 dark:hover:bg-slate-800 transition relative ${
+                            inMonth ? 'bg-card' : 'bg-slate-50/50 dark:bg-slate-800/50'
                           } ${isToday ? 'ring-2 ring-inset ring-emerald-300' : ''}`}
                           onClick={() => {
                             if (!isCalendarSetupComplete) return;
@@ -1172,7 +1246,7 @@ export default function AppointmentsPage() {
                           }}
                           disabled={!isCalendarSetupComplete}
                         >
-                          <div className={`text-sm font-medium mb-1 ${isToday ? 'text-emerald-600' : inMonth ? 'text-slate-900' : 'text-slate-400'}`}>
+                          <div className={`text-sm font-medium mb-1 ${isToday ? 'text-emerald-600' : inMonth ? 'text-foreground' : 'text-muted-foreground'}`}>
                             {dayParts.day}
                           </div>
                           <div className="space-y-1">
@@ -1189,7 +1263,7 @@ export default function AppointmentsPage() {
                               </div>
                             ))}
                             {items.length > 2 && (
-                              <div className="text-xs text-slate-500 font-medium">+{items.length - 2} more</div>
+                              <div className="text-xs text-muted-foreground font-medium">+{items.length - 2} more</div>
                             )}
                           </div>
                         </button>
@@ -1198,19 +1272,19 @@ export default function AppointmentsPage() {
                   </div>
                 </div>
               ) : calendarView === 'list' ? (
-                <div className="divide-y divide-slate-100">
+                <div className="divide-y divide-border">
                   {listGroups.length === 0 ? (
                     <div className="p-8 text-center">
-                      <IconCalendar stroke={1.5} className="h-12 w-12 text-slate-300 mx-auto mb-4" />
-                      <h3 className="text-base font-semibold text-slate-900 mb-2">No appointments scheduled</h3>
-                      <p className="text-sm text-slate-500">New bookings will show up here as soon as they are confirmed.</p>
+                      <IconCalendar stroke={1.5} className="h-12 w-12 text-border mx-auto mb-4" />
+                      <h3 className="text-base font-semibold text-foreground mb-2">No appointments scheduled</h3>
+                      <p className="text-sm text-muted-foreground">New bookings will show up here as soon as they are confirmed.</p>
                     </div>
                   ) : (
                     listGroups.map(([key, items]) => {
                       const headerDate = new Date(`${key}T12:00:00`);
                       return (
                         <div key={key} className="p-4">
-                          <div className="text-sm font-semibold text-slate-900">
+                          <div className="text-sm font-semibold text-foreground">
                             {headerDate.toLocaleDateString('en-US', {
                               timeZone: displayTimezone,
                               weekday: 'long',
@@ -1224,15 +1298,15 @@ export default function AppointmentsPage() {
                               return (
                                 <button
                                   key={apt.appointment_id}
-                                  className="w-full rounded-xl border border-slate-200 bg-white p-4 text-left hover:border-emerald-300 hover:shadow-sm transition"
+                                  className="w-full rounded-xl border border-border bg-card p-4 text-left hover:border-emerald-300 dark:hover:border-emerald-800 hover:shadow-sm transition"
                                   onClick={() => handleViewAppointment(apt.appointment_id)}
                                 >
                                   <div className="flex flex-wrap items-center justify-between gap-3">
                                     <div>
-                                      <div className="font-semibold text-slate-900">
+                                      <div className="font-semibold text-foreground">
                                         {apt.contact_name || apt.contact_email || apt.contact_phone || 'Appointment'}
                                       </div>
-                                      <div className="text-sm text-slate-500 mt-1">
+                                      <div className="text-sm text-muted-foreground mt-1">
                                         {formatDateTime(apt.scheduled_start, displayTimezone)} - {apt.service_type || 'Service'}
                                       </div>
                                     </div>
@@ -1251,36 +1325,36 @@ export default function AppointmentsPage() {
                 </div>
               ) : (
                 <div className="flex">
-                  <div className="w-16 flex-shrink-0 border-r border-slate-100 bg-slate-50">
+                  <div className="w-16 flex-shrink-0 border-r border-border bg-muted/50">
                     {hourSlots.slice(0, -1).map((hour) => (
                       <div
                         key={hour}
-                        className="h-[64px] text-[11px] text-slate-400 flex items-start justify-end pr-2 pt-2"
+                        className="h-[64px] text-[11px] text-muted-foreground flex items-start justify-end pr-2 pt-2"
                       >
                         {formatHourLabel(hour)}
                       </div>
                     ))}
                   </div>
                   <div className="min-w-0 flex-1 overflow-x-auto">
-                    <div className={`grid ${calendarView === 'week' ? 'grid-cols-7 min-w-[700px]' : 'grid-cols-1'} bg-white`}>
+                    <div className={`grid ${calendarView === 'week' ? 'grid-cols-7 min-w-[700px]' : 'grid-cols-1'} bg-card`}>
                       {(calendarView === 'week' ? weekDays : [focusDate]).map((day) => {
                         const zonedDay = toZonedDate(day, displayTimezone);
                         const key = ymd(zonedDay);
                         const dayAppointments = apptsByDay.get(key) ?? [];
                         return (
-                          <div key={key} className="border-r border-slate-100 last:border-r-0">
-                            <div className="sticky top-0 z-10 bg-white px-3 py-2 border-b border-slate-100">
-                              <div className="text-xs text-slate-500">
-                                {zonedDay.toLocaleDateString('en-US', { timeZone: displayTimezone, weekday: 'short' })}
+                          <div key={key} className="border-r border-border last:border-r-0">
+                            <div className="sticky top-0 z-10 bg-card px-3 py-2 border-b border-border">
+                              <div className="text-xs text-muted-foreground">
+                                {zonedDay.toLocaleDateString('en-US', { weekday: 'short' })}
                               </div>
-                              <div className="text-sm font-medium text-slate-900">
-                                {zonedDay.toLocaleDateString('en-US', { timeZone: displayTimezone, month: 'short', day: 'numeric' })}
+                              <div className="text-sm font-medium text-foreground">
+                                {zonedDay.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                               </div>
                             </div>
                             <div className="relative" style={{ height: `${dayHeight}px` }}>
                               <div className="absolute inset-0">
                                 {hourSlots.slice(0, -1).map((hour) => (
-                                  <div key={hour} className="border-b border-slate-100" style={{ height: `${hourRowHeight}px` }} />
+                                  <div key={hour} className="border-b border-border" style={{ height: `${hourRowHeight}px` }} />
                                 ))}
                               </div>
                               {dayAppointments.map((apt) => {
@@ -1334,12 +1408,12 @@ export default function AppointmentsPage() {
             <div className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <div className="text-xs text-slate-500 mb-1">Customer</div>
-                  <div className="font-medium text-slate-900">{selectedAppointment.contact_name || '-'}</div>
-                  <div className="text-sm text-slate-500">{selectedAppointment.contact_email || selectedAppointment.contact_phone || '-'}</div>
+                  <div className="text-xs text-muted-foreground mb-1">Customer</div>
+                  <div className="font-medium text-foreground">{selectedAppointment.contact_name || '-'}</div>
+                  <div className="text-sm text-muted-foreground">{selectedAppointment.contact_email || selectedAppointment.contact_phone || '-'}</div>
                 </div>
                 <div>
-                  <div className="text-xs text-slate-500 mb-1">Status</div>
+                  <div className="text-xs text-muted-foreground mb-1">Status</div>
                   {(() => {
                     const s = statusBadge(selectedAppointment.status);
                     return (
@@ -1353,18 +1427,18 @@ export default function AppointmentsPage() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <div className="text-xs text-slate-500 mb-1">Start</div>
-                  <div className="font-medium text-slate-900">{formatDateTime(selectedAppointment.scheduled_start, displayTimezone)}</div>
+                  <div className="text-xs text-muted-foreground mb-1">Start</div>
+                  <div className="font-medium text-foreground">{formatDateTime(selectedAppointment.scheduled_start, displayTimezone)}</div>
                 </div>
                 <div>
-                  <div className="text-xs text-slate-500 mb-1">End</div>
-                  <div className="font-medium text-slate-900">{formatDateTime(selectedAppointment.scheduled_end, displayTimezone)}</div>
+                  <div className="text-xs text-muted-foreground mb-1">End</div>
+                  <div className="font-medium text-foreground">{formatDateTime(selectedAppointment.scheduled_end, displayTimezone)}</div>
                 </div>
               </div>
 
               {selectedAppointment.address?.street || selectedAppointment.address?.city ? (
                 <div>
-                  <div className="text-xs text-slate-500 mb-1">Address</div>
+                  <div className="text-xs text-muted-foreground mb-1">Address</div>
                   {(() => {
                     const line = [selectedAppointment.address?.street, selectedAppointment.address?.city, selectedAppointment.address?.state, selectedAppointment.address?.zip]
                       .filter(Boolean)
@@ -1380,7 +1454,7 @@ export default function AppointmentsPage() {
               ) : null}
 
               <div>
-                <div className="text-xs text-slate-500 mb-1">Confirmation link</div>
+                <div className="text-xs text-muted-foreground mb-1">Confirmation link</div>
                 {selectedAppointment.booking_link ? (
                   <div className="flex flex-wrap items-center gap-2 text-sm">
                     <a
@@ -1398,22 +1472,22 @@ export default function AppointmentsPage() {
                       Copy
                     </button>
                     {typeof selectedAppointment.booking_link_expires_at === 'number' && selectedAppointment.booking_link_expires_at < Date.now() ? (
-                      <span className="text-xs text-slate-400">Expired</span>
+                      <span className="text-xs text-muted-foreground">Expired</span>
                     ) : null}
                   </div>
                 ) : (
-                  <div className="text-sm text-slate-500">Not sent yet</div>
+                  <div className="text-sm text-muted-foreground">Not sent yet</div>
                 )}
               </div>
 
               {selectedAppointment.notes ? (
                 <div>
-                  <div className="text-xs text-slate-500 mb-1">Notes</div>
-                  <div className="text-sm text-slate-700 whitespace-pre-wrap">{selectedAppointment.notes}</div>
+                  <div className="text-xs text-muted-foreground mb-1">Notes</div>
+                  <div className="text-sm text-foreground whitespace-pre-wrap">{selectedAppointment.notes}</div>
                 </div>
               ) : null}
 
-              <div className="flex justify-end gap-2 pt-4 border-t border-slate-100">
+              <div className="flex justify-end gap-2 pt-4 border-t border-border">
                 <button className={outlineBtnCls} onClick={() => handleEditAppointment(selectedAppointment)}>
                   <IconEdit stroke={1.5} className="h-4 w-4 mr-2 inline-block" />
                   Edit
@@ -1430,45 +1504,84 @@ export default function AppointmentsPage() {
 
       {/* Create Appointment Dialog */}
       <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-        <DialogContent className="max-w-xl">
+        <DialogContent className="max-w-xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>New Appointment</DialogTitle>
           </DialogHeader>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="sm:col-span-2">
-              <div className="text-xs text-slate-500 mb-1">Customer name</div>
+              <div className="text-xs text-muted-foreground mb-1">Customer</div>
+              <select
+                className={inputCls}
+                value={createDraft.selected_contact_id || 'MANUAL'}
+                onChange={(e) => handleSelectCreateContact(e.target.value)}
+              >
+                <option value="MANUAL">Enter customer manually</option>
+                {contacts.map((contact: any) => (
+                  <option key={contact.contact_id} value={contact.contact_id}>
+                    {contact.name || 'Unnamed contact'}
+                    {contact.phone_number ? ` · ${contact.phone_number}` : ''}
+                    {contact.email ? ` · ${contact.email}` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="sm:col-span-2">
+              <div className="text-xs text-muted-foreground mb-1">Customer name</div>
               <input className={inputCls} value={createDraft.contact_name} onChange={(e) => setCreateDraft((p: any) => ({ ...p, contact_name: e.target.value }))} placeholder="e.g., John Doe" />
             </div>
             <div className="sm:col-span-2">
-              <div className="text-xs text-slate-500 mb-1">Customer email (optional)</div>
+              <div className="text-xs text-muted-foreground mb-1">Customer email (optional)</div>
               <input className={inputCls} value={createDraft.contact_email} onChange={(e) => setCreateDraft((p: any) => ({ ...p, contact_email: e.target.value }))} placeholder="e.g., john@email.com" />
             </div>
             <div className="sm:col-span-2">
-              <div className="text-xs text-slate-500 mb-1">Customer phone (optional)</div>
+              <div className="text-xs text-muted-foreground mb-1">Customer phone (optional)</div>
               <input className={inputCls} value={createDraft.contact_phone} onChange={(e) => setCreateDraft((p: any) => ({ ...p, contact_phone: e.target.value }))} placeholder="e.g., +18324041336" />
             </div>
             <div>
-              <div className="text-xs text-slate-500 mb-1">Date</div>
+              <div className="text-xs text-muted-foreground mb-1">Date</div>
               <input type="date" className={inputCls} value={createDraft.date} onChange={(e) => setCreateDraft((p: any) => ({ ...p, date: e.target.value }))} />
             </div>
             <div>
-              <div className="text-xs text-slate-500 mb-1">Start time</div>
+              <div className="text-xs text-muted-foreground mb-1">Start time</div>
               <input type="time" className={inputCls} value={createDraft.start_time} onChange={(e) => setCreateDraft((p: any) => ({ ...p, start_time: e.target.value }))} />
             </div>
             <div>
-              <div className="text-xs text-slate-500 mb-1">Duration (minutes)</div>
+              <div className="text-xs text-muted-foreground mb-1">Duration (minutes)</div>
               <input type="number" className={inputCls} value={createDraft.duration_minutes} onChange={(e) => setCreateDraft((p: any) => ({ ...p, duration_minutes: e.target.value }))} min={10} />
             </div>
             <div>
-              <div className="text-xs text-slate-500 mb-1">Service</div>
-              <input className={inputCls} value={createDraft.service_type} onChange={(e) => setCreateDraft((p: any) => ({ ...p, service_type: e.target.value }))} placeholder={company?.service_type || 'Service'} />
+              <div className="text-xs text-muted-foreground mb-1">Service</div>
+              {bookingServiceOptions.length > 0 ? (
+                <select
+                  className={inputCls}
+                  value={createDraft.selected_service_id || ''}
+                  onChange={(e) => {
+                    const svc = bookingServiceOptions.find((service: any) => service.service_id === e.target.value);
+                    setCreateDraft((p: any) => ({
+                      ...p,
+                      selected_service_id: svc?.service_id || '',
+                      service_type: svc?.name || p.service_type,
+                    }));
+                  }}
+                >
+                  <option value="">Choose a service</option>
+                  {bookingServiceOptions.map((service: any) => (
+                    <option key={service.service_id} value={service.service_id}>
+                      {service.name}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input className={inputCls} value={createDraft.service_type} onChange={(e) => setCreateDraft((p: any) => ({ ...p, service_type: e.target.value }))} placeholder={company?.service_type || 'Service'} />
+              )}
             </div>
             <div className="sm:col-span-2">
-              <div className="text-xs text-slate-500 mb-1">Notes (optional)</div>
+              <div className="text-xs text-muted-foreground mb-1">Notes (optional)</div>
               <input className={inputCls} value={createDraft.notes} onChange={(e) => setCreateDraft((p: any) => ({ ...p, notes: e.target.value }))} placeholder="Add details for your team..." />
             </div>
             <div className="sm:col-span-2">
-              <div className="text-xs text-slate-500 mb-1">Address (optional)</div>
+              <div className="text-xs text-muted-foreground mb-1">Address (optional)</div>
               <input className={inputCls} value={createDraft.address_street} onChange={(e) => setCreateDraft((p: any) => ({ ...p, address_street: e.target.value }))} placeholder="Street" />
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-2">
                 <input className={inputCls} value={createDraft.address_city} onChange={(e) => setCreateDraft((p: any) => ({ ...p, address_city: e.target.value }))} placeholder="City" />
@@ -1477,13 +1590,37 @@ export default function AppointmentsPage() {
               </div>
             </div>
             <div className="sm:col-span-2">
-              <div className="text-xs text-slate-500 mb-1">Price (optional)</div>
-              <input className={inputCls} value={createDraft.price} onChange={(e) => setCreateDraft((p: any) => ({ ...p, price: e.target.value }))} placeholder="e.g., 149.00" />
+              <div className="text-xs text-muted-foreground mb-1">Price</div>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1.15fr_0.85fr]">
+                <select
+                  className={inputCls}
+                  value={createDraft.pricing_mode || 'CUSTOM'}
+                  onChange={(e) => handleCreatePricingModeChange(e.target.value)}
+                >
+                  <option value="CUSTOM">Custom amount</option>
+                  {bookingServiceOptions.map((service: any) => (
+                    <option key={service.service_id} value={service.service_id}>
+                      {service.name}
+                      {typeof service.amount_cents === 'number' ? ` · $${(service.amount_cents / 100).toFixed(2)}` : ''}
+                    </option>
+                  ))}
+                </select>
+                <div className="relative">
+                  <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">$</span>
+                  <input
+                    className={`${inputCls} pl-7`}
+                    value={createDraft.price}
+                    onChange={(e) => setCreateDraft((p: any) => ({ ...p, price: e.target.value }))}
+                    placeholder="0.00"
+                    disabled={createDraft.pricing_mode !== 'CUSTOM' && !!createDraft.selected_service_id}
+                  />
+                </div>
+              </div>
             </div>
 
-            <div className="sm:col-span-2 border-t border-slate-100 pt-3">
+            <div className="sm:col-span-2 border-t border-border pt-3">
               <div className="flex items-center justify-between">
-                <label className="text-sm font-medium text-slate-700">Recurring appointment</label>
+                <label className="text-sm font-medium text-foreground">Recurring appointment</label>
                 <input
                   type="checkbox"
                   checked={!!createDraft.recurrence_enabled}
@@ -1544,22 +1681,22 @@ export default function AppointmentsPage() {
                 key={id}
                 className={`w-full border rounded-lg p-4 text-left transition ${
                   selectedProvider === id
-                    ? 'border-emerald-400 bg-emerald-50'
-                    : 'border-slate-200 hover:border-slate-300'
+                    ? 'border-emerald-400 bg-emerald-50 dark:bg-emerald-950/30 dark:border-emerald-900'
+                    : 'border-border hover:border-slate-300 dark:hover:border-slate-600'
                 }`}
                 onClick={() => setSelectedProvider(id)}
               >
-                <div className="font-semibold text-slate-900">{title}</div>
-                <div className="text-sm text-slate-500 mt-1">{desc}</div>
+                <div className="font-semibold text-foreground">{title}</div>
+                <div className="text-sm text-muted-foreground mt-1">{desc}</div>
               </button>
             ))}
           </div>
 
           {showAppleForm ? (
-            <div className="space-y-4 mt-4 border-t border-slate-100 pt-4">
-              <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
-                <div className="text-sm font-semibold text-slate-900 mb-2">How to create an app-specific password:</div>
-                <ol className="text-sm text-slate-700 space-y-1 list-decimal list-inside">
+            <div className="space-y-4 mt-4 border-t border-border pt-4">
+              <div className="bg-muted/50 border border-border rounded-lg p-4">
+                <div className="text-sm font-semibold text-foreground mb-2">How to create an app-specific password:</div>
+                <ol className="text-sm text-foreground space-y-1 list-decimal list-inside">
                   <li>Go to <a href="https://appleid.apple.com" target="_blank" rel="noopener noreferrer" className="underline text-emerald-600">appleid.apple.com</a></li>
                   <li>Sign in with your Apple ID</li>
                   <li>Go to "Sign-In and Security" &rarr; "App-Specific Passwords"</li>
@@ -1570,7 +1707,7 @@ export default function AppointmentsPage() {
               </div>
               <div className="space-y-3">
                 <div>
-                  <label htmlFor="apple-email" className="text-xs text-slate-500 block mb-1">Apple ID Email</label>
+                  <label htmlFor="apple-email" className="text-xs text-muted-foreground block mb-1">Apple ID Email</label>
                   <input
                     id="apple-email"
                     type="email"
@@ -1581,7 +1718,7 @@ export default function AppointmentsPage() {
                   />
                 </div>
                 <div>
-                  <label htmlFor="apple-password" className="text-xs text-slate-500 block mb-1">App-Specific Password</label>
+                  <label htmlFor="apple-password" className="text-xs text-muted-foreground block mb-1">App-Specific Password</label>
                   <input
                     id="apple-password"
                     type="password"
@@ -1590,7 +1727,7 @@ export default function AppointmentsPage() {
                     onChange={(e) => setApplePassword(e.target.value)}
                     placeholder="xxxx-xxxx-xxxx-xxxx"
                   />
-                  <div className="text-xs text-slate-500 mt-1">This password is stored securely and only used for calendar access</div>
+                  <div className="text-xs text-muted-foreground mt-1">This password is stored securely and only used for calendar access</div>
                 </div>
               </div>
               <div className="flex justify-end gap-2">
@@ -1621,26 +1758,26 @@ export default function AppointmentsPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <button
                 className={`border rounded-lg p-4 text-left transition ${
-                  setupChoice === 'INTERNAL' ? 'border-emerald-400 bg-emerald-50' : 'border-slate-200 hover:border-slate-300'
+                  setupChoice === 'INTERNAL' ? 'border-emerald-400 bg-emerald-50 dark:bg-emerald-950/30 dark:border-emerald-900' : 'border-border hover:border-slate-300 dark:hover:border-slate-600'
                 }`}
                 onClick={() => setSetupChoice('INTERNAL')}
               >
-                <div className="font-semibold text-slate-900">Create new calendar</div>
-                <div className="text-sm text-slate-500 mt-1">Manage appointments inside HandyCall. Best option to start.</div>
+                <div className="font-semibold text-foreground">Create new calendar</div>
+                <div className="text-sm text-muted-foreground mt-1">Manage appointments inside HandyCall. Best option to start.</div>
               </button>
               <button
                 className={`border rounded-lg p-4 text-left transition ${
-                  setupChoice === 'EXTERNAL' ? 'border-emerald-400 bg-emerald-50' : 'border-slate-200 hover:border-slate-300'
+                  setupChoice === 'EXTERNAL' ? 'border-emerald-400 bg-emerald-50 dark:bg-emerald-950/30 dark:border-emerald-900' : 'border-border hover:border-slate-300 dark:hover:border-slate-600'
                 }`}
                 onClick={() => setSetupChoice('EXTERNAL')}
               >
-                <div className="font-semibold text-slate-900">Connect existing calendar</div>
-                <div className="text-sm text-slate-500 mt-1">Google / Outlook / Apple sync (UI now; sync wiring next).</div>
+                <div className="font-semibold text-foreground">Connect existing calendar</div>
+                <div className="text-sm text-muted-foreground mt-1">Google / Outlook / Apple sync (UI now; sync wiring next).</div>
               </button>
             </div>
 
             <div>
-              <div className="text-xs text-slate-500 mb-1">Timezone</div>
+              <div className="text-xs text-muted-foreground mb-1">Timezone</div>
               <Select value={setupTimezone} onValueChange={setSetupTimezone}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select timezone" />
@@ -1674,31 +1811,31 @@ export default function AppointmentsPage() {
           </DialogHeader>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="sm:col-span-2">
-              <div className="text-xs text-slate-500 mb-1">Customer name</div>
+              <div className="text-xs text-muted-foreground mb-1">Customer name</div>
               <input className={inputCls} value={editDraft.contact_name || ''} onChange={(e) => setEditDraft((p: any) => ({ ...p, contact_name: e.target.value }))} placeholder="e.g., John Doe" />
             </div>
             <div className="sm:col-span-2">
-              <div className="text-xs text-slate-500 mb-1">Customer email</div>
+              <div className="text-xs text-muted-foreground mb-1">Customer email</div>
               <input className={inputCls} value={editDraft.contact_email || ''} onChange={(e) => setEditDraft((p: any) => ({ ...p, contact_email: e.target.value }))} placeholder="e.g., john@email.com" />
             </div>
             <div className="sm:col-span-2">
-              <div className="text-xs text-slate-500 mb-1">Customer phone</div>
+              <div className="text-xs text-muted-foreground mb-1">Customer phone</div>
               <input className={inputCls} value={editDraft.contact_phone || ''} onChange={(e) => setEditDraft((p: any) => ({ ...p, contact_phone: e.target.value }))} placeholder="e.g., +18324041336" />
             </div>
             <div>
-              <div className="text-xs text-slate-500 mb-1">Date</div>
+              <div className="text-xs text-muted-foreground mb-1">Date</div>
               <input type="date" className={inputCls} value={editDraft.date || ''} onChange={(e) => setEditDraft((p: any) => ({ ...p, date: e.target.value }))} />
             </div>
             <div>
-              <div className="text-xs text-slate-500 mb-1">Start time</div>
+              <div className="text-xs text-muted-foreground mb-1">Start time</div>
               <input type="time" className={inputCls} value={editDraft.start_time || ''} onChange={(e) => setEditDraft((p: any) => ({ ...p, start_time: e.target.value }))} />
             </div>
             <div>
-              <div className="text-xs text-slate-500 mb-1">Duration (minutes)</div>
+              <div className="text-xs text-muted-foreground mb-1">Duration (minutes)</div>
               <input type="number" className={inputCls} value={editDraft.duration_minutes || ''} onChange={(e) => setEditDraft((p: any) => ({ ...p, duration_minutes: e.target.value }))} min={10} />
             </div>
             <div>
-              <div className="text-xs text-slate-500 mb-1">Service</div>
+              <div className="text-xs text-muted-foreground mb-1">Service</div>
               {Array.isArray(company?.booking_services) && company.booking_services.filter((s: any) => s?.active !== false).length > 0 ? (
                 <select
                   className={inputCls}
@@ -1728,7 +1865,7 @@ export default function AppointmentsPage() {
               )}
             </div>
             <div>
-              <div className="text-xs text-slate-500 mb-1">Status</div>
+              <div className="text-xs text-muted-foreground mb-1">Status</div>
               <select
                 className={inputCls}
                 value={editDraft.status || 'SCHEDULED'}
@@ -1741,11 +1878,11 @@ export default function AppointmentsPage() {
               </select>
             </div>
             <div className="sm:col-span-2">
-              <div className="text-xs text-slate-500 mb-1">Notes</div>
+              <div className="text-xs text-muted-foreground mb-1">Notes</div>
               <input className={inputCls} value={editDraft.notes || ''} onChange={(e) => setEditDraft((p: any) => ({ ...p, notes: e.target.value }))} placeholder="Add details..." />
             </div>
             <div className="sm:col-span-2">
-              <div className="text-xs text-slate-500 mb-1">Address</div>
+              <div className="text-xs text-muted-foreground mb-1">Address</div>
               <input className={inputCls} value={editDraft.address_street || ''} onChange={(e) => setEditDraft((p: any) => ({ ...p, address_street: e.target.value }))} placeholder="Street" />
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-2">
                 <input className={inputCls} value={editDraft.address_city || ''} onChange={(e) => setEditDraft((p: any) => ({ ...p, address_city: e.target.value }))} placeholder="City" />
@@ -1754,7 +1891,7 @@ export default function AppointmentsPage() {
               </div>
             </div>
             <div className="sm:col-span-2">
-              <div className="text-xs text-slate-500 mb-1">Price</div>
+              <div className="text-xs text-muted-foreground mb-1">Price</div>
               <input className={inputCls} value={editDraft.price || ''} onChange={(e) => setEditDraft((p: any) => ({ ...p, price: e.target.value }))} placeholder="e.g., 149.00" />
             </div>
           </div>
@@ -1772,15 +1909,15 @@ export default function AppointmentsPage() {
             <DialogTitle>Delete Appointment</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <p className="text-sm text-slate-700">
+            <p className="text-sm text-foreground">
               Are you sure you want to delete this appointment? This action cannot be undone.
             </p>
             {appointmentToDelete && (
-              <div className="bg-slate-50 rounded-lg p-4">
-                <div className="font-medium text-slate-900">
+              <div className="bg-muted/50 rounded-lg p-4">
+                <div className="font-medium text-foreground">
                   {appointmentToDelete.contact_name || appointmentToDelete.service_type || 'Appointment'}
                 </div>
-                <div className="text-sm text-slate-500 mt-1">
+                <div className="text-sm text-muted-foreground mt-1">
                   {formatDateTime(appointmentToDelete.scheduled_start, displayTimezone)}
                 </div>
               </div>
@@ -1803,10 +1940,10 @@ export default function AppointmentsPage() {
           </DialogHeader>
           <div className="space-y-4">
             {isExternalCalendarConnected && (
-              <div className="bg-emerald-50 border border-emerald-100 rounded-lg p-4">
+              <div className="bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-100 dark:border-emerald-900 rounded-lg p-4">
                 <div className="flex items-center gap-2">
                   <div className="h-2 w-2 rounded-full bg-emerald-500" />
-                  <span className="text-sm font-medium text-emerald-700">
+                  <span className="text-sm font-medium text-emerald-700 dark:text-emerald-300">
                     Connected to {
                       company?.calendar_provider === 'GOOGLE' ? 'Google Calendar' :
                       company?.calendar_provider === 'MICROSOFT' ? 'Microsoft Outlook' :
@@ -1818,11 +1955,11 @@ export default function AppointmentsPage() {
               </div>
             )}
 
-            <div className="rounded-lg border border-slate-200 bg-white p-4">
+            <div className="rounded-lg border border-border bg-card p-4">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <div className="text-sm font-medium text-slate-900">Timezone</div>
-                  <div className="text-xs text-slate-500 mt-1">
+                  <div className="text-sm font-medium text-foreground">Timezone</div>
+                  <div className="text-xs text-muted-foreground mt-1">
                     {calendarTimezone || 'Not set yet'}
                     {isExternalCalendarConnected ? ' (from connected calendar)' : ''}
                   </div>
@@ -1849,9 +1986,9 @@ export default function AppointmentsPage() {
               </div>
             </div>
 
-            <div className="rounded-lg border border-slate-200 bg-white p-4">
-              <div className="text-sm font-medium text-slate-900">Weekly working hours</div>
-              <div className="text-xs text-slate-500 mt-1">Set one or more available time windows per day.</div>
+            <div className="rounded-lg border border-border bg-card p-4">
+              <div className="text-sm font-medium text-foreground">Weekly working hours</div>
+              <div className="text-xs text-muted-foreground mt-1">Set one or more available time windows per day.</div>
 
               <div className="mt-4 space-y-3">
                 {WEEKDAYS.map(({ key, label }) => {
@@ -1859,10 +1996,10 @@ export default function AppointmentsPage() {
                   const segments = Array.isArray(day.segments) ? day.segments : [];
                   const closed = !!day.closed || segments.length === 0;
                   return (
-                    <div key={key} className="rounded-lg border border-slate-200 p-3">
+                    <div key={key} className="rounded-lg border border-border p-3">
                       <div className="flex items-center justify-between gap-3">
-                        <div className="text-sm font-medium text-slate-900">{label}</div>
-                        <label className="flex items-center gap-2 text-sm text-slate-700">
+                        <div className="text-sm font-medium text-foreground">{label}</div>
+                        <label className="flex items-center gap-2 text-sm text-foreground">
                           <input
                             type="checkbox"
                             checked={closed}
@@ -1899,7 +2036,7 @@ export default function AppointmentsPage() {
                                   });
                                 }}
                               />
-                              <span className="text-sm text-slate-500">to</span>
+                              <span className="text-sm text-muted-foreground">to</span>
                               <input
                                 type="time"
                                 className={inputCls}
@@ -1951,16 +2088,16 @@ export default function AppointmentsPage() {
               </div>
             </div>
 
-            <div className="rounded-lg border border-slate-200 bg-white p-4">
-              <div className="text-sm font-medium text-slate-900">Date exceptions</div>
-              <div className="text-xs text-slate-500 mt-1">Override availability for a specific date (vacation, holidays, partial day).</div>
+            <div className="rounded-lg border border-border bg-card p-4">
+              <div className="text-sm font-medium text-foreground">Date exceptions</div>
+              <div className="text-xs text-muted-foreground mt-1">Override availability for a specific date (vacation, holidays, partial day).</div>
 
               <div className="mt-4 space-y-3">
                 {(dateOverridesDraft || []).map((o, idx) => {
                   const segments = Array.isArray(o.segments) ? o.segments : [];
                   const closed = !!o.closed || segments.length === 0;
                   return (
-                    <div key={`${o.date}-${idx}`} className="rounded-lg border border-slate-200 p-3">
+                    <div key={`${o.date}-${idx}`} className="rounded-lg border border-border p-3">
                       <div className="flex flex-wrap items-center justify-between gap-3">
                         <div className="flex items-center gap-2">
                           <input
@@ -1972,7 +2109,7 @@ export default function AppointmentsPage() {
                               setDateOverridesDraft((prev) => prev.map((x, i) => (i === idx ? { ...x, date: v } : x)));
                             }}
                           />
-                          <label className="flex items-center gap-2 text-sm text-slate-700">
+                          <label className="flex items-center gap-2 text-sm text-foreground">
                             <input
                               type="checkbox"
                               checked={closed}
@@ -2021,7 +2158,7 @@ export default function AppointmentsPage() {
                                   );
                                 }}
                               />
-                              <span className="text-sm text-slate-500">to</span>
+                              <span className="text-sm text-muted-foreground">to</span>
                               <input
                                 type="time"
                                 className={inputCls}
@@ -2092,7 +2229,7 @@ export default function AppointmentsPage() {
               </div>
             </div>
 
-            <div className="flex justify-between items-center pt-4 border-t border-slate-100">
+            <div className="flex justify-between items-center pt-4 border-t border-border">
               {isExternalCalendarConnected ? (
                 <button
                   className="border border-red-200 text-red-600 hover:bg-red-50 rounded-lg px-4 py-2 text-sm transition-colors"
@@ -2120,7 +2257,7 @@ export default function AppointmentsPage() {
             <DialogTitle>Disconnect Calendar</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <p className="text-sm text-slate-700">
+            <p className="text-sm text-foreground">
               Are you sure you want to disconnect your calendar? Your appointments will remain, but new events won&apos;t sync with your external calendar.
             </p>
             <div className="flex justify-end gap-2">

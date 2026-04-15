@@ -49,8 +49,7 @@ function formatDate(ts?: number) {
   });
 }
 
-const canRefund = (status: string) =>
-  String(status || '').toUpperCase() === 'SUCCEEDED';
+const canRefund = (status: string) => String(status || '').toUpperCase() === 'SUCCEEDED';
 
 export default function PaymentsPage() {
   const [payments, setPayments] = useState<Payment[]>([]);
@@ -68,7 +67,9 @@ export default function PaymentsPage() {
   // Refund modal
   const [refundTarget, setRefundTarget] = useState<Payment | null>(null);
   const [refundAmountDollars, setRefundAmountDollars] = useState('');
-  const [refundReason, setRefundReason] = useState<'requested_by_customer' | 'duplicate' | 'fraudulent'>('requested_by_customer');
+  const [refundReason, setRefundReason] = useState<
+    'requested_by_customer' | 'duplicate' | 'fraudulent'
+  >('requested_by_customer');
   const [refundLoading, setRefundLoading] = useState(false);
   const [refundError, setRefundError] = useState('');
   const [refundSuccess, setRefundSuccess] = useState('');
@@ -209,17 +210,20 @@ export default function PaymentsPage() {
 
   const statusBadgeClass = (status: string) => {
     const normalized = String(status || '').toUpperCase();
-    if (normalized === 'SUCCEEDED') return 'border-emerald-200 bg-emerald-50 text-emerald-700';
-    if (normalized === 'REFUNDED' || normalized === 'PARTIALLY_REFUNDED') return 'border-purple-200 bg-purple-50 text-purple-700';
-    if (normalized === 'FAILED' || normalized === 'CANCELED') return 'border-red-200 bg-red-50 text-red-700';
+    if (normalized === 'SUCCEEDED')
+      return 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300';
+    if (normalized === 'REFUNDED' || normalized === 'PARTIALLY_REFUNDED')
+      return 'border-purple-200 bg-purple-50 text-purple-700 dark:border-purple-900 dark:bg-purple-950/40 dark:text-purple-300';
+    if (normalized === 'FAILED' || normalized === 'CANCELED')
+      return 'border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300';
     if (
       normalized === 'PROCESSING' ||
       normalized === 'REQUIRES_CONFIRMATION' ||
       normalized === 'REQUIRES_PAYMENT_METHOD'
     ) {
-      return 'border-amber-200 bg-amber-50 text-amber-700';
+      return 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300';
     }
-    return 'border-slate-200 bg-slate-50 text-slate-700';
+    return 'border-border bg-card/70 text-foreground';
   };
 
   return (
@@ -241,18 +245,27 @@ export default function PaymentsPage() {
       />
 
       <div className="grid gap-4 md:grid-cols-4">
-        <StatCard label="Total revenue" value={formatMoney(Number(stats?.total_revenue_cents || 0), 'usd')} />
-        <StatCard label="This month" value={formatMoney(Number(stats?.this_month_revenue_cents || 0), 'usd')} />
+        <StatCard
+          label="Total revenue"
+          value={formatMoney(Number(stats?.total_revenue_cents || 0), 'usd')}
+        />
+        <StatCard
+          label="This month"
+          value={formatMoney(Number(stats?.this_month_revenue_cents || 0), 'usd')}
+        />
         <StatCard label="Successful" value={String(stats?.successful_payments || 0)} />
-        <StatCard label="Avg ticket" value={formatMoney(Number(stats?.average_ticket_cents || 0), 'usd')} />
+        <StatCard
+          label="Avg ticket"
+          value={formatMoney(Number(stats?.average_ticket_cents || 0), 'usd')}
+        />
       </div>
 
-      <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
+      <div className="rounded-2xl border border-border/80 bg-card/82 p-4 shadow-sm backdrop-blur-sm">
         <div className="grid gap-3 md:grid-cols-5">
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="h-10 rounded-xl border border-slate-200 px-3 text-sm"
+            className="h-10 rounded-xl border border-border px-3 text-sm bg-card text-foreground"
           >
             <option value="ALL">All statuses</option>
             <option value="SUCCEEDED">Succeeded</option>
@@ -267,7 +280,7 @@ export default function PaymentsPage() {
           <select
             value={typeFilter}
             onChange={(e) => setTypeFilter(e.target.value)}
-            className="h-10 rounded-xl border border-slate-200 px-3 text-sm"
+            className="h-10 rounded-xl border border-border px-3 text-sm bg-card text-foreground"
           >
             <option value="ALL">All types</option>
             <option value="BOOKING">Booking</option>
@@ -283,10 +296,10 @@ export default function PaymentsPage() {
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm">
+      <div className="overflow-hidden rounded-2xl border border-border/80 bg-card/82 shadow-sm backdrop-blur-sm">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="bg-slate-50 text-left text-slate-500">
+            <thead className="bg-slate-50/85 text-left text-slate-500 dark:bg-slate-900/70 dark:text-slate-400">
               <tr>
                 <th className="px-4 py-3 font-medium">Date</th>
                 <th className="px-4 py-3 font-medium">Customer</th>
@@ -300,21 +313,25 @@ export default function PaymentsPage() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td className="px-4 py-6 text-slate-500" colSpan={7}>Loading payments…</td>
+                  <td className="px-4 py-6 text-muted-foreground" colSpan={7}>
+                    Loading payments…
+                  </td>
                 </tr>
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td className="px-4 py-6 text-slate-500" colSpan={7}>No payments found.</td>
+                  <td className="px-4 py-6 text-muted-foreground" colSpan={7}>
+                    No payments found.
+                  </td>
                 </tr>
               ) : (
                 filtered.map((payment) => (
-                  <tr key={payment.payment_id} className="border-t border-slate-100">
+                  <tr key={payment.payment_id} className="border-t border-border/80">
                     <td className="px-4 py-3">{formatDate(payment.created_at)}</td>
                     <td className="px-4 py-3">
                       {payment.contact_id ? (
                         <Link
                           href={`/dashboard/customers?contact=${payment.contact_id}`}
-                          className="font-medium text-emerald-700 hover:text-emerald-600"
+                          className="font-medium text-emerald-700 hover:text-emerald-600 dark:text-emerald-400 dark:hover:text-emerald-300"
                         >
                           {payment.customer_name || 'Customer'}
                         </Link>
@@ -323,11 +340,11 @@ export default function PaymentsPage() {
                       )}
                     </td>
                     <td className="px-4 py-3">{payment.service_name || '-'}</td>
-                    <td className="px-4 py-3 font-semibold text-slate-900">
+                    <td className="px-4 py-3 font-semibold text-foreground">
                       {formatMoney(payment.amount_cents, payment.currency)}
                     </td>
                     <td className="px-4 py-3">
-                      <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs font-medium text-slate-700">
+                      <span className="rounded-full border border-border bg-muted/50 px-2 py-0.5 text-xs font-medium text-foreground">
                         {payment.payment_type || 'BOOKING'}
                       </span>
                     </td>
@@ -343,7 +360,7 @@ export default function PaymentsPage() {
                         <button
                           type="button"
                           onClick={() => void openReceipt(payment.payment_id)}
-                          className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                          className="rounded-lg border border-border/80 bg-card/70 px-2.5 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-accent dark:text-slate-300"
                         >
                           Receipt
                         </button>
@@ -351,7 +368,7 @@ export default function PaymentsPage() {
                           <button
                             type="button"
                             onClick={() => openRefund(payment)}
-                            className="rounded-lg border border-red-200 bg-red-50 px-2.5 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-100"
+                            className="rounded-lg border border-red-200 bg-red-50 px-2.5 py-1.5 text-xs font-semibold text-red-700 transition hover:bg-red-100 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300 dark:hover:bg-red-950/60"
                           >
                             Refund
                           </button>
@@ -368,35 +385,75 @@ export default function PaymentsPage() {
 
       {/* Receipt Modal */}
       {(selectedReceipt || receiptLoading) && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
-          <div className="w-full max-w-xl rounded-xl border border-slate-200 bg-white p-6 shadow-lg">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-xl rounded-2xl border border-border/80 bg-popover/96 p-6 shadow-[0_32px_90px_-38px_rgba(15,23,42,0.82)] backdrop-blur-xl">
             <div className="mb-4 flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-slate-900">Payment receipt</h3>
+              <h3 className="text-lg font-semibold text-foreground">
+                Payment receipt
+              </h3>
               <button
                 type="button"
                 onClick={closeReceipt}
-                className="rounded-lg border border-slate-200 px-2 py-1 text-xs text-slate-600 hover:bg-slate-50"
+                className="rounded-lg border border-border/80 bg-card/70 px-2 py-1 text-xs text-slate-600 transition hover:bg-accent dark:text-slate-300"
               >
                 Close
               </button>
             </div>
             {receiptLoading || !selectedReceipt ? (
-              <p className="text-sm text-slate-500">Loading receipt…</p>
+              <p className="text-sm text-muted-foreground">Loading receipt…</p>
             ) : (
-              <div className="space-y-2 text-sm text-slate-700">
-                <p><span className="font-semibold text-slate-900">Receipt ID:</span> {selectedReceipt.payment_id}</p>
-                <p><span className="font-semibold text-slate-900">Date:</span> {formatDate(selectedReceipt.paid_at || selectedReceipt.created_at)}</p>
-                <p><span className="font-semibold text-slate-900">Customer:</span> {selectedReceipt.customer_name || 'Customer'}</p>
-                <p><span className="font-semibold text-slate-900">Email:</span> {selectedReceipt.customer_email || '-'}</p>
-                <p><span className="font-semibold text-slate-900">Service:</span> {selectedReceipt.service_name || '-'}</p>
-                <p><span className="font-semibold text-slate-900">Type:</span> {selectedReceipt.payment_type || '-'}</p>
-                <p><span className="font-semibold text-slate-900">Status:</span> {selectedReceipt.payment_status || '-'}</p>
-                <p><span className="font-semibold text-slate-900">Amount:</span> {formatMoney(selectedReceipt.amount_cents, selectedReceipt.currency)}</p>
+              <div className="space-y-2 text-sm text-foreground">
+                <p>
+                  <span className="font-semibold text-foreground">
+                    Receipt ID:
+                  </span>{' '}
+                  {selectedReceipt.payment_id}
+                </p>
+                <p>
+                  <span className="font-semibold text-foreground">Date:</span>{' '}
+                  {formatDate(selectedReceipt.paid_at || selectedReceipt.created_at)}
+                </p>
+                <p>
+                  <span className="font-semibold text-foreground">
+                    Customer:
+                  </span>{' '}
+                  {selectedReceipt.customer_name || 'Customer'}
+                </p>
+                <p>
+                  <span className="font-semibold text-foreground">Email:</span>{' '}
+                  {selectedReceipt.customer_email || '-'}
+                </p>
+                <p>
+                  <span className="font-semibold text-foreground">Service:</span>{' '}
+                  {selectedReceipt.service_name || '-'}
+                </p>
+                <p>
+                  <span className="font-semibold text-foreground">Type:</span>{' '}
+                  {selectedReceipt.payment_type || '-'}
+                </p>
+                <p>
+                  <span className="font-semibold text-foreground">Status:</span>{' '}
+                  {selectedReceipt.payment_status || '-'}
+                </p>
+                <p>
+                  <span className="font-semibold text-foreground">Amount:</span>{' '}
+                  {formatMoney(selectedReceipt.amount_cents, selectedReceipt.currency)}
+                </p>
                 {selectedReceipt.stripe_payment_intent_id ? (
-                  <p><span className="font-semibold text-slate-900">Stripe Payment Intent:</span> {selectedReceipt.stripe_payment_intent_id}</p>
+                  <p>
+                    <span className="font-semibold text-foreground">
+                      Stripe Payment Intent:
+                    </span>{' '}
+                    {selectedReceipt.stripe_payment_intent_id}
+                  </p>
                 ) : null}
                 {selectedReceipt.stripe_subscription_id ? (
-                  <p><span className="font-semibold text-slate-900">Stripe Subscription:</span> {selectedReceipt.stripe_subscription_id}</p>
+                  <p>
+                    <span className="font-semibold text-foreground">
+                      Stripe Subscription:
+                    </span>{' '}
+                    {selectedReceipt.stripe_subscription_id}
+                  </p>
                 ) : null}
                 <div className="flex items-center gap-2 pt-3">
                   <button
@@ -413,7 +470,7 @@ export default function PaymentsPage() {
                         closeReceipt();
                         openRefund(selectedReceipt);
                       }}
-                      className="rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-100"
+                      className="rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-100 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300 dark:hover:bg-red-950/60"
                     >
                       Issue refund
                     </button>
@@ -427,28 +484,38 @@ export default function PaymentsPage() {
 
       {/* Refund Modal */}
       {refundTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
-          <div className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-6 shadow-lg">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl border border-border/80 bg-popover/96 p-6 shadow-[0_32px_90px_-38px_rgba(15,23,42,0.82)] backdrop-blur-xl">
             <div className="mb-5 flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-slate-900">Issue refund</h3>
+              <h3 className="text-lg font-semibold text-foreground">
+                Issue refund
+              </h3>
               <button
                 type="button"
                 onClick={closeRefund}
-                className="rounded-lg border border-slate-200 px-2 py-1 text-xs text-slate-600 hover:bg-slate-50"
+                className="rounded-lg border border-border/80 bg-card/70 px-2 py-1 text-xs text-slate-600 transition hover:bg-accent dark:text-slate-300"
               >
                 Cancel
               </button>
             </div>
 
-            <div className="mb-4 rounded-xl bg-slate-50 p-3 text-sm text-slate-700">
-              <p><span className="font-semibold">Customer:</span> {refundTarget.customer_name || 'Customer'}</p>
-              <p><span className="font-semibold">Service:</span> {refundTarget.service_name || '-'}</p>
-              <p><span className="font-semibold">Original amount:</span> {formatMoney(refundTarget.amount_cents, refundTarget.currency)}</p>
+            <div className="mb-4 rounded-xl bg-muted/50 p-3 text-sm text-foreground">
+              <p>
+                <span className="font-semibold">Customer:</span>{' '}
+                {refundTarget.customer_name || 'Customer'}
+              </p>
+              <p>
+                <span className="font-semibold">Service:</span> {refundTarget.service_name || '-'}
+              </p>
+              <p>
+                <span className="font-semibold">Original amount:</span>{' '}
+                {formatMoney(refundTarget.amount_cents, refundTarget.currency)}
+              </p>
             </div>
 
             <div className="space-y-4">
               <div>
-                <label className="mb-1.5 block text-sm font-semibold text-slate-700">
+                <label className="mb-1.5 block text-sm font-semibold text-foreground">
                   Refund amount ($)
                 </label>
                 <Input
@@ -460,18 +527,18 @@ export default function PaymentsPage() {
                   onChange={(e) => setRefundAmountDollars(e.target.value)}
                   placeholder="0.00"
                 />
-                <p className="mt-1 text-xs text-slate-400">
+                <p className="mt-1 text-xs text-muted-foreground">
                   Enter a partial amount or leave at full amount for a full refund.
                 </p>
               </div>
               <div>
-                <label className="mb-1.5 block text-sm font-semibold text-slate-700">
+                <label className="mb-1.5 block text-sm font-semibold text-foreground">
                   Reason
                 </label>
                 <select
                   value={refundReason}
                   onChange={(e) => setRefundReason(e.target.value as any)}
-                  className="w-full h-10 rounded-xl border border-slate-200 px-3 text-sm"
+                  className="w-full h-10 rounded-xl border border-border px-3 text-sm bg-card text-foreground"
                 >
                   <option value="requested_by_customer">Requested by customer</option>
                   <option value="duplicate">Duplicate charge</option>
@@ -480,13 +547,13 @@ export default function PaymentsPage() {
               </div>
 
               {refundError && (
-                <p className="rounded-xl bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-700">
+                <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
                   {refundError}
                 </p>
               )}
 
               {refundSuccess && (
-                <p className="rounded-xl bg-emerald-50 border border-emerald-200 px-3 py-2 text-sm text-emerald-700">
+                <p className="rounded-xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900 px-3 py-2 text-sm text-emerald-700 dark:text-emerald-300">
                   {refundSuccess}
                 </p>
               )}
@@ -504,11 +571,7 @@ export default function PaymentsPage() {
               )}
 
               {refundSuccess && (
-                <Button
-                  onClick={closeRefund}
-                  variant="outline"
-                  className="w-full"
-                >
+                <Button onClick={closeRefund} variant="outline" className="w-full">
                   Done
                 </Button>
               )}
@@ -522,9 +585,11 @@ export default function PaymentsPage() {
 
 function StatCard({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
-      <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">{label}</p>
-      <p className="mt-2 text-xl font-bold text-slate-900">{value}</p>
+    <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
+      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        {label}
+      </p>
+      <p className="mt-2 text-xl font-bold text-foreground">{value}</p>
     </div>
   );
 }

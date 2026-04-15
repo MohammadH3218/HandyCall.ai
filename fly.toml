@@ -1,0 +1,41 @@
+app = "handycall-api"
+primary_region = "iad"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  NODE_ENV        = "production"
+  PORT            = "8080"
+  API_PREFIX      = "api/v1"
+  AWS_REGION      = "us-east-1"
+  SES_REGION      = "us-east-1"
+  SES_FROM_EMAIL  = "no-reply@handycall.org"
+  SES_FROM_NAME   = "HandyCall"
+  EMAIL_PROVIDER  = "ses"
+  DYNAMODB_TABLE_PREFIX = "handycall_prod_"
+  S3_BUCKET       = "handycall-media-prod-982081079378"
+  FRONTEND_URL    = "https://handycall.org"
+  API_BASE_URL    = "https://handycall-api.fly.dev"
+  CORS_ORIGINS    = "https://handycall.org,https://www.handycall.org,https://handycall-api.fly.dev,http://localhost:3000,http://localhost:3001"
+  PLATFORM_FEE_RATE = "0.15"
+  VAT_RATE          = "0.15"
+
+[http_service]
+  internal_port       = 8080
+  force_https         = true
+  auto_stop_machines  = true
+  auto_start_machines = true
+  min_machines_running = 0
+
+  [[http_service.checks]]
+    interval     = "15s"
+    timeout      = "10s"
+    grace_period = "30s"
+    method       = "GET"
+    path         = "/api/v1/health"
+
+[[vm]]
+  cpu_kind  = "shared"
+  cpus      = 1
+  memory_mb = 512

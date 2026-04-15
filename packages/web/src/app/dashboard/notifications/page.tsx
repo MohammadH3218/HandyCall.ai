@@ -144,7 +144,7 @@ export default function NotificationsPage() {
           unreadCount > 0 ? (
             <button
               onClick={markAllRead}
-              className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50 transition"
+              className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium text-foreground shadow-sm hover:bg-accent transition"
             >
               <IconCheck stroke={2} className="h-4 w-4 text-emerald-600" />
               Mark all read
@@ -154,7 +154,7 @@ export default function NotificationsPage() {
       />
 
       {/* Filter tabs */}
-      <div className="flex flex-wrap gap-1.5 rounded-xl border border-slate-200 bg-white p-1.5 shadow-sm">
+      <div className="flex flex-wrap gap-1.5 rounded-xl border border-border bg-card p-1.5 shadow-sm">
         {CATEGORY_FILTERS.map((cat) => {
           const meta = CATEGORY_META[cat];
           return (
@@ -165,7 +165,7 @@ export default function NotificationsPage() {
               className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition ${
                 filter === cat
                   ? 'bg-emerald-600 text-white shadow-sm'
-                  : 'text-slate-600 hover:bg-slate-100'
+                  : 'text-muted-foreground hover:bg-accent hover:text-foreground'
               }`}
             >
               {meta && filter !== cat && (
@@ -179,11 +179,11 @@ export default function NotificationsPage() {
 
       {/* Content */}
       {loading ? (
-        <div className="rounded-xl border border-slate-100 bg-white px-5 py-8 text-center text-sm text-slate-400">
+        <div className="rounded-xl border border-border bg-card px-5 py-8 text-center text-sm text-muted-foreground">
           Loading notifications…
         </div>
       ) : filtered.length === 0 ? (
-        <div className="rounded-xl border border-slate-100 bg-white px-5 py-12 text-center text-sm text-slate-400">
+        <div className="rounded-xl border border-border bg-card px-5 py-12 text-center text-sm text-muted-foreground">
           No notifications yet.
         </div>
       ) : (
@@ -193,7 +193,7 @@ export default function NotificationsPage() {
             .map((label) => (
               <section key={label}>
                 <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-slate-400">{label}</p>
-                <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm divide-y divide-slate-100">
+                <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm divide-y divide-border">
                   {grouped[label].map((item) => {
                     const meta = CATEGORY_META[item.category] ?? CATEGORY_META.SYSTEM;
                     const Icon = meta.icon;

@@ -693,6 +693,189 @@ extension CallItem {
     }
 }
 
+// MARK: - LeadItem
+
+struct LeadItem: Decodable, Identifiable {
+    var id: String { callID }
+
+    let callID: String
+    let contactID: String?
+    let phoneNumber: String?
+    let contactName: String?
+    let summary: String?
+    let leadReason: String?
+    let leadProgressStage: String?
+    let createdAt: Double?
+    let lastContactAt: Double?
+    let durationSeconds: Double?
+
+    enum CodingKeys: String, CodingKey {
+        case callID = "call_id"
+        case contactID = "contact_id"
+        case phoneNumber = "phone_number"
+        case contactName = "contact_name"
+        case summary
+        case leadReason = "lead_reason"
+        case leadProgressStage = "lead_progress_stage"
+        case createdAt = "created_at"
+        case lastContactAt = "last_contact_at"
+        case durationSeconds = "duration_seconds"
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        callID = try c.decode(String.self, forKey: .callID)
+        contactID = try? c.decode(String.self, forKey: .contactID)
+        phoneNumber = c.decodeLossyString(forKey: .phoneNumber)
+        contactName = try? c.decode(String.self, forKey: .contactName)
+        summary = try? c.decode(String.self, forKey: .summary)
+        leadReason = try? c.decode(String.self, forKey: .leadReason)
+        leadProgressStage = try? c.decode(String.self, forKey: .leadProgressStage)
+        createdAt = c.decodeLossyDouble(forKey: .createdAt)
+        lastContactAt = c.decodeLossyDouble(forKey: .lastContactAt)
+        durationSeconds = c.decodeLossyDouble(forKey: .durationSeconds)
+    }
+
+    var displayName: String {
+        contactName?.nonEmpty ?? phoneNumber ?? "Unknown"
+    }
+
+    var createdDate: Date? {
+        guard let ms = createdAt, ms > 0 else { return nil }
+        return Date(timeIntervalSince1970: ms > 10_000_000_000 ? ms / 1000 : ms)
+    }
+
+    var stageLabel: String {
+        switch leadProgressStage?.uppercased() {
+        case "INTERESTED": return "Interested"
+        case "INTAKE_STARTED": return "Intake started"
+        case "READY_TO_BOOK": return "Ready to book"
+        default: return "Lead"
+        }
+    }
+
+    var stageColor: Color {
+        switch leadProgressStage?.uppercased() {
+        case "INTERESTED": return .orange
+        case "INTAKE_STARTED": return .blue
+        case "READY_TO_BOOK": return Color(red: 0.02, green: 0.59, blue: 0.41)
+        default: return .secondary
+        }
+    }
+}
+
+// MARK: - Invoice
+
+struct Invoice: Decodable, Identifiable {
+    var id: String { invoiceID }
+
+    let invoiceID: String
+    let invoiceNumber: String
+    let customerName: String
+    let customerEmail: String?
+    let customerPhone: String?
+    let lineItems: [InvoiceLineItem]
+    let subtotalCents: Int
+    let taxAmountCents: Int
+    let totalCents: Int
+    let status: String
+    let notes: String?
+    let createdAt: Double?
+    let sentAt: Double?
+    let paidAt: Double?
+
+    enum CodingKeys: String, CodingKey {
+        case invoiceID = "invoice_id"
+        case invoiceNumber = "invoice_number"
+        case customerName = "customer_name"
+        case customerEmail = "customer_email"
+        case customerPhone = "customer_phone"
+        case lineItems = "line_items"
+        case subtotalCents = "subtotal_cents"
+        case taxAmountCents = "tax_amount_cents"
+        case totalCents = "total_cents"
+        case status
+        case notes
+        case createdAt = "created_at"
+        case sentAt = "sent_at"
+        case paidAt = "paid_at"
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        invoiceID = try c.decode(String.self, forKey: .invoiceID)
+        invoiceNumber = (try? c.decode(String.self, forKey: .invoiceNumber)) ?? "—"
+        customerName = (try? c.decode(String.self, forKey: .customerName)) ?? "Unknown"
+        customerEmail = try? c.decode(String.self, forKey: .customerEmail)
+        customerPhone = try? c.decode(String.self, forKey: .customerPhone)
+        lineItems = (try? c.decode([InvoiceLineItem].self, forKey: .lineItems)) ?? []
+        subtotalCents = c.decodeLossyInt(forKey: .subtotalCents) ?? 0
+        taxAmountCents = c.decodeLossyInt(forKey: .taxAmountCents) ?? 0
+        totalCents = c.decodeLossyInt(forKey: .totalCents) ?? 0
+        status = (try? c.decode(String.self, forKey: .status)) ?? "DRAFT"
+        notes = try? c.decode(String.self, forKey: .notes)
+        createdAt = c.decodeLossyDouble(forKey: .createdAt)
+        sentAt = c.decodeLossyDouble(forKey: .sentAt)
+        paidAt = c.decodeLossyDouble(forKey: .paidAt)
+    }
+
+    var totalFormatted: String {
+        (Double(totalCents) / 100).formatted(.currency(code: "USD"))
+    }
+
+    var createdDate: Date? {
+        guard let ms = createdAt, ms > 0 else { return nil }
+        return Date(timeIntervalSince1970: ms > 10_000_000_000 ? ms / 1000 : ms)
+    }
+}
+
+struct InvoiceLineItem: Decodable, Identifiable {
+    let id = UUID()
+    let description: String
+    let quantity: Int
+    let unitPriceCents: Int
+
+    enum CodingKeys: String, CodingKey {
+        case description
+        case quantity
+        case unitPriceCents = "unit_price_cents"
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        description = (try? c.decode(String.self, forKey: .description)) ?? ""
+        quantity = c.decodeLossyInt(forKey: .quantity) ?? 1
+        unitPriceCents = c.decodeLossyInt(forKey: .unitPriceCents) ?? 0
+    }
+}
+
+struct InvoiceStats: Decodable {
+    let totalInvoices: Int
+    let paidInvoices: Int
+    let outstandingInvoices: Int
+    let totalRevenueCents: Int
+    let outstandingAmountCents: Int
+
+    enum CodingKeys: String, CodingKey {
+        case totalInvoices = "total_invoices"
+        case paidInvoices = "paid_invoices"
+        case outstandingInvoices = "outstanding_invoices"
+        case totalRevenueCents = "total_revenue_cents"
+        case outstandingAmountCents = "outstanding_amount_cents"
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        totalInvoices = c.decodeLossyInt(forKey: .totalInvoices) ?? 0
+        paidInvoices = c.decodeLossyInt(forKey: .paidInvoices) ?? 0
+        outstandingInvoices = c.decodeLossyInt(forKey: .outstandingInvoices) ?? 0
+        totalRevenueCents = c.decodeLossyInt(forKey: .totalRevenueCents) ?? 0
+        outstandingAmountCents = c.decodeLossyInt(forKey: .outstandingAmountCents) ?? 0
+    }
+}
+
+import SwiftUI
+
 private extension KeyedDecodingContainer {
     func decodeLossyString(forKey key: Key) -> String? {
         if let value = try? decodeIfPresent(String.self, forKey: key) {

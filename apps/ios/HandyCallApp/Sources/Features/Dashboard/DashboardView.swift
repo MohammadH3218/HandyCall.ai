@@ -26,7 +26,7 @@ struct DashboardView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: HandyCallTheme.Spacing.lg) {
+                VStack(spacing: HandyCallTheme.Spacing.xl) {
                     hero
 
                     if viewModel.isLoading {
@@ -38,15 +38,16 @@ struct DashboardView: View {
                             limitBanner
                         }
                         statGrid(overview: overview)
-                        usageSummary(overview: overview)
+                        usageSection(overview: overview)
                         quickActions(overview: overview)
                         activityFeed(overview: overview)
                     }
                 }
                 .padding(HandyCallTheme.Spacing.screenPadding)
+                .padding(.bottom, HandyCallTheme.Spacing.xxl)
             }
             .background(HandyCallTheme.pageBackground.ignoresSafeArea())
-            .navigationTitle("Dashboard")
+            .navigationTitle("Home")
             .task {
                 await viewModel.load(using: container.apiClient)
             }
@@ -55,6 +56,8 @@ struct DashboardView: View {
             }
         }
     }
+
+    // MARK: - Greeting
 
     private var greeting: String {
         let hour = Calendar.current.component(.hour, from: Date())
@@ -65,30 +68,35 @@ struct DashboardView: View {
         }
     }
 
-    private var hero: some View {
-        ZStack(alignment: .bottomTrailing) {
-            VStack(alignment: .leading, spacing: 6) {
-                Text(greeting)
-                    .font(HandyCallTheme.Typography.subhead)
-                    .opacity(0.85)
-                Text(sessionStore.company?.companyName ?? "HandyCall")
-                    .font(HandyCallTheme.Typography.title)
-                Text("Track usage, leads, appointments, and revenue in one place.")
-                    .font(.subheadline)
-                    .opacity(0.8)
-            }
-            .foregroundStyle(.white)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(HandyCallTheme.Spacing.xl)
+    // MARK: - Hero
 
-            Image(systemName: "waveform.path.ecg")
-                .font(.system(size: 48))
-                .foregroundStyle(.white.opacity(0.12))
-                .padding(16)
+    private var hero: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(greeting)
+                        .font(HandyCallTheme.Typography.subhead)
+                        .foregroundStyle(.white.opacity(0.85))
+                    Text(sessionStore.company?.companyName ?? "HandyCall")
+                        .font(HandyCallTheme.Typography.title)
+                        .foregroundStyle(.white)
+                }
+                Spacer()
+                Image(systemName: "waveform.path.ecg")
+                    .font(.system(size: 36))
+                    .foregroundStyle(.white.opacity(0.12))
+            }
+
+            Text("Your business at a glance")
+                .font(.subheadline)
+                .foregroundStyle(.white.opacity(0.7))
         }
+        .padding(HandyCallTheme.Spacing.xl)
         .background(HandyCallTheme.heroGradient, in: RoundedRectangle(cornerRadius: HandyCallTheme.Radius.xl, style: .continuous))
         .elevatedShadow()
     }
+
+    // MARK: - Limit Banner
 
     private var limitBanner: some View {
         HStack(alignment: .top, spacing: 10) {
@@ -108,28 +116,34 @@ struct DashboardView: View {
         .background(HandyCallTheme.destructive.opacity(0.08), in: RoundedRectangle(cornerRadius: HandyCallTheme.Radius.md, style: .continuous))
     }
 
+    // MARK: - Stat Grid
+
     private func statGrid(overview: DashboardOverview) -> some View {
-        let items: [(String, String, String)] = [
-            ("Minutes used", "\(Int(overview.usageSummary.minutes.percent.rounded()))%", "clock.fill"),
-            ("Active leads", "\(overview.metrics.activeLeads)", "person.badge.plus"),
-            ("Appointments", "\(overview.metrics.appointmentsThisWeek)", "calendar.badge.clock"),
-            ("Revenue", currency(overview.metrics.revenueThisMonthCents), "dollarsign.circle.fill")
+        let items: [(String, String, String, Color)] = [
+            ("Minutes", "\(Int(overview.usageSummary.minutes.percent.rounded()))%", "clock.fill", HandyCallTheme.emeraldFixed),
+            ("Leads", "\(overview.metrics.activeLeads)", "person.badge.plus", .orange),
+            ("Bookings", "\(overview.metrics.appointmentsThisWeek)", "calendar.badge.clock", HandyCallTheme.info),
+            ("Revenue", currency(overview.metrics.revenueThisMonthCents), "dollarsign.circle.fill", HandyCallTheme.emeraldFixed)
         ]
 
-        return LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+        return LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
             ForEach(Array(items.enumerated()), id: \.offset) { _, item in
-                VStack(alignment: .leading, spacing: 8) {
-                    Label {
-                        Text(item.0)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    } icon: {
-                        Image(systemName: item.2)
-                            .foregroundStyle(HandyCallTheme.emerald)
-                    }
+                VStack(alignment: .leading, spacing: 10) {
+                    Image(systemName: item.2)
+                        .font(.system(size: 18))
+                        .foregroundStyle(item.3)
+                        .frame(width: 34, height: 34)
+                        .background(item.3.opacity(0.12), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+
                     Text(item.1)
-                        .font(.title3.weight(.bold))
+                        .font(HandyCallTheme.Typography.statNumber)
                         .foregroundStyle(HandyCallTheme.slate)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.6)
+
+                    Text(item.0)
+                        .font(HandyCallTheme.Typography.caption)
+                        .foregroundStyle(.secondary)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(HandyCallTheme.Spacing.cardPadding)
@@ -139,15 +153,15 @@ struct DashboardView: View {
         }
     }
 
-    private func usageSummary(overview: DashboardOverview) -> some View {
+    // MARK: - Usage Summary
+
+    private func usageSection(overview: DashboardOverview) -> some View {
         VStack(alignment: .leading, spacing: HandyCallTheme.Spacing.md) {
-            Text("Usage Summary")
-                .font(HandyCallTheme.Typography.headline)
-                .foregroundStyle(HandyCallTheme.slate)
+            SectionLabel(title: "Usage Summary")
 
             VStack(spacing: 14) {
                 UsageBarRow(title: "Call minutes", item: overview.usageSummary.minutes)
-                UsageBarRow(title: "SMS", item: overview.usageSummary.sms)
+                UsageBarRow(title: "SMS messages", item: overview.usageSummary.sms)
                 UsageBarRow(title: "Contacts", item: overview.usageSummary.contacts)
             }
             .padding(HandyCallTheme.Spacing.cardPadding)
@@ -156,14 +170,69 @@ struct DashboardView: View {
         }
     }
 
+    // MARK: - Quick Actions
+
     private func quickActions(overview: DashboardOverview) -> some View {
         VStack(alignment: .leading, spacing: HandyCallTheme.Spacing.md) {
-            Text("Quick Actions")
-                .font(HandyCallTheme.Typography.headline)
-                .foregroundStyle(HandyCallTheme.slate)
+            SectionLabel(title: "Quick Actions")
 
             if overview.quickInsights.quickActions.isEmpty {
-                Text("No urgent actions right now.")
+                HStack {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(HandyCallTheme.emeraldFixed)
+                    Text("You're all caught up.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(HandyCallTheme.Spacing.cardPadding)
+                .background(HandyCallTheme.surfaceWhite, in: RoundedRectangle(cornerRadius: HandyCallTheme.Radius.card, style: .continuous))
+                .cardShadow()
+            } else {
+                VStack(spacing: 0) {
+                    ForEach(Array(overview.quickInsights.quickActions.enumerated()), id: \.element.id) { index, action in
+                        HStack(spacing: 10) {
+                            Circle()
+                                .fill(severityColor(action.severity).gradient)
+                                .frame(width: 8, height: 8)
+
+                            Text(action.title)
+                                .font(.subheadline.weight(.medium))
+                                .foregroundStyle(HandyCallTheme.slate)
+                                .lineLimit(2)
+
+                            Spacer()
+
+                            Text("\(action.count)")
+                                .font(.caption.weight(.bold))
+                                .monospacedDigit()
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(HandyCallTheme.emeraldLight, in: Capsule())
+                                .foregroundStyle(HandyCallTheme.emeraldFixed)
+                        }
+                        .padding(.vertical, 11)
+                        .padding(.horizontal, HandyCallTheme.Spacing.cardPadding)
+
+                        if index < overview.quickInsights.quickActions.count - 1 {
+                            Divider().padding(.leading, 30)
+                        }
+                    }
+                }
+                .background(HandyCallTheme.surfaceWhite, in: RoundedRectangle(cornerRadius: HandyCallTheme.Radius.card, style: .continuous))
+                .cardShadow()
+            }
+        }
+    }
+
+    // MARK: - Activity Feed
+
+    private func activityFeed(overview: DashboardOverview) -> some View {
+        VStack(alignment: .leading, spacing: HandyCallTheme.Spacing.md) {
+            SectionLabel(title: "Recent Activity")
+
+            if overview.activityFeed.isEmpty {
+                Text("No recent activity.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -171,75 +240,45 @@ struct DashboardView: View {
                     .background(HandyCallTheme.surfaceWhite, in: RoundedRectangle(cornerRadius: HandyCallTheme.Radius.card, style: .continuous))
                     .cardShadow()
             } else {
-                VStack(spacing: 8) {
-                    ForEach(overview.quickInsights.quickActions) { action in
-                        HStack(spacing: 10) {
-                            Text(action.title)
-                                .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(HandyCallTheme.slate)
-                                .lineLimit(2)
+                VStack(spacing: 0) {
+                    ForEach(Array(overview.activityFeed.prefix(12).enumerated()), id: \.element.id) { index, item in
+                        HStack(alignment: .top, spacing: 12) {
+                            Image(systemName: icon(for: item.type))
+                                .font(.system(size: 14))
+                                .foregroundStyle(HandyCallTheme.emeraldFixed)
+                                .frame(width: 28, height: 28)
+                                .background(HandyCallTheme.emeraldLight, in: Circle())
+
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(item.title)
+                                    .font(.subheadline.weight(.medium))
+                                    .foregroundStyle(HandyCallTheme.slate)
+                                Text(item.description)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(2)
+                                Text(formatTime(item.createdAt))
+                                    .font(.caption2)
+                                    .foregroundStyle(.tertiary)
+                            }
+
                             Spacer()
-                            Text("\(action.count)")
-                                .font(.caption.weight(.bold))
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 4)
-                                .background(HandyCallTheme.emeraldLight, in: Capsule())
-                            Text(action.severity)
-                                .font(.caption2.weight(.bold))
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 3)
-                                .background(severityColor(action.severity).opacity(0.14), in: Capsule())
-                                .foregroundStyle(severityColor(action.severity))
                         }
-                        .padding(HandyCallTheme.Spacing.sm)
-                        .background(Color.white, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        .padding(.vertical, 10)
+                        .padding(.horizontal, HandyCallTheme.Spacing.cardPadding)
+
+                        if index < min(11, overview.activityFeed.count - 1) {
+                            Divider().padding(.leading, 52)
+                        }
                     }
                 }
-                .padding(HandyCallTheme.Spacing.cardPadding)
                 .background(HandyCallTheme.surfaceWhite, in: RoundedRectangle(cornerRadius: HandyCallTheme.Radius.card, style: .continuous))
                 .cardShadow()
             }
         }
     }
 
-    private func activityFeed(overview: DashboardOverview) -> some View {
-        VStack(alignment: .leading, spacing: HandyCallTheme.Spacing.md) {
-            Text("Activity Feed")
-                .font(HandyCallTheme.Typography.headline)
-                .foregroundStyle(HandyCallTheme.slate)
-
-            VStack(spacing: 0) {
-                ForEach(overview.activityFeed.prefix(15)) { item in
-                    HStack(alignment: .top, spacing: 10) {
-                        Image(systemName: icon(for: item.type))
-                            .foregroundStyle(HandyCallTheme.emerald)
-                            .frame(width: 20)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(item.title)
-                                .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(HandyCallTheme.slate)
-                            Text(item.description)
-                                .font(.footnote)
-                                .foregroundStyle(.secondary)
-                                .lineLimit(2)
-                            Text(formatTime(item.createdAt))
-                                .font(.caption2)
-                                .foregroundStyle(.tertiary)
-                        }
-                        Spacer()
-                    }
-                    .padding(.vertical, 8)
-
-                    if item.id != overview.activityFeed.prefix(15).last?.id {
-                        Divider()
-                    }
-                }
-            }
-            .padding(HandyCallTheme.Spacing.cardPadding)
-            .background(HandyCallTheme.surfaceWhite, in: RoundedRectangle(cornerRadius: HandyCallTheme.Radius.card, style: .continuous))
-            .cardShadow()
-        }
-    }
+    // MARK: - Helpers
 
     private func currency(_ cents: Int) -> String {
         let amount = Double(cents) / 100
@@ -249,16 +288,16 @@ struct DashboardView: View {
     private func formatTime(_ ms: Double) -> String {
         guard ms > 0 else { return "" }
         let date = Date(timeIntervalSince1970: ms > 10_000_000_000 ? ms / 1000 : ms)
-        return date.formatted(.dateTime.month(.abbreviated).day().hour().minute())
+        return date.formatted(.relative(presentation: .named))
     }
 
     private func icon(for type: String) -> String {
-        let normalized = type.uppercased()
-        switch normalized {
+        switch type.uppercased() {
         case "CALL": return "phone.fill"
         case "APPOINTMENT": return "calendar"
         case "PAYMENT": return "creditcard.fill"
         case "LEAD": return "person.badge.plus"
+        case "SMS", "MESSAGE": return "message.fill"
         default: return "bell.fill"
         }
     }
@@ -272,6 +311,20 @@ struct DashboardView: View {
     }
 }
 
+// MARK: - Section Label
+
+struct SectionLabel: View {
+    let title: String
+
+    var body: some View {
+        Text(title)
+            .font(HandyCallTheme.Typography.headline)
+            .foregroundStyle(HandyCallTheme.slate)
+    }
+}
+
+// MARK: - Usage Bar Row
+
 private struct UsageBarRow: View {
     let title: String
     let item: DashboardOverview.UsageItem
@@ -280,11 +333,11 @@ private struct UsageBarRow: View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
                 Text(title)
-                    .font(.subheadline.weight(.semibold))
+                    .font(.subheadline.weight(.medium))
                     .foregroundStyle(HandyCallTheme.slate)
                 Spacer()
                 Text("\(Int(item.used.rounded())) / \(Int(item.limit.rounded()))")
-                    .font(.caption)
+                    .font(.caption.monospacedDigit())
                     .foregroundStyle(.secondary)
             }
             GeometryReader { geo in
@@ -295,6 +348,7 @@ private struct UsageBarRow: View {
                     Capsule()
                         .fill(barColor.gradient)
                         .frame(width: max(0, min(geo.size.width, geo.size.width * (item.percent / 100))), height: 8)
+                        .animation(.spring(response: 0.6), value: item.percent)
                 }
             }
             .frame(height: 8)
@@ -304,6 +358,6 @@ private struct UsageBarRow: View {
     private var barColor: Color {
         if item.blocked { return HandyCallTheme.destructive }
         if item.percent >= 75 { return HandyCallTheme.warning }
-        return HandyCallTheme.emerald
+        return HandyCallTheme.emeraldFixed
     }
 }

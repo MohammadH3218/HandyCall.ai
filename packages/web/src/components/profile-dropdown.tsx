@@ -76,19 +76,23 @@ export function ProfileDropdown() {
     return 'U';
   };
 
-  // Get display name
+  // Full display name (used in dropdown content)
   const getDisplayName = () => {
-    // Try to get from user object first
     if (user?.first_name && user?.last_name) {
       return `${user.first_name} ${user.last_name}`;
     }
-    if (user?.first_name) {
-      return user.first_name;
+    if (user?.first_name) return user.first_name;
+    if (email) return email.split('@')[0];
+    return 'User';
+  };
+
+  // Short name for the sidebar trigger: "First L."
+  const getShortName = () => {
+    if (user?.first_name && user?.last_name) {
+      return `${user.first_name} ${user.last_name[0]}.`;
     }
-    // Fallback to email username
-    if (email) {
-      return email.split('@')[0];
-    }
+    if (user?.first_name) return user.first_name;
+    if (email) return email.split('@')[0];
     return 'User';
   };
 
@@ -103,8 +107,10 @@ export function ProfileDropdown() {
     const canceling = company?.cancel_at_period_end || fallbackCancelAtPeriodEnd;
 
     if (!planValue) {
-      if (status === SubscriptionStatus.TRIALING) return { text: 'Trialing', color: 'text-blue-600' };
-      if (status === SubscriptionStatus.ACTIVE) return { text: 'Active', color: 'text-green-600' };
+      if (status === SubscriptionStatus.TRIALING)
+        return { text: 'Trialing', color: 'text-blue-600 dark:text-blue-400' };
+      if (status === SubscriptionStatus.ACTIVE)
+        return { text: 'Active', color: 'text-green-600 dark:text-green-400' };
       return { text: 'No Plan', color: 'text-muted-foreground' };
     }
 
@@ -115,19 +121,19 @@ export function ProfileDropdown() {
 
     if (canceling) {
       statusText = ' (Cancelled)';
-      color = 'text-red-600';
+      color = 'text-red-600 dark:text-red-400';
     } else if (status === SubscriptionStatus.TRIALING) {
       statusText = ' (Trial)';
-      color = 'text-blue-600';
+      color = 'text-blue-600 dark:text-blue-400';
     } else if (status === SubscriptionStatus.ACTIVE) {
       statusText = ' (Active)';
-      color = 'text-green-600';
+      color = 'text-green-600 dark:text-green-400';
     } else if (status === SubscriptionStatus.PAST_DUE) {
       statusText = ' (Past Due)';
-      color = 'text-yellow-600';
+      color = 'text-yellow-600 dark:text-yellow-400';
     } else if (status === SubscriptionStatus.CANCELED) {
       statusText = ' (Canceled)';
-      color = 'text-red-600';
+      color = 'text-red-600 dark:text-red-400';
     }
 
     return { text: `${planName}${statusText}`, color };
@@ -138,29 +144,23 @@ export function ProfileDropdown() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <button className="flex items-center space-x-3 rounded-lg px-3 py-2 transition-colors duration-200 hover:bg-secondary focus:outline-none focus:ring-2 focus:ring-ring">
-          <Avatar className="h-9 w-9 transition-transform duration-200 hover:scale-105">
-            <AvatarFallback className="bg-primary text-primary-foreground">
+        <button className="flex w-full items-center gap-2.5 rounded-xl border border-transparent px-2 py-1.5 transition-colors duration-200 hover:border-border/80 hover:bg-accent/70 focus:outline-none focus:ring-2 focus:ring-ring">
+          <Avatar className="h-8 w-8 flex-shrink-0">
+            <AvatarFallback className="bg-primary/90 text-primary-foreground text-xs shadow-sm">
               {getInitials()}
             </AvatarFallback>
           </Avatar>
-          <div className="hidden text-left md:block">
-            <p className="text-sm font-medium text-foreground">{getDisplayName()}</p>
-            <p className={`text-xs truncate max-w-[150px] ${planInfo.color}`}>
-              {planInfo.text}
-            </p>
+          <div className="min-w-0 text-left">
+            <p className="truncate text-sm font-medium leading-tight text-foreground">{getShortName()}</p>
+            <p className={`truncate text-xs leading-tight ${planInfo.color}`}>{planInfo.text}</p>
           </div>
         </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-56">
+      <DropdownMenuContent side="top" align="end" className="w-56">
         <DropdownMenuLabel className="font-normal">
           <div className="flex flex-col space-y-1">
             <p className="text-sm font-medium leading-none">{getDisplayName()}</p>
-            {email && (
-              <p className="text-xs leading-none text-muted-foreground">
-                {email}
-              </p>
-            )}
+            {email && <p className="text-xs leading-none text-muted-foreground">{email}</p>}
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />

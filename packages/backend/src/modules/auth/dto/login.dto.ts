@@ -1,16 +1,14 @@
-import { IsEmail, IsString, IsNotEmpty, IsOptional, IsIn } from 'class-validator';
+import { IsEmail, IsEnum, IsString, MinLength } from 'class-validator';
+import { UserType } from '@handycall/shared';
 
 export class LoginDto {
   @IsEmail()
-  @IsNotEmpty()
-  email!: string;
+  email: string;
 
   @IsString()
-  @IsNotEmpty()
-  password!: string;
+  @MinLength(1)
+  password: string;
 
-  @IsOptional()
-  @IsString()
-  @IsIn(['auto', 'users', 'admin', 'customer'])
-  pool_type?: 'auto' | 'users' | 'admin' | 'customer';
+  @IsEnum(['CUSTOMER', 'PRO'] as const)
+  user_type: UserType;
 }

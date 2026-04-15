@@ -23,6 +23,14 @@ echo "Building version: ${VERSION_TAG}"
 # Resolve directories
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+TMP_DIR="$(mktemp -d)"
+ZIP_FILE="${TMP_DIR}/backend-${VERSION_TAG}.zip"
+
+cleanup() {
+  rm -rf "${TMP_DIR}"
+}
+trap cleanup EXIT
+
 cd "${SCRIPT_DIR}"
 
 # Step 1: Build Docker image from monorepo root (single-platform image for EB)
@@ -33,6 +41,7 @@ docker build \
   -f packages/backend/Dockerfile \
   -t "${ECR_REPOSITORY}:${VERSION_TAG}" \
   .
+docker image rm -f "${ECR_REPOSITORY}:latest" >/dev/null 2>&1 || true
 docker tag ${ECR_REPOSITORY}:${VERSION_TAG} ${ECR_REPOSITORY}:latest
 cd "${SCRIPT_DIR}"
 
@@ -70,18 +79,22 @@ EOF
 
 # Step 5: Create deployment package
 echo "===== Creating deployment package ====="
-zip -q backend-${VERSION_TAG}.zip Dockerrun.aws.json
+(
+  cd "${SCRIPT_DIR}"
+  zip -q "${ZIP_FILE}" Dockerrun.aws.json
+)
 
 # Step 6: Upload to S3
 echo "===== Uploading deployment package to S3 ====="
-aws s3 cp backend-${VERSION_TAG}.zip "s3://${S3_BUCKET}/backend-${VERSION_TAG}.zip"
+S3_KEY="backend-${VERSION_TAG}.zip"
+aws s3 cp "${ZIP_FILE}" "s3://${S3_BUCKET}/${S3_KEY}"
 
 # Step 7: Create Application Version
 echo "===== Deploying to Elastic Beanstalk ====="
 aws elasticbeanstalk create-application-version \
   --application-name ${EB_APP_NAME} \
   --version-label ${VERSION_TAG} \
-  --source-bundle S3Bucket="${S3_BUCKET}",S3Key="backend-${VERSION_TAG}.zip" \
+  --source-bundle S3Bucket="${S3_BUCKET}",S3Key="${S3_KEY}" \
   --region ${AWS_REGION}
 
 # Step 8: Wait briefly for eventual consistency in EB app-version lookup

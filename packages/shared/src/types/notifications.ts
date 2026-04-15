@@ -4,6 +4,7 @@ export type NotificationCategory =
   | 'APPOINTMENTS'
   | 'CALLS'
   | 'LEADS'
+  | 'MESSAGES'
   | 'USAGE'
   | 'ACCOUNT'
   | 'SYSTEM';
@@ -15,6 +16,7 @@ export const NOTIFICATION_EVENT_KEYS = [
   'appointment_completed',
   'call_completed',
   'lead_created',
+  'marketplace_message_received',
   'payment_posted',
   'subscription_posted',
   'usage_threshold_25',

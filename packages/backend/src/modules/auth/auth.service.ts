@@ -1,891 +1,545 @@
-import { Injectable, UnauthorizedException, BadRequestException, ConflictException, HttpException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
-import { UsersService } from '../users/users.service';
-import { CompaniesService } from '../companies/companies.service';
-import { AgentConfigService } from '../agent-config/agent-config.service';
-import { CognitoService } from './cognito.service';
-import { CustomerProfilesService } from '../customer-profiles/customer-profiles.service';
-import {
-  LoginResponse,
-  RegisterResponse,
-  RefreshTokenResponse,
-  JWTPayload,
-  UserRole,
-  ServiceType,
-} from '@handycall/shared';
-import { isValidEmail, isValidPhoneNumber, formatPhoneNumber, isValidTimezone } from '@handycall/shared';
+import * as bcrypt from 'bcrypt';
 import { v4 as uuidv4 } from 'uuid';
-import { randomBytes, createHash } from 'crypto';
-import { sendSesEmail } from '../public-booking/email.util';
-import { renderHandycallEmail } from '../../common/email-templates';
+import { DynamoDBService } from '../../infrastructure/database/dynamodb.service';
+import { CustomerRegisterDto } from './dto/customer-register.dto';
+import { ProRegisterDto } from './dto/pro-register.dto';
+import { LoginDto } from './dto/login.dto';
+import { OAuthExchangeDto } from './dto/oauth-exchange.dto';
+import { Customer, Pro, UserType } from '@handycall/shared';
+
+const BCRYPT_ROUNDS = 12;
+const EMAIL_VERIFY_TTL_MS = 24 * 60 * 60 * 1000;    // 24 hours
+const PASSWORD_RESET_TTL_MS = 60 * 60 * 1000;         // 1 hour
 
 @Injectable()
 export class AuthService {
   constructor(
-    private jwtService: JwtService,
-    private configService: ConfigService,
-    private usersService: UsersService,
-    private companiesService: CompaniesService,
-    private agentConfigService: AgentConfigService,
-    private cognitoService: CognitoService,
-    private customerProfilesService: CustomerProfilesService,
+    private db: DynamoDBService,
+    private jwt: JwtService,
+    private config: ConfigService,
   ) {}
 
-  async register(
-    companyName: string | undefined,
-    serviceType: ServiceType | undefined,
-    email: string,
-    password: string,
-    phoneNumber: string | undefined,
-    firstName: string | undefined,
-    lastName: string | undefined,
-    timezone: string | undefined
-  ): Promise<RegisterResponse> {
-    // Validate inputs
-    if (!isValidEmail(email)) {
-      throw new BadRequestException('Invalid email format');
-    }
+  // ─── Customer Registration ──────────────────────────────────────────────────
 
-    const resolvedPhone = phoneNumber?.trim() || undefined;
-    if (resolvedPhone && !isValidPhoneNumber(resolvedPhone)) {
-      throw new BadRequestException('Invalid phone number format (use E.164: +1234567890)');
-    }
-
-    const resolvedTimezone = timezone?.trim() || 'America/New_York';
-    if (!isValidTimezone(resolvedTimezone)) {
-      throw new BadRequestException('Invalid timezone');
-    }
-
-    const normalizedName = companyName?.trim();
-    const resolvedCompanyName = normalizedName && normalizedName.length > 0
-      ? normalizedName
-      : `HandyCall Account ${uuidv4().slice(0, 8)}`;
-    const hasProvidedServiceType = Object.values(ServiceType).includes(serviceType as ServiceType);
-    const resolvedServiceType = hasProvidedServiceType
-      ? (serviceType as ServiceType)
-      : ServiceType.OTHER;
-
-    const derivedFirstName = firstName?.trim() || email.split('@')[0] || 'Owner';
-    const derivedLastName = lastName?.trim() || 'Account';
-
-    // Format phone number when provided
-    const formattedPhone = resolvedPhone ? formatPhoneNumber(resolvedPhone) : undefined;
-
-    let company = await this.companiesService.findByEmail(email);
-    let createdCompany = false;
-
-    if (!company) {
-      // Create company
-      const companyProfileCompleted = Boolean(normalizedName && hasProvidedServiceType);
-      company = await this.companiesService.createCompany(
-        resolvedCompanyName,
-        resolvedServiceType,
-        email,
-        formattedPhone,
-        resolvedTimezone,
-        { companyProfileCompleted }
+  async registerCustomer(dto: CustomerRegisterDto) {
+    if (dto.pdpl_consent === false) {
+      throw new BadRequestException(
+        'PDPL consent is required. Users must consent to data collection per Saudi PDPL (Royal Decree M/19).',
       );
-      createdCompany = true;
     }
 
-    // Ensure user doesn't already exist
-    const existingUser = await this.usersService.findByEmail(email);
-    const cognitoUserExists = await this.cognitoService.userExists(email, 'users').catch(() => false);
-    if (existingUser || cognitoUserExists) {
-      throw new ConflictException({
-        message: 'User with this email already exists',
-        fields: { email: 'User with this email already exists' },
-      });
+    await this.assertNoDuplicateEmail('customers', dto.email);
+    if (dto.id_type) {
+      await this.assertNoDuplicateId('customers', dto.id_type, dto.national_id, dto.iqama_number);
     }
 
-    // Sign up user in Cognito (email verification required)
-    try {
-      const name = `${derivedFirstName} ${derivedLastName}`.trim();
-      const attributes: Record<string, string> = {
-        name,
-        given_name: derivedFirstName,
-        family_name: derivedLastName,
-        'custom:company_id': company.company_id,
-        'custom:company_name': company.company_name,
-      };
-      await this.cognitoService.signUpUser(email, password, attributes);
-    } catch (error) {
-      // Roll back orphaned company if Cognito signup failed
-      if (createdCompany && company?.company_id) {
-        try {
-          await this.companiesService.deleteCompany(company.company_id);
-        } catch (rollbackError) {
-          console.error('[AuthService] Failed to rollback company after Cognito signup error:', rollbackError);
-        }
-      }
-      throw error;
-    }
+    const customer_id = uuidv4();
+    const now = Date.now();
+    const password_hash = await bcrypt.hash(dto.password, BCRYPT_ROUNDS);
+    const { firstName, lastName } = this.resolveNameParts(dto.first_name, dto.last_name, dto.email, 'Customer');
 
-    // Create owner user record in DynamoDB (skip Cognito create)
-    try {
-      await this.usersService.createUser(
-        company.company_id,
-        undefined, // companyName - already have company_id
-        email,
-        password,
-        derivedFirstName,
-        derivedLastName,
-        UserRole.OWNER,
-        'users',
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        { skipCognitoCreate: true, skipCognitoCheck: true }
-      );
-    } catch (error) {
-      // Roll back Cognito user + company if DB user creation failed
-      try {
-        await this.cognitoService.deleteUser(email, 'users');
-      } catch (rollbackError) {
-        console.error('[AuthService] Failed to rollback Cognito user after DB error:', rollbackError);
-      }
-      if (createdCompany && company?.company_id) {
-        try {
-          await this.companiesService.deleteCompany(company.company_id);
-        } catch (rollbackError) {
-          console.error('[AuthService] Failed to rollback company after user creation error:', rollbackError);
-        }
-      }
-      throw error;
-    }
-
-    // Create default agent config
-    await this.agentConfigService.createDefaultConfig(company.company_id);
-
-    return {
-      ok: true,
-      email,
-      requires_email_verification: true,
-    };
-  }
-
-  async registerCustomer(
-    email: string,
-    password: string,
-    phoneNumber?: string,
-    firstName?: string,
-    lastName?: string,
-  ): Promise<RegisterResponse> {
-    if (!isValidEmail(email)) {
-      throw new BadRequestException('Invalid email format');
-    }
-
-    const resolvedPhone = phoneNumber?.trim() || undefined;
-    if (resolvedPhone && !isValidPhoneNumber(resolvedPhone)) {
-      throw new BadRequestException('Invalid phone number format (use E.164: +1234567890)');
-    }
-
-    const cognitoUserExists = await this.cognitoService.userExists(email, 'customer').catch(() => false);
-    if (cognitoUserExists) {
-      throw new ConflictException({
-        message: 'User with this email already exists',
-        fields: { email: 'User with this email already exists' },
-      });
-    }
-
-    const derivedFirstName = firstName?.trim() || email.split('@')[0] || 'Customer';
-    const derivedLastName = lastName?.trim() || 'User';
-    const attributes: Record<string, string> = {
-      name: `${derivedFirstName} ${derivedLastName}`.trim(),
-      given_name: derivedFirstName,
-      family_name: derivedLastName,
-      ...(resolvedPhone ? { phone_number: formatPhoneNumber(resolvedPhone) } : {}),
+    const customer: Omit<Customer, 'password_hash'> & { password_hash: string } = {
+      customer_id,
+      email: dto.email.toLowerCase(),
+      password_hash,
+      first_name: firstName,
+      last_name: lastName,
+      phone_number: dto.phone_number,
+      id_type: dto.id_type,
+      national_id: dto.id_type === 'NATIONAL_ID' ? dto.national_id : undefined,
+      iqama_number: dto.id_type === 'IQAMA' ? dto.iqama_number : undefined,
+      id_verified: false,
+      district: dto.district,
+      city: 'Riyadh',
+      preferred_language: dto.preferred_language ?? 'en',
+      status: 'ACTIVE',
+      email_verified: false,
+      pdpl_consent: true,
+      pdpl_consent_at: dto.pdpl_consent_at ?? now,
+      marketing_consent: dto.marketing_consent ?? false,
+      created_at: now,
+      updated_at: now,
     };
 
-    await this.cognitoService.signUpUser(email, password, attributes, 'customer');
+    await this.db.put('customers', customer);
 
-    return {
-      ok: true,
-      email,
-      requires_email_verification: true,
-    };
+    const tokens = this.signTokens(customer_id, 'CUSTOMER', dto.email);
+    const { password_hash: _, ...safeCustomer } = customer;
+    return { ...tokens, user: safeCustomer, user_type: 'CUSTOMER' as UserType };
   }
 
-  async confirmSignUp(email: string, code: string, poolType: 'users' | 'customer' = 'users') {
-    const trimmedEmail = String(email || '').trim();
-    const trimmedCode = String(code || '').trim();
-    if (!isValidEmail(trimmedEmail)) {
-      throw new BadRequestException('Invalid email format');
-    }
-    if (!trimmedCode) {
-      throw new BadRequestException('Verification code is required');
+  // ─── Pro Registration ───────────────────────────────────────────────────────
+
+  async registerPro(dto: ProRegisterDto) {
+    if (dto.pdpl_consent === false) {
+      throw new BadRequestException('PDPL consent is required.');
     }
 
-    await this.cognitoService.confirmSignUpForPool(trimmedEmail, trimmedCode, poolType);
-    return { ok: true };
-  }
-
-  async resendSignUpCode(email: string, poolType: 'users' | 'customer' = 'users') {
-    const trimmedEmail = String(email || '').trim();
-    if (!isValidEmail(trimmedEmail)) {
-      throw new BadRequestException('Invalid email format');
+    await this.assertNoDuplicateEmail('pros', dto.email);
+    if (dto.id_type) {
+      await this.assertNoDuplicateId('pros', dto.id_type, dto.national_id, dto.iqama_number);
     }
 
-    await this.cognitoService.resendConfirmationCodeForPool(trimmedEmail, poolType);
-    return { ok: true };
-  }
+    const pro_id = uuidv4();
+    const now = Date.now();
+    const password_hash = await bcrypt.hash(dto.password, BCRYPT_ROUNDS);
+    const { firstName, lastName } = this.resolveNameParts(dto.first_name, dto.last_name, dto.email, 'Pro');
 
-
-
-  async refreshToken(refreshToken: string): Promise<RefreshTokenResponse> {
-    try {
-      const payload = this.jwtService.verify(refreshToken, {
-        secret: this.configService.get<string>('REFRESH_TOKEN_SECRET'),
-      });
-
-      // Generate new access token
-      const accessToken = this.jwtService.sign(
-        {
-          user_id: payload.user_id,
-          company_id: payload.company_id,
-          email: payload.email,
-          role: payload.role,
-        },
-        {
-          secret: this.configService.get<string>('JWT_SECRET'),
-          expiresIn: this.configService.get<string>('JWT_EXPIRES_IN') + 's',
-        }
-      );
-
-      return {
-        access_token: accessToken,
-        expires_in: parseInt(this.configService.get<string>('JWT_EXPIRES_IN') || '3600'),
-      };
-    } catch (error) {
-      throw new UnauthorizedException('Invalid refresh token');
-    }
-  }
-
-  private generateTokens(
-    userId: string,
-    companyId: string,
-    email: string,
-    role: UserRole
-  ): { access_token: string; refresh_token: string } {
-    const payload: Omit<JWTPayload, 'iat' | 'exp'> = {
-      user_id: userId,
-      company_id: companyId,
-      email,
-      role,
+    const pro: Omit<Pro, 'password_hash'> & { password_hash: string } = {
+      pro_id,
+      email: dto.email.toLowerCase(),
+      password_hash,
+      first_name: firstName,
+      last_name: lastName,
+      phone_number: dto.phone_number,
+      id_type: dto.id_type,
+      national_id: dto.id_type === 'NATIONAL_ID' ? dto.national_id : undefined,
+      iqama_number: dto.id_type === 'IQAMA' ? dto.iqama_number : undefined,
+      id_verified: false,
+      iban_verified: false,
+      speaks_arabic: true,
+      speaks_english: false,
+      service_districts: [],
+      city: 'Riyadh',
+      status: 'PENDING_REVIEW',
+      onboarding_step: 1,
+      is_available: false,
+      average_rating: 0,
+      total_reviews: 0,
+      total_bookings: 0,
+      completion_rate: 0,
+      pdpl_consent: true,
+      pdpl_consent_at: dto.pdpl_consent_at ?? now,
+      marketing_consent: dto.marketing_consent ?? false,
+      email_verified: false,
+      created_at: now,
+      updated_at: now,
     };
 
-    const accessToken = this.jwtService.sign(payload, {
-      secret: this.configService.get<string>('JWT_SECRET'),
-      expiresIn: this.configService.get<string>('JWT_EXPIRES_IN') + 's',
-    });
+    await this.db.put('pros', pro);
 
-    const refreshToken = this.jwtService.sign(payload, {
-      secret: this.configService.get<string>('REFRESH_TOKEN_SECRET'),
-      expiresIn: this.configService.get<string>('REFRESH_TOKEN_EXPIRES_IN') + 's',
-    });
-
-    return {
-      access_token: accessToken,
-      refresh_token: refreshToken,
-    };
+    const tokens = this.signTokens(pro_id, 'PRO', dto.email);
+    const { password_hash: _, ...safePro } = pro;
+    return { ...tokens, user: safePro, user_type: 'PRO' as UserType };
   }
 
-  // ========================================================================
-  // HYBRID AUTHENTICATION (Cognito validation + Custom JWT)
-  // ========================================================================
+  // ─── Login ──────────────────────────────────────────────────────────────────
 
-  async loginHybrid(email: string, password: string): Promise<LoginResponse> {
-    // Validate with Cognito
-    const result = await this.cognitoService.login(email, password, 'auto');
+  async login(dto: LoginDto) {
+    const email = dto.email.toLowerCase();
+    const table = dto.user_type === 'CUSTOMER' ? 'customers' : 'pros';
+    const pkField = dto.user_type === 'CUSTOMER' ? 'customer_id' : 'pro_id';
 
-    // Check if user needs to change password
-    if (result.challengeName === 'NEW_PASSWORD_REQUIRED') {
-      const poolType = result.poolType || 'users';
-      const isAdmin = poolType === 'admin';
-
-      return {
-        requiresPasswordChange: true,
-        session: result.session,
-        email,
-        userRole: isAdmin ? UserRole.ADMIN : UserRole.OWNER,
-        poolType: poolType,
-      } as any;
-    }
-
-    // Get user info from Cognito attributes
-    const companyId = result.userAttributes?.['custom:company_id'];
-    const userId = result.userAttributes?.['sub']; // Cognito user ID
-    const poolType = result.poolType || 'users';
-
-    // Determine role
-    let role: UserRole;
-    if (poolType === 'admin') {
-      role = UserRole.ADMIN;
-    } else {
-      role = UserRole.OWNER; // Default for customer users
-    }
-
-    // Try to fetch user and company from DynamoDB
-    let user = null;
-    let company = null;
-
-    if (companyId) {
-      try {
-        company = await this.companiesService.findById(companyId);
-        user = await this.usersService.findByEmail(email);
-        if (user) {
-          role = user.role; // Use role from database if available
-        }
-      } catch (error) {
-        console.warn('[AuthService] Failed to fetch user/company from DynamoDB:', error);
-      }
-    }
-
-    // Generate custom JWT tokens
-    const tokens = this.generateTokens(
-      userId || email, // Use Cognito sub as user_id
-      companyId || 'no-company',
-      email,
-      role
+    const { items } = await this.db.query(
+      table,
+      '#email = :email',
+      { '#email': 'email' },
+      { ':email': email },
+      { indexName: 'email-index' },
     );
 
-    // Remove password_hash from user object if present
-    const userResponse = user ? { ...user, password_hash: undefined } : null;
-
-    return {
-      user: userResponse as any,
-      company: company as any,
-      access_token: tokens.access_token,
-      refresh_token: tokens.refresh_token,
-      expires_in: parseInt(this.configService.get<string>('JWT_EXPIRES_IN') || '3600'),
-    };
-  }
-
-  // ========================================================================
-  // COGNITO-BASED AUTHENTICATION
-  // ========================================================================
-
-  async loginWithCognito(
-    email: string,
-    password: string,
-    poolType: 'auto' | 'users' | 'admin' | 'customer' = 'auto',
-  ) {
-    let result;
-
-    try {
-      result = await this.cognitoService.login(email, password, poolType);
-
-      // Check if user needs to change password
-      if (result.challengeName === 'NEW_PASSWORD_REQUIRED') {
-        // Determine if this is an admin user based on pool type only
-        const resolvedPoolType = result.poolType || 'users';
-        const isAdmin = resolvedPoolType === 'admin';
-
-        return {
-          requiresPasswordChange: true,
-          session: result.session,
-          email,
-          userRole: isAdmin ? UserRole.ADMIN : UserRole.OWNER,
-          poolType: resolvedPoolType, // Include pool type so we can use it for password change
-        };
-      }
-    } catch (error: any) {
-      console.error('[AuthService] loginWithCognito error:', {
-        name: error.name,
-        message: error.message,
-        email: email,
-        stack: error.stack
-      });
-
-      // Re-throw all NestJS HTTP exceptions (UnauthorizedException, BadRequestException, etc.)
-      if (error instanceof HttpException) {
-        throw error;
-      }
-
-      // For truly unknown errors, throw a generic message (cognito.service already handles known AWS errors)
-      throw new UnauthorizedException('Authentication failed. Please try again later.');
+    if (!items.length) {
+      throw new UnauthorizedException('Invalid email or password');
     }
 
-    // Get company and user info from DynamoDB using custom attributes
-    const companyId = result.userAttributes?.['custom:company_id'];
-    const resolvedPoolType = result.poolType || 'users';
+    const user = items[0] as any;
 
-    // Determine user role based on poolType - this is the source of truth
-    // Admin pool users are admins.
-    if (resolvedPoolType === 'admin') {
-      // Admin users - return admin role
-      return {
-        requiresPasswordChange: false,
-        access_token: result.accessToken,
-        id_token: result.idToken,
-        refresh_token: result.refreshToken,
-        email,
-        userRole: UserRole.ADMIN,
-        isAdmin: true,
-        poolType: 'admin',
-      };
-    }
-
-    // Dedicated customer pool users are customer-side accounts.
-    if (resolvedPoolType === 'customer') {
-      const customerId =
-        result.userAttributes?.['sub'] ||
-        result.userAttributes?.['cognito:username'] ||
-        email;
-
-      await this.customerProfilesService.getOrCreate(customerId, {
-        email,
-        name:
-          result.userAttributes?.['name'] ||
-          [result.userAttributes?.['given_name'], result.userAttributes?.['family_name']]
-            .filter(Boolean)
-            .join(' ') ||
-          undefined,
-        phone: result.userAttributes?.['phone_number'],
-      });
-
-      return {
-        requiresPasswordChange: false,
-        access_token: result.accessToken,
-        id_token: result.idToken,
-        refresh_token: result.refreshToken,
-        email,
-        userRole: UserRole.OWNER,
-        poolType: 'customer',
-      };
-    }
-
-    // Users pool = pro/business user.
-    // Try to fetch company if company_id exists
-    if (companyId) {
-      const company = await this.companiesService.findById(companyId);
-
-      // Fetch user data from DynamoDB
-      let user = null;
-      try {
-        user = await this.usersService.findByEmail(email);
-      } catch (userError) {
-        console.warn('[AuthService] Failed to fetch user from DynamoDB:', userError);
-      }
-
-      if (!company) {
-        // Company ID exists in Cognito but not in DynamoDB - still users-pool account
-        return {
-          requiresPasswordChange: false,
-          access_token: result.accessToken,
-          id_token: result.idToken,
-          refresh_token: result.refreshToken,
-          user,
-          email,
-          company_id: companyId,
-          userRole: UserRole.OWNER,
-          poolType: 'users',
-        };
-      }
-
-      return {
-        requiresPasswordChange: false,
-        access_token: result.accessToken,
-        id_token: result.idToken,
-        refresh_token: result.refreshToken,
-        company,
-        user,
-        email,
-        company_id: companyId,
-        userRole: UserRole.OWNER,
-        poolType: 'users',
-      };
-    }
-
-    // Users-pool account without company yet.
-    return {
-      requiresPasswordChange: false,
-      access_token: result.accessToken,
-      id_token: result.idToken,
-      refresh_token: result.refreshToken,
-      email,
-      userRole: UserRole.OWNER,
-      poolType: 'users',
-    };
-  }
-
-  async changePassword(
-    email: string,
-    newPassword: string,
-    session: string,
-    poolType: 'users' | 'admin' | 'customer' = 'users',
-    firstName?: string,
-    lastName?: string
-  ) {
-    try {
-      const result = await this.cognitoService.respondToNewPasswordChallenge(
-        email,
-        newPassword,
-        session,
-        poolType
+    if (!user.email_verified) {
+      throw new UnauthorizedException(
+        'Please verify your email before logging in. Check your inbox.',
       );
-
-      // Admin users don't need company setup - return immediately
-      if (poolType === 'admin') {
-        if (firstName || lastName) {
-          const attrs: Record<string, string> = {};
-          if (firstName) attrs['given_name'] = firstName;
-          if (lastName) attrs['family_name'] = lastName;
-          try {
-            await this.cognitoService.updateUserAttributes(email, attrs, 'admin');
-          } catch (e) {
-            console.warn('[AuthService] Failed to update admin attributes during password change', e);
-          }
-        }
-        return {
-          access_token: result.accessToken,
-          id_token: result.idToken,
-          refresh_token: result.refreshToken,
-          email,
-          userRole: UserRole.ADMIN,
-          poolType: 'admin',
-        };
-      }
-
-      if (poolType === 'customer') {
-        const customerId =
-          result.userAttributes?.['sub'] ||
-          result.userAttributes?.['cognito:username'] ||
-          email;
-        await this.customerProfilesService.getOrCreate(customerId, {
-          email,
-          name:
-            result.userAttributes?.['name'] ||
-            [firstName, lastName].filter(Boolean).join(' ') ||
-            undefined,
-          phone: result.userAttributes?.['phone_number'],
-        });
-        return {
-          access_token: result.accessToken,
-          id_token: result.idToken,
-          refresh_token: result.refreshToken,
-          email,
-          userRole: UserRole.OWNER,
-          poolType: 'customer',
-        };
-      }
-
-      // For users pool: Get company info - handle case where user might not have company_id yet
-      const companyId = result.userAttributes?.['custom:company_id'];
-
-      // If the user somehow lacks a company assignment, require setup instead of creating placeholders
-      if (!companyId) {
-        return {
-          access_token: result.accessToken,
-          id_token: result.idToken,
-          refresh_token: result.refreshToken,
-          email,
-          userRole: UserRole.OWNER,
-          requiresCompanySetup: true, // Users need company setup if no company_id
-          poolType: 'users',
-        };
-      }
-
-      // User has company_id - fetch company from DynamoDB
-      // Wrap in try-catch to handle DynamoDB permission errors gracefully
-      let company = null;
-      try {
-        company = await this.companiesService.findById(companyId);
-
-        // Update user attributes if provided
-        const attributesToUpdate: Record<string, string> = {};
-
-        // Always update name attributes if provided
-        if (firstName) {
-          attributesToUpdate['given_name'] = firstName;
-        }
-        if (lastName) {
-          attributesToUpdate['family_name'] = lastName;
-        }
-
-        // Update Cognito attributes if any were set
-        if (Object.keys(attributesToUpdate).length > 0) {
-          await this.cognitoService.updateUserAttributes(
-            email,
-            attributesToUpdate,
-            poolType
-          );
-        }
-      } catch (dbError: any) {
-        // If DynamoDB access fails (e.g., IAM permissions), log but continue
-        // Password change in Cognito succeeded, so we should still return success
-        console.warn('[AuthService] DynamoDB access failed during password change (password change succeeded):', dbError?.name || dbError?.message);
-      }
-
-      if (!company) {
-        // Company not found in DB or DB access failed, but password change succeeded
-        // Return tokens but indicate company setup needed
-        return {
-          access_token: result.accessToken,
-          id_token: result.idToken,
-          refresh_token: result.refreshToken,
-          email,
-          userRole: UserRole.OWNER,
-          requiresCompanySetup: true,
-          poolType: 'users',
-        };
-      }
-
-      // Fetch user data from DynamoDB to include in response
-      let user = null;
-      try {
-        user = await this.usersService.findByEmail(email);
-      } catch (userError) {
-        console.warn('[AuthService] Failed to fetch user from DynamoDB:', userError);
-      }
-
-      return {
-        access_token: result.accessToken,
-        id_token: result.idToken,
-        refresh_token: result.refreshToken,
-        company,
-        user,
-        email,
-        company_id: companyId,
-        userRole: UserRole.OWNER,
-        poolType: 'users',
-      };
-    } catch (error: any) {
-      console.error('[AuthService] Password change error:', error);
-      
-      // Provide more specific error messages
-      if (error.name === 'NotAuthorizedException' || error.message?.includes('Invalid session')) {
-        throw new UnauthorizedException('Session expired or invalid. Please login again.');
-      }
-      
-      if (error instanceof BadRequestException) {
-        throw error;
-      }
-      
-      throw new BadRequestException('Failed to change password. Please try again.');
     }
+
+    if (user.status === 'SUSPENDED') {
+      throw new UnauthorizedException('Your account has been suspended. Contact support.');
+    }
+
+    if (dto.user_type === 'PRO' && user.status === 'REJECTED') {
+      throw new UnauthorizedException(
+        'Your pro application was rejected. Contact support for details.',
+      );
+    }
+
+    const passwordValid = await bcrypt.compare(dto.password, user.password_hash);
+    if (!passwordValid) {
+      throw new UnauthorizedException('Invalid email or password');
+    }
+
+    const user_id = user[pkField];
+    const tokens = this.signTokens(user_id, dto.user_type, email);
+
+    await this.db.update(table, { [pkField]: user_id }, { last_login_at: Date.now() });
+
+    const { password_hash: _, ...safeUser } = user;
+    return { ...tokens, user: safeUser, user_type: dto.user_type };
   }
 
-  async refreshWithCognito(
-    refreshToken: string,
-    email: string,
-    poolType: 'auto' | 'users' | 'admin' | 'customer' = 'auto',
-  ) {
-    const result = await this.cognitoService.refreshAccessToken(refreshToken, email, poolType);
-    const tokenClaims = this.decodeJwtClaims(result.idToken);
-    const normalizedEmail = (tokenClaims?.email as string | undefined) || email;
+  async exchangeOAuth(dto: OAuthExchangeDto) {
+    const email = dto.email.toLowerCase();
+    const table = dto.user_type === 'CUSTOMER' ? 'customers' : 'pros';
+    const pkField = dto.user_type === 'CUSTOMER' ? 'customer_id' : 'pro_id';
+    const existingUser = await this.findUserByEmail(table, email);
+    const now = Date.now();
+    const { firstName, lastName } = this.resolveNameParts(
+      dto.given_name,
+      dto.family_name,
+      email,
+      dto.user_type === 'CUSTOMER' ? 'Customer' : 'Pro',
+      dto.name,
+    );
 
-    if (result.poolType === 'admin') {
+    let userRecord: any;
+
+    if (existingUser) {
+      userRecord = await this.db.update(
+        table,
+        { [pkField]: existingUser[pkField] },
+        {
+          first_name: existingUser.first_name || firstName,
+          last_name: existingUser.last_name || lastName,
+          email_verified: true,
+          updated_at: now,
+          last_login_at: now,
+        },
+      );
+    } else if (dto.user_type === 'CUSTOMER') {
+      const customer_id = uuidv4();
+      const password_hash = await bcrypt.hash(uuidv4(), BCRYPT_ROUNDS);
+      const customer: Omit<Customer, 'password_hash'> & { password_hash: string } = {
+        customer_id,
+        email,
+        password_hash,
+        first_name: firstName,
+        last_name: lastName,
+        id_verified: false,
+        city: 'Riyadh',
+        preferred_language: 'en',
+        status: 'ACTIVE',
+        email_verified: true,
+        pdpl_consent: true,
+        pdpl_consent_at: now,
+        marketing_consent: false,
+        created_at: now,
+        updated_at: now,
+        last_login_at: now,
+      };
+      await this.db.put('customers', customer);
+      userRecord = customer;
+    } else {
+      const pro_id = uuidv4();
+      const password_hash = await bcrypt.hash(uuidv4(), BCRYPT_ROUNDS);
+      const pro: Omit<Pro, 'password_hash'> & { password_hash: string } = {
+        pro_id,
+        email,
+        password_hash,
+        first_name: firstName,
+        last_name: lastName,
+        id_verified: false,
+        iban_verified: false,
+        speaks_arabic: false,
+        speaks_english: true,
+        service_districts: [],
+        city: 'Riyadh',
+        status: 'PENDING_REVIEW',
+        onboarding_step: 1,
+        is_available: false,
+        average_rating: 0,
+        total_reviews: 0,
+        total_bookings: 0,
+        completion_rate: 0,
+        pdpl_consent: true,
+        pdpl_consent_at: now,
+        marketing_consent: false,
+        email_verified: true,
+        created_at: now,
+        updated_at: now,
+        last_login_at: now,
+      };
+      await this.db.put('pros', pro);
+      userRecord = pro;
+    }
+
+    const user_id = userRecord[pkField];
+    const tokens = this.signTokens(user_id, dto.user_type, email);
+    const { password_hash: _, ...safeUser } = userRecord;
+    return { ...tokens, user: safeUser, user_type: dto.user_type };
+  }
+
+  // ─── Email Verification ─────────────────────────────────────────────────────
+
+  async verifyEmail(token: string): Promise<{ message: string }> {
+    const record = await this.db.get('email_verifications', { token });
+
+    if (!record) {
+      throw new BadRequestException('Invalid or expired verification link.');
+    }
+
+    if (record.used) {
+      throw new BadRequestException('This verification link has already been used.');
+    }
+
+    if (record.expires_at * 1000 < Date.now()) {
+      throw new BadRequestException('Verification link has expired. Request a new one.');
+    }
+
+    const table = record.user_type === 'CUSTOMER' ? 'customers' : 'pros';
+    const pkField = record.user_type === 'CUSTOMER' ? 'customer_id' : 'pro_id';
+
+    await this.db.update(
+      table,
+      { [pkField]: record.user_id },
+      { email_verified: true, status: record.user_type === 'CUSTOMER' ? 'ACTIVE' : 'PENDING_REVIEW', updated_at: Date.now() },
+    );
+
+    await this.db.update('email_verifications', { token }, { used: true });
+
+    return { message: 'Email verified successfully.' };
+  }
+
+  async resendVerification(email: string, userType: UserType) {
+    const normalizedEmail = email.toLowerCase();
+    const table = userType === 'CUSTOMER' ? 'customers' : 'pros';
+    const pkField = userType === 'CUSTOMER' ? 'customer_id' : 'pro_id';
+    const user = await this.findUserByEmail(table, normalizedEmail);
+
+    if (!user) {
       return {
-        access_token: result.accessToken,
-        id_token: result.idToken,
-        email: normalizedEmail,
-        userRole: UserRole.ADMIN,
-        isAdmin: true,
-        poolType: 'admin',
+        message: 'If that account exists, a verification email has been sent.',
       };
     }
 
-    if (result.poolType === 'customer') {
-      const userAttributes: Record<string, string> = await this.cognitoService
-        .getUserAttributes(normalizedEmail, 'customer')
-        .catch(() => ({} as Record<string, string>));
-      const customerId =
-        userAttributes?.['sub'] ||
-        userAttributes?.['cognito:username'] ||
-        ((tokenClaims?.sub as string | undefined) ?? normalizedEmail);
-
-      await this.customerProfilesService.getOrCreate(customerId, {
-        email: normalizedEmail,
-        name:
-          (userAttributes?.['name'] as string | undefined) ||
-          [
-            userAttributes?.['given_name'] as string | undefined,
-            userAttributes?.['family_name'] as string | undefined,
-          ]
-            .filter(Boolean)
-            .join(' ') ||
-          undefined,
-        phone: userAttributes?.['phone_number'] as string | undefined,
-      });
-
+    if (user.email_verified) {
       return {
-        access_token: result.accessToken,
-        id_token: result.idToken,
-        email: normalizedEmail,
-        userRole: UserRole.OWNER,
-        poolType: 'customer',
+        message: 'This email is already verified. You can sign in now.',
       };
     }
 
-    // Users pool refresh: attach company context for customer users.
-    let userAttributes: Record<string, string> = {};
-    try {
-      userAttributes = await this.cognitoService.getUserAttributes(normalizedEmail, 'users');
-    } catch {
-      userAttributes = {};
-    }
-    const companyId =
-      userAttributes?.['custom:company_id'] ||
-      ((tokenClaims?.['custom:company_id'] as string | undefined) ?? undefined);
-
-    if (!companyId) {
-      throw new UnauthorizedException('User not properly configured');
-    }
-
-    const company = await this.companiesService.findById(companyId);
-    if (!company) {
-      throw new UnauthorizedException('Company not found');
-    }
-
+    const token = await this.getVerificationToken(user[pkField], userType, normalizedEmail);
     return {
-      access_token: result.accessToken,
-      id_token: result.idToken,
-      company,
-      email: normalizedEmail,
-      company_id: companyId,
-      userRole: UserRole.OWNER,
-      poolType: 'users',
+      message: 'Verification email sent.',
+      token,
+      first_name: user.first_name || (userType === 'CUSTOMER' ? 'Customer' : 'Pro'),
     };
   }
 
-  private decodeJwtClaims(token: string): Record<string, unknown> | null {
+  // ─── Token Refresh ──────────────────────────────────────────────────────────
+
+  async refreshToken(refreshToken: string) {
+    let payload: any;
     try {
-      const parts = token.split('.');
-      if (parts.length < 2) return null;
-      const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
-      const padded = base64 + '='.repeat((4 - (base64.length % 4)) % 4);
-      const json = Buffer.from(padded, 'base64').toString('utf8');
-      const parsed = JSON.parse(json);
-      return parsed && typeof parsed === 'object' ? parsed : null;
+      payload = this.jwt.verify(refreshToken, {
+        secret: this.config.getOrThrow('JWT_SECRET'),
+      });
     } catch {
-      return null;
+      throw new UnauthorizedException('Invalid or expired refresh token');
     }
+
+    const { user_id, user_type, email } = payload;
+    return this.signTokens(user_id, user_type, email);
   }
 
-  private getFrontendBaseUrl(): string {
-    return (
-      this.configService.get<string>('FRONTEND_URL') ||
-      this.configService.get<string>('NEXTAUTH_URL') ||
-      'https://handycall.org'
-    ).replace(/\/$/, '');
-  }
+  // ─── Forgot Password ────────────────────────────────────────────────────────
 
-  async requestPasswordReset(email: string) {
-    const trimmed = String(email || '').trim();
-    if (!isValidEmail(trimmed)) {
-      throw new BadRequestException('Please provide a valid email address.');
+  async forgotPassword(email: string, userType: UserType): Promise<{ message: string }> {
+    const table = userType === 'CUSTOMER' ? 'customers' : 'pros';
+    const pkField = userType === 'CUSTOMER' ? 'customer_id' : 'pro_id';
+
+    const { items } = await this.db.query(
+      table,
+      '#email = :email',
+      { '#email': 'email' },
+      { ':email': email.toLowerCase() },
+      { indexName: 'email-index' },
+    );
+
+    // Always return success to avoid user enumeration (security best practice)
+    if (!items.length) {
+      return { message: 'If that account exists, a reset link has been sent.' };
     }
 
-    const user = await this.usersService.findByEmail(trimmed);
-    if (!user) {
-      // Always return ok to avoid leaking account existence.
-      return { ok: true };
-    }
+    const user = items[0] as any;
+    const user_id = user[pkField];
+    const token = uuidv4();
+    const now = Date.now();
 
-    const token = randomBytes(32).toString('hex');
-    const tokenHash = createHash('sha256').update(token).digest('hex');
-    const ttlMinutes = Number(this.configService.get<string>('RESET_TOKEN_TTL_MINUTES') || '5');
-    const expiresAt = Date.now() + ttlMinutes * 60_000;
-
-    await this.usersService.setPasswordResetToken(trimmed, tokenHash, expiresAt);
-
-    const resetUrl = `${this.getFrontendBaseUrl()}/reset-password?email=${encodeURIComponent(
-      trimmed
-    )}&token=${encodeURIComponent(token)}`;
-
-    const fromAddress =
-      this.configService.get<string>('NO_REPLY_EMAIL') ||
-      this.configService.get<string>('NO_CONTACT_EMAIL') ||
-      'no-reply@handycall.org';
-    const region = this.configService.get<string>('SES_REGION') || this.configService.get<string>('AWS_REGION') || 'us-east-1';
-    const subject = 'Reset your HandyCall password';
-    const text =
-      `We received a request to reset your HandyCall password.\n\n` +
-      `Use the link below to set a new password (valid for ${ttlMinutes} minutes):\n${resetUrl}\n\n` +
-      `If you did not request this, you can safely ignore this email.`;
-    const html = renderHandycallEmail({
-      title: 'Reset your password',
-      preheader: 'Reset your HandyCall password',
-      greeting: 'Hi there,',
-      body: `<p style="margin:0 0 16px;">We received a request to reset your HandyCall password.</p>
-             <p style="margin:0 0 16px;">Use the link below to set a new password. This link expires in ${ttlMinutes} minutes.</p>`,
-      cta: { label: 'Reset password', url: resetUrl },
-      footer: 'If you did not request this, you can safely ignore this email.',
+    await this.db.put('password_resets', {
+      token,
+      user_id,
+      user_type: userType,
+      email: email.toLowerCase(),
+      expires_at: Math.floor((now + PASSWORD_RESET_TTL_MS) / 1000), // DynamoDB TTL expects seconds
+      used: false,
+      created_at: now,
     });
 
-    try {
-      await sendSesEmail({
-        region,
-        from: `HandyCall <${fromAddress}>`,
-        to: [trimmed],
-        subject,
-        text,
-        html,
-      });
-    } catch (err: any) {
-      // Don't leak account existence or SES sandbox state to caller.
-      console.warn('[AuthService] Password reset email send failed', err?.message || err);
-    }
-
-    return { ok: true };
+    // Email is sent by caller (AuthController injects EmailService)
+    return { message: 'If that account exists, a reset link has been sent.', token } as any;
   }
 
-  async confirmPasswordReset(email: string, token: string, newPassword: string) {
-    const trimmedEmail = String(email || '').trim();
-    const trimmedToken = String(token || '').trim();
-    if (!isValidEmail(trimmedEmail)) {
-      throw new BadRequestException('Please provide a valid email address.');
-    }
-    if (!trimmedToken) {
-      throw new BadRequestException('Reset token is required.');
-    }
-    if (!newPassword || newPassword.length < 8) {
-      throw new BadRequestException('Password must be at least 8 characters.');
+  // ─── Reset Password ─────────────────────────────────────────────────────────
+
+  async resetPassword(token: string, newPassword: string): Promise<{ message: string }> {
+    const record = await this.db.get('password_resets', { token });
+
+    if (!record || record.used || record.expires_at * 1000 < Date.now()) {
+      throw new BadRequestException('Invalid or expired reset link.');
     }
 
-    const user = await this.usersService.findByEmail(trimmedEmail);
-    if (!user) {
-      throw new BadRequestException('Reset token is invalid or expired.');
-    }
+    const table = record.user_type === 'CUSTOMER' ? 'customers' : 'pros';
+    const pkField = record.user_type === 'CUSTOMER' ? 'customer_id' : 'pro_id';
+    const password_hash = await bcrypt.hash(newPassword, BCRYPT_ROUNDS);
 
-    const tokenHash = createHash('sha256').update(trimmedToken).digest('hex');
-    const storedHash = (user as any).reset_token_hash;
-    const expiresAt = Number((user as any).reset_token_expires_at || 0);
-    if (!storedHash || storedHash !== tokenHash || !expiresAt || Date.now() > expiresAt) {
-      throw new BadRequestException('Reset token is invalid or expired.');
-    }
+    await this.db.update(
+      table,
+      { [pkField]: record.user_id },
+      { password_hash, updated_at: Date.now() },
+    );
 
-    await this.cognitoService.setUserPassword(trimmedEmail, newPassword, 'auto');
-    await this.usersService.clearPasswordResetToken(trimmedEmail);
+    await this.db.update('password_resets', { token }, { used: true });
 
-    return { ok: true };
+    return { message: 'Password reset successfully.' };
   }
 
-  async updatePassword(
-    companyId: string,
-    userId: string,
-    currentPassword: string,
-    newPassword: string
+  // ─── Helpers ────────────────────────────────────────────────────────────────
+
+  private signTokens(user_id: string, user_type: UserType, email: string) {
+    const payload = { user_id, user_type, email };
+    const access_token = this.jwt.sign(payload);
+    const refresh_token = this.jwt.sign(
+      { user_id, user_type, email },
+      { expiresIn: this.config.get<number>('JWT_REFRESH_EXPIRES_IN', 2592000) },
+    );
+    return { access_token, refresh_token };
+  }
+
+  private async assertNoDuplicateEmail(table: string, email: string) {
+    const { items } = await this.db.query(
+      table,
+      '#email = :email',
+      { '#email': 'email' },
+      { ':email': email.toLowerCase() },
+      { indexName: 'email-index' },
+    );
+    if (items.length) {
+      throw new ConflictException('An account with this email already exists.');
+    }
+  }
+
+  private async findUserByEmail(table: string, email: string) {
+    const { items } = await this.db.query(
+      table,
+      '#email = :email',
+      { '#email': 'email' },
+      { ':email': email.toLowerCase() },
+      { indexName: 'email-index' },
+    );
+    return items[0] as any | undefined;
+  }
+
+  private async assertNoDuplicateId(
+    table: string,
+    idType: 'NATIONAL_ID' | 'IQAMA',
+    nationalId?: string,
+    iqamaNumber?: string,
   ) {
-    if (!companyId || !userId) {
-      throw new BadRequestException('Invalid user context');
+    if (idType === 'NATIONAL_ID' && nationalId) {
+      const { items } = await this.db.query(
+        table,
+        '#nid = :nid',
+        { '#nid': 'national_id' },
+        { ':nid': nationalId },
+        { indexName: 'national-id-index' },
+      );
+      if (items.length) {
+        throw new ConflictException('An account with this National ID already exists.');
+      }
     }
 
-    if (!newPassword || newPassword.length < 8) {
-      throw new BadRequestException('Password must be at least 8 characters.');
+    if (idType === 'IQAMA' && iqamaNumber) {
+      const { items } = await this.db.query(
+        table,
+        '#iqama = :iqama',
+        { '#iqama': 'iqama_number' },
+        { ':iqama': iqamaNumber },
+        { indexName: 'iqama-index' },
+      );
+      if (items.length) {
+        throw new ConflictException('An account with this Iqama number already exists.');
+      }
+    }
+  }
+
+  private async createEmailVerificationToken(
+    userId: string,
+    userType: 'CUSTOMER' | 'PRO',
+    email: string,
+  ) {
+    const token = uuidv4();
+    const now = Date.now();
+    await this.db.put('email_verifications', {
+      token,
+      user_id: userId,
+      user_type: userType,
+      email: email.toLowerCase(),
+      expires_at: Math.floor((now + EMAIL_VERIFY_TTL_MS) / 1000), // DynamoDB TTL in seconds
+      used: false,
+      created_at: now,
+    });
+    return token;
+  }
+
+  /** Expose token creation so controller can pass it to EmailService */
+  async getVerificationToken(userId: string, userType: 'CUSTOMER' | 'PRO', email: string) {
+    return this.createEmailVerificationToken(userId, userType, email);
+  }
+
+  private resolveNameParts(
+    firstName: string | undefined,
+    lastName: string | undefined,
+    email: string,
+    fallbackFirstName: string,
+    fullName?: string,
+  ) {
+    const trimmedFirstName = firstName?.trim();
+    const trimmedLastName = lastName?.trim();
+
+    if (trimmedFirstName) {
+      return {
+        firstName: trimmedFirstName,
+        lastName: trimmedLastName || '',
+      };
     }
 
-    const user = await this.usersService.findById(companyId, userId);
-    if (!user) {
-      throw new BadRequestException('User not found.');
+    const trimmedFullName = fullName?.trim();
+    if (trimmedFullName) {
+      const [first, ...rest] = trimmedFullName.split(/\s+/);
+      return {
+        firstName: first || fallbackFirstName,
+        lastName: rest.join(' '),
+      };
     }
 
-    await this.cognitoService.login(user.email, currentPassword, 'auto');
-    await this.cognitoService.setUserPassword(user.email, newPassword, 'auto');
+    const localPart = email.split('@')[0]?.replace(/[._-]+/g, ' ').trim();
+    if (localPart) {
+      const [first, ...rest] = localPart.split(/\s+/);
+      return {
+        firstName: first || fallbackFirstName,
+        lastName: rest.join(' '),
+      };
+    }
 
-    return { ok: true };
+    return {
+      firstName: fallbackFirstName,
+      lastName: '',
+    };
   }
 }

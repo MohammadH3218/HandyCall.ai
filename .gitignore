@@ -114,6 +114,14 @@ test-*.json
 /.deploy/
 **/eb-logs-success/
 /.trash/
+/tmp/finetune/
 
 # Claude settings (may contain secrets)
 .claude/settings.local.json
+
+# Local agent/tooling artifacts
+.claude/skills/
+.local/
+node_modules_corrupt_backup_*/
+**/node_modules_corrupt_backup_*/
+.vercel

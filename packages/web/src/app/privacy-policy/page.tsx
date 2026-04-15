@@ -42,35 +42,25 @@ export default function PrivacyPolicyPage() {
           </section>
 
           <section className="space-y-3">
-            <h2 className="text-lg font-semibold text-slate-900">SMS and Communications</h2>
+            <h2 className="text-lg font-semibold text-slate-900">Communications</h2>
             <p className="text-sm text-slate-600">
-              If you opt in to the <strong>HandyCall Appointment SMS</strong> program, we send transactional text
-              messages including appointment confirmations, reminders, reschedule and cancellation notices, and
-              appointment request status updates. Message frequency varies based on your appointment activity
-              (typically 1–3 messages per appointment). Message and data rates may apply.
+              We may send transactional emails and account notices related to bookings, account activity, billing,
+              and product operations. These communications are used to deliver the service and keep your account up to date.
             </p>
             <p className="text-sm text-slate-600">
-              To opt out at any time, reply <strong>STOP</strong> to any message. For help, reply{' '}
-              <strong>HELP</strong> or contact us at{' '}
+              If you have questions about account communications, contact us at{' '}
               <Link href="mailto:hello@handycall.org" className="text-emerald-700 underline">
                 hello@handycall.org
               </Link>
               .
-            </p>
-            <p className="text-sm text-slate-600">
-              <strong>
-                No mobile opt-in data or mobile phone numbers collected through the SMS opt-in program will be
-                shared with or sold to third parties or affiliates for marketing or promotional purposes.
-              </strong>
             </p>
           </section>
 
           <section className="space-y-3">
             <h2 className="text-lg font-semibold text-slate-900">Data Sharing</h2>
             <p className="text-sm text-slate-600">
-              We do not sell your personal information. We share data only with service providers needed to operate
-              HandyCall (such as hosting, analytics, and communications) or when required by law. Mobile opt-in
-              data is never shared with third parties or affiliates for marketing or promotional purposes.
+              We do not sell your personal information. We share data only with service providers (subcontractors)
+              needed to operate HandyCall (such as hosting, analytics, and communications) or when required by law.
             </p>
           </section>
 
@@ -86,7 +76,6 @@ export default function PrivacyPolicyPage() {
             <h2 className="text-lg font-semibold text-slate-900">Your Choices</h2>
             <ul className="list-disc pl-5 text-sm text-slate-600">
               <li>Request access, correction, or deletion of your data.</li>
-              <li>Opt out of SMS by replying STOP.</li>
             </ul>
           </section>
 

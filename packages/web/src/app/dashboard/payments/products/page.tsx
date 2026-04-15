@@ -223,7 +223,7 @@ export default function ServiceProductsPage() {
       <PageHeader
         eyebrow="Payments"
         title="Service products & pricing"
-        subtitle="Define what you offer and how you charge — subscriptions, one-time payments, and more."
+        subtitle="Set up one-time services, recurring plans, and shareable payment links without the billing jargon."
         actions={
           <div className="flex items-center gap-2">
             <label className="flex items-center gap-2 text-sm text-slate-500 cursor-pointer">
@@ -241,14 +241,14 @@ export default function ServiceProductsPage() {
       />
 
       {loading ? (
-        <div className="rounded-2xl border border-slate-100 bg-white p-8 text-center text-slate-400 shadow-sm">
+        <div className="rounded-2xl border border-border bg-card p-8 text-center text-slate-400 shadow-sm">
           Loading products…
         </div>
       ) : products.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-12 text-center shadow-sm">
-          <p className="text-lg font-semibold text-slate-700 mb-2">No products yet</p>
+        <div className="rounded-2xl border border-dashed border-border bg-card p-12 text-center shadow-sm">
+          <p className="text-lg font-semibold text-foreground mb-2">No products yet</p>
           <p className="text-sm text-slate-400 mb-6">
-            Create your first service product — a subscription plan or one-time charge — to start collecting payments.
+            Add your first service or plan so customers can pay you through HandyCall.
           </p>
           <Button onClick={openCreate}>Create first product</Button>
         </div>
@@ -257,15 +257,15 @@ export default function ServiceProductsPage() {
           {products.map((product) => (
             <div
               key={product.product_id}
-              className={`rounded-2xl border bg-white p-5 shadow-sm transition ${
+              className={`rounded-2xl border bg-card p-5 shadow-sm transition ${
                 product.active
-                  ? 'border-slate-100 hover:border-emerald-200 hover:shadow-md'
-                  : 'border-slate-200 opacity-60'
+                  ? 'border-border hover:border-emerald-200 dark:hover:border-emerald-800 hover:shadow-md'
+                  : 'border-border opacity-60'
               }`}
             >
               <div className="flex items-start justify-between mb-2">
                 <div>
-                  <p className="font-bold text-slate-900">{product.name}</p>
+                  <p className="font-bold text-foreground">{product.name}</p>
                   {product.description && (
                     <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">{product.description}</p>
                   )}
@@ -337,9 +337,9 @@ export default function ServiceProductsPage() {
       {/* Create / Edit Form Modal */}
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4 py-8 overflow-y-auto">
-          <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-6 shadow-xl my-auto">
+          <div className="w-full max-w-lg rounded-2xl border border-border bg-card p-6 shadow-xl my-auto">
             <div className="mb-5 flex items-center justify-between">
-              <h3 className="text-lg font-bold text-slate-900">
+              <h3 className="text-lg font-bold text-foreground">
                 {editingId ? 'Edit product' : 'New service product'}
               </h3>
               <button
@@ -373,7 +373,7 @@ export default function ServiceProductsPage() {
               </div>
 
               <div>
-                <label className="mb-1.5 block text-sm font-semibold text-slate-700">Charge type *</label>
+                <label className="mb-1.5 block text-sm font-semibold text-slate-700">How customers pay *</label>
                 <div className="grid grid-cols-2 gap-2">
                   {(['ONE_TIME', 'SUBSCRIPTION'] as PriceType[]).map((type) => (
                     <button
@@ -394,14 +394,14 @@ export default function ServiceProductsPage() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="mb-1.5 block text-sm font-semibold text-slate-700">Amount ($) *</label>
+                  <label className="mb-1.5 block text-sm font-semibold text-slate-700">Price *</label>
                   <Input
                     type="number"
                     min="0.50"
                     step="0.01"
                     value={form.amount_dollars}
                     onChange={(e) => setForm((f) => ({ ...f, amount_dollars: e.target.value }))}
-                    placeholder="0.00"
+                    placeholder="e.g. 149.00"
                   />
                 </div>
                 <div>
@@ -436,25 +436,26 @@ export default function ServiceProductsPage() {
                       </select>
                     </div>
                     <div>
-                      <label className="mb-1.5 block text-sm font-semibold text-slate-700">Every N intervals</label>
+                      <label className="mb-1.5 block text-sm font-semibold text-slate-700">Repeat every</label>
                       <Input
                         type="number"
                         min={1}
                         max={12}
                         value={form.billing_interval_count}
                         onChange={(e) => setForm((f) => ({ ...f, billing_interval_count: parseInt(e.target.value) || 1 }))}
+                        placeholder="1"
                       />
                     </div>
                   </div>
 
                   <div>
-                    <label className="mb-1.5 block text-sm font-semibold text-slate-700">Free trial (days)</label>
+                    <label className="mb-1.5 block text-sm font-semibold text-slate-700">Free trial length</label>
                     <Input
                       type="number"
                       min={0}
                       value={form.trial_period_days}
                       onChange={(e) => setForm((f) => ({ ...f, trial_period_days: parseInt(e.target.value) || 0 }))}
-                      placeholder="0 = no trial"
+                      placeholder="0 days"
                     />
                   </div>
                 </>
@@ -501,9 +502,9 @@ export default function ServiceProductsPage() {
       {/* Checkout Link Modal */}
       {checkoutTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
-          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-xl">
+          <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-xl">
             <div className="mb-5 flex items-center justify-between">
-              <h3 className="text-lg font-bold text-slate-900">Payment link</h3>
+              <h3 className="text-lg font-bold text-foreground">Payment link</h3>
               <button
                 type="button"
                 onClick={() => setCheckoutTarget(null)}

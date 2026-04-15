@@ -59,8 +59,8 @@ export const RECORDING_RETENTION_DAYS = 90;
 
 export const PLAN_LIMITS: Record<SubscriptionPlan, PlanLimits> = {
   [SubscriptionPlan.STARTER]: {
-    monthly_minutes: 100,
-    sms_limit: 200,
+    monthly_minutes: 0,
+    sms_limit: 0,
     contacts_limit: 300,
   },
   [SubscriptionPlan.PRO]: {
@@ -83,9 +83,9 @@ export const PLAN_FEATURES: Record<SubscriptionPlan, PlanFeatures> = {
     crm_integrations: false,
     advanced_routing: false,
     human_transfer: false,
-    sms_reminders: true,
+    sms_reminders: false,
     follow_up_sequences: false,
-    recording_retention_days: 7,
+    recording_retention_days: 0,
     priority_support: false,
     website_widget: false,
   },

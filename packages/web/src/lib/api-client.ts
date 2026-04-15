@@ -45,29 +45,33 @@ class ApiClient {
     // Tokens are handled server-side via NextAuth cookies
   }
 
-  private isAuthFailureResponse(response: Response, data: any, message: string): boolean {
-    if (response.status === 401) return true;
+  private async hasActiveSession(): Promise<boolean> {
+    if (typeof window === 'undefined') return false;
 
-    const text = [
-      message,
-      data?.error?.message,
-      data?.message,
-      data?.error,
-      data?.raw,
-    ]
+    try {
+      const response = await fetch('/api/auth/session', { cache: 'no-store' });
+      if (!response.ok) return false;
+      const session = await response.json();
+      return Boolean((session as any)?.idToken || (session as any)?.accessToken);
+    } catch {
+      return false;
+    }
+  }
+
+  private isAuthFailureResponse(response: Response, data: any, message: string): boolean {
+    const text = [message, data?.error?.message, data?.message, data?.error, data?.raw]
       .filter(Boolean)
       .join(' ')
       .toLowerCase();
 
-    const tokenAuthFailure = (
+    const tokenAuthFailure =
       text.includes('invalid or expired token') ||
       text.includes('invalid token') ||
       text.includes('expired token') ||
       text.includes('token expired') ||
       text.includes('jwt expired') ||
       text.includes('invalid signature') ||
-      text.includes('token is not valid yet')
-    );
+      text.includes('token is not valid yet');
 
     if (response.status === 403) {
       // Do not force logout for feature/plan gates (forbidden without auth expiry).
@@ -105,14 +109,13 @@ class ApiClient {
     } catch {
       // no-op
     } finally {
-      window.location.assign('/login?reason=session_expired');
+      const isCustomerPath = typeof window !== 'undefined' && window.location.pathname.startsWith('/customer');
+      const loginUrl = isCustomerPath ? '/customer/login?reason=session_expired' : '/pro/login?reason=session_expired';
+      window.location.assign(loginUrl);
     }
   }
 
-  private async request<T>(
-    endpoint: string,
-    options: RequestInit = {}
-  ): Promise<ApiResponse<T>> {
+  private async request<T>(endpoint: string, options: RequestInit = {}): Promise<ApiResponse<T>> {
     // Remove leading slash if present to avoid double slashes
     const cleanEndpoint = endpoint.startsWith('/') ? endpoint.slice(1) : endpoint;
     const url = `${this.baseUrl}/${cleanEndpoint}`;
@@ -149,13 +152,26 @@ class ApiClient {
       }
 
       if (!response.ok) {
+        const normalizedMessage = Array.isArray(data?.message)
+          ? data.message.filter(Boolean).join(', ')
+          : typeof data?.message === 'string'
+            ? data.message
+            : undefined;
+
         const errorMessage =
-          (typeof data?.error === 'string' ? data.error : undefined) ||
+          normalizedMessage ||
           data?.error?.message ||
-          data?.message ||
+          (typeof data?.error === 'string' && data.error !== 'Bad Request'
+            ? data.error
+            : undefined) ||
           data?.raw ||
           `Request failed with status ${response.status}`;
-        if (this.isAuthFailureResponse(response, data, errorMessage)) {
+
+        const isTokenAuthFailure = this.isAuthFailureResponse(response, data, errorMessage);
+        const shouldForceLogout =
+          isTokenAuthFailure || (response.status === 401 && !(await this.hasActiveSession()));
+
+        if (shouldForceLogout) {
           await this.forceLogoutToLogin();
         }
         throw new Error(errorMessage);
@@ -213,11 +229,18 @@ class ApiClient {
 
   // Auth endpoints
   async register(data: RegisterRequest): Promise<RegisterResponse> {
-    const response = await this.request<RegisterResponse>('/auth/register', {
+    const isCustomer = data.pool_type === 'customer';
+    const endpoint = isCustomer ? '/auth/customer/register' : '/auth/pro/register';
+    const response = await this.request<RegisterResponse>(endpoint, {
       method: 'POST',
-      body: JSON.stringify(data),
+      body: JSON.stringify({
+        email: data.email,
+        password: data.password,
+        first_name: data.first_name,
+        last_name: data.last_name,
+      }),
     });
-    return response.data!;
+    return ((response as any).data ?? response) as RegisterResponse;
   }
 
   async confirmSignUp(data: ConfirmSignUpRequest): Promise<ConfirmSignUpResponse> {
@@ -228,12 +251,67 @@ class ApiClient {
     return response.data!;
   }
 
+  async verifyEmailToken(token: string): Promise<{ message: string }> {
+    const response = await this.request<{ message: string }>(
+      `/auth/verify-email?token=${encodeURIComponent(token)}`,
+      {
+        method: 'GET',
+      },
+    );
+    return ((response as any).data ?? response) as { message: string };
+  }
+
   async resendConfirmation(data: ResendConfirmationRequest): Promise<ResendConfirmationResponse> {
     const response = await this.request<ResendConfirmationResponse>('/auth/resend-confirmation', {
       method: 'POST',
       body: JSON.stringify(data),
     });
-    return response.data!;
+    return ((response as any).data ?? response) as ResendConfirmationResponse;
+  }
+
+  async deleteMyAccount(): Promise<{ message: string }> {
+    return this.delete<{ message: string }>('/companies/me/account');
+  }
+
+  async deleteMyCustomerAccount(): Promise<{ message: string }> {
+    // Use a direct fetch here to avoid the force-logout behavior on 401.
+    // The settings page handles the error and shows it in-place.
+    const url = `${this.baseUrl}/customer/account`;
+    const response = await fetch(url, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    let data: any;
+    try { data = await response.json(); } catch { data = {}; }
+    if (!response.ok) {
+      const msg =
+        (Array.isArray(data?.message) ? data.message.join(', ') : data?.message) ||
+        data?.error?.message ||
+        (typeof data?.error === 'string' ? data.error : undefined) ||
+        `Request failed with status ${response.status}`;
+      throw new Error(msg);
+    }
+    return data?.data ?? data;
+  }
+
+  async sendPhoneCode(email: string, poolType: 'users' | 'customer'): Promise<{ ok: boolean; phone_hint: string }> {
+    return this.post('/auth/send-phone-code', { email, pool_type: poolType });
+  }
+
+  async verifyPhoneCode(email: string, code: string, poolType: 'users' | 'customer'): Promise<{ ok: boolean }> {
+    return this.post('/auth/verify-phone-code', { email, code, pool_type: poolType });
+  }
+
+  async updatePhone(email: string, phoneNumber: string, poolType: 'users' | 'customer'): Promise<{ ok: boolean; phone_hint: string }> {
+    return this.post('/auth/update-phone', { email, phone_number: phoneNumber, pool_type: poolType });
+  }
+
+  async deleteUnverifiedAccount(email: string, poolType: 'users' | 'customer'): Promise<{ ok: boolean }> {
+    const response = await this.request<{ ok: boolean }>('/auth/delete-unverified', {
+      method: 'DELETE',
+      body: JSON.stringify({ email, pool_type: poolType }),
+    });
+    return (response as any)?.data ?? (response as any);
   }
 
   async login(data: LoginRequest): Promise<any> {
@@ -251,7 +329,7 @@ class ApiClient {
     session: string,
     poolType: 'users' | 'admin' | 'customer' = 'users',
     firstName?: string,
-    lastName?: string,
+    lastName?: string
   ): Promise<any> {
     const body: any = { email, new_password: newPassword, session, pool_type: poolType };
     // Include first_name and last_name if provided
@@ -280,12 +358,15 @@ class ApiClient {
   async refreshToken(
     refreshToken: string,
     email: string,
-    poolType: 'auto' | 'users' | 'admin' | 'customer' = 'auto',
+    poolType: 'auto' | 'users' | 'admin' | 'customer' = 'auto'
   ): Promise<{ access_token: string; id_token: string }> {
-    const response = await this.request<{ access_token: string; id_token: string }>('/auth/refresh', {
-      method: 'POST',
-      body: JSON.stringify({ refresh_token: refreshToken, email, pool_type: poolType }),
-    });
+    const response = await this.request<{ access_token: string; id_token: string }>(
+      '/auth/refresh',
+      {
+        method: 'POST',
+        body: JSON.stringify({ refresh_token: refreshToken, email, pool_type: poolType }),
+      }
+    );
     return response.data!;
   }
 
@@ -348,24 +429,48 @@ class ApiClient {
   }
 
   // Appointments endpoints
-  async getAppointments(limit?: number, lastEvaluatedKey?: string): Promise<{ appointments: any[]; lastEvaluatedKey?: any }> {
+  async getAppointments(
+    limit?: number,
+    lastEvaluatedKey?: string
+  ): Promise<{ appointments: any[]; lastEvaluatedKey?: any }> {
     const params = new URLSearchParams();
     if (limit) params.append('limit', limit.toString());
     if (lastEvaluatedKey) params.append('lastEvaluatedKey', lastEvaluatedKey);
 
-    const response = await this.request<{ appointments: any[]; lastEvaluatedKey?: any }>(`/appointments?${params.toString()}`, {
-      method: 'GET',
-    });
+    const response = await this.request<{ appointments: any[]; lastEvaluatedKey?: any }>(
+      `/appointments?${params.toString()}`,
+      {
+        method: 'GET',
+      }
+    );
     const payload: any = response.data ?? response;
     return payload || { appointments: [], lastEvaluatedKey: undefined };
   }
 
   async getAppointmentsRange(startIso: string, endIso: string): Promise<{ appointments: any[] }> {
     const params = new URLSearchParams({ start: startIso, end: endIso });
-    const response = await this.request<{ appointments: any[] }>(`/appointments/range?${params.toString()}`, {
+    const response = await this.request<{ appointments: any[] }>(
+      `/appointments/range?${params.toString()}`,
+      {
+        method: 'GET',
+      }
+    );
+    return (response.data ?? response) as { appointments: any[] };
+  }
+
+  async getCustomerAppointments(): Promise<{ appointments: any[] }> {
+    const response = await this.request<{ appointments: any[] }>(`/customer/appointments`, {
       method: 'GET',
     });
     return (response.data ?? response) as { appointments: any[] };
+  }
+
+  async cancelCustomerAppointment(appointmentId: string, reason?: string): Promise<any> {
+    const response = await this.request<any>(`/customer/appointments/${appointmentId}/cancel`, {
+      method: 'POST',
+      body: JSON.stringify(reason ? { reason } : {}),
+    });
+    return response.data ?? response;
   }
 
   async getAppointmentById(appointmentId: string): Promise<any> {
@@ -374,12 +479,17 @@ class ApiClient {
   }
 
   async createAppointment(data: any): Promise<any> {
-    const response = await this.request<any>(`/appointments`, { method: 'POST', body: JSON.stringify(data) });
+    const response = await this.request<any>(`/appointments`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
     return response.data ?? response;
   }
 
   async cancelAppointment(appointmentId: string): Promise<any> {
-    const response = await this.request<any>(`/appointments/${appointmentId}`, { method: 'DELETE' });
+    const response = await this.request<any>(`/appointments/${appointmentId}`, {
+      method: 'DELETE',
+    });
     return response.data ?? response;
   }
 
@@ -392,37 +502,27 @@ class ApiClient {
   }
 
   async deleteAppointment(appointmentId: string): Promise<any> {
-    const response = await this.request<any>(`/appointments/${appointmentId}`, { method: 'DELETE' });
-    return response.data ?? response;
-  }
-
-  async getPendingBookingRequests(): Promise<{ appointments: any[] }> {
-    const response = await this.request<{ appointments: any[] }>('/appointments/pending', { method: 'GET' });
-    return (response.data ?? response) as { appointments: any[] };
-  }
-
-  async acceptAppointment(appointmentId: string): Promise<any> {
-    const response = await this.request<any>(`/appointments/${appointmentId}/accept`, { method: 'POST' });
-    return response.data ?? response;
-  }
-
-  async declineAppointment(appointmentId: string, reason?: string): Promise<any> {
-    const response = await this.request<any>(`/appointments/${appointmentId}/decline`, {
-      method: 'POST',
-      body: JSON.stringify({ reason }),
+    const response = await this.request<any>(`/appointments/${appointmentId}`, {
+      method: 'DELETE',
     });
     return response.data ?? response;
   }
 
   // Calls endpoints
-  async getCalls(limit?: number, lastEvaluatedKey?: string): Promise<{ calls: any[]; lastEvaluatedKey?: any; total?: number }> {
+  async getCalls(
+    limit?: number,
+    lastEvaluatedKey?: string
+  ): Promise<{ calls: any[]; lastEvaluatedKey?: any; total?: number }> {
     const params = new URLSearchParams();
     if (limit) params.append('limit', limit.toString());
     if (lastEvaluatedKey) params.append('lastEvaluatedKey', lastEvaluatedKey);
 
-    const response = await this.request<{ calls: any[]; lastEvaluatedKey?: any }>(`/calls?${params.toString()}`, {
-      method: 'GET',
-    });
+    const response = await this.request<{ calls: any[]; lastEvaluatedKey?: any }>(
+      `/calls?${params.toString()}`,
+      {
+        method: 'GET',
+      }
+    );
     const payload: any = response.data ?? response;
     return payload || { calls: [], lastEvaluatedKey: undefined };
   }
@@ -448,7 +548,10 @@ class ApiClient {
   }
 
   // Messages endpoints
-  async getMessageThreads(limit?: number, lastEvaluatedKey?: string): Promise<{ threads: any[]; lastEvaluatedKey?: any }> {
+  async getMessageThreads(
+    limit?: number,
+    lastEvaluatedKey?: string
+  ): Promise<{ threads: any[]; lastEvaluatedKey?: any }> {
     const params = new URLSearchParams();
     if (typeof limit === 'number') params.append('limit', limit.toString());
     if (lastEvaluatedKey) params.append('lastEvaluatedKey', lastEvaluatedKey);
@@ -457,12 +560,18 @@ class ApiClient {
     return (response.data ?? response) as { threads: any[]; lastEvaluatedKey?: any };
   }
 
-  async getMessageThread(contactId: string, limit?: number, lastEvaluatedKey?: string): Promise<{ thread: any; messages: any[]; lastEvaluatedKey?: any }> {
+  async getMessageThread(
+    contactId: string,
+    limit?: number,
+    lastEvaluatedKey?: string
+  ): Promise<{ thread: any; messages: any[]; lastEvaluatedKey?: any }> {
     const params = new URLSearchParams();
     if (typeof limit === 'number') params.append('limit', limit.toString());
     if (lastEvaluatedKey) params.append('lastEvaluatedKey', lastEvaluatedKey);
     const suffix = params.toString() ? `?${params.toString()}` : '';
-    const response = await this.request<any>(`/messages/threads/${contactId}${suffix}`, { method: 'GET' });
+    const response = await this.request<any>(`/messages/threads/${contactId}${suffix}`, {
+      method: 'GET',
+    });
     return (response.data ?? response) as { thread: any; messages: any[]; lastEvaluatedKey?: any };
   }
 
@@ -475,166 +584,6 @@ class ApiClient {
     });
     const payload: any = response.data ?? response;
     return payload || [];
-  }
-
-  // Telephony endpoints
-  async getMyTelephonyNumber(): Promise<any> {
-    const response = await this.request<any>('/telephony/my-number', { method: 'GET' });
-    return response.data ?? response;
-  }
-
-  async getAvailablePhoneNumbers(params: {
-    country?: string;
-    type?: string;
-    maxResults?: number;
-    areaCode?: string;
-    contains?: string;
-  }): Promise<any[]> {
-    const query = new URLSearchParams();
-    if (params.country) query.append('country', params.country);
-    if (params.type) query.append('type', params.type);
-    if (typeof params.maxResults === 'number') query.append('maxResults', String(params.maxResults));
-    if (params.areaCode) query.append('areaCode', params.areaCode);
-    if (params.contains) query.append('contains', params.contains);
-
-    const response = await this.request<any>(`/telephony/available-numbers?${query.toString()}`, { method: 'GET' });
-    const payload: any = response.data ?? response;
-    return Array.isArray(payload) ? payload : payload?.data || [];
-  }
-
-  async claimPhoneNumber(phoneNumber: string, description?: string): Promise<any> {
-    const response = await this.request<any>('/telephony/claim-number', {
-      method: 'POST',
-      body: JSON.stringify({ phoneNumber, description }),
-    });
-    return response.data ?? response;
-  }
-
-  async claimDemoPhoneNumber(): Promise<any> {
-    const response = await this.request<any>('/telephony/claim-demo', {
-      method: 'POST',
-    });
-    return response.data ?? response;
-  }
-
-  // Knowledge endpoints
-  async getKnowledgeItems(type?: string, status?: string, limit?: number): Promise<any> {
-    const params = new URLSearchParams();
-    if (type) params.append('type', type);
-    if (status) params.append('status', status);
-    if (limit) params.append('limit', limit.toString());
-
-    const response = await this.request<any>(`/knowledge-items?${params.toString()}`, {
-      method: 'GET',
-    });
-    return response.data ?? response;
-  }
-
-  async getKnowledgeItem(knowledgeId: string): Promise<any> {
-    const response = await this.request<any>(`/knowledge-items/${knowledgeId}`, {
-      method: 'GET',
-    });
-    return response.data ?? response;
-  }
-
-  async createKnowledgeItem(data: any): Promise<any> {
-    const response = await this.request<any>('/knowledge-items', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
-    return response.data ?? response;
-  }
-
-  async updateKnowledgeItem(knowledgeId: string, data: any): Promise<any> {
-    const response = await this.request<any>(`/knowledge-items/${knowledgeId}`, {
-      method: 'PUT',
-      body: JSON.stringify(data),
-    });
-    return response.data ?? response;
-  }
-
-  async deleteKnowledgeItem(knowledgeId: string): Promise<any> {
-    const response = await this.request<any>(`/knowledge-items/${knowledgeId}`, {
-      method: 'DELETE',
-    });
-    return response.data ?? response;
-  }
-
-  async searchKnowledge(query: string, topK?: number): Promise<any> {
-    const params = new URLSearchParams({ q: query });
-    if (topK) params.append('topK', topK.toString());
-
-    const response = await this.request<any>(`/knowledge-items/search?${params.toString()}`, {
-      method: 'GET',
-    });
-    return response.data ?? response;
-  }
-
-  async knowledgeAssistantRespond(messages: Array<{ role: 'user' | 'assistant'; content: string }>): Promise<any> {
-    const response = await this.request<any>('/knowledge-items/assistant/respond', {
-      method: 'POST',
-      body: JSON.stringify({ messages }),
-    });
-    return response.data ?? response;
-  }
-
-  async knowledgeAssistantGenerate(
-    messages: Array<{ role: 'user' | 'assistant'; content: string }>,
-    autoCreate: boolean = true,
-  ): Promise<any> {
-    const response = await this.request<any>('/knowledge-items/assistant/generate', {
-      method: 'POST',
-      body: JSON.stringify({
-        messages,
-        auto_create: autoCreate,
-      }),
-    });
-    return response.data ?? response;
-  }
-
-  async knowledgeExtractProducts(
-    messages: Array<{ role: 'user' | 'assistant'; content: string }>,
-  ): Promise<{ created_count: number; skipped_count: number }> {
-    const response = await this.request<any>('/knowledge-items/assistant/extract-products', {
-      method: 'POST',
-      body: JSON.stringify({ messages }),
-    });
-    return response.data ?? response;
-  }
-
-  // Flagged Questions endpoints
-  async getFlaggedQuestions(status?: string, callId?: string, limit?: number): Promise<any> {
-    const params = new URLSearchParams();
-    if (status) params.append('status', status);
-    if (callId) params.append('call_id', callId);
-    if (limit) params.append('limit', limit.toString());
-
-    const response = await this.request<any>(`/flagged-questions?${params.toString()}`, {
-      method: 'GET',
-    });
-    return response.data ?? response;
-  }
-
-  async getFlaggedQuestion(flaggedId: string): Promise<any> {
-    const response = await this.request<any>(`/flagged-questions/${flaggedId}`, {
-      method: 'GET',
-    });
-    return response.data ?? response;
-  }
-
-  async resolveFlaggedQuestion(flaggedId: string, data: any): Promise<any> {
-    const response = await this.request<any>(`/flagged-questions/${flaggedId}/resolve`, {
-      method: 'PUT',
-      body: JSON.stringify(data),
-    });
-    return response.data ?? response;
-  }
-
-  async dismissFlaggedQuestion(flaggedId: string): Promise<any> {
-    const response = await this.request<any>(`/flagged-questions/${flaggedId}/dismiss`, {
-      method: 'PUT',
-    });
-    return response.data ?? response;
   }
 
   // Contacts endpoints
@@ -657,7 +606,9 @@ class ApiClient {
   }
 
   async getContactAppointments(contactId: string): Promise<{ appointments: any[] }> {
-    const response = await this.request<any>(`/contacts/${contactId}/appointments`, { method: 'GET' });
+    const response = await this.request<any>(`/contacts/${contactId}/appointments`, {
+      method: 'GET',
+    });
     return (response.data ?? response) as { appointments: any[] };
   }
 
@@ -670,7 +621,9 @@ class ApiClient {
     if (typeof limit === 'number') params.append('limit', limit.toString());
     if (lastEvaluatedKey) params.append('lastEvaluatedKey', lastEvaluatedKey);
     const suffix = params.toString() ? `?${params.toString()}` : '';
-    const response = await this.request<any>(`/contacts/${contactId}/calls${suffix}`, { method: 'GET' });
+    const response = await this.request<any>(`/contacts/${contactId}/calls${suffix}`, {
+      method: 'GET',
+    });
     return (response.data ?? response) as { calls: any[]; lastEvaluatedKey?: any; total?: number };
   }
 
@@ -715,10 +668,24 @@ class ApiClient {
     return (response.data ?? response) as { client_secret: string };
   }
 
+  async getBillingConfig(): Promise<{ publishable_key: string | null }> {
+    const response = await this.request<{ publishable_key: string | null }>('/billing/config', {
+      method: 'GET',
+    });
+    return (response.data ?? response) as { publishable_key: string | null };
+  }
+
   async createSubscription(data: { plan: string; payment_method_id: string }): Promise<any> {
     const response = await this.request<any>('/billing/subscription', {
       method: 'POST',
       body: JSON.stringify(data),
+    });
+    return response.data ?? response;
+  }
+
+  async activateStarterPlan(): Promise<any> {
+    const response = await this.request<any>('/billing/subscription/starter', {
+      method: 'POST',
     });
     return response.data ?? response;
   }
@@ -802,7 +769,10 @@ class ApiClient {
     return response.data ?? response;
   }
 
-  async createConnectOnboardingLink(options?: { refresh_url?: string; return_url?: string }): Promise<any> {
+  async createConnectOnboardingLink(options?: {
+    refresh_url?: string;
+    return_url?: string;
+  }): Promise<any> {
     const response = await this.request<any>('/billing/connect/onboarding-link', {
       method: 'POST',
       body: JSON.stringify(options || {}),
@@ -833,7 +803,8 @@ class ApiClient {
     if (typeof filters?.start === 'number') params.append('start', String(filters.start));
     if (typeof filters?.end === 'number') params.append('end', String(filters.end));
     if (typeof filters?.limit === 'number') params.append('limit', String(filters.limit));
-    if (filters?.lastEvaluatedKey) params.append('lastEvaluatedKey', JSON.stringify(filters.lastEvaluatedKey));
+    if (filters?.lastEvaluatedKey)
+      params.append('lastEvaluatedKey', JSON.stringify(filters.lastEvaluatedKey));
     const suffix = params.toString() ? `?${params.toString()}` : '';
     const response = await this.request<any>(`/billing/customer-payments${suffix}`, {
       method: 'GET',
@@ -868,9 +839,12 @@ class ApiClient {
   }
 
   async getMicrosoftCalendarAuthUrl(): Promise<{ url: string }> {
-    const response = await this.request<{ url: string }>('/calendar-integration/auth/microsoft/url', {
-      method: 'GET',
-    });
+    const response = await this.request<{ url: string }>(
+      '/calendar-integration/auth/microsoft/url',
+      {
+        method: 'GET',
+      }
+    );
     return (response.data ?? response) as { url: string };
   }
 
@@ -1073,13 +1047,27 @@ class ApiClient {
   }
 
   async reactivateAdminCompanySubscription(companyId: string): Promise<any> {
-    const response = await this.request<any>(`/billing/admin/company/${companyId}/subscription/reactivate`, {
-      method: 'POST',
-    });
+    const response = await this.request<any>(
+      `/billing/admin/company/${companyId}/subscription/reactivate`,
+      {
+        method: 'POST',
+      }
+    );
     return response.data ?? response;
   }
 
-  async updateMyProfile(data: { first_name?: string; last_name?: string; contact_email?: string; email?: string; phone_number?: string }): Promise<any> {
+  async getMyProfile(): Promise<any> {
+    const response = await this.request<any>('/users/me', { method: 'GET' });
+    return response.data ?? response;
+  }
+
+  async updateMyProfile(data: {
+    first_name?: string;
+    last_name?: string;
+    contact_email?: string;
+    email?: string;
+    phone_number?: string;
+  }): Promise<any> {
     const response = await this.request<any>('/users/me', {
       method: 'PUT',
       body: JSON.stringify(data),
@@ -1096,7 +1084,13 @@ class ApiClient {
   }
 
   // Outbound calls
-  async createOutboundCall(data: { to_number: string; context?: string; contact_id?: string }) {
+  async createOutboundCall(data: {
+    to_number: string;
+    context?: string;
+    contact_id?: string;
+    appointment_id?: string;
+    custom_message?: string;
+  }) {
     return this.request<any>('/outbound-calls', { method: 'POST', body: JSON.stringify(data) });
   }
 
@@ -1110,15 +1104,25 @@ class ApiClient {
   }
 
   async createSmsTemplate(data: { name: string; category: string; body: string }) {
-    return this.request<any>('/sms-automation/templates', { method: 'POST', body: JSON.stringify(data) });
+    return this.request<any>('/sms-automation/templates', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
   }
 
   async deleteSmsTemplate(templateId: string) {
     return this.request<any>(`/sms-automation/templates/${templateId}`, { method: 'DELETE' });
   }
 
-  async sendSmsCampaign(data: { template_id: string; contact_ids: string[]; scheduled_at?: number }) {
-    return this.request<any>('/sms-automation/campaign', { method: 'POST', body: JSON.stringify(data) });
+  async sendSmsCampaign(data: {
+    template_id: string;
+    contact_ids: string[];
+    scheduled_at?: number;
+  }) {
+    return this.request<any>('/sms-automation/campaign', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
   }
 
   async getScheduledMessages(status?: string) {
@@ -1159,7 +1163,10 @@ class ApiClient {
   }
 
   async updateInvoice(invoiceId: string, data: any): Promise<any> {
-    return this.request<any>(`/invoices/${invoiceId}`, { method: 'PUT', body: JSON.stringify(data) });
+    return this.request<any>(`/invoices/${invoiceId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
   }
 
   async markInvoiceSent(invoiceId: string): Promise<any> {
@@ -1192,15 +1199,10 @@ class ApiClient {
     return this.request<any>(`/team/${memberId}`, { method: 'DELETE' });
   }
 
-  // Lead Scoring
-  async getLeadScores(): Promise<any[]> {
-    const res = await this.request<any>('/leads/scores');
-    return (res as any)?.scores ?? res ?? [];
-  }
-
-  async getLeadScore(contactId: string): Promise<any> {
-    const res = await this.request<any>(`/leads/${contactId}/score`);
-    return (res as any)?.data ?? res;
+  // Leads
+  async getLeads(): Promise<any[]> {
+    const res = await this.request<any>('/leads');
+    return (res as any)?.leads ?? res ?? [];
   }
 
   // Marketplace / Provider Search
@@ -1221,6 +1223,11 @@ class ApiClient {
 
   async getProviderBySlug(slug: string): Promise<any> {
     const res = await this.request<any>(`/marketplace/providers/${slug}`);
+    return (res as any)?.provider ?? res;
+  }
+
+  async getProviderById(id: string): Promise<any> {
+    const res = await this.request<any>(`/marketplace/provider-by-id/${id}`);
     return (res as any)?.provider ?? res;
   }
 
@@ -1266,12 +1273,25 @@ class ApiClient {
 
   async listFollowUpSequences(): Promise<any[]> {
     const res = await this.request<any>('/follow-up-sequences');
-    return Array.isArray(res) ? res : (res as any)?.items ?? [];
+    return Array.isArray(res) ? res : ((res as any)?.items ?? []);
   }
 
   // Quote Requests (marketplace)
   async submitQuoteRequest(data: any): Promise<any> {
     return this.request<any>('/quote-requests', { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  async getCustomerQuoteRequests(): Promise<any[]> {
+    const res = await this.request<any>('/customer/quote-requests');
+    return (res as any)?.quotes ?? res ?? [];
+  }
+
+  async updateCustomerQuoteRequest(quoteId: string, data: any): Promise<any> {
+    const res = await this.request<any>(`/customer/quote-requests/${quoteId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+    return (res as any)?.quote ?? res;
   }
 
   async browseQuoteRequests(category?: string, zipcode?: string): Promise<any[]> {
@@ -1293,6 +1313,11 @@ class ApiClient {
     return (res as any)?.quotes ?? res ?? [];
   }
 
+  async getPastQuoteRequests(): Promise<any[]> {
+    const res = await this.request<any>('/quote-requests/pro/past');
+    return (res as any)?.quotes ?? res ?? [];
+  }
+
   async respondToQuoteRequest(quoteId: string, data: any): Promise<any> {
     return this.request<any>(`/quote-requests/${quoteId}/respond`, {
       method: 'POST',
@@ -1311,10 +1336,30 @@ class ApiClient {
     return (res as any)?.messages ?? res ?? [];
   }
 
-  async sendProMessage(threadId: string, content: string): Promise<any> {
+  async sendProMessage(
+    threadId: string,
+    data: {
+      message: string;
+      customer_email?: string;
+      customer_name?: string;
+      customer_phone?: string;
+      customer_user_id?: string;
+      request_status?: string;
+      quote_context?: any;
+      attachments?: Array<{
+        url: string;
+        width?: number;
+        height?: number;
+        mime_type?: string;
+        name?: string;
+      }>;
+      message_type?: string;
+      system_event?: string;
+    }
+  ): Promise<any> {
     return this.request<any>(`/portal-messaging/pro/threads/${threadId}/send`, {
       method: 'POST',
-      body: JSON.stringify({ content }),
+      body: JSON.stringify(data),
     });
   }
 
@@ -1325,8 +1370,13 @@ class ApiClient {
     });
   }
 
-  async getCustomerThreads(email: string): Promise<any[]> {
-    const res = await this.request<any>(`/portal-messaging/customer/threads?email=${encodeURIComponent(email)}`);
+  async getCustomerThreads(identity: { email?: string; userId?: string }): Promise<any[]> {
+    const params = new URLSearchParams();
+    if (identity.email) params.set('email', identity.email);
+    if (identity.userId) params.set('user_id', identity.userId);
+    const res = await this.request<any>(
+      `/portal-messaging/customer/threads?${params.toString()}`
+    );
     return (res as any)?.threads ?? res ?? [];
   }
 
@@ -1337,10 +1387,31 @@ class ApiClient {
     return (res as any)?.messages ?? res ?? [];
   }
 
+  async getCustomerProfile(): Promise<{ profile: any; is_complete: boolean }> {
+    const res = await this.request<{ profile: any; is_complete: boolean }>('/customer/profile');
+    return (res as any)?.data ?? res;
+  }
+
+  async updateCustomerProfile(data: {
+    name?: string;
+    phone?: string;
+    address_line1?: string;
+    address_line2?: string;
+    city?: string;
+    state?: string;
+    zipcode?: string;
+  }): Promise<{ profile: any; is_complete: boolean }> {
+    const res = await this.request<{ profile: any; is_complete: boolean }>('/customer/profile', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+    return (res as any)?.data ?? res;
+  }
+
   // Refunds
   async refundCustomerPayment(
     paymentId: string,
-    data?: { amount_cents?: number; reason?: 'duplicate' | 'fraudulent' | 'requested_by_customer' },
+    data?: { amount_cents?: number; reason?: 'duplicate' | 'fraudulent' | 'requested_by_customer' }
   ): Promise<any> {
     const res = await this.request<any>(`/billing/customer-payments/${paymentId}/refund`, {
       method: 'POST',
@@ -1397,7 +1468,12 @@ class ApiClient {
 
   async createProductCheckout(
     productId: string,
-    data: { customer_email?: string; contact_id?: string; success_url?: string; cancel_url?: string },
+    data: {
+      customer_email?: string;
+      contact_id?: string;
+      success_url?: string;
+      cancel_url?: string;
+    }
   ): Promise<any> {
     const res = await this.request<any>(`/billing/service-products/${productId}/checkout`, {
       method: 'POST',
@@ -1405,7 +1481,6 @@ class ApiClient {
     });
     return res;
   }
-
 }
 
 export const apiClient = new ApiClient(API_URL);

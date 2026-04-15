@@ -1,33 +1,72 @@
+'use client';
+
 import Link from 'next/link';
-import { Logo } from '@/components/ui/logo';
 
 export function SiteFooter() {
   return (
-    <footer className="border-t border-slate-200 bg-white px-4 py-8">
-      <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-6 sm:flex-row">
-        <div className="flex items-center gap-4">
-          <Logo width={120} height={30} />
-          <span className="text-xs text-slate-400">&copy; 2026 HandyCall. All rights reserved.</span>
+    <footer className="bg-slate-900">
+      <div className="mx-auto max-w-6xl px-4 py-14">
+        <div className="mb-10 border-b border-slate-800 pb-10">
+          {/* Inline logo — renders reliably on dark backgrounds */}
+          <Link href="/" className="inline-flex items-center gap-2.5">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-600">
+              <span className="text-[15px] font-black leading-none text-white">HC</span>
+            </div>
+            <span className="text-xl font-bold text-white">HandyCall</span>
+          </Link>
+          <p className="mt-3 max-w-md text-sm text-slate-400">
+            Helping homeowners discover the right service categories and helping pros turn that demand into booked work.
+          </p>
         </div>
-        <div className="flex flex-wrap items-center gap-6 text-sm text-slate-500">
-          <Link href="/pricing" className="transition-colors hover:text-slate-900">
-            Pricing
-          </Link>
-          <Link href="/contact" className="transition-colors hover:text-slate-900">
-            Contact
-          </Link>
-          <Link href="/sms-consent" className="transition-colors hover:text-slate-900">
-            SMS Consent
-          </Link>
-          <Link href="/privacy-policy" className="transition-colors hover:text-slate-900">
-            Privacy
-          </Link>
-          <Link href="/terms" className="transition-colors hover:text-slate-900">
-            Terms
-          </Link>
-          <Link href="mailto:hello@handycall.org" className="transition-colors hover:text-slate-900">
-            hello@handycall.org
-          </Link>
+
+        <div className="grid grid-cols-2 gap-8 md:grid-cols-4">
+          <div>
+            <h4 className="mb-4 text-xs font-bold uppercase tracking-widest text-slate-400">
+              Find Services
+            </h4>
+            <ul className="space-y-2.5">
+              <li><Link href="/search" className="text-sm text-slate-400 transition-colors hover:text-white">Search</Link></li>
+              <li><Link href="/categories" className="text-sm text-slate-400 transition-colors hover:text-white">Categories</Link></li>
+              <li><Link href="/#how-it-works" className="text-sm text-slate-400 transition-colors hover:text-white">How It Works</Link></li>
+              <li><Link href="/signup" className="text-sm text-slate-400 transition-colors hover:text-white">Sign Up</Link></li>
+            </ul>
+          </div>
+
+          <div>
+            <h4 className="mb-4 text-xs font-bold uppercase tracking-widest text-slate-400">
+              For Pros
+            </h4>
+            <ul className="space-y-2.5">
+              <li><Link href="/for-pros" className="text-sm text-slate-400 transition-colors hover:text-white">For Pros</Link></li>
+              <li><Link href="/for-pros#pricing" className="text-sm text-slate-400 transition-colors hover:text-white">Pricing</Link></li>
+              <li><Link href="/register" className="text-sm text-slate-400 transition-colors hover:text-white">Pro Sign Up</Link></li>
+              <li><Link href="/pro/login" className="text-sm text-slate-400 transition-colors hover:text-white">Pro Login</Link></li>
+            </ul>
+          </div>
+
+          <div>
+            <h4 className="mb-4 text-xs font-bold uppercase tracking-widest text-slate-400">
+              Company
+            </h4>
+            <ul className="space-y-2.5">
+              <li><Link href="/contact" className="text-sm text-slate-400 transition-colors hover:text-white">Contact</Link></li>
+              <li><Link href="mailto:hello@handycall.org" className="text-sm text-slate-400 transition-colors hover:text-white">hello@handycall.org</Link></li>
+            </ul>
+          </div>
+
+          <div>
+            <h4 className="mb-4 text-xs font-bold uppercase tracking-widest text-slate-400">
+              Legal
+            </h4>
+            <ul className="space-y-2.5">
+              <li><Link href="/terms" className="text-sm text-slate-400 transition-colors hover:text-white">Terms</Link></li>
+              <li><Link href="/privacy-policy" className="text-sm text-slate-400 transition-colors hover:text-white">Privacy</Link></li>
+            </ul>
+          </div>
+        </div>
+
+        <div className="mt-10 border-t border-slate-800 pt-6">
+          <p className="text-xs text-slate-500">© 2026 HandyCall. All rights reserved.</p>
         </div>
       </div>
     </footer>

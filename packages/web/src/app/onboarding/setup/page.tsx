@@ -1,95 +1,314 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Suspense,
+  type FormEvent,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { loadStripe } from '@stripe/stripe-js';
-import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
+import { Elements, PaymentElement, useElements, useStripe } from '@stripe/react-stripe-js';
 import {
-  IconSparkles,
-  IconUser,
-  IconSend,
-  IconCheck,
-  IconX,
   IconArrowRight,
-  IconLoader2,
-  IconMapPin,
-  IconCalendar,
-  IconPhone,
-  IconBrain,
-  IconCreditCard,
+  IconBrandApple,
   IconBrandGoogle,
   IconBrandWindows,
-  IconBrandApple,
-  IconPencil,
+  IconCalendar,
+  IconCheck,
+  IconChevronRight,
+  IconCreditCard,
+  IconLoader2,
+  IconMapPin,
+  IconSparkles,
+  IconUser,
+  IconX,
 } from '@tabler/icons-react';
 import { useOnboarding } from '@/components/onboarding/onboarding-context';
 import { useAuthStore } from '@/stores/auth-store';
 import { apiClient } from '@/lib/api-client';
-import { SERVICE_TYPE_OPTIONS } from '@/constants/service-types';
-import { TIMEZONE_OPTIONS, DEFAULT_TIMEZONE } from '@/constants/timezones';
-import { PLAN_CATALOG, getPlanPriceDisplay } from '@/constants/plans';
-import { SubscriptionPlan } from '@handycall/shared';
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+import { DEFAULT_TIMEZONE } from '@/constants/timezones';
+import { PLAN_CATALOG, getPlanPriceDisplay, normalizePlan } from '@/constants/plans';
+import { MARKETPLACE_SERVICE_CATEGORIES } from '@/constants/marketplace-service-categories';
+import { ServiceType, SubscriptionPlan } from '@handycall/shared';
+
+import { useMarketingLanguage } from '@/components/providers/marketing-language-provider';
+import { cn } from '@/lib/utils';
 
 type Phase =
   | 'loading'
+  | 'plan_selection'
   | 'profile_name'
   | 'company_name'
   | 'service_type'
-  | 'timezone'
-  | 'service_area_choice'
-  | 'service_area_input'
+  | 'marketplace_profile_intro'
   | 'calendar_mode'
   | 'calendar_hours'
   | 'calendar_provider'
   | 'calendar_apple'
-  | 'phone_choice'
-  | 'phone_claim'
-  | 'phone_forward'
-  | 'knowledge_intro'
-  | 'knowledge_chat'
+  | 'billing_payment_mode'
   | 'billing_plan'
   | 'billing_payment'
-  | 'billing_payment_mode'
   | 'billing_connect'
+  | 'starter_activation'
   | 'complete';
 
-type ChatMessage = {
-  id: string;
-  role: 'bot' | 'user';
-  content: string;
-  /** If set, an edit pencil appears on this user message */
-  onEdit?: () => void;
-};
-type KnowledgeMsg = { role: 'user' | 'assistant'; content: string };
 type DayRow = { closed: boolean; open: string; close: string };
 type CalendarHours = Record<string, DayRow>;
 
-// ─── Constants ────────────────────────────────────────────────────────────────
+const PLAN_DRAFT_STORAGE_KEY = 'handycall-onboarding-tier';
+
+const SETUP_TRANSLATIONS: Record<string, string> = {
+  Sun: 'الأحد',
+  Mon: 'الاثنين',
+  Tue: 'الثلاثاء',
+  Wed: 'الأربعاء',
+  Thu: 'الخميس',
+  Fri: 'الجمعة',
+  Sat: 'السبت',
+  'Choose tier': 'اختر الباقة',
+  'Business basics': 'أساسيات النشاط',
+  'Marketplace profile': 'ملف السوق',
+  'Launch listing': 'إطلاق الملف',
+  'AI calling setup': 'إعداد المكالمات الذكية',
+  'Billing & launch': 'الفوترة والإطلاق',
+  'Choose how you want to grow on HandyCall': 'اختر كيف تريد أن تنمو على HandyCall',
+  'Starter is marketplace-only. Pro and Max add AI calling, automation, and payment setup.':
+    'Starter مخصص للسوق فقط. أما Pro و Max فيضيفان المكالمات الذكية والأتمتة وإعداد المدفوعات.',
+  'Free to list, pay per unlocked lead': 'إدراج مجاني، والدفع عند فتح بيانات العميل المحتمل',
+  'Marketplace + AI calling': 'السوق + المكالمات الذكية',
+  'Growth plan for top pros': 'خطة نمو للمحترفين المميزين',
+  'Free marketplace profile': 'ملف سوق مجاني',
+  'Appear in customer search results': 'الظهور في نتائج بحث العملاء',
+  'Receive lead requests and job inquiries': 'استقبال طلبات العملاء والاستفسارات',
+  'Preview the request before unlocking': 'معاينة الطلب قبل فتح البيانات',
+  'No AI receptionist or call automation included': 'لا يشمل موظف استقبال ذكي أو أتمتة للمكالمات',
+  'Everything in Starter, plus:': 'كل ما في Starter، بالإضافة إلى:',
+  'AI receptionist for inbound calls': 'موظف استقبال ذكي للمكالمات الواردة',
+  'Lead qualification and booking intake': 'تأهيل العملاء واستقبال طلبات الحجز',
+  'Managed or self-managed customer payments': 'مدفوعات العملاء بإدارة المنصة أو بإدارتك الذاتية',
+  'Call summaries, transcripts, and follow-up sequences': 'ملخصات المكالمات والنصوص وتسلسلات المتابعة',
+  '30-day call recording retention': 'الاحتفاظ بتسجيلات المكالمات لمدة 30 يومًا',
+  'Everything in Pro, plus:': 'كل ما في Pro، بالإضافة إلى:',
+  'CRM integrations and deeper analytics': 'تكاملات CRM وتحليلات أعمق',
+  'Sponsored placement in search results': 'ظهور مدفوع في نتائج البحث',
+  'Advanced routing and multi-location support': 'توجيه متقدم ودعم لعدة مواقع',
+  '90-day call recording retention': 'الاحتفاظ بتسجيلات المكالمات لمدة 90 يومًا',
+  'Priority support': 'دعم أولوية',
+  "What's your name?": 'ما اسمك؟',
+  "We'll use this to personalize your HandyCall workspace.": 'سنستخدم هذا لتخصيص مساحة العمل الخاصة بك في HandyCall.',
+  "What's your business name?": 'ما اسم نشاطك؟',
+  'This appears on your marketplace profile and customer-facing booking pages.':
+    'سيظهر هذا في ملفك داخل السوق وصفحات الحجز التي يراها العميل.',
+  'Which main category fits your business best?': 'ما الفئة الرئيسية الأنسب لنشاطك؟',
+  'Choose the broad category now. On the next setup step, you will list the exact services customers can search for inside that category.':
+    'اختر الفئة العامة الآن. في الخطوة التالية ستحدد الخدمات الدقيقة التي يمكن للعملاء البحث عنها داخل هذه الفئة.',
+  'Which timezone should we use?': 'ما المنطقة الزمنية التي نستخدمها؟',
+  'Used for business hours, availability, reminders, and lead timestamps.':
+    'تُستخدم لساعات العمل والتوفر والتنبيهات وتوقيت العملاء المحتملين.',
+  'Build your marketplace profile first': 'أنشئ ملفك في السوق أولاً',
+  'Customers will see this before they inquire. Add your cities, services, pricing cues, and trust signals now.':
+    'يرى العملاء هذا قبل إرسال الطلب. أضف المدن والخدمات ومؤشرات الأسعار وعناصر الثقة الآن.',
+  'How should the AI handle availability?': 'كيف يجب أن يتعامل الذكاء الاصطناعي مع التوفر؟',
+  'For Pro and Max, the AI receptionist needs live availability before it can book qualified leads.':
+    'في خطتي Pro و Max يحتاج موظف الاستقبال الذكي إلى توفر مباشر قبل حجز العملاء المؤهلين.',
+  'Set your working hours': 'حدد ساعات العمل',
+  'We default to Mon-Fri. Customers will only be offered times inside these hours.':
+    'نستخدم أسبوع العمل السعودي افتراضيًا. سيُعرض على العملاء فقط الأوقات ضمن هذه الساعات.',
+  'Connect your calendar': 'اربط التقويم الخاص بك',
+  'Sync with Google, Microsoft, or Apple so the AI books around your real schedule.':
+    'قم بالمزامنة مع Google أو Microsoft أو Apple حتى يحجز الذكاء الاصطناعي وفق جدولك الحقيقي.',
+  'Connect Apple Calendar': 'اربط تقويم Apple',
+  'Use an app-specific password from your Apple ID settings.':
+    'استخدم كلمة مرور خاصة بالتطبيق من إعدادات Apple ID.',
+  'How should calls reach your AI receptionist?': 'كيف يجب أن تصل المكالمات إلى موظف الاستقبال الذكي؟',
+  'You can forward your existing business number or use a temporary HandyCall number while you test.':
+    'يمكنك تحويل رقم نشاطك الحالي في السعودية أو استخدام رقم مؤقت من HandyCall أثناء التجربة.',
+  'Enter the number you already use': 'أدخل الرقم الذي تستخدمه الآن',
+  'Customers keep calling the same number while HandyCall handles the first touch.':
+    'يستمر العملاء بالاتصال بنفس الرقم بينما يتولى HandyCall الرد الأول.',
+  'Teach the AI how your business works': 'علّم الذكاء الاصطناعي كيف يعمل نشاطك',
+  'Add service details, pricing expectations, what is included, and the policies your team repeats every day.':
+    'أضف تفاصيل الخدمات وتوقعات الأسعار وما يتضمنه العمل والسياسات التي يكررها فريقك يوميًا.',
+  'Shape the intake questions your AI will ask': 'حدّد أسئلة الاستقبال التي سيطرحها الذكاء الاصطناعي',
+  'Keep the questions tight and relevant so customers qualify quickly before booking or payment.':
+    'اجعل الأسئلة مختصرة ومرتبطة بالخدمة حتى يتم تأهيل العميل بسرعة قبل الحجز أو الدفع.',
+  'How should customer payments work?': 'كيف يجب أن تعمل مدفوعات العملاء؟',
+  'Pro and Max can either collect payments inside HandyCall or let your team handle payment offline.':
+    'يمكن لخطتي Pro و Max تحصيل المدفوعات داخل HandyCall أو ترك فريقك يتعامل معها خارج المنصة.',
+  'Review your final tier': 'راجع الباقة النهائية',
+  'Starter is free to activate. You only pay when you unlock a lead.':
+    'تفعيل Starter مجاني. أنت تدفع فقط عند فتح بيانات عميل محتمل.',
+  'Billing happens at the end of setup, after your marketplace and AI flows are ready.':
+    'تتم الفوترة في نهاية الإعداد بعد أن يصبح ملف السوق وتدفقات الذكاء الاصطناعي جاهزة.',
+  'Add a payment method': 'أضف وسيلة دفع',
+  "Your paid plan won't start charging until onboarding is complete.": 'لن تبدأ الباقة المدفوعة بالتحصيل حتى يكتمل الإعداد.',
+  'Connect your payout account': 'اربط حساب استلام الدفعات',
+  'HandyCall uses Stripe to deposit customer payments to your business bank account.':
+    'يستخدم HandyCall منصة Stripe لتحويل مدفوعات العملاء إلى حساب نشاطك البنكي.',
+  'Activate your free Starter listing': 'فعّل ملف Starter المجاني',
+  'You will appear in search, receive lead requests, and pay only when you unlock the customer contact details.':
+    'ستظهر في نتائج البحث، وتتلقى طلبات العملاء، وتدفع فقط عند فتح بيانات التواصل الخاصة بالعميل.',
+  'You are ready to launch': 'أنت جاهز للانطلاق',
+  'Your marketplace profile is live and ready for customer inquiries.':
+    'ملفك في السوق أصبح مباشرًا وجاهزًا لاستقبال طلبات العملاء.',
+  'Your marketplace profile, AI calling, and billing setup are all ready to go.':
+    'ملفك في السوق وإعداد المكالمات الذكية والفوترة أصبحت كلها جاهزة.',
+  'Preparing setup...': 'جارٍ تجهيز الإعداد...',
+  'per month': 'شهريًا',
+  Free: 'مجاني',
+  Selected: 'محدد',
+  'Only pay when you unlock a lead': 'ادفع فقط عند فتح بيانات العميل المحتمل',
+  'Continue with Starter': 'المتابعة مع Starter',
+  'Continue with Pro': 'المتابعة مع Pro',
+  'Continue with Max': 'المتابعة مع Max',
+  'How the paths differ': 'كيف تختلف المسارات',
+  'Starter stops after your marketplace profile and activates a free listing. Pro and Max then continue into AI calling, payment flows, and final billing.':
+    'يتوقف Starter بعد إعداد ملف السوق ويفعّل ملفًا مجانيًا. أما Pro و Max فيستمران إلى إعداد المكالمات الذكية وتدفقات الدفع والفوترة النهائية.',
+  Continue: 'متابعة',
+  'Broad category first, specifics next': 'الفئة العامة أولاً ثم الخدمات الدقيقة',
+  'Pick the main category that best fits your business. In your marketplace profile, you\'ll then list the exact jobs you do, like mesh network setup, duct cleaning, or water heater repair.':
+    'اختر الفئة الرئيسية الأنسب لنشاطك. بعد ذلك ستضيف في ملف السوق الأعمال الدقيقة التي تنفذها، مثل إعداد شبكات Mesh أو تنظيف مجاري الهواء أو إصلاح سخانات المياه.',
+  'Marketplace category': 'فئة السوق',
+  'Need something custom?': 'هل تحتاج شيئًا مخصصًا؟',
+  'Start from a general template and tailor the intake flow after your marketplace profile is complete.':
+    'ابدأ من قالب عام ثم خصص تدفق الاستقبال بعد إكمال ملف السوق.',
+  'What you will set up here': 'ما الذي ستقوم بإعداده هنا',
+  'Your public profile includes the cities you serve, services offered, starting price, trust badges, business hours, payment methods, and project photos.':
+    'يتضمن ملفك العام المدن التي تخدمها والخدمات التي تقدمها والسعر الابتدائي وعناصر الثقة وساعات العمل ووسائل الدفع وصور المشاريع.',
+  'Houston service coverage': 'نطاق الخدمة داخل السعودية',
+  'Thumbtack-style trust signals': 'عناصر الثقة على طريقة Thumbtack',
+  'Build marketplace profile': 'أنشئ ملف السوق',
+  'Change tier': 'غيّر الباقة',
+  'Use HandyCall scheduling': 'استخدم جدولة HandyCall',
+  'Keep your setup simple and let HandyCall manage bookable time from your working hours.':
+    'اجعل الإعداد بسيطًا ودع HandyCall يدير أوقات الحجز اعتمادًا على ساعات عملك.',
+  'Connect my existing calendar': 'اربط تقويمي الحالي',
+  'Use Google, Outlook, or Apple if your team already lives in another calendar.':
+    'استخدم Google أو Outlook أو Apple إذا كان فريقك يعتمد بالفعل على تقويم آخر.',
+  'Standard work week (Mon-Fri)': 'أسبوع العمل السعودي الافتراضي',
+  'Sunday through Thursday starts open by default. Friday and Saturday start closed, but you can adjust any day.':
+    'يبدأ الأحد إلى الخميس كمفتوح افتراضيًا. ويبدأ الجمعة والسبت كمغلقين، لكن يمكنك تعديل أي يوم.',
+  Open: 'مفتوح',
+  Closed: 'مغلق',
+  'Save hours': 'حفظ الساعات',
+  'Google Calendar': 'تقويم Google',
+  'Best for most solo pros and field teams.': 'الأفضل لمعظم المحترفين الأفراد وفرق العمل الميدانية.',
+  'Outlook / Microsoft 365': 'Outlook / Microsoft 365',
+  'Good for businesses already using Microsoft tools.': 'مناسب للأنشطة التي تستخدم أدوات Microsoft بالفعل.',
+  'Apple Calendar': 'تقويم Apple',
+  'Connect iCloud Calendar with an app-specific password.': 'اربط تقويم iCloud باستخدام كلمة مرور خاصة بالتطبيق.',
+  'How to generate an app-specific password': 'كيفية إنشاء كلمة مرور خاصة بالتطبيق',
+  'Forward my current business number': 'حوّل رقم نشاطي الحالي',
+  'Best if customers already know your number and you want the AI to answer first.':
+    'الأفضل إذا كان العملاء يعرفون رقمك بالفعل وتريد أن يرد الذكاء الاصطناعي أولاً.',
+  'Use a temporary HandyCall setup number': 'استخدم رقم إعداد مؤقت من HandyCall',
+  'Useful while you test the AI before routing your live line.':
+    'مفيد أثناء اختبار الذكاء الاصطناعي قبل تحويل خطك الفعلي.',
+  'Dedicated long-term number sourcing can still be configured later from your dashboard settings.':
+    'لا يزال بإمكانك إعداد رقم مخصص طويل المدى لاحقًا من إعدادات لوحة التحكم.',
+  'Example: We handle AC repair in Houston Heights and Katy. Standard diagnostics start at $99 and same-day emergency visits add $75. Customers should switch the unit off if water is leaking...':
+    'مثال: نحن نقدم إصلاح المكيفات السبلت في الرياض والخبر. تبدأ رسوم المعاينة من 149 ريال، وتضاف 90 ريالًا للزيارات الطارئة في نفس اليوم. يجب على العميل إطفاء الوحدة إذا كان هناك تسرب مياه...',
+  'Save number': 'حفظ الرقم',
+  'What to include here': 'ما الذي ينبغي إضافته هنا',
+  'Add the details your team repeats all day: what you service, pricing rules, emergency surcharges, city coverage, cancellation windows, warranty notes, deposits, and anything the AI should answer consistently.':
+    'أضف التفاصيل التي يكررها فريقك طوال اليوم: ما الذي تخدمه، قواعد التسعير، رسوم الطوارئ، نطاق المدن، فترات الإلغاء، ملاحظات الضمان، العربون، وأي شيء يجب أن يجيب عنه الذكاء الاصطناعي بشكل ثابت.',
+  'Build knowledge base': 'إنشاء قاعدة المعرفة',
+  'Building knowledge base...': 'جارٍ إنشاء قاعدة المعرفة...',
+  'Control the questions your AI asks before booking or quoting': 'تحكم في الأسئلة التي يطرحها الذكاء الاصطناعي قبل الحجز أو التسعير',
+  'Keep questions relevant to the issue, location, urgency, and any details your team truly needs before taking the next step.':
+    'اجعل الأسئلة مرتبطة بالمشكلة والموقع ومدى الاستعجال وأي تفاصيل يحتاجها فريقك فعلاً قبل الخطوة التالية.',
+  'Save call flow': 'حفظ تدفق المكالمة',
+  'Collect payments in HandyCall': 'تحصيل المدفوعات داخل HandyCall',
+  'Customers can pay through the platform and payouts are sent to your Stripe-connected account.':
+    'يمكن للعملاء الدفع عبر المنصة ويتم تحويل الدفعات إلى حسابك المرتبط بـ Stripe.',
+  'I collect payment myself': 'أنا أحصل المدفوعات بنفسي',
+  'Use HandyCall for qualification and booking only, then collect payment outside the platform.':
+    'استخدم HandyCall للتأهيل والحجز فقط، ثم احصل المدفوعات خارج المنصة.',
+  'Continue to free activation': 'المتابعة إلى التفعيل المجاني',
+  'Continue to payment': 'المتابعة إلى الدفع',
+  'Change onboarding path': 'تغيير مسار الإعداد',
+  'Pay per unlocked lead': 'الدفع عند فتح بيانات العميل المحتمل',
+  'Payment provider not configured. Contact support.': 'مزود الدفع غير مهيأ. تواصل مع الدعم.',
+  'Initializing payment form...': 'جارٍ تهيئة نموذج الدفع...',
+  'Opening Stripe...': 'جارٍ فتح Stripe...',
+  "You'll be redirected to Stripe to finish payouts and customer payment setup.":
+    'سيتم تحويلك إلى Stripe لإكمال إعداد الدفعات ومدفوعات العملاء.',
+  'Payout account connected.': 'تم ربط حساب استلام الدفعات.',
+  'Stripe is ready and HandyCall can route customer payments to your business.':
+    'أصبح Stripe جاهزًا ويمكن لـ HandyCall توجيه مدفوعات العملاء إلى نشاطك.',
+  'Stripe account linked.': 'تم ربط حساب Stripe.',
+  'Finish the remaining details in Stripe, then come back and continue.':
+    'أكمل التفاصيل المتبقية داخل Stripe ثم عد وتابع.',
+  'Your payout account is not connected yet.': 'حساب استلام الدفعات غير مرتبط بعد.',
+  'Finish in Stripe': 'أكمل في Stripe',
+  'Connect payout account': 'ربط حساب استلام الدفعات',
+  'Check status': 'تحقق من الحالة',
+  'Checking...': 'جارٍ التحقق...',
+  'Skip and collect payments yourself': 'تخطَّ هذه الخطوة واحصل المدفوعات بنفسك',
+  'Starter is marketplace-only': 'Starter مخصص للسوق فقط',
+  'Your listing goes live for free. When a customer inquires, you will see the request summary first, then unlock the full lead details when you are ready.':
+    'يتم نشر ملفك مجانًا. عندما يرسل العميل طلبًا سترى ملخص الطلب أولاً، ثم تفتح كامل بيانات العميل عندما تكون مستعدًا.',
+  'Included now': 'المتضمن الآن',
+  'Marketplace profile and search visibility': 'ملف السوق والظهور في البحث',
+  'Lead request previews': 'معاينة طلبات العملاء',
+  'Pay-per-lead unlock model': 'نموذج الدفع عند فتح بيانات العميل',
+  'Not included on Starter': 'غير متضمن في Starter',
+  'No AI receptionist or automated call handling': 'لا يوجد موظف استقبال ذكي أو تعامل آلي مع المكالمات',
+  'No automated payments or scheduling assistant': 'لا توجد مدفوعات آلية أو مساعد جدولة',
+  'Upgrade to Pro or Max anytime': 'يمكنك الترقية إلى Pro أو Max في أي وقت',
+  'Activate free Starter': 'فعّل Starter المجاني',
+  'Choose a paid tier instead': 'اختر باقة مدفوعة بدلاً من ذلك',
+  'Your listing is ready!': 'ملفك جاهز!',
+  'Your pro setup is ready!': 'إعداد المحترف جاهز!',
+  'Customers can now discover your marketplace profile and send lead requests. You can unlock the best-fit leads from your dashboard.':
+    'يمكن للعملاء الآن العثور على ملفك في السوق وإرسال الطلبات. ويمكنك فتح أفضل العملاء المحتملين من لوحة التحكم.',
+  'Your marketplace profile is live, your AI calling flow is configured, and you can now manage leads, calls, bookings, and billing from the dashboard.':
+    'ملفك في السوق أصبح مباشرًا، وتم إعداد تدفق المكالمات الذكي، ويمكنك الآن إدارة العملاء والمكالمات والحجوزات والفوترة من لوحة التحكم.',
+  'Go to dashboard': 'الانتقال إلى لوحة التحكم',
+  'Edit marketplace profile': 'تعديل ملف السوق',
+  'Setup journey': 'رحلة الإعداد',
+  'Need help?': 'هل تحتاج مساعدة؟',
+  'Step': 'الخطوة',
+  'of': 'من',
+  'Preparing your setup...': 'جارٍ تجهيز إعدادك...',
+  'Loading setup...': 'جارٍ تحميل الإعداد...',
+  'Recommended': 'موصى به',
+  'Choose this category, then add the exact services you offer in the next step.':
+    'اختر هذه الفئة ثم أضف الخدمات الدقيقة التي تقدمها في الخطوة التالية.',
+  'Go back': 'الرجوع',
+  Next: 'التالي',
+};
+
+function setupText(text: string, isArabic: boolean) {
+  return isArabic ? SETUP_TRANSLATIONS[text] || text : text;
+}
 
 const WEEKDAYS = [
+  { key: 'SUN', label: 'Sun' },
   { key: 'MON', label: 'Mon' },
   { key: 'TUE', label: 'Tue' },
   { key: 'WED', label: 'Wed' },
   { key: 'THU', label: 'Thu' },
   { key: 'FRI', label: 'Fri' },
   { key: 'SAT', label: 'Sat' },
-  { key: 'SUN', label: 'Sun' },
 ];
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-let _id = 0;
-const mkId = () => `msg-${++_id}`;
-const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 function defaultHours(): CalendarHours {
   return Object.fromEntries(
-    WEEKDAYS.map((d) => [
-      d.key,
-      { closed: d.key === 'SAT' || d.key === 'SUN', open: '09:00', close: '17:00' },
-    ]),
+    WEEKDAYS.map((day) => [
+      day.key,
+      {
+        closed: day.key === 'FRI' || day.key === 'SAT',
+        open: '09:00',
+        close: '18:00',
+      },
+    ])
   );
 }
 
@@ -104,16 +323,303 @@ function compactHours(hours: CalendarHours) {
 function normalizeHours(source: any): CalendarHours {
   const base = defaultHours();
   if (!source || typeof source !== 'object') return base;
-  for (const { key } of WEEKDAYS) {
-    const raw = source[key];
+
+  const aliases: Record<string, string[]> = {
+    SUN: ['SUN', 'sunday'],
+    MON: ['MON', 'monday'],
+    TUE: ['TUE', 'tuesday'],
+    WED: ['WED', 'wednesday'],
+    THU: ['THU', 'thursday'],
+    FRI: ['FRI', 'friday'],
+    SAT: ['SAT', 'saturday'],
+  };
+
+  for (const [key, names] of Object.entries(aliases)) {
+    const raw = names.map((name) => source[name]).find(Boolean);
     if (raw && !raw.closed && raw.open) {
-      base[key] = { closed: false, open: raw.open, close: raw.close || '17:00' };
+      base[key] = { closed: false, open: raw.open, close: raw.close || '18:00' };
     }
   }
   return base;
 }
 
-// ─── Stripe payment sub-component ────────────────────────────────────────────
+function isPaidTier(plan: SubscriptionPlan | null | undefined) {
+  return plan === SubscriptionPlan.PRO || plan === SubscriptionPlan.MAX;
+}
+
+function getSetupGroups(plan: SubscriptionPlan | null | undefined, isArabic: boolean) {
+  if (plan === SubscriptionPlan.STARTER) {
+    return [
+      { group: 1, label: setupText('Choose tier', isArabic) },
+      { group: 2, label: setupText('Business basics', isArabic) },
+      { group: 3, label: setupText('Marketplace profile', isArabic) },
+      { group: 4, label: setupText('Launch listing', isArabic) },
+    ];
+  }
+
+  return [
+    { group: 1, label: setupText('Choose tier', isArabic) },
+    { group: 2, label: setupText('Business basics', isArabic) },
+    { group: 3, label: setupText('Marketplace profile', isArabic) },
+
+    { group: 4, label: setupText('Billing & launch', isArabic) },
+  ];
+}
+
+function getPhaseSequence(plan: SubscriptionPlan | null | undefined): Phase[] {
+  if (plan === SubscriptionPlan.STARTER) {
+    return [
+      'plan_selection',
+      'company_name',
+      'service_type',
+      'marketplace_profile_intro',
+      'starter_activation',
+      'complete',
+    ];
+  }
+
+  return [
+    'plan_selection',
+    'company_name',
+    'service_type',
+    'marketplace_profile_intro',
+    'billing_plan',
+    'billing_payment',
+    'complete',
+  ];
+}
+
+function getPhaseGroup(phase: Phase, plan: SubscriptionPlan | null | undefined) {
+  switch (phase) {
+    case 'loading':
+      return 0;
+    case 'plan_selection':
+      return 1;
+    case 'profile_name':
+    case 'company_name':
+    case 'service_type':
+      return 2;
+    case 'marketplace_profile_intro':
+      return 3;
+    case 'starter_activation':
+      return 4;
+    case 'billing_plan':
+    case 'billing_payment':
+      return 4;
+    case 'complete':
+      return getSetupGroups(plan, false).length + 1;
+    default:
+      return 0;
+  }
+}
+
+function getStepMeta(
+  phase: Phase,
+  plan: SubscriptionPlan | null | undefined,
+  isArabic: boolean
+): { title: string; description: string } {
+  let meta: { title: string; description: string };
+  switch (phase) {
+    case 'plan_selection':
+      meta = {
+        title: 'Choose how you want to grow on HandyCall',
+        description:
+          'Starter gets you listed for free. Pro adds search priority, CRM, and payments. Teams adds multi-user tools for larger Riyadh businesses.',
+      };
+      break;
+    case 'profile_name':
+      meta = {
+        title: "What's your name?",
+        description: "We'll use this to personalize your HandyCall workspace.",
+      };
+      break;
+    case 'company_name':
+      meta = {
+        title: "What's your business name?",
+        description: 'This appears on your marketplace profile and customer-facing booking pages.',
+      };
+      break;
+    case 'service_type':
+      meta = {
+        title: 'Which main category fits your business best?',
+        description:
+          'Choose the broad category now. On the next setup step, you will list the exact services customers can search for inside that category.',
+      };
+      break;
+    case 'marketplace_profile_intro':
+      meta = {
+        title: 'Build your marketplace profile first',
+        description:
+          'Customers will see this before they inquire. Add your Riyadh service districts, exact services, starting prices, and trust signals now.',
+      };
+      break;
+    case 'billing_plan':
+      meta = {
+        title: 'Review your final tier',
+        description:
+          plan === SubscriptionPlan.STARTER
+            ? 'Starter is free to activate. You only pay when you unlock a lead.'
+            : 'Billing happens at the end of setup, after your Riyadh marketplace listing is ready to launch.',
+      };
+      break;
+    case 'billing_payment':
+      meta = {
+        title: 'Add a payment method',
+        description: "Your paid plan won't start charging until onboarding is complete.",
+      };
+      break;
+    case 'billing_connect':
+      meta = {
+        title: 'Connect your payout account',
+        description:
+          'HandyCall uses Stripe to deposit customer payments to your business bank account.',
+      };
+      break;
+    case 'starter_activation':
+      meta = {
+        title: 'Activate your free Starter listing',
+        description:
+          'You will appear in search, receive lead requests, and pay only when you unlock the customer contact details.',
+      };
+      break;
+    case 'complete':
+      meta = {
+        title: 'You are ready to launch',
+        description:
+          plan === SubscriptionPlan.STARTER
+            ? 'Your marketplace profile is live and ready for customer inquiries.'
+            : 'Your marketplace profile and paid plan are active, and you are ready to receive Riyadh customer inquiries.',
+      };
+      break;
+    default:
+      meta = { title: 'Preparing setup...', description: '' };
+  }
+
+  return {
+    title: setupText(meta.title, isArabic),
+    description: setupText(meta.description, isArabic),
+  };
+}
+
+function PrimaryButton({
+  onClick,
+  type = 'button',
+  disabled,
+  loading,
+  children,
+  className,
+}: {
+  onClick?: () => void | Promise<void>;
+  type?: 'button' | 'submit';
+  disabled?: boolean;
+  loading?: boolean;
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <button
+      type={type}
+      onClick={onClick ? () => void onClick() : undefined}
+      disabled={disabled || loading}
+      className={cn(
+        'inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50',
+        className
+      )}
+    >
+      {loading && <IconLoader2 className="h-4 w-4 animate-spin" stroke={1.5} />}
+      {children}
+    </button>
+  );
+}
+
+function GhostButton({
+  onClick,
+  disabled,
+  children,
+  className,
+}: {
+  onClick?: () => void | Promise<void>;
+  disabled?: boolean;
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick ? () => void onClick() : undefined}
+      disabled={disabled}
+      className={cn(
+        'inline-flex items-center justify-center gap-2 rounded-xl border border-border px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50',
+        className
+      )}
+    >
+      {children}
+    </button>
+  );
+}
+
+function OptionCard({
+  onClick,
+  disabled,
+  selected,
+  icon,
+  label,
+  description,
+  recommended,
+  recommendedLabel = 'Recommended',
+}: {
+  onClick: () => void | Promise<void>;
+  disabled?: boolean;
+  selected?: boolean;
+  icon?: ReactNode;
+  label: string;
+  description?: string;
+  recommended?: boolean;
+  recommendedLabel?: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={() => void onClick()}
+      disabled={disabled}
+      className={cn(
+        'group relative w-full rounded-2xl border p-4 text-left transition-all duration-150',
+        selected
+          ? 'border-emerald-500 bg-emerald-50/60 dark:bg-emerald-950/30'
+          : 'border-border bg-card hover:border-emerald-400/60 hover:bg-accent/60',
+        'disabled:cursor-not-allowed disabled:opacity-50'
+      )}
+    >
+      {recommended ? (
+        <span className="absolute right-3 top-3 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
+          {recommendedLabel}
+        </span>
+      ) : null}
+      <div className="flex items-start gap-3">
+        {icon ? (
+          <div
+            className={cn(
+              'mt-0.5 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl',
+              selected
+                ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/50 dark:text-emerald-400'
+                : 'bg-muted text-muted-foreground'
+            )}
+          >
+            {icon}
+          </div>
+        ) : null}
+        <div className="min-w-0 flex-1">
+          <p className="font-semibold text-foreground">{label}</p>
+          {description ? <p className="mt-0.5 text-sm text-muted-foreground">{description}</p> : null}
+        </div>
+        <IconChevronRight
+          className="mt-0.5 h-4 w-4 flex-shrink-0 text-muted-foreground/50 transition-transform group-hover:translate-x-0.5"
+          stroke={1.5}
+        />
+      </div>
+    </button>
+  );
+}
 
 function StripePaymentForm({
   selectedPlan,
@@ -122,23 +628,23 @@ function StripePaymentForm({
   selectedPlan: SubscriptionPlan | null;
   onSuccess: () => Promise<void>;
 }) {
+  const { isArabic } = useMarketingLanguage();
   const stripe = useStripe();
   const elements = useElements();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
+  const t = (text: string) => setupText(text, isArabic);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (event: FormEvent) => {
+    event.preventDefault();
     if (!stripe || !elements || !selectedPlan || done) return;
-    const card = elements.getElement(CardElement);
-    if (!card) return;
     setLoading(true);
     setError(null);
     try {
-      const { client_secret } = await apiClient.createSetupIntent();
-      const { error: stripeErr, setupIntent } = await stripe.confirmCardSetup(client_secret, {
-        payment_method: { card },
+      const { error: stripeErr, setupIntent } = await stripe.confirmSetup({
+        elements,
+        redirect: 'if_required',
       });
       if (stripeErr) throw new Error(stripeErr.message);
       if (!setupIntent?.payment_method) throw new Error('No payment method returned.');
@@ -156,456 +662,410 @@ function StripePaymentForm({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-3">
-      <div className="rounded-xl border border-slate-200 bg-white p-4">
-        <CardElement
-          options={{
-            style: {
-              base: {
-                color: '#1f2937',
-                fontFamily: 'ui-sans-serif, system-ui, sans-serif',
-                fontSize: '14px',
-                '::placeholder': { color: '#9ca3af' },
-              },
-              invalid: { color: '#ef4444' },
-            },
-          }}
-        />
-      </div>
-      {error && <p className="text-sm text-red-600">{error}</p>}
-      {done && <p className="text-sm font-medium text-emerald-600">Subscription activated!</p>}
-      <button
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <PaymentElement />
+      {error ? <p className="text-sm text-red-600 dark:text-red-400">{error}</p> : null}
+      {done ? (
+        <p className="text-sm font-medium text-emerald-600">{t('Subscription activated!')}</p>
+      ) : null}
+      <PrimaryButton
         type="submit"
         disabled={!stripe || loading || done || !selectedPlan}
-        className="flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-50"
+        loading={loading}
+        className="w-full justify-center"
       >
-        {loading ? (
-          <>
-            <IconLoader2 className="h-4 w-4 animate-spin" stroke={1.5} />
-            Processing...
-          </>
-        ) : (
-          <>
-            <IconCreditCard className="h-4 w-4" stroke={1.5} />
-            Activate {selectedPlan ? PLAN_CATALOG[selectedPlan].name : ''} plan
-          </>
-        )}
-      </button>
+        <IconCreditCard className="h-4 w-4" stroke={1.5} />
+        {isArabic
+          ? `فعّل باقة ${selectedPlan ? setupText(PLAN_CATALOG[selectedPlan].name, true) : ''}`
+          : `Activate ${selectedPlan ? PLAN_CATALOG[selectedPlan].name : ''} plan`}
+      </PrimaryButton>
     </form>
   );
 }
 
-// ─── Small reusable buttons ───────────────────────────────────────────────────
-
-function ActionButton({
-  onClick,
-  disabled,
-  loading,
-  children,
-}: {
-  onClick: () => void | Promise<void>;
-  disabled?: boolean;
-  loading?: boolean;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={() => void onClick()}
-      disabled={disabled || loading}
-      className="flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-50"
-    >
-      {loading && <IconLoader2 className="h-4 w-4 animate-spin" stroke={1.5} />}
-      {children}
-    </button>
-  );
-}
-
-function ChipButton({
-  onClick,
-  disabled,
-  children,
-}: {
-  onClick: () => void | Promise<void>;
-  disabled?: boolean;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={() => void onClick()}
-      disabled={disabled}
-      className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:border-emerald-400 hover:bg-emerald-50 hover:text-emerald-700 disabled:opacity-50"
-    >
-      {children}
-    </button>
-  );
-}
-
-function ChoiceButton({
-  onClick,
-  disabled,
-  icon,
-  children,
-}: {
-  onClick: () => void | Promise<void>;
-  disabled?: boolean;
-  icon?: React.ReactNode;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={() => void onClick()}
-      disabled={disabled}
-      className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-emerald-400 hover:bg-emerald-50 disabled:opacity-50"
-    >
-      {icon}
-      {children}
-    </button>
-  );
-}
-
-// ─── Main component ───────────────────────────────────────────────────────────
-
-export default function OnboardingSetupPage() {
-  const { loading, company, status, refreshAll, refreshKnowledge, companyNumber, refreshCompanyNumber } =
+function OnboardingSetupContent() {
+  const { isArabic } = useMarketingLanguage();
+  const { loading, company, status, refreshAll } =
     useOnboarding();
-  const { setCompany } = useAuthStore();
+  const { setCompany, user, email } = useAuthStore();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const chatEndRef = useRef<HTMLDivElement>(null);
   const initialized = useRef(false);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const phaseHistoryRef = useRef<Phase[]>([]);
 
-  // Chat state
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [isTyping, setIsTyping] = useState(false);
   const [phase, setPhase] = useState<Phase>('loading');
   const [isSaving, setIsSaving] = useState(false);
   const [errMsg, setErrMsg] = useState<string | null>(null);
 
-  // Form data
   const [nameInput, setNameInput] = useState('');
   const [companyInput, setCompanyInput] = useState('');
-  const [zipInput, setZipInput] = useState('');
-  const [cityInput, setCityInput] = useState('');
-  const [zipCodes, setZipCodes] = useState<string[]>([]);
-  const [cities, setCities] = useState<string[]>([]);
   const [calendarHours, setCalendarHours] = useState<CalendarHours>(defaultHours());
   const [calendarTimezone, setCalendarTimezone] = useState(DEFAULT_TIMEZONE);
   const [appleEmail, setAppleEmail] = useState('');
   const [applePass, setApplePass] = useState('');
-  const [areaCode, setAreaCode] = useState('832');
-  const [numberSearch, setNumberSearch] = useState('');
-  const [availableNumbers, setAvailableNumbers] = useState<any[]>([]);
-  const [searchingNums, setSearchingNums] = useState(false);
-  const [forwardNumber, setForwardNumber] = useState('');
-
-  // "Other / Not listed" service type
   const [showOtherInput, setShowOtherInput] = useState(false);
   const [otherServiceInput, setOtherServiceInput] = useState('');
-
-  // Knowledge AI state
-  const [kbMessages, setKbMessages] = useState<KnowledgeMsg[]>([]);
-  const [kbInput, setKbInput] = useState('');
-  const [kbLoading, setKbLoading] = useState(false);
-  const [kbDone, setKbDone] = useState(false);
-  const [kbGenerating, setKbGenerating] = useState(false);
-  const [kbError, setKbError] = useState<string | null>(null);
-
-  // Structured knowledge form state
-  const [kbForm, setKbForm] = useState({
-    pricingModel: '' as 'fixed' | 'hourly' | 'quote' | 'mixed' | '',
-    basePrice: '',
-    whatsIncluded: '',
-    emergencyCharge: '',
-    depositRequired: '',
-    cancellationPolicy: '',
-    warranty: '',
-    faq1Question: '',
-    faq1Answer: '',
-    faq2Question: '',
-    faq2Answer: '',
-    serviceProducts: '' as string, // comma-separated: "name:price" pairs
-  });
-
-  // Billing state
   const [selectedPlan, setSelectedPlan] = useState<SubscriptionPlan | null>(null);
+  const [selectedPaymentMode, setSelectedPaymentMode] = useState<
+    'HANDYCALL_MANAGED' | 'SELF_MANAGED' | null
+  >(null);
   const [paymentModeSaving, setPaymentModeSaving] = useState(false);
   const [connectBusy, setConnectBusy] = useState(false);
+  const [connectChecking, setConnectChecking] = useState(false);
   const [connectStatus, setConnectStatus] = useState<any>(null);
+  const [setupClientSecret, setSetupClientSecret] = useState<string | null>(null);
+  const [stripePublishableKey, setStripePublishableKey] = useState<string | null>(
+    process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || null
+  );
+
+  const getDerivedOwnerName = useCallback(() => {
+    const existingOwnerName = String((company as any)?.owner_name || '').trim();
+    const existingUserName = [user?.first_name, user?.last_name].filter(Boolean).join(' ').trim();
+    const fallbackEmailName = String(email || '').split('@')[0].trim();
+    return existingOwnerName || nameInput.trim() || existingUserName || fallbackEmailName;
+  }, [company, email, nameInput, user?.first_name, user?.last_name]);
+
   const stripePromise = useMemo(() => {
-    const key = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
+    const key = stripePublishableKey;
     const invalidPlaceholder =
       !key ||
       key === 'pk_test_xxx' ||
       key.includes('local_dev_placeholder') ||
       key.endsWith('_xxx');
     return invalidPlaceholder ? null : loadStripe(key);
+  }, [stripePublishableKey]);
+
+  const resolvedPlan =
+    selectedPlan ?? normalizePlan(company?.subscription_plan as SubscriptionPlan | null | undefined) ?? null;
+  const setupGroups = useMemo(() => getSetupGroups(resolvedPlan, isArabic), [isArabic, resolvedPlan]);
+  const phaseSequence = useMemo(() => getPhaseSequence(resolvedPlan), [resolvedPlan]);
+  const currentGroup = getPhaseGroup(phase, resolvedPlan);
+  const t = useCallback((text: string) => setupText(text, isArabic), [isArabic]);
+
+  const isConnectReady = useCallback(
+    (statusOverride?: any) => {
+      const currentStatus = statusOverride ?? connectStatus;
+      return Boolean(
+        currentStatus?.connected &&
+          (currentStatus?.charges_enabled ||
+            currentStatus?.details_submitted ||
+            (company as any)?.stripe_connect_onboarding_complete)
+      );
+    },
+    [company, connectStatus]
+  );
+
+  const isPhaseComplete = useCallback(
+    (candidate: Phase) => {
+      switch (candidate) {
+        case 'plan_selection':
+          return Boolean(resolvedPlan);
+        case 'profile_name':
+          return Boolean(getDerivedOwnerName());
+        case 'company_name':
+        case 'service_type':
+          return status.companyProfile;
+        case 'marketplace_profile_intro':
+          return status.marketplaceProfile;
+        case 'billing_plan':
+        case 'billing_payment':
+        case 'starter_activation':
+          return status.billing;
+        case 'complete':
+          return true;
+        default:
+          return false;
+      }
+    },
+    [company, getDerivedOwnerName, isConnectReady, resolvedPlan, status]
+  );
+
+  const nextPhase = useMemo(() => {
+    const currentIndex = phaseSequence.indexOf(phase);
+    if (currentIndex === -1 || currentIndex >= phaseSequence.length - 1) return null;
+    const remaining = phaseSequence.slice(currentIndex + 1);
+    return remaining.find((candidate) => !isPhaseComplete(candidate)) || remaining[0] || null;
+  }, [isPhaseComplete, phase, phaseSequence]);
+
+  const canGoNext = Boolean(nextPhase) && isPhaseComplete(phase);
+  const canGoBack = phaseHistoryRef.current.length > 0;
+
+  const goTo = useCallback((next: Phase, options?: { replace?: boolean }) => {
+    if (next === phase) return;
+    if (!options?.replace && phase !== 'loading') {
+      const history = phaseHistoryRef.current;
+      if (history[history.length - 1] !== phase) history.push(phase);
+    }
+    setErrMsg(null);
+    setPhase(next);
+  }, [phase]);
+
+  const handleGoBack = useCallback(() => {
+    const history = phaseHistoryRef.current;
+    while (history.length > 0) {
+      const previous = history.pop();
+      if (previous && previous !== phase) {
+        setErrMsg(null);
+        setPhase(previous);
+        return;
+      }
+    }
+  }, [phase]);
+
+  const clearPlanDraft = useCallback(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.removeItem(PLAN_DRAFT_STORAGE_KEY);
   }, []);
 
-  // Auto-scroll on new messages
+  const persistPlanDraft = useCallback((plan: SubscriptionPlan | null) => {
+    if (typeof window === 'undefined') return;
+    if (!plan) {
+      window.localStorage.removeItem(PLAN_DRAFT_STORAGE_KEY);
+      return;
+    }
+    window.localStorage.setItem(PLAN_DRAFT_STORAGE_KEY, plan);
+  }, []);
+
+  const clearConnectQueryParams = useCallback(() => {
+    if (typeof window === 'undefined') return;
+    const url = new URL(window.location.href);
+    const hadConnectParams = url.searchParams.has('payments') || url.searchParams.has('state');
+    if (!hadConnectParams) return;
+    url.searchParams.delete('payments');
+    url.searchParams.delete('state');
+    url.searchParams.delete('marketplace');
+    const nextUrl = `${url.pathname}${url.search}${url.hash}`;
+    window.history.replaceState(window.history.state, '', nextUrl);
+  }, []);
+
+
+  const hasActiveBilling = useCallback(() => {
+    return Boolean(
+      status.billing ||
+        (company as any)?.subscription_plan ||
+        (company as any)?.stripe_subscription_id ||
+        (company as any)?.subscription_status === 'ACTIVE' ||
+        (company as any)?.subscription_status === 'TRIALING'
+    );
+  }, [company, status.billing]);
+
+  const refreshConnectStatus = useCallback(
+    async (options?: { clearQuery?: boolean }) => {
+      setConnectChecking(true);
+      try {
+        const latest = await apiClient.getConnectStatus();
+        setConnectStatus(latest);
+        if (options?.clearQuery) clearConnectQueryParams();
+        return latest;
+      } catch (err: any) {
+        setErrMsg(err?.message || 'Could not verify Stripe Connect status.');
+        return null;
+      } finally {
+        setConnectChecking(false);
+      }
+    },
+    [clearConnectQueryParams]
+  );
+
+  const continueAfterConnect = useCallback(async () => {
+    await refreshAll();
+    if (hasActiveBilling()) {
+      goTo('complete');
+      return;
+    }
+    goTo('billing_plan');
+  }, [goTo, hasActiveBilling, refreshAll]);
+
   useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, isTyping, kbMessages]);
+    if (
+      stripePublishableKey &&
+      !stripePublishableKey.includes('local_dev_placeholder') &&
+      !stripePublishableKey.endsWith('_xxx')
+    ) {
+      return;
+    }
+    apiClient
+      .getBillingConfig()
+      .then((config) => {
+        if (config?.publishable_key) setStripePublishableKey(config.publishable_key);
+      })
+      .catch(() => null);
+  }, [stripePublishableKey]);
 
-  // ─── Chat helpers ──────────────────────────────────────────────────────────
-
-  const botSay = useCallback(async (text: string) => {
-    setIsTyping(true);
-    await sleep(Math.min(500 + text.length * 12, 1600));
-    setIsTyping(false);
-    setMessages((prev) => [...prev, { id: mkId(), role: 'bot', content: text }]);
-  }, []);
-
-  const userSay = useCallback((text: string, onEdit?: () => void) => {
-    setMessages((prev) => [...prev, { id: mkId(), role: 'user', content: text, onEdit }]);
-  }, []);
-
-  const goTo = useCallback(
-    async (next: Phase, ...msgs: string[]) => {
-      setErrMsg(null);
-      for (const m of msgs) await botSay(m);
-      setPhase(next);
-    },
-    [botSay],
-  );
-
-  /**
-   * Re-opens a previous step for editing.
-   * Adds a bot re-prompt message and jumps back to that phase.
-   */
-  const editStep = useCallback(
-    (prompt: string, targetPhase: Phase, prefill?: () => void) => {
-      setErrMsg(null);
-      if (prefill) prefill();
-      void (async () => {
-        await botSay(prompt);
-        setPhase(targetPhase);
-      })();
-    },
-    [botSay],
-  );
-
-  // ─── Initialization ────────────────────────────────────────────────────────
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+    container.scrollTo({ top: 0, behavior: 'auto' });
+  }, [phase]);
 
   useEffect(() => {
     if (loading || initialized.current) return;
     initialized.current = true;
 
-    // Pre-fill from existing data
-    if (company?.company_name) setCompanyInput(company.company_name as string);
-    if (company?.timezone) setCalendarTimezone(company.timezone as string);
-    if ((company?.service_area_zipcodes as string[])?.length)
-      setZipCodes(company.service_area_zipcodes as string[]);
-    if ((company?.service_area_cities as string[])?.length)
-      setCities(company.service_area_cities as string[]);
-    if (company?.business_hours) setCalendarHours(normalizeHours(company.business_hours));
-    if (company?.phone_number) setForwardNumber(company.phone_number as string);
-
-    void startChat(status);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loading]);
-
-  const startChat = async (s: typeof status) => {
-    const paymentsFlow = searchParams?.get('payments');
-    const connectState = searchParams?.get('state');
-
-    await botSay(
-      "👋 Hi! I'm your HandyCall setup assistant. Let's get your AI receptionist ready — it only takes a few minutes.",
-    );
-    if (!s.profile) {
-      await goTo('profile_name', "First, what's your full name?");
-    } else if (!s.companyProfile) {
-      await goTo('company_name', "Let's set up your company. What's the business name?");
-    } else if (!s.serviceArea) {
-      await goTo(
-        'service_area_choice',
-        'Where do you provide service? Do you cover all areas, or specific zip codes and cities?',
-      );
-    } else if (!s.calendar) {
-      await goTo('calendar_mode', "Let's set up your booking calendar. How do you want to manage appointments?");
-    } else if (!s.phone) {
-      await goTo('phone_choice', "Almost there! How do you want customers to reach you?");
-    } else if (!s.knowledge) {
-      await goTo(
-        'knowledge_intro',
-        "Now let's build your AI receptionist's knowledge base so it can answer caller questions accurately.",
-      );
-    } else if (!s.billing) {
-      await goTo('billing_plan', "Last step — let's activate your HandyCall subscription.");
-    } else if (paymentsFlow === 'connect' && (connectState === 'return' || connectState === 'refresh')) {
-      await goTo(
-        'billing_connect',
-        connectState === 'return'
-          ? "Welcome back. Let's verify your Stripe Connect setup."
-          : 'Stripe setup was refreshed. Let’s continue and verify your Connect status.',
-      );
-      await refreshConnectStatusAndContinue();
-    } else {
-      await botSay('🎉 Setup complete! Redirecting to your dashboard...');
-      setTimeout(() => router.replace('/dashboard'), 2000);
+    const companyPlan = normalizePlan(company?.subscription_plan as SubscriptionPlan | null | undefined);
+    if (companyPlan) {
+      setSelectedPlan(companyPlan);
+      clearPlanDraft();
+    } else if (typeof window !== 'undefined') {
+      const storedPlan = normalizePlan(window.localStorage.getItem(PLAN_DRAFT_STORAGE_KEY));
+      if (storedPlan) setSelectedPlan(storedPlan);
     }
-  };
 
-  // ─── Step handlers ─────────────────────────────────────────────────────────
+    if (company?.company_name) setCompanyInput(String(company.company_name));
+      const existingOwnerName = String((company as any)?.owner_name || '').trim();
+      const existingUserName = [user?.first_name, user?.last_name].filter(Boolean).join(' ').trim();
+      if (existingOwnerName || existingUserName) {
+        setNameInput(existingOwnerName || existingUserName);
+      }
+    if (company?.timezone) setCalendarTimezone(String(company.timezone));
+    if (company?.business_hours) setCalendarHours(normalizeHours(company.business_hours));
+    if ((company as any)?.booking_payment_mode) {
+      setSelectedPaymentMode((company as any).booking_payment_mode);
+    }
+
+    void (async () => {
+      const paymentsFlow = searchParams?.get('payments');
+      const connectState = searchParams?.get('state');
+      if (paymentsFlow === 'connect' && (connectState === 'return' || connectState === 'refresh')) {
+        clearConnectQueryParams();
+      }
+
+      if (!companyPlan && !normalizePlan(typeof window !== 'undefined' ? window.localStorage.getItem(PLAN_DRAFT_STORAGE_KEY) : null)) {
+        goTo('plan_selection');
+        return;
+      }
+
+      const effectivePlan =
+        companyPlan ??
+        normalizePlan(typeof window !== 'undefined' ? window.localStorage.getItem(PLAN_DRAFT_STORAGE_KEY) : null);
+
+      if (!status.companyProfile) {
+        goTo('company_name');
+      } else if (!status.marketplaceProfile) {
+        goTo('marketplace_profile_intro');
+      } else if (effectivePlan === SubscriptionPlan.STARTER) {
+        if (!status.billing) {
+          goTo('starter_activation');
+        } else {
+          clearPlanDraft();
+          goTo('complete');
+        }
+      } else if (!status.billing) {
+        goTo('billing_plan');
+      } else {
+        clearPlanDraft();
+        goTo('complete');
+      }
+    })();
+  }, [
+    clearPlanDraft,
+    company,
+    clearConnectQueryParams,
+    goTo,
+    loading,
+    searchParams,
+    status,
+    user?.first_name,
+    user?.last_name,
+  ]);
+
+  useEffect(() => {
+    const companyPlan = normalizePlan(company?.subscription_plan as SubscriptionPlan | null | undefined);
+    if (companyPlan) {
+      clearPlanDraft();
+      return;
+    }
+    persistPlanDraft(selectedPlan);
+  }, [clearPlanDraft, company?.subscription_plan, persistPlanDraft, selectedPlan]);
+
+  useEffect(() => {
+    if (phase !== 'billing_connect') return;
+    void refreshConnectStatus();
+  }, [phase, refreshConnectStatus]);
+
+  const handleTierSelect = async (plan: SubscriptionPlan) => {
+    setSelectedPlan(plan);
+    setSetupClientSecret(null);
+    if (!status.companyProfile) {
+      goTo('company_name');
+      return;
+    }
+    if (!status.marketplaceProfile) {
+      goTo('marketplace_profile_intro');
+      return;
+    }
+    if (plan === SubscriptionPlan.STARTER) {
+      goTo('starter_activation');
+      return;
+    }
+    goTo('billing_plan');
+  };
 
   const handleProfileName = async () => {
     const name = nameInput.trim();
     if (!name) return;
-    const captured = name;
-    userSay(captured, () =>
-      editStep("What name would you like to use?", 'profile_name', () => setNameInput(captured)),
-    );
-    setNameInput('');
-    setIsSaving(true);
-    try {
-      await apiClient.updateMyCompany({ owner_name: captured });
-      await refreshAll();
-    } catch {
-      // Non-blocking
-    } finally {
-      setIsSaving(false);
-    }
-    await goTo('company_name', `Nice to meet you, ${captured}! What's the name of your business?`);
+    setErrMsg(null);
+    goTo('company_name');
   };
 
-  const handleCompanyName = async () => {
-    const name = companyInput.trim();
-    if (!name) return;
-    userSay(name, () => editStep("What's the correct business name?", 'company_name'));
-    await goTo('service_type', `Got it — ${name}! What type of service do you provide?`);
+  const handleCompanyName = () => {
+    if (!companyInput.trim()) return;
+    goTo('service_type');
   };
 
-  const handleServiceType = async (value: string, label: string) => {
+  const handleServiceType = async ({
+    serviceType,
+    categoryTitle,
+    label,
+  }: {
+    serviceType: ServiceType;
+    categoryTitle: string;
+    label: string;
+  }) => {
     setShowOtherInput(false);
     setOtherServiceInput('');
-    const displayLabel = label;
-    userSay(displayLabel, () =>
-      editStep('Which service type best describes your business?', 'service_type', () => {
-        setShowOtherInput(false);
-        setOtherServiceInput('');
-      }),
-    );
     setIsSaving(true);
     try {
-      await apiClient.updateMyCompany({ service_type: value });
-      await refreshAll();
-      await goTo('timezone', 'What timezone are you in?');
-    } catch {
-      setErrMsg('Could not save service type. Try again.');
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  const handleTimezone = async (value: string, label: string) => {
-    userSay(label, () => editStep('Which timezone are you in?', 'timezone'));
-    setCalendarTimezone(value);
-    setIsSaving(true);
-    try {
-      const updated = await apiClient.updateMyCompany({
+      const derivedOwnerName = getDerivedOwnerName();
+      await apiClient.updateMyCompany({
+        owner_name: derivedOwnerName || undefined,
         company_name: companyInput.trim(),
-        timezone: value,
+        timezone: DEFAULT_TIMEZONE,
         company_profile_completed: true,
+        service_type: serviceType,
+        marketplace_profile: {
+          ...(((company as any)?.marketplace_profile || {}) as Record<string, any>),
+          service_category: categoryTitle,
+        },
       });
-      setCompany(updated);
+      setCalendarTimezone(DEFAULT_TIMEZONE);
       await refreshAll();
-      await goTo(
-        'service_area_choice',
-        "Company details saved! Now let's set your service area. Do you serve all areas, or specific zip codes and cities?",
-      );
+      goTo('marketplace_profile_intro');
     } catch {
-      setErrMsg('Could not save company profile. Try again.');
+      setErrMsg(`Could not save ${label}. Try again.`);
     } finally {
       setIsSaving(false);
     }
   };
 
-  const handleServiceAreaAll = async () => {
-    userSay('Serve all areas');
-    setIsSaving(true);
-    try {
-      const updated = await apiClient.updateMyCompany({
-        service_area_zipcodes: [],
-        service_area_cities: [],
-        service_area_completed: true,
-      });
-      setCompany(updated);
-      await refreshAll();
-      await goTo('calendar_mode', "Got it — you cover all areas. Now let's set up your booking calendar.");
-    } catch {
-      setErrMsg('Could not save service area.');
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  const handleServiceAreaSpecific = async () => {
-    userSay('Specific zip codes & cities');
-    await goTo('service_area_input', "Add your zip codes and cities below. Click 'Save' when done.");
-  };
-
-  const addZip = () => {
-    const v = zipInput.trim();
-    if (!v || !/^\d{5}$/.test(v) || zipCodes.includes(v)) {
-      setZipInput('');
-      return;
-    }
-    setZipCodes((prev) => [...prev, v]);
-    setZipInput('');
-  };
-
-  const addCity = () => {
-    const v = cityInput.trim();
-    if (!v || cities.includes(v)) {
-      setCityInput('');
-      return;
-    }
-    setCities((prev) => [...prev, v]);
-    setCityInput('');
-  };
-
-  const handleSaveServiceArea = async () => {
-    if (zipCodes.length === 0 && cities.length === 0) {
-      setErrMsg('Add at least one zip code or city.');
-      return;
-    }
-    setIsSaving(true);
-    try {
-      const updated = await apiClient.updateMyCompany({
-        service_area_zipcodes: zipCodes,
-        service_area_cities: cities,
-        service_area_completed: true,
-      });
-      setCompany(updated);
-      await refreshAll();
-      userSay(
-        `${zipCodes.length} zip code${zipCodes.length !== 1 ? 's' : ''}, ${cities.length} ${cities.length !== 1 ? 'cities' : 'city'} saved`,
-      );
-      await goTo('calendar_mode', "Service area saved! Let's set up your booking calendar.");
-    } catch {
-      setErrMsg('Could not save service area.');
-    } finally {
-      setIsSaving(false);
-    }
+  const handleOpenMarketplaceProfile = () => {
+    const tier = resolvedPlan || selectedPlan;
+    router.push(
+      `/onboarding/marketplace-profile?returnTo=setup${tier ? `&tier=${tier}` : ''}`
+    );
   };
 
   const handleCalendarMode = async (mode: 'INTERNAL' | 'EXTERNAL') => {
     if (mode === 'INTERNAL') {
-      userSay('Use HandyCall Calendar');
-      await goTo(
-        'calendar_hours',
-        "Great choice! Set your business hours so callers can book valid times. Toggle each day open or closed.",
-      );
-    } else {
-      userSay('Connect my existing calendar');
-      await goTo('calendar_provider', 'Which calendar would you like to connect?');
+      goTo('calendar_hours');
+      return;
     }
+    goTo('calendar_provider');
   };
 
   const handleSaveCalendarHours = async () => {
-    const hasOpen = WEEKDAYS.some((d) => !calendarHours[d.key]?.closed);
+    const hasOpen = WEEKDAYS.some((day) => !calendarHours[day.key]?.closed);
     if (!hasOpen) {
       setErrMsg('Set at least one open day.');
       return;
@@ -621,25 +1081,17 @@ export default function OnboardingSetupPage() {
       });
       setCompany(updated);
       await refreshAll();
-      userSay('Business hours saved ✓');
-      await goTo('phone_choice', "Calendar is all set! Now let's get your phone ready. How do you want customers to reach you?");
+      goTo('billing_payment_mode');
     } catch {
-      setErrMsg('Could not save calendar settings.');
+      setErrMsg('Could not save your calendar settings.');
     } finally {
       setIsSaving(false);
     }
   };
 
   const handleCalendarProvider = async (provider: 'GOOGLE' | 'MICROSOFT' | 'APPLE') => {
-    const label =
-      provider === 'GOOGLE'
-        ? 'Google Calendar'
-        : provider === 'MICROSOFT'
-          ? 'Outlook / Microsoft 365'
-          : 'Apple iCloud';
-    userSay(label);
     if (provider === 'APPLE') {
-      await goTo('calendar_apple', 'Enter your Apple ID and an app-specific password to connect.');
+      goTo('calendar_apple');
       return;
     }
     setIsSaving(true);
@@ -650,11 +1102,11 @@ export default function OnboardingSetupPage() {
         schedule_setup_completed: true,
         calendar_setup_completed: false,
       });
-      const res =
+      const response =
         provider === 'GOOGLE'
           ? await apiClient.getGoogleCalendarAuthUrl()
           : await apiClient.getMicrosoftCalendarAuthUrl();
-      if (res?.url) window.location.href = res.url;
+      if (response?.url) window.location.href = response.url;
     } catch {
       setErrMsg('Could not start calendar connection. Try again.');
     } finally {
@@ -677,8 +1129,7 @@ export default function OnboardingSetupPage() {
       });
       await apiClient.connectAppleCalendar(appleEmail, applePass);
       await refreshAll();
-      userSay('Apple Calendar connected ✓');
-      await goTo('phone_choice', "Calendar connected! Let's set up your phone.");
+      goTo('billing_payment_mode');
     } catch (err: any) {
       setErrMsg(err?.message || 'Could not connect Apple Calendar.');
     } finally {
@@ -686,255 +1137,25 @@ export default function OnboardingSetupPage() {
     }
   };
 
-  const handlePhoneChoice = async (choice: 'claim' | 'forward' | 'demo') => {
-    if (choice === 'claim') {
-      userSay('Claim a new HandyCall number');
-      await goTo('phone_claim', "Let's find a local number! Enter an area code to search available numbers.");
-    } else if (choice === 'forward') {
-      userSay('Forward my existing number');
-      await goTo(
-        'phone_forward',
-        "Enter your current business number. I'll save it so you can set up forwarding from your carrier.",
-      );
-    } else {
-      userSay('Use a demo number for testing');
-      setIsSaving(true);
-      try {
-        const res = await apiClient.claimDemoPhoneNumber();
-        await refreshCompanyNumber();
-        await refreshAll();
-        const num = res?.phoneNumber ?? res?.phone_number ?? res?.data?.phoneNumber ?? '';
-        userSay(`Demo number assigned${num ? `: ${num}` : ''}`);
-        await goTo(
-          'knowledge_intro',
-          `Demo number ready${num ? ` (${num})` : ''}! Now let's build your AI knowledge base.`,
-        );
-      } catch (err: any) {
-        setErrMsg(err?.message || 'Could not assign demo number.');
-      } finally {
-        setIsSaving(false);
-      }
-    }
-  };
-
-  const handleSearchNumbers = async () => {
-    setSearchingNums(true);
-    setAvailableNumbers([]);
-    setErrMsg(null);
-    try {
-      const results = await apiClient.getAvailablePhoneNumbers({
-        areaCode: areaCode.trim() || undefined,
-        contains: numberSearch.trim() || undefined,
-        maxResults: 8,
-      });
-      setAvailableNumbers(results || []);
-      if (!results?.length) setErrMsg('No numbers found. Try a different area code.');
-    } catch {
-      setErrMsg('Search failed. Try again.');
-    } finally {
-      setSearchingNums(false);
-    }
-  };
-
-  const handleClaimNumber = async (phoneNumber: string) => {
-    setIsSaving(true);
-    try {
-      await apiClient.claimPhoneNumber(phoneNumber, 'HandyCall onboarding');
-      await refreshCompanyNumber();
-      await refreshAll();
-      userSay(`Claimed ${phoneNumber} ✓`);
-      await goTo(
-        'knowledge_intro',
-        `Your HandyCall number is ${phoneNumber}. Now let's build your AI knowledge base so it can answer calls accurately!`,
-      );
-    } catch (err: any) {
-      setErrMsg(err?.message || 'Could not claim number. Try another.');
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  const handleSaveForwarding = async () => {
-    if (!forwardNumber.trim()) {
-      setErrMsg('Enter your current business number.');
-      return;
-    }
-    setIsSaving(true);
-    try {
-      const updated = await apiClient.updateMyCompany({ phone_number: forwardNumber.trim() });
-      setCompany(updated);
-      userSay(`Saved: ${forwardNumber.trim()}`);
-      await goTo(
-        'knowledge_intro',
-        `Got it! When ready, forward calls from ${forwardNumber.trim()} to your HandyCall number in your carrier settings. Now let's build your knowledge base!`,
-      );
-    } catch {
-      setErrMsg('Could not save number.');
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  const handleStartKnowledge = async () => {
-    userSay("Let's build it!");
-    await botSay(
-      "Fill in the details below — your pricing, policies, and top customer questions. This becomes your AI receptionist's knowledge base. You can always add more from your dashboard later.",
-    );
-    setPhase('knowledge_chat');
-  };
-
-  const handleBuildFromForm = async () => {
-    const f = kbForm;
-    const parts: string[] = [];
-    if (f.pricingModel) {
-      const labels: Record<string, string> = { fixed: 'fixed price', hourly: 'hourly rate', quote: 'quote after inspection', mixed: 'mixed pricing' };
-      parts.push(`My pricing model is ${labels[f.pricingModel] || f.pricingModel}.`);
-    }
-    if (f.basePrice.trim()) parts.push(`My base price or rate is: ${f.basePrice.trim()}.`);
-    if (f.whatsIncluded.trim()) parts.push(`What's included in the base price: ${f.whatsIncluded.trim()}.`);
-    if (f.emergencyCharge.trim()) parts.push(`Emergency or after-hours charge: ${f.emergencyCharge.trim()}.`);
-    if (f.depositRequired.trim()) parts.push(`Deposit or upfront payment policy: ${f.depositRequired.trim()}.`);
-    if (f.cancellationPolicy.trim()) parts.push(`Cancellation policy: ${f.cancellationPolicy.trim()}.`);
-    if (f.warranty.trim()) parts.push(`Warranty or guarantee: ${f.warranty.trim()}.`);
-    if (f.faq1Question.trim() && f.faq1Answer.trim()) {
-      parts.push(`Common question 1: "${f.faq1Question.trim()}" — Answer: ${f.faq1Answer.trim()}.`);
-    }
-    if (f.faq2Question.trim() && f.faq2Answer.trim()) {
-      parts.push(`Common question 2: "${f.faq2Question.trim()}" — Answer: ${f.faq2Answer.trim()}.`);
-    }
-    if (f.serviceProducts.trim()) {
-      parts.push(`Services and pricing offered: ${f.serviceProducts.trim()}.`);
-    }
-    if (parts.length === 0) {
-      setKbError('Please fill in at least one field before generating your knowledge base.');
-      return;
-    }
-    const messages: KnowledgeMsg[] = [{ role: 'user', content: parts.join('\n') }];
-    setKbMessages(messages);
-    await handleGenerateKnowledge(messages);
-  };
-
-  const fetchKbReply = async (history: KnowledgeMsg[]) => {
-    setKbLoading(true);
-    setKbError(null);
-    try {
-      const res = await apiClient.knowledgeAssistantRespond(history);
-      const msg = String(res?.assistant_message || '').trim();
-      if (msg) {
-        setKbMessages([...history, { role: 'assistant', content: msg }]);
-      }
-      setKbDone(res?.done === true);
-    } catch {
-      setKbError(
-        "The AI interview is temporarily unavailable. You can still generate a knowledge base with what you've answered, or skip and add entries manually from the dashboard.",
-      );
-    } finally {
-      setKbLoading(false);
-    }
-  };
-
-  const sendKbMessage = async () => {
-    const text = kbInput.trim();
-    if (!text || kbLoading) return;
-    const next: KnowledgeMsg[] = [...kbMessages, { role: 'user', content: text }];
-    setKbMessages(next);
-    setKbInput('');
-    await fetchKbReply(next);
-  };
-
-  const handleGenerateKnowledge = async (overrideMessages?: KnowledgeMsg[]) => {
-    setKbGenerating(true);
-    setKbError(null);
-    const msgs = overrideMessages ?? kbMessages;
-    try {
-      const [kbRes, prodRes] = await Promise.all([
-        apiClient.knowledgeAssistantGenerate(msgs, true),
-        apiClient.knowledgeExtractProducts(msgs).catch(() => ({ created_count: 0, skipped_count: 0 })),
-      ]);
-      const created = Number(kbRes?.created_count || 0);
-      const productsCreated = Number(prodRes?.created_count || 0);
-      await refreshKnowledge();
-      await refreshAll();
-      userSay(`Knowledge base generated: ${created} entries created`);
-      const productNote = productsCreated > 0
-        ? ` I also created ${productsCreated} service product${productsCreated === 1 ? '' : 's'} in your Payments page.`
-        : '';
-      await goTo(
-        'billing_plan',
-        `Done! I created ${created} knowledge entr${created === 1 ? 'y' : 'ies'} for your AI receptionist.${productNote} You can always add more from your dashboard.`,
-        "Now for the last step — let's activate your HandyCall subscription. Which plan fits your business?",
-      );
-    } catch (err: any) {
-      setKbError(err?.message || 'Could not generate knowledge base. Try again.');
-    } finally {
-      setKbGenerating(false);
-    }
-  };
-
-  const handleSkipKnowledge = async () => {
-    userSay('Skip for now');
-    await goTo(
-      'billing_plan',
-      "No problem! You can add knowledge entries anytime from your dashboard. Let's activate your subscription.",
-    );
-  };
-
-  const handlePlanSelect = async (plan: SubscriptionPlan) => {
-    setSelectedPlan(plan);
-    userSay(`${PLAN_CATALOG[plan].name} — $${PLAN_CATALOG[plan].price}/month`);
-    await goTo('billing_payment', `${PLAN_CATALOG[plan].name} plan selected! Add a payment method to activate.`);
-  };
-
-  const handleBillingSuccess = async () => {
-    await refreshAll();
-    await goTo(
-      'billing_payment_mode',
-      'Subscription activated. Final setup: choose how you want to handle customer payments.',
-    );
-  };
-
-  const refreshConnectStatusAndContinue = async () => {
-    try {
-      const latest = await apiClient.getConnectStatus();
-      setConnectStatus(latest);
-      if (latest?.connected && latest?.charges_enabled && latest?.payouts_enabled) {
-        await goTo(
-          'complete',
-          "🎉 You're all set! Stripe Connect is fully configured and your HandyCall AI receptionist is ready.",
-        );
-      }
-    } catch (err: any) {
-      setErrMsg(err?.message || 'Could not verify Stripe Connect status.');
-    }
-  };
-
   const handlePaymentModeChoice = async (mode: 'HANDYCALL_MANAGED' | 'SELF_MANAGED') => {
     setPaymentModeSaving(true);
     setErrMsg(null);
     try {
+      setSelectedPaymentMode(mode);
       await apiClient.updateMyCompany({
         booking_payment_mode: mode,
         booking_payment_enabled: mode === 'HANDYCALL_MANAGED',
+        booking_payment_mode_confirmed: true,
       });
       await refreshAll();
-
-      if (mode === 'SELF_MANAGED') {
-        userSay('I handle payments myself');
-        await goTo(
-          'complete',
-          "🎉 You're all set! HandyCall will handle calls and bookings, and your team handles customer payments.",
-        );
-        return;
+      if (mode === 'HANDYCALL_MANAGED') {
+        goTo('billing_connect');
+        await refreshConnectStatus();
+      } else {
+        goTo('billing_plan');
       }
-
-      userSay('Managed in HandyCall');
-      await goTo(
-        'billing_connect',
-        'Great choice. Connect Stripe to receive payouts and let customers pay through HandyCall booking links.',
-      );
-      await refreshConnectStatusAndContinue();
     } catch (err: any) {
-      setErrMsg(err?.message || 'Could not save payment mode.');
+      setErrMsg(err?.message || 'Could not save your payment setup.');
     } finally {
       setPaymentModeSaving(false);
     }
@@ -944,7 +1165,8 @@ export default function OnboardingSetupPage() {
     setConnectBusy(true);
     setErrMsg(null);
     try {
-      const origin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3001';
+      const origin =
+        typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3001';
       const link = await apiClient.setupConnectAccount({
         return_url: `${origin}/onboarding/setup?payments=connect&state=return`,
         refresh_url: `${origin}/onboarding/setup?payments=connect&state=refresh`,
@@ -955,878 +1177,936 @@ export default function OnboardingSetupPage() {
       window.location.href = link.url;
     } catch (err: any) {
       setErrMsg(err?.message || 'Could not start Stripe Connect onboarding.');
+      goTo('billing_connect');
     } finally {
       setConnectBusy(false);
     }
   };
 
-  // ─── Active zone ───────────────────────────────────────────────────────────
+  const handleContinueAfterConnect = async () => {
+    const latest = await refreshConnectStatus();
+    if (!isConnectReady(latest)) {
+      setErrMsg('Finish Stripe onboarding first, then continue.');
+      return;
+    }
+    await continueAfterConnect();
+  };
 
-  const renderActiveZone = () => {
-    if (phase === 'loading' || phase === 'complete') return null;
+  const handleBeginPlanBilling = async () => {
+    if (!resolvedPlan) {
+      setErrMsg('Choose a tier first.');
+      goTo('plan_selection');
+      return;
+    }
 
-    return (
-      <div className="space-y-3">
-        {errMsg && (
-          <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700">
-            <IconX className="h-4 w-4 flex-shrink-0" stroke={1.5} />
-            {errMsg}
+    if (resolvedPlan === SubscriptionPlan.STARTER) {
+      goTo('starter_activation');
+      return;
+    }
+
+    const effectiveMode =
+      selectedPaymentMode ||
+      ((company as any)?.booking_payment_mode as 'HANDYCALL_MANAGED' | 'SELF_MANAGED' | undefined);
+
+    if (effectiveMode === 'HANDYCALL_MANAGED' && !isConnectReady()) {
+      setErrMsg('Connect your payout account before activating your paid tier.');
+      goTo('billing_connect');
+      return;
+    }
+
+    setIsSaving(true);
+    setErrMsg(null);
+    try {
+      const { client_secret } = await apiClient.createSetupIntent();
+      setSetupClientSecret(client_secret);
+      goTo('billing_payment');
+    } catch (err: any) {
+      setErrMsg(err?.message || 'Could not initialize billing.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleStarterActivation = async () => {
+    setIsSaving(true);
+    setErrMsg(null);
+    try {
+      await apiClient.activateStarterPlan();
+      await refreshAll();
+      clearPlanDraft();
+      goTo('complete');
+    } catch (err: any) {
+      setErrMsg(err?.message || 'Could not activate Starter.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleBillingSuccess = async () => {
+    await refreshAll();
+    clearPlanDraft();
+    goTo('complete');
+  };
+
+  const renderStepContent = () => {
+    switch (phase) {
+      case 'loading':
+        return null;
+
+      case 'plan_selection':
+        return (
+          <div className="space-y-4">
+            <div className="grid gap-4 lg:grid-cols-3">
+              {Object.entries(PLAN_CATALOG).map(([plan, details]) => {
+                const planKey = plan as SubscriptionPlan;
+                const price = getPlanPriceDisplay(planKey);
+                const selected = resolvedPlan === planKey;
+                return (
+                  <button
+                    key={plan}
+                    type="button"
+                    onClick={() => void handleTierSelect(planKey)}
+                    className={cn(
+                      'flex h-full flex-col rounded-3xl border p-5 text-left transition',
+                      selected
+                        ? 'border-emerald-500 bg-emerald-50/70 shadow-sm dark:bg-emerald-950/20'
+                        : 'border-border bg-card hover:border-emerald-400/60 hover:bg-accent/50'
+                    )}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-lg font-bold text-foreground">{t(details.name)}</p>
+                        {details.badge ? (
+                          <p className="mt-1 text-sm text-muted-foreground">{t(details.badge)}</p>
+                        ) : null}
+                      </div>
+                      {selected ? (
+                        <span className="rounded-full bg-emerald-600 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-white">
+                          {t('Selected')}
+                        </span>
+                      ) : null}
+                    </div>
+                    <div className="mt-5">
+                      <p className="text-3xl font-bold text-foreground">
+                        {details.price === 0 ? t('Free') : price.current}
+                      </p>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        {details.price === 0 ? t('Only pay when you unlock a lead') : t(price.cadence)}
+                      </p>
+                    </div>
+                    <div className="mt-5 space-y-2">
+                      {details.featureHighlights.map((item) => (
+                        <div key={item} className="flex items-start gap-2 text-sm text-muted-foreground">
+                          <IconCheck className="mt-0.5 h-4 w-4 flex-shrink-0 text-emerald-600" stroke={2} />
+                          <span>{t(item)}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="mt-6 flex items-center gap-2 text-sm font-semibold text-emerald-600">
+                      {isArabic ? `${t('Continue')} ${t(details.name)}` : `Continue with ${details.name}`}
+                      <IconArrowRight className="h-4 w-4" stroke={2} />
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+            <div className="rounded-2xl border border-border bg-card/70 p-4">
+              <p className="text-sm font-semibold text-foreground">{t('How the paths differ')}</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {t(
+                  'Starter stops after your marketplace profile and activates a free listing. Pro and Teams continue into billing so you can launch with better placement, CRM, and marketplace payments.'
+                )}
+              </p>
+            </div>
           </div>
-        )}
+        );
 
-        {/* Profile name */}
-        {phase === 'profile_name' && (
-          <div className="flex gap-2">
+      case 'profile_name':
+        return (
+          <div className="space-y-4">
             <input
               autoFocus
               type="text"
               value={nameInput}
-              onChange={(e) => setNameInput(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && void handleProfileName()}
-              placeholder="Your full name..."
+              onChange={(event) => setNameInput(event.target.value)}
+              onKeyDown={(event) => event.key === 'Enter' && nameInput.trim() && void handleProfileName()}
+              placeholder={isArabic ? 'مثال: محمد الحمدالله' : 'e.g. Mohammad Hamdallah'}
               disabled={isSaving}
-              className="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 disabled:opacity-50"
+              className="w-full rounded-xl border border-input bg-background px-4 py-3 text-base text-foreground placeholder:text-muted-foreground/70 outline-none ring-offset-background transition-all focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50"
             />
-            <ActionButton onClick={handleProfileName} disabled={!nameInput.trim() || isSaving} loading={isSaving}>
-              <IconSend className="h-4 w-4" stroke={1.5} />
-            </ActionButton>
+            <PrimaryButton
+              onClick={handleProfileName}
+              disabled={!nameInput.trim() || isSaving}
+              loading={isSaving}
+            >
+              {t('Continue')}
+              <IconArrowRight className="h-4 w-4" stroke={2} />
+            </PrimaryButton>
           </div>
-        )}
+        );
 
-        {/* Company name */}
-        {phase === 'company_name' && (
-          <div className="flex gap-2">
+      case 'company_name':
+        return (
+          <div className="space-y-4">
             <input
               autoFocus
               type="text"
               value={companyInput}
-              onChange={(e) => setCompanyInput(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && companyInput.trim() && void handleCompanyName()}
-              placeholder="Business name..."
+              onChange={(event) => setCompanyInput(event.target.value)}
+              onKeyDown={(event) =>
+                event.key === 'Enter' && companyInput.trim() && void handleCompanyName()
+              }
+              placeholder={isArabic ? 'مثال: خدمات تكييف النخبة بالرياض' : 'e.g. Riyadh Elite AC Services'}
               disabled={isSaving}
-              className="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 disabled:opacity-50"
+              className="w-full rounded-xl border border-input bg-background px-4 py-3 text-base text-foreground placeholder:text-muted-foreground/70 outline-none ring-offset-background transition-all focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50"
             />
-            <ActionButton onClick={handleCompanyName} disabled={!companyInput.trim() || isSaving} loading={isSaving}>
-              <IconSend className="h-4 w-4" stroke={1.5} />
-            </ActionButton>
+            <PrimaryButton
+              onClick={handleCompanyName}
+              disabled={!companyInput.trim() || isSaving}
+              loading={isSaving}
+            >
+              {t('Continue')}
+              <IconArrowRight className="h-4 w-4" stroke={2} />
+            </PrimaryButton>
           </div>
-        )}
+        );
 
-        {/* Service type */}
-        {phase === 'service_type' && (
-          <div className="space-y-3">
-            <div className="flex flex-wrap gap-2">
-              {SERVICE_TYPE_OPTIONS.filter((opt) => (opt.value as string) !== 'OTHER').map((opt) => (
-                <ChipButton
-                  key={opt.value}
-                  onClick={() => void handleServiceType(opt.value, opt.label)}
-                  disabled={isSaving}
-                >
-                  {opt.label}
-                </ChipButton>
-              ))}
-              <ChipButton
-                onClick={() => {
-                  setShowOtherInput(true);
-                  setOtherServiceInput('');
-                }}
-                disabled={isSaving || showOtherInput}
-              >
-                Other / Not listed →
-              </ChipButton>
+      case 'service_type':
+        return (
+          <div className="space-y-4">
+            <div className="rounded-2xl border border-border bg-card p-4">
+              <p className="text-sm font-semibold text-foreground">{t('Broad category first, specifics next')}</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {t(
+                  "Pick the main category that best fits your business. In your marketplace profile, you'll then list the exact jobs you do, like mesh network setup, duct cleaning, or water heater repair."
+                )}
+              </p>
             </div>
-            {showOtherInput && (
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {MARKETPLACE_SERVICE_CATEGORIES.map((option) => (
+                <button
+                  key={option.key}
+                  type="button"
+                  onClick={() =>
+                    void handleServiceType({
+                      serviceType: option.templateServiceType,
+                      categoryTitle: option.title,
+                      label: option.title,
+                    })
+                  }
+                  disabled={isSaving}
+                  className="rounded-2xl border border-border bg-card p-4 text-left transition hover:border-emerald-400/60 hover:bg-accent/60 disabled:opacity-50"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-600 dark:text-emerald-400">
+                        {t('Marketplace category')}
+                      </p>
+                      <h3 className="mt-1 text-base font-semibold text-foreground">
+                        {isArabic ? option.titleAr : option.title}
+                      </h3>
+                    </div>
+                    <IconArrowRight className="h-5 w-5 flex-shrink-0 text-muted-foreground/40" stroke={1.5} />
+                  </div>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    {isArabic
+                      ? t('Choose this category, then add the exact services you offer in the next step.')
+                      : option.description}
+                  </p>
+                  {!isArabic ? (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {option.services.slice(0, 3).map((highlight) => (
+                        <span
+                          key={highlight}
+                          className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground"
+                        >
+                          {highlight}
+                        </span>
+                      ))}
+                    </div>
+                  ) : null}
+                </button>
+              ))}
+            </div>
+            <div className="rounded-2xl border border-dashed border-border bg-card p-4">
+              <p className="text-sm font-semibold text-foreground">{t('Need something custom?')}</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {t('Start from a general template and tailor the intake flow after your marketplace profile is complete.')}
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowOtherInput(true);
+                    setOtherServiceInput('');
+                  }}
+                  disabled={isSaving || showOtherInput}
+                  className="rounded-xl border border-border bg-card px-3 py-1.5 text-sm font-medium text-foreground transition hover:border-emerald-400/60 hover:bg-accent disabled:opacity-50"
+                >
+                  {isArabic ? 'أخرى / مخصصة' : 'Other / Custom'}
+                </button>
+              </div>
+            </div>
+            {showOtherInput ? (
               <div className="flex gap-2">
                 <input
                   autoFocus
                   type="text"
                   value={otherServiceInput}
-                  onChange={(e) => setOtherServiceInput(e.target.value)}
-                  onKeyDown={(e) =>
-                    e.key === 'Enter' &&
+                  onChange={(event) => setOtherServiceInput(event.target.value)}
+                  onKeyDown={(event) =>
+                    event.key === 'Enter' &&
                     otherServiceInput.trim() &&
-                    void handleServiceType('OTHER', otherServiceInput.trim())
+                    void handleServiceType({
+                      serviceType: ServiceType.OTHER,
+                      categoryTitle: otherServiceInput.trim(),
+                      label: otherServiceInput.trim(),
+                    })
                   }
-                  placeholder="e.g. Septic tank cleaning, Foundation repair..."
+                  placeholder={isArabic ? 'مثال: تنظيف خزان مياه، إصلاح سقف جبس...' : 'e.g. Water tank cleaning, false ceiling repair...'}
                   disabled={isSaving}
-                  className="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 disabled:opacity-50"
+                  className="flex-1 rounded-xl border border-input bg-background px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/70 outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
                 />
-                <ActionButton
-                  onClick={() => void handleServiceType('OTHER', otherServiceInput.trim())}
+                <PrimaryButton
+                  onClick={() =>
+                    void handleServiceType({
+                      serviceType: ServiceType.OTHER,
+                      categoryTitle: otherServiceInput.trim(),
+                      label: otherServiceInput.trim(),
+                    })
+                  }
                   disabled={!otherServiceInput.trim() || isSaving}
                   loading={isSaving}
                 >
-                  <IconSend className="h-4 w-4" stroke={1.5} />
-                </ActionButton>
+                  <IconArrowRight className="h-4 w-4" stroke={2} />
+                </PrimaryButton>
               </div>
-            )}
+            ) : null}
           </div>
-        )}
+        );
 
-        {/* Timezone */}
-        {phase === 'timezone' && (
-          <div className="flex flex-wrap gap-2">
-            {TIMEZONE_OPTIONS.map((tz) => (
-              <ChipButton key={tz.value} onClick={() => void handleTimezone(tz.value, tz.label)} disabled={isSaving}>
-                {tz.label}
-              </ChipButton>
-            ))}
-          </div>
-        )}
-
-        {/* Service area choice */}
-        {phase === 'service_area_choice' && (
-          <div className="flex flex-wrap gap-3">
-            <ChoiceButton
-              icon={<IconMapPin className="h-4 w-4 text-emerald-500" stroke={1.5} />}
-              onClick={handleServiceAreaAll}
-              disabled={isSaving}
-            >
-              Serve all areas
-            </ChoiceButton>
-            <ChoiceButton
-              icon={<IconMapPin className="h-4 w-4 text-slate-400" stroke={1.5} />}
-              onClick={handleServiceAreaSpecific}
-              disabled={isSaving}
-            >
-              Specific zip codes & cities
-            </ChoiceButton>
-          </div>
-        )}
-
-        {/* Service area input */}
-        {phase === 'service_area_input' && (
-          <div className="space-y-4">
-            <div>
-              <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">Zip codes</p>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={zipInput}
-                  onChange={(e) => setZipInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      addZip();
-                      e.preventDefault();
-                    }
-                  }}
-                  placeholder="e.g. 77002"
-                  maxLength={5}
-                  className="flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
-                />
-                <button
-                  type="button"
-                  onClick={addZip}
-                  className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-                >
-                  Add
-                </button>
+      case 'marketplace_profile_intro':
+        return (
+          <div className="space-y-5">
+            <div className="rounded-3xl border border-border bg-card p-6">
+              <div className="flex items-start gap-4">
+                <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
+                  <IconSparkles className="h-6 w-6" stroke={1.8} />
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold text-foreground">{t('What you will set up here')}</h2>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Your public profile includes the Riyadh districts you serve, exact services offered,
+                    starting price in SAR, trust badges, business hours, payment methods, and project photos.
+                  </p>
+                </div>
               </div>
-              <div className="mt-2 flex flex-wrap gap-1.5">
-                {zipCodes.map((z) => (
-                  <span
-                    key={z}
-                    className="flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-medium text-emerald-800"
-                  >
-                    {z}
-                    <button
-                      type="button"
-                      onClick={() => setZipCodes((p) => p.filter((x) => x !== z))}
-                      className="text-emerald-600 hover:text-red-500"
-                    >
-                      <IconX className="h-3 w-3" />
-                    </button>
-                  </span>
-                ))}
+              <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                <div className="rounded-2xl bg-muted/60 p-4">
+                  <p className="text-sm font-semibold text-foreground">Riyadh district coverage</p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Select the districts you actually cover, from Al Olaya and Hittin to Al Rawdah,
+                    Diriyah, and the rest of Riyadh.
+                  </p>
+                </div>
+                <div className="rounded-2xl bg-muted/60 p-4">
+                  <p className="text-sm font-semibold text-foreground">Marketplace trust signals</p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Add your bio, years in business, certifications, supported payment methods,
+                    and recent project photos so homeowners know why to choose you.
+                  </p>
+                </div>
               </div>
             </div>
-            <div>
-              <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Cities <span className="font-normal normal-case text-slate-400">(optional)</span>
-              </p>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={cityInput}
-                  onChange={(e) => setCityInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      addCity();
-                      e.preventDefault();
-                    }
-                  }}
-                  placeholder="Austin, TX"
-                  className="flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
-                />
-                <button
-                  type="button"
-                  onClick={addCity}
-                  className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-                >
-                  Add
-                </button>
-              </div>
-              <div className="mt-2 flex flex-wrap gap-1.5">
-                {cities.map((c) => (
-                  <span
-                    key={c}
-                    className="flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-700"
-                  >
-                    {c}
-                    <button
-                      type="button"
-                      onClick={() => setCities((p) => p.filter((x) => x !== c))}
-                      className="text-slate-500 hover:text-red-500"
-                    >
-                      <IconX className="h-3 w-3" />
-                    </button>
-                  </span>
-                ))}
-              </div>
+            <div className="flex flex-wrap gap-3">
+              <PrimaryButton onClick={handleOpenMarketplaceProfile}>
+                {t('Build marketplace profile')}
+                <IconArrowRight className="h-4 w-4" stroke={2} />
+              </PrimaryButton>
+              <GhostButton onClick={() => goTo('plan_selection')}>{t('Change tier')}</GhostButton>
             </div>
-            <ActionButton
-              onClick={handleSaveServiceArea}
-              disabled={isSaving || (zipCodes.length === 0 && cities.length === 0)}
-              loading={isSaving}
-            >
-              <IconCheck className="h-4 w-4" stroke={2} />
-              Save service area
-            </ActionButton>
           </div>
-        )}
+        );
 
-        {/* Calendar mode */}
-        {phase === 'calendar_mode' && (
-          <div className="flex flex-wrap gap-3">
-            <ChoiceButton
-              icon={<IconCalendar className="h-4 w-4 text-emerald-500" stroke={1.5} />}
+      case 'calendar_mode':
+        return (
+          <div className="space-y-3">
+            <OptionCard
               onClick={() => void handleCalendarMode('INTERNAL')}
               disabled={isSaving}
-            >
-              Use HandyCall Calendar
-            </ChoiceButton>
-            <ChoiceButton
-              icon={<IconCalendar className="h-4 w-4 text-slate-400" stroke={1.5} />}
+              icon={<IconCalendar className="h-5 w-5" stroke={1.5} />}
+              label={t('Use HandyCall scheduling')}
+              description={t(
+                'Keep your setup simple and let HandyCall manage bookable time from your working hours.'
+              )}
+              recommended
+              recommendedLabel={t('Recommended')}
+            />
+            <OptionCard
               onClick={() => void handleCalendarMode('EXTERNAL')}
               disabled={isSaving}
-            >
-              Connect my existing calendar
-            </ChoiceButton>
+              icon={<IconCalendar className="h-5 w-5" stroke={1.5} />}
+              label={t('Connect my existing calendar')}
+              description={t('Use Google, Outlook, or Apple if your team already lives in another calendar.')}
+            />
           </div>
-        )}
+        );
 
-        {/* Business hours */}
-        {phase === 'calendar_hours' && (
+      case 'calendar_hours':
+        return (
           <div className="space-y-4">
+            <div className="rounded-2xl border border-border bg-card p-4">
+              <p className="text-sm font-semibold text-foreground">{t('Standard work week (Mon-Fri)')}</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {t(
+                  'Sunday through Thursday starts open by default. Friday and Saturday start closed, but you can adjust any day.'
+                )}
+              </p>
+            </div>
             <div className="space-y-1.5">
               {WEEKDAYS.map((day) => {
-                const row = calendarHours[day.key] ?? { closed: true, open: '09:00', close: '17:00' };
+                const row = calendarHours[day.key];
                 return (
                   <div
                     key={day.key}
-                    className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2"
+                    className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-card px-3 py-2"
                   >
-                    <span className="w-8 text-xs font-bold text-slate-500">{day.label}</span>
+                    <span className="w-8 text-xs font-bold text-muted-foreground">{t(day.label)}</span>
                     <button
                       type="button"
                       onClick={() =>
-                        setCalendarHours((prev) => ({ ...prev, [day.key]: { ...row, closed: !row.closed } }))
+                        setCalendarHours((prev) => ({
+                          ...prev,
+                          [day.key]: { ...row, closed: !row.closed },
+                        }))
                       }
-                      className={`rounded-lg px-2.5 py-0.5 text-xs font-semibold transition ${
-                        row.closed ? 'bg-slate-100 text-slate-500' : 'bg-emerald-100 text-emerald-700'
-                      }`}
+                      className={cn(
+                        'rounded-lg px-2.5 py-0.5 text-xs font-semibold transition',
+                        row.closed
+                          ? 'bg-muted text-muted-foreground'
+                          : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
+                      )}
                     >
-                      {row.closed ? 'Closed' : 'Open'}
+                      {row.closed ? t('Closed') : t('Open')}
                     </button>
-                    {!row.closed && (
+                    {!row.closed ? (
                       <>
                         <input
                           type="time"
                           value={row.open}
-                          onChange={(e) =>
-                            setCalendarHours((prev) => ({ ...prev, [day.key]: { ...row, open: e.target.value } }))
+                          onChange={(event) =>
+                            setCalendarHours((prev) => ({
+                              ...prev,
+                              [day.key]: { ...row, open: event.target.value },
+                            }))
                           }
-                          className="rounded-lg border border-slate-200 px-2 py-0.5 text-xs"
+                          className="rounded-lg border border-border bg-background px-2 py-0.5 text-xs text-foreground"
                         />
-                        <span className="text-xs text-slate-400">–</span>
+                        <span className="text-xs text-muted-foreground">-</span>
                         <input
                           type="time"
                           value={row.close}
-                          onChange={(e) =>
-                            setCalendarHours((prev) => ({ ...prev, [day.key]: { ...row, close: e.target.value } }))
+                          onChange={(event) =>
+                            setCalendarHours((prev) => ({
+                              ...prev,
+                              [day.key]: { ...row, close: event.target.value },
+                            }))
                           }
-                          className="rounded-lg border border-slate-200 px-2 py-0.5 text-xs"
+                          className="rounded-lg border border-border bg-background px-2 py-0.5 text-xs text-foreground"
                         />
                       </>
-                    )}
+                    ) : null}
                   </div>
                 );
               })}
             </div>
-            <ActionButton onClick={handleSaveCalendarHours} disabled={isSaving} loading={isSaving}>
+            <PrimaryButton onClick={handleSaveCalendarHours} disabled={isSaving} loading={isSaving}>
               <IconCheck className="h-4 w-4" stroke={2} />
-              Save hours & continue
-            </ActionButton>
+              {t('Save hours')}
+            </PrimaryButton>
           </div>
-        )}
+        );
 
-        {/* Calendar provider */}
-        {phase === 'calendar_provider' && (
-          <div className="flex flex-wrap gap-3">
+      case 'calendar_provider':
+        return (
+          <div className="space-y-3">
             {[
-              { id: 'GOOGLE', label: 'Google Calendar', icon: <IconBrandGoogle className="h-4 w-4" stroke={1.5} /> },
+              {
+                id: 'GOOGLE',
+                label: 'Google Calendar',
+                description: 'Best for most solo pros and field teams.',
+                icon: <IconBrandGoogle className="h-5 w-5" stroke={1.5} />,
+              },
               {
                 id: 'MICROSOFT',
                 label: 'Outlook / Microsoft 365',
-                icon: <IconBrandWindows className="h-4 w-4" stroke={1.5} />,
+                description: 'Good for businesses already using Microsoft tools.',
+                icon: <IconBrandWindows className="h-5 w-5" stroke={1.5} />,
               },
-              { id: 'APPLE', label: 'Apple iCloud', icon: <IconBrandApple className="h-4 w-4" stroke={1.5} /> },
-            ].map((opt) => (
-              <ChoiceButton
-                key={opt.id}
-                icon={opt.icon}
-                onClick={() => void handleCalendarProvider(opt.id as 'GOOGLE' | 'MICROSOFT' | 'APPLE')}
+              {
+                id: 'APPLE',
+                label: 'Apple Calendar',
+                description: 'Connect iCloud Calendar with an app-specific password.',
+                icon: <IconBrandApple className="h-5 w-5" stroke={1.5} />,
+              },
+            ].map((option) => (
+              <OptionCard
+                key={option.id}
+                onClick={() =>
+                  void handleCalendarProvider(option.id as 'GOOGLE' | 'MICROSOFT' | 'APPLE')
+                }
                 disabled={isSaving}
-              >
-                {opt.label}
-              </ChoiceButton>
+                icon={option.icon}
+                label={t(option.label)}
+                description={t(option.description)}
+              />
             ))}
           </div>
-        )}
+        );
 
-        {/* Apple calendar credentials */}
-        {phase === 'calendar_apple' && (
+      case 'calendar_apple':
+        return (
           <div className="space-y-3">
             <input
               type="email"
               value={appleEmail}
-              onChange={(e) => setAppleEmail(e.target.value)}
-              placeholder="Apple ID email"
-              className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
+              onChange={(event) => setAppleEmail(event.target.value)}
+              placeholder={isArabic ? 'بريد Apple ID الإلكتروني' : 'Apple ID email'}
+              className="w-full rounded-xl border border-input bg-background px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/70 outline-none focus-visible:ring-2 focus-visible:ring-ring"
             />
             <input
               type="password"
               value={applePass}
-              onChange={(e) => setApplePass(e.target.value)}
-              placeholder="App-specific password"
-              className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
+              onChange={(event) => setApplePass(event.target.value)}
+              placeholder={isArabic ? 'كلمة مرور خاصة بالتطبيق' : 'App-specific password'}
+              className="w-full rounded-xl border border-input bg-background px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/70 outline-none focus-visible:ring-2 focus-visible:ring-ring"
             />
             <a
               href="https://support.apple.com/en-us/102654"
               target="_blank"
               rel="noopener noreferrer"
-              className="block text-xs text-emerald-600 hover:underline"
+              className="block text-xs text-emerald-600 hover:underline dark:text-emerald-400"
             >
-              How to generate an app-specific password →
+              {t('How to generate an app-specific password')}
             </a>
-            <ActionButton
+            <PrimaryButton
               onClick={handleConnectApple}
               disabled={isSaving || !appleEmail || !applePass}
               loading={isSaving}
             >
               <IconCheck className="h-4 w-4" stroke={2} />
-              Connect Apple Calendar
-            </ActionButton>
+              {t('Connect Apple Calendar')}
+            </PrimaryButton>
           </div>
-        )}
+        );
 
-        {/* Phone choice */}
-        {phase === 'phone_choice' && (
-          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-            {[
-              {
-                id: 'claim',
-                label: 'Claim a new HandyCall number',
-                icon: <IconPhone className="h-4 w-4 text-emerald-500" stroke={1.5} />,
-              },
-              {
-                id: 'forward',
-                label: 'Forward my existing number',
-                icon: <IconPhone className="h-4 w-4 text-slate-500" stroke={1.5} />,
-              },
-              {
-                id: 'demo',
-                label: 'Use a demo number for testing',
-                icon: <IconPhone className="h-4 w-4 text-slate-300" stroke={1.5} />,
-              },
-            ].map((opt) => (
-              <ChoiceButton
-                key={opt.id}
-                icon={opt.icon}
-                onClick={() => void handlePhoneChoice(opt.id as 'claim' | 'forward' | 'demo')}
-                disabled={isSaving}
-              >
-                {opt.label}
-              </ChoiceButton>
-            ))}
-          </div>
-        )}
-
-        {/* Phone number search */}
-        {phase === 'phone_claim' && (
+      case 'billing_payment_mode':
+        return (
           <div className="space-y-3">
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={areaCode}
-                onChange={(e) => setAreaCode(e.target.value)}
-                placeholder="Area code"
-                maxLength={3}
-                className="w-24 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-emerald-400"
-              />
-              <input
-                type="text"
-                value={numberSearch}
-                onChange={(e) => setNumberSearch(e.target.value)}
-                placeholder="Contains (optional)"
-                className="flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-emerald-400"
-              />
-              <button
-                type="button"
-                onClick={() => void handleSearchNumbers()}
-                disabled={searchingNums || isSaving}
-                className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
-              >
-                {searchingNums ? <IconLoader2 className="h-4 w-4 animate-spin" stroke={1.5} /> : 'Search'}
-              </button>
-            </div>
-            {availableNumbers.length > 0 && (
-              <div className="grid gap-2 sm:grid-cols-2">
-                {availableNumbers.map((num) => (
-                  <button
-                    type="button"
-                    key={num.phoneNumber}
-                    onClick={() => void handleClaimNumber(num.phoneNumber)}
-                    disabled={isSaving}
-                    className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm transition hover:border-emerald-400 hover:bg-emerald-50 disabled:opacity-50"
-                  >
-                    <span className="font-semibold text-slate-900">{num.phoneNumber}</span>
-                    <span className="text-xs font-medium text-emerald-600">Claim →</span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Forward number input */}
-        {phase === 'phone_forward' && (
-          <div className="flex gap-2">
-            <input
-              autoFocus
-              type="tel"
-              value={forwardNumber}
-              onChange={(e) => setForwardNumber(e.target.value)}
-              placeholder="+15551234567"
-              className="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
-            />
-            <ActionButton onClick={handleSaveForwarding} disabled={isSaving || !forwardNumber.trim()} loading={isSaving}>
-              <IconCheck className="h-4 w-4" stroke={2} />
-              Save
-            </ActionButton>
-          </div>
-        )}
-
-        {/* Knowledge intro */}
-        {phase === 'knowledge_intro' && (
-          <div className="flex flex-wrap gap-3">
-            <ChoiceButton
-              icon={<IconBrain className="h-4 w-4 text-emerald-500" stroke={1.5} />}
-              onClick={() => void handleStartKnowledge()}
-              disabled={isSaving}
-            >
-              Build my knowledge base
-            </ChoiceButton>
-            <button
-              type="button"
-              onClick={() => void handleSkipKnowledge()}
-              className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-500 transition hover:bg-slate-50"
-            >
-              Skip for now
-            </button>
-          </div>
-        )}
-
-        {/* Knowledge structured form */}
-        {phase === 'knowledge_chat' && (
-          <div className="space-y-4 rounded-xl border border-slate-200 bg-white p-4">
-            {/* Pricing model */}
-            <div>
-              <label className="mb-1.5 block text-xs font-semibold text-slate-700">Pricing model <span className="text-slate-400">(required)</span></label>
-              <div className="flex flex-wrap gap-2">
-                {([
-                  { value: 'fixed', label: 'Fixed price' },
-                  { value: 'hourly', label: 'Hourly rate' },
-                  { value: 'quote', label: 'Quote after inspection' },
-                  { value: 'mixed', label: 'Mixed' },
-                ] as const).map(({ value, label }) => (
-                  <button
-                    key={value}
-                    type="button"
-                    onClick={() => setKbForm((f) => ({ ...f, pricingModel: value }))}
-                    className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition ${
-                      kbForm.pricingModel === value
-                        ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
-                        : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
-                    }`}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Base price */}
-            <div>
-              <label className="mb-1 block text-xs font-semibold text-slate-700">Starting price or rate <span className="text-slate-400">(required)</span></label>
-              <input
-                type="text"
-                value={kbForm.basePrice}
-                onChange={(e) => setKbForm((f) => ({ ...f, basePrice: e.target.value }))}
-                placeholder="e.g. $150 flat rate, $85/hour with 1hr minimum"
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
-              />
-            </div>
-
-            {/* What's included */}
-            <div>
-              <label className="mb-1 block text-xs font-semibold text-slate-700">What's included in your base price</label>
-              <textarea
-                value={kbForm.whatsIncluded}
-                onChange={(e) => setKbForm((f) => ({ ...f, whatsIncluded: e.target.value }))}
-                placeholder="e.g. Labor, standard parts, travel within 20 miles"
-                rows={2}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
-              />
-            </div>
-
-            {/* Services / pricing for payment page */}
-            <div>
-              <label className="mb-1 block text-xs font-semibold text-slate-700">Services you offer with pricing <span className="text-slate-400">(will also be added to your Payments page)</span></label>
-              <textarea
-                value={kbForm.serviceProducts}
-                onChange={(e) => setKbForm((f) => ({ ...f, serviceProducts: e.target.value }))}
-                placeholder="e.g. Basic drain cleaning - $129, Water heater install - $450, HVAC tune-up - $89"
-                rows={2}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
-              />
-            </div>
-
-            {/* Emergency charge */}
-            <div>
-              <label className="mb-1 block text-xs font-semibold text-slate-700">Emergency / after-hours charge <span className="text-slate-400">(optional)</span></label>
-              <input
-                type="text"
-                value={kbForm.emergencyCharge}
-                onChange={(e) => setKbForm((f) => ({ ...f, emergencyCharge: e.target.value }))}
-                placeholder="e.g. $75 surcharge after 6pm and on weekends"
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
-              />
-            </div>
-
-            {/* Deposit */}
-            <div>
-              <label className="mb-1 block text-xs font-semibold text-slate-700">Deposit or upfront payment <span className="text-slate-400">(optional)</span></label>
-              <input
-                type="text"
-                value={kbForm.depositRequired}
-                onChange={(e) => setKbForm((f) => ({ ...f, depositRequired: e.target.value }))}
-                placeholder="e.g. 50% deposit required to book, balance due on completion"
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
-              />
-            </div>
-
-            {/* Cancellation policy */}
-            <div>
-              <label className="mb-1 block text-xs font-semibold text-slate-700">Cancellation policy <span className="text-slate-400">(optional)</span></label>
-              <input
-                type="text"
-                value={kbForm.cancellationPolicy}
-                onChange={(e) => setKbForm((f) => ({ ...f, cancellationPolicy: e.target.value }))}
-                placeholder="e.g. Free cancellation up to 24 hours before appointment"
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
-              />
-            </div>
-
-            {/* Warranty */}
-            <div>
-              <label className="mb-1 block text-xs font-semibold text-slate-700">Warranty or guarantee <span className="text-slate-400">(optional)</span></label>
-              <input
-                type="text"
-                value={kbForm.warranty}
-                onChange={(e) => setKbForm((f) => ({ ...f, warranty: e.target.value }))}
-                placeholder="e.g. 30-day labor warranty on all repairs"
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
-              />
-            </div>
-
-            {/* FAQ 1 */}
-            <div>
-              <label className="mb-1 block text-xs font-semibold text-slate-700">Top customer question #1 <span className="text-slate-400">(optional)</span></label>
-              <input
-                type="text"
-                value={kbForm.faq1Question}
-                onChange={(e) => setKbForm((f) => ({ ...f, faq1Question: e.target.value }))}
-                placeholder="Question customers often ask..."
-                className="mb-1.5 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
-              />
-              <input
-                type="text"
-                value={kbForm.faq1Answer}
-                onChange={(e) => setKbForm((f) => ({ ...f, faq1Answer: e.target.value }))}
-                placeholder="Your answer..."
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
-              />
-            </div>
-
-            {/* FAQ 2 */}
-            <div>
-              <label className="mb-1 block text-xs font-semibold text-slate-700">Top customer question #2 <span className="text-slate-400">(optional)</span></label>
-              <input
-                type="text"
-                value={kbForm.faq2Question}
-                onChange={(e) => setKbForm((f) => ({ ...f, faq2Question: e.target.value }))}
-                placeholder="Question customers often ask..."
-                className="mb-1.5 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
-              />
-              <input
-                type="text"
-                value={kbForm.faq2Answer}
-                onChange={(e) => setKbForm((f) => ({ ...f, faq2Answer: e.target.value }))}
-                placeholder="Your answer..."
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
-              />
-            </div>
-
-            {kbError && (
-              <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-800">
-                {kbError}
-              </div>
-            )}
-
-            <div className="flex flex-wrap gap-2">
-              <ActionButton
-                onClick={handleBuildFromForm}
-                disabled={kbGenerating || (!kbForm.pricingModel && !kbForm.basePrice.trim())}
-                loading={kbGenerating}
-              >
-                <IconBrain className="h-4 w-4" stroke={1.5} />
-                {kbGenerating ? 'Building knowledge base...' : 'Build knowledge base'}
-              </ActionButton>
-              <button
-                type="button"
-                onClick={() => void handleSkipKnowledge()}
-                className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-500 hover:bg-slate-50"
-              >
-                Skip for now
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Billing plan selection */}
-        {phase === 'billing_plan' && (
-          <div className="grid gap-3 sm:grid-cols-3">
-            {Object.entries(PLAN_CATALOG).map(([plan, details]) => {
-              const planKey = plan as SubscriptionPlan;
-              const price = getPlanPriceDisplay(planKey);
-              return (
-                <button
-                  type="button"
-                  key={plan}
-                  onClick={() => void handlePlanSelect(planKey)}
-                  disabled={isSaving}
-                  className="flex flex-col rounded-xl border border-slate-200 bg-white p-4 text-left transition hover:border-emerald-400 hover:shadow-sm disabled:opacity-50"
-                >
-                  <p className="text-sm font-bold text-slate-900">{details.name}</p>
-                  <p className="mt-1 text-xl font-bold text-emerald-600">
-                    {price.current}
-                    <span className="text-xs font-normal text-slate-500"> /{price.cadence.replace('per ', '')}</span>
-                  </p>
-                  {details.badge && <p className="mt-1.5 text-xs text-slate-500">{details.badge}</p>}
-                  {details.trialLabel && (
-                    <p className="mt-1 text-xs font-semibold text-emerald-600">{details.trialLabel}</p>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        )}
-
-        {/* Stripe payment */}
-        {phase === 'billing_payment' &&
-          (stripePromise ? (
-            <Elements stripe={stripePromise}>
-              <StripePaymentForm selectedPlan={selectedPlan} onSuccess={handleBillingSuccess} />
-            </Elements>
-          ) : (
-            <p className="text-sm text-red-600">Payment provider not configured. Contact support.</p>
-          ))}
-
-        {/* Payment mode choice */}
-        {phase === 'billing_payment_mode' && (
-          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-            <ChoiceButton
-              icon={<IconCreditCard className="h-4 w-4 text-emerald-500" stroke={1.5} />}
+            <OptionCard
               onClick={() => void handlePaymentModeChoice('HANDYCALL_MANAGED')}
               disabled={paymentModeSaving}
-            >
-              Managed in HandyCall (Recommended)
-            </ChoiceButton>
-            <ChoiceButton
-              icon={<IconCreditCard className="h-4 w-4 text-slate-500" stroke={1.5} />}
+              selected={
+                selectedPaymentMode === 'HANDYCALL_MANAGED' ||
+                (company as any)?.booking_payment_mode === 'HANDYCALL_MANAGED'
+              }
+              icon={<IconCreditCard className="h-5 w-5" stroke={1.5} />}
+              label={t('Collect payments in HandyCall')}
+              description={t(
+                'Customers can pay through the platform and payouts are sent to your Stripe-connected account.'
+              )}
+              recommended
+              recommendedLabel={t('Recommended')}
+            />
+            <OptionCard
               onClick={() => void handlePaymentModeChoice('SELF_MANAGED')}
               disabled={paymentModeSaving}
-            >
-              I handle payments myself
-            </ChoiceButton>
-          </div>
-        )}
-
-        {/* Stripe Connect onboarding */}
-        {phase === 'billing_connect' && (
-          <div className="space-y-3">
-            <div className="rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-700">
-              {connectStatus?.connected
-                ? `Connect account linked (${connectStatus?.account_id || 'account found'}).`
-                : 'Connect account not linked yet.'}
-              {connectStatus?.connected && !connectStatus?.charges_enabled && (
-                <p className="mt-1 text-xs text-amber-600">
-                  Complete onboarding in Stripe to enable charges and payouts.
-                </p>
+              selected={
+                selectedPaymentMode === 'SELF_MANAGED' ||
+                (company as any)?.booking_payment_mode === 'SELF_MANAGED'
+              }
+              icon={<IconUser className="h-5 w-5" stroke={1.5} />}
+              label={t('I collect payment myself')}
+              description={t(
+                'Use HandyCall for qualification and booking only, then collect payment outside the platform.'
               )}
+            />
+          </div>
+        );
+
+      case 'billing_plan':
+        return (
+          <div className="space-y-5">
+            <div className="grid gap-4 lg:grid-cols-3">
+              {Object.entries(PLAN_CATALOG).map(([plan, details]) => {
+                const planKey = plan as SubscriptionPlan;
+                const price = getPlanPriceDisplay(planKey);
+                const selected = resolvedPlan === planKey;
+                return (
+                  <button
+                    key={plan}
+                    type="button"
+                    onClick={() => setSelectedPlan(planKey)}
+                    className={cn(
+                      'rounded-3xl border p-5 text-left transition',
+                      selected
+                        ? 'border-emerald-500 bg-emerald-50/70 dark:bg-emerald-950/20'
+                        : 'border-border bg-card hover:border-emerald-400/60 hover:bg-accent/50'
+                    )}
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-base font-bold text-foreground">{t(details.name)}</p>
+                      {selected ? (
+                        <span className="rounded-full bg-emerald-600 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
+                          {t('Selected')}
+                        </span>
+                      ) : null}
+                    </div>
+                    <p className="mt-3 text-2xl font-bold text-foreground">
+                      {details.price === 0 ? t('Free') : price.current}
+                    </p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      {details.price === 0 ? t('Pay per unlocked lead') : t(price.cadence)}
+                    </p>
+                    <div className="mt-4 space-y-2">
+                      {details.featureHighlights.slice(0, 4).map((item) => (
+                        <div key={item} className="flex items-start gap-2 text-sm text-muted-foreground">
+                          <IconCheck className="mt-0.5 h-4 w-4 flex-shrink-0 text-emerald-600" stroke={2} />
+                          <span>{t(item)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </button>
+                );
+              })}
             </div>
-            <div className="flex flex-wrap gap-2">
-              <ActionButton onClick={handleStartConnectOnboarding} disabled={connectBusy} loading={connectBusy}>
-                <IconCreditCard className="h-4 w-4" stroke={1.5} />
-                Connect bank account (Stripe)
-              </ActionButton>
-              <button
-                type="button"
-                onClick={() => void refreshConnectStatusAndContinue()}
-                className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
+            <div className="flex flex-wrap gap-3">
+              <PrimaryButton
+                onClick={handleBeginPlanBilling}
+                disabled={!resolvedPlan || isSaving}
+                loading={isSaving}
               >
-                I completed this, check again
-              </button>
-              <button
-                type="button"
-                onClick={() => void handlePaymentModeChoice('SELF_MANAGED')}
-                className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-500 transition hover:bg-slate-50"
-              >
-                Skip and handle payments myself
-              </button>
+                {resolvedPlan === SubscriptionPlan.STARTER
+                  ? t('Continue to free activation')
+                  : t('Continue to payment')}
+                <IconArrowRight className="h-4 w-4" stroke={2} />
+              </PrimaryButton>
+              <GhostButton onClick={() => goTo('plan_selection')}>{t('Change onboarding path')}</GhostButton>
             </div>
           </div>
-        )}
-      </div>
-    );
+        );
+
+      case 'billing_payment':
+        return stripePromise && setupClientSecret ? (
+          <Elements stripe={stripePromise} options={{ clientSecret: setupClientSecret }}>
+            <StripePaymentForm selectedPlan={resolvedPlan} onSuccess={handleBillingSuccess} />
+          </Elements>
+        ) : (
+          <p className="text-sm text-red-600 dark:text-red-400">
+            {!stripePromise
+              ? t('Payment provider not configured. Contact support.')
+              : t('Initializing payment form...')}
+          </p>
+        );
+
+      case 'billing_connect':
+        return (
+          <div className="space-y-4">
+            {connectBusy ? (
+              <div className="flex flex-col items-center gap-3 rounded-xl border border-emerald-100 bg-emerald-50 p-8 text-center dark:border-emerald-900 dark:bg-emerald-950/30">
+                <IconLoader2 className="h-8 w-8 animate-spin text-emerald-600 dark:text-emerald-400" stroke={1.5} />
+                <p className="text-sm font-medium text-emerald-800 dark:text-emerald-200">{t('Opening Stripe...')}</p>
+                <p className="text-xs text-emerald-700/70 dark:text-emerald-400/70">
+                  {t("You'll be redirected to Stripe to finish payouts and customer payment setup.")}
+                </p>
+              </div>
+            ) : (
+              <div className="rounded-xl border border-border bg-card p-4 text-sm text-foreground">
+                {isConnectReady() ? (
+                  <>
+                    <p className="font-medium text-emerald-700 dark:text-emerald-300">{t('Payout account connected.')}</p>
+                    <p className="mt-1 text-muted-foreground">
+                      {t('Stripe is ready and HandyCall can route customer payments to your business.')}
+                    </p>
+                  </>
+                ) : connectStatus?.connected ? (
+                  <>
+                    <p className="font-medium">{t('Stripe account linked.')}</p>
+                    <p className="mt-1 text-muted-foreground">
+                      {t('Finish the remaining details in Stripe, then come back and continue.')}
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-muted-foreground">{t('Your payout account is not connected yet.')}</p>
+                )}
+              </div>
+            )}
+            <div className="flex flex-wrap gap-2">
+              {isConnectReady() ? (
+                <PrimaryButton
+                  onClick={handleContinueAfterConnect}
+                  disabled={connectBusy || connectChecking}
+                  loading={connectChecking}
+                >
+                  <IconArrowRight className="h-4 w-4" stroke={1.5} />
+                  {t('Continue')}
+                </PrimaryButton>
+              ) : null}
+              <PrimaryButton
+                onClick={handleStartConnectOnboarding}
+                disabled={connectBusy || connectChecking}
+                loading={connectBusy}
+              >
+                <IconCreditCard className="h-4 w-4" stroke={1.5} />
+                {connectStatus?.connected ? t('Finish in Stripe') : t('Connect payout account')}
+              </PrimaryButton>
+              <GhostButton onClick={() => void refreshConnectStatus()} disabled={connectBusy || connectChecking}>
+                {connectChecking ? t('Checking...') : t('Check status')}
+              </GhostButton>
+              <GhostButton onClick={() => void handlePaymentModeChoice('SELF_MANAGED')}>
+                {t('Skip and collect payments yourself')}
+              </GhostButton>
+            </div>
+          </div>
+        );
+
+      case 'starter_activation':
+        return (
+          <div className="space-y-5">
+            <div className="rounded-3xl border border-emerald-200 bg-emerald-50/70 p-6 dark:border-emerald-900/40 dark:bg-emerald-950/20">
+              <div className="flex items-start gap-4">
+                <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl bg-white text-emerald-600 shadow-sm dark:bg-emerald-900/50">
+                  <IconSparkles className="h-6 w-6" stroke={1.8} />
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold text-foreground">{t('Starter is marketplace-only')}</h2>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {t(
+                      'Your listing goes live for free. When a customer inquires, you will see the request summary first, then unlock the full lead details when you are ready.'
+                    )}
+                  </p>
+                </div>
+              </div>
+              <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                <div className="rounded-2xl bg-white/80 p-4 dark:bg-emerald-950/30">
+                  <p className="text-sm font-semibold text-foreground">{t('Included now')}</p>
+                  <ul className="mt-2 space-y-2 text-sm text-muted-foreground">
+                    <li>{t('Marketplace profile and search visibility')}</li>
+                    <li>{t('Lead request previews')}</li>
+                    <li>{t('Pay-per-lead unlock model')}</li>
+                  </ul>
+                </div>
+                <div className="rounded-2xl bg-white/80 p-4 dark:bg-emerald-950/30">
+                  <p className="text-sm font-semibold text-foreground">{t('Not included on Starter')}</p>
+                  <ul className="mt-2 space-y-2 text-sm text-muted-foreground">
+                    <li>No priority placement in Riyadh search</li>
+                    <li>No built-in payment collection or invoicing</li>
+                    <li>Upgrade to Pro or Teams anytime</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-3">
+              <PrimaryButton onClick={handleStarterActivation} loading={isSaving} disabled={isSaving}>
+                {t('Activate free Starter')}
+                <IconArrowRight className="h-4 w-4" stroke={2} />
+              </PrimaryButton>
+              <GhostButton onClick={() => goTo('plan_selection')}>{t('Choose a paid tier instead')}</GhostButton>
+            </div>
+          </div>
+        );
+
+      case 'complete':
+        return (
+          <div className="flex flex-col items-center justify-center py-16 text-center">
+            <div className="mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-900/40">
+              <IconCheck className="h-10 w-10 text-emerald-600 dark:text-emerald-400" stroke={2} />
+            </div>
+            <h1 className="text-3xl font-bold tracking-tight text-foreground">
+              {resolvedPlan === SubscriptionPlan.STARTER ? t('Your listing is ready!') : t('Your pro setup is ready!')}
+            </h1>
+            <p className="mt-3 max-w-xl text-lg text-muted-foreground">
+              {resolvedPlan === SubscriptionPlan.STARTER
+                ? t(
+                    'Customers can now discover your marketplace profile and send lead requests. You can unlock the best-fit leads from your dashboard.'
+                  )
+                : 'Your marketplace profile is live, your plan is active, and you can now manage leads, bookings, customers, and billing from the dashboard.'}
+            </p>
+            <PrimaryButton onClick={() => router.replace('/dashboard')} className="mt-8 px-8 py-3">
+              {t('Go to dashboard')}
+              <IconArrowRight className="h-4 w-4" stroke={2} />
+            </PrimaryButton>
+            <button
+              onClick={() => router.replace('/onboarding/marketplace-profile')}
+              className="mt-3 text-sm text-muted-foreground underline hover:text-foreground"
+            >
+              {t('Edit marketplace profile')}
+            </button>
+          </div>
+        );
+
+      default:
+        return null;
+    }
   };
 
-  // ─── Main render ───────────────────────────────────────────────────────────
-
-  if (loading && messages.length === 0) {
+  if (loading && phase === 'loading') {
     return (
-      <div className="flex h-full items-center justify-center">
-        <div className="flex flex-col items-center gap-3 text-center">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-emerald-600 border-t-transparent" />
-          <p className="text-sm text-slate-500">Preparing your setup...</p>
+      <div className="flex h-full items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-4 text-center">
+          <div className="h-10 w-10 animate-spin rounded-full border-4 border-emerald-600 border-t-transparent" />
+          <p className="text-sm text-muted-foreground">{t('Preparing your setup...')}</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="flex h-full flex-col">
-      {/* Chat transcript */}
-      <div className="flex-1 overflow-y-auto px-4 py-6 sm:px-8">
-        <div className="mx-auto max-w-2xl space-y-4">
-          {messages.map((msg) => (
-            <div
-              key={msg.id}
-              className={`group flex items-start gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}
-            >
-              {/* Avatar */}
-              <div
-                className={`mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full ${
-                  msg.role === 'bot' ? 'bg-emerald-600' : 'bg-slate-200'
-                }`}
-              >
-                {msg.role === 'bot' ? (
-                  <IconSparkles className="h-4 w-4 text-white" stroke={1.5} />
-                ) : (
-                  <IconUser className="h-4 w-4 text-slate-500" stroke={1.5} />
-                )}
-              </div>
-
-              {/* Bubble */}
-              <div
-                className={`max-w-md rounded-2xl px-4 py-3 text-sm leading-relaxed ${
-                  msg.role === 'bot'
-                    ? 'rounded-tl-sm border border-slate-200 bg-white text-slate-800 shadow-sm'
-                    : 'rounded-tr-sm bg-emerald-600 text-white'
-                }`}
-              >
-                {msg.content}
-              </div>
-
-              {/* Edit pencil — appears on hover for editable user messages */}
-              {msg.role === 'user' && msg.onEdit && (
-                <button
-                  type="button"
-                  onClick={msg.onEdit}
-                  title="Edit this answer"
-                  className="mt-2 flex-shrink-0 self-center rounded-lg p-1 text-slate-400 opacity-0 transition hover:bg-slate-100 hover:text-slate-600 group-hover:opacity-100"
+    <div className="flex h-full overflow-hidden bg-background">
+      <aside className="hidden w-72 flex-shrink-0 flex-col border-r border-border bg-card/50 lg:flex">
+        <div className="flex-1 overflow-y-auto px-4 py-6">
+          <p className="mb-4 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+            {t('Setup journey')}
+          </p>
+          <div className="space-y-1">
+            {setupGroups.map((group) => {
+              const isComplete = currentGroup > group.group;
+              const isActive = currentGroup === group.group;
+              return (
+                <div
+                  key={group.group}
+                  className={cn(
+                    'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-colors',
+                    isActive &&
+                      'bg-emerald-50/80 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300',
+                    isComplete && 'text-foreground',
+                    !isActive && !isComplete && 'text-muted-foreground'
+                  )}
                 >
-                  <IconPencil className="h-3.5 w-3.5" stroke={1.5} />
-                </button>
-              )}
-            </div>
-          ))}
-
-          {/* Typing indicator */}
-          {isTyping && (
-            <div className="flex items-start gap-3">
-              <div className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-emerald-600">
-                <IconSparkles className="h-4 w-4 text-white" stroke={1.5} />
-              </div>
-              <div className="rounded-2xl rounded-tl-sm border border-slate-200 bg-white px-4 py-3 shadow-sm">
-                <div className="flex items-center gap-1">
-                  {[0, 150, 300].map((delay) => (
-                    <span
-                      key={delay}
-                      className="h-2 w-2 animate-bounce rounded-full bg-slate-300"
-                      style={{ animationDelay: `${delay}ms` }}
-                    />
-                  ))}
+                  <div
+                    className={cn(
+                      'flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full text-xs font-bold',
+                      isActive && 'bg-emerald-600 text-white',
+                      isComplete &&
+                        'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400',
+                      !isActive && !isComplete && 'bg-muted text-muted-foreground'
+                    )}
+                  >
+                    {isComplete ? (
+                      <IconCheck className="h-3.5 w-3.5" stroke={2.5} />
+                    ) : (
+                      group.group
+                    )}
+                  </div>
+                  <span className={cn('font-medium', isActive && 'font-semibold')}>{group.label}</span>
                 </div>
-              </div>
-            </div>
-          )}
+              );
+            })}
+          </div>
+        </div>
+        <div className="border-t border-border p-4">
+          <p className="text-xs text-muted-foreground">
+            {t('Need help?')}{' '}
+            <a
+              href="mailto:support@handycall.org"
+              className="text-emerald-600 hover:underline dark:text-emerald-400"
+            >
+              support@handycall.org
+            </a>
+          </p>
+        </div>
+      </aside>
 
-          {/* Complete CTA */}
-          {phase === 'complete' && !isTyping && (
-            <div className="flex justify-start pl-11">
-              <button
-                type="button"
-                onClick={() => router.replace('/dashboard')}
-                className="flex items-center gap-2 rounded-xl bg-emerald-600 px-6 py-3 text-sm font-bold text-white transition hover:bg-emerald-700"
+      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto">
+        <div className="border-b border-border bg-card/50 px-4 py-3 lg:hidden">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-medium text-foreground">
+              {t('Step')} {Math.min(Math.max(currentGroup, 1), setupGroups.length)} {t('of')} {setupGroups.length}
+            </p>
+            <p className="text-sm text-muted-foreground">
+              {setupGroups[Math.min(Math.max(currentGroup, 1), setupGroups.length) - 1]?.label}
+            </p>
+          </div>
+          <div className="mt-2 h-1.5 rounded-full bg-muted">
+            <div
+              className="h-1.5 rounded-full bg-emerald-500 transition-all duration-500"
+              style={{
+                width: `${((Math.min(Math.max(currentGroup, 1), setupGroups.length) - 1) / setupGroups.length) * 100}%`,
+              }}
+            />
+          </div>
+        </div>
+
+        <div className="mx-auto max-w-3xl px-6 py-10 sm:px-8">
+          {phase !== 'loading' && phase !== 'complete' ? (
+            <div className="mb-8">
+              <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-emerald-600 dark:text-emerald-400">
+                {t('Step')} {Math.min(Math.max(currentGroup, 1), setupGroups.length)} {t('of')} {setupGroups.length}
+              </p>
+              <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
+                {getStepMeta(phase, resolvedPlan, isArabic).title}
+              </h1>
+              {getStepMeta(phase, resolvedPlan, isArabic).description ? (
+                <p className="mt-2 text-base text-muted-foreground">
+                  {getStepMeta(phase, resolvedPlan, isArabic).description}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+
+          {errMsg && phase !== 'loading' ? (
+            <div className="mb-4 flex items-start gap-2.5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-400">
+              <IconX className="mt-0.5 h-4 w-4 flex-shrink-0" stroke={1.5} />
+              {errMsg}
+            </div>
+          ) : null}
+
+          {renderStepContent()}
+
+          {phase !== 'loading' && phase !== 'complete' ? (
+            <div className="mt-8 flex items-center justify-between gap-3 border-t border-border pt-6">
+              <GhostButton onClick={handleGoBack} disabled={!canGoBack}>
+                {t('Go back')}
+              </GhostButton>
+              <PrimaryButton
+                onClick={() => {
+                  if (!nextPhase) return;
+                  goTo(nextPhase);
+                }}
+                disabled={!canGoNext}
               >
-                Go to Dashboard
+                {t('Next')}
                 <IconArrowRight className="h-4 w-4" stroke={2} />
-              </button>
+              </PrimaryButton>
             </div>
-          )}
-
-          <div ref={chatEndRef} />
+          ) : null}
         </div>
       </div>
+    </div>
+  );
+}
 
-      {/* Active input zone */}
-      {!isTyping && phase !== 'loading' && phase !== 'complete' && (
-        <div className="border-t border-slate-200 bg-slate-50/80 px-4 py-4 sm:px-8">
-          <div className="mx-auto max-w-2xl">{renderActiveZone()}</div>
-        </div>
-      )}
+export default function OnboardingSetupPage() {
+  return (
+    <Suspense
+      fallback={
+        <OnboardingSetupFallback />
+      }
+    >
+      <OnboardingSetupContent />
+    </Suspense>
+  );
+}
+
+function OnboardingSetupFallback() {
+  const { isArabic } = useMarketingLanguage();
+
+  return (
+    <div className="flex h-full items-center justify-center bg-background">
+      <div className="flex flex-col items-center gap-4 text-center">
+        <div className="h-10 w-10 animate-spin rounded-full border-4 border-emerald-600 border-t-transparent" />
+        <p className="text-sm text-muted-foreground">{setupText('Loading setup...', isArabic)}</p>
+      </div>
     </div>
   );
 }

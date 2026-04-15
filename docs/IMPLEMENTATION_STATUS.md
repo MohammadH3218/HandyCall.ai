@@ -1,6 +1,6 @@
 # Implementation Status
 
-Last updated: 2026-02-26
+Last updated: 2026-03-10
 
 ## Program Phases
 
@@ -52,6 +52,10 @@ Last updated: 2026-02-26
 - Run backend and web smoke checks
 - Validate migration from weekly -> monthly labels/usages
 - Verify AWS credentials and target EB environment
+- Use the current EB Docker deploy paths:
+  - backend: `packages/backend/deploy.sh` -> app `handycall-api` / env `handycall-api-lb`
+  - web: `packages/web/deploy.sh` -> app `handycall-web` / env `handycall-web-lb`
+- Do not assume Amplify for the web deploy path; `handycall.org` is served by the web Elastic Beanstalk environment
 
 ## Suggested Verification Commands
 ```bash
@@ -65,4 +69,10 @@ npm run -w packages/web build
 # backend deployment prerequisites
 aws sts get-caller-identity
 docker --version
+```
+
+```bash
+# current production deployment targets
+aws elasticbeanstalk describe-environments --application-name handycall-api --environment-names handycall-api-lb --region us-east-1
+aws elasticbeanstalk describe-environments --application-name handycall-web --environment-names handycall-web-lb --region us-east-1
 ```

@@ -1,4 +1,4 @@
-import { CallHandlingMode } from '@handycall/shared';
+import { CallHandlingMode } from '@/types/shared';
 
 export const CALL_HANDLING_OPTIONS: Array<{
   value: CallHandlingMode;

@@ -1,203 +1,100 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { DynamoDBService } from '../../infrastructure/database/dynamodb.service';
-import { CompaniesService } from '../companies/companies.service';
-import { Company } from '@handycall/shared';
-
-export interface SystemStats {
-  total_companies: number;
-  total_users: number;
-  total_calls: number;
-  total_revenue: number;
-  active_companies: number;
-  trial_companies: number;
-  suspended_companies: number;
-}
-
-export interface CompanyWithStats extends Company {
-  total_calls: number;
-  total_users: number;
-  ai_handled_percentage: number;
-}
-
-export interface ActivityItem {
-  id: string;
-  type: 'COMPANY_CREATED' | 'USER_CREATED' | 'CALL_COMPLETED' | 'APPOINTMENT_CREATED';
-  description: string;
-  company_id?: string;
-  company_name?: string;
-  timestamp: number;
-}
+import { Pro, ProStatus } from '@handycall/shared';
 
 @Injectable()
 export class AdminService {
-  constructor(
-    private dynamodb: DynamoDBService,
-    private companiesService: CompaniesService
-  ) {}
+  constructor(private db: DynamoDBService) {}
 
-  /**
-   * Get system-wide statistics
-   */
-  async getSystemStats(): Promise<SystemStats> {
-    // Get all companies
-    const companies = await this.companiesService.listAll();
-
-    // Get all users
-    const usersResult = await this.dynamodb.scan('users');
-
-    // Get all calls
-    const callsResult = await this.dynamodb.scan('calls');
-
-    // Count companies by status
-    const activeCompanies = companies.filter(c => c.status === 'ACTIVE').length;
-    const trialCompanies = companies.filter(c => c.status === 'TRIAL').length;
-    const suspendedCompanies = companies.filter(c => c.status === 'SUSPENDED').length;
-
-    return {
-      total_companies: companies.length,
-      total_users: usersResult.items.length,
-      total_calls: callsResult.items.length,
-      total_revenue: 0, // TODO: Calculate from billing data
-      active_companies: activeCompanies,
-      trial_companies: trialCompanies,
-      suspended_companies: suspendedCompanies,
-    };
+  /** List pros pending admin review */
+  async listPendingPros(): Promise<Pro[]> {
+    const { items } = await this.db.query(
+      'pros',
+      '#status = :pending',
+      { '#status': 'status' },
+      { ':pending': 'PENDING_REVIEW' },
+      { indexName: 'status-index', scanIndexForward: false },
+    );
+    return items.map((p: any) => {
+      const { password_hash, ...safe } = p;
+      return safe as Pro;
+    });
   }
 
-  /**
-   * Get top companies by usage/revenue
-   */
-  async getTopCompanies(limit = 10): Promise<CompanyWithStats[]> {
-    const companies = await this.companiesService.listAll();
-    const companiesWithStats: CompanyWithStats[] = [];
+  async approvePro(proId: string): Promise<{ message: string }> {
+    const pro = await this.db.get('pros', { pro_id: proId }) as any;
+    if (!pro) throw new NotFoundException('Pro not found');
 
-    for (const company of companies) {
-      const stats = await this.companiesService.getCompanyStats(company.company_id);
-
-      companiesWithStats.push({
-        ...company,
-        total_calls: stats.total_calls,
-        total_users: stats.total_users,
-        ai_handled_percentage: stats.ai_handled_percentage,
-      });
-    }
-
-    // Sort by total calls (descending)
-    companiesWithStats.sort((a, b) => b.total_calls - a.total_calls);
-
-    return companiesWithStats.slice(0, limit);
-  }
-
-  /**
-   * Get recent activity across all companies
-   */
-  async getRecentActivity(limit = 20): Promise<ActivityItem[]> {
-    const activities: ActivityItem[] = [];
-
-    // Get recent companies
-    const companies = await this.companiesService.listAll();
-    const recentCompanies = companies
-      .sort((a, b) => b.created_at - a.created_at)
-      .slice(0, 5);
-
-    for (const company of recentCompanies) {
-      activities.push({
-        id: `company-${company.company_id}`,
-        type: 'COMPANY_CREATED',
-        description: `New company "${company.company_name}" created`,
-        company_id: company.company_id,
-        company_name: company.company_name,
-        timestamp: company.created_at,
-      });
-    }
-
-    // Get recent users
-    const usersResult = await this.dynamodb.scan('users');
-    const recentUsers = usersResult.items
-      .sort((a: any, b: any) => b.created_at - a.created_at)
-      .slice(0, 5);
-
-    for (const user of recentUsers) {
-      const company = companies.find(c => c.company_id === user.company_id);
-      activities.push({
-        id: `user-${user.user_id}`,
-        type: 'USER_CREATED',
-        description: `New user "${user.first_name} ${user.last_name}" created`,
-        company_id: user.company_id,
-        company_name: company?.company_name,
-        timestamp: user.created_at,
-      });
-    }
-
-    // Get recent calls
-    const callsResult = await this.dynamodb.scan('calls');
-    const recentCalls = callsResult.items
-      .filter((call: any) => call.status === 'COMPLETED')
-      .sort((a: any, b: any) => b.created_at - a.created_at)
-      .slice(0, 5);
-
-    for (const call of recentCalls) {
-      const company = companies.find(c => c.company_id === call.company_id);
-      activities.push({
-        id: `call-${call.call_id}`,
-        type: 'CALL_COMPLETED',
-        description: `Call completed${call.ai_handled ? ' (AI handled)' : ''}`,
-        company_id: call.company_id,
-        company_name: company?.company_name,
-        timestamp: call.created_at,
-      });
-    }
-
-    // Sort by timestamp (descending) and limit
-    activities.sort((a, b) => b.timestamp - a.timestamp);
-    return activities.slice(0, limit);
-  }
-
-  /**
-   * Cancel a company's subscription at period end
-   */
-  async cancelSubscription(companyId: string): Promise<{ success: boolean; message: string }> {
-    const company = await this.companiesService.findById(companyId);
-    if (!company) {
-      throw new Error('Company not found');
-    }
-
-    // Update company status to indicate pending cancellation
-    await this.dynamodb.update('companies', { company_id: companyId }, {
-      subscription_status: 'CANCELING',
-      cancel_at_period_end: true,
-      // Legacy attribute name kept for backwards compatibility with older reads.
-      subscription_cancel_at_period_end: true,
+    await this.db.update('pros', { pro_id: proId }, {
+      status: 'ACTIVE' as ProStatus,
+      is_available: true,
       updated_at: Date.now(),
     });
 
-    return {
-      success: true,
-      message: 'Subscription will be canceled at the end of the current billing period',
-    };
+    return { message: `Pro ${proId} approved and set to ACTIVE.` };
   }
 
-  /**
-   * Suspend a company's account immediately
-   */
-  async suspendCompany(companyId: string): Promise<{ success: boolean; message: string }> {
-    const company = await this.companiesService.findById(companyId);
-    if (!company) {
-      throw new Error('Company not found');
-    }
+  async rejectPro(proId: string, reason?: string): Promise<{ message: string }> {
+    const pro = await this.db.get('pros', { pro_id: proId }) as any;
+    if (!pro) throw new NotFoundException('Pro not found');
 
-    // Suspend the company - disable all services
-    await this.dynamodb.update('companies', { company_id: companyId }, {
-      status: 'SUSPENDED',
-      calls_enabled: false,
-      sms_enabled: false,
-      suspended_at: Date.now(),
+    await this.db.update('pros', { pro_id: proId }, {
+      status: 'REJECTED' as ProStatus,
+      rejection_reason: reason,
       updated_at: Date.now(),
     });
 
+    return { message: `Pro ${proId} rejected.` };
+  }
+
+  async getPlatformConfig(): Promise<Record<string, any>> {
+    const { items } = await this.db.scan('platform_config');
+    return Object.fromEntries(
+      items.map((item: any) => {
+        let value: any = item.config_value;
+        try { value = JSON.parse(item.config_value); } catch {}
+        return [item.config_key, value];
+      }),
+    );
+  }
+
+  async updatePlatformConfig(key: string, value: any): Promise<{ message: string }> {
+    await this.db.update(
+      'platform_config',
+      { config_key: key },
+      {
+        config_value: typeof value === 'string' ? value : JSON.stringify(value),
+        updated_at: Date.now(),
+        updated_by: 'admin',
+      },
+    );
+    return { message: `Config key "${key}" updated.` };
+  }
+
+  async platformStats() {
+    const [prosResult, bookingsResult] = await Promise.all([
+      this.db.scan('pros', {
+        filterExpression: '#status = :active',
+        expressionAttributeNames: { '#status': 'status' },
+        expressionAttributeValues: { ':active': 'ACTIVE' },
+        select: 'COUNT',
+      }),
+      this.db.scan('bookings', {
+        filterExpression: '#status = :completed',
+        expressionAttributeNames: { '#status': 'status' },
+        expressionAttributeValues: { ':completed': 'COMPLETED' },
+      }),
+    ]);
+
+    const totalRevenue = bookingsResult.items.reduce(
+      (sum: number, b: any) => sum + (b.platform_fee_sar ?? 0),
+      0,
+    );
+
     return {
-      success: true,
-      message: 'Account has been suspended and all services disabled',
+      active_pros: prosResult.count,
+      completed_bookings: bookingsResult.count,
+      platform_revenue_sar: totalRevenue / 100, // Convert to SAR for display
     };
   }
 }
