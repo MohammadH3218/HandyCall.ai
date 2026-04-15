@@ -76,18 +76,12 @@ export function SearchBar({ className = '', size = 'default' }: SearchBarProps) 
   }
 
   return (
-    <div className={`relative z-[70] w-full rounded-2xl ${className}`}>
-      {/*
-       * overflow-hidden on the form clips the green search button to the form's
-       * border-radius, removing the squared-corner artefact at the button edges.
-       * Dropdowns are rendered as siblings (outside the form) so they aren't clipped.
-       */}
+    <div className={`relative z-[70] w-full ${className}`}>
       <form
         onSubmit={handleSubmit}
-        className="flex w-full flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm sm:flex-row"
+        className="relative z-[75] flex w-full flex-col overflow-visible rounded-2xl border border-slate-200 bg-white shadow-sm sm:flex-row"
       >
-        {/* Service search input */}
-        <div className="flex flex-1 items-center px-4">
+        <div className="relative flex flex-1 items-center px-4">
           <IconSearch className="h-4 w-4 flex-shrink-0 text-slate-400" stroke={1.8} />
           <input
             type="text"
@@ -105,12 +99,30 @@ export function SearchBar({ className = '', size = 'default' }: SearchBarProps) 
             className={`w-full bg-transparent pl-3 ${paddingY} ${textSize} text-slate-700 placeholder:text-slate-400 outline-none`}
             autoComplete="off"
           />
+
+          {showServiceSuggestions && serviceSuggestions.length > 0 && (
+            <div className="absolute left-0 right-0 top-full z-[80] mt-2 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl">
+              {serviceSuggestions.map((item) => (
+                <button
+                  key={`${item.category}-${item.label}`}
+                  type="button"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    handleServiceClick(item.label);
+                  }}
+                  className="flex w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-emerald-50"
+                >
+                  <IconSearch className="h-4 w-4 flex-shrink-0 text-slate-400" stroke={1.8} />
+                  <span className="flex-1 text-sm text-slate-800">{item.label}</span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="h-px bg-slate-200 sm:h-auto sm:w-px sm:self-stretch" />
 
-        {/* Location input */}
-        <div className="flex items-center px-4 sm:w-[280px]">
+        <div className="relative flex items-center px-4 sm:w-[280px]">
           <IconMapPin className="h-4 w-4 flex-shrink-0 text-slate-400" stroke={1.8} />
           <input
             ref={locationRef}
@@ -126,60 +138,39 @@ export function SearchBar({ className = '', size = 'default' }: SearchBarProps) 
               if (locationInput.trim()) setShowLocationSuggestions(true);
             }}
             onBlur={() => setTimeout(() => setShowLocationSuggestions(false), 150)}
-            placeholder="Search location"
+            placeholder="Riyadh district or neighborhood"
             className={`w-full bg-transparent pl-3 ${paddingY} ${textSize} text-slate-700 placeholder:text-slate-400 outline-none`}
             autoComplete="off"
           />
+
+          {showLocationSuggestions && locationSuggestions.length > 0 && (
+            <div className="absolute left-0 right-0 top-full z-[80] mt-2 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl">
+              {locationSuggestions.map((district) => (
+                <button
+                  key={district.value}
+                  type="button"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    handleLocationSelect(district.value, district.label);
+                  }}
+                  className="flex w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-emerald-50"
+                >
+                  <IconMapPin className="h-4 w-4 flex-shrink-0 text-slate-400" stroke={1.8} />
+                  <span className="flex-1 text-sm font-medium text-slate-800">{district.label}</span>
+                  <span className="text-xs text-slate-400">{district.region}</span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         <button
           type="submit"
-          className="flex-shrink-0 bg-emerald-600 px-6 py-3.5 text-sm font-semibold text-white transition hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-1"
+          className="flex-shrink-0 rounded-b-2xl bg-emerald-600 px-6 py-3.5 text-sm font-semibold text-white transition hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-1 sm:rounded-b-none sm:rounded-r-2xl"
         >
           Search
         </button>
       </form>
-
-      {/* Service suggestions — sibling of form so overflow-hidden doesn't clip it */}
-      {showServiceSuggestions && serviceSuggestions.length > 0 && (
-        <div className="absolute left-0 top-full z-[80] mt-2 w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl sm:w-auto sm:min-w-[320px]">
-          {serviceSuggestions.map((item) => (
-            <button
-              key={`${item.category}-${item.label}`}
-              type="button"
-              onMouseDown={(e) => {
-                e.preventDefault();
-                handleServiceClick(item.label);
-              }}
-              className="flex w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-emerald-50"
-            >
-              <IconSearch className="h-4 w-4 flex-shrink-0 text-slate-400" stroke={1.8} />
-              <span className="flex-1 text-sm text-slate-800">{item.label}</span>
-            </button>
-          ))}
-        </div>
-      )}
-
-      {/* Location suggestions — sibling of form so overflow-hidden doesn't clip it */}
-      {showLocationSuggestions && locationSuggestions.length > 0 && (
-        <div className="absolute left-0 right-0 top-full z-[80] mt-2 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl sm:left-auto sm:right-0 sm:w-[320px]">
-          {locationSuggestions.map((district) => (
-            <button
-              key={district.value}
-              type="button"
-              onMouseDown={(e) => {
-                e.preventDefault();
-                handleLocationSelect(district.value, district.label);
-              }}
-              className="flex w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-emerald-50"
-            >
-              <IconMapPin className="h-4 w-4 flex-shrink-0 text-slate-400" stroke={1.8} />
-              <span className="flex-1 text-sm font-medium text-slate-800">{district.label}</span>
-              <span className="text-xs text-slate-400">{district.region}</span>
-            </button>
-          ))}
-        </div>
-      )}
     </div>
   );
 }

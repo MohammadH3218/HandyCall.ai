@@ -5,6 +5,7 @@ import {
   IsNotEmpty,
   IsNumber,
   IsOptional,
+  IsBoolean,
   IsString,
   Matches,
   MaxLength,
@@ -25,22 +26,26 @@ export class CustomerRegisterDto {
   password: string;
 
   @IsString()
+  @IsOptional()
   @IsNotEmpty()
   @MaxLength(100)
-  first_name: string;
+  first_name?: string;
 
   @IsString()
+  @IsOptional()
   @IsNotEmpty()
   @MaxLength(100)
-  last_name: string;
+  last_name?: string;
 
+  @IsOptional()
   @Matches(/^\+9665\d{8}$/, {
     message: 'Phone number must be a valid Saudi mobile number: +966XXXXXXXXX',
   })
-  phone_number: string;
+  phone_number?: string;
 
+  @IsOptional()
   @IsEnum(['NATIONAL_ID', 'IQAMA'] as const)
-  id_type: IdType;
+  id_type?: IdType;
 
   @ValidateIf((o) => o.id_type === 'NATIONAL_ID')
   @IsString()
@@ -52,21 +57,27 @@ export class CustomerRegisterDto {
   @Matches(/^\d{10}$/, { message: 'iqama_number must be exactly 10 digits' })
   iqama_number?: string;
 
+  @IsOptional()
   @IsIn(RIYADH_DISTRICTS as unknown as string[], {
     message: 'district must be a valid Riyadh district',
   })
-  district: string;
+  district?: string;
 
+  @IsOptional()
   @IsEnum(['ar', 'en'] as const)
-  preferred_language: PreferredLanguage;
+  preferred_language?: PreferredLanguage;
 
   /** Must be true — PDPL Royal Decree M/19 requires explicit consent */
-  @IsNotEmpty()
-  pdpl_consent: boolean;
+  @IsOptional()
+  @IsBoolean()
+  pdpl_consent?: boolean;
 
+  @IsOptional()
   @IsNumber()
-  pdpl_consent_at: number;
+  pdpl_consent_at?: number;
 
   /** Separate opt-in for marketing — can be false */
-  marketing_consent: boolean;
+  @IsOptional()
+  @IsBoolean()
+  marketing_consent?: boolean;
 }

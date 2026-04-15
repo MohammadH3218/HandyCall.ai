@@ -6,6 +6,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
 } from '@nestjs/common';
 import { ReviewsService } from './reviews.service';
 import { CreateReviewDto, ProReplyDto } from './dto/review.dto';
@@ -19,17 +20,17 @@ export class ReviewsController {
 
   /** Customer: submit a review for a completed booking */
   @Post()
-  create(
+  async create(
     @CurrentUser() user: MarketplaceAuthContext,
     @Body() dto: CreateReviewDto,
   ) {
-    if (user.user_type !== 'CUSTOMER') throw new ForbiddenException();
-    return this.reviewsService.createReview(user.user_id, dto);
+    if (user.user_type !== 'CUSTOMER') throw new ForbiddenException('Only customers can leave reviews');
+    return this.reviewsService.create(user.user_id, dto);
   }
 
-  /** Pro: reply to a review */
+  /** Pro: add a reply to a review */
   @Patch(':review_id/reply')
-  reply(
+  async reply(
     @CurrentUser() user: MarketplaceAuthContext,
     @Param('review_id') reviewId: string,
     @Body() dto: ProReplyDto,
@@ -38,10 +39,13 @@ export class ReviewsController {
     return this.reviewsService.addProReply(user.user_id, reviewId, dto);
   }
 
-  /** Public: get all visible reviews for a pro */
+  /** Public: list reviews for a pro */
   @Public()
   @Get('pro/:pro_id')
-  listForPro(@Param('pro_id') proId: string) {
-    return this.reviewsService.listProReviews(proId);
+  async listByPro(
+    @Param('pro_id') proId: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.reviewsService.listByPro(proId, limit ? parseInt(limit, 10) : 20);
   }
 }

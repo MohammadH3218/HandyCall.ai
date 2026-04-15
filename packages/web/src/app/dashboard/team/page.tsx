@@ -112,21 +112,21 @@ export default function TeamPage() {
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
-              <label className="mb-1 block text-xs font-medium text-slate-700">Email *</label>
+              <label className="mb-1 block text-xs font-medium text-foreground">Email *</label>
               <Input type="email" placeholder="jane@example.com" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-slate-700">First name *</label>
+              <label className="mb-1 block text-xs font-medium text-foreground">First name *</label>
               <Input placeholder="Jane" value={form.first_name} onChange={(e) => setForm({ ...form, first_name: e.target.value })} />
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-slate-700">Last name</label>
+              <label className="mb-1 block text-xs font-medium text-foreground">Last name</label>
               <Input placeholder="Smith" value={form.last_name} onChange={(e) => setForm({ ...form, last_name: e.target.value })} />
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-slate-700">Role</label>
+              <label className="mb-1 block text-xs font-medium text-foreground">Role</label>
               <select
-                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 value={form.role}
                 onChange={(e) => setForm({ ...form, role: e.target.value })}
               >
@@ -151,7 +151,7 @@ export default function TeamPage() {
           description="Invite dispatchers and technicians to your team."
         />
       ) : (
-        <div className="rounded-2xl border border-slate-100 bg-white shadow-sm divide-y divide-slate-100">
+        <div className="rounded-2xl border border-border bg-card shadow-sm divide-y divide-border">
           {members.map((m) => (
             <div key={m.member_id} className="flex items-center gap-4 px-5 py-4">
               <div className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-100 text-sm font-bold text-emerald-700">

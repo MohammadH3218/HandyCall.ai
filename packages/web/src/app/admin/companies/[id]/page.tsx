@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { UserRole } from '@/types/shared';
+import { UserRole } from '@handycall/shared';
 import { useAuthStore } from '@/stores/auth-store';
 import { useAdminCompanyStore } from '@/stores/admin-company-store';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';

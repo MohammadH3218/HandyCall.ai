@@ -2,7 +2,7 @@
  * JWT token decoding utilities
  */
 
-import { UserRole } from '@/types/shared';
+import { UserRole } from '@handycall/shared';
 
 interface JWTPayload {
   sub?: string;

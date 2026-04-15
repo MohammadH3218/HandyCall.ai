@@ -1,10 +1,6 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Injectable, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import {
-  DynamoDBClient,
-  CreateTableCommand,
-  DescribeTableCommand,
-} from '@aws-sdk/client-dynamodb';
+import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import {
   DynamoDBDocumentClient,
   GetCommand,
@@ -13,169 +9,213 @@ import {
   DeleteCommand,
   QueryCommand,
   ScanCommand,
-  BatchWriteCommand,
 } from '@aws-sdk/lib-dynamodb';
 
 @Injectable()
 export class DynamoDBService implements OnModuleInit {
-  private readonly logger = new Logger(DynamoDBService.name);
-  private client: DynamoDBDocumentClient;
-  private rawClient: DynamoDBClient;
-  private tablePrefix: string;
+  private client!: DynamoDBClient;
+  private docClient!: DynamoDBDocumentClient;
+  private tablePrefix!: string;
 
-  constructor(private config: ConfigService) {
-    const region = config.get('AWS_REGION', 'me-central-1');
-    const endpoint = config.get<string>('DYNAMODB_ENDPOINT');
+  constructor(private configService: ConfigService) {}
 
-    const clientConfig: any = { region };
-    if (endpoint) {
-      clientConfig.endpoint = endpoint;
-      clientConfig.credentials = {
-        accessKeyId: config.get('AWS_ACCESS_KEY_ID', 'local'),
-        secretAccessKey: config.get('AWS_SECRET_ACCESS_KEY', 'local'),
-      };
-    }
+  onModuleInit() {
+    const region = this.configService.get<string>('AWS_REGION');
+    const endpoint = this.configService.get<string>('DYNAMODB_ENDPOINT');
 
-    this.rawClient = new DynamoDBClient(clientConfig);
-    this.client = DynamoDBDocumentClient.from(this.rawClient, {
-      marshallOptions: { removeUndefinedValues: true },
+    this.client = new DynamoDBClient({
+      region,
+      ...(endpoint && { endpoint }), // For local development
     });
-    this.tablePrefix = config.get('DYNAMODB_TABLE_PREFIX', '');
+
+    this.docClient = DynamoDBDocumentClient.from(this.client, {
+      marshallOptions: {
+        removeUndefinedValues: true,
+        convertClassInstanceToMap: true,
+      },
+    });
+
+    this.tablePrefix = this.configService.get<string>('DYNAMODB_TABLE_PREFIX') || '';
   }
 
-  async onModuleInit() {
-    // Log DynamoDB connection info on startup
-    const endpoint = this.config.get<string>('DYNAMODB_ENDPOINT');
-    if (endpoint) {
-      this.logger.log(`DynamoDB using local endpoint: ${endpoint}`);
-    } else {
-      this.logger.log(`DynamoDB using AWS region: ${this.config.get('AWS_REGION', 'me-central-1')}`);
-    }
+  getTableName(baseName: string): string {
+    return `${this.tablePrefix}${baseName}`;
   }
 
-  private tableName(name: string): string {
-    return this.tablePrefix ? `${this.tablePrefix}${name}` : name;
+  async get(tableName: string, key: Record<string, any>) {
+    const command = new GetCommand({
+      TableName: this.getTableName(tableName),
+      Key: key,
+    });
+    const result = await this.docClient.send(command);
+    return result.Item;
   }
 
-  async get(table: string, key: Record<string, any>): Promise<Record<string, any> | null> {
-    const result = await this.client.send(
-      new GetCommand({ TableName: this.tableName(table), Key: key }),
-    );
-    return result.Item ?? null;
-  }
-
-  async put(table: string, item: Record<string, any>): Promise<void> {
-    await this.client.send(
-      new PutCommand({ TableName: this.tableName(table), Item: item }),
-    );
+  async put(tableName: string, item: Record<string, any>) {
+    const command = new PutCommand({
+      TableName: this.getTableName(tableName),
+      Item: item,
+    });
+    await this.docClient.send(command);
+    return item;
   }
 
   async update(
-    table: string,
+    tableName: string,
     key: Record<string, any>,
-    updates: Record<string, any>,
-  ): Promise<Record<string, any>> {
-    const entries = Object.entries(updates).filter(([, v]) => v !== undefined);
-    if (!entries.length) return key;
+    updates: Record<string, any>
+  ) {
+    const updateExpressionParts: string[] = [];
+    const expressionAttributeNames: Record<string, string> = {};
+    const expressionAttributeValues: Record<string, any> = {};
 
-    const expressionParts: string[] = [];
-    const names: Record<string, string> = {};
-    const values: Record<string, any> = {};
+    Object.entries(updates).forEach(([field, value], index) => {
+      const nameAlias = `#field${index}`;
+      const valueAlias = `:value${index}`;
 
-    for (const [k, v] of entries) {
-      const nameKey = `#${k}`;
-      const valKey = `:${k}`;
-      expressionParts.push(`${nameKey} = ${valKey}`);
-      names[nameKey] = k;
-      values[valKey] = v;
-    }
+      updateExpressionParts.push(`${nameAlias} = ${valueAlias}`);
+      expressionAttributeNames[nameAlias] = field;
+      expressionAttributeValues[valueAlias] = value;
+    });
 
-    const result = await this.client.send(
-      new UpdateCommand({
-        TableName: this.tableName(table),
-        Key: key,
-        UpdateExpression: `SET ${expressionParts.join(', ')}`,
-        ExpressionAttributeNames: names,
-        ExpressionAttributeValues: values,
-        ReturnValues: 'ALL_NEW',
-      }),
-    );
+    const command = new UpdateCommand({
+      TableName: this.getTableName(tableName),
+      Key: key,
+      UpdateExpression: `SET ${updateExpressionParts.join(', ')}`,
+      ExpressionAttributeNames: expressionAttributeNames,
+      ExpressionAttributeValues: expressionAttributeValues,
+      ReturnValues: 'ALL_NEW',
+    });
 
-    return result.Attributes ?? {};
+    const result = await this.docClient.send(command);
+    return result.Attributes;
   }
 
-  async delete(table: string, key: Record<string, any>): Promise<void> {
-    await this.client.send(
-      new DeleteCommand({ TableName: this.tableName(table), Key: key }),
-    );
+  async delete(tableName: string, key: Record<string, any>) {
+    const command = new DeleteCommand({
+      TableName: this.getTableName(tableName),
+      Key: key,
+    });
+    await this.docClient.send(command);
   }
 
   async query(
-    table: string,
+    tableName: string,
     keyConditionExpression: string,
-    expressionAttributeNames: Record<string, string>,
-    expressionAttributeValues: Record<string, any>,
-    options: {
+    expressionAttributeNames?: Record<string, string>,
+    expressionAttributeValues?: Record<string, any>,
+    options?: {
       indexName?: string;
-      filterExpression?: string;
       limit?: number;
       scanIndexForward?: boolean;
-    } = {},
-  ): Promise<{ items: Record<string, any>[]; lastKey?: Record<string, any> }> {
-    const result = await this.client.send(
-      new QueryCommand({
-        TableName: this.tableName(table),
-        IndexName: options.indexName,
-        KeyConditionExpression: keyConditionExpression,
-        FilterExpression: options.filterExpression,
-        ExpressionAttributeNames: expressionAttributeNames,
-        ExpressionAttributeValues: expressionAttributeValues,
-        Limit: options.limit,
+      exclusiveStartKey?: Record<string, any>;
+      filterExpression?: string;
+      select?: 'COUNT' | 'ALL_ATTRIBUTES';
+    }
+  ) {
+    // Convert camelCase options to the AWS SDK v3 expected names.
+    const command = new QueryCommand({
+      TableName: this.getTableName(tableName),
+      KeyConditionExpression: keyConditionExpression,
+      ExpressionAttributeNames: expressionAttributeNames,
+      ExpressionAttributeValues: expressionAttributeValues,
+      ...(options?.indexName && { IndexName: options.indexName }),
+      ...(typeof options?.limit === 'number' && { Limit: options.limit }),
+      ...(typeof options?.scanIndexForward === 'boolean' && {
         ScanIndexForward: options.scanIndexForward,
       }),
-    );
-    return { items: result.Items ?? [], lastKey: result.LastEvaluatedKey };
+      ...(options?.exclusiveStartKey && { ExclusiveStartKey: options.exclusiveStartKey }),
+      ...(options?.filterExpression && { FilterExpression: options.filterExpression }),
+      ...(options?.select && { Select: options.select }),
+    });
+
+    const result = await this.docClient.send(command);
+    return {
+      items: result.Items || [],
+      lastEvaluatedKey: result.LastEvaluatedKey,
+      count: result.Count || 0,
+    };
   }
 
   async scan(
-    table: string,
-    options: {
+    tableName: string,
+    options?: {
       filterExpression?: string;
       expressionAttributeNames?: Record<string, string>;
       expressionAttributeValues?: Record<string, any>;
       limit?: number;
-    } = {},
-  ): Promise<{ items: Record<string, any>[]; lastKey?: Record<string, any> }> {
-    const result = await this.client.send(
-      new ScanCommand({
-        TableName: this.tableName(table),
-        FilterExpression: options.filterExpression,
-        ExpressionAttributeNames: options.expressionAttributeNames,
-        ExpressionAttributeValues: options.expressionAttributeValues,
-        Limit: options.limit,
-      }),
-    );
-    return { items: result.Items ?? [], lastKey: result.LastEvaluatedKey };
+      exclusiveStartKey?: Record<string, any>;
+      select?: 'COUNT' | 'ALL_ATTRIBUTES';
+    }
+  ) {
+    // Convert camelCase to PascalCase for AWS SDK v3
+    const command = new ScanCommand({
+      TableName: this.getTableName(tableName),
+      ...(options?.filterExpression && { FilterExpression: options.filterExpression }),
+      ...(options?.expressionAttributeNames && { ExpressionAttributeNames: options.expressionAttributeNames }),
+      ...(options?.expressionAttributeValues && { ExpressionAttributeValues: options.expressionAttributeValues }),
+      ...(options?.limit && { Limit: options.limit }),
+      ...(options?.exclusiveStartKey && { ExclusiveStartKey: options.exclusiveStartKey }),
+      ...(options?.select && { Select: options.select }),
+    });
+
+    const result = await this.docClient.send(command);
+    return {
+      items: result.Items || [],
+      lastEvaluatedKey: result.LastEvaluatedKey,
+      count: result.Count || 0,
+    };
   }
 
-  async batchWrite(
-    table: string,
-    puts: Record<string, any>[] = [],
-    deletes: Record<string, any>[] = [],
-  ): Promise<void> {
-    const requests = [
-      ...puts.map((item) => ({ PutRequest: { Item: item } })),
-      ...deletes.map((key) => ({ DeleteRequest: { Key: key } })),
-    ];
-
-    // DynamoDB BatchWrite supports max 25 items per call
-    for (let i = 0; i < requests.length; i += 25) {
-      const batch = requests.slice(i, i + 25);
-      await this.client.send(
-        new BatchWriteCommand({
-          RequestItems: { [this.tableName(table)]: batch },
-        }),
-      );
+  /**
+   * Company-scoped query - ensures all queries are filtered by company_id
+   */
+  async queryByCompany(
+    tableName: string,
+    companyId: string,
+    additionalConditions?: {
+      keyCondition?: string;
+      filterExpression?: string;
+      expressionAttributeNames?: Record<string, string>;
+      expressionAttributeValues?: Record<string, any>;
+    },
+    options?: {
+      indexName?: string;
+      limit?: number;
+      scanIndexForward?: boolean;
+      exclusiveStartKey?: Record<string, any>;
+      select?: 'COUNT' | 'ALL_ATTRIBUTES';
     }
+  ) {
+    let keyConditionExpression = '#company_id = :company_id';
+    const expressionAttributeNames: Record<string, string> = {
+      '#company_id': 'company_id',
+    };
+    const expressionAttributeValues: Record<string, any> = {
+      ':company_id': companyId,
+    };
+
+    // Merge in caller-provided names/values to support secondary attributes
+    if (additionalConditions?.expressionAttributeNames) {
+      Object.assign(expressionAttributeNames, additionalConditions.expressionAttributeNames);
+    }
+    if (additionalConditions?.expressionAttributeValues) {
+      Object.assign(expressionAttributeValues, additionalConditions.expressionAttributeValues);
+    }
+
+    if (additionalConditions?.keyCondition) {
+      keyConditionExpression += ` AND ${additionalConditions.keyCondition}`;
+    }
+
+    return this.query(
+      tableName,
+      keyConditionExpression,
+      expressionAttributeNames,
+      expressionAttributeValues,
+      {
+        ...options,
+        filterExpression: additionalConditions?.filterExpression,
+      }
+    );
   }
 }

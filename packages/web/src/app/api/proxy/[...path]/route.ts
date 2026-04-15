@@ -8,10 +8,20 @@ const NEST_API_URL = process.env.NEXT_PUBLIC_API_URL || "https://api.handycall.o
 const PUBLIC_PATHS = [
   "auth/login",
   "auth/register",
+  "auth/customer/register",
+  "auth/pro/register",
+  "auth/oauth/exchange",
+  "auth/verify-email",
   "auth/confirm-signup",
   "auth/resend-confirmation",
   "auth/refresh",
   "auth/change-password", // Allow password changes without auth
+  "auth/send-phone-code",
+  "auth/verify-phone-code",
+  "auth/update-phone",
+  "auth/delete-unverified",
+  "auth/pre-login",
+  "auth/verify-login-otp",
   // Marketplace is public — consumers browse without an account
   "marketplace/search",
   "marketplace/ai-search",
@@ -75,53 +85,33 @@ async function handleRequest(
   // 2. Construct the full backend URL
   const url = `${NEST_API_URL}/${path}${req.nextUrl.search}`;
 
-  // 3. Get request body and content-type if applicable
-  let body: BodyInit | undefined;
-  let forwardContentType: string | null = null;
-
-  if (method !== "GET" && method !== "HEAD" && method !== "DELETE") {
-    const incomingContentType = req.headers.get('content-type') || '';
-    const isMultipart = incomingContentType.includes('multipart/form-data');
-
-    if (isMultipart) {
-      // Forward raw bytes and preserve content-type (including boundary) for file uploads
-      try {
-        body = await req.arrayBuffer();
-        forwardContentType = incomingContentType;
-      } catch {
-        // No body
-      }
-    } else {
-      try {
-        body = await req.text();
-      } catch {
-        // No body
-      }
+  // 3. Get request body if applicable
+  let body: string | undefined;
+  if (method !== "GET" && method !== "HEAD") {
+    try {
+      body = await req.text();
+    } catch (error) {
+      // No body, that's fine
     }
   }
 
   // 4. Forward request to NestJS
   try {
     // Build headers conditionally - only add Authorization if we have a session
-    const headers: Record<string, string> = {};
-
-    // Only set Content-Type for non-multipart requests (multipart needs boundary from browser)
-    if (!forwardContentType) {
-      headers["Content-Type"] = "application/json";
-    } else {
-      headers["Content-Type"] = forwardContentType;
-    }
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
 
     const companyOverride = req.headers.get('x-company-id');
     if (companyOverride) {
       headers['x-company-id'] = companyOverride;
     }
-
+    
     // Only add Authorization header if we have a session (not needed for public paths)
     if (bearerToken) {
       headers["Authorization"] = `Bearer ${bearerToken}`; // Use Cognito token (id or access) for backend auth
     }
-
+    
     const response = await fetch(url, {
       method: method,
       headers: headers,

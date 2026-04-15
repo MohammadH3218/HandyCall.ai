@@ -1,50 +1,50 @@
 export type OnboardingStepId =
   | 'profile'
-  | 'billing'
   | 'company'
-  | 'service-area'
-  | 'knowledge'
+  | 'marketplace-profile'
   | 'calendar'
-  | 'phone';
+  | 'billing';
 
 export const ONBOARDING_STEPS: Array<{
   id: OnboardingStepId;
   label: string;
+  labelAr: string;
   description: string;
+  descriptionAr: string;
 }> = [
   {
     id: 'profile',
     label: 'Profile',
+    labelAr: 'الملف الشخصي',
     description: 'Confirm your contact details.',
-  },
-  {
-    id: 'billing',
-    label: 'Subscription',
-    description: 'Pick a plan and add a payment method.',
+    descriptionAr: 'أكد بيانات التواصل الخاصة بك.',
   },
   {
     id: 'company',
-    label: 'Company profile',
-    description: 'Name, type, and timezone details.',
+    label: 'Business basics',
+    labelAr: 'أساسيات النشاط',
+    description: 'Name, trade, and business setup details.',
+    descriptionAr: 'الاسم، المجال، وتفاصيل إعداد النشاط.',
   },
   {
-    id: 'service-area',
-    label: 'Service area',
-    description: 'Cities and zip codes you serve.',
-  },
-  {
-    id: 'knowledge',
-    label: 'Knowledge base',
-    description: 'Sync pricing profile, add FAQs, and policies.',
+    id: 'marketplace-profile',
+    label: 'Marketplace Profile',
+    labelAr: 'ملف السوق',
+    description: 'Build the public profile customers see first.',
+    descriptionAr: 'أنشئ الملف العام الذي يراه العملاء أولاً.',
   },
   {
     id: 'calendar',
-    label: 'Calendar',
-    description: 'Connect or create a booking calendar.',
+    label: 'AI scheduling',
+    labelAr: 'جدولة الذكاء الاصطناعي',
+    description: 'Set business hours or connect your calendar.',
+    descriptionAr: 'حدد ساعات العمل أو اربط التقويم الخاص بك.',
   },
   {
-    id: 'phone',
-    label: 'Phone number',
-    description: 'Choose call handling and forward your line.',
+    id: 'billing',
+    label: 'Billing',
+    labelAr: 'الفوترة',
+    description: 'Activate Starter or add billing for Pro/Max.',
+    descriptionAr: 'فعّل Starter أو أضف الفوترة لخطتي Pro و Max.',
   },
 ];

@@ -17,14 +17,14 @@ import { OnboardingServicesDto } from './dto/onboarding-services.dto';
 import { OnboardingPayoutDto } from './dto/onboarding-payout.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
-import { StorageService } from '../../infrastructure/storage/storage.service';
+import { S3Service } from '../../infrastructure/storage/s3.service';
 import { MarketplaceAuthContext } from '@handycall/shared';
 
 @Controller('pros')
 export class ProsController {
   constructor(
     private prosService: ProsService,
-    private storageService: StorageService,
+    private storageService: S3Service,
   ) {}
 
   /** Public: browse active pros (customer-facing) */
@@ -64,7 +64,7 @@ export class ProsController {
   async onboardIdentity(
     @CurrentUser() user: MarketplaceAuthContext,
     @Body() dto: OnboardingIdentityDto,
-    @UploadedFile() file?: Express.Multer.File,
+    @UploadedFile() file?: any,
   ) {
     if (user.user_type !== 'PRO') throw new ForbiddenException();
 
@@ -87,7 +87,7 @@ export class ProsController {
   async onboardProfile(
     @CurrentUser() user: MarketplaceAuthContext,
     @Body() dto: OnboardingProfileDto,
-    @UploadedFile() file?: Express.Multer.File,
+    @UploadedFile() file?: any,
   ) {
     if (user.user_type !== 'PRO') throw new ForbiddenException();
 

@@ -1,4 +1,4 @@
-import { SubscriptionPlan } from '@/types/shared';
+import { SubscriptionPlan } from '@handycall/shared';
 
 type PlanLimits = {
   minutes: number;
@@ -20,79 +20,73 @@ export type PlanCatalogEntry = {
 export const PLAN_CATALOG: Record<SubscriptionPlan, PlanCatalogEntry> = {
   [SubscriptionPlan.STARTER]: {
     name: 'Starter',
-    price: 19.99,
-    originalPrice: 29.99,
+    price: 0,
+    originalPrice: 0,
     cadence: 'month',
-    badge: 'Great for solo operators',
-    limits: { minutes: 100, sms: 200, contacts: 300 },
+    badge: 'Free to list',
+    limits: { minutes: 0, sms: 0, contacts: 300 },
     featureHighlights: [
-      '100 minutes/month',
-      '200 SMS/month',
-      '300 contacts',
-      'AI receptionist with brand voice',
-      'Smart appointment booking',
-      'Lead capture & qualification',
-      'Automated SMS confirmations',
-      'Spam & robocall filtering',
-      'Call recording (7-day retention)',
-      'Usage dashboard',
+      'Free marketplace profile',
+      'Appear in customer search results',
+      'Receive lead requests and job inquiries',
+      'Preview the request before unlocking',
+      'Customer reviews on your profile',
+      'Pay only when you unlock a lead',
     ],
   },
   [SubscriptionPlan.PRO]: {
     name: 'Pro',
-    price: 39.99,
-    originalPrice: 49.99,
+    price: 149,
+    originalPrice: 0,
     cadence: 'month',
     badge: 'Most popular',
-    trialLabel: 'Free trial — 14 days',
-    limits: { minutes: 300, sms: 600, contacts: 1000 },
+    limits: { minutes: 0, sms: 0, contacts: 1000 },
     featureHighlights: [
-      '300 minutes/month',
-      '600 SMS/month',
-      '1,000 contacts',
       'Everything in Starter, plus:',
-      'Call summaries & transcripts',
-      'After-hours routing',
-      'Human transfer to your phone',
-      'Smart follow-up sequences',
-      'Call recording (30-day retention)',
-      'Priority support',
+      'No per-lead unlock fee',
+      'Priority placement in search',
+      'CRM dashboard',
+      'In-app payment collection',
+      'Invoices and payout tracking',
+      'Calendar sync and booking alerts',
     ],
   },
   [SubscriptionPlan.MAX]: {
-    name: 'Max',
-    price: 99.99,
-    originalPrice: 149.99,
+    name: 'Teams',
+    price: 349,
+    originalPrice: 0,
     cadence: 'month',
-    badge: 'Best value for teams',
-    limits: { minutes: 750, sms: 1500, contacts: 3000 },
+    badge: 'Best for growing teams',
+    limits: { minutes: 0, sms: 0, contacts: 5000 },
     featureHighlights: [
-      '750 minutes/month',
-      '1,500 SMS/month',
-      '3,000 contacts',
       'Everything in Pro, plus:',
-      'CRM integrations (Zapier, webhooks)',
-      'Advanced routing (overflow + multi-location)',
-      'Website chat widget',
-      'Call recording (90-day retention)',
-      'Priority phone support',
+      'Multi-user team access',
+      'Advanced routing and assignment',
+      'Performance analytics',
+      'Multi-location support',
+      'Priority support',
     ],
   },
 };
 
-export function formatUsd(amount: number) {
-  return amount.toLocaleString('en-US', {
+export function formatSar(amount: number) {
+  return new Intl.NumberFormat('en-SA', {
     style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 2,
-  });
+    currency: 'SAR',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(amount);
+}
+
+export function formatUsd(amount: number) {
+  return `$${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 export function getPlanPriceDisplay(plan: SubscriptionPlan) {
   const details = PLAN_CATALOG[plan];
   return {
-    current: formatUsd(details.price),
-    original: formatUsd(details.originalPrice),
+    current: details.price === 0 ? 'Free' : formatSar(details.price),
+    original: details.originalPrice === 0 ? null : formatSar(details.originalPrice),
     cadence: `per ${details.cadence}`,
   };
 }

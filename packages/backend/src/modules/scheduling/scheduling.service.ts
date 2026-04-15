@@ -1,20 +1,19 @@
 import { Injectable } from '@nestjs/common';
-import { SAUDI_TIMEZONE } from './timezone';
 
+/** Timezone utilities for Saudi Arabia (Asia/Riyadh, UTC+3) */
 @Injectable()
 export class SchedulingService {
-  /** Returns current server time in Saudi timezone */
-  getCurrentSaudiTime(): string {
-    return new Date().toLocaleString('ar-SA', { timeZone: SAUDI_TIMEZONE });
+  readonly defaultTimezone = 'Asia/Riyadh';
+
+  /** Format a Unix ms timestamp to a human-readable Saudi time string */
+  formatSaudiTime(timestampMs: number, lang: 'ar' | 'en' = 'en'): string {
+    return new Date(timestampMs).toLocaleString(lang === 'ar' ? 'ar-SA' : 'en-SA', {
+      timeZone: this.defaultTimezone,
+    });
   }
 
-  /** Validates that a scheduled_start timestamp is in the future */
-  isFutureTime(timestampMs: number): boolean {
-    return timestampMs > Date.now();
-  }
-
-  /** Validates that start < end */
-  isValidWindow(startMs: number, endMs: number): boolean {
-    return startMs < endMs;
+  /** Get current time in Riyadh */
+  nowInRiyadh(): Date {
+    return new Date(new Date().toLocaleString('en-US', { timeZone: this.defaultTimezone }));
   }
 }

@@ -6,47 +6,30 @@ import {
 } from '@nestjs/common';
 import { v4 as uuidv4 } from 'uuid';
 import { DynamoDBService } from '../../infrastructure/database/dynamodb.service';
-import { EmailService } from '../email/email.service';
-import { CreateBookingDto, CancelBookingDto } from './dto/create-booking.dto';
-import {
-  Booking,
-  BookingStatus,
-  CancelledBy,
-  calculateBookingFinancials,
-} from '@handycall/shared';
+import { CreateBookingDto } from './dto/create-booking.dto';
+import { Booking, calculateBookingFinancials, BookingStatus, UserType } from '@handycall/shared';
 
 @Injectable()
 export class BookingsService {
-  constructor(
-    private db: DynamoDBService,
-    private email: EmailService,
-  ) {}
+  constructor(private db: DynamoDBService) {}
 
-  async createBooking(customerId: string, dto: CreateBookingDto): Promise<Booking> {
-    if (dto.scheduled_start <= Date.now()) {
-      throw new BadRequestException('Scheduled start must be in the future');
-    }
-    if (dto.scheduled_end <= dto.scheduled_start) {
-      throw new BadRequestException('Scheduled end must be after scheduled start');
-    }
-
+  async create(customerId: string, dto: CreateBookingDto): Promise<Booking> {
     // Fetch service to lock price at booking time
     const service = await this.db.get('services', {
       pro_id: dto.pro_id,
       service_id: dto.service_id,
     });
+
     if (!service || !service.is_active) {
-      throw new NotFoundException('Service not found or inactive');
+      throw new NotFoundException('Service not found or not available');
     }
 
-    const servicePrice = service.price_sar as number;
-    if (!servicePrice) {
-      throw new BadRequestException(
-        'Service does not have a fixed price. Request a quote instead.',
-      );
+    if (!service.price_sar && service.pricing_type !== 'QUOTE') {
+      throw new BadRequestException('Service has no price set');
     }
 
-    const financials = calculateBookingFinancials(servicePrice);
+    const servicePriceHalalas = service.price_sar ?? 0;
+    const financials = calculateBookingFinancials(servicePriceHalalas);
     const now = Date.now();
 
     const booking: Booking = {
@@ -61,10 +44,7 @@ export class BookingsService {
       address_notes: dto.address_notes,
       city: 'Riyadh',
       status: 'PENDING_CONFIRMATION',
-      service_price_sar: financials.service_price_sar,
-      vat_amount_sar: financials.vat_amount_sar,
-      platform_fee_sar: financials.platform_fee_sar,
-      pro_payout_sar: financials.pro_payout_sar,
+      ...financials,
       payment_status: 'PENDING',
       created_at: now,
       updated_at: now,
@@ -72,193 +52,86 @@ export class BookingsService {
 
     await this.db.put('bookings', booking);
 
-    // Send notification emails (fire-and-forget; don't fail booking on email error)
-    this.notifyNewBooking(booking).catch(() => {});
+    // Update pro total_bookings
+    const pro = (await this.db.get('pros', { pro_id: dto.pro_id })) as any;
+    if (pro) {
+      await this.db.update('pros', { pro_id: dto.pro_id }, {
+        total_bookings: (pro.total_bookings ?? 0) + 1,
+        updated_at: now,
+      });
+    }
 
     return booking;
   }
 
-  async getBooking(bookingId: string, requesterId: string): Promise<Booking> {
-    const booking = await this.db.get('bookings', { booking_id: bookingId });
+  async findOne(bookingId: string, userId: string, userType: UserType): Promise<Booking> {
+    const booking = (await this.db.get('bookings', { booking_id: bookingId })) as Booking;
     if (!booking) throw new NotFoundException('Booking not found');
 
-    if (booking.customer_id !== requesterId && booking.pro_id !== requesterId) {
-      throw new ForbiddenException('Access denied');
-    }
+    const owns =
+      (userType === 'CUSTOMER' && booking.customer_id === userId) ||
+      (userType === 'PRO' && booking.pro_id === userId);
+    if (!owns) throw new ForbiddenException();
 
-    return booking as Booking;
+    return booking;
   }
 
-  async listBookings(
-    userId: string,
-    userType: 'CUSTOMER' | 'PRO',
-    status?: BookingStatus,
-  ): Promise<Booking[]> {
+  async listForUser(userId: string, userType: UserType): Promise<Booking[]> {
+    const indexName = userType === 'CUSTOMER' ? 'customer-bookings-index' : 'pro-bookings-index';
     const pkField = userType === 'CUSTOMER' ? 'customer_id' : 'pro_id';
-    const indexName = userType === 'CUSTOMER' ? 'customer-index' : 'pro-index';
-
-    const opts: any = {};
-    if (status) {
-      opts.filterExpression = '#status = :status';
-      opts.expressionAttributeNames = { [`#${pkField}`]: pkField, '#status': 'status' };
-      opts.expressionAttributeValues = { [`:${pkField}`]: userId, ':status': status };
-    }
 
     const { items } = await this.db.query(
       'bookings',
-      `#${pkField} = :${pkField}`,
-      { [`#${pkField}`]: pkField },
-      { [`:${pkField}`]: userId },
-      { indexName, ...opts, scanIndexForward: false },
+      `#pk = :uid`,
+      { '#pk': pkField },
+      { ':uid': userId },
+      { indexName, scanIndexForward: false },
     );
-
     return items as Booking[];
   }
 
-  async confirmBooking(bookingId: string, proId: string): Promise<Booking> {
-    const booking = await this.assertBookingOwnership(bookingId, proId, 'pro');
-    this.assertStatus(booking, 'PENDING_CONFIRMATION');
-
-    const updated = await this.db.update(
-      'bookings',
-      { booking_id: bookingId },
-      { status: 'CONFIRMED', updated_at: Date.now() },
-    );
-
-    this.notifyBookingConfirmed(updated as Booking).catch(() => {});
-    return updated as Booking;
-  }
-
-  async startBooking(bookingId: string, proId: string): Promise<Booking> {
-    const booking = await this.assertBookingOwnership(bookingId, proId, 'pro');
-    this.assertStatus(booking, 'CONFIRMED');
-
-    const updated = await this.db.update(
-      'bookings',
-      { booking_id: bookingId },
-      { status: 'IN_PROGRESS', started_at: Date.now(), updated_at: Date.now() },
-    );
-    return updated as Booking;
-  }
-
-  async completeBooking(bookingId: string, proId: string): Promise<Booking> {
-    const booking = await this.assertBookingOwnership(bookingId, proId, 'pro');
-    this.assertStatus(booking, 'IN_PROGRESS');
-
-    const now = Date.now();
-    const updated = await this.db.update(
-      'bookings',
-      { booking_id: bookingId },
-      {
-        status: 'COMPLETED',
-        completed_at: now,
-        payment_status: 'RELEASED',
-        updated_at: now,
-      },
-    );
-
-    this.notifyBookingCompleted(updated as Booking).catch(() => {});
-    return updated as Booking;
-  }
-
-  async cancelBooking(
+  async updateStatus(
     bookingId: string,
-    requesterId: string,
-    requesterType: 'CUSTOMER' | 'PRO',
-    dto: CancelBookingDto,
-  ): Promise<Booking> {
-    const booking = await this.db.get('bookings', { booking_id: bookingId });
-    if (!booking) throw new NotFoundException('Booking not found');
-
-    const isOwner =
-      (requesterType === 'CUSTOMER' && booking.customer_id === requesterId) ||
-      (requesterType === 'PRO' && booking.pro_id === requesterId);
-    if (!isOwner) throw new ForbiddenException();
-
-    const cancellableStatuses: BookingStatus[] = ['PENDING_CONFIRMATION', 'CONFIRMED'];
-    if (!cancellableStatuses.includes(booking.status as BookingStatus)) {
-      throw new BadRequestException(
-        `Cannot cancel a booking with status: ${booking.status}`,
-      );
-    }
-
-    const cancelledBy: CancelledBy = requesterType;
-    const now = Date.now();
-    const updated = await this.db.update(
-      'bookings',
-      { booking_id: bookingId },
-      {
-        status: 'CANCELLED',
-        cancelled_by: cancelledBy,
-        cancelled_at: now,
-        cancellation_reason: dto.cancellation_reason,
-        payment_status: 'REFUNDED',
-        updated_at: now,
-      },
-    );
-
-    this.notifyBookingCancelled(updated as Booking, cancelledBy).catch(() => {});
-    return updated as Booking;
-  }
-
-  // ─── Private helpers ────────────────────────────────────────────────────────
-
-  private async assertBookingOwnership(
-    bookingId: string,
+    newStatus: BookingStatus,
     userId: string,
-    as: 'customer' | 'pro',
+    userType: UserType,
+    extraFields: Record<string, any> = {},
   ): Promise<Booking> {
-    const booking = await this.db.get('bookings', { booking_id: bookingId });
-    if (!booking) throw new NotFoundException('Booking not found');
-    const field = as === 'customer' ? 'customer_id' : 'pro_id';
-    if (booking[field] !== userId) throw new ForbiddenException();
-    return booking as Booking;
+    const booking = await this.findOne(bookingId, userId, userType);
+    this.assertValidTransition(booking.status, newStatus, userType);
+
+    const now = Date.now();
+    const updates: Record<string, any> = {
+      status: newStatus,
+      updated_at: now,
+      ...extraFields,
+    };
+
+    if (newStatus === 'IN_PROGRESS') updates.started_at = now;
+    if (newStatus === 'COMPLETED') {
+      updates.completed_at = now;
+      updates.payment_status = 'HELD'; // Payment held pending release
+    }
+    if (newStatus === 'CANCELLED') updates.cancelled_at = now;
+
+    const result = await this.db.update('bookings', { booking_id: bookingId }, updates);
+    return result as Booking;
   }
 
-  private assertStatus(booking: Booking, expected: BookingStatus) {
-    if (booking.status !== expected) {
+  private assertValidTransition(current: BookingStatus, next: BookingStatus, actor: UserType) {
+    const allowedTransitions: Partial<Record<BookingStatus, { to: BookingStatus[]; actor: UserType[] }>> = {
+      PENDING_CONFIRMATION: { to: ['CONFIRMED', 'CANCELLED'], actor: ['PRO', 'CUSTOMER'] },
+      CONFIRMED: { to: ['IN_PROGRESS', 'CANCELLED'], actor: ['PRO', 'CUSTOMER'] },
+      IN_PROGRESS: { to: ['COMPLETED', 'CANCELLED'], actor: ['PRO'] },
+      COMPLETED: { to: [], actor: [] },
+      CANCELLED: { to: [], actor: [] },
+    };
+
+    const rule = allowedTransitions[current];
+    if (!rule || !rule.to.includes(next) || !rule.actor.includes(actor)) {
       throw new BadRequestException(
-        `Action requires status ${expected}, but booking is ${booking.status}`,
+        `Cannot transition booking from ${current} to ${next} as ${actor}`,
       );
     }
-  }
-
-  private async notifyNewBooking(booking: Booking) {
-    const [customer, pro] = await Promise.all([
-      this.db.get('customers', { customer_id: booking.customer_id }),
-      this.db.get('pros', { pro_id: booking.pro_id }),
-    ]);
-    if (customer && pro) {
-      await Promise.all([
-        this.email.sendBookingConfirmationCustomer(booking, customer as any, pro as any),
-        this.email.sendNewBookingNotificationPro(booking, customer as any, pro as any),
-      ]);
-    }
-  }
-
-  private async notifyBookingConfirmed(booking: Booking) {
-    const [customer, pro] = await Promise.all([
-      this.db.get('customers', { customer_id: booking.customer_id }),
-      this.db.get('pros', { pro_id: booking.pro_id }),
-    ]);
-    if (customer && pro) {
-      await this.email.sendBookingConfirmedCustomer(booking, customer as any, pro as any);
-    }
-  }
-
-  private async notifyBookingCompleted(booking: Booking) {
-    const customer = await this.db.get('customers', { customer_id: booking.customer_id });
-    if (customer) {
-      await this.email.sendBookingCompletedAndReviewPrompt(booking, customer as any);
-    }
-  }
-
-  private async notifyBookingCancelled(booking: Booking, cancelledBy: CancelledBy) {
-    const [customer, pro] = await Promise.all([
-      this.db.get('customers', { customer_id: booking.customer_id }),
-      this.db.get('pros', { pro_id: booking.pro_id }),
-    ]);
-    if (customer) await this.email.sendBookingCancelled(booking, customer as any, cancelledBy);
-    if (pro) await this.email.sendBookingCancelled(booking, pro as any, cancelledBy);
   }
 }

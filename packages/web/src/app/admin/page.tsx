@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { PageHeader } from '@/components/portal/page-header';
 import { Building2, Users, BarChart3 } from 'lucide-react';
-import { UserRole } from '@/types/shared';
+import { UserRole } from '@handycall/shared';
 
 interface AdminStats {
   totalRevenue: number;

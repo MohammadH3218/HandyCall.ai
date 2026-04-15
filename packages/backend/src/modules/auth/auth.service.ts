@@ -13,6 +13,7 @@ import { DynamoDBService } from '../../infrastructure/database/dynamodb.service'
 import { CustomerRegisterDto } from './dto/customer-register.dto';
 import { ProRegisterDto } from './dto/pro-register.dto';
 import { LoginDto } from './dto/login.dto';
+import { OAuthExchangeDto } from './dto/oauth-exchange.dto';
 import { Customer, Pro, UserType } from '@handycall/shared';
 
 const BCRYPT_ROUNDS = 12;
@@ -30,25 +31,28 @@ export class AuthService {
   // ─── Customer Registration ──────────────────────────────────────────────────
 
   async registerCustomer(dto: CustomerRegisterDto) {
-    if (!dto.pdpl_consent) {
+    if (dto.pdpl_consent === false) {
       throw new BadRequestException(
         'PDPL consent is required. Users must consent to data collection per Saudi PDPL (Royal Decree M/19).',
       );
     }
 
     await this.assertNoDuplicateEmail('customers', dto.email);
-    await this.assertNoDuplicateId('customers', dto.id_type, dto.national_id, dto.iqama_number);
+    if (dto.id_type) {
+      await this.assertNoDuplicateId('customers', dto.id_type, dto.national_id, dto.iqama_number);
+    }
 
     const customer_id = uuidv4();
     const now = Date.now();
     const password_hash = await bcrypt.hash(dto.password, BCRYPT_ROUNDS);
+    const { firstName, lastName } = this.resolveNameParts(dto.first_name, dto.last_name, dto.email, 'Customer');
 
     const customer: Omit<Customer, 'password_hash'> & { password_hash: string } = {
       customer_id,
       email: dto.email.toLowerCase(),
       password_hash,
-      first_name: dto.first_name,
-      last_name: dto.last_name,
+      first_name: firstName,
+      last_name: lastName,
       phone_number: dto.phone_number,
       id_type: dto.id_type,
       national_id: dto.id_type === 'NATIONAL_ID' ? dto.national_id : undefined,
@@ -56,18 +60,17 @@ export class AuthService {
       id_verified: false,
       district: dto.district,
       city: 'Riyadh',
-      preferred_language: dto.preferred_language,
-      status: 'PENDING_VERIFICATION',
+      preferred_language: dto.preferred_language ?? 'en',
+      status: 'ACTIVE',
       email_verified: false,
       pdpl_consent: true,
-      pdpl_consent_at: dto.pdpl_consent_at,
+      pdpl_consent_at: dto.pdpl_consent_at ?? now,
       marketing_consent: dto.marketing_consent ?? false,
       created_at: now,
       updated_at: now,
     };
 
     await this.db.put('customers', customer);
-    await this.createEmailVerificationToken(customer_id, 'CUSTOMER', dto.email);
 
     const tokens = this.signTokens(customer_id, 'CUSTOMER', dto.email);
     const { password_hash: _, ...safeCustomer } = customer;
@@ -77,23 +80,26 @@ export class AuthService {
   // ─── Pro Registration ───────────────────────────────────────────────────────
 
   async registerPro(dto: ProRegisterDto) {
-    if (!dto.pdpl_consent) {
+    if (dto.pdpl_consent === false) {
       throw new BadRequestException('PDPL consent is required.');
     }
 
     await this.assertNoDuplicateEmail('pros', dto.email);
-    await this.assertNoDuplicateId('pros', dto.id_type, dto.national_id, dto.iqama_number);
+    if (dto.id_type) {
+      await this.assertNoDuplicateId('pros', dto.id_type, dto.national_id, dto.iqama_number);
+    }
 
     const pro_id = uuidv4();
     const now = Date.now();
     const password_hash = await bcrypt.hash(dto.password, BCRYPT_ROUNDS);
+    const { firstName, lastName } = this.resolveNameParts(dto.first_name, dto.last_name, dto.email, 'Pro');
 
     const pro: Omit<Pro, 'password_hash'> & { password_hash: string } = {
       pro_id,
       email: dto.email.toLowerCase(),
       password_hash,
-      first_name: dto.first_name,
-      last_name: dto.last_name,
+      first_name: firstName,
+      last_name: lastName,
       phone_number: dto.phone_number,
       id_type: dto.id_type,
       national_id: dto.id_type === 'NATIONAL_ID' ? dto.national_id : undefined,
@@ -112,7 +118,7 @@ export class AuthService {
       total_bookings: 0,
       completion_rate: 0,
       pdpl_consent: true,
-      pdpl_consent_at: dto.pdpl_consent_at,
+      pdpl_consent_at: dto.pdpl_consent_at ?? now,
       marketing_consent: dto.marketing_consent ?? false,
       email_verified: false,
       created_at: now,
@@ -120,7 +126,6 @@ export class AuthService {
     };
 
     await this.db.put('pros', pro);
-    await this.createEmailVerificationToken(pro_id, 'PRO', dto.email);
 
     const tokens = this.signTokens(pro_id, 'PRO', dto.email);
     const { password_hash: _, ...safePro } = pro;
@@ -178,6 +183,97 @@ export class AuthService {
     return { ...tokens, user: safeUser, user_type: dto.user_type };
   }
 
+  async exchangeOAuth(dto: OAuthExchangeDto) {
+    const email = dto.email.toLowerCase();
+    const table = dto.user_type === 'CUSTOMER' ? 'customers' : 'pros';
+    const pkField = dto.user_type === 'CUSTOMER' ? 'customer_id' : 'pro_id';
+    const existingUser = await this.findUserByEmail(table, email);
+    const now = Date.now();
+    const { firstName, lastName } = this.resolveNameParts(
+      dto.given_name,
+      dto.family_name,
+      email,
+      dto.user_type === 'CUSTOMER' ? 'Customer' : 'Pro',
+      dto.name,
+    );
+
+    let userRecord: any;
+
+    if (existingUser) {
+      userRecord = await this.db.update(
+        table,
+        { [pkField]: existingUser[pkField] },
+        {
+          first_name: existingUser.first_name || firstName,
+          last_name: existingUser.last_name || lastName,
+          email_verified: true,
+          updated_at: now,
+          last_login_at: now,
+        },
+      );
+    } else if (dto.user_type === 'CUSTOMER') {
+      const customer_id = uuidv4();
+      const password_hash = await bcrypt.hash(uuidv4(), BCRYPT_ROUNDS);
+      const customer: Omit<Customer, 'password_hash'> & { password_hash: string } = {
+        customer_id,
+        email,
+        password_hash,
+        first_name: firstName,
+        last_name: lastName,
+        id_verified: false,
+        city: 'Riyadh',
+        preferred_language: 'en',
+        status: 'ACTIVE',
+        email_verified: true,
+        pdpl_consent: true,
+        pdpl_consent_at: now,
+        marketing_consent: false,
+        created_at: now,
+        updated_at: now,
+        last_login_at: now,
+      };
+      await this.db.put('customers', customer);
+      userRecord = customer;
+    } else {
+      const pro_id = uuidv4();
+      const password_hash = await bcrypt.hash(uuidv4(), BCRYPT_ROUNDS);
+      const pro: Omit<Pro, 'password_hash'> & { password_hash: string } = {
+        pro_id,
+        email,
+        password_hash,
+        first_name: firstName,
+        last_name: lastName,
+        id_verified: false,
+        iban_verified: false,
+        speaks_arabic: false,
+        speaks_english: true,
+        service_districts: [],
+        city: 'Riyadh',
+        status: 'PENDING_REVIEW',
+        onboarding_step: 1,
+        is_available: false,
+        average_rating: 0,
+        total_reviews: 0,
+        total_bookings: 0,
+        completion_rate: 0,
+        pdpl_consent: true,
+        pdpl_consent_at: now,
+        marketing_consent: false,
+        email_verified: true,
+        created_at: now,
+        updated_at: now,
+        last_login_at: now,
+      };
+      await this.db.put('pros', pro);
+      userRecord = pro;
+    }
+
+    const user_id = userRecord[pkField];
+    const tokens = this.signTokens(user_id, dto.user_type, email);
+    const { password_hash: _, ...safeUser } = userRecord;
+    return { ...tokens, user: safeUser, user_type: dto.user_type };
+  }
+
   // ─── Email Verification ─────────────────────────────────────────────────────
 
   async verifyEmail(token: string): Promise<{ message: string }> {
@@ -191,7 +287,7 @@ export class AuthService {
       throw new BadRequestException('This verification link has already been used.');
     }
 
-    if (record.expires_at < Date.now()) {
+    if (record.expires_at * 1000 < Date.now()) {
       throw new BadRequestException('Verification link has expired. Request a new one.');
     }
 
@@ -207,6 +303,32 @@ export class AuthService {
     await this.db.update('email_verifications', { token }, { used: true });
 
     return { message: 'Email verified successfully.' };
+  }
+
+  async resendVerification(email: string, userType: UserType) {
+    const normalizedEmail = email.toLowerCase();
+    const table = userType === 'CUSTOMER' ? 'customers' : 'pros';
+    const pkField = userType === 'CUSTOMER' ? 'customer_id' : 'pro_id';
+    const user = await this.findUserByEmail(table, normalizedEmail);
+
+    if (!user) {
+      return {
+        message: 'If that account exists, a verification email has been sent.',
+      };
+    }
+
+    if (user.email_verified) {
+      return {
+        message: 'This email is already verified. You can sign in now.',
+      };
+    }
+
+    const token = await this.getVerificationToken(user[pkField], userType, normalizedEmail);
+    return {
+      message: 'Verification email sent.',
+      token,
+      first_name: user.first_name || (userType === 'CUSTOMER' ? 'Customer' : 'Pro'),
+    };
   }
 
   // ─── Token Refresh ──────────────────────────────────────────────────────────
@@ -312,6 +434,17 @@ export class AuthService {
     }
   }
 
+  private async findUserByEmail(table: string, email: string) {
+    const { items } = await this.db.query(
+      table,
+      '#email = :email',
+      { '#email': 'email' },
+      { ':email': email.toLowerCase() },
+      { indexName: 'email-index' },
+    );
+    return items[0] as any | undefined;
+  }
+
   private async assertNoDuplicateId(
     table: string,
     idType: 'NATIONAL_ID' | 'IQAMA',
@@ -367,5 +500,46 @@ export class AuthService {
   /** Expose token creation so controller can pass it to EmailService */
   async getVerificationToken(userId: string, userType: 'CUSTOMER' | 'PRO', email: string) {
     return this.createEmailVerificationToken(userId, userType, email);
+  }
+
+  private resolveNameParts(
+    firstName: string | undefined,
+    lastName: string | undefined,
+    email: string,
+    fallbackFirstName: string,
+    fullName?: string,
+  ) {
+    const trimmedFirstName = firstName?.trim();
+    const trimmedLastName = lastName?.trim();
+
+    if (trimmedFirstName) {
+      return {
+        firstName: trimmedFirstName,
+        lastName: trimmedLastName || '',
+      };
+    }
+
+    const trimmedFullName = fullName?.trim();
+    if (trimmedFullName) {
+      const [first, ...rest] = trimmedFullName.split(/\s+/);
+      return {
+        firstName: first || fallbackFirstName,
+        lastName: rest.join(' '),
+      };
+    }
+
+    const localPart = email.split('@')[0]?.replace(/[._-]+/g, ' ').trim();
+    if (localPart) {
+      const [first, ...rest] = localPart.split(/\s+/);
+      return {
+        firstName: first || fallbackFirstName,
+        lastName: rest.join(' '),
+      };
+    }
+
+    return {
+      firstName: fallbackFirstName,
+      lastName: '',
+    };
   }
 }

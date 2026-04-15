@@ -16,12 +16,12 @@ export class EmailService {
   private isConsoleMode: boolean;
 
   constructor(private config: ConfigService) {
-    this.fromEmail = config.get('SES_FROM_EMAIL', 'no-reply@handycall.sa');
-    this.fromName = config.get('SES_FROM_NAME', 'HandyCall');
+    this.fromEmail = config.get<string>('SES_FROM_EMAIL') ?? 'no-reply@handycall.org';
+    this.fromName = config.get<string>('SES_FROM_NAME') ?? 'HandyCall';
     this.isConsoleMode = config.get('EMAIL_PROVIDER') === 'console';
 
     this.ses = new SESv2Client({
-      region: config.get<string>('SES_REGION') ?? config.get<string>('AWS_REGION') ?? 'us-east-1',
+      region: config.get<string>('SES_REGION') ?? config.get<string>('AWS_REGION') ?? 'me-central-1',
     });
   }
 
@@ -33,7 +33,7 @@ export class EmailService {
     firstName: string,
     lang: 'ar' | 'en' = 'en',
   ) {
-    const verifyUrl = `${this.config.get('API_BASE_URL', 'http://localhost:3000')}/api/v1/auth/verify-email?token=${token}`;
+    const verifyUrl = `${this.config.get<string>('FRONTEND_URL') ?? 'http://localhost:3001'}/verify-email?token=${token}&audience=customer`;
     const isAr = lang === 'ar';
 
     await this.send({
@@ -54,7 +54,19 @@ export class EmailService {
   }
 
   async sendProVerification(email: string, token: string, firstName: string) {
-    await this.sendCustomerVerification(email, token, firstName, 'ar');
+    const verifyUrl = `${this.config.get<string>('FRONTEND_URL') ?? 'http://localhost:3001'}/verify-email?token=${token}&audience=pro`;
+
+    await this.send({
+      to: email,
+      subject: 'Verify your email — HandyCall',
+      html: renderHandycallEmail({
+        title: 'Verify your email',
+        greeting: `Hi ${firstName},`,
+        body: 'Thanks for joining HandyCall. Click the button below to verify your email before completing your pro setup. This link is valid for 24 hours.',
+        cta: { label: 'Verify Email', url: verifyUrl },
+        footer: "If you didn't create an account, you can safely ignore this email.",
+      }),
+    });
   }
 
   async sendPasswordReset(

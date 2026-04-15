@@ -1,26 +1,22 @@
 import {
   IsBoolean,
   IsEnum,
-  IsIn,
   IsNumber,
   IsOptional,
+  IsPositive,
   IsString,
   Max,
   MaxLength,
-  Min,
+  ValidateIf,
 } from 'class-validator';
 import { ServiceCategory, PricingType } from '@handycall/shared';
 
-const SERVICE_CATEGORIES: ServiceCategory[] = [
-  'AC_HVAC', 'PLUMBING', 'ELECTRICAL', 'PAINTING', 'CLEANING',
-  'PEST_CONTROL', 'CARPENTRY', 'MOVING', 'APPLIANCE_REPAIR',
-  'SATELLITE_DISH', 'LANDSCAPING', 'GENERAL_HANDYMAN',
-];
-
-const PRICING_TYPES: PricingType[] = ['FIXED', 'HOURLY', 'QUOTE'];
-
 export class CreateServiceDto {
-  @IsIn(SERVICE_CATEGORIES)
+  @IsEnum([
+    'AC_HVAC','PLUMBING','ELECTRICAL','PAINTING','CLEANING',
+    'PEST_CONTROL','CARPENTRY','MOVING','APPLIANCE_REPAIR',
+    'SATELLITE_DISH','LANDSCAPING','GENERAL_HANDYMAN',
+  ] as const)
   category: ServiceCategory;
 
   @IsString()
@@ -42,25 +38,25 @@ export class CreateServiceDto {
   @MaxLength(2000)
   description_ar?: string;
 
-  @IsIn(PRICING_TYPES)
+  @IsEnum(['FIXED', 'HOURLY', 'QUOTE'] as const)
   pricing_type: PricingType;
 
-  /** Price in SAR (user-facing). Stored as Halalas. Max 50,000 SAR. */
-  @IsOptional()
-  @IsNumber()
-  @Min(0)
+  /** Price in SAR (user input). Stored as Halalas (* 100). Max 50,000 SAR. */
+  @ValidateIf((o) => o.pricing_type === 'FIXED' || o.pricing_type === 'HOURLY')
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @IsPositive()
   @Max(50000)
   price_sar?: number;
 
-  @IsOptional()
-  @IsNumber()
-  @Min(0)
+  @ValidateIf((o) => o.pricing_type === 'QUOTE')
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @IsPositive()
   @Max(50000)
   min_price_sar?: number;
 
-  @IsOptional()
-  @IsNumber()
-  @Min(0)
+  @ValidateIf((o) => o.pricing_type === 'QUOTE')
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @IsPositive()
   @Max(50000)
   max_price_sar?: number;
 
@@ -69,57 +65,6 @@ export class CreateServiceDto {
 
   @IsOptional()
   @IsNumber()
-  @Min(15)
-  @Max(480)
-  estimated_duration_minutes?: number;
-}
-
-export class UpdateServiceDto {
-  @IsOptional()
-  @IsString()
-  @MaxLength(200)
-  title?: string;
-
-  @IsOptional()
-  @IsString()
-  @MaxLength(200)
-  title_ar?: string;
-
-  @IsOptional()
-  @IsString()
-  @MaxLength(2000)
-  description?: string;
-
-  @IsOptional()
-  @IsString()
-  @MaxLength(2000)
-  description_ar?: string;
-
-  @IsOptional()
-  @IsNumber()
-  @Min(0)
-  @Max(50000)
-  price_sar?: number;
-
-  @IsOptional()
-  @IsNumber()
-  @Min(0)
-  @Max(50000)
-  min_price_sar?: number;
-
-  @IsOptional()
-  @IsNumber()
-  @Min(0)
-  @Max(50000)
-  max_price_sar?: number;
-
-  @IsOptional()
-  @IsBoolean()
-  vat_included?: boolean;
-
-  @IsOptional()
-  @IsNumber()
-  @Min(15)
-  @Max(480)
+  @IsPositive()
   estimated_duration_minutes?: number;
 }

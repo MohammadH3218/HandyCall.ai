@@ -6,7 +6,7 @@ import { apiClient } from '@/lib/api-client';
 import { usePortalBasePath } from '@/lib/portal';
 import { Button } from '@/components/ui/button';
 import { useAuthStore } from '@/stores/auth-store';
-import { SubscriptionPlan } from '@/types/shared';
+import { SubscriptionPlan } from '@handycall/shared';
 import { PLAN_CATALOG, getPlanPriceDisplay } from '@/constants/plans';
 import { normalizeUsageResponse, resolvePlan, resolvePlanLimits } from '@/lib/billing-utils';
 import { PageHeader } from '@/components/portal/page-header';
@@ -113,10 +113,10 @@ export default function UsagePage() {
   if (isLoading) {
     return (
       <div className="space-y-5">
-        <div className="h-8 w-48 animate-pulse rounded-lg bg-slate-100" />
+        <div className="h-8 w-48 animate-pulse rounded-lg bg-muted" />
         <div className="grid gap-4 md:grid-cols-3">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="h-32 animate-pulse rounded-2xl bg-slate-100" />
+            <div key={i} className="h-32 animate-pulse rounded-2xl bg-muted" />
           ))}
         </div>
       </div>
@@ -145,7 +145,7 @@ export default function UsagePage() {
           <div className="flex gap-2">
             <button
               onClick={() => router.push(billingInvoices)}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50 transition-colors"
+              className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-card px-3 py-2 text-sm font-medium text-foreground shadow-sm hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
             >
               <FileText className="h-3.5 w-3.5" />
               Invoices
@@ -210,21 +210,21 @@ export default function UsagePage() {
       )}
 
       {/* Period + Plan */}
-      <div className="rounded-2xl border border-slate-100 bg-white shadow-sm">
-        <div className="flex flex-col gap-4 border-b border-slate-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="rounded-2xl border border-border bg-card shadow-sm">
+        <div className="flex flex-col gap-4 border-b border-border px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Current Period</p>
-            <p className="mt-1 text-sm font-semibold text-slate-900">
+            <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Current Period</p>
+            <p className="mt-1 text-sm font-semibold text-foreground">
               {usage ? `${formatDate(usage.period_start)} – ${formatDate(usage.period_end)}` : 'No usage recorded for this period.'}
             </p>
           </div>
           {planDetails ? (
-            <div className="rounded-xl border border-slate-100 bg-slate-50/70 px-4 py-3 text-right">
-              <p className="text-xs text-slate-500">Active plan</p>
-              <p className="text-base font-bold text-slate-900">{planDetails.name}</p>
-              <p className="text-xs text-slate-500">
+            <div className="rounded-xl border border-border bg-slate-50/70 dark:bg-slate-800/50 px-4 py-3 text-right">
+              <p className="text-xs text-muted-foreground">Active plan</p>
+              <p className="text-base font-bold text-foreground">{planDetails.name}</p>
+              <p className="text-xs text-muted-foreground">
                 {priceDisplay?.original && <span className="mr-1 line-through">{priceDisplay.original}</span>}
-                <span className="font-semibold text-slate-700">{priceDisplay?.current}</span>
+                <span className="font-semibold text-foreground">{priceDisplay?.current}</span>
                 {priceDisplay?.cadence && <span className="ml-1">{priceDisplay.cadence}</span>}
               </p>
             </div>
@@ -234,7 +234,7 @@ export default function UsagePage() {
         </div>
 
         {/* Meters */}
-        <div className="grid gap-0 divide-y divide-slate-50 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+        <div className="grid gap-0 divide-y divide-border sm:grid-cols-3 sm:divide-x sm:divide-y-0">
           <UsageMeter
             label="Call minutes"
             used={usage?.call_minutes || 0}
@@ -268,12 +268,12 @@ export default function UsagePage() {
       </div>
 
       {/* Account health */}
-      <div className="rounded-2xl border border-slate-100 bg-white shadow-sm">
-        <div className="border-b border-slate-100 px-5 py-4">
-          <h2 className="text-sm font-semibold text-slate-900">Keep your account on track</h2>
-          <p className="mt-0.5 text-xs text-slate-500">Manage your subscription and payment details to avoid interruptions.</p>
+      <div className="rounded-2xl border border-border bg-card shadow-sm">
+        <div className="border-b border-border px-5 py-4">
+          <h2 className="text-sm font-semibold text-foreground">Keep your account on track</h2>
+          <p className="mt-0.5 text-xs text-muted-foreground">Manage your subscription and payment details to avoid interruptions.</p>
         </div>
-        <div className="grid gap-px bg-slate-50 sm:grid-cols-3">
+        <div className="grid gap-px bg-muted/50 sm:grid-cols-3">
           {[
             {
               icon: <CreditCard className="h-4 w-4 text-emerald-600" />,
@@ -297,15 +297,15 @@ export default function UsagePage() {
               cta: 'See invoices',
             },
           ].map((item) => (
-            <div key={item.title} className="flex flex-col gap-2 bg-white p-5">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-emerald-100 bg-emerald-50">
+            <div key={item.title} className="flex flex-col gap-2 bg-card p-5">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-emerald-100 dark:border-emerald-900 bg-emerald-50 dark:bg-emerald-950/30">
                 {item.icon}
               </div>
-              <p className="text-sm font-semibold text-slate-900">{item.title}</p>
-              <p className="text-xs text-slate-500 flex-1">{item.desc}</p>
+              <p className="text-sm font-semibold text-foreground">{item.title}</p>
+              <p className="text-xs text-muted-foreground flex-1">{item.desc}</p>
               <button
                 onClick={item.action}
-                className="mt-1 self-start text-xs font-semibold text-emerald-700 hover:text-emerald-600 transition-colors"
+                className="mt-1 self-start text-xs font-semibold text-emerald-700 dark:text-emerald-300 hover:text-emerald-600 transition-colors"
               >
                 {item.cta} →
               </button>
@@ -353,22 +353,22 @@ function UsageMeter({
             {icon}
           </div>
           <div>
-            <p className="text-xs font-semibold text-slate-700">{label}</p>
-            <p className="text-[11px] text-slate-400">Limit: {limitLabel}</p>
+            <p className="text-xs font-semibold text-foreground">{label}</p>
+            <p className="text-[11px] text-muted-foreground">Limit: {limitLabel}</p>
           </div>
         </div>
         <div className="text-right">
-          <p className="text-xl font-bold text-slate-900">{usageDisplay}</p>
+          <p className="text-xl font-bold text-foreground">{usageDisplay}</p>
           {overage > 0 ? (
             <p className="text-xs text-red-600">{overageDisplay}{overageSuffix}</p>
           ) : percent > 0 && limit !== -1 && limit !== undefined ? (
-            <p className="text-xs text-slate-400">{percent}% used</p>
+            <p className="text-xs text-muted-foreground">{percent}% used</p>
           ) : null}
         </div>
       </div>
 
       {/* Progress bar */}
-      <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
+      <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
         <div
           className={`h-full rounded-full transition-all ${barColor}`}
           style={{ width: `${percent}%` }}

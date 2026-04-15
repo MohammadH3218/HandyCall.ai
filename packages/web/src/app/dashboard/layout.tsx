@@ -7,6 +7,8 @@ import Link from 'next/link';
 import { useAuthStore } from '@/stores/auth-store';
 import { apiClient } from '@/lib/api-client';
 import { computeOnboardingStatus } from '@/lib/setup-status';
+import { normalizePlan } from '@/constants/plans';
+import { LanguageSwitcher } from '@/components/language-switcher';
 import { Logo } from '@/components/ui/logo';
 import { ProfileDropdown } from '@/components/profile-dropdown';
 import { NotificationBell } from '@/components/notifications/notification-bell';
@@ -25,25 +27,22 @@ import {
   IconCreditCard,
   IconBolt,
   IconCurrencyDollar,
-  IconUsersGroup,
   IconChartBarPopular,
   IconSend,
   IconPhoneOutgoing,
   IconMenu2,
   IconX,
-  IconClipboardList,
+  IconUser,
 } from '@tabler/icons-react';
-import { UserRole } from '@/types/shared';
+import { SubscriptionPlan, UserRole } from '@handycall/shared';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const { status } = useSession();
-  const { isAuthenticated, isLoading, checkAuth, userRole, company } = useAuthStore();
+  const { isAuthenticated, isLoading, checkAuth, userRole, company, companyHydrated } =
+    useAuthStore();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [knowledgeCount, setKnowledgeCount] = useState<number | null>(null);
-  const [companyNumber, setCompanyNumber] = useState<string | null>(null);
-  const [companyNumberLoaded, setCompanyNumberLoaded] = useState(false);
   const { hasFeature } = usePlanFeatures();
   const canUseAutomation = hasFeature('follow_up_sequences');
 
@@ -53,78 +52,47 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       userFirstName: null,
       userLastName: null,
       userEmail: null,
-      knowledgeCount,
-      companyNumber,
     });
-  }, [company, knowledgeCount, companyNumber]);
+  }, [company]);
+
 
   const needsSetup = useMemo(() => {
     if (!company) return false;
     return (
       !setupStatus.billing ||
       !setupStatus.companyProfile ||
+      !setupStatus.marketplaceProfile ||
       !setupStatus.serviceArea ||
-      !setupStatus.calendar ||
-      !setupStatus.knowledge ||
-      !setupStatus.phone
+      !setupStatus.calendar
     );
   }, [company, setupStatus]);
 
-  useEffect(() => {
-    if (!company || userRole === UserRole.ADMIN) return;
-    const loadKnowledge = async () => {
-      try {
-        const data = await apiClient.getKnowledgeItems(undefined, undefined, 1);
-        const items = Array.isArray(data) ? data : data?.items || [];
-        setKnowledgeCount(items.length);
-      } catch (err) {
-        setKnowledgeCount(0);
-      }
-    };
-    void loadKnowledge();
-  }, [company, userRole, pathname]);
+  const setupDataReady = true;
 
   useEffect(() => {
-    if (!company || userRole === UserRole.ADMIN) return;
-    const loadNumber = async () => {
-      try {
-        const res: any = await apiClient.getMyTelephonyNumber();
-        const phone =
-          res?.phoneNumber ??
-          res?.phone_number ??
-          res?.data?.phoneNumber ??
-          res?.data?.phone_number ??
-          null;
-        setCompanyNumber(phone || null);
-      } catch {
-        setCompanyNumber(null);
-      } finally {
-        setCompanyNumberLoaded(true);
-      }
-    };
-    void loadNumber();
-  }, [company, userRole]);
-
-  const setupDataReady = knowledgeCount !== null && companyNumberLoaded;
-
-  useEffect(() => {
-    if (!setupDataReady) return;
-    if (status === 'authenticated' && userRole !== UserRole.ADMIN && needsSetup) {
+    if (status !== 'authenticated' || userRole === UserRole.ADMIN) return;
+    // No company at all after hydration → send straight to onboarding
+    if (companyHydrated && !company) {
+      router.replace('/onboarding');
+      return;
+    }
+    // Company present but setup incomplete
+    if (setupDataReady && needsSetup) {
       router.replace('/onboarding');
     }
-  }, [needsSetup, router, setupDataReady, status, userRole]);
+  }, [needsSetup, router, setupDataReady, status, userRole, company, companyHydrated]);
 
   useEffect(() => {
     const populate = async () => {
       if (status === 'authenticated') {
         try {
           // Give session a moment to stabilize before checking auth
-          await new Promise(resolve => setTimeout(resolve, 300));
+          await new Promise((resolve) => setTimeout(resolve, 300));
 
           await checkAuth();
 
           // Wait a bit more for state to update
-          await new Promise(resolve => setTimeout(resolve, 200));
+          await new Promise((resolve) => setTimeout(resolve, 200));
 
           // After checkAuth, verify we actually have valid credentials
           const state = useAuthStore.getState();
@@ -136,17 +104,19 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
           // For admin users, check for tokens. For customers, check for company or tokens
           // But be lenient - if session exists, give it time
-          const hasValidAuth = state.isAuthenticated && (
-            state.accessToken ||
-            state.idToken ||
-            (state.userRole === UserRole.ADMIN) ||
-            state.company
-          );
+          const hasValidAuth =
+            state.isAuthenticated &&
+            (state.accessToken ||
+              state.idToken ||
+              state.userRole === UserRole.ADMIN ||
+              state.company);
 
           // Only sign out if we're definitely unauthenticated and not loading
           if (!hasValidAuth && !state.isLoading) {
             // Check session one more time before signing out
-            const sessionCheck = await fetch('/api/auth/session', { cache: 'no-store' }).catch(() => null);
+            const sessionCheck = await fetch('/api/auth/session', { cache: 'no-store' }).catch(
+              () => null
+            );
             const sessionData = sessionCheck?.ok ? await sessionCheck.json() : null;
 
             if (!sessionData || (!sessionData.accessToken && !sessionData.idToken)) {
@@ -161,7 +131,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
           // Don't immediately sign out on error - check session first
           try {
-            const sessionCheck = await fetch('/api/auth/session', { cache: 'no-store' }).catch(() => null);
+            const sessionCheck = await fetch('/api/auth/session', { cache: 'no-store' }).catch(
+              () => null
+            );
             const sessionData = sessionCheck?.ok ? await sessionCheck.json() : null;
 
             if (!sessionData || (!sessionData.accessToken && !sessionData.idToken)) {
@@ -191,21 +163,21 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   if (status === 'loading' || isLoading || status === 'unauthenticated') {
     return (
-      <div className="flex h-screen items-center justify-center bg-white">
+      <div className="flex h-screen items-center justify-center bg-background">
         <div className="text-center">
           <div className="h-8 w-8 animate-spin rounded-full border-4 border-emerald-600 border-t-transparent mx-auto"></div>
-          <p className="mt-4 text-sm text-slate-500">Loading...</p>
+          <p className="mt-4 text-sm text-muted-foreground">Loading...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="flex h-screen bg-slate-50 overflow-hidden">
+    <div className="flex h-screen overflow-hidden bg-background">
       {/* Mobile overlay */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 bg-slate-900/40 z-40 lg:hidden transition-opacity duration-200"
+          className="fixed inset-0 z-40 bg-slate-950/58 backdrop-blur-sm transition-opacity duration-200 lg:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       )}
@@ -214,7 +186,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <aside
         className={`
           fixed lg:sticky lg:top-0 inset-y-0 left-0 z-50
-          h-screen w-64 bg-white border-r border-slate-200 flex flex-col
+          h-screen w-64 border-r border-border/80 bg-card/80 backdrop-blur-xl flex flex-col
           transform transition-transform duration-200 ease-in-out
           ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
         `}
@@ -225,22 +197,23 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             variant="ghost"
             size="sm"
             onClick={() => setSidebarOpen(false)}
-            className="h-8 w-8 p-0 text-slate-500 hover:text-slate-900 hover:bg-slate-100"
+            className="h-8 w-8 p-0 text-slate-500 hover:text-slate-900 hover:bg-accent/80 dark:text-slate-400 dark:hover:text-slate-100"
           >
             <IconX stroke={1.5} className="h-5 w-5" />
           </Button>
         </div>
 
-        <div className="px-5 py-5 flex flex-col items-start justify-center border-b border-slate-100">
-          <Logo width={150} height={36} />
+        <div className="flex flex-row items-center gap-3 border-b border-border/80 px-5 py-3">
+          <Logo variant="icon" width={32} height={32} />
           {company?.company_name && (
-            <p className="mt-1 text-sm font-semibold text-slate-700 leading-tight">
+            <p className="text-sm font-semibold leading-tight text-foreground truncate">
               {company.company_name}
             </p>
           )}
         </div>
 
         <nav className="flex-1 px-3 py-4 space-y-5 overflow-y-auto">
+          {/* Main section */}
           <div className="space-y-0.5">
             <NavLink
               href="/dashboard"
@@ -251,20 +224,43 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               Dashboard
             </NavLink>
             <NavLink
-              href="/dashboard/calls"
-              icon={<IconPhone stroke={1.5} className="h-5 w-5" />}
-              active={pathname?.startsWith('/dashboard/calls')}
-              onClick={() => setSidebarOpen(false)}
-            >
-              Calls
-            </NavLink>
-            <NavLink
               href="/dashboard/messages"
               icon={<IconMessageCircle stroke={1.5} className="h-5 w-5" />}
               active={pathname?.startsWith('/dashboard/messages')}
               onClick={() => setSidebarOpen(false)}
             >
               Messages
+            </NavLink>
+            <NavLink
+              href="/dashboard/appointments"
+              icon={<IconCalendar stroke={1.5} className="h-5 w-5" />}
+              active={pathname?.startsWith('/dashboard/appointments')}
+              onClick={() => setSidebarOpen(false)}
+            >
+              Appointments
+            </NavLink>
+          </div>
+
+          {/* Marketplace */}
+          <div className="space-y-0.5 border-t border-border/80 pt-3">
+            <p className="px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Marketplace
+            </p>
+            <NavLink
+              href="/dashboard/marketplace/requests"
+              icon={<IconFileText stroke={1.5} className="h-5 w-5" />}
+              active={pathname?.startsWith('/dashboard/marketplace/requests')}
+              onClick={() => setSidebarOpen(false)}
+            >
+              Requests
+            </NavLink>
+            <NavLink
+              href="/dashboard/marketplace/inbox"
+              icon={<IconMessageCircle stroke={1.5} className="h-5 w-5" />}
+              active={pathname?.startsWith('/dashboard/marketplace/inbox')}
+              onClick={() => setSidebarOpen(false)}
+            >
+              Inbox
             </NavLink>
             <NavLink
               href="/dashboard/customers"
@@ -275,61 +271,51 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               Customers
             </NavLink>
             <NavLink
-              href="/dashboard/lead-inbox"
-              icon={<IconUsers stroke={1.5} className="h-5 w-5" />}
-              active={pathname?.startsWith('/dashboard/lead-inbox')}
+              href="/dashboard/marketplace/profile"
+              icon={<IconUser stroke={1.5} className="h-5 w-5" />}
+              active={pathname?.startsWith('/dashboard/marketplace/profile')}
               onClick={() => setSidebarOpen(false)}
             >
-              Lead Inbox
-            </NavLink>
-            <NavLink
-              href="/dashboard/appointments"
-              icon={<IconCalendar stroke={1.5} className="h-5 w-5" />}
-              active={pathname === '/dashboard/appointments' || (pathname?.startsWith('/dashboard/appointments') && !pathname?.startsWith('/dashboard/appointments/requests'))}
-              onClick={() => setSidebarOpen(false)}
-            >
-              Appointments
-            </NavLink>
-            <NavLink
-              href="/dashboard/appointments/requests"
-              icon={<IconClipboardList stroke={1.5} className="h-5 w-5" />}
-              active={pathname?.startsWith('/dashboard/appointments/requests')}
-              onClick={() => setSidebarOpen(false)}
-            >
-              Booking Requests
+              Profile
             </NavLink>
           </div>
 
-          <div className="pt-3 border-t border-slate-100 space-y-0.5">
-            <p className="px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Company</p>
-            <NavLink
-              href="/dashboard/knowledge"
-              icon={<IconMessageDots stroke={1.5} className="h-5 w-5" />}
-              active={pathname?.startsWith('/dashboard/knowledge')}
-              onClick={() => setSidebarOpen(false)}
-            >
-              Knowledge Base
-            </NavLink>
-            <NavLink
-              href="/dashboard/invoices"
-              icon={<IconFileText stroke={1.5} className="h-5 w-5" />}
-              active={pathname?.startsWith('/dashboard/invoices')}
-              onClick={() => setSidebarOpen(false)}
-            >
-              Invoices
-            </NavLink>
-            <NavLink
-              href="/dashboard/settings"
-              icon={<IconSettings stroke={1.5} className="h-5 w-5" />}
-              active={pathname?.startsWith('/dashboard/settings')}
-              onClick={() => setSidebarOpen(false)}
-            >
-              Settings
-            </NavLink>
-          </div>
+          {/* Company section */}
+          <div className="space-y-0.5 border-t border-border/80 pt-3">
+              <p className="px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Company
+              </p>
+              <NavLink
+                href="/dashboard/invoices"
+                icon={<IconFileText stroke={1.5} className="h-5 w-5" />}
+                active={pathname?.startsWith('/dashboard/invoices')}
+                onClick={() => setSidebarOpen(false)}
+              >
+                Invoices
+              </NavLink>
+              <NavLink
+                href="/dashboard/settings"
+                icon={<IconSettings stroke={1.5} className="h-5 w-5" />}
+                active={pathname?.startsWith('/dashboard/settings')}
+                onClick={() => setSidebarOpen(false)}
+              >
+                Settings
+              </NavLink>
+              <NavLink
+                href="/dashboard/payments"
+                icon={<IconCurrencyDollar stroke={1.5} className="h-5 w-5" />}
+                active={pathname?.startsWith('/dashboard/payments')}
+                onClick={() => setSidebarOpen(false)}
+              >
+                Payments
+              </NavLink>
+            </div>
 
-          <div className="pt-3 border-t border-slate-100 space-y-0.5">
-            <p className="px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Account</p>
+          {/* Account section */}
+          <div className="space-y-0.5 border-t border-border/80 pt-3">
+            <p className="px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Account
+            </p>
             <NavLink
               href="/dashboard/usage"
               icon={<IconChartBar stroke={1.5} className="h-5 w-5" />}
@@ -341,40 +327,21 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <NavLink
               href="/dashboard/billing"
               icon={<IconCreditCard stroke={1.5} className="h-5 w-5" />}
-              active={pathname?.startsWith('/dashboard/billing') && !pathname?.startsWith('/dashboard/billing/addons')}
+              active={
+                pathname?.startsWith('/dashboard/billing') &&
+                !pathname?.startsWith('/dashboard/billing/addons')
+              }
               onClick={() => setSidebarOpen(false)}
             >
               Billing
             </NavLink>
-            <NavLink
-              href="/dashboard/billing/addons"
-              icon={<IconBolt stroke={1.5} className="h-5 w-5" />}
-              active={pathname?.startsWith('/dashboard/billing/addons')}
-              onClick={() => setSidebarOpen(false)}
-            >
-              Add-on Packs
-            </NavLink>
-            <NavLink
-              href="/dashboard/payments"
-              icon={<IconCurrencyDollar stroke={1.5} className="h-5 w-5" />}
-              active={pathname?.startsWith('/dashboard/payments')}
-              onClick={() => setSidebarOpen(false)}
-            >
-              Payments
-            </NavLink>
-            <NavLink
-              href="/dashboard/team"
-              icon={<IconUsersGroup stroke={1.5} className="h-5 w-5" />}
-              active={pathname?.startsWith('/dashboard/team')}
-              onClick={() => setSidebarOpen(false)}
-            >
-              Team
-            </NavLink>
           </div>
 
           {canUseAutomation && (
-            <div className="pt-3 border-t border-slate-100 space-y-0.5">
-              <p className="px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Automation</p>
+            <div className="space-y-0.5 border-t border-border/80 pt-3">
+              <p className="px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Automation
+              </p>
               <NavLink
                 href="/dashboard/analytics"
                 icon={<IconChartBarPopular stroke={1.5} className="h-5 w-5" />}
@@ -399,39 +366,34 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               >
                 Follow-ups
               </NavLink>
-              <NavLink
-                href="/dashboard/outbound-calls"
-                icon={<IconPhoneOutgoing stroke={1.5} className="h-5 w-5" />}
-                active={pathname?.startsWith('/dashboard/outbound-calls')}
-                onClick={() => setSidebarOpen(false)}
-              >
-                Outbound Calls
-              </NavLink>
             </div>
           )}
         </nav>
+
+        {/* Bottom user area — profile + language + notification bell */}
+        <div className="flex-none border-t border-border/80 px-3 py-3">
+          <div className="flex items-center gap-2">
+            <div className="flex-1 min-w-0">
+              <ProfileDropdown />
+            </div>
+            <LanguageSwitcher />
+            <NotificationBell />
+          </div>
+        </div>
       </aside>
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Top bar */}
-        <div className="border-b border-slate-200 bg-white px-4 py-3 sm:px-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-10 w-10 p-0 lg:hidden text-slate-600 hover:text-slate-900 hover:bg-slate-100"
-                onClick={() => setSidebarOpen(true)}
-              >
-                <IconMenu2 stroke={1.5} className="h-5 w-5" />
-              </Button>
-            </div>
-            <div className="flex items-center gap-3">
-              <NotificationBell />
-              <ProfileDropdown />
-            </div>
-          </div>
+        {/* Mobile-only top strip with hamburger */}
+        <div className="flex items-center gap-3 border-b border-border/80 bg-card/70 px-3 py-2 backdrop-blur-xl lg:hidden">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-9 w-9 p-0 text-muted-foreground hover:bg-accent/80 hover:text-foreground"
+            onClick={() => setSidebarOpen(true)}
+          >
+            <IconMenu2 stroke={1.5} className="h-5 w-5" />
+          </Button>
         </div>
 
         {/* Main Content Area */}
@@ -448,7 +410,7 @@ function NavLink({
   icon,
   children,
   active,
-  onClick
+  onClick,
 }: {
   href: string;
   icon: React.ReactNode;
@@ -462,13 +424,15 @@ function NavLink({
       onClick={onClick}
       className={`group flex items-center px-3 py-2 text-sm rounded-lg transition-colors duration-150 ${
         active
-          ? 'bg-emerald-50 text-emerald-700'
-          : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+          ? 'border border-emerald-400/25 bg-emerald-50/90 text-emerald-700 shadow-sm dark:bg-emerald-950/45 dark:text-emerald-300'
+          : 'border border-transparent text-muted-foreground hover:border-border/70 hover:bg-accent/70 hover:text-foreground'
       }`}
     >
       <span
         className={`mr-3 transition-colors duration-150 ${
-          active ? 'text-emerald-600' : 'text-slate-400 group-hover:text-slate-600'
+          active
+            ? 'text-emerald-600 dark:text-emerald-400'
+            : 'text-muted-foreground group-hover:text-foreground/70'
         }`}
       >
         {icon}

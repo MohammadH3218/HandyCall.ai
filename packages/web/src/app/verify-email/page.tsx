@@ -1,181 +1,185 @@
 'use client';
 
 import { Suspense, useEffect, useMemo, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { apiClient } from '@/lib/api-client';
-import { SiteHeader } from '@/components/marketing/site-header';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { SiteFooter } from '@/components/marketing/site-footer';
+import { SiteHeader } from '@/components/marketing/site-header';
+import { apiClient } from '@/lib/api-client';
+import {
+  IconArrowRight,
+  IconCircleCheck,
+  IconMail,
+  IconRefresh,
+} from '@tabler/icons-react';
+
+function buildLoginHref(audience: string, email: string) {
+  const isCustomer = audience === 'customer';
+  const basePath = isCustomer ? '/customer/login' : '/pro/login';
+  const callbackUrl = isCustomer
+    ? '/customer/onboarding?callbackUrl=%2Fcustomer%2Fdashboard'
+    : '/onboarding/setup';
+  const params = new URLSearchParams({
+    verified: '1',
+    callbackUrl,
+  });
+
+  if (email) {
+    params.set('email', email);
+  }
+
+  return `${basePath}?${params.toString()}`;
+}
 
 function VerifyEmailPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const emailParam = searchParams?.get('email') || '';
-  const codeParam = searchParams?.get('code') || '';
-  const poolType: 'users' = 'users';
-  const loginHref = '/login';
+  const email = searchParams?.get('email') || '';
+  const token = searchParams?.get('token') || '';
+  const audience = searchParams?.get('audience') || 'pro';
+  const poolType = audience === 'customer' ? 'customer' : 'users';
+  const loginHref = useMemo(() => buildLoginHref(audience, email), [audience, email]);
 
-  const [email, setEmail] = useState(emailParam);
-  const [code, setCode] = useState(codeParam);
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [notice, setNotice] = useState('');
+  const [isVerifying, setIsVerifying] = useState(Boolean(token));
+  const [isVerified, setIsVerified] = useState(false);
   const [isResending, setIsResending] = useState(false);
 
-  const canAutoVerify = useMemo(() => Boolean(emailParam && codeParam), [emailParam, codeParam]);
-
   useEffect(() => {
-    setEmail(emailParam);
-    if (!code) {
-      setCode(codeParam);
-    }
-  }, [emailParam, codeParam, code]);
+    if (!token) return;
 
-  useEffect(() => {
-    if (!canAutoVerify) return;
+    let mounted = true;
     const run = async () => {
-      setIsSubmitting(true);
+      setIsVerifying(true);
       setError('');
       try {
-        await apiClient.confirmSignUp({ email: emailParam, code: codeParam, pool_type: poolType });
-        setSuccess('Email verified successfully. You can now sign in.');
-        setTimeout(() => {
+        const result = await apiClient.verifyEmailToken(token);
+        if (!mounted) return;
+        setIsVerified(true);
+        setNotice(result.message || 'Email verified successfully.');
+        window.setTimeout(() => {
           router.replace(loginHref);
-        }, 1200);
+        }, 1600);
       } catch (err: any) {
-        setError(err?.message || 'Verification failed. Please enter the code from your email.');
+        if (!mounted) return;
+        setError(err?.message || 'Verification failed. Request a fresh email and try again.');
       } finally {
-        setIsSubmitting(false);
+        if (mounted) {
+          setIsVerifying(false);
+        }
       }
     };
+
     void run();
-  }, [canAutoVerify, emailParam, codeParam, poolType, loginHref, router]);
-
-  const handleVerify = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setSuccess('');
-    if (!email.trim() || !code.trim()) {
-      setError('Please enter your email and verification code.');
-      return;
-    }
-
-    setIsSubmitting(true);
-    try {
-      await apiClient.confirmSignUp({ email: email.trim(), code: code.trim(), pool_type: poolType });
-      setSuccess('Email verified successfully. You can now sign in.');
-      setTimeout(() => {
-        router.replace(loginHref);
-      }, 800);
-    } catch (err: any) {
-      setError(err?.message || 'Verification failed. Please check the code and try again.');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+    return () => {
+      mounted = false;
+    };
+  }, [loginHref, router, token]);
 
   const handleResend = async () => {
-    setError('');
-    setSuccess('');
     if (!email.trim()) {
-      setError('Enter your email to resend the verification code.');
+      setError('Missing email address. Go back and sign up again.');
       return;
     }
+
     setIsResending(true);
+    setError('');
+    setNotice('');
+
     try {
-      await apiClient.resendConfirmation({ email: email.trim(), pool_type: poolType });
-      setSuccess('Verification email sent. Check your inbox for the code.');
+      const result = await apiClient.resendConfirmation({
+        email: email.trim(),
+        pool_type: poolType as 'customer' | 'users',
+      });
+      setNotice(result.message || 'Verification email sent.');
     } catch (err: any) {
-      setError(err?.message || 'Unable to resend verification email.');
+      setError(err?.message || 'Unable to resend the verification email.');
     } finally {
       setIsResending(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-white">
-      <SiteHeader />
-      <main className="mx-auto max-w-4xl px-4 pb-16 pt-12">
-        <div className="mx-auto max-w-lg space-y-6">
-          <div className="space-y-3 text-center">
-            <span className="inline-flex items-center rounded-full border border-emerald-100 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
-              Verify your email
-            </span>
-            <h1 className="text-3xl font-bold text-slate-900">Check your inbox</h1>
-            <p className="text-sm text-slate-600">
-              We sent a verification code to your email. Enter it below to activate your account.
+    <div className="flex min-h-screen flex-col bg-white">
+      <SiteHeader hideLogin />
+      <main className="flex flex-1 items-center justify-center px-4 py-16">
+        <div className="w-full max-w-lg rounded-[28px] border border-slate-200 bg-white p-8 shadow-[0_24px_60px_rgba(15,23,42,0.08)]">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-50">
+            {isVerified ? (
+              <IconCircleCheck className="h-8 w-8 text-emerald-600" stroke={1.8} />
+            ) : (
+              <IconMail className="h-8 w-8 text-emerald-600" stroke={1.8} />
+            )}
+          </div>
+
+          <div className="mt-6 text-center">
+            <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">
+              {isVerified ? 'Email verified' : isVerifying ? 'Verifying your email' : 'Check your email'}
+            </h1>
+            <p className="mt-3 text-sm leading-relaxed text-slate-500">
+              {isVerified
+                ? 'Your email is confirmed. We are sending you to the next step now.'
+                : isVerifying
+                ? 'Hang tight while we confirm your verification link.'
+                : email
+                ? `We sent a verification link to ${email}. Open it to continue with your account setup.`
+                : 'Open the verification email we just sent you to continue with your account setup.'}
             </p>
           </div>
 
-          <div className="rounded-xl border border-slate-200 bg-white p-6">
-            <div>
-              <h2 className="text-lg font-semibold text-slate-900">Email verification</h2>
-              <p className="text-sm text-slate-500">Once verified, you can sign in and continue setup.</p>
+          {notice ? (
+            <div className="mt-6 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+              {notice}
             </div>
-            <form onSubmit={handleVerify}>
-              <div className="mt-5 space-y-4">
-                {error && (
-                  <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-                    {error}
-                  </div>
-                )}
-                {success && (
-                  <div className="rounded-md border border-emerald-100 bg-emerald-50 p-3 text-sm text-emerald-700">
-                    {success}
-                  </div>
-                )}
+          ) : null}
 
-                <div className="space-y-2">
-                  <label htmlFor="email" className="block text-sm font-medium text-slate-700">Email</label>
-                  <input
-                    id="email"
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="you@business.com"
-                    required
-                    disabled={isSubmitting}
-                    className="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm text-slate-900 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label htmlFor="code" className="block text-sm font-medium text-slate-700">Verification code</label>
-                  <input
-                    id="code"
-                    value={code}
-                    onChange={(e) => setCode(e.target.value)}
-                    placeholder="123456"
-                    required
-                    disabled={isSubmitting}
-                    className="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm text-slate-900 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
-                  />
-                </div>
-              </div>
-              <div className="mt-5 flex flex-col gap-3">
-                <button
-                  type="submit"
-                  className="w-full rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
-                  disabled={isSubmitting}
-                >
-                  {isSubmitting ? 'Verifying...' : 'Verify email'}
-                </button>
-                <button
-                  type="button"
-                  className="w-full rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
-                  onClick={handleResend}
-                  disabled={isResending}
-                >
-                  {isResending ? 'Sending...' : 'Resend verification email'}
-                </button>
-                <p className="text-center text-sm text-slate-500">
-                  Already verified?{' '}
-                  <Link href={loginHref} className="font-semibold text-emerald-600 hover:underline">
-                    Sign in
-                  </Link>
-                </p>
-              </div>
-            </form>
-          </div>
+          {error ? (
+            <div className="mt-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {error}
+            </div>
+          ) : null}
+
+          {!isVerified && !isVerifying ? (
+            <div className="mt-8 space-y-3">
+              <button
+                type="button"
+                onClick={handleResend}
+                disabled={isResending}
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-60"
+              >
+                {isResending ? (
+                  <>
+                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                    Sending...
+                  </>
+                ) : (
+                  <>
+                    <IconRefresh className="h-4 w-4" stroke={2} />
+                    Resend verification email
+                  </>
+                )}
+              </button>
+
+              <Link
+                href={loginHref}
+                className="flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+              >
+                I already verified my email
+                <IconArrowRight className="h-4 w-4" stroke={2} />
+              </Link>
+            </div>
+          ) : null}
+
+          <p className="mt-8 text-center text-sm text-slate-500">
+            Need a different account?{' '}
+            <Link
+              href={audience === 'customer' ? '/signup' : '/register'}
+              className="font-semibold text-emerald-600 hover:text-emerald-700"
+            >
+              Start over
+            </Link>
+          </p>
         </div>
       </main>
       <SiteFooter />
@@ -185,7 +189,7 @@ function VerifyEmailPageInner() {
 
 export default function VerifyEmailPage() {
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={<div className="flex min-h-screen items-center justify-center" />}>
       <VerifyEmailPageInner />
     </Suspense>
   );

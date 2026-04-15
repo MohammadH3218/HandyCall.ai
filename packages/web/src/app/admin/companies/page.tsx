@@ -13,7 +13,7 @@ import { useToast } from '@/hooks/use-toast';
 import { PageHeader } from '@/components/portal/page-header';
 import { EmptyState } from '@/components/portal/empty-state';
 import { Plus, Search, Building2, Trash2, Edit } from 'lucide-react';
-import { UserRole } from '@/types/shared';
+import { UserRole } from '@handycall/shared';
 import { useAdminCompanyStore } from '@/stores/admin-company-store';
 
 interface Company {
@@ -31,6 +31,16 @@ interface Company {
   cancel_at_period_end?: boolean;
 }
 
+interface DeletedAccount {
+  id: string;
+  company_id: string;
+  company_name: string;
+  company_email?: string;
+  deleted_at: number;
+  deleted_by_email?: string;
+  source?: string;
+}
+
 export default function CompaniesPage() {
   const router = useRouter();
   const { userRole, isAuthenticated, isLoading } = useAuthStore();
@@ -44,6 +54,7 @@ export default function CompaniesPage() {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
+  const [deletedAccounts, setDeletedAccounts] = useState<DeletedAccount[]>([]);
 
   useEffect(() => {
     if (!isLoading && (!isAuthenticated || userRole !== UserRole.ADMIN)) {
@@ -53,6 +64,7 @@ export default function CompaniesPage() {
 
     if (isAuthenticated && userRole === UserRole.ADMIN) {
       loadCompanies();
+      loadDeletedAccounts();
     }
   }, [isAuthenticated, userRole, isLoading, router]);
 
@@ -95,6 +107,24 @@ export default function CompaniesPage() {
     }
   };
 
+  const loadDeletedAccounts = async () => {
+    try {
+      const response = await fetch(`/api/proxy/admin/deleted-accounts?limit=12`, {
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to load deleted accounts');
+      }
+
+      const data = await response.json();
+      setDeletedAccounts(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error('Failed to load deleted accounts:', error);
+      setDeletedAccounts([]);
+    }
+  };
+
   const handleDeleteCompany = async () => {
     if (!selectedCompany) return;
 
@@ -114,6 +144,7 @@ export default function CompaniesPage() {
       });
 
       loadCompanies();
+      loadDeletedAccounts();
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -188,116 +219,157 @@ export default function CompaniesPage() {
         }
       />
 
-        <Card className="mb-6">
-          <CardContent className="pt-6">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search companies by name or email..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-              />
-            </div>
-          </CardContent>
-        </Card>
-
-        {filteredCompanies.length === 0 ? (
-          <EmptyState
-            icon={<Building2 className="h-10 w-10" />}
-            title="No companies found"
-            description={searchTerm ? 'Try a different search term.' : 'Get started by creating your first company.'}
-            action={
-              !searchTerm ? (
-                <Button onClick={() => setCreateDialogOpen(true)}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Create Company
-                </Button>
-              ) : null
-            }
-          />
-        ) : (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {filteredCompanies.map((company) => (
-              <Card
-                key={company.company_id}
-                className="hover:shadow-lg transition-shadow cursor-pointer"
-                onClick={() => {
-                  setCompany(company.company_id, company.company_name);
-                  router.push(`/admin/companies/${company.company_id}`);
-                }}
-              >
-                <CardHeader>
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1 min-w-0">
-                      <CardTitle className="truncate">{company.company_name}</CardTitle>
-                      <CardDescription className="mt-1">{company.service_type.replace('_', ' ')}</CardDescription>
-                    </div>
-                    <Badge className={getStatusColor(company.status)}>{formatCompanyStatus(company.status)}</Badge>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-2 text-sm">
-                    <div className="flex items-center justify-between">
-                      <span className="text-muted-foreground">Email:</span>
-                      <span className="truncate ml-2" title={company.email}>
-                        {company.email}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-muted-foreground">Phone:</span>
-                      <span>{company.phone_number || '-'}</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-muted-foreground">Created:</span>
-                      <span>{formatDate(company.created_at)}</span>
-                    </div>
-                    {(company.subscription_plan || company.subscription_tier) && (
-                      <div className="flex items-center justify-between">
-                        <span className="text-muted-foreground">Plan:</span>
-                        <Badge variant="outline">
-                          {company.subscription_plan || company.subscription_tier}
-                          {company.subscription_status || company.cancel_at_period_end
-                            ? ` - ${formatSubscriptionStatus(company.subscription_status, company.cancel_at_period_end)}`
-                            : ''}
-                        </Badge>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="flex gap-2 mt-4">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="flex-1"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setCompany(company.company_id, company.company_name);
-                        router.push(`/admin/companies/${company.company_id}`);
-                      }}
-                    >
-                      <Edit className="h-3 w-3 mr-1" />
-                      Edit
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="text-destructive hover:text-destructive"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedCompany(company);
-                        setDeleteDialogOpen(true);
-                      }}
-                    >
-                      <Trash2 className="h-3 w-3" />
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+      <Card className="mb-6">
+        <CardContent className="pt-6">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search companies by name or email..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10"
+            />
           </div>
-        )}
-      
+        </CardContent>
+      </Card>
+
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle>Deleted accounts</CardTitle>
+          <CardDescription>Recent company deletions kept for admin audit history.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {deletedAccounts.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No deleted accounts logged yet.</p>
+          ) : (
+            <div className="space-y-3">
+              {deletedAccounts.map((item) => (
+                <div
+                  key={item.id}
+                  className="flex flex-col gap-1 rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div>
+                    <p className="font-medium text-slate-900">{item.company_name}</p>
+                    <p className="text-slate-500">
+                      {item.company_email || 'No company email'} • {formatDate(item.deleted_at)}
+                    </p>
+                  </div>
+                  <div className="text-slate-500">
+                    {item.deleted_by_email
+                      ? `Deleted by ${item.deleted_by_email}`
+                      : 'Deletion recorded'}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {filteredCompanies.length === 0 ? (
+        <EmptyState
+          icon={<Building2 className="h-10 w-10" />}
+          title="No companies found"
+          description={
+            searchTerm
+              ? 'Try a different search term.'
+              : 'Get started by creating your first company.'
+          }
+          action={
+            !searchTerm ? (
+              <Button onClick={() => setCreateDialogOpen(true)}>
+                <Plus className="h-4 w-4 mr-2" />
+                Create Company
+              </Button>
+            ) : null
+          }
+        />
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {filteredCompanies.map((company) => (
+            <Card
+              key={company.company_id}
+              className="hover:shadow-lg transition-shadow cursor-pointer"
+              onClick={() => {
+                setCompany(company.company_id, company.company_name);
+                router.push(`/admin/companies/${company.company_id}`);
+              }}
+            >
+              <CardHeader>
+                <div className="flex items-start justify-between">
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="truncate">{company.company_name}</CardTitle>
+                    <CardDescription className="mt-1">
+                      {company.service_type.replace('_', ' ')}
+                    </CardDescription>
+                  </div>
+                  <Badge className={getStatusColor(company.status)}>
+                    {formatCompanyStatus(company.status)}
+                  </Badge>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2 text-sm">
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Email:</span>
+                    <span className="truncate ml-2" title={company.email}>
+                      {company.email}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Phone:</span>
+                    <span>{company.phone_number || '-'}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Created:</span>
+                    <span>{formatDate(company.created_at)}</span>
+                  </div>
+                  {(company.subscription_plan || company.subscription_tier) && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground">Plan:</span>
+                      <Badge variant="outline">
+                        {company.subscription_plan || company.subscription_tier}
+                        {company.subscription_status || company.cancel_at_period_end
+                          ? ` - ${formatSubscriptionStatus(company.subscription_status, company.cancel_at_period_end)}`
+                          : ''}
+                      </Badge>
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex gap-2 mt-4">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-1"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setCompany(company.company_id, company.company_name);
+                      router.push(`/admin/companies/${company.company_id}`);
+                    }}
+                  >
+                    <Edit className="h-3 w-3 mr-1" />
+                    Edit
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-destructive hover:text-destructive"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedCompany(company);
+                      setDeleteDialogOpen(true);
+                    }}
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
       <CreateCompanyDialog
         open={createDialogOpen}
         onOpenChange={setCreateDialogOpen}

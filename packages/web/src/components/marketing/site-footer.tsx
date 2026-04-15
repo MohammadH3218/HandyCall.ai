@@ -1,21 +1,16 @@
 'use client';
 
 import Link from 'next/link';
+import { Logo } from '@/components/ui/logo';
 
 export function SiteFooter() {
   return (
     <footer className="bg-slate-900">
       <div className="mx-auto max-w-6xl px-4 py-14">
         <div className="mb-10 border-b border-slate-800 pb-10">
-          {/* Inline logo — renders reliably on dark backgrounds */}
-          <Link href="/" className="inline-flex items-center gap-2.5">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-600">
-              <span className="text-[15px] font-black leading-none text-white">HC</span>
-            </div>
-            <span className="text-xl font-bold text-white">HandyCall</span>
-          </Link>
+          <Logo width={130} height={32} imageClassName="brightness-0 invert" />
           <p className="mt-3 max-w-md text-sm text-slate-400">
-            Helping homeowners discover the right service categories and helping pros turn that demand into booked work.
+            Helping Riyadh homeowners discover the right service categories and helping pros turn that demand into booked work.
           </p>
         </div>
 
@@ -65,8 +60,9 @@ export function SiteFooter() {
           </div>
         </div>
 
-        <div className="mt-10 border-t border-slate-800 pt-6">
+        <div className="mt-10 flex flex-col items-center justify-between gap-3 border-t border-slate-800 pt-6 sm:flex-row">
           <p className="text-xs text-slate-500">© 2026 HandyCall. All rights reserved.</p>
+          <p className="text-xs text-slate-600">Riyadh-focused marketplace</p>
         </div>
       </div>
     </footer>

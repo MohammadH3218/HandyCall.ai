@@ -1,4 +1,12 @@
-import { IsNumber, IsOptional, IsString, Min } from 'class-validator';
+import {
+  IsIn,
+  IsNumber,
+  IsOptional,
+  IsPositive,
+  IsString,
+  MaxLength,
+} from 'class-validator';
+import { RIYADH_DISTRICTS } from '@handycall/shared';
 
 export class CreateBookingDto {
   @IsString()
@@ -8,26 +16,25 @@ export class CreateBookingDto {
   service_id: string;
 
   @IsNumber()
-  @Min(Date.now() - 1000) // must be in the future (validated in service)
-  scheduled_start: number;
+  @IsPositive()
+  scheduled_start: number;  // Unix ms
 
   @IsNumber()
-  scheduled_end: number;
+  @IsPositive()
+  scheduled_end: number;    // Unix ms
 
-  @IsString()
+  @IsIn(RIYADH_DISTRICTS as unknown as string[], {
+    message: 'address_district must be a valid Riyadh district',
+  })
   address_district: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(500)
   address_detail?: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(500)
   address_notes?: string;
-}
-
-export class CancelBookingDto {
-  @IsOptional()
-  @IsString()
-  cancellation_reason?: string;
 }

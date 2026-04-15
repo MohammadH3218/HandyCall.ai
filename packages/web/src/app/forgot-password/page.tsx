@@ -84,7 +84,7 @@ export default function ForgotPasswordPage() {
                 {cooldownSeconds > 0 ? 'Resend link' : 'Send another link'}
               </button>
               <p className="text-xs text-slate-500 text-center">
-                Return to <Link className="text-emerald-600 underline" href="/login">sign in</Link>.
+                Return to <Link className="text-emerald-600 underline" href="/pro/login">sign in</Link>.
               </p>
             </div>
           ) : (
@@ -112,7 +112,7 @@ export default function ForgotPasswordPage() {
                 <p className="text-xs text-red-600">{errorMessage}</p>
               ) : (
                 <p className="text-xs text-slate-500">
-                  Return to <Link className="text-emerald-600 underline" href="/login">sign in</Link>.
+                  Return to <Link className="text-emerald-600 underline" href="/pro/login">sign in</Link>.
                 </p>
               )}
             </form>

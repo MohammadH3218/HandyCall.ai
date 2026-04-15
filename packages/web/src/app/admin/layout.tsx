@@ -3,12 +3,13 @@
 import { useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { UserRole } from '@/types/shared';
+import { UserRole } from '@handycall/shared';
 import { useAuthStore } from '@/stores/auth-store';
 import { Logo } from '@/components/ui/logo';
 import { ProfileDropdown } from '@/components/profile-dropdown';
 import { AdminSidebar } from '@/components/admin/admin-sidebar';
 import { CompanySwitcher } from '@/components/admin/company-switcher';
+import { LanguageSwitcher } from '@/components/language-switcher';
 import { useAdminCompanyStore } from '@/stores/admin-company-store';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -68,7 +69,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                     </h1>
                   </div>
                 </div>
-                <ProfileDropdown />
+                <div className="flex items-center gap-3">
+                  <LanguageSwitcher />
+                  <ProfileDropdown />
+                </div>
               </div>
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <CompanySwitcher />

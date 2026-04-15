@@ -3,10 +3,18 @@ type OnboardingStatus = {
   billing: boolean;
   companyProfile: boolean;
   serviceArea: boolean;
-  knowledge: boolean;
+  marketplaceProfile: boolean;
   calendar: boolean;
-  phone: boolean;
 };
+
+function resolveBooleanStep(
+  explicitValue: boolean | undefined,
+  fallbackValue: boolean,
+) {
+  if (explicitValue === true) return true;
+  if (explicitValue === false) return false;
+  return fallbackValue;
+}
 
 function hasPricingProfileData(company: any | null) {
   const profile = company?.pricing_profile;
@@ -36,6 +44,20 @@ function hasServiceAreaEntry(company: any | null) {
   return zips.length > 0 || cities.length > 0;
 }
 
+function hasMarketplaceProfileEntry(company: any | null) {
+  const profile = company?.marketplace_profile;
+  if (!profile || typeof profile !== 'object') return false;
+  const serviceDistricts = Array.isArray(profile.service_districts) ? profile.service_districts : [];
+  const serviceCities = Array.isArray(profile.service_cities) ? profile.service_cities : [];
+  const servicesOffered = Array.isArray(profile.services_offered) ? profile.services_offered : [];
+  return Boolean(
+    String(profile.bio || '').trim() &&
+      String(profile.service_category || '').trim() &&
+      (serviceDistricts.length > 0 || serviceCities.length > 0) &&
+      servicesOffered.length > 0
+  );
+}
+
 function hasInternalCalendarEntry(company: any | null) {
   if (!company || company.calendar_mode !== 'INTERNAL') return false;
   const hours = company.business_hours;
@@ -53,10 +75,8 @@ export function computeOnboardingStatus(input: {
   userFirstName?: string | null;
   userLastName?: string | null;
   userEmail?: string | null;
-  knowledgeCount: number | null;
-  companyNumber: string | null;
 }): OnboardingStatus {
-  const { company, knowledgeCount, companyNumber, userEmail, userFirstName, userLastName } = input;
+  const { company, userEmail, userFirstName, userLastName } = input;
 
   if (!company) {
     return {
@@ -64,9 +84,8 @@ export function computeOnboardingStatus(input: {
       billing: false,
       companyProfile: false,
       serviceArea: false,
-      knowledge: false,
+      marketplaceProfile: false,
       calendar: false,
-      phone: false,
     };
   }
 
@@ -78,23 +97,31 @@ export function computeOnboardingStatus(input: {
       (company.trial_ends_at && company.trial_ends_at > Date.now()),
   );
 
-  const companyProfile = company.company_profile_completed === true || hasCompanyProfileEntry(company);
-  const serviceArea = company.service_area_completed === true || hasServiceAreaEntry(company);
-  const calendar =
-    company.calendar_setup_completed === true ||
-    hasInternalCalendarEntry(company) ||
-    hasExternalCalendarEntry(company);
-  const knowledge = (knowledgeCount !== null ? knowledgeCount > 0 : false) || hasPricingProfileData(company);
-  const phone = Boolean(companyNumber || String(company.phone_number || '').trim());
+  const companyProfile = resolveBooleanStep(
+    company.company_profile_completed,
+    hasCompanyProfileEntry(company),
+  );
+  const serviceArea = resolveBooleanStep(
+    company.service_area_completed,
+    hasServiceAreaEntry(company),
+  );
+  const marketplaceProfile = resolveBooleanStep(
+    company.marketplace_profile_completed,
+    hasMarketplaceProfileEntry(company),
+  );
+  const calendar = resolveBooleanStep(
+    company.calendar_setup_completed,
+    true,
+  );
+  const ownerName = String(company.owner_name || '').trim();
+  const hasProfileName = Boolean(userFirstName || userLastName || ownerName);
 
   return {
-    profile: Boolean((userFirstName || userLastName) && (userEmail || company.email)),
+    profile: Boolean(hasProfileName && (userEmail || company.email)),
     billing,
     companyProfile,
     serviceArea,
-    knowledge,
+    marketplaceProfile,
     calendar,
-    phone,
   };
 }
-

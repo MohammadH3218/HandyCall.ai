@@ -1,25 +1,22 @@
 import { Injectable } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class AppService {
-  constructor(private config: ConfigService) {}
-
   getHealth() {
     return {
       status: 'ok',
-      timestamp: new Date().toISOString(),
-      region: this.config.get('AWS_REGION', 'me-central-1'),
-      environment: this.config.get('NODE_ENV', 'development'),
+      timestamp: Date.now(),
+      uptime: process.uptime(),
+      region: process.env['AWS_REGION'] || 'me-central-1',
     };
   }
 
   getInfo() {
     return {
-      name: 'HandyCall Saudi Marketplace API',
-      version: '1.0.0',
-      description: 'Home services marketplace for Saudi Arabia',
-      region: 'Riyadh, Saudi Arabia',
+      name: 'HandyCall API',
+      version: '2.0.0',
+      description: 'Saudi Home Services Marketplace',
+      environment: process.env['NODE_ENV'] || 'development',
     };
   }
 }

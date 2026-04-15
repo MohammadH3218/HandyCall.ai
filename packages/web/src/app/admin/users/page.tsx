@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/hooks/use-toast';
 import { PageHeader } from '@/components/portal/page-header';
 import { Search, UserPlus } from 'lucide-react';
-import { UserRole } from '@/types/shared';
+import { UserRole } from '@handycall/shared';
 import { CreateUserDialog } from '@/components/admin/create-user-dialog';
 
 interface User {

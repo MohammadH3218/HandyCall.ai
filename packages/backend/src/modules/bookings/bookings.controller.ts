@@ -3,15 +3,16 @@ import {
   Controller,
   ForbiddenException,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   Patch,
   Post,
-  Query,
 } from '@nestjs/common';
 import { BookingsService } from './bookings.service';
-import { CreateBookingDto, CancelBookingDto } from './dto/create-booking.dto';
+import { CreateBookingDto } from './dto/create-booking.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
-import { MarketplaceAuthContext, BookingStatus } from '@handycall/shared';
+import { MarketplaceAuthContext } from '@handycall/shared';
 
 @Controller('bookings')
 export class BookingsController {
@@ -19,75 +20,79 @@ export class BookingsController {
 
   /** Customer: create a booking */
   @Post()
-  create(
+  async create(
     @CurrentUser() user: MarketplaceAuthContext,
     @Body() dto: CreateBookingDto,
   ) {
-    if (user.user_type !== 'CUSTOMER') throw new ForbiddenException();
-    return this.bookingsService.createBooking(user.user_id, dto);
+    if (user.user_type !== 'CUSTOMER') throw new ForbiddenException('Only customers can create bookings');
+    return this.bookingsService.create(user.user_id, dto);
   }
 
   /** Customer or Pro: list own bookings */
   @Get()
-  list(
-    @CurrentUser() user: MarketplaceAuthContext,
-    @Query('status') status?: BookingStatus,
-  ) {
-    if (user.user_type !== 'CUSTOMER' && user.user_type !== 'PRO') {
-      throw new ForbiddenException();
-    }
-    return this.bookingsService.listBookings(user.user_id, user.user_type, status);
+  async list(@CurrentUser() user: MarketplaceAuthContext) {
+    return this.bookingsService.listForUser(user.user_id, user.user_type);
   }
 
-  /** Customer or Pro: get single booking */
+  /** Customer or Pro: get booking by ID */
   @Get(':booking_id')
-  getOne(
+  async findOne(
     @CurrentUser() user: MarketplaceAuthContext,
     @Param('booking_id') bookingId: string,
   ) {
-    return this.bookingsService.getBooking(bookingId, user.user_id);
+    return this.bookingsService.findOne(bookingId, user.user_id, user.user_type);
   }
 
-  /** Pro: confirm a booking */
+  /** Pro: confirm booking */
   @Patch(':booking_id/confirm')
-  confirm(
+  @HttpCode(HttpStatus.OK)
+  async confirm(
     @CurrentUser() user: MarketplaceAuthContext,
     @Param('booking_id') bookingId: string,
   ) {
     if (user.user_type !== 'PRO') throw new ForbiddenException();
-    return this.bookingsService.confirmBooking(bookingId, user.user_id);
+    return this.bookingsService.updateStatus(bookingId, 'CONFIRMED', user.user_id, 'PRO');
   }
 
-  /** Pro: mark booking as in-progress */
+  /** Pro: mark in progress */
   @Patch(':booking_id/start')
-  start(
+  @HttpCode(HttpStatus.OK)
+  async start(
     @CurrentUser() user: MarketplaceAuthContext,
     @Param('booking_id') bookingId: string,
   ) {
     if (user.user_type !== 'PRO') throw new ForbiddenException();
-    return this.bookingsService.startBooking(bookingId, user.user_id);
+    return this.bookingsService.updateStatus(bookingId, 'IN_PROGRESS', user.user_id, 'PRO');
   }
 
-  /** Pro: mark booking as complete */
+  /** Pro: mark complete */
   @Patch(':booking_id/complete')
-  complete(
+  @HttpCode(HttpStatus.OK)
+  async complete(
     @CurrentUser() user: MarketplaceAuthContext,
     @Param('booking_id') bookingId: string,
   ) {
     if (user.user_type !== 'PRO') throw new ForbiddenException();
-    return this.bookingsService.completeBooking(bookingId, user.user_id);
+    return this.bookingsService.updateStatus(bookingId, 'COMPLETED', user.user_id, 'PRO');
   }
 
-  /** Customer or Pro: cancel a booking */
+  /** Customer or Pro: cancel booking */
   @Patch(':booking_id/cancel')
-  cancel(
+  @HttpCode(HttpStatus.OK)
+  async cancel(
     @CurrentUser() user: MarketplaceAuthContext,
     @Param('booking_id') bookingId: string,
-    @Body() dto: CancelBookingDto,
+    @Body('reason') reason?: string,
   ) {
-    if (user.user_type !== 'CUSTOMER' && user.user_type !== 'PRO') {
-      throw new ForbiddenException();
-    }
-    return this.bookingsService.cancelBooking(bookingId, user.user_id, user.user_type, dto);
+    return this.bookingsService.updateStatus(
+      bookingId,
+      'CANCELLED',
+      user.user_id,
+      user.user_type,
+      {
+        cancellation_reason: reason,
+        cancelled_by: user.user_type,
+      },
+    );
   }
 }

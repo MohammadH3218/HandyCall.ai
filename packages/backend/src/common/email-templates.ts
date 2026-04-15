@@ -1,83 +1,65 @@
-interface EmailTemplateOptions {
+type EmailCta = {
+  label: string;
+  url: string;
+};
+
+type HandycallEmailInput = {
   title: string;
+  preheader?: string;
   greeting?: string;
   body: string;
-  cta?: { label: string; url: string };
+  cta?: EmailCta;
   footer?: string;
-}
+  brandName?: string;
+  logoUrl?: string;
+};
 
-/**
- * Renders a bilingual-ready HTML email for HandyCall.
- * Supports Arabic RTL via inline dir attribute.
- */
-export function renderHandycallEmail(opts: EmailTemplateOptions): string {
-  const isAr = /[\u0600-\u06FF]/.test(opts.title + opts.body);
-  const dir = isAr ? 'rtl' : 'ltr';
-  const fontFamily = isAr
-    ? "'Segoe UI', Tahoma, Arial, sans-serif"
-    : "'Segoe UI', Helvetica, Arial, sans-serif";
-
-  const ctaButton = opts.cta
-    ? `
-    <div style="text-align:center;margin:32px 0;">
-      <a href="${opts.cta.url}"
-         style="background:#1a7f5a;color:#ffffff;padding:14px 32px;
-                border-radius:6px;text-decoration:none;font-size:16px;
-                font-weight:600;display:inline-block;">
-        ${opts.cta.label}
-      </a>
-    </div>`
+export function renderHandycallEmail(input: HandycallEmailInput): string {
+  const brand = input.brandName || 'HandyCall';
+  const logoUrl = input.logoUrl || 'https://handycall.org/images/logo-words.png';
+  const preheader = input.preheader || '';
+  const greeting = input.greeting ? `<p style="margin:0 0 16px;font-size:16px;line-height:24px;color:#0f172a;">${input.greeting}</p>` : '';
+  const footer = input.footer
+    ? `<p style="margin:24px 0 0;font-size:12px;line-height:18px;color:#64748b;">${input.footer}</p>`
+    : '';
+  const cta = input.cta
+    ? `<div style="margin:24px 0 8px;">
+         <a href="${input.cta.url}" style="background:#0f9d58;color:#ffffff;text-decoration:none;padding:12px 20px;border-radius:999px;font-weight:600;display:inline-block;">${input.cta.label}</a>
+       </div>`
     : '';
 
-  return `<!DOCTYPE html>
-<html lang="${isAr ? 'ar' : 'en'}" dir="${dir}">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1.0">
-  <title>${opts.title}</title>
-</head>
-<body style="margin:0;padding:0;background:#f5f5f5;font-family:${fontFamily};">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f5f5f5;padding:40px 0;">
-    <tr>
-      <td align="center">
-        <table width="600" cellpadding="0" cellspacing="0"
-               style="background:#ffffff;border-radius:8px;overflow:hidden;
-                      box-shadow:0 2px 8px rgba(0,0,0,0.08);">
-          <!-- Header -->
-          <tr>
-            <td style="background:#1a7f5a;padding:24px 40px;text-align:center;">
-              <span style="color:#ffffff;font-size:24px;font-weight:700;letter-spacing:-0.5px;">
-                HandyCall
-              </span>
-              <span style="color:#a8e6cf;font-size:13px;margin-${isAr ? 'right' : 'left'}:8px;">
-                خدمات المنزل · Home Services
-              </span>
-            </td>
-          </tr>
-          <!-- Body -->
-          <tr>
-            <td style="padding:40px;color:#1a1a1a;line-height:1.7;font-size:15px;" dir="${dir}">
-              ${opts.greeting ? `<p style="font-size:17px;font-weight:600;margin:0 0 16px;">${opts.greeting}</p>` : ''}
-              <p style="margin:0 0 16px;">${opts.body}</p>
-              ${ctaButton}
-              ${opts.footer ? `<p style="color:#666;font-size:13px;margin:24px 0 0;">${opts.footer}</p>` : ''}
-            </td>
-          </tr>
-          <!-- Footer -->
-          <tr>
-            <td style="background:#f9f9f9;padding:20px 40px;text-align:center;
-                       border-top:1px solid #eee;color:#999;font-size:12px;">
-              HandyCall &mdash; الرياض، المملكة العربية السعودية<br>
-              Riyadh, Saudi Arabia &middot;
-              <a href="mailto:support@handycall.sa" style="color:#1a7f5a;text-decoration:none;">
-                support@handycall.sa
-              </a>
-            </td>
-          </tr>
-        </table>
-      </td>
-    </tr>
-  </table>
-</body>
+  return `<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>${input.title}</title>
+  </head>
+  <body style="margin:0;padding:0;background:#f8fafc;font-family:Inter,Segoe UI,Arial,sans-serif;color:#0f172a;">
+    <div style="display:none;max-height:0;overflow:hidden;color:#f8fafc;opacity:0;">${preheader}</div>
+    <table role="presentation" cellpadding="0" cellspacing="0" width="100%">
+      <tr>
+        <td align="center" style="padding:32px 16px;">
+          <table role="presentation" cellpadding="0" cellspacing="0" width="600" style="max-width:600px;background:#ffffff;border-radius:20px;box-shadow:0 12px 30px rgba(15,23,42,0.08);overflow:hidden;">
+            <tr>
+              <td style="padding:32px 32px 0;">
+                <img src="${logoUrl}" alt="${brand}" width="140" style="display:block;border:0;max-width:140px;" />
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:24px 32px 32px;">
+                <h1 style="margin:0 0 12px;font-size:24px;line-height:32px;color:#0f172a;">${input.title}</h1>
+                ${greeting}
+                <div style="font-size:15px;line-height:24px;color:#334155;">${input.body}</div>
+                ${cta}
+                ${footer}
+              </td>
+            </tr>
+          </table>
+          <p style="margin:16px 0 0;font-size:12px;color:#94a3b8;">${brand} - Automated email from HandyCall</p>
+        </td>
+      </tr>
+    </table>
+  </body>
 </html>`;
 }

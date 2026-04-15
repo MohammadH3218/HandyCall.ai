@@ -1,11 +1,9 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { v4 as uuidv4 } from 'uuid';
+import { Injectable, Logger } from '@nestjs/common';
 import { DynamoDBService } from '../../infrastructure/database/dynamodb.service';
 
-// STUB: Integrate HyperPay or Moyasar — both are SAMA-licensed Saudi payment gateways.
-// HyperPay: https://wordpresshyperpay.docs.oppwa.com/
-// Moyasar: https://moyasar.com/docs/
-// Both support MADA, Apple Pay, and credit cards. Choose based on pricing and integration ease.
+// STUB: Integrate HyperPay or Moyasar for production.
+// Both are SAMA-licensed Saudi payment gateways that support Mada, Apple Pay, and credit cards.
+// Data transfer to HyperPay/Moyasar APIs must be documented per PDPL Article 29.
 
 @Injectable()
 export class PaymentsService {
@@ -13,52 +11,46 @@ export class PaymentsService {
 
   constructor(private db: DynamoDBService) {}
 
-  /** Create a payment intent (stub — replace with HyperPay/Moyasar API call) */
-  async createPaymentIntent(
-    bookingId: string,
-    customerId: string,
-  ): Promise<{ payment_reference: string; checkout_url: string; amount_sar: number }> {
-    const booking = await this.db.get('bookings', { booking_id: bookingId });
-    if (!booking) throw new NotFoundException('Booking not found');
-    if (booking.customer_id !== customerId) {
-      throw new NotFoundException('Booking not found');
-    }
-
-    const paymentReference = `HC-${uuidv4().split('-')[0].toUpperCase()}`;
-    const customerTotal = booking.service_price_sar + booking.vat_amount_sar;
-
-    // Stub: In production, call HyperPay/Moyasar here to create a checkout session
-    this.logger.log(
-      `[PAYMENT STUB] Creating intent for booking ${bookingId}: ` +
-      `${(customerTotal / 100).toFixed(2)} SAR, ref=${paymentReference}`,
+  /** STUB: Create a payment intent. Returns a mock reference for local dev. */
+  async createPaymentIntent(bookingId: string, amountHalalas: number, method: string) {
+    this.logger.warn(
+      `[STUB] Payment intent for booking ${bookingId}: ${amountHalalas / 100} SAR via ${method}`,
     );
 
-    await this.db.update(
-      'bookings',
-      { booking_id: bookingId },
-      { payment_reference: paymentReference, updated_at: Date.now() },
-    );
+    const mockReference = `mock_${bookingId}_${Date.now()}`;
+
+    await this.db.update('bookings', { booking_id: bookingId }, {
+      payment_reference: mockReference,
+      payment_method: method,
+      payment_status: 'HELD',
+      updated_at: Date.now(),
+    });
 
     return {
-      payment_reference: paymentReference,
-      checkout_url: `https://checkout.handycall.sa/pay/${paymentReference}`, // stub URL
-      amount_sar: customerTotal,
+      payment_reference: mockReference,
+      amount_sar: amountHalalas / 100,
+      currency: 'SAR',
+      status: 'pending',
+      message: 'STUB: Replace with HyperPay/Moyasar integration for production',
     };
   }
 
-  /** Handle payment webhook from HyperPay/Moyasar (stub) */
-  async handleWebhook(rawBody: Buffer, signature: string): Promise<{ received: boolean }> {
-    // STUB: Verify HMAC signature before processing
-    // HyperPay: verify X-HyperPay-Signature header
-    // Moyasar: verify X-Moyasar-Signature header
-    this.logger.log(`[PAYMENT WEBHOOK STUB] Received webhook, sig=${signature?.slice(0, 16)}...`);
-
-    // In production:
-    // 1. Verify signature using WEBHOOK_SECRET
-    // 2. Parse event type (payment.captured, payment.failed, etc.)
-    // 3. Update booking.payment_status accordingly
-    // 4. Trigger payout notification email on payment.captured
-
+  /** STUB: Handle payment gateway webhook (HyperPay/Moyasar callback). */
+  async handleWebhook(payload: any) {
+    this.logger.warn('[STUB] Payment webhook received:', JSON.stringify(payload));
+    // TODO: Verify webhook signature, update booking payment_status, trigger pro payout
     return { received: true };
+  }
+
+  /** STUB: Release payout to pro (Saudi IBAN bank transfer). */
+  async releasePayout(bookingId: string) {
+    this.logger.warn(`[STUB] Releasing payout for booking ${bookingId}`);
+    // TODO: Integrate SADAD/SARIE or bank transfer API
+    // Pro IBAN format: SA + 22 digits (validated at onboarding step 5)
+    await this.db.update('bookings', { booking_id: bookingId }, {
+      payment_status: 'RELEASED',
+      updated_at: Date.now(),
+    });
+    return { message: 'STUB: Payout queued for bank transfer to pro IBAN' };
   }
 }

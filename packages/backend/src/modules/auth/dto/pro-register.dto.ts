@@ -3,6 +3,8 @@ import {
   IsEnum,
   IsNotEmpty,
   IsNumber,
+  IsOptional,
+  IsBoolean,
   IsString,
   Matches,
   MaxLength,
@@ -23,22 +25,26 @@ export class ProRegisterDto {
   password: string;
 
   @IsString()
+  @IsOptional()
   @IsNotEmpty()
   @MaxLength(100)
-  first_name: string;
+  first_name?: string;
 
   @IsString()
+  @IsOptional()
   @IsNotEmpty()
   @MaxLength(100)
-  last_name: string;
+  last_name?: string;
 
+  @IsOptional()
   @Matches(/^\+9665\d{8}$/, {
     message: 'Phone number must be a valid Saudi mobile number: +966XXXXXXXXX',
   })
-  phone_number: string;
+  phone_number?: string;
 
+  @IsOptional()
   @IsEnum(['NATIONAL_ID', 'IQAMA'] as const)
-  id_type: IdType;
+  id_type?: IdType;
 
   @ValidateIf((o) => o.id_type === 'NATIONAL_ID')
   @IsString()
@@ -50,11 +56,15 @@ export class ProRegisterDto {
   @Matches(/^\d{10}$/, { message: 'iqama_number must be exactly 10 digits' })
   iqama_number?: string;
 
-  @IsNotEmpty()
-  pdpl_consent: boolean;
+  @IsOptional()
+  @IsBoolean()
+  pdpl_consent?: boolean;
 
+  @IsOptional()
   @IsNumber()
-  pdpl_consent_at: number;
+  pdpl_consent_at?: number;
 
-  marketing_consent: boolean;
+  @IsOptional()
+  @IsBoolean()
+  marketing_consent?: boolean;
 }

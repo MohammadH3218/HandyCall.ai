@@ -21,6 +21,13 @@ type AppointmentInfo = {
   contact_phone?: string;
   address?: { street?: string; city?: string; state?: string; zip?: string };
   notes?: string;
+  cancellation?: {
+    can_cancel: boolean;
+    policy_mode: 'ANYTIME' | 'BEFORE_HOURS' | 'NO_CANCELLATIONS';
+    policy_hours?: number;
+    cutoff_at?: number;
+    message: string;
+  };
 };
 
 type BookingInfo = {
@@ -31,6 +38,10 @@ type BookingInfo = {
   phone_number?: string;
   email?: string;
   appointment?: AppointmentInfo;
+  appointment_cancellation_policy?: {
+    mode: 'ANYTIME' | 'BEFORE_HOURS' | 'NO_CANCELLATIONS';
+    window_hours?: number;
+  };
   collected_info?: Record<string, any>;
   intake_schema?: {
     required?: string[];
@@ -187,7 +198,6 @@ export default function BookingPage() {
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
-  const [smsConsent, setSmsConsent] = useState(false);
   const [street, setStreet] = useState('');
   const [city, setCity] = useState('');
   const [state, setState] = useState('');
@@ -692,6 +702,7 @@ export default function BookingPage() {
   const selectedPaymentService = (paymentInfo?.services || []).find((service) => service.service_id === selectedServiceId)
     || (paymentInfo?.services || [])[0]
     || null;
+  const canCancelAppointment = Boolean(appointment?.cancellation?.can_cancel);
   const selectedServiceBillingLabel =
     selectedPaymentService?.billing_type === 'SUBSCRIPTION'
       ? `Subscription${selectedPaymentService?.billing_interval ? ` · every ${selectedPaymentService.billing_interval_count || 1} ${selectedPaymentService.billing_interval}${(selectedPaymentService.billing_interval_count || 1) > 1 ? 's' : ''}` : ''}`
@@ -897,15 +908,30 @@ export default function BookingPage() {
                       <CardTitle>Cancel Appointment</CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4">
+                      {appointment?.cancellation ? (
+                        <div className={`rounded-lg border px-3 py-2 text-sm ${
+                          canCancelAppointment
+                            ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                            : 'border-amber-200 bg-amber-50 text-amber-700'
+                        }`}>
+                          <div className="font-medium">{appointment.cancellation.message}</div>
+                          {appointment.cancellation.cutoff_at ? (
+                            <div className="mt-1 text-xs opacity-80">
+                              Cutoff: {formatSlotLabel(new Date(appointment.cancellation.cutoff_at).toISOString(), info?.timezone)}
+                            </div>
+                          ) : null}
+                        </div>
+                      ) : null}
                       <div className="space-y-2">
                         <Label>Reason (optional)</Label>
                         <Textarea
                           value={cancelReason}
                           onChange={(e) => setCancelReason(e.target.value)}
                           placeholder="Let us know why you're cancelling"
+                          disabled={!canCancelAppointment}
                         />
                       </div>
-                      <Button variant="destructive" onClick={handleCancel} disabled={cancelling}>
+                      <Button variant="destructive" onClick={handleCancel} disabled={cancelling || !canCancelAppointment}>
                         {cancelling ? 'Cancelling...' : 'Cancel Appointment'}
                       </Button>
                     </CardContent>
@@ -1156,32 +1182,6 @@ export default function BookingPage() {
                   </div>
                 </div>
               ) : null}
-
-              <div className="space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-4">
-                <label className="flex items-start gap-3 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    id="sms-consent"
-                    checked={smsConsent}
-                    onChange={(e) => setSmsConsent(e.target.checked)}
-                    className="mt-0.5 h-4 w-4 shrink-0 rounded border-gray-300 accent-emerald-600"
-                  />
-                  <span className="text-xs text-slate-600 leading-relaxed">
-                    I agree to receive appointment-related text messages from{' '}
-                    <strong>HandyCall</strong> (confirmations, reminders, and updates).
-                    Message frequency varies. Msg &amp; data rates may apply. Reply{' '}
-                    <strong>STOP</strong> to opt out, <strong>HELP</strong> for help.
-                    Consent is not a condition of purchase.{' '}
-                    <a href="https://handycall.org/privacy-policy" className="underline text-emerald-700" target="_blank" rel="noopener noreferrer">
-                      Privacy Policy
-                    </a>{' '}
-                    |{' '}
-                    <a href="https://handycall.org/terms" className="underline text-emerald-700" target="_blank" rel="noopener noreferrer">
-                      Terms
-                    </a>
-                  </span>
-                </label>
-              </div>
 
               <Button onClick={handleSubmit} disabled={submitting}>
                 {submitting ? 'Booking...' : 'Confirm Appointment'}

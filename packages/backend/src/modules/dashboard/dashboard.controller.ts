@@ -1,4 +1,4 @@
-import { Controller, ForbiddenException, Get } from '@nestjs/common';
+import { Controller, Get } from '@nestjs/common';
 import { DashboardService } from './dashboard.service';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { MarketplaceAuthContext } from '@handycall/shared';
@@ -9,12 +9,6 @@ export class DashboardController {
 
   @Get()
   getDashboard(@CurrentUser() user: MarketplaceAuthContext) {
-    if (user.user_type === 'CUSTOMER') {
-      return this.dashboardService.getCustomerDashboard(user.user_id);
-    }
-    if (user.user_type === 'PRO') {
-      return this.dashboardService.getProDashboard(user.user_id);
-    }
-    throw new ForbiddenException();
+    return this.dashboardService.getDashboard(user.user_id, user.user_type);
   }
 }

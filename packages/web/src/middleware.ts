@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { getToken } from 'next-auth/jwt';
-import { UserRole } from '@/types/shared';
+import { UserRole } from '@handycall/shared';
 
 /**
  * Middleware for route protection
@@ -29,7 +29,7 @@ export async function middleware(request: NextRequest) {
   // Some hosting rewrites can map /login -> /dashboard/login.
   // Rewriting (not redirecting) prevents infinite 307 loops.
   if (pathname === '/dashboard/login') {
-    const loginUrl = new URL('/login', request.url);
+    const loginUrl = new URL('/pro/login', request.url);
     loginUrl.search = request.nextUrl.search;
     return NextResponse.rewrite(loginUrl);
   }
@@ -66,7 +66,7 @@ export async function middleware(request: NextRequest) {
 
   // Not signed in -> send to login with callback
   if (!token || tokenError || !hasBearer) {
-    const loginUrl = new URL('/login', request.url);
+    const loginUrl = new URL('/pro/login', request.url);
     if (isDashboardRoute) {
       loginUrl.searchParams.set('audience', 'pro');
     }
@@ -85,7 +85,7 @@ export async function middleware(request: NextRequest) {
 
   // Dashboard is for pro/users pool only.
   if (isDashboardRoute && poolType !== 'users') {
-    const loginUrl = new URL('/login', request.url);
+    const loginUrl = new URL('/pro/login', request.url);
     loginUrl.searchParams.set('audience', 'pro');
     loginUrl.searchParams.set('callbackUrl', pathname);
     return NextResponse.redirect(loginUrl);
@@ -93,7 +93,7 @@ export async function middleware(request: NextRequest) {
 
   // Admin routes must use admin pool only.
   if (isAdminRoute && poolType !== 'admin' && userRole !== UserRole.ADMIN) {
-    const loginUrl = new URL('/login', request.url);
+    const loginUrl = new URL('/pro/login', request.url);
     loginUrl.searchParams.set('audience', 'admin');
     loginUrl.searchParams.set('callbackUrl', pathname);
     return NextResponse.redirect(loginUrl);

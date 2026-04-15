@@ -1,14 +1,15 @@
 'use client';
 
-import { Suspense, useState } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import { Logo } from '@/components/ui/logo';
 import { apiClient } from '@/lib/api-client';
+import { isCustomerProfileComplete, sanitizeUsPhoneDigits, sanitizeZip } from '@/lib/customer-profile';
 import {
   IconChevronRight,
   IconChevronLeft,
-  IconCircleCheck,
   IconTool,
   IconMapPin,
   IconUser,
@@ -34,9 +35,17 @@ const SERVICE_CATEGORIES = [
   'Other',
 ];
 
+const US_STATES = [
+  'AL', 'AK', 'AZ', 'AR', 'CA', 'CO', 'CT', 'DE', 'FL', 'GA',
+  'HI', 'ID', 'IL', 'IN', 'IA', 'KS', 'KY', 'LA', 'ME', 'MD',
+  'MA', 'MI', 'MN', 'MS', 'MO', 'MT', 'NE', 'NV', 'NH', 'NJ',
+  'NM', 'NY', 'NC', 'ND', 'OH', 'OK', 'OR', 'PA', 'RI', 'SC',
+  'SD', 'TN', 'TX', 'UT', 'VT', 'VA', 'WA', 'WV', 'WI', 'WY',
+];
+
 const URGENCY_OPTIONS = [
   { value: 'emergency', label: 'Emergency', description: 'Need help within hours' },
-  { value: 'urgent', label: 'Within 1–2 days', description: 'Need it done soon' },
+  { value: 'urgent', label: 'Within 1-2 days', description: 'Need it done soon' },
   { value: 'this_week', label: 'This week', description: 'Flexible but soon' },
   { value: 'flexible', label: "I'm flexible", description: 'No rush, just get it done' },
 ];
@@ -47,11 +56,14 @@ interface FormData {
   service_category: string;
   job_description: string;
   urgency: string;
-  location_zipcode: string;
+  location_address_line1: string;
+  location_address_line2: string;
   location_city: string;
+  location_state: string;
+  location_zipcode: string;
   contact_name: string;
   contact_email: string;
-  contact_phone: string;
+  contact_phone_digits: string;
 }
 
 const STEP_LABELS: Record<Step, string> = {
@@ -71,44 +83,144 @@ const STEP_ICONS: Record<Step, React.ElementType> = {
 const INPUT_CLS =
   'w-full rounded-lg border border-slate-200 px-3.5 py-2.5 text-sm text-slate-900 placeholder-slate-400 outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100';
 
+function formatPhoneDigits(value: string) {
+  const digits = sanitizeUsPhoneDigits(value);
+  if (digits.length <= 3) return digits;
+  if (digits.length <= 6) return `(${digits.slice(0, 3)}) ${digits.slice(3)}`;
+  return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
+}
+
 function RequestPageContent() {
   const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
+  const { data: session } = useSession();
   const preselectedCategory = searchParams.get('category') || '';
 
   const [step, setStep] = useState<Step>(preselectedCategory ? 2 : 1);
   const [submitting, setSubmitting] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [profileHydrating, setProfileHydrating] = useState(true);
 
   const [form, setForm] = useState<FormData>({
     service_category: preselectedCategory,
     job_description: '',
     urgency: '',
-    location_zipcode: '',
+    location_address_line1: '',
+    location_address_line2: '',
     location_city: '',
+    location_state: 'TX',
+    location_zipcode: '',
     contact_name: '',
-    contact_email: '',
-    contact_phone: '',
+    contact_email: (session?.user?.email as string | undefined) || '',
+    contact_phone_digits: '',
   });
 
+  const isSignedInCustomer =
+    (session as any)?.poolType === 'customer' &&
+    Boolean((session as any)?.idToken || (session as any)?.accessToken);
+
+  const contactPhone = useMemo(() => {
+    if (form.contact_phone_digits.length !== 10) return '';
+    return `+1${form.contact_phone_digits}`;
+  }, [form.contact_phone_digits]);
+
   const set = (key: keyof FormData, value: string) =>
-    setForm((f) => ({ ...f, [key]: value }));
+    setForm((current) => ({ ...current, [key]: value }));
+
+  useEffect(() => {
+    if (!isSignedInCustomer) {
+      setProfileHydrating(false);
+      return;
+    }
+
+    let mounted = true;
+    const hydrateProfile = async () => {
+      try {
+        const result = await apiClient.getCustomerProfile();
+        if (!mounted) return;
+
+        const profile = result?.profile || {};
+        if (!result?.is_complete && !isCustomerProfileComplete(profile)) {
+          const callback = `${pathname}${searchParams.toString() ? `?${searchParams.toString()}` : ''}`;
+          router.replace(`/customer/onboarding?callbackUrl=${encodeURIComponent(callback)}`);
+          return;
+        }
+
+        setForm((current) => ({
+          ...current,
+          location_address_line1: current.location_address_line1 || profile.address_line1 || '',
+          location_address_line2: current.location_address_line2 || profile.address_line2 || '',
+          location_city: current.location_city || profile.city || '',
+          location_state: current.location_state || profile.state || 'TX',
+          location_zipcode: current.location_zipcode || sanitizeZip(profile.zipcode || ''),
+          contact_name: current.contact_name || profile.name || String(session?.user?.name || ''),
+          contact_email:
+            current.contact_email || String(session?.user?.email || profile.email || ''),
+          contact_phone_digits:
+            current.contact_phone_digits || sanitizeUsPhoneDigits(profile.phone || ''),
+        }));
+      } catch (err: any) {
+        if (!mounted) return;
+        setError(err?.message || 'We could not load your saved account details.');
+      } finally {
+        if (mounted) setProfileHydrating(false);
+      }
+    };
+
+    void hydrateProfile();
+    return () => {
+      mounted = false;
+    };
+  }, [isSignedInCustomer, pathname, router, searchParams, session?.user?.email, session?.user?.name]);
 
   const canAdvance = (): boolean => {
     if (step === 1) return !!form.service_category;
     if (step === 2) return form.job_description.trim().length >= 20 && !!form.urgency;
-    if (step === 3) return form.location_zipcode.trim().length >= 5;
-    if (step === 4) return !!form.contact_name && !!form.contact_email;
+    if (step === 3) {
+      return Boolean(
+        form.location_address_line1.trim() &&
+          form.location_city.trim() &&
+          form.location_state.trim() &&
+          form.location_zipcode.length === 5,
+      );
+    }
+    if (step === 4) {
+      return Boolean(
+        form.contact_name.trim() &&
+          form.contact_email.trim() &&
+          form.contact_phone_digits.length === 10,
+      );
+    }
     return false;
   };
 
   const handleSubmit = async () => {
     setSubmitting(true);
     setError(null);
+
     try {
-      await apiClient.submitQuoteRequest(form);
-      setSubmitted(true);
+      await apiClient.submitQuoteRequest({
+        service_category: form.service_category,
+        job_description: form.job_description.trim(),
+        urgency: form.urgency,
+        location_address_line1: form.location_address_line1.trim(),
+        location_address_line2: form.location_address_line2.trim() || undefined,
+        location_city: form.location_city.trim(),
+        location_state: form.location_state.trim(),
+        location_zipcode: form.location_zipcode,
+        contact_name: form.contact_name.trim(),
+        contact_email: form.contact_email.trim(),
+        contact_phone: contactPhone,
+        customer_user_id: isSignedInCustomer ? (session?.user as any)?.id : undefined,
+      });
+
+      if (isSignedInCustomer) {
+        router.push('/customer/dashboard/requests?submitted=1');
+        return;
+      }
+
+      router.push('/customer/login?callbackUrl=/customer/dashboard/requests&submitted_request=1');
     } catch (err: any) {
       setError(err?.message || 'Failed to submit. Please try again.');
     } finally {
@@ -116,47 +228,10 @@ function RequestPageContent() {
     }
   };
 
-  if (submitted) {
-    return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-white px-4">
-        <div className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-10 text-center">
-          <div className="flex justify-center mb-4">
-            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-slate-100">
-              <IconCircleCheck className="h-7 w-7 text-slate-900" stroke={2} />
-            </div>
-          </div>
-          <h1 className="text-2xl font-bold text-slate-900">Request Sent!</h1>
-          <p className="mt-2 text-sm text-slate-600">
-            Pros in your area have been notified. You'll receive quotes via email at{' '}
-            <strong>{form.contact_email}</strong>.
-          </p>
-          <p className="mt-2 text-xs text-slate-400">
-            Most customers receive their first response within 2 hours.
-          </p>
-          <div className="mt-6 flex flex-col gap-3">
-            <Link
-              href="/find-pros"
-              className="block w-full rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 transition text-center"
-            >
-              Browse Pros Now
-            </Link>
-            <Link
-              href="/"
-              className="block w-full rounded-lg border border-slate-300 px-5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition text-center"
-            >
-              Back to Home
-            </Link>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   const StepIcon = STEP_ICONS[step];
 
   return (
     <div className="flex min-h-screen flex-col bg-white">
-      {/* Top Bar */}
       <header className="border-b border-slate-200 bg-white px-4 py-3">
         <div className="mx-auto flex max-w-2xl items-center justify-between">
           <Link href="/">
@@ -170,21 +245,18 @@ function RequestPageContent() {
 
       <main className="flex-1 px-4 py-10">
         <div className="mx-auto w-full max-w-xl">
-          {/* Step Progress */}
           <div className="mb-8">
-            <div className="flex items-center justify-between mb-3">
+            <div className="mb-3 flex items-center justify-between">
               {([1, 2, 3, 4] as Step[]).map((s) => (
                 <div key={s} className="flex flex-col items-center gap-1">
                   <div
                     className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-semibold transition-colors ${
-                      s < step
+                      s <= step
                         ? 'bg-slate-900 text-white'
-                        : s === step
-                        ? 'bg-slate-900 text-white ring-4 ring-slate-100'
                         : 'border border-slate-200 bg-white text-slate-400'
                     }`}
                   >
-                    {s < step ? <IconCircleCheck className="h-4 w-4" stroke={2} /> : s}
+                    {s}
                   </div>
                   <span className={`text-xs font-medium ${s === step ? 'text-slate-900' : 'text-slate-400'}`}>
                     {STEP_LABELS[s]}
@@ -200,22 +272,26 @@ function RequestPageContent() {
             </div>
           </div>
 
-          {/* Card */}
           <div className="rounded-xl border border-slate-200 bg-white p-6">
-            {/* Step 1: Service Category */}
+            {profileHydrating ? (
+              <div className="flex h-56 items-center justify-center">
+                <div className="h-8 w-8 animate-spin rounded-full border-2 border-emerald-600 border-t-transparent" />
+              </div>
+            ) : (
+              <>
             {step === 1 && (
               <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <IconTool className="h-5 w-5 text-slate-600" stroke={1.5} />
+                <div className="mb-1 flex items-center gap-2">
+                  <StepIcon className="h-5 w-5 text-slate-600" stroke={1.5} />
                   <h2 className="text-xl font-bold text-slate-900">What service do you need?</h2>
                 </div>
-                <p className="text-sm text-slate-500 mb-5">Select the category that best matches your job.</p>
+                <p className="mb-5 text-sm text-slate-500">Select the category that best matches your job.</p>
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                   {SERVICE_CATEGORIES.map((cat) => (
                     <button
                       key={cat}
                       onClick={() => set('service_category', cat)}
-                      className={`rounded-lg border px-3 py-2.5 text-sm font-medium text-left transition-colors ${
+                      className={`rounded-lg border px-3 py-2.5 text-left text-sm font-medium transition-colors ${
                         form.service_category === cat
                           ? 'border-slate-900 bg-slate-900 text-white'
                           : 'border-slate-200 bg-white text-slate-700 hover:border-slate-400'
@@ -228,14 +304,13 @@ function RequestPageContent() {
               </div>
             )}
 
-            {/* Step 2: Job Description + Urgency */}
             {step === 2 && (
               <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <IconTool className="h-5 w-5 text-slate-600" stroke={1.5} />
+                <div className="mb-1 flex items-center gap-2">
+                  <StepIcon className="h-5 w-5 text-slate-600" stroke={1.5} />
                   <h2 className="text-xl font-bold text-slate-900">Describe your job</h2>
                 </div>
-                <p className="text-sm text-slate-500 mb-5">
+                <p className="mb-5 text-sm text-slate-500">
                   The more detail you provide, the more accurate your quotes will be.
                 </p>
 
@@ -245,9 +320,9 @@ function RequestPageContent() {
                       Job Description <span className="text-red-500">*</span>
                     </label>
                     <textarea
-                      rows={4}
+                      rows={5}
                       className={`${INPUT_CLS} resize-none`}
-                      placeholder="E.g. My kitchen sink is leaking under the cabinet. I need someone to fix the P-trap and check for any water damage..."
+                      placeholder="Example: My kitchen sink is leaking under the cabinet. I need the leak fixed, the drain checked, and a quote for any damaged piping."
                       value={form.job_description}
                       onChange={(e) => set('job_description', e.target.value)}
                     />
@@ -271,8 +346,8 @@ function RequestPageContent() {
                               : 'border-slate-200 bg-white text-slate-700 hover:border-slate-400'
                           }`}
                         >
-                          <p className="font-semibold text-sm">{opt.label}</p>
-                          <p className={`text-xs mt-0.5 ${form.urgency === opt.value ? 'text-slate-300' : 'text-slate-400'}`}>
+                          <p className="text-sm font-semibold">{opt.label}</p>
+                          <p className={`mt-0.5 text-xs ${form.urgency === opt.value ? 'text-slate-300' : 'text-slate-400'}`}>
                             {opt.description}
                           </p>
                         </button>
@@ -283,56 +358,102 @@ function RequestPageContent() {
               </div>
             )}
 
-            {/* Step 3: Location */}
             {step === 3 && (
               <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <IconMapPin className="h-5 w-5 text-slate-600" stroke={1.5} />
+                <div className="mb-1 flex items-center gap-2">
+                  <StepIcon className="h-5 w-5 text-slate-600" stroke={1.5} />
                   <h2 className="text-xl font-bold text-slate-900">Where is the job?</h2>
                 </div>
-                <p className="text-sm text-slate-500 mb-5">
-                  We use your location to match you with nearby pros.
+                <p className="mb-5 text-sm text-slate-500">
+                  {isSignedInCustomer
+                    ? 'We prefilled this from your account. Change it here anytime if this job is for another location.'
+                    : 'Enter the full service address so pros know exactly where the work is needed.'}
                 </p>
 
                 <div className="space-y-4">
                   <div className="space-y-1.5">
                     <label className="block text-sm font-medium text-slate-700">
-                      ZIP Code <span className="text-red-500">*</span>
+                      Address <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="text"
                       className={INPUT_CLS}
-                      placeholder="e.g. 90210"
-                      maxLength={10}
-                      value={form.location_zipcode}
-                      onChange={(e) => set('location_zipcode', e.target.value)}
+                      placeholder="123 Main St"
+                      value={form.location_address_line1}
+                      onChange={(e) => set('location_address_line1', e.target.value)}
                     />
                   </div>
+
                   <div className="space-y-1.5">
                     <label className="block text-sm font-medium text-slate-700">
-                      City <span className="text-slate-400 text-xs font-normal">(optional)</span>
+                      Apt, suite, unit <span className="text-slate-400 text-xs font-normal">(optional)</span>
                     </label>
                     <input
                       type="text"
                       className={INPUT_CLS}
-                      placeholder="e.g. Los Angeles, CA"
-                      value={form.location_city}
-                      onChange={(e) => set('location_city', e.target.value)}
+                      placeholder="Apt 4B"
+                      value={form.location_address_line2}
+                      onChange={(e) => set('location_address_line2', e.target.value)}
                     />
+                  </div>
+
+                  <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_100px_120px]">
+                    <div className="space-y-1.5">
+                      <label className="block text-sm font-medium text-slate-700">
+                        City <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        className={INPUT_CLS}
+                        placeholder="Katy"
+                        value={form.location_city}
+                        onChange={(e) => set('location_city', e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="block text-sm font-medium text-slate-700">
+                        State <span className="text-red-500">*</span>
+                      </label>
+                      <select
+                        className={INPUT_CLS}
+                        value={form.location_state}
+                        onChange={(e) => set('location_state', e.target.value)}
+                      >
+                        {US_STATES.map((state) => (
+                          <option key={state} value={state}>
+                            {state}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="block text-sm font-medium text-slate-700">
+                        ZIP <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        className={INPUT_CLS}
+                        placeholder="77449"
+                        value={form.location_zipcode}
+                        onChange={(e) => set('location_zipcode', sanitizeZip(e.target.value))}
+                      />
+                    </div>
                   </div>
                 </div>
               </div>
             )}
 
-            {/* Step 4: Contact Info */}
             {step === 4 && (
               <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <IconUser className="h-5 w-5 text-slate-600" stroke={1.5} />
+                <div className="mb-1 flex items-center gap-2">
+                  <StepIcon className="h-5 w-5 text-slate-600" stroke={1.5} />
                   <h2 className="text-xl font-bold text-slate-900">Your contact info</h2>
                 </div>
-                <p className="text-sm text-slate-500 mb-5">
-                  Pros will reach out with quotes. We never share your info publicly.
+                <p className="mb-5 text-sm text-slate-500">
+                  {isSignedInCustomer
+                    ? 'We filled this from your account. You can still change it if another person should be the contact for this job.'
+                    : 'Pros will use this to follow up. After you send your request, we&apos;ll take you to your Requests page.'}
                 </p>
 
                 <div className="space-y-4">
@@ -348,6 +469,7 @@ function RequestPageContent() {
                       onChange={(e) => set('contact_name', e.target.value)}
                     />
                   </div>
+
                   <div className="space-y-1.5">
                     <label className="block text-sm font-medium text-slate-700">
                       Email <span className="text-red-500">*</span>
@@ -359,57 +481,64 @@ function RequestPageContent() {
                       value={form.contact_email}
                       onChange={(e) => set('contact_email', e.target.value)}
                     />
-                    <p className="text-xs text-slate-400">We'll send quote responses to this address.</p>
+                    <p className="text-xs text-slate-400">We&apos;ll send quote responses to this address.</p>
                   </div>
+
                   <div className="space-y-1.5">
                     <label className="block text-sm font-medium text-slate-700">
-                      Phone <span className="text-slate-400 text-xs font-normal">(optional)</span>
+                      Phone Number <span className="text-red-500">*</span>
                     </label>
-                    <input
-                      type="tel"
-                      className={INPUT_CLS}
-                      placeholder="+1 555 000 0000"
-                      value={form.contact_phone}
-                      onChange={(e) => set('contact_phone', e.target.value)}
-                    />
+                    <div className="flex overflow-hidden rounded-lg border border-slate-200 focus-within:border-emerald-400 focus-within:ring-2 focus-within:ring-emerald-100">
+                      <div className="flex items-center gap-2 border-r border-slate-200 bg-slate-50 px-3 text-sm font-medium text-slate-700">
+                        <span aria-hidden="true">🇺🇸</span>
+                        <span>+1</span>
+                      </div>
+                      <input
+                        type="tel"
+                        inputMode="numeric"
+                        className="w-full px-3.5 py-2.5 text-sm text-slate-900 placeholder-slate-400 outline-none"
+                        placeholder="(555) 123-4567"
+                        value={formatPhoneDigits(form.contact_phone_digits)}
+                        onChange={(e) => set('contact_phone_digits', sanitizeUsPhoneDigits(e.target.value))}
+                      />
+                    </div>
+                    <p className="text-xs text-slate-400">US numbers only. Enter exactly 10 digits.</p>
                   </div>
                 </div>
 
-                {/* Summary */}
-                <div className="mt-5 rounded-lg bg-slate-50 border border-slate-200 p-4 text-sm space-y-1.5">
-                  <p className="font-semibold text-slate-700 mb-2">Your Request Summary</p>
-                  <div className="flex justify-between">
+                <div className="mt-5 space-y-1.5 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm">
+                  <p className="mb-2 font-semibold text-slate-700">Your Request Summary</p>
+                  <div className="flex justify-between gap-4">
                     <span className="text-slate-500">Service</span>
-                    <span className="font-medium text-slate-800">{form.service_category}</span>
+                    <span className="text-right font-medium text-slate-800">{form.service_category}</span>
                   </div>
-                  <div className="flex justify-between">
+                  <div className="flex justify-between gap-4">
                     <span className="text-slate-500">Urgency</span>
-                    <span className="font-medium text-slate-800">
+                    <span className="text-right font-medium text-slate-800">
                       {URGENCY_OPTIONS.find((u) => u.value === form.urgency)?.label}
                     </span>
                   </div>
-                  <div className="flex justify-between">
+                  <div className="flex justify-between gap-4">
                     <span className="text-slate-500">Location</span>
-                    <span className="font-medium text-slate-800">
-                      {form.location_city ? `${form.location_city} ` : ''}{form.location_zipcode}
+                    <span className="text-right font-medium text-slate-800">
+                      {[form.location_city, form.location_state, form.location_zipcode].filter(Boolean).join(', ')}
                     </span>
                   </div>
                 </div>
               </div>
             )}
 
-            {error && (
+            {error ? (
               <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                 {error}
               </div>
-            )}
+            ) : null}
 
-            {/* Navigation */}
             <div className="mt-6 flex items-center justify-between">
               {step > 1 ? (
                 <button
-                  onClick={() => setStep((s) => (s - 1) as Step)}
-                  className="flex items-center gap-1 rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition"
+                  onClick={() => setStep((current) => (current - 1) as Step)}
+                  className="flex items-center gap-1 rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
                 >
                   <IconChevronLeft className="h-4 w-4" stroke={2} />
                   Back
@@ -420,9 +549,9 @@ function RequestPageContent() {
 
               {step < 4 ? (
                 <button
-                  onClick={() => setStep((s) => (s + 1) as Step)}
+                  onClick={() => setStep((current) => (current + 1) as Step)}
                   disabled={!canAdvance()}
-                  className="flex items-center gap-1 rounded-lg bg-emerald-600 px-5 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50 transition"
+                  className="flex items-center gap-1 rounded-lg bg-emerald-600 px-5 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-50"
                 >
                   Continue
                   <IconChevronRight className="h-4 w-4" stroke={2} />
@@ -431,11 +560,9 @@ function RequestPageContent() {
                 <button
                   onClick={handleSubmit}
                   disabled={!canAdvance() || submitting}
-                  className="flex items-center gap-2 rounded-lg bg-emerald-600 px-5 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50 transition"
+                  className="flex items-center gap-2 rounded-lg bg-emerald-600 px-5 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-50"
                 >
-                  {submitting ? (
-                    'Submitting…'
-                  ) : (
+                  {submitting ? 'Submitting...' : (
                     <>
                       <IconSend className="h-4 w-4" stroke={1.5} />
                       Send Request
@@ -444,6 +571,8 @@ function RequestPageContent() {
                 </button>
               )}
             </div>
+              </>
+            )}
           </div>
 
           <p className="mt-4 text-center text-xs text-slate-400">

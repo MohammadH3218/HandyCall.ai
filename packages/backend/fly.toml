@@ -1,0 +1,48 @@
+app = "handycall-api"
+primary_region = "iad"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  NODE_ENV = "production"
+  PORT = "8080"
+  API_PREFIX = "api/v1"
+  AWS_REGION = "us-east-1"
+  SES_REGION = "us-east-1"
+  DYNAMODB_TABLE_PREFIX = "handycall_prod_"
+  USE_PARAMETER_STORE = "false"
+  FRONTEND_URL = "https://handycall.org"
+  NEXT_PUBLIC_APP_URL = "https://handycall.org"
+  BACKEND_URL = "https://handycall-api.fly.dev"
+  CORS_ORIGINS = "https://handycall.org,https://www.handycall.org,https://handycall-g2qp2kqin-mohammadh3218s-projects.vercel.app,https://handycall-api.fly.dev,http://localhost:3000,http://localhost:3001"
+  CONTACT_EMAIL_TO = "hello@handycall.org"
+  CONTACT_EMAIL_FROM = "hello@handycall.org"
+  NO_CONTACT_EMAIL = "no-contact@handycall.org"
+  BOOKING_FROM_EMAIL = "no-contact@handycall.org"
+  BOOKING_EMAIL_DOMAIN = "handycall.org"
+  EMAIL_PROVIDER = "ses"
+  STORAGE_PROVIDER = "s3"
+  S3_BUCKET_RECORDINGS = "handycall-recordings-dev-982081079378"
+  S3_BUCKET_TRANSCRIPTS = "handycall-transcripts-dev-982081079378"
+  TELEPHONY_PROVIDER = "mock"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ["app"]
+
+  [[http_service.checks]]
+    grace_period = "30s"
+    interval = "15s"
+    method = "GET"
+    timeout = "10s"
+    path = "/api/v1/health"
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory_mb = 512

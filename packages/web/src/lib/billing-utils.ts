@@ -1,4 +1,4 @@
-import { SubscriptionPlan } from '@/types/shared';
+import { SubscriptionPlan } from '@handycall/shared';
 import { PLAN_CATALOG, normalizePlan } from '@/constants/plans';
 
 export type NormalizedUsage = {
