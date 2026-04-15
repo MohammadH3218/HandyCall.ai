@@ -152,7 +152,16 @@ export function SiteHeader({
   proLinks = false,
 }: SiteHeaderProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
   const isMinimal = variant === 'minimal';
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 24);
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
   const navLinks = NAV_BASE.map((n) => ({ ...n, href: n.path }));
   const { user, checkAuth } = useAuthStore();
   const { data: session, status } = useSession();
@@ -205,8 +214,18 @@ export function SiteHeader({
   };
 
   return (
-    <header className="sticky top-0 z-20 border-b border-slate-200 bg-white">
-      <div className="mx-auto flex max-w-6xl items-center justify-between gap-6 px-4 py-3.5">
+    <header
+      className={`sticky top-0 z-20 transition-all duration-300 ${
+        scrolled ? 'border-b-0 bg-transparent px-4 py-2' : 'border-b border-slate-200 bg-white'
+      }`}
+    >
+      <div
+        className={`mx-auto flex max-w-6xl items-center justify-between gap-6 transition-all duration-300 ${
+          scrolled
+            ? 'rounded-2xl border border-slate-200/80 bg-white/95 px-5 py-2.5 shadow-lg backdrop-blur-md'
+            : 'px-4 py-3.5'
+        }`}
+      >
         <div className="flex shrink-0 items-center gap-3">
           <Link href="/" className="flex items-center">
             <Logo width={140} height={34} />
@@ -302,7 +321,13 @@ export function SiteHeader({
       </div>
 
       {mobileOpen && (
-        <div className="space-y-1 border-t border-slate-100 bg-white px-4 py-4 md:hidden">
+        <div
+          className={`space-y-1 bg-white px-4 py-4 md:hidden ${
+            scrolled
+              ? 'mx-4 rounded-b-2xl border-x border-b border-slate-200/80 shadow-lg'
+              : 'border-t border-slate-100'
+          }`}
+        >
           {!isMinimal &&
             navLinks.map((link) => (
               <Link
