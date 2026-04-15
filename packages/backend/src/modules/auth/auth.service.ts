@@ -276,7 +276,13 @@ export class AuthService {
 
   // ─── Email Verification ─────────────────────────────────────────────────────
 
-  async verifyEmail(token: string): Promise<{ message: string }> {
+  async verifyEmail(token: string): Promise<{
+    message: string;
+    access_token: string;
+    refresh_token: string;
+    user_type: UserType;
+    user: Record<string, any>;
+  }> {
     const record = await this.db.get('email_verifications', { token });
 
     if (!record) {
@@ -294,7 +300,7 @@ export class AuthService {
     const table = record.user_type === 'CUSTOMER' ? 'customers' : 'pros';
     const pkField = record.user_type === 'CUSTOMER' ? 'customer_id' : 'pro_id';
 
-    await this.db.update(
+    const verifiedUser = await this.db.update(
       table,
       { [pkField]: record.user_id },
       { email_verified: true, status: record.user_type === 'CUSTOMER' ? 'ACTIVE' : 'PENDING_REVIEW', updated_at: Date.now() },
@@ -302,7 +308,19 @@ export class AuthService {
 
     await this.db.update('email_verifications', { token }, { used: true });
 
-    return { message: 'Email verified successfully.' };
+    if (!verifiedUser?.email) {
+      throw new NotFoundException('Verified account not found.');
+    }
+
+    const tokens = this.signTokens(record.user_id, record.user_type, verifiedUser.email);
+    const { password_hash: _, ...safeUser } = verifiedUser;
+
+    return {
+      message: 'Email verified successfully.',
+      ...tokens,
+      user_type: record.user_type,
+      user: safeUser,
+    };
   }
 
   async resendVerification(email: string, userType: UserType) {

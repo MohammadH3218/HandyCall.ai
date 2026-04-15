@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { signIn } from 'next-auth/react';
 import { SiteFooter } from '@/components/marketing/site-footer';
 import { SiteHeader } from '@/components/marketing/site-header';
 import { apiClient } from '@/lib/api-client';
@@ -31,6 +32,12 @@ function buildLoginHref(audience: string, email: string) {
   return `${basePath}?${params.toString()}`;
 }
 
+function buildCallbackUrl(audience: string) {
+  return audience === 'customer'
+    ? '/customer/onboarding?callbackUrl=%2Fcustomer%2Fdashboard'
+    : '/onboarding/setup';
+}
+
 function VerifyEmailPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -38,6 +45,7 @@ function VerifyEmailPageInner() {
   const token = searchParams?.get('token') || '';
   const audience = searchParams?.get('audience') || 'pro';
   const poolType = audience === 'customer' ? 'customer' : 'users';
+  const callbackUrl = useMemo(() => buildCallbackUrl(audience), [audience]);
   const loginHref = useMemo(() => buildLoginHref(audience, email), [audience, email]);
 
   const [error, setError] = useState('');
@@ -54,12 +62,19 @@ function VerifyEmailPageInner() {
       setIsVerifying(true);
       setError('');
       try {
-        const result = await apiClient.verifyEmailToken(token);
+        const result = await signIn('email-verification', {
+          token,
+          redirect: false,
+          callbackUrl,
+        });
         if (!mounted) return;
+        if (result?.error) {
+          throw new Error(result.error);
+        }
         setIsVerified(true);
-        setNotice(result.message || 'Email verified successfully.');
+        setNotice('Email verified successfully. Redirecting you to the next step.');
         window.setTimeout(() => {
-          router.replace(loginHref);
+          router.replace(result?.url || callbackUrl);
         }, 1600);
       } catch (err: any) {
         if (!mounted) return;
@@ -75,7 +90,7 @@ function VerifyEmailPageInner() {
     return () => {
       mounted = false;
     };
-  }, [loginHref, router, token]);
+  }, [callbackUrl, router, token]);
 
   const handleResend = async () => {
     if (!email.trim()) {

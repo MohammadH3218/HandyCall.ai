@@ -127,7 +127,7 @@ function ProLoginInner() {
             ) : null}
 
             <div className="mt-6">
-              <SocialAuthButtons audience="pro" callbackUrl="/onboarding/setup" />
+              <SocialAuthButtons audience="pro" callbackUrl={callbackUrl} />
             </div>
 
             <div className="mt-6 flex items-center gap-4 text-xs uppercase tracking-[0.2em] text-slate-300">

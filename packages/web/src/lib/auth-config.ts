@@ -33,6 +33,7 @@ const COGNITO_CLIENT_SECRET =
   process.env.COGNITO_CLIENT_SECRET ??
   process.env.AWS_COGNITO_USERS_CLIENT_SECRET ??
   "";
+const HAS_COGNITO_CLIENT_SECRET = Boolean(COGNITO_CLIENT_SECRET.trim());
 const COGNITO_GOOGLE_IDP = process.env.COGNITO_GOOGLE_IDP ?? "Google";
 const COGNITO_APPLE_IDP = process.env.COGNITO_APPLE_IDP ?? "SignInWithApple";
 const COGNITO_AUTH_DOMAIN =
@@ -127,9 +128,16 @@ const buildCognitoProvider = (options: {
     id: options.id,
     name: options.name,
     clientId: COGNITO_CLIENT_ID,
-    clientSecret: COGNITO_CLIENT_SECRET,
+    ...(HAS_COGNITO_CLIENT_SECRET ? { clientSecret: COGNITO_CLIENT_SECRET } : {}),
     issuer: COGNITO_ISSUER,
-    checks: ["state", "nonce"],
+    checks: ["pkce", "state", "nonce"],
+    ...(HAS_COGNITO_CLIENT_SECRET
+      ? {}
+      : {
+          client: {
+            token_endpoint_auth_method: "none",
+          },
+        }),
     ...(COGNITO_AUTH_BASE_URL
       ? {
           authorization: {
@@ -181,6 +189,75 @@ export const authOptions: NextAuthOptions = {
           }),
         ]
       : []),
+    CredentialsProvider({
+      id: "email-verification",
+      name: "Email verification",
+      credentials: {
+        token: { label: "Token", type: "text" },
+      },
+      async authorize(credentials) {
+        const verificationToken = (credentials?.token || "").trim();
+        if (!verificationToken) {
+          throw new Error("Verification token is required");
+        }
+
+        const response = await fetch(
+          `${API_URL}/auth/verify-email?token=${encodeURIComponent(verificationToken)}`,
+          { method: "GET" },
+        );
+
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          const message =
+            data?.message ||
+            data?.error?.message ||
+            data?.error ||
+            "Verification failed";
+          throw new Error(message);
+        }
+
+        const accessToken = data.access_token || data.accessToken || data.id_token || data.idToken;
+        if (!accessToken) {
+          throw new Error("Verification completed but no session token was returned");
+        }
+
+        const refreshToken = data.refresh_token || data.refreshToken;
+        const userPayload = data.user || {};
+        const decoded = accessToken ? decodeJWT(accessToken) : null;
+        const poolType = data.user_type === "CUSTOMER" ? "customer" : "users";
+        const givenName =
+          (userPayload.first_name as string | undefined) ||
+          (decoded?.given_name as string | undefined);
+        const familyName =
+          (userPayload.last_name as string | undefined) ||
+          (decoded?.family_name as string | undefined);
+        const name =
+          (decoded?.name as string | undefined) ||
+          [givenName, familyName].filter(Boolean).join(" ") ||
+          undefined;
+        const userId =
+          (userPayload.customer_id as string | undefined) ||
+          (userPayload.pro_id as string | undefined) ||
+          (decoded?.sub as string | undefined) ||
+          verificationToken;
+        const email =
+          (userPayload.email as string | undefined) ||
+          (decoded?.email as string | undefined);
+
+        return {
+          id: userId,
+          email,
+          accessToken,
+          idToken: accessToken,
+          refreshToken,
+          userRole: UserRole.OWNER,
+          poolType,
+          name,
+          given_name: givenName,
+          family_name: familyName,
+        };
+      },
+    }),
     CredentialsProvider({
       name: "Credentials",
       credentials: {
