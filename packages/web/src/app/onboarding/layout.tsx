@@ -215,7 +215,7 @@ function OnboardingShell({ children }: { children: React.ReactNode }) {
             </div>
           </div>
         </header>
-        <main className="flex flex-1 flex-col overflow-hidden">{children}</main>
+        <main className="flex flex-1 flex-col min-h-0">{children}</main>
         <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
           <DialogContent className="max-w-md">
             <DialogHeader>
