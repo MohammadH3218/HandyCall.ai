@@ -10,11 +10,8 @@ import { ApiResponse } from '@handycall/shared';
 
 @Injectable()
 export class ResponseInterceptor<T> implements NestInterceptor<T, ApiResponse<T>> {
-  // @ts-expect-error RxJS version conflict between root and package node_modules
   intercept(_context: ExecutionContext, next: CallHandler): Observable<ApiResponse<T>> {
-    // @ts-expect-error RxJS version conflict
     return next.handle().pipe(
-      // @ts-expect-error RxJS version conflict
       map((data) => ({
         success: true,
         data,
