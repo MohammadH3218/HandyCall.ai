@@ -11,6 +11,7 @@ import {
   CognitoIdentityProviderClient,
   AdminDeleteUserCommand,
   AdminGetUserCommand,
+  ListUsersCommand,
 } from '@aws-sdk/client-cognito-identity-provider';
 import {
   S3Client,
@@ -294,27 +295,34 @@ export class ProsService {
     // 8. Delete pro record from DynamoDB
     await this.db.delete('pros', { pro_id: proId });
 
-    // 9. Delete from Cognito (users pool) — by email as username
+    // 9. Delete from Cognito — look up the real username by email first.
+    //    Federated users (Google/Apple) have usernames like "Google_12345", not the email.
     if (pro.email && this.userPoolId) {
       try {
-        // Verify user exists before deleting to avoid spurious errors
-        await this.cognito.send(
-          new AdminGetUserCommand({
+        const listResult = await this.cognito.send(
+          new ListUsersCommand({
             UserPoolId: this.userPoolId,
-            Username: pro.email,
+            Filter: `email = "${pro.email}"`,
+            Limit: 5,
           }),
         );
-        await this.cognito.send(
-          new AdminDeleteUserCommand({
-            UserPoolId: this.userPoolId,
-            Username: pro.email,
-          }),
+        const cognitoUsers = listResult.Users ?? [];
+        await Promise.all(
+          cognitoUsers.map((u) =>
+            this.cognito.send(
+              new AdminDeleteUserCommand({
+                UserPoolId: this.userPoolId,
+                Username: u.Username!,
+              }),
+            ).catch((e: any) => {
+              if (e?.name !== 'UserNotFoundException') {
+                this.logger.warn(`deleteAccount[${proId}] Cognito deletion failed for ${u.Username}: ${e}`);
+              }
+            }),
+          ),
         );
       } catch (e: any) {
-        // UserNotFoundException means already gone — not an error
-        if (e?.name !== 'UserNotFoundException') {
-          this.logger.warn(`deleteAccount[${proId}] Cognito deletion failed: ${e}`);
-        }
+        this.logger.warn(`deleteAccount[${proId}] Cognito lookup/deletion failed: ${e}`);
       }
     }
 
