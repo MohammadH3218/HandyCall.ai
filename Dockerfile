@@ -41,4 +41,4 @@ COPY --from=builder /app/packages/backend/dist ./packages/backend/dist
 
 EXPOSE 8080
 
-CMD ["node", "packages/backend/dist/main"]
+CMD ["node", "packages/backend/dist/backend/src/main"]
