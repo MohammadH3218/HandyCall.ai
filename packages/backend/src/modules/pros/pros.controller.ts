@@ -1,8 +1,11 @@
 import {
   Body,
   Controller,
+  Delete,
   ForbiddenException,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   Post,
   Query,
@@ -47,6 +50,15 @@ export class ProsController {
   async getMe(@CurrentUser() user: MarketplaceAuthContext) {
     if (user.user_type !== 'PRO') throw new ForbiddenException();
     return this.prosService.findById(user.user_id);
+  }
+
+  /** Pro: permanently delete own account and all associated data */
+  @Delete('me/account')
+  @HttpCode(HttpStatus.OK)
+  async deleteMyAccount(@CurrentUser() user: MarketplaceAuthContext) {
+    if (user.user_type !== 'PRO') throw new ForbiddenException();
+    await this.prosService.deleteAccount(user.user_id);
+    return { message: 'Account permanently deleted.' };
   }
 
   /** Public: get a pro's public profile (for customer viewing) */

@@ -2,9 +2,20 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { v4 as uuidv4 } from 'uuid';
+import {
+  CognitoIdentityProviderClient,
+  AdminDeleteUserCommand,
+  AdminGetUserCommand,
+} from '@aws-sdk/client-cognito-identity-provider';
+import {
+  S3Client,
+  DeleteObjectCommand,
+} from '@aws-sdk/client-s3';
 import { DynamoDBService } from '../../infrastructure/database/dynamodb.service';
 import { OnboardingIdentityDto } from './dto/onboarding-identity.dto';
 import { OnboardingProfileDto } from './dto/onboarding-profile.dto';
@@ -14,7 +25,22 @@ import { Pro, sarToHalalas } from '@handycall/shared';
 
 @Injectable()
 export class ProsService {
-  constructor(private db: DynamoDBService) {}
+  private readonly logger = new Logger(ProsService.name);
+  private readonly cognito: CognitoIdentityProviderClient;
+  private readonly s3: S3Client;
+  private readonly userPoolId: string;
+  private readonly mediaBucket: string;
+
+  constructor(
+    private db: DynamoDBService,
+    private config: ConfigService,
+  ) {
+    const region = config.get<string>('AWS_REGION') ?? 'me-central-1';
+    this.cognito = new CognitoIdentityProviderClient({ region });
+    this.s3 = new S3Client({ region });
+    this.userPoolId = config.get<string>('COGNITO_USER_POOL_ID') ?? '';
+    this.mediaBucket = config.get<string>('S3_BUCKET_MEDIA') ?? config.get<string>('S3_MEDIA_BUCKET') ?? '';
+  }
 
   async findById(proId: string): Promise<Pro> {
     const item = await this.db.get('pros', { pro_id: proId });
@@ -156,6 +182,143 @@ export class ProsService {
 
     const { password_hash: _, ...safe } = result as any;
     return safe as Pro;
+  }
+
+  // ─── Account Deletion ─────────────────────────────────────────────────────
+
+  /**
+   * Permanently deletes a pro account and ALL associated data:
+   * DynamoDB (pros, services, bookings, reviews, availability, tokens),
+   * S3 (profile photo, ID document, listing photos),
+   * and Cognito (removes the user from the users pool).
+   *
+   * Each step is attempted independently so a partial failure in one
+   * external system doesn't block the others.
+   */
+  async deleteAccount(proId: string): Promise<void> {
+    // 1. Fetch the pro record first (need email + S3 keys)
+    const raw = await this.db.get('pros', { pro_id: proId });
+    if (!raw) throw new NotFoundException('Pro not found');
+    const pro = raw as Pro & { password_hash?: string; email?: string };
+
+    // 2. Delete DynamoDB: services (composite PK: pro_id + service_id)
+    try {
+      const { items: services } = await this.db.query(
+        'services',
+        'pro_id = :pid',
+        { '#pid': 'pro_id' },
+        { ':pid': proId },
+        { indexName: undefined },
+      );
+      await Promise.all(
+        services.map((s: any) =>
+          this.db.delete('services', { pro_id: proId, service_id: s.service_id }),
+        ),
+      );
+    } catch (e) {
+      this.logger.warn(`deleteAccount[${proId}] services cleanup failed: ${e}`);
+    }
+
+    // 3. Delete DynamoDB: bookings (query GSI by pro_id, PK = booking_id)
+    try {
+      const { items: bookings } = await this.db.query(
+        'bookings',
+        'pro_id = :pid',
+        { '#pid': 'pro_id' },
+        { ':pid': proId },
+        { indexName: 'pro_id-index' },
+      );
+      await Promise.all(
+        bookings.map((b: any) =>
+          this.db.delete('bookings', { booking_id: b.booking_id }),
+        ),
+      );
+    } catch (e) {
+      this.logger.warn(`deleteAccount[${proId}] bookings cleanup failed: ${e}`);
+    }
+
+    // 4. Delete DynamoDB: reviews (query GSI by pro_id, PK = review_id)
+    try {
+      const { items: reviews } = await this.db.query(
+        'reviews',
+        'pro_id = :pid',
+        { '#pid': 'pro_id' },
+        { ':pid': proId },
+        { indexName: 'pro_id-index' },
+      );
+      await Promise.all(
+        reviews.map((r: any) =>
+          this.db.delete('reviews', { review_id: r.review_id }),
+        ),
+      );
+    } catch (e) {
+      this.logger.warn(`deleteAccount[${proId}] reviews cleanup failed: ${e}`);
+    }
+
+    // 5. Delete DynamoDB: pro_availability (PK = pro_id)
+    try {
+      await this.db.delete('pro_availability', { pro_id: proId });
+    } catch (e) {
+      this.logger.warn(`deleteAccount[${proId}] availability cleanup failed: ${e}`);
+    }
+
+    // 6. Delete DynamoDB: email_verifications & password_resets by email
+    if (pro.email) {
+      try {
+        await this.db.delete('email_verifications', { email: pro.email });
+      } catch (e) {
+        this.logger.warn(`deleteAccount[${proId}] email_verifications cleanup failed: ${e}`);
+      }
+      try {
+        await this.db.delete('password_resets', { email: pro.email });
+      } catch (e) {
+        this.logger.warn(`deleteAccount[${proId}] password_resets cleanup failed: ${e}`);
+      }
+    }
+
+    // 7. Delete S3 objects (profile photo, ID document, listing photos)
+    const s3Keys: string[] = [
+      (pro as any).profile_photo_s3_key,
+      (pro as any).id_document_s3_key,
+      ...((pro as any).photos_s3_keys ?? []),
+    ].filter(Boolean);
+
+    if (s3Keys.length > 0 && this.mediaBucket) {
+      await Promise.allSettled(
+        s3Keys.map((key) =>
+          this.s3.send(new DeleteObjectCommand({ Bucket: this.mediaBucket, Key: key })),
+        ),
+      );
+    }
+
+    // 8. Delete pro record from DynamoDB
+    await this.db.delete('pros', { pro_id: proId });
+
+    // 9. Delete from Cognito (users pool) — by email as username
+    if (pro.email && this.userPoolId) {
+      try {
+        // Verify user exists before deleting to avoid spurious errors
+        await this.cognito.send(
+          new AdminGetUserCommand({
+            UserPoolId: this.userPoolId,
+            Username: pro.email,
+          }),
+        );
+        await this.cognito.send(
+          new AdminDeleteUserCommand({
+            UserPoolId: this.userPoolId,
+            Username: pro.email,
+          }),
+        );
+      } catch (e: any) {
+        // UserNotFoundException means already gone — not an error
+        if (e?.name !== 'UserNotFoundException') {
+          this.logger.warn(`deleteAccount[${proId}] Cognito deletion failed: ${e}`);
+        }
+      }
+    }
+
+    this.logger.log(`Pro account ${proId} (${pro.email}) permanently deleted.`);
   }
 
   // ─── Helpers ───────────────────────────────────────────────────────────────

@@ -270,7 +270,7 @@ class ApiClient {
   }
 
   async deleteMyAccount(): Promise<{ message: string }> {
-    return this.delete<{ message: string }>('/companies/me/account');
+    return this.delete<{ message: string }>('/pros/me/account');
   }
 
   async deleteMyCustomerAccount(): Promise<{ message: string }> {
