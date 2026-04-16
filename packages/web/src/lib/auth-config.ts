@@ -8,7 +8,7 @@ import type { JWT } from "next-auth/jwt";
 // Prefer injected env, but fall back to production defaults; avoid mutating env to keep
 // the bundle side-effect free.
 const NEXTAUTH_URL = process.env.NEXTAUTH_URL ?? "https://handycall.org";
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "https://api.handycall.org/api/v1";
+const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? "https://api.handycall.org/api/v1").trim();
 const COGNITO_REGION =
   process.env.COGNITO_REGION ??
   process.env.AWS_COGNITO_REGION ??
@@ -29,10 +29,11 @@ const COGNITO_CLIENT_ID =
   process.env.AWS_COGNITO_USERS_CLIENT_ID ??
   process.env.NEXT_PUBLIC_COGNITO_CLIENT_ID ??
   "3vhh0artoakoardoi4e9rdm3m9";
-const COGNITO_CLIENT_SECRET =
+const COGNITO_CLIENT_SECRET = (
   process.env.COGNITO_CLIENT_SECRET ??
   process.env.AWS_COGNITO_USERS_CLIENT_SECRET ??
-  "";
+  ""
+).trim();
 const COGNITO_GOOGLE_IDP = process.env.COGNITO_GOOGLE_IDP ?? "Google";
 const COGNITO_APPLE_IDP = process.env.COGNITO_APPLE_IDP ?? "SignInWithApple";
 const COGNITO_AUTH_DOMAIN =

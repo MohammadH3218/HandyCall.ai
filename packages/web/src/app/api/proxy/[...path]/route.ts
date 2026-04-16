@@ -2,7 +2,7 @@ import { getServerSession } from "next-auth";
 import { NextRequest, NextResponse } from "next/server";
 import { authOptions } from "@/lib/auth-config";
 
-const NEST_API_URL = process.env.NEXT_PUBLIC_API_URL || "https://api.handycall.org/api/v1";
+const NEST_API_URL = (process.env.NEXT_PUBLIC_API_URL || "https://api.handycall.org/api/v1").trim();
 
 // Public paths that don't require authentication (chicken-and-egg fix)
 const PUBLIC_PATHS = [
