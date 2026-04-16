@@ -1061,6 +1061,61 @@ class ApiClient {
     return response.data ?? response;
   }
 
+  // Pro endpoints
+  async getMyPro(): Promise<any> {
+    const response = await this.request<any>('/pros/me', { method: 'GET' });
+    return response.data ?? response;
+  }
+
+  async proOnboardingIdentity(dto: { cr_number?: string; vat_number?: string }): Promise<any> {
+    const response = await this.request<any>('/pros/onboarding/identity', {
+      method: 'POST',
+      body: JSON.stringify(dto),
+    });
+    return response.data ?? response;
+  }
+
+  async proOnboardingProfile(dto: {
+    bio?: string;
+    years_experience?: number;
+    speaks_arabic: boolean;
+    speaks_english: boolean;
+    speaks_urdu?: boolean;
+    speaks_hindi?: boolean;
+  }): Promise<any> {
+    const response = await this.request<any>('/pros/onboarding/profile', {
+      method: 'POST',
+      body: JSON.stringify(dto),
+    });
+    return response.data ?? response;
+  }
+
+  async proOnboardingServices(dto: { services: any[] }): Promise<any> {
+    const response = await this.request<any>('/pros/onboarding/services', {
+      method: 'POST',
+      body: JSON.stringify(dto),
+    });
+    return response.data ?? response;
+  }
+
+  async proOnboardingPayout(dto: {
+    iban: string;
+    bank_name: string;
+    service_districts: string[];
+    availability: Array<{
+      day_of_week: string;
+      open_time: string;
+      close_time: string;
+      is_available: boolean;
+    }>;
+  }): Promise<any> {
+    const response = await this.request<any>('/pros/onboarding/payout', {
+      method: 'POST',
+      body: JSON.stringify(dto),
+    });
+    return response.data ?? response;
+  }
+
   async updateMyProfile(data: {
     first_name?: string;
     last_name?: string;

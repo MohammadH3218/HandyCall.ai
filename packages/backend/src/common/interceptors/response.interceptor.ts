@@ -1,24 +1,18 @@
-import {
-  Injectable,
-  NestInterceptor,
-  ExecutionContext,
-  CallHandler,
-} from '@nestjs/common';
-import { Observable } from 'rxjs';
+import { Injectable, NestInterceptor, ExecutionContext, CallHandler } from '@nestjs/common';
 import { map } from 'rxjs/operators';
-import { ApiResponse } from '@handycall/shared';
 
 @Injectable()
-export class ResponseInterceptor<T> implements NestInterceptor<T, ApiResponse<T>> {
-  intercept(_context: ExecutionContext, next: CallHandler): Observable<ApiResponse<T>> {
-    return next.handle().pipe(
-      map((data) => ({
+export class ResponseInterceptor implements NestInterceptor {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  intercept(_context: ExecutionContext, next: CallHandler): any {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const handle = next.handle() as any;
+    return handle.pipe(
+      map((data: any) => ({
         success: true,
         data,
-        meta: {
-          timestamp: Date.now(),
-        },
-      }))
+        meta: { timestamp: Date.now() },
+      })),
     );
   }
 }
