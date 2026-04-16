@@ -129,7 +129,7 @@ const buildCognitoProvider = (options: {
     clientId: COGNITO_CLIENT_ID,
     clientSecret: COGNITO_CLIENT_SECRET,
     issuer: COGNITO_ISSUER,
-    checks: ["pkce", "state"],
+    checks: ["state"],
     ...(COGNITO_AUTH_BASE_URL
       ? {
           authorization: {
