@@ -196,7 +196,8 @@ export function SiteHeader({
   }, [checkAuth, isCustomerSession, user?.email]);
 
   const hasConfirmedCustomerIdentity = Boolean(user?.email || fallbackSessionUser?.email);
-  const shouldShowProAuth = isProSession;
+  // Pro profile only appears on pro-facing pages (proLinks=true). On public pages treat pro session as logged-out.
+  const shouldShowProAuth = isProSession && proLinks;
   const shouldShowCustomerAuth =
     !isProSession &&
     isCustomerSession &&
@@ -247,33 +248,37 @@ export function SiteHeader({
           </nav>
         )}
 
-        {proLinks ? (
+        {proLinks && !hideLogin && (
           <div className="hidden items-center gap-2 md:flex">
-            <Link
-              href="/for-pros#pricing"
-              className="px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:text-slate-900"
-            >
-              {copy.pricing}
-            </Link>
-            <Link
-              href="/register"
-              className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-emerald-300 hover:text-emerald-700"
-            >
-              {copy.proSignUp}
-            </Link>
-            <Link
-              href="/pro/login"
-              className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700"
-            >
-              {copy.proLogin}
-            </Link>
-          </div>
-        ) : !hideLogin && (
-          <div className="hidden items-center gap-2 md:flex">
-            {/* Auth area: profile or sign up/login */}
             {shouldShowProAuth ? (
               <ProfileMenu fallbackUser={fallbackSessionUser} isPro />
-            ) : shouldShowCustomerAuth ? (
+            ) : (
+              <>
+                <Link
+                  href="/for-pros#pricing"
+                  className="px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:text-slate-900"
+                >
+                  {copy.pricing}
+                </Link>
+                <Link
+                  href="/register"
+                  className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-emerald-300 hover:text-emerald-700"
+                >
+                  {copy.proSignUp}
+                </Link>
+                <Link
+                  href="/pro/login"
+                  className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700"
+                >
+                  {copy.proLogin}
+                </Link>
+              </>
+            )}
+          </div>
+        )}
+        {!proLinks && !hideLogin && (
+          <div className="hidden items-center gap-2 md:flex">
+            {shouldShowCustomerAuth ? (
               <ProfileMenu fallbackUser={fallbackSessionUser} />
             ) : shouldShowLoggedOutActions ? (
               <>
@@ -341,7 +346,26 @@ export function SiteHeader({
             ))}
 
           <div className="mt-2 space-y-2 border-t border-slate-100 pt-3">
-            {proLinks ? (
+            {proLinks && shouldShowProAuth ? (
+              <>
+                <Link
+                  href="/dashboard"
+                  className="block rounded-lg px-3 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                  onClick={() => setMobileOpen(false)}
+                >
+                  Dashboard
+                </Link>
+                <button
+                  className="block w-full rounded-lg border border-slate-300 px-4 py-2.5 text-center text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                  onClick={async () => {
+                    setMobileOpen(false);
+                    await useAuthStore.getState().logout('/pro/login');
+                  }}
+                >
+                  Log out
+                </button>
+              </>
+            ) : proLinks ? (
               <>
                 <Link
                   href="/for-pros#pricing"
@@ -381,25 +405,6 @@ export function SiteHeader({
                 >
                   Inbox
                 </Link>
-              </>
-            ) : shouldShowProAuth ? (
-              <>
-                <Link
-                  href="/dashboard"
-                  className="block rounded-lg px-3 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
-                  onClick={() => setMobileOpen(false)}
-                >
-                  Dashboard
-                </Link>
-                <button
-                  className="block w-full rounded-lg border border-slate-300 px-4 py-2.5 text-center text-sm font-semibold text-slate-700 hover:bg-slate-50"
-                  onClick={async () => {
-                    setMobileOpen(false);
-                    await useAuthStore.getState().logout('/pro/login');
-                  }}
-                >
-                  Log out
-                </button>
               </>
             ) : shouldShowLoggedOutActions ? (
               <>
