@@ -7,13 +7,15 @@ import { SiteHeader } from '@/components/marketing/site-header';
 import { apiClient } from '@/lib/api-client';
 import { IconArrowRight, IconRefresh } from '@tabler/icons-react';
 
-function buildLoginHref(audience: string, email: string) {
+function buildLoginHref(audience: string, email: string, callbackUrl?: string) {
   const isCustomer = audience === 'customer';
   const basePath = isCustomer ? '/customer/login' : '/pro/login';
-  const callbackUrl = isCustomer
-    ? '/customer/onboarding?callbackUrl=%2Fcustomer%2Fdashboard'
-    : '/onboarding/setup';
-  const params = new URLSearchParams({ verified: '1', callbackUrl });
+  const resolvedCallback = callbackUrl
+    ? callbackUrl
+    : isCustomer
+      ? '/customer/onboarding?callbackUrl=%2Fcustomer%2Fdashboard'
+      : '/onboarding/setup';
+  const params = new URLSearchParams({ verified: '1', callbackUrl: resolvedCallback });
   if (email) params.set('email', email);
   return `${basePath}?${params.toString()}`;
 }
@@ -58,8 +60,9 @@ function VerifyEmailPageInner() {
   const email = searchParams?.get('email') || '';
   const token = searchParams?.get('token') || '';
   const audience = searchParams?.get('audience') || 'pro';
+  const callbackUrl = searchParams?.get('callbackUrl') || '';
   const poolType = audience === 'customer' ? 'customer' : 'users';
-  const loginHref = useMemo(() => buildLoginHref(audience, email), [audience, email]);
+  const loginHref = useMemo(() => buildLoginHref(audience, email, callbackUrl || undefined), [audience, email, callbackUrl]);
 
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');

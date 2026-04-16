@@ -54,7 +54,7 @@ export class EmailService {
   }
 
   async sendProVerification(email: string, token: string, firstName: string) {
-    const verifyUrl = `${this.config.get<string>('FRONTEND_URL') ?? 'http://localhost:3001'}/verify-email?token=${token}&audience=pro`;
+    const verifyUrl = `${this.config.get<string>('FRONTEND_URL') ?? 'http://localhost:3001'}/verify-email?token=${token}&audience=pro&callbackUrl=%2Fonboarding%2Fsetup`;
 
     await this.send({
       to: email,

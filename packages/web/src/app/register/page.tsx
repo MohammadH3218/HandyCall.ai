@@ -49,7 +49,7 @@ export default function RegisterPage() {
         last_name: nameParts.slice(1).join(' ') || undefined,
         pool_type: 'users',
       });
-      router.push(`/verify-email?audience=pro&email=${encodeURIComponent(form.email.trim())}`);
+      router.push(`/verify-email?audience=pro&email=${encodeURIComponent(form.email.trim())}&callbackUrl=%2Fonboarding%2Fsetup`);
     } catch (err: any) {
       setError(err?.message || 'Sign up failed. Please try again.');
     } finally {
