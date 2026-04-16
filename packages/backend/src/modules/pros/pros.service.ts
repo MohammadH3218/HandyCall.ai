@@ -36,10 +36,18 @@ export class ProsService {
     private db: DynamoDBService,
     private config: ConfigService,
   ) {
-    const region = config.get<string>('AWS_REGION') ?? 'me-central-1';
-    this.cognito = new CognitoIdentityProviderClient({ region });
-    this.s3 = new S3Client({ region });
-    this.userPoolId = config.get<string>('COGNITO_USER_POOL_ID') ?? '';
+    const awsRegion = config.get<string>('AWS_REGION') ?? 'me-central-1';
+    // Cognito may live in a different region from DynamoDB/S3 (e.g. us-east-1 vs me-central-1)
+    const cognitoRegion =
+      config.get<string>('COGNITO_REGION') ??
+      config.get<string>('AWS_COGNITO_REGION') ??
+      'us-east-1';
+    this.cognito = new CognitoIdentityProviderClient({ region: cognitoRegion });
+    this.s3 = new S3Client({ region: awsRegion });
+    this.userPoolId =
+      config.get<string>('COGNITO_USER_POOL_ID') ??
+      config.get<string>('AWS_COGNITO_USERS_POOL_ID') ??
+      '';
     this.mediaBucket = config.get<string>('S3_BUCKET_MEDIA') ?? config.get<string>('S3_MEDIA_BUCKET') ?? '';
   }
 

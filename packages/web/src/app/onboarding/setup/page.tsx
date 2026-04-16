@@ -174,6 +174,45 @@ function Select({
   );
 }
 
+function LangChip({
+  checked,
+  onChange,
+  label,
+}: {
+  checked: boolean;
+  onChange: (v: boolean) => void;
+  label: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={() => onChange(!checked)}
+      className={cn(
+        'relative flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium border transition-all duration-200 ease-out select-none focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-1',
+        checked
+          ? 'bg-emerald-600 border-emerald-600 text-white shadow-sm shadow-emerald-200'
+          : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300 hover:text-slate-700',
+      )}
+    >
+      <span
+        className={cn(
+          'flex h-4 w-4 items-center justify-center rounded-full border transition-all duration-200',
+          checked
+            ? 'border-white/60 bg-white/20'
+            : 'border-slate-300 bg-transparent',
+        )}
+      >
+        {checked && (
+          <svg viewBox="0 0 10 8" className="h-2.5 w-2.5 fill-white" aria-hidden>
+            <path d="M1 4l2.5 2.5L9 1" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+          </svg>
+        )}
+      </span>
+      {label}
+    </button>
+  );
+}
+
 function Toggle({
   checked,
   onChange,
@@ -191,14 +230,14 @@ function Toggle({
         aria-checked={checked}
         onClick={() => onChange(!checked)}
         className={cn(
-          'relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500',
+          'relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-emerald-500',
           checked ? 'bg-emerald-500' : 'bg-slate-200',
         )}
       >
         <span
           className={cn(
-            'inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform',
-            checked ? 'translate-x-4.5' : 'translate-x-0.5',
+            'inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform duration-200',
+            checked ? 'translate-x-[18px]' : 'translate-x-0.5',
           )}
         />
       </button>
@@ -633,11 +672,11 @@ export default function OnboardingSetupPage() {
 
               <div>
                 <FieldLabel>Languages spoken</FieldLabel>
-                <div className="mt-2 grid grid-cols-2 gap-3">
-                  <Toggle checked={speaksArabic} onChange={setSpeaksArabic} label="Arabic" />
-                  <Toggle checked={speaksEnglish} onChange={setSpeaksEnglish} label="English" />
-                  <Toggle checked={speaksUrdu} onChange={setSpeaksUrdu} label="Urdu" />
-                  <Toggle checked={speaksHindi} onChange={setSpeaksHindi} label="Hindi" />
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <LangChip checked={speaksArabic} onChange={setSpeaksArabic} label="Arabic" />
+                  <LangChip checked={speaksEnglish} onChange={setSpeaksEnglish} label="English" />
+                  <LangChip checked={speaksUrdu} onChange={setSpeaksUrdu} label="Urdu" />
+                  <LangChip checked={speaksHindi} onChange={setSpeaksHindi} label="Hindi" />
                 </div>
               </div>
             </div>
