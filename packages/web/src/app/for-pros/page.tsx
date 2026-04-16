@@ -98,15 +98,8 @@ export default function ForProsPage() {
       <SiteHeader proLinks />
 
       <main>
-        <section className="relative overflow-hidden border-b border-slate-100 bg-white px-4 pb-24 pt-24">
-          <div
-            className="pointer-events-none absolute inset-0"
-            style={{
-              background:
-                'radial-gradient(ellipse 70% 55% at 60% -10%, rgba(16,185,129,0.09) 0%, transparent 72%)',
-            }}
-          />
-          <div className="relative mx-auto grid max-w-6xl gap-12 lg:grid-cols-[1.15fr_0.85fr] lg:items-center">
+        <section className="border-b border-slate-100 bg-white px-4 pb-24 pt-24">
+          <div className="mx-auto grid max-w-6xl gap-12 lg:grid-cols-[1.15fr_0.85fr] lg:items-center">
             <div>
               <span className="inline-flex rounded-full bg-emerald-50 px-4 py-1.5 text-xs font-bold uppercase tracking-widest text-emerald-700">
                 For Service Professionals

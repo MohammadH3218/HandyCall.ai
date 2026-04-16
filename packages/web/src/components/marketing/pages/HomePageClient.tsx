@@ -166,13 +166,6 @@ export function HomePageClient() {
 
       {/* Hero */}
       <section className="relative z-10 overflow-visible bg-white px-4 pb-28 pt-24">
-        <div
-          className="pointer-events-none absolute inset-0"
-          style={{
-            background:
-              'radial-gradient(ellipse 80% 60% at 50% -20%, rgba(16,185,129,0.09) 0%, transparent 70%)',
-          }}
-        />
         <div className="relative mx-auto max-w-4xl text-center">
           <FadeIn direction="up" duration={700}>
             <h1 className="text-5xl font-extrabold tracking-tight text-slate-900 sm:text-6xl lg:text-7xl">
