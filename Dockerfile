@@ -4,6 +4,7 @@ WORKDIR /app
 
 # Copy workspace manifests first for layer caching
 COPY package.json ./
+COPY tsconfig.json ./
 COPY packages/shared/package.json ./packages/shared/
 COPY packages/backend/package.json ./packages/backend/
 
