@@ -1,10 +1,22 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { DynamoDBService } from '../../infrastructure/database/dynamodb.service';
 import { ServiceCategory, RIYADH_DISTRICTS } from '@handycall/shared';
 
+const SERVICE_CATEGORIES: ServiceCategory[] = [
+  'AC_HVAC', 'PLUMBING', 'ELECTRICAL', 'PAINTING', 'CLEANING',
+  'PEST_CONTROL', 'CARPENTRY', 'MOVING', 'APPLIANCE_REPAIR',
+  'SATELLITE_DISH', 'LANDSCAPING', 'GENERAL_HANDYMAN',
+];
+
 @Injectable()
 export class MarketplaceService {
-  constructor(private db: DynamoDBService) {}
+  private readonly logger = new Logger(MarketplaceService.name);
+
+  constructor(
+    private db: DynamoDBService,
+    private config: ConfigService,
+  ) {}
 
   /** Browse active services by category and/or district */
   async browseServices(params: {
@@ -35,14 +47,155 @@ export class MarketplaceService {
     return services;
   }
 
+  /** AI-powered pro search: natural language query → ranked pro list */
+  async aiSearch(params: { q: string; district?: string }): Promise<any[]> {
+    // 1. Classify the query via OpenRouter
+    const { category, keywords } = await this.classifyQuery(params.q);
+    this.logger.log(`AI search: q="${params.q}" → category=${category}, keywords=${keywords.join(', ')}`);
+
+    // 2. Fetch all ACTIVE pros who have completed their profile
+    const { items: pros } = await this.db.scan('pros', {
+      filterExpression: '#status = :active AND marketplace_profile_completed = :done',
+      expressionAttributeNames: { '#status': 'status' },
+      expressionAttributeValues: { ':active': 'ACTIVE', ':done': true },
+    });
+
+    if (pros.length === 0) return [];
+
+    // 3. Score each pro
+    const normalizedKeywords = keywords.map((k: string) => k.toLowerCase());
+
+    const scored = pros.map((pro: any) => {
+      // Strip sensitive fields
+      const {
+        password_hash, iban, national_id, iqama_number,
+        id_document_s3_key, id_number, ...safe
+      } = pro;
+
+      const mp = (pro.marketplace_profile as Record<string, any>) ?? {};
+      const servicesOffered: string[] = Array.isArray(mp.services_offered) ? mp.services_offered : [];
+      const proCategory: string = mp.service_category ?? '';
+      const proDistricts: string[] =
+        Array.isArray(pro.service_area_zipcodes) ? pro.service_area_zipcodes
+        : Array.isArray(pro.service_districts) ? pro.service_districts
+        : [];
+
+      // Score: 2 = specific service match, 1 = category match, 0 = no match
+      const normalizedServices = servicesOffered.map((s) => s.toLowerCase());
+      const specificMatch = normalizedKeywords.some((kw) =>
+        normalizedServices.some((s) => s.includes(kw)),
+      );
+      const categoryMatch =
+        proCategory.toUpperCase() === category.toUpperCase();
+
+      const score = specificMatch ? 2 : categoryMatch ? 1 : 0;
+
+      // District match bonus for tiebreaking
+      const districtMatch =
+        params.district &&
+        proDistricts.some(
+          (d) => d.toLowerCase() === (params.district ?? '').toLowerCase(),
+        )
+          ? 1
+          : 0;
+
+      // Highlight which services matched
+      const matchedServices = specificMatch
+        ? servicesOffered.filter((s) =>
+            normalizedKeywords.some((kw) => s.toLowerCase().includes(kw)),
+          )
+        : [];
+
+      return {
+        ...safe,
+        _score: score,
+        _districtMatch: districtMatch,
+        _matchedServices: matchedServices,
+        _matchType: specificMatch ? 'specific' : categoryMatch ? 'category' : 'none',
+      };
+    });
+
+    // 4. Filter to relevant results, sort by score then district
+    return scored
+      .filter((p) => p._score > 0)
+      .sort((a, b) => b._score - a._score || b._districtMatch - a._districtMatch)
+      .map(({ _score, _districtMatch, ...pro }) => pro);
+  }
+
+  /** Call OpenRouter to classify the query into a category + keywords */
+  private async classifyQuery(
+    query: string,
+  ): Promise<{ category: string; keywords: string[] }> {
+    const apiKey = this.config.get<string>('OPENROUTER_API_KEY') ?? '';
+    if (!apiKey) {
+      this.logger.warn('OPENROUTER_API_KEY not set — falling back to keyword search');
+      return { category: 'GENERAL_HANDYMAN', keywords: [query] };
+    }
+
+    const prompt = `You are a classification assistant for a home services marketplace in Saudi Arabia (Riyadh).
+
+Customer query: "${query}"
+
+Available service categories: ${SERVICE_CATEGORIES.join(', ')}
+
+Task:
+1. Pick the single best matching category from the list above.
+2. Extract 3–6 specific keywords or phrases the customer's problem maps to (what a service pro might list in their services).
+3. Include both English and Arabic variants of key terms if applicable.
+
+Reply with ONLY valid JSON — no explanation, no markdown:
+{"category": "CATEGORY_NAME", "keywords": ["keyword1", "keyword2", "keyword3"]}`;
+
+    try {
+      const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+          'HTTP-Referer': 'https://handycall.org',
+          'X-Title': 'HandyCall Search',
+        },
+        body: JSON.stringify({
+          model: 'google/gemma-4-31b-it:free',
+          messages: [{ role: 'user', content: prompt }],
+          response_format: { type: 'json_object' },
+          max_tokens: 200,
+          temperature: 0.1,
+        }),
+      });
+
+      if (!res.ok) {
+        const errText = await res.text().catch(() => '');
+        this.logger.warn(`OpenRouter error ${res.status}: ${errText}`);
+        return { category: 'GENERAL_HANDYMAN', keywords: [query] };
+      }
+
+      const data = await res.json() as any;
+      const content: string = data?.choices?.[0]?.message?.content ?? '{}';
+
+      // Strip markdown code fences if model ignores the instruction
+      const cleaned = content.replace(/```json?\n?/g, '').replace(/```/g, '').trim();
+      const parsed = JSON.parse(cleaned);
+
+      const category = (parsed.category as string ?? 'GENERAL_HANDYMAN').toUpperCase();
+      const keywords = Array.isArray(parsed.keywords) ? parsed.keywords as string[] : [query];
+
+      // Validate category is known
+      const validCategory = SERVICE_CATEGORIES.includes(category as ServiceCategory)
+        ? category
+        : 'GENERAL_HANDYMAN';
+
+      return { category: validCategory, keywords };
+    } catch (e: any) {
+      this.logger.warn(`classifyQuery failed: ${e?.message}`);
+      return { category: 'GENERAL_HANDYMAN', keywords: [query] };
+    }
+  }
+
   /** Get all supported categories and districts for the browse UI */
   getSupportedFilters() {
     return {
-      categories: [
-        'AC_HVAC', 'PLUMBING', 'ELECTRICAL', 'PAINTING', 'CLEANING',
-        'PEST_CONTROL', 'CARPENTRY', 'MOVING', 'APPLIANCE_REPAIR',
-        'SATELLITE_DISH', 'LANDSCAPING', 'GENERAL_HANDYMAN',
-      ] as ServiceCategory[],
+      categories: SERVICE_CATEGORIES,
       districts: RIYADH_DISTRICTS,
       city: 'Riyadh',
     };

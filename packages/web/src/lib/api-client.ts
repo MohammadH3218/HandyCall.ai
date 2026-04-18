@@ -1139,6 +1139,16 @@ class ApiClient {
     return response.data ?? response;
   }
 
+  async searchPros(q: string, district?: string): Promise<any[]> {
+    const params = new URLSearchParams({ q });
+    if (district) params.set('district', district);
+    const response = await this.request<any[]>(`/marketplace/search?${params.toString()}`, {
+      method: 'GET',
+    });
+    const data = response.data ?? response;
+    return Array.isArray(data) ? data : (data as any)?.results ?? [];
+  }
+
   async updateMyProMarketplaceProfile(data: Record<string, any>): Promise<any> {
     const response = await this.request<any>('/pros/me/marketplace-profile', {
       method: 'PATCH',

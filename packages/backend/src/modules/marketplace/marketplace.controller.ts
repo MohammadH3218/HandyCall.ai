@@ -7,6 +7,17 @@ import { ServiceCategory } from '@handycall/shared';
 export class MarketplaceController {
   constructor(private marketplaceService: MarketplaceService) {}
 
+  /** Public: AI-powered natural-language pro search */
+  @Public()
+  @Get('search')
+  async search(
+    @Query('q') q?: string,
+    @Query('district') district?: string,
+  ) {
+    if (!q?.trim()) return { results: [], category: null, keywords: [] };
+    return this.marketplaceService.aiSearch({ q: q.trim(), district });
+  }
+
   /** Public: browse marketplace services */
   @Public()
   @Get('services')
