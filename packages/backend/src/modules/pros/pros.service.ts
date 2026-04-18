@@ -22,6 +22,7 @@ import { OnboardingIdentityDto } from './dto/onboarding-identity.dto';
 import { OnboardingProfileDto } from './dto/onboarding-profile.dto';
 import { OnboardingServicesDto } from './dto/onboarding-services.dto';
 import { OnboardingPayoutDto } from './dto/onboarding-payout.dto';
+import { OnboardingAccountSetupDto } from './dto/onboarding-account-setup.dto';
 import { Pro, sarToHalalas } from '@handycall/shared';
 
 @Injectable()
@@ -86,6 +87,32 @@ export class ProsService {
   }
 
   // ─── Onboarding Steps ──────────────────────────────────────────────────────
+
+  /** Account setup: ID, phone, national address — must be completed before marketplace profile */
+  async onboardAccountSetup(proId: string, dto: OnboardingAccountSetupDto): Promise<Pro> {
+    const now = Date.now();
+    const updates: Record<string, any> = {
+      account_setup_done: true,
+      updated_at: now,
+    };
+
+    if (dto.id_type) updates.id_type = dto.id_type;
+    if (dto.id_number) {
+      if (dto.id_type === 'NATIONAL_ID') updates.national_id = dto.id_number;
+      else if (dto.id_type === 'IQAMA') updates.iqama_number = dto.id_number;
+    }
+    if (dto.phone_number) updates.phone_number = dto.phone_number;
+    if (dto.national_address_short) updates.national_address_short = dto.national_address_short;
+    if (dto.national_address_building) updates.national_address_building = dto.national_address_building;
+    if (dto.national_address_street) updates.national_address_street = dto.national_address_street;
+    if (dto.national_address_district) updates.national_address_district = dto.national_address_district;
+    if (dto.national_address_city) updates.national_address_city = dto.national_address_city;
+    if (dto.national_address_postal_code) updates.national_address_postal_code = dto.national_address_postal_code;
+
+    const result = await this.db.update('pros', { pro_id: proId }, updates);
+    const { password_hash: _, ...safe } = result as any;
+    return safe as Pro;
+  }
 
   /** Step 2: Upload ID document */
   async onboardIdentity(proId: string, dto: OnboardingIdentityDto): Promise<Pro> {

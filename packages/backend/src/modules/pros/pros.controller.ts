@@ -19,6 +19,7 @@ import { OnboardingIdentityDto } from './dto/onboarding-identity.dto';
 import { OnboardingProfileDto } from './dto/onboarding-profile.dto';
 import { OnboardingServicesDto } from './dto/onboarding-services.dto';
 import { OnboardingPayoutDto } from './dto/onboarding-payout.dto';
+import { OnboardingAccountSetupDto } from './dto/onboarding-account-setup.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
 import { S3Service } from '../../infrastructure/storage/s3.service';
@@ -80,6 +81,16 @@ export class ProsController {
   }
 
   // ─── Onboarding Steps ────────────────────────────────────────────────────
+
+  /** Account setup: ID, phone, national address */
+  @Post('onboarding/account-setup')
+  async onboardAccountSetup(
+    @CurrentUser() user: MarketplaceAuthContext,
+    @Body() dto: OnboardingAccountSetupDto,
+  ) {
+    if (user.user_type !== 'PRO') throw new ForbiddenException();
+    return this.prosService.onboardAccountSetup(user.user_id, dto);
+  }
 
   /** Step 2: Upload identity document */
   @Post('onboarding/identity')

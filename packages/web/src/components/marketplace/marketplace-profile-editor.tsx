@@ -748,7 +748,7 @@ export function MarketplaceProfileEditor({
       setSaved(true);
       if (mode === 'dashboard') return;
       setTimeout(() => {
-        router.replace(returnToSetup ? '/onboarding/setup?marketplace=done' : '/pro/dashboard');
+        router.replace('/pro/review-status');
       }, 1200);
     } catch (e: any) {
       setError(e.message || 'Something went wrong. Please try again.');

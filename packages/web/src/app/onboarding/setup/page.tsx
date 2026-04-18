@@ -2,180 +2,84 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { IconArrowRight, IconCheck, IconLoader2, IconPlus, IconTrash, IconSearch } from '@tabler/icons-react';
+import { IconArrowRight, IconCheck, IconLoader2 } from '@tabler/icons-react';
 import { apiClient } from '@/lib/api-client';
-import { RIYADH_DISTRICTS } from '@handycall/shared';
 import { cn } from '@/lib/utils';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Phase = 'loading' | 'identity' | 'profile' | 'services' | 'payout' | 'complete';
-type ServiceCategory =
-  | 'AC_HVAC' | 'PLUMBING' | 'ELECTRICAL' | 'PAINTING' | 'CLEANING'
-  | 'PEST_CONTROL' | 'CARPENTRY' | 'MOVING' | 'APPLIANCE_REPAIR'
-  | 'SATELLITE_DISH' | 'LANDSCAPING' | 'GENERAL_HANDYMAN';
-type PricingType = 'FIXED' | 'HOURLY' | 'QUOTE';
-type DayOfWeek = 'SAT' | 'SUN' | 'MON' | 'TUE' | 'WED' | 'THU' | 'FRI';
-
-interface ServiceItem {
-  category: ServiceCategory;
-  title: string;
-  pricing_type: PricingType;
-  price_sar: string;
-  min_price_sar: string;
-  max_price_sar: string;
-  vat_included: boolean;
-  estimated_duration_minutes: string;
-}
-
-interface AvailabilitySlot {
-  day_of_week: DayOfWeek;
-  open_time: string;
-  close_time: string;
-  is_available: boolean;
-}
-
-// ─── Constants ────────────────────────────────────────────────────────────────
-
-const SERVICE_CATEGORIES: { value: ServiceCategory; label: string; labelAr: string }[] = [
-  { value: 'AC_HVAC', label: 'AC / HVAC', labelAr: 'تكييف وتبريد' },
-  { value: 'PLUMBING', label: 'Plumbing', labelAr: 'سباكة' },
-  { value: 'ELECTRICAL', label: 'Electrical', labelAr: 'كهرباء' },
-  { value: 'PAINTING', label: 'Painting', labelAr: 'دهانات' },
-  { value: 'CLEANING', label: 'Cleaning', labelAr: 'تنظيف' },
-  { value: 'PEST_CONTROL', label: 'Pest Control', labelAr: 'مكافحة حشرات' },
-  { value: 'CARPENTRY', label: 'Carpentry', labelAr: 'نجارة' },
-  { value: 'MOVING', label: 'Moving', labelAr: 'نقل عفش' },
-  { value: 'APPLIANCE_REPAIR', label: 'Appliance Repair', labelAr: 'إصلاح أجهزة' },
-  { value: 'SATELLITE_DISH', label: 'Satellite Dish', labelAr: 'أطباق فضائية' },
-  { value: 'LANDSCAPING', label: 'Landscaping', labelAr: 'تنسيق حدائق' },
-  { value: 'GENERAL_HANDYMAN', label: 'General Handyman', labelAr: 'صيانة عامة' },
-];
-
-const DAYS: { value: DayOfWeek; label: string; short: string }[] = [
-  { value: 'SAT', label: 'Saturday', short: 'Sat' },
-  { value: 'SUN', label: 'Sunday', short: 'Sun' },
-  { value: 'MON', label: 'Monday', short: 'Mon' },
-  { value: 'TUE', label: 'Tuesday', short: 'Tue' },
-  { value: 'WED', label: 'Wednesday', short: 'Wed' },
-  { value: 'THU', label: 'Thursday', short: 'Thu' },
-  { value: 'FRI', label: 'Friday', short: 'Fri' },
-];
-
-const PHASE_ORDER: Phase[] = ['identity', 'profile', 'services', 'payout'];
-
-const STEP_META: Record<string, { title: string; subtitle: string }> = {
-  identity: {
-    title: 'Business registration',
-    subtitle: 'Add your commercial and VAT registration numbers.',
-  },
-  profile: {
-    title: 'About you',
-    subtitle: 'Customers see this when they visit your listing.',
-  },
-  services: {
-    title: 'What do you offer?',
-    subtitle: 'Add the services you provide with your pricing.',
-  },
-  payout: {
-    title: 'Coverage & availability',
-    subtitle: "Which areas you serve and when you're available.",
-  },
-};
-
-function stepIndex(phase: Phase) {
-  return PHASE_ORDER.indexOf(phase);
-}
+type IdType = 'NATIONAL_ID' | 'IQAMA';
+type Phase = 'loading' | 'identity' | 'address' | 'done';
 
 // ─── Shared primitives ────────────────────────────────────────────────────────
 
-function Label({ children }: { children: React.ReactNode }) {
+function Label({ children, required }: { children: React.ReactNode; required?: boolean }) {
   return (
     <label className="mb-2 block text-[13px] font-semibold uppercase tracking-wide text-slate-400">
       {children}
+      {required && <span className="ml-1 text-red-500">*</span>}
     </label>
   );
 }
 
 function TextInput({
-  value, onChange, placeholder, type = 'text', min, className, dir,
+  value,
+  onChange,
+  placeholder,
+  type = 'text',
+  maxLength,
+  inputMode,
+  disabled,
+  prefix,
 }: {
-  value: string; onChange: (v: string) => void; placeholder?: string;
-  type?: string; min?: number; className?: string; dir?: 'ltr' | 'rtl';
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+  type?: string;
+  maxLength?: number;
+  inputMode?: React.HTMLAttributes<HTMLInputElement>['inputMode'];
+  disabled?: boolean;
+  prefix?: string;
 }) {
+  const baseClass = cn(
+    'w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-[15px] text-slate-900 placeholder:text-slate-300',
+    'transition-shadow duration-150 outline-none',
+    'hover:border-slate-300',
+    'focus:border-emerald-400 focus:ring-3 focus:ring-emerald-100',
+    disabled && 'opacity-50 cursor-not-allowed bg-slate-50',
+  );
+
+  if (prefix) {
+    return (
+      <div className="flex items-center overflow-hidden rounded-xl border border-slate-200 focus-within:border-emerald-400 focus-within:ring-3 focus-within:ring-emerald-100 transition-shadow duration-150 hover:border-slate-300">
+        <span className="border-r border-slate-200 bg-slate-50 px-4 py-3 text-[15px] font-medium text-slate-500 shrink-0">
+          {prefix}
+        </span>
+        <input
+          type={type}
+          value={value}
+          maxLength={maxLength}
+          inputMode={inputMode}
+          disabled={disabled}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          className="flex-1 bg-white px-4 py-3 text-[15px] text-slate-900 placeholder:text-slate-300 outline-none"
+        />
+      </div>
+    );
+  }
+
   return (
     <input
       type={type}
       value={value}
-      min={min}
+      maxLength={maxLength}
+      inputMode={inputMode}
+      disabled={disabled}
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
-      dir={dir}
-      className={cn(
-        'w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-[15px] text-slate-900 placeholder:text-slate-300',
-        'transition-shadow duration-150 outline-none',
-        'hover:border-slate-300',
-        'focus:border-emerald-400 focus:ring-3 focus:ring-emerald-100',
-        className,
-      )}
+      className={baseClass}
     />
-  );
-}
-
-function NativeSelect({
-  value, onChange, children, className,
-}: {
-  value: string; onChange: (v: string) => void; children: React.ReactNode; className?: string;
-}) {
-  return (
-    <div className="relative">
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className={cn(
-          'w-full appearance-none rounded-xl border border-slate-200 bg-white px-4 py-3 pr-10 text-[15px] text-slate-900',
-          'transition-shadow duration-150 outline-none',
-          'hover:border-slate-300',
-          'focus:border-emerald-400 focus:ring-3 focus:ring-emerald-100',
-          className,
-        )}
-      >
-        {children}
-      </select>
-      <div className="pointer-events-none absolute inset-y-0 right-3.5 flex items-center">
-        <svg className="h-4 w-4 text-slate-400" viewBox="0 0 16 16" fill="none">
-          <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-      </div>
-    </div>
-  );
-}
-
-function Chip({
-  active, onClick, children, className,
-}: {
-  active: boolean; onClick: () => void; children: React.ReactNode; className?: string;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        'inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-[13px] font-semibold transition-all duration-150 select-none',
-        'focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 focus-visible:ring-offset-1',
-        active
-          ? 'bg-emerald-600 text-white shadow-sm'
-          : 'bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-700',
-        className,
-      )}
-    >
-      {active && (
-        <svg className="h-3 w-3 shrink-0" viewBox="0 0 12 10" fill="none">
-          <path d="M1 5l3 3 7-7" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-      )}
-      {children}
-    </button>
   );
 }
 
@@ -190,121 +94,14 @@ function ErrorBanner({ message }: { message: string }) {
   );
 }
 
-function CategorySearch({
-  value,
-  onChange,
-}: {
-  value: ServiceCategory;
-  onChange: (v: ServiceCategory) => void;
-}) {
-  const [query, setQuery] = useState('');
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  const selected = SERVICE_CATEGORIES.find((c) => c.value === value);
-  const filtered = query.trim()
-    ? SERVICE_CATEGORIES.filter(
-        (c) =>
-          c.label.toLowerCase().includes(query.toLowerCase()) ||
-          c.labelAr.includes(query),
-      )
-    : SERVICE_CATEGORIES;
-
-  // Close on outside click
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
-        setOpen(false);
-        setQuery('');
-      }
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, []);
-
-  return (
-    <div ref={ref} className="relative">
-      <button
-        type="button"
-        onClick={() => {
-          setOpen((v) => !v);
-          setQuery('');
-        }}
-        className={cn(
-          'flex w-full items-center justify-between rounded-xl border px-4 py-3 text-[15px] transition-shadow duration-150 outline-none',
-          'hover:border-slate-300',
-          open
-            ? 'border-emerald-400 ring-3 ring-emerald-100'
-            : 'border-slate-200 bg-white',
-        )}
-      >
-        <span className={selected ? 'text-slate-900' : 'text-slate-300'}>
-          {selected ? `${selected.label} — ${selected.labelAr}` : 'Select a category'}
-        </span>
-        <svg className="h-4 w-4 shrink-0 text-slate-400" viewBox="0 0 16 16" fill="none">
-          <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-      </button>
-
-      {open && (
-        <div className="absolute z-20 mt-1.5 w-full rounded-xl border border-slate-200 bg-white shadow-lg">
-          {/* Search input */}
-          <div className="flex items-center gap-2 border-b border-slate-100 px-3 py-2.5">
-            <IconSearch className="h-4 w-4 shrink-0 text-slate-400" />
-            <input
-              autoFocus
-              type="text"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search categories..."
-              className="w-full bg-transparent text-[14px] text-slate-900 placeholder:text-slate-300 outline-none"
-            />
-          </div>
-          {/* Options list */}
-          <ul className="max-h-52 overflow-y-auto py-1">
-            {filtered.length === 0 ? (
-              <li className="px-4 py-2.5 text-[13px] text-slate-400">No categories match</li>
-            ) : (
-              filtered.map((c) => (
-                <li key={c.value}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onChange(c.value);
-                      setOpen(false);
-                      setQuery('');
-                    }}
-                    className={cn(
-                      'flex w-full items-center gap-2 px-4 py-2.5 text-left text-[14px] transition-colors',
-                      value === c.value
-                        ? 'bg-emerald-50 font-semibold text-emerald-700'
-                        : 'text-slate-700 hover:bg-slate-50',
-                    )}
-                  >
-                    {value === c.value && (
-                      <svg className="h-3.5 w-3.5 shrink-0 text-emerald-600" viewBox="0 0 12 10" fill="none">
-                        <path d="M1 5l3 3 7-7" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                      </svg>
-                    )}
-                    <span>
-                      {c.label}
-                      <span className="ml-1.5 text-slate-400">{c.labelAr}</span>
-                    </span>
-                  </button>
-                </li>
-              ))
-            )}
-          </ul>
-        </div>
-      )}
-    </div>
-  );
-}
-
 function PrimaryButton({
-  onClick, loading, label = 'Continue', fullWidth = true,
+  onClick,
+  loading,
+  label = 'Continue',
 }: {
-  onClick: () => void; loading: boolean; label?: string; fullWidth?: boolean;
+  onClick: () => void;
+  loading: boolean;
+  label?: string;
 }) {
   return (
     <button
@@ -312,12 +109,11 @@ function PrimaryButton({
       onClick={onClick}
       disabled={loading}
       className={cn(
-        'inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-6 py-3.5',
+        'w-full inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-6 py-3.5',
         'text-[15px] font-semibold text-white',
         'shadow-sm shadow-emerald-200',
         'transition-all duration-150 hover:bg-emerald-700 active:scale-[0.98]',
         'disabled:cursor-not-allowed disabled:opacity-60',
-        fullWidth && 'w-full',
       )}
     >
       {loading ? (
@@ -335,10 +131,7 @@ function PrimaryButton({
 // ─── Progress bar ─────────────────────────────────────────────────────────────
 
 function ProgressBar({ phase }: { phase: Phase }) {
-  const idx = stepIndex(phase);
-  const total = PHASE_ORDER.length;
-  const pct = idx < 0 ? 0 : ((idx + 1) / total) * 100;
-
+  const pct = phase === 'identity' ? 50 : phase === 'address' ? 100 : 0;
   return (
     <div className="h-[3px] w-full bg-slate-100">
       <div
@@ -351,19 +144,24 @@ function ProgressBar({ phase }: { phase: Phase }) {
 
 // ─── Step header ──────────────────────────────────────────────────────────────
 
-function StepHeader({ phase }: { phase: Phase }) {
-  const idx = stepIndex(phase);
-  const meta = STEP_META[phase];
-  if (!meta) return null;
+function StepHeader({
+  step,
+  total,
+  title,
+  subtitle,
+}: {
+  step: number;
+  total: number;
+  title: string;
+  subtitle: string;
+}) {
   return (
     <div className="mb-8">
       <p className="mb-2 text-xs font-bold uppercase tracking-widest text-emerald-600">
-        Step {idx + 1} of {PHASE_ORDER.length}
+        Step {step} of {total}
       </p>
-      <h1 className="font-display text-[28px] font-bold leading-tight text-slate-900">
-        {meta.title}
-      </h1>
-      <p className="mt-1.5 text-[15px] text-slate-400">{meta.subtitle}</p>
+      <h1 className="font-display text-[28px] font-bold leading-tight text-slate-900">{title}</h1>
+      <p className="mt-1.5 text-[15px] text-slate-400">{subtitle}</p>
     </div>
   );
 }
@@ -376,127 +174,74 @@ export default function OnboardingSetupPage() {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  // Identity
-  const [crNumber, setCrNumber] = useState('');
-  const [vatNumber, setVatNumber] = useState('');
+  // Identity fields
+  const [idType, setIdType] = useState<IdType>('NATIONAL_ID');
+  const [idNumber, setIdNumber] = useState('');
+  const [phone, setPhone] = useState('');
 
-  // Profile
-  const [bio, setBio] = useState('');
-  const [yearsExp, setYearsExp] = useState('');
-  const [speaksArabic, setSpeaksArabic] = useState(true);
-  const [speaksEnglish, setSpeaksEnglish] = useState(true);
-  const [speaksUrdu, setSpeaksUrdu] = useState(false);
-  const [speaksHindi, setSpeaksHindi] = useState(false);
-
-  // Services
-  const blank = (): ServiceItem => ({
-    category: 'GENERAL_HANDYMAN', title: '', pricing_type: 'FIXED',
-    price_sar: '', min_price_sar: '', max_price_sar: '',
-    vat_included: false, estimated_duration_minutes: '',
-  });
-  const [services, setServices] = useState<ServiceItem[]>([blank()]);
-
-  // Payout
-  const [selectedDistricts, setSelectedDistricts] = useState<string[]>([]);
-  const [availability, setAvailability] = useState<AvailabilitySlot[]>(
-    DAYS.map((d) => ({ day_of_week: d.value, open_time: '08:00', close_time: '20:00', is_available: true })),
-  );
+  // Address fields
+  const [shortAddress, setShortAddress] = useState('');
+  const [building, setBuilding] = useState('');
+  const [street, setStreet] = useState('');
+  const [district, setDistrict] = useState('');
+  const [city, setCity] = useState('Riyadh');
+  const [postalCode, setPostalCode] = useState('');
 
   useEffect(() => {
     apiClient.getMyPro()
       .then((pro: any) => {
-        const step: number = pro?.onboarding_step ?? 1;
-        if (step >= 5) setPhase('complete');
-        else if (step === 4) setPhase('payout');
-        else if (step === 3) setPhase('services');
-        else if (step === 2) setPhase('profile');
-        else setPhase('identity');
+        if (pro?.account_setup_done) {
+          // Already done — go straight to marketplace profile
+          router.replace('/onboarding/marketplace-profile');
+        } else {
+          setPhase('identity');
+        }
       })
       .catch(() => setPhase('identity'));
-  }, []);
+  }, [router]);
 
-  // ── Submitters ────────────────────────────────────────────────────────────
+  // ── Validators ────────────────────────────────────────────────────────────
 
-  const submit = async (fn: () => Promise<void>) => {
-    setSaving(true); setError(null);
-    try { await fn(); } catch (e: any) { setError(e?.message || 'Something went wrong. Please try again.'); }
-    finally { setSaving(false); }
+  const validateIdentity = (): string | null => {
+    if (!idNumber.trim()) return 'Enter your ID number.';
+    if (!/^\d{10}$/.test(idNumber.trim())) return 'ID number must be exactly 10 digits.';
+    if (!phone.trim()) return 'Enter your phone number.';
+    const normalised = phone.replace(/\s/g, '');
+    if (!/^(\+9665|05)\d{8}$/.test(normalised)) return 'Phone must be a valid Saudi mobile number (e.g. 05XXXXXXXX or +9665XXXXXXXX).';
+    return null;
   };
 
-  const submitIdentity = () => submit(async () => {
-    await apiClient.proOnboardingIdentity({
-      cr_number: crNumber.trim() || undefined,
-      vat_number: vatNumber.trim() || undefined,
-    });
-    setPhase('profile');
-  });
+  const submitIdentity = () => {
+    const msg = validateIdentity();
+    if (msg) { setError(msg); return; }
+    setError(null);
+    setPhase('address');
+  };
 
-  const submitProfile = () => {
-    if (bio.trim().length < 50) {
-      setError('Your bio must be at least 50 characters. Tell customers what you specialise in and why they should choose you.');
-      return;
-    }
-    if (!yearsExp) {
-      setError('Please enter your years of experience.');
-      return;
-    }
-    return submit(async () => {
-      await apiClient.proOnboardingProfile({
-        bio: bio.trim() || undefined,
-        years_experience: yearsExp !== '' ? Math.max(0, Number(yearsExp)) : undefined,
-        speaks_arabic: speaksArabic,
-        speaks_english: speaksEnglish,
-        speaks_urdu: speaksUrdu || undefined,
-        speaks_hindi: speaksHindi || undefined,
+  const submitAll = async () => {
+    setSaving(true);
+    setError(null);
+    try {
+      await apiClient.proOnboardingAccountSetup({
+        id_type: idType,
+        id_number: idNumber.trim(),
+        phone_number: phone.replace(/\s/g, '').startsWith('+966')
+          ? phone.replace(/\s/g, '')
+          : `+966${phone.replace(/\s/g, '').replace(/^0/, '')}`,
+        national_address_short: shortAddress.trim() || undefined,
+        national_address_building: building.trim() || undefined,
+        national_address_street: street.trim() || undefined,
+        national_address_district: district.trim() || undefined,
+        national_address_city: city.trim() || undefined,
+        national_address_postal_code: postalCode.trim() || undefined,
       });
-      setPhase('services');
-    });
-  };
-
-  const submitServices = () => {
-    for (const svc of services) {
-      if (!svc.title.trim()) { setError('Every service needs a title.'); return; }
-      if (svc.pricing_type !== 'QUOTE' && Number(svc.price_sar) <= 0) {
-        setError('Enter a price greater than 0 for each fixed or hourly service.'); return;
-      }
-      if (svc.pricing_type === 'QUOTE') {
-        if (!svc.min_price_sar || !svc.max_price_sar) { setError('Quote services need a min and max price.'); return; }
-        if (Number(svc.min_price_sar) >= Number(svc.max_price_sar)) { setError('Min price must be less than max price.'); return; }
-      }
+      router.replace('/onboarding/marketplace-profile');
+    } catch (e: any) {
+      setError(e?.message || 'Something went wrong. Please try again.');
+    } finally {
+      setSaving(false);
     }
-    submit(async () => {
-      await apiClient.proOnboardingServices({
-        services: services.map((svc) => ({
-          category: svc.category, title: svc.title.trim(), pricing_type: svc.pricing_type,
-          ...(svc.pricing_type !== 'QUOTE' ? { price_sar: Number(svc.price_sar) } : {}),
-          ...(svc.pricing_type === 'QUOTE' ? { min_price_sar: Number(svc.min_price_sar), max_price_sar: Number(svc.max_price_sar) } : {}),
-          vat_included: svc.vat_included,
-          ...(svc.estimated_duration_minutes ? { estimated_duration_minutes: Number(svc.estimated_duration_minutes) } : {}),
-        })),
-      });
-      setPhase('payout');
-    });
   };
-
-  const submitPayout = () => {
-    if (selectedDistricts.length === 0) { setError('Select at least one district.'); return; }
-    if (!availability.some((s) => s.is_available)) { setError('Mark at least one available day.'); return; }
-    submit(async () => {
-      await apiClient.proOnboardingPayout({ service_districts: selectedDistricts, availability });
-      setPhase('complete');
-    });
-  };
-
-  // ── Helpers ───────────────────────────────────────────────────────────────
-
-  const updateService = (i: number, u: Partial<ServiceItem>) =>
-    setServices((p) => p.map((s, idx) => (idx === i ? { ...s, ...u } : s)));
-
-  const toggleDistrict = (d: string) =>
-    setSelectedDistricts((p) => p.includes(d) ? p.filter((x) => x !== d) : [...p, d]);
-
-  const updateSlot = (i: number, u: Partial<AvailabilitySlot>) =>
-    setAvailability((p) => p.map((s, idx) => (idx === i ? { ...s, ...u } : s)));
 
   // ─────────────────────────────────────────────────────────────────────────
   // Render
@@ -510,346 +255,215 @@ export default function OnboardingSetupPage() {
     );
   }
 
-  if (phase === 'complete') {
-    return (
-      <div className="flex flex-1 items-center justify-center bg-white px-5">
-        <div className="max-w-sm w-full text-center">
-          <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-50">
-            <IconCheck className="h-7 w-7 text-emerald-600" stroke={2.5} />
-          </div>
-          <h1 className="font-display text-2xl font-bold text-slate-900">Application submitted</h1>
-          <p className="mt-3 text-[15px] leading-relaxed text-slate-400">
-            Your profile is under review. We'll activate your listing within 1–2 business days and send you an email when you're live.
-          </p>
-          <button
-            type="button"
-            onClick={() => router.push('/pro/dashboard')}
-            className="mt-8 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-6 py-3.5 text-[15px] font-semibold text-white transition hover:bg-slate-800 active:scale-[0.98]"
-          >
-            Go to dashboard <IconArrowRight className="h-4 w-4" stroke={2.5} />
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="flex flex-1 flex-col overflow-y-auto bg-white">
       <ProgressBar phase={phase} />
 
       <div className="mx-auto w-full max-w-lg px-5 pb-16 pt-10">
-        <StepHeader phase={phase} />
 
-        {/* ── IDENTITY ──────────────────────────────────────────────────── */}
+        {/* ── IDENTITY PHASE ────────────────────────────────────────────── */}
         {phase === 'identity' && (
-          <div className="space-y-5">
-            <div>
-              <Label>Commercial Registration (CR)</Label>
-              <TextInput value={crNumber} onChange={setCrNumber} placeholder="e.g. 1010123456" />
-            </div>
-            <div>
-              <Label>VAT Number</Label>
-              <TextInput value={vatNumber} onChange={setVatNumber} placeholder="e.g. 300000000000003" />
-            </div>
+          <>
+            <StepHeader
+              step={1}
+              total={2}
+              title="Verify your identity"
+              subtitle="We're required by Saudi regulations to verify your identity before you can list services."
+            />
 
-            {error && <ErrorBanner message={error} />}
-
-            <div className="pt-2">
-              <PrimaryButton onClick={submitIdentity} loading={saving} />
-            </div>
-          </div>
-        )}
-
-        {/* ── PROFILE ───────────────────────────────────────────────────── */}
-        {phase === 'profile' && (
-          <div className="space-y-6">
-            <div>
-              <Label>Bio</Label>
-              <textarea
-                value={bio}
-                onChange={(e) => setBio(e.target.value)}
-                maxLength={1000}
-                rows={5}
-                placeholder="Tell customers what you specialise in, your experience, and why they should choose you..."
-                className={cn(
-                  'w-full resize-none rounded-xl border border-slate-200 bg-white px-4 py-3',
-                  'text-[15px] text-slate-900 placeholder:text-slate-300',
-                  'transition-shadow duration-150 outline-none',
-                  'hover:border-slate-300',
-                  'focus:border-emerald-400 focus:ring-3 focus:ring-emerald-100',
-                )}
-              />
-              <p className="mt-1.5 text-right text-xs text-slate-300">{bio.length} / 1000</p>
-            </div>
-
-            <div>
-              <Label>Years of experience</Label>
-              <TextInput
-                type="number"
-                min={0}
-                value={yearsExp}
-                onChange={(v) => setYearsExp(v.replace(/[^0-9]/g, ''))}
-                placeholder="0"
-              />
-            </div>
-
-            <div>
-              <Label>Languages</Label>
-              <div className="mt-1 flex flex-wrap gap-2">
-                <Chip active={speaksArabic} onClick={() => setSpeaksArabic(!speaksArabic)}>Arabic</Chip>
-                <Chip active={speaksEnglish} onClick={() => setSpeaksEnglish(!speaksEnglish)}>English</Chip>
-                <Chip active={speaksUrdu} onClick={() => setSpeaksUrdu(!speaksUrdu)}>Urdu</Chip>
-                <Chip active={speaksHindi} onClick={() => setSpeaksHindi(!speaksHindi)}>Hindi</Chip>
-              </div>
-            </div>
-
-            {error && <ErrorBanner message={error} />}
-            <div className="pt-2">
-              <PrimaryButton onClick={submitProfile} loading={saving} />
-            </div>
-          </div>
-        )}
-
-        {/* ── SERVICES ──────────────────────────────────────────────────── */}
-        {phase === 'services' && (
-          <div className="space-y-4">
-            {services.map((svc, i) => (
-              <div key={i} className="rounded-2xl border border-slate-100 bg-slate-50 p-5">
-                <div className="mb-4 flex items-center justify-between">
-                  <span className="text-xs font-bold uppercase tracking-wide text-slate-300">
-                    Service {i + 1}
-                  </span>
-                  {services.length > 1 && (
+            <div className="space-y-6">
+              {/* ID type */}
+              <div>
+                <Label required>ID type</Label>
+                <div className="grid grid-cols-2 gap-3">
+                  {(
+                    [
+                      { value: 'NATIONAL_ID', label: 'Saudi National ID', sublabel: 'هوية وطنية' },
+                      { value: 'IQAMA', label: 'Iqama', sublabel: 'إقامة' },
+                    ] as const
+                  ).map((opt) => (
                     <button
+                      key={opt.value}
                       type="button"
-                      onClick={() => setServices((p) => p.filter((_, idx) => idx !== i))}
-                      className="text-slate-300 transition hover:text-red-400"
-                    >
-                      <IconTrash className="h-4 w-4" />
-                    </button>
-                  )}
-                </div>
-
-                <div className="space-y-4">
-                  <div>
-                    <Label>Category</Label>
-                    <CategorySearch
-                      value={svc.category}
-                      onChange={(v) => updateService(i, { category: v })}
-                    />
-                  </div>
-
-                  <div>
-                    <Label>Service title</Label>
-                    <TextInput
-                      value={svc.title}
-                      onChange={(v) => updateService(i, { title: v })}
-                      placeholder="e.g. Split AC Repair & Maintenance"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <Label>Pricing</Label>
-                      <NativeSelect
-                        value={svc.pricing_type}
-                        onChange={(v) => updateService(i, {
-                          pricing_type: v as PricingType,
-                          price_sar: '', min_price_sar: '', max_price_sar: '',
-                        })}
-                      >
-                        <option value="FIXED">Fixed price</option>
-                        <option value="HOURLY">Per hour</option>
-                        <option value="QUOTE">Quote range</option>
-                      </NativeSelect>
-                    </div>
-
-                    {svc.pricing_type !== 'QUOTE' ? (
-                      <div>
-                        <Label>Price (SAR)</Label>
-                        <TextInput
-                          type="number"
-                          min={0}
-                          value={svc.price_sar}
-                          onChange={(v) => updateService(i, { price_sar: v })}
-                          placeholder="0"
-                        />
-                      </div>
-                    ) : (
-                      <div>
-                        <Label>Range (SAR)</Label>
-                        <div className="flex items-center gap-2">
-                          <TextInput
-                            type="number"
-                            min={0}
-                            value={svc.min_price_sar}
-                            onChange={(v) => updateService(i, { min_price_sar: v })}
-                            placeholder="Min"
-                          />
-                          <span className="shrink-0 text-slate-300">–</span>
-                          <TextInput
-                            type="number"
-                            min={0}
-                            value={svc.max_price_sar}
-                            onChange={(v) => updateService(i, { max_price_sar: v })}
-                            placeholder="Max"
-                          />
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <button
-                      type="button"
-                      onClick={() => updateService(i, { vat_included: !svc.vat_included })}
+                      onClick={() => { setIdType(opt.value); setIdNumber(''); }}
                       className={cn(
-                        'inline-flex items-center gap-2 rounded-lg px-3 py-2 text-[13px] font-medium transition',
-                        svc.vat_included
-                          ? 'bg-emerald-50 text-emerald-700'
-                          : 'bg-slate-100 text-slate-400 hover:bg-slate-200',
+                        'flex flex-col items-start rounded-xl border px-4 py-3.5 text-left transition-all',
+                        idType === opt.value
+                          ? 'border-emerald-400 bg-emerald-50 ring-2 ring-emerald-100'
+                          : 'border-slate-200 bg-white hover:border-slate-300',
                       )}
                     >
-                      <span
-                        className={cn(
-                          'flex h-4 w-4 items-center justify-center rounded border transition',
-                          svc.vat_included ? 'border-emerald-500 bg-emerald-500' : 'border-slate-300',
-                        )}
-                      >
-                        {svc.vat_included && (
-                          <svg viewBox="0 0 10 8" className="h-2.5 w-2.5" fill="none">
-                            <path d="M1 4l2.5 2.5L9 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                          </svg>
-                        )}
-                      </span>
-                      VAT included
+                      <span className="text-[14px] font-semibold text-slate-900">{opt.label}</span>
+                      <span className="mt-0.5 text-[12px] text-slate-400">{opt.sublabel}</span>
                     </button>
-
-                    <div className="flex items-center gap-2">
-                      <span className="text-[12px] text-slate-300">Duration (min)</span>
-                      <input
-                        type="number"
-                        min={0}
-                        value={svc.estimated_duration_minutes}
-                        onChange={(e) => updateService(i, { estimated_duration_minutes: e.target.value })}
-                        placeholder="—"
-                        className="w-14 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-center text-xs text-slate-700 outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
-                      />
-                    </div>
-                  </div>
+                  ))}
                 </div>
               </div>
-            ))}
 
-            <button
-              type="button"
-              onClick={() => setServices((p) => [...p, blank()])}
-              className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-slate-200 py-3 text-[13px] font-semibold text-slate-400 transition hover:border-slate-300 hover:text-slate-600"
-            >
-              <IconPlus className="h-4 w-4" /> Add another service
-            </button>
-
-            {error && <ErrorBanner message={error} />}
-            <div className="pt-2">
-              <PrimaryButton onClick={submitServices} loading={saving} />
-            </div>
-          </div>
-        )}
-
-        {/* ── PAYOUT ────────────────────────────────────────────────────── */}
-        {phase === 'payout' && (
-          <div className="space-y-8">
-
-            {/* Districts */}
-            <div>
-              <div className="mb-4">
-                <p className="font-display text-[15px] font-semibold text-slate-900">Service areas</p>
-                <p className="text-[13px] text-slate-400">
-                  Which Riyadh districts do you cover?{' '}
-                  {selectedDistricts.length > 0 && (
-                    <span className="font-semibold text-emerald-600">{selectedDistricts.length} selected</span>
-                  )}
+              {/* ID number */}
+              <div>
+                <Label required>
+                  {idType === 'NATIONAL_ID' ? 'National ID number' : 'Iqama number'}
+                </Label>
+                <TextInput
+                  value={idNumber}
+                  onChange={(v) => setIdNumber(v.replace(/\D/g, '').slice(0, 10))}
+                  placeholder="10-digit number"
+                  inputMode="numeric"
+                  maxLength={10}
+                />
+                <p className="mt-1.5 text-xs text-slate-400">
+                  {idNumber.length}/10 digits
                 </p>
               </div>
-              <div className="flex flex-wrap gap-2">
-                {(RIYADH_DISTRICTS as readonly string[]).map((d) => (
-                  <Chip key={d} active={selectedDistricts.includes(d)} onClick={() => toggleDistrict(d)}>
-                    {d}
-                  </Chip>
-                ))}
+
+              {/* Phone */}
+              <div>
+                <Label required>Mobile phone number</Label>
+                <TextInput
+                  value={phone}
+                  onChange={setPhone}
+                  placeholder="05XXXXXXXX"
+                  inputMode="tel"
+                  prefix="+966"
+                />
+                <p className="mt-1.5 text-xs text-slate-400">
+                  Saudi mobile number. Used to contact you about bookings.
+                </p>
+              </div>
+
+              {/* Nafath note */}
+              <div className="rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3.5">
+                <p className="text-[13px] font-semibold text-emerald-800">Nafath verification</p>
+                <p className="mt-1 text-[12px] leading-relaxed text-emerald-700">
+                  Full Nafath identity verification is coming soon. For now, your information is submitted directly. We verify IDs during admin review before activating your profile.
+                </p>
+              </div>
+
+              {error && <ErrorBanner message={error} />}
+
+              <div className="pt-2">
+                <PrimaryButton onClick={submitIdentity} loading={false} label="Next: National address" />
               </div>
             </div>
+          </>
+        )}
 
-            <div className="h-px bg-slate-100" />
+        {/* ── ADDRESS PHASE ─────────────────────────────────────────────── */}
+        {phase === 'address' && (
+          <>
+            <StepHeader
+              step={2}
+              total={2}
+              title="National address"
+              subtitle="Your registered address is used for verification and compliance purposes."
+            />
 
-            {/* Availability */}
-            <div>
-              <div className="mb-4">
-                <p className="font-display text-[15px] font-semibold text-slate-900">Working hours</p>
-                <p className="text-[13px] text-slate-400">Set which days and hours you're available.</p>
+            <div className="space-y-5">
+              {/* Short address */}
+              <div>
+                <Label>Short address code</Label>
+                <TextInput
+                  value={shortAddress}
+                  onChange={(v) => setShortAddress(v.toUpperCase())}
+                  placeholder="e.g. RYED1234"
+                  maxLength={8}
+                />
+                <p className="mt-1.5 text-xs text-slate-400">
+                  8-character Saudi National Address code (optional, if you have it).
+                </p>
               </div>
-              <div className="space-y-2">
-                {availability.map((slot, i) => (
-                  <div
-                    key={slot.day_of_week}
-                    className={cn(
-                      'flex items-center gap-3 rounded-xl px-4 py-3 transition-colors',
-                      slot.is_available ? 'bg-slate-50' : 'bg-white',
-                    )}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => updateSlot(i, { is_available: !slot.is_available })}
-                      className={cn(
-                        'flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition',
-                        slot.is_available
-                          ? 'border-emerald-500 bg-emerald-500'
-                          : 'border-slate-300 bg-white',
-                      )}
-                    >
-                      {slot.is_available && (
-                        <svg viewBox="0 0 10 8" className="h-2.5 w-2.5" fill="none">
-                          <path d="M1 4l2.5 2.5L9 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                      )}
-                    </button>
 
-                    <span className={cn(
-                      'w-20 text-[14px] font-semibold',
-                      slot.is_available ? 'text-slate-800' : 'text-slate-300',
-                    )}>
-                      {DAYS[i].label}
-                    </span>
-
-                    {slot.is_available ? (
-                      <div className="ml-auto flex items-center gap-2">
-                        <input
-                          type="time"
-                          value={slot.open_time}
-                          onChange={(e) => updateSlot(i, { open_time: e.target.value })}
-                          className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[13px] text-slate-700 outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
-                        />
-                        <span className="text-xs text-slate-300">to</span>
-                        <input
-                          type="time"
-                          value={slot.close_time}
-                          onChange={(e) => updateSlot(i, { close_time: e.target.value })}
-                          className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[13px] text-slate-700 outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
-                        />
-                      </div>
-                    ) : (
-                      <span className="ml-auto text-[13px] text-slate-300">Not available</span>
-                    )}
-                  </div>
-                ))}
+              <div className="flex items-center gap-3">
+                <div className="flex-1 h-px bg-slate-100" />
+                <span className="text-xs text-slate-400">or fill in manually</span>
+                <div className="flex-1 h-px bg-slate-100" />
               </div>
-            </div>
 
-            {error && <ErrorBanner message={error} />}
-            <div className="pt-2">
-              <PrimaryButton onClick={submitPayout} loading={saving} label="Submit application" />
+              {/* Building + Street */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Building number</Label>
+                  <TextInput
+                    value={building}
+                    onChange={setBuilding}
+                    placeholder="e.g. 1234"
+                    inputMode="numeric"
+                  />
+                </div>
+                <div>
+                  <Label>Street name</Label>
+                  <TextInput
+                    value={street}
+                    onChange={setStreet}
+                    placeholder="e.g. King Fahd Rd"
+                  />
+                </div>
+              </div>
+
+              {/* District */}
+              <div>
+                <Label>District / neighbourhood</Label>
+                <TextInput
+                  value={district}
+                  onChange={setDistrict}
+                  placeholder="e.g. Al Olaya"
+                />
+              </div>
+
+              {/* City + Postal */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>City</Label>
+                  <TextInput
+                    value={city}
+                    onChange={setCity}
+                    placeholder="Riyadh"
+                  />
+                </div>
+                <div>
+                  <Label>Postal code</Label>
+                  <TextInput
+                    value={postalCode}
+                    onChange={(v) => setPostalCode(v.replace(/\D/g, '').slice(0, 5))}
+                    placeholder="e.g. 12345"
+                    inputMode="numeric"
+                    maxLength={5}
+                  />
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-slate-100 bg-slate-50 px-4 py-3">
+                <p className="text-[12px] leading-relaxed text-slate-400">
+                  Address details are used for identity verification only and will not be shown on your public profile.
+                </p>
+              </div>
+
+              {error && <ErrorBanner message={error} />}
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => { setError(null); setPhase('identity'); }}
+                  className="rounded-xl border border-slate-200 px-5 py-3.5 text-[14px] font-semibold text-slate-600 transition hover:bg-slate-50"
+                >
+                  Back
+                </button>
+                <div className="flex-1">
+                  <PrimaryButton onClick={submitAll} loading={saving} label="Complete account setup" />
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={submitAll}
+                disabled={saving}
+                className="w-full text-center text-xs text-slate-400 underline hover:text-slate-600 transition"
+              >
+                Skip address — I'll add it later
+              </button>
             </div>
-          </div>
+          </>
         )}
       </div>
     </div>
