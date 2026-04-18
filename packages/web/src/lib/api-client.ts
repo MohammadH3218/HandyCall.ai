@@ -84,6 +84,11 @@ class ApiClient {
   private async forceLogoutToLogin() {
     if (typeof window === 'undefined') return;
     if (this.sessionExpiryRedirecting) return;
+    // Never force-logout during onboarding — the user is actively filling out
+    // a multi-step form and a background API failure should not interrupt them.
+    // If the token truly expires, the next step submission will fail with a visible error.
+    const path = window.location.pathname;
+    if (path.startsWith('/onboarding') || path.startsWith('/pro/dashboard')) return;
     this.sessionExpiryRedirecting = true;
 
     try {
@@ -1099,8 +1104,8 @@ class ApiClient {
   }
 
   async proOnboardingPayout(dto: {
-    iban: string;
-    bank_name: string;
+    iban?: string;
+    bank_name?: string;
     service_districts: string[];
     availability: Array<{
       day_of_week: string;
@@ -1112,6 +1117,14 @@ class ApiClient {
     const response = await this.request<any>('/pros/onboarding/payout', {
       method: 'POST',
       body: JSON.stringify(dto),
+    });
+    return response.data ?? response;
+  }
+
+  async updateMyProMarketplaceProfile(data: Record<string, any>): Promise<any> {
+    const response = await this.request<any>('/pros/me/marketplace-profile', {
+      method: 'PATCH',
+      body: JSON.stringify(data),
     });
     return response.data ?? response;
   }
@@ -1535,6 +1548,121 @@ class ApiClient {
       body: JSON.stringify(data),
     });
     return res;
+  }
+
+  // ─── Admin ─────────────────────────────────────────────────────────────────
+
+  async adminGetStats(): Promise<any> {
+    return this.request<any>('/admin/stats');
+  }
+
+  // Pros
+  async adminListPros(params?: { status?: string; limit?: number }): Promise<any[]> {
+    const qs = new URLSearchParams();
+    if (params?.status) qs.set('status', params.status);
+    if (params?.limit) qs.set('limit', String(params.limit));
+    return this.request<any[]>(`/admin/pros${qs.toString() ? `?${qs}` : ''}`);
+  }
+
+  async adminGetPro(proId: string): Promise<any> {
+    return this.request<any>(`/admin/pros/${proId}`);
+  }
+
+  async adminApprovePro(proId: string): Promise<any> {
+    return this.request<any>(`/admin/pros/${proId}/approve`, { method: 'PATCH' });
+  }
+
+  async adminRejectPro(proId: string, reason?: string): Promise<any> {
+    return this.request<any>(`/admin/pros/${proId}/reject`, {
+      method: 'PATCH',
+      body: JSON.stringify({ reason }),
+    });
+  }
+
+  async adminSuspendPro(proId: string): Promise<any> {
+    return this.request<any>(`/admin/pros/${proId}/suspend`, { method: 'PATCH' });
+  }
+
+  async adminReactivatePro(proId: string): Promise<any> {
+    return this.request<any>(`/admin/pros/${proId}/reactivate`, { method: 'PATCH' });
+  }
+
+  async adminDeletePro(proId: string): Promise<any> {
+    return this.request<any>(`/admin/pros/${proId}`, { method: 'DELETE' });
+  }
+
+  // Customers
+  async adminListCustomers(params?: { status?: string; limit?: number }): Promise<any[]> {
+    const qs = new URLSearchParams();
+    if (params?.status) qs.set('status', params.status);
+    if (params?.limit) qs.set('limit', String(params.limit));
+    return this.request<any[]>(`/admin/customers${qs.toString() ? `?${qs}` : ''}`);
+  }
+
+  async adminGetCustomer(customerId: string): Promise<any> {
+    return this.request<any>(`/admin/customers/${customerId}`);
+  }
+
+  async adminSuspendCustomer(customerId: string): Promise<any> {
+    return this.request<any>(`/admin/customers/${customerId}/suspend`, { method: 'PATCH' });
+  }
+
+  async adminReactivateCustomer(customerId: string): Promise<any> {
+    return this.request<any>(`/admin/customers/${customerId}/reactivate`, { method: 'PATCH' });
+  }
+
+  async adminDeleteCustomer(customerId: string): Promise<any> {
+    return this.request<any>(`/admin/customers/${customerId}`, { method: 'DELETE' });
+  }
+
+  // Bookings
+  async adminListBookings(params?: { status?: string; limit?: number }): Promise<any[]> {
+    const qs = new URLSearchParams();
+    if (params?.status) qs.set('status', params.status);
+    if (params?.limit) qs.set('limit', String(params.limit));
+    return this.request<any[]>(`/admin/bookings${qs.toString() ? `?${qs}` : ''}`);
+  }
+
+  async adminGetBooking(bookingId: string): Promise<any> {
+    return this.request<any>(`/admin/bookings/${bookingId}`);
+  }
+
+  async adminCancelBooking(bookingId: string, reason?: string): Promise<any> {
+    return this.request<any>(`/admin/bookings/${bookingId}/cancel`, {
+      method: 'PATCH',
+      body: JSON.stringify({ reason }),
+    });
+  }
+
+  // Reviews
+  async adminListReviews(params?: { visible?: boolean; limit?: number }): Promise<any[]> {
+    const qs = new URLSearchParams();
+    if (params?.visible !== undefined) qs.set('visible', String(params.visible));
+    if (params?.limit) qs.set('limit', String(params.limit));
+    return this.request<any[]>(`/admin/reviews${qs.toString() ? `?${qs}` : ''}`);
+  }
+
+  async adminSetReviewVisibility(reviewId: string, isVisible: boolean): Promise<any> {
+    return this.request<any>(`/admin/reviews/${reviewId}/visibility`, {
+      method: 'PATCH',
+      body: JSON.stringify({ is_visible: isVisible }),
+    });
+  }
+
+  async adminDeleteReview(reviewId: string): Promise<any> {
+    return this.request<any>(`/admin/reviews/${reviewId}`, { method: 'DELETE' });
+  }
+
+  // Platform config
+  async adminGetConfig(): Promise<any> {
+    return this.request<any>('/admin/platform-config');
+  }
+
+  async adminUpdateConfig(key: string, value: any): Promise<any> {
+    return this.request<any>(`/admin/platform-config/${key}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ value }),
+    });
   }
 }
 

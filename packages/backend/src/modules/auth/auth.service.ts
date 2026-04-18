@@ -8,7 +8,14 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
+import { createHmac } from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
+import {
+  CognitoIdentityProviderClient,
+  InitiateAuthCommand,
+  RespondToAuthChallengeCommand,
+  UpdateUserAttributesCommand,
+} from '@aws-sdk/client-cognito-identity-provider';
 import { DynamoDBService } from '../../infrastructure/database/dynamodb.service';
 import { CustomerRegisterDto } from './dto/customer-register.dto';
 import { ProRegisterDto } from './dto/pro-register.dto';
@@ -22,11 +29,17 @@ const PASSWORD_RESET_TTL_MS = 60 * 60 * 1000;         // 1 hour
 
 @Injectable()
 export class AuthService {
+  private readonly cognito: CognitoIdentityProviderClient;
+
   constructor(
     private db: DynamoDBService,
     private jwt: JwtService,
     private config: ConfigService,
-  ) {}
+  ) {
+    this.cognito = new CognitoIdentityProviderClient({
+      region: config.get<string>('AWS_REGION') ?? 'us-east-1',
+    });
+  }
 
   // ─── Customer Registration ──────────────────────────────────────────────────
 
@@ -409,7 +422,113 @@ export class AuthService {
     return { message: 'Password reset successfully.' };
   }
 
+  // ─── Admin Auth (Cognito admin pool) ─────────────────────────────────────────
+
+  async adminLogin(email: string, password: string) {
+    const poolId = this.config.getOrThrow<string>('AWS_COGNITO_ADMIN_POOL_ID');
+    const clientId = this.config.getOrThrow<string>('AWS_COGNITO_ADMIN_CLIENT_ID');
+    const clientSecret = this.config.get<string>('AWS_COGNITO_ADMIN_CLIENT_SECRET', '');
+
+    const secretHash = this.computeSecretHash(email, clientId, clientSecret);
+
+    let result: any;
+    try {
+      result = await this.cognito.send(
+        new InitiateAuthCommand({
+          AuthFlow: 'USER_PASSWORD_AUTH',
+          ClientId: clientId,
+          AuthParameters: {
+            USERNAME: email.toLowerCase(),
+            PASSWORD: password,
+            ...(secretHash ? { SECRET_HASH: secretHash } : {}),
+          },
+        }),
+      );
+    } catch (err: any) {
+      const code = err?.name ?? err?.code ?? '';
+      if (code === 'NotAuthorizedException' || code === 'UserNotFoundException') {
+        throw new UnauthorizedException('Invalid email or password');
+      }
+      if (code === 'UserNotConfirmedException') {
+        throw new UnauthorizedException('Account not confirmed');
+      }
+      throw new UnauthorizedException('Authentication failed');
+    }
+
+    if (result.ChallengeName === 'NEW_PASSWORD_REQUIRED') {
+      return {
+        requiresPasswordChange: true,
+        session: result.Session,
+        email: email.toLowerCase(),
+      };
+    }
+
+    // Successful auth — mint our own JWT
+    const tokens = this.signAdminTokens(email.toLowerCase());
+    return { ...tokens, user_type: 'ADMIN' as UserType, userRole: 'ADMIN', isAdmin: true };
+  }
+
+  async adminCompleteNewPassword(
+    session: string,
+    email: string,
+    newPassword: string,
+    displayName: string,
+  ) {
+    const clientId = this.config.getOrThrow<string>('AWS_COGNITO_ADMIN_CLIENT_ID');
+    const clientSecret = this.config.get<string>('AWS_COGNITO_ADMIN_CLIENT_SECRET', '');
+    const secretHash = this.computeSecretHash(email, clientId, clientSecret);
+
+    try {
+      await this.cognito.send(
+        new RespondToAuthChallengeCommand({
+          ClientId: clientId,
+          ChallengeName: 'NEW_PASSWORD_REQUIRED',
+          Session: session,
+          ChallengeResponses: {
+            USERNAME: email.toLowerCase(),
+            NEW_PASSWORD: newPassword,
+            'userAttributes.name': displayName,
+            ...(secretHash ? { SECRET_HASH: secretHash } : {}),
+          },
+        }),
+      );
+    } catch (err: any) {
+      const code = err?.name ?? err?.code ?? '';
+      if (code === 'InvalidPasswordException') {
+        throw new BadRequestException(err.message ?? 'Password does not meet requirements');
+      }
+      throw new BadRequestException('Could not complete password setup. Session may have expired.');
+    }
+
+    const tokens = this.signAdminTokens(email.toLowerCase(), displayName);
+    return {
+      ...tokens,
+      user_type: 'ADMIN' as UserType,
+      userRole: 'ADMIN',
+      isAdmin: true,
+      name: displayName,
+    };
+  }
+
   // ─── Helpers ────────────────────────────────────────────────────────────────
+
+  private signAdminTokens(email: string, name?: string) {
+    const payload: Record<string, any> = { user_id: email, user_type: 'ADMIN', email };
+    if (name) payload.name = name;
+    const access_token = this.jwt.sign(payload);
+    const refresh_token = this.jwt.sign(
+      payload,
+      { expiresIn: this.config.get<number>('JWT_REFRESH_EXPIRES_IN', 2592000) },
+    );
+    return { access_token, refresh_token };
+  }
+
+  private computeSecretHash(username: string, clientId: string, clientSecret: string): string {
+    if (!clientSecret) return '';
+    const hmac = createHmac('sha256', clientSecret);
+    hmac.update(username + clientId);
+    return hmac.digest('base64');
+  }
 
   private signTokens(user_id: string, user_type: UserType, email: string) {
     const payload = { user_id, user_type, email };
@@ -480,7 +599,7 @@ export class AuthService {
 
   private async createEmailVerificationToken(
     userId: string,
-    userType: 'CUSTOMER' | 'PRO',
+    userType: UserType,
     email: string,
   ) {
     const token = uuidv4();
@@ -498,7 +617,7 @@ export class AuthService {
   }
 
   /** Expose token creation so controller can pass it to EmailService */
-  async getVerificationToken(userId: string, userType: 'CUSTOMER' | 'PRO', email: string) {
+  async getVerificationToken(userId: string, userType: UserType, email: string) {
     return this.createEmailVerificationToken(userId, userType, email);
   }
 

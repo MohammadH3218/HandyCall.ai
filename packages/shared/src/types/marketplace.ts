@@ -5,7 +5,7 @@ export type PreferredLanguage = 'ar' | 'en';
 
 export type CustomerStatus = 'ACTIVE' | 'SUSPENDED' | 'PENDING_VERIFICATION';
 export type ProStatus = 'PENDING_REVIEW' | 'ACTIVE' | 'SUSPENDED' | 'REJECTED';
-export type UserType = 'CUSTOMER' | 'PRO';
+export type UserType = 'CUSTOMER' | 'PRO' | 'ADMIN';
 
 export type ServiceCategory =
   | 'AC_HVAC'
@@ -188,8 +188,7 @@ export interface Review {
 
 // ─── Pro Availability ─────────────────────────────────────────────────────────
 
-export type DayOfWeek = 'SAT' | 'SUN' | 'MON' | 'TUE' | 'WED' | 'THU';
-// Note: FRI (Friday) is the Saudi weekend — not included in default availability
+export type DayOfWeek = 'SAT' | 'SUN' | 'MON' | 'TUE' | 'WED' | 'THU' | 'FRI';
 
 export interface ProAvailability {
   pro_id: string;

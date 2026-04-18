@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { IconArrowRight, IconCheck, IconLoader2, IconPlus, IconTrash } from '@tabler/icons-react';
+import { IconArrowRight, IconCheck, IconLoader2, IconPlus, IconTrash, IconSearch } from '@tabler/icons-react';
 import { apiClient } from '@/lib/api-client';
 import { RIYADH_DISTRICTS } from '@handycall/shared';
 import { cn } from '@/lib/utils';
@@ -15,7 +15,7 @@ type ServiceCategory =
   | 'PEST_CONTROL' | 'CARPENTRY' | 'MOVING' | 'APPLIANCE_REPAIR'
   | 'SATELLITE_DISH' | 'LANDSCAPING' | 'GENERAL_HANDYMAN';
 type PricingType = 'FIXED' | 'HOURLY' | 'QUOTE';
-type DayOfWeek = 'SAT' | 'SUN' | 'MON' | 'TUE' | 'WED' | 'THU';
+type DayOfWeek = 'SAT' | 'SUN' | 'MON' | 'TUE' | 'WED' | 'THU' | 'FRI';
 
 interface ServiceItem {
   category: ServiceCategory;
@@ -52,12 +52,6 @@ const SERVICE_CATEGORIES: { value: ServiceCategory; label: string; labelAr: stri
   { value: 'GENERAL_HANDYMAN', label: 'General Handyman', labelAr: 'صيانة عامة' },
 ];
 
-const SAUDI_BANKS = [
-  'Al Rajhi Bank', 'Saudi National Bank (SNB)', 'Riyad Bank',
-  'Arab National Bank', 'Bank AlJazira', 'Bank Albilad',
-  'Saudi British Bank (SABB)', 'Alinma Bank', 'Banque Saudi Fransi', 'Other',
-];
-
 const DAYS: { value: DayOfWeek; label: string; short: string }[] = [
   { value: 'SAT', label: 'Saturday', short: 'Sat' },
   { value: 'SUN', label: 'Sunday', short: 'Sun' },
@@ -65,6 +59,7 @@ const DAYS: { value: DayOfWeek; label: string; short: string }[] = [
   { value: 'TUE', label: 'Tuesday', short: 'Tue' },
   { value: 'WED', label: 'Wednesday', short: 'Wed' },
   { value: 'THU', label: 'Thursday', short: 'Thu' },
+  { value: 'FRI', label: 'Friday', short: 'Fri' },
 ];
 
 const PHASE_ORDER: Phase[] = ['identity', 'profile', 'services', 'payout'];
@@ -83,8 +78,8 @@ const STEP_META: Record<string, { title: string; subtitle: string }> = {
     subtitle: 'Add the services you provide with your pricing.',
   },
   payout: {
-    title: 'Coverage & payout',
-    subtitle: 'Where you work and where we send your earnings.',
+    title: 'Coverage & availability',
+    subtitle: "Which areas you serve and when you're available.",
   },
 };
 
@@ -195,6 +190,117 @@ function ErrorBanner({ message }: { message: string }) {
   );
 }
 
+function CategorySearch({
+  value,
+  onChange,
+}: {
+  value: ServiceCategory;
+  onChange: (v: ServiceCategory) => void;
+}) {
+  const [query, setQuery] = useState('');
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  const selected = SERVICE_CATEGORIES.find((c) => c.value === value);
+  const filtered = query.trim()
+    ? SERVICE_CATEGORIES.filter(
+        (c) =>
+          c.label.toLowerCase().includes(query.toLowerCase()) ||
+          c.labelAr.includes(query),
+      )
+    : SERVICE_CATEGORIES;
+
+  // Close on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+        setQuery('');
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => {
+          setOpen((v) => !v);
+          setQuery('');
+        }}
+        className={cn(
+          'flex w-full items-center justify-between rounded-xl border px-4 py-3 text-[15px] transition-shadow duration-150 outline-none',
+          'hover:border-slate-300',
+          open
+            ? 'border-emerald-400 ring-3 ring-emerald-100'
+            : 'border-slate-200 bg-white',
+        )}
+      >
+        <span className={selected ? 'text-slate-900' : 'text-slate-300'}>
+          {selected ? `${selected.label} — ${selected.labelAr}` : 'Select a category'}
+        </span>
+        <svg className="h-4 w-4 shrink-0 text-slate-400" viewBox="0 0 16 16" fill="none">
+          <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </button>
+
+      {open && (
+        <div className="absolute z-20 mt-1.5 w-full rounded-xl border border-slate-200 bg-white shadow-lg">
+          {/* Search input */}
+          <div className="flex items-center gap-2 border-b border-slate-100 px-3 py-2.5">
+            <IconSearch className="h-4 w-4 shrink-0 text-slate-400" />
+            <input
+              autoFocus
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search categories..."
+              className="w-full bg-transparent text-[14px] text-slate-900 placeholder:text-slate-300 outline-none"
+            />
+          </div>
+          {/* Options list */}
+          <ul className="max-h-52 overflow-y-auto py-1">
+            {filtered.length === 0 ? (
+              <li className="px-4 py-2.5 text-[13px] text-slate-400">No categories match</li>
+            ) : (
+              filtered.map((c) => (
+                <li key={c.value}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onChange(c.value);
+                      setOpen(false);
+                      setQuery('');
+                    }}
+                    className={cn(
+                      'flex w-full items-center gap-2 px-4 py-2.5 text-left text-[14px] transition-colors',
+                      value === c.value
+                        ? 'bg-emerald-50 font-semibold text-emerald-700'
+                        : 'text-slate-700 hover:bg-slate-50',
+                    )}
+                  >
+                    {value === c.value && (
+                      <svg className="h-3.5 w-3.5 shrink-0 text-emerald-600" viewBox="0 0 12 10" fill="none">
+                        <path d="M1 5l3 3 7-7" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    )}
+                    <span>
+                      {c.label}
+                      <span className="ml-1.5 text-slate-400">{c.labelAr}</span>
+                    </span>
+                  </button>
+                </li>
+              ))
+            )}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function PrimaryButton({
   onClick, loading, label = 'Continue', fullWidth = true,
 }: {
@@ -291,8 +397,6 @@ export default function OnboardingSetupPage() {
   const [services, setServices] = useState<ServiceItem[]>([blank()]);
 
   // Payout
-  const [iban, setIban] = useState('SA');
-  const [bankName, setBankName] = useState('');
   const [selectedDistricts, setSelectedDistricts] = useState<string[]>([]);
   const [availability, setAvailability] = useState<AvailabilitySlot[]>(
     DAYS.map((d) => ({ day_of_week: d.value, open_time: '08:00', close_time: '20:00', is_available: true })),
@@ -327,17 +431,27 @@ export default function OnboardingSetupPage() {
     setPhase('profile');
   });
 
-  const submitProfile = () => submit(async () => {
-    await apiClient.proOnboardingProfile({
-      bio: bio.trim() || undefined,
-      years_experience: yearsExp !== '' ? Math.max(0, Number(yearsExp)) : undefined,
-      speaks_arabic: speaksArabic,
-      speaks_english: speaksEnglish,
-      speaks_urdu: speaksUrdu || undefined,
-      speaks_hindi: speaksHindi || undefined,
+  const submitProfile = () => {
+    if (bio.trim().length < 50) {
+      setError('Your bio must be at least 50 characters. Tell customers what you specialise in and why they should choose you.');
+      return;
+    }
+    if (!yearsExp) {
+      setError('Please enter your years of experience.');
+      return;
+    }
+    return submit(async () => {
+      await apiClient.proOnboardingProfile({
+        bio: bio.trim() || undefined,
+        years_experience: yearsExp !== '' ? Math.max(0, Number(yearsExp)) : undefined,
+        speaks_arabic: speaksArabic,
+        speaks_english: speaksEnglish,
+        speaks_urdu: speaksUrdu || undefined,
+        speaks_hindi: speaksHindi || undefined,
+      });
+      setPhase('services');
     });
-    setPhase('services');
-  });
+  };
 
   const submitServices = () => {
     for (const svc of services) {
@@ -365,12 +479,10 @@ export default function OnboardingSetupPage() {
   };
 
   const submitPayout = () => {
-    if (!/^SA\d{22}$/.test(iban)) { setError('IBAN must be SA followed by exactly 22 digits.'); return; }
-    if (!bankName) { setError('Select your bank.'); return; }
     if (selectedDistricts.length === 0) { setError('Select at least one district.'); return; }
     if (!availability.some((s) => s.is_available)) { setError('Mark at least one available day.'); return; }
     submit(async () => {
-      await apiClient.proOnboardingPayout({ iban, bank_name: bankName, service_districts: selectedDistricts, availability });
+      await apiClient.proOnboardingPayout({ service_districts: selectedDistricts, availability });
       setPhase('complete');
     });
   };
@@ -444,13 +556,6 @@ export default function OnboardingSetupPage() {
 
             <div className="pt-2">
               <PrimaryButton onClick={submitIdentity} loading={saving} />
-              <button
-                type="button"
-                onClick={submitIdentity}
-                className="mt-3 w-full py-2 text-center text-sm text-slate-400 hover:text-slate-600 transition"
-              >
-                Skip — I don't have these yet
-              </button>
             </div>
           </div>
         )}
@@ -528,14 +633,10 @@ export default function OnboardingSetupPage() {
                 <div className="space-y-4">
                   <div>
                     <Label>Category</Label>
-                    <NativeSelect
+                    <CategorySearch
                       value={svc.category}
-                      onChange={(v) => updateService(i, { category: v as ServiceCategory })}
-                    >
-                      {SERVICE_CATEGORIES.map((c) => (
-                        <option key={c.value} value={c.value}>{c.label} — {c.labelAr}</option>
-                      ))}
-                    </NativeSelect>
+                      onChange={(v) => updateService(i, { category: v })}
+                    />
                   </div>
 
                   <div>
@@ -658,42 +759,6 @@ export default function OnboardingSetupPage() {
         {/* ── PAYOUT ────────────────────────────────────────────────────── */}
         {phase === 'payout' && (
           <div className="space-y-8">
-            {/* Bank & IBAN */}
-            <div className="space-y-4">
-              <div className="mb-1">
-                <p className="font-display text-[15px] font-semibold text-slate-900">Bank account</p>
-                <p className="text-[13px] text-slate-400">Where we'll send your payouts.</p>
-              </div>
-              <div>
-                <Label>Bank</Label>
-                <NativeSelect value={bankName} onChange={setBankName}>
-                  <option value="">Select your bank</option>
-                  {SAUDI_BANKS.map((b) => <option key={b} value={b}>{b}</option>)}
-                </NativeSelect>
-              </div>
-              <div>
-                <Label>Saudi IBAN</Label>
-                <TextInput
-                  value={iban}
-                  dir="ltr"
-                  onChange={(v) => {
-                    const raw = v.toUpperCase();
-                    if (!raw.startsWith('SA')) return;
-                    setIban('SA' + raw.slice(2).replace(/\D/g, '').slice(0, 22));
-                  }}
-                  placeholder="SA + 22 digits"
-                />
-                <div className="mt-1.5 flex items-center justify-between">
-                  <p className="text-xs text-slate-300">
-                    {iban.length === 24
-                      ? <span className="text-emerald-500 font-medium">✓ Correct length</span>
-                      : `${iban.length} / 24 characters`}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="h-px bg-slate-100" />
 
             {/* Districts */}
             <div>

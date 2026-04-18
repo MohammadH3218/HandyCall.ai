@@ -355,6 +355,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         return;
       }
 
+      // PRO users (poolType='users') don't have a company in the new marketplace backend.
+      // Skip getMyCompany() entirely — it would 401 and trigger a spurious session-expired
+      // redirect. The pro onboarding page fetches /pros/me directly.
+      if (!sessionPoolType || sessionPoolType === 'users') {
+        set({ company: null, companyHydrated: true });
+        return;
+      }
+
       const hydrateCompany = async () => {
         try {
           const company = await apiClient.getMyCompany();

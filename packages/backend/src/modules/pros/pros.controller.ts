@@ -7,6 +7,7 @@ import {
   HttpCode,
   HttpStatus,
   Param,
+  Patch,
   Post,
   Query,
   UploadedFile,
@@ -66,6 +67,16 @@ export class ProsController {
   @Get(':pro_id')
   async getPublicProfile(@Param('pro_id') proId: string) {
     return this.prosService.findPublicProfile(proId);
+  }
+
+  /** Pro: update own marketplace profile (post-onboarding, from dashboard) */
+  @Patch('me/marketplace-profile')
+  async updateMarketplaceProfile(
+    @CurrentUser() user: MarketplaceAuthContext,
+    @Body() body: Record<string, any>,
+  ) {
+    if (user.user_type !== 'PRO') throw new ForbiddenException();
+    return this.prosService.updateMarketplaceProfile(user.user_id, body);
   }
 
   // ─── Onboarding Steps ────────────────────────────────────────────────────

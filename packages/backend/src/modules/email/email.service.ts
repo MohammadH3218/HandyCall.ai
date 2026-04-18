@@ -196,6 +196,38 @@ export class EmailService {
     });
   }
 
+  async sendProApproved(pro: Pro, dashboardUrl: string) {
+    await this.send({
+      to: pro.email,
+      subject: 'Your HandyCall profile has been approved! 🎉',
+      html: renderHandycallEmail({
+        title: 'Welcome to HandyCall!',
+        greeting: `Hi ${pro.first_name},`,
+        body: 'Great news — your HandyCall pro profile has been reviewed and <strong>approved</strong>. Your listing is now live and customers can find and contact you on the marketplace.<br><br>Head to your dashboard to complete your profile, view incoming requests, and start growing your business.',
+        cta: { label: 'Go to my dashboard', url: dashboardUrl },
+        footer: 'If you have any questions, reply to this email or contact hello@handycall.org.',
+      }),
+    });
+  }
+
+  async sendProRejected(pro: Pro, reason: string | undefined) {
+    const reasonHtml = reason
+      ? `<br><br><strong>Reason:</strong><br>${reason}`
+      : '';
+
+    await this.send({
+      to: pro.email,
+      subject: 'Update on your HandyCall application',
+      html: renderHandycallEmail({
+        title: 'Application update',
+        greeting: `Hi ${pro.first_name},`,
+        body: `Thank you for applying to join HandyCall. After reviewing your profile, we were unable to approve your application at this time.${reasonHtml}<br><br>If you'd like to address the points above and reapply, or if you have questions, please reach out to us directly.`,
+        cta: { label: 'Contact us', url: 'mailto:hello@handycall.org' },
+        footer: 'Reply to this email or contact hello@handycall.org for assistance.',
+      }),
+    });
+  }
+
   async sendPayoutNotificationPro(booking: Booking, pro: Pro) {
     await this.send({
       to: pro.email,

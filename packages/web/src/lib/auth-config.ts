@@ -63,6 +63,10 @@ function poolTypeToUserType(poolType?: string): "CUSTOMER" | "PRO" {
   return poolType === "customer" ? "CUSTOMER" : "PRO";
 }
 
+function isAdminPool(poolType?: string): boolean {
+  return poolType === "admin" || poolType === "admin_change_password";
+}
+
 async function refreshAppTokens(token: JWT): Promise<JWT> {
   const refreshToken = token.refreshToken as string | undefined;
   const bearerToken = (token.accessToken as string | undefined) || (token.idToken as string | undefined);
@@ -188,15 +192,93 @@ export const authOptions: NextAuthOptions = {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
         pool_type: { label: "Pool", type: "text" },
+        // Admin change-password challenge fields (optional)
+        session_token: { label: "Session", type: "text" },
+        new_password: { label: "New Password", type: "password" },
+        display_name: { label: "Display Name", type: "text" },
       },
       async authorize(credentials) {
+        const poolType = (credentials as any).pool_type || "users";
+
+        // ── Admin change-password challenge ──────────────────────────────────
+        if (poolType === "admin_change_password") {
+          const { email, session_token, new_password, display_name } = credentials as any;
+          if (!email || !session_token || !new_password || !display_name) {
+            throw new Error("Missing required fields for password setup");
+          }
+          const response = await fetch(`${API_URL}/auth/admin/change-password`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              email,
+              session: session_token,
+              new_password,
+              display_name,
+            }),
+          });
+          if (!response.ok) {
+            const err = await response.json().catch(() => ({}));
+            throw new Error(err.message || "Failed to set new password");
+          }
+          const data = await response.json();
+          const accessToken = data.access_token || data.accessToken;
+          if (!accessToken) throw new Error("Invalid response from server");
+          return {
+            id: email,
+            email,
+            name: display_name,
+            accessToken,
+            idToken: accessToken,
+            refreshToken: data.refresh_token || data.refreshToken,
+            userRole: UserRole.ADMIN,
+            poolType: "admin",
+          };
+        }
+
+        // ── Admin first-time login ───────────────────────────────────────────
+        if (poolType === "admin") {
+          if (!credentials?.email || !credentials?.password) {
+            throw new Error("Email and password are required");
+          }
+          const response = await fetch(`${API_URL}/auth/admin/login`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email: credentials.email, password: credentials.password }),
+          });
+          if (!response.ok) {
+            const err = await response.json().catch(() => ({}));
+            throw new Error(err.message || "Authentication failed");
+          }
+          const data = await response.json();
+          if (data?.requiresPasswordChange && data?.session) {
+            const payload = {
+              code: "NEW_PASSWORD_REQUIRED",
+              session: data.session,
+              email: credentials.email,
+            };
+            const encoded = Buffer.from(JSON.stringify(payload), "utf-8").toString("base64");
+            throw new Error(`NEW_PASSWORD_REQUIRED:${encoded}`);
+          }
+          const accessToken = data.access_token || data.accessToken;
+          if (!accessToken) throw new Error("Invalid response from server");
+          return {
+            id: credentials.email,
+            email: credentials.email,
+            name: data.name,
+            accessToken,
+            idToken: accessToken,
+            refreshToken: data.refresh_token || data.refreshToken,
+            userRole: UserRole.ADMIN,
+            poolType: "admin",
+          };
+        }
+
+        // ── Regular Pro / Customer login ─────────────────────────────────────
         if (!credentials?.email || !credentials?.password) {
           throw new Error("Email and password are required");
         }
 
         try {
-          // Use backend's login endpoint which handles Cognito authentication
-          // This avoids needing client secret in Next.js and reuses existing backend logic
           const response = await fetch(`${API_URL}/auth/login`, {
             method: "POST",
             headers: {
@@ -205,7 +287,7 @@ export const authOptions: NextAuthOptions = {
             body: JSON.stringify({
               email: credentials.email,
               password: credentials.password,
-              user_type: poolTypeToUserType((credentials as any).pool_type || "users"),
+              user_type: poolTypeToUserType(poolType),
             }),
           });
 

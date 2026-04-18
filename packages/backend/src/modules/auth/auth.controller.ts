@@ -7,6 +7,7 @@ import {
   Post,
   Query,
   Res,
+  BadRequestException,
 } from '@nestjs/common';
 import { Response } from 'express';
 import { AuthService } from './auth.service';
@@ -146,5 +147,34 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   async resetPassword(@Body() dto: ResetPasswordDto) {
     return this.authService.resetPassword(dto.token, dto.new_password);
+  }
+
+  // ─── Admin Auth ──────────────────────────────────────────────────────────────
+
+  @Public()
+  @Post('admin/login')
+  @HttpCode(HttpStatus.OK)
+  async adminLogin(@Body() body: { email: string; password: string }) {
+    if (!body.email || !body.password) {
+      throw new BadRequestException('Email and password are required');
+    }
+    return this.authService.adminLogin(body.email, body.password);
+  }
+
+  @Public()
+  @Post('admin/change-password')
+  @HttpCode(HttpStatus.OK)
+  async adminChangePassword(
+    @Body() body: { session: string; email: string; new_password: string; display_name: string },
+  ) {
+    if (!body.session || !body.email || !body.new_password || !body.display_name) {
+      throw new BadRequestException('session, email, new_password, and display_name are required');
+    }
+    return this.authService.adminCompleteNewPassword(
+      body.session,
+      body.email,
+      body.new_password,
+      body.display_name,
+    );
   }
 }

@@ -31,6 +31,11 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
       throw new UnauthorizedException('Invalid token payload');
     }
 
+    // Admin users live in Cognito only — no DynamoDB record to validate against
+    if (user_type === 'ADMIN') {
+      return { user_id, user_type, email };
+    }
+
     // Lightweight check — confirm user still exists and is not suspended
     const table = user_type === 'CUSTOMER' ? 'customers' : 'pros';
     const pkField = user_type === 'CUSTOMER' ? 'customer_id' : 'pro_id';

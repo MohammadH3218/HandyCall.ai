@@ -180,17 +180,37 @@ export class ProsService {
     }
 
     // Complete onboarding — set PENDING_REVIEW (admin must approve before ACTIVE)
-    const result = await this.db.update('pros', { pro_id: proId }, {
-      iban: dto.iban,
-      bank_name: dto.bank_name,
+    // Only include iban/bank_name when provided (DynamoDB rejects undefined values)
+    const payoutUpdate: Record<string, any> = {
       service_districts: dto.service_districts,
       onboarding_step: 5,
       status: 'PENDING_REVIEW',
       updated_at: now,
-    });
+    };
+    if (dto.iban !== undefined) payoutUpdate.iban = dto.iban;
+    if (dto.bank_name !== undefined) payoutUpdate.bank_name = dto.bank_name;
+
+    const result = await this.db.update('pros', { pro_id: proId }, payoutUpdate);
 
     const { password_hash: _, ...safe } = result as any;
     return safe as Pro;
+  }
+
+  // ─── Marketplace Profile Update (post-onboarding dashboard) ─────────────────
+
+  /** Update the pro's marketplace profile fields (bio, services, districts, etc.) */
+  async updateMarketplaceProfile(proId: string, data: Record<string, any>): Promise<Partial<Pro>> {
+    const pro = await this.findById(proId);
+    if (!pro) throw new NotFoundException('Pro not found');
+
+    const updates: Record<string, any> = {
+      ...data,
+      updated_at: Date.now(),
+    };
+
+    const result = await this.db.update('pros', { pro_id: proId }, updates);
+    const { password_hash: _, iban, national_id, iqama_number, id_document_s3_key, ...safe } = result as any;
+    return safe as Partial<Pro>;
   }
 
   // ─── Account Deletion ─────────────────────────────────────────────────────

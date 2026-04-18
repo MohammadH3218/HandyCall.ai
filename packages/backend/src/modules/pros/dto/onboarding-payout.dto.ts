@@ -13,7 +13,7 @@ import { Type } from 'class-transformer';
 import { DayOfWeek, RIYADH_DISTRICTS } from '@handycall/shared';
 
 export class AvailabilitySlotDto {
-  @IsIn(['SAT', 'SUN', 'MON', 'TUE', 'WED', 'THU'] as const)
+  @IsIn(['SAT', 'SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI'] as const)
   day_of_week: DayOfWeek;
 
   @Matches(/^\d{2}:\d{2}$/, { message: 'open_time must be HH:MM' })
@@ -29,15 +29,17 @@ export class AvailabilitySlotDto {
 export class OnboardingPayoutDto {
   /**
    * Saudi IBAN: "SA" followed by exactly 22 digits (total 24 characters).
-   * Validated strictly — no spaces, no dashes.
+   * Optional — payout banking will be collected separately.
    */
+  @IsOptional()
   @Matches(/^SA\d{22}$/, {
     message: 'IBAN must be a valid Saudi IBAN: SA followed by 22 digits (24 chars total)',
   })
-  iban: string;
+  iban?: string;
 
+  @IsOptional()
   @IsString()
-  bank_name: string;
+  bank_name?: string;
 
   @IsArray()
   @ArrayMinSize(1, { message: 'At least one service district is required' })
