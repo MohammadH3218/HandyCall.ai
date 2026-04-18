@@ -453,15 +453,6 @@ export default function OnboardingSetupPage() {
                   <PrimaryButton onClick={submitAll} loading={saving} label="Complete account setup" />
                 </div>
               </div>
-
-              <button
-                type="button"
-                onClick={submitAll}
-                disabled={saving}
-                className="w-full text-center text-xs text-slate-400 underline hover:text-slate-600 transition"
-              >
-                Skip address — I'll add it later
-              </button>
             </div>
           </>
         )}

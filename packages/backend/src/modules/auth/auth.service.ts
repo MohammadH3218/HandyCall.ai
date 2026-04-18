@@ -123,7 +123,7 @@ export class AuthService {
       speaks_english: false,
       service_districts: [],
       city: 'Riyadh',
-      status: 'PENDING_REVIEW',
+      status: 'ONBOARDING',
       onboarding_step: 1,
       is_available: false,
       average_rating: 0,
@@ -262,7 +262,7 @@ export class AuthService {
         speaks_english: true,
         service_districts: [],
         city: 'Riyadh',
-        status: 'PENDING_REVIEW',
+        status: 'ONBOARDING',
         onboarding_step: 1,
         is_available: false,
         average_rating: 0,
@@ -310,7 +310,7 @@ export class AuthService {
     await this.db.update(
       table,
       { [pkField]: record.user_id },
-      { email_verified: true, status: record.user_type === 'CUSTOMER' ? 'ACTIVE' : 'PENDING_REVIEW', updated_at: Date.now() },
+      { email_verified: true, status: record.user_type === 'CUSTOMER' ? 'ACTIVE' : 'ONBOARDING', updated_at: Date.now() },
     );
 
     await this.db.update('email_verifications', { token }, { used: true });

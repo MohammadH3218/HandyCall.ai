@@ -235,6 +235,13 @@ export class ProsService {
       updated_at: Date.now(),
     };
 
+    // Promote to PENDING_REVIEW (awaiting admin approval) only when the
+    // marketplace profile is being marked complete for the first time.
+    // Already-approved / active pros editing their profile should not be demoted.
+    if (data.marketplace_profile_completed === true && pro.status === 'ONBOARDING') {
+      updates.status = 'PENDING_REVIEW';
+    }
+
     const result = await this.db.update('pros', { pro_id: proId }, updates);
     const { password_hash: _, iban, national_id, iqama_number, id_document_s3_key, ...safe } = result as any;
     return safe as Partial<Pro>;

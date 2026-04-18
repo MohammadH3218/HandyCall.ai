@@ -48,7 +48,7 @@ export default function ProDetailPage() {
         </div>
         <div>
           <h1 className="text-[22px] font-bold text-slate-900">{pro.first_name} {pro.last_name}</h1>
-          <p className="text-[13px] text-slate-400">{pro.email} · Joined {pro.created_at ? new Date(pro.created_at).toLocaleDateString() : '—'}</p>
+          <p className="text-[13px] text-slate-400">{pro.email} · Joined {pro.created_at ? new Date(pro.created_at).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: '2-digit' }) : '—'}</p>
           <div className="mt-1.5"><StatusBadge status={pro.status} /></div>
         </div>
       </div>

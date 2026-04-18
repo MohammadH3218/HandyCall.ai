@@ -10,7 +10,8 @@ import { IconLoader2, IconSearch } from '@tabler/icons-react';
 
 const TABS = [
   { label: 'All', value: '' },
-  { label: 'Pending', value: 'PENDING_REVIEW' },
+  { label: 'Onboarding', value: 'ONBOARDING' },
+  { label: 'Pending Review', value: 'PENDING_REVIEW' },
   { label: 'Active', value: 'ACTIVE' },
   { label: 'Suspended', value: 'SUSPENDED' },
   { label: 'Rejected', value: 'REJECTED' },
@@ -113,7 +114,7 @@ function ProsListInner() {
                   <td className="px-5 py-3 text-slate-500">{pro.city ?? '—'}</td>
                   <td className="px-5 py-3 text-slate-500">{pro.average_rating ? `${pro.average_rating.toFixed(1)} ★` : '—'}</td>
                   <td className="px-5 py-3"><StatusBadge status={pro.status} /></td>
-                  <td className="px-5 py-3 text-slate-400">{pro.created_at ? new Date(pro.created_at).toLocaleDateString() : '—'}</td>
+                  <td className="px-5 py-3 text-slate-400">{pro.created_at ? new Date(pro.created_at).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: '2-digit' }) : '—'}</td>
                   <td className="px-5 py-3">
                     <div className="flex flex-wrap gap-1.5">
                       <Link href={`/admin/pros/${pro.pro_id}`} className="rounded-lg bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-slate-600 hover:bg-slate-200">View</Link>

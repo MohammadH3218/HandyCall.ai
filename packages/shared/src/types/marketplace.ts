@@ -4,7 +4,7 @@ export type IdType = 'NATIONAL_ID' | 'IQAMA';
 export type PreferredLanguage = 'ar' | 'en';
 
 export type CustomerStatus = 'ACTIVE' | 'SUSPENDED' | 'PENDING_VERIFICATION';
-export type ProStatus = 'PENDING_REVIEW' | 'ACTIVE' | 'SUSPENDED' | 'REJECTED';
+export type ProStatus = 'ONBOARDING' | 'PENDING_REVIEW' | 'ACTIVE' | 'SUSPENDED' | 'REJECTED';
 export type UserType = 'CUSTOMER' | 'PRO' | 'ADMIN';
 
 export type ServiceCategory =

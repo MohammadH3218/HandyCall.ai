@@ -1,6 +1,7 @@
 'use client';
 
 const STYLES: Record<string, string> = {
+  ONBOARDING: 'bg-blue-50 text-blue-700',
   ACTIVE: 'bg-emerald-50 text-emerald-700',
   PENDING_REVIEW: 'bg-amber-50 text-amber-700',
   SUSPENDED: 'bg-rose-50 text-rose-700',
@@ -14,6 +15,7 @@ const STYLES: Record<string, string> = {
 };
 
 const LABELS: Record<string, string> = {
+  ONBOARDING: 'Onboarding',
   PENDING_REVIEW: 'Pending Review',
   PENDING_VERIFICATION: 'Pending Verification',
   PENDING_CONFIRMATION: 'Pending',
