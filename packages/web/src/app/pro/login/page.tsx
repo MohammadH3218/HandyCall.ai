@@ -19,7 +19,8 @@ const BENEFITS = [
 
 function ProLoginInner() {
   const searchParams = useSearchParams();
-  const callbackUrl = searchParams?.get('callbackUrl') || '/onboarding/setup';
+  // Default to after-login hub so returning pros bypass the onboarding redirect chain
+  const callbackUrl = searchParams?.get('callbackUrl') || '/pro/after-login';
   const reasonParam = searchParams?.get('reason');
   const verifiedParam = searchParams?.get('verified');
   const emailParam = searchParams?.get('email') || '';
@@ -37,12 +38,15 @@ function ProLoginInner() {
   );
   const [isLoading, setIsLoading] = useState(false);
 
+  // Auto-redirect if already authenticated as a pro — but NOT if we just logged out
+  // (reason=logged_out prevents the logout → redirect → dashboard loop)
   useEffect(() => {
     if (status !== 'authenticated') return;
+    if (reasonParam === 'logged_out') return;
     const poolType = (session as any)?.poolType;
     const hasTokens = Boolean((session as any)?.idToken || (session as any)?.accessToken);
     if (poolType !== 'customer' && hasTokens) window.location.replace(callbackUrl);
-  }, [callbackUrl, session, status]);
+  }, [callbackUrl, reasonParam, session, status]);
 
   const handleCredentialsSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -127,7 +131,7 @@ function ProLoginInner() {
             ) : null}
 
             <div className="mt-6">
-              <SocialAuthButtons audience="pro" callbackUrl="/onboarding/setup" />
+              <SocialAuthButtons audience="pro" callbackUrl="/pro/after-login" />
             </div>
 
             <div className="mt-6 flex items-center gap-4 text-xs uppercase tracking-[0.2em] text-slate-300">

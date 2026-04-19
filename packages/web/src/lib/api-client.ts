@@ -147,13 +147,13 @@ class ApiClient {
         headers,
       });
 
+      // Read body once as text, then parse — avoids "body stream already read"
+      const rawText = await response.text();
       let data: any;
       try {
-        data = await response.json();
-      } catch (jsonError) {
-        // If response is not JSON, create error response
-        const text = await response.text();
-        throw new Error(`Invalid JSON response: ${text.substring(0, 100)}`);
+        data = rawText ? JSON.parse(rawText) : null;
+      } catch {
+        throw new Error(`Invalid JSON response: ${rawText.substring(0, 100)}`);
       }
 
       if (!response.ok) {

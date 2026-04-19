@@ -48,7 +48,7 @@ function ProfileMenu({ fallbackUser, isPro = false }: { fallbackUser: Partial<Us
     ? `${profile.first_name}${profile.last_name ? ' ' + profile.last_name : ''}`
     : profile?.email ?? 'Account';
 
-  const logoutHref = isPro ? '/pro/login' : '/customer/login';
+  const logoutHref = isPro ? '/pro/login?reason=logged_out' : '/customer/login';
 
   return (
     <div ref={ref} className="relative">
@@ -84,7 +84,7 @@ function ProfileMenu({ fallbackUser, isPro = false }: { fallbackUser: Partial<Us
           <div className="py-1">
             {isPro ? (
               <Link
-                href="/dashboard"
+                href="/pro/dashboard"
                 onClick={() => setOpen(false)}
                 className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-700 transition hover:bg-slate-50"
               >
@@ -349,7 +349,7 @@ export function SiteHeader({
             {proLinks && shouldShowProAuth ? (
               <>
                 <Link
-                  href="/dashboard"
+                  href="/pro/dashboard"
                   className="block rounded-lg px-3 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
                   onClick={() => setMobileOpen(false)}
                 >
@@ -359,7 +359,7 @@ export function SiteHeader({
                   className="block w-full rounded-lg border border-slate-300 px-4 py-2.5 text-center text-sm font-semibold text-slate-700 hover:bg-slate-50"
                   onClick={async () => {
                     setMobileOpen(false);
-                    await useAuthStore.getState().logout('/pro/login');
+                    await useAuthStore.getState().logout('/pro/login?reason=logged_out');
                   }}
                 >
                   Log out

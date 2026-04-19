@@ -2,7 +2,6 @@ export type OnboardingStepId =
   | 'profile'
   | 'company'
   | 'marketplace-profile'
-  | 'calendar'
   | 'billing';
 
 export const ONBOARDING_STEPS: Array<{
@@ -32,13 +31,6 @@ export const ONBOARDING_STEPS: Array<{
     labelAr: 'ملف السوق',
     description: 'Build the public profile customers see first.',
     descriptionAr: 'أنشئ الملف العام الذي يراه العملاء أولاً.',
-  },
-  {
-    id: 'calendar',
-    label: 'AI scheduling',
-    labelAr: 'جدولة الذكاء الاصطناعي',
-    description: 'Set business hours or connect your calendar.',
-    descriptionAr: 'حدد ساعات العمل أو اربط التقويم الخاص بك.',
   },
   {
     id: 'billing',

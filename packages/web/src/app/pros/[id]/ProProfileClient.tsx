@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import {
   IconArrowLeft,
   IconBriefcase,
@@ -99,6 +100,8 @@ function LoginGateModal({ proId, onClose }: { proId: string; onClose: () => void
 
 export function ProProfileClient({ id }: { id: string }) {
   const { isAuthenticated } = useAuthStore();
+  const { data: session, status: sessionStatus } = useSession();
+  const isCustomer = (session as any)?.poolType === 'customer';
   const router = useRouter();
   const [provider, setProvider] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -107,7 +110,16 @@ export function ProProfileClient({ id }: { id: string }) {
   const [activeTab, setActiveTab] = useState<Tab>('about');
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
 
+  // Gate: only logged-in customers can view pro profiles
   useEffect(() => {
+    if (sessionStatus === 'loading') return;
+    if (!isCustomer) {
+      router.replace(`/customer/login?callbackUrl=${encodeURIComponent(`/pros/${id}`)}`);
+    }
+  }, [id, isCustomer, router, sessionStatus]);
+
+  useEffect(() => {
+    if (!isCustomer) return;
     apiClient
       .getProviderById(id)
       .then((data) => {
@@ -119,7 +131,16 @@ export function ProProfileClient({ id }: { id: string }) {
       })
       .catch(() => setNotFound(true))
       .finally(() => setLoading(false));
-  }, [id]);
+  }, [id, isCustomer]);
+
+  // Show spinner for all non-customer states while redirect fires
+  if (sessionStatus === 'loading' || !isCustomer) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-50">
+        <div className="h-10 w-10 animate-spin rounded-full border-4 border-emerald-200 border-t-emerald-600" />
+      </div>
+    );
+  }
 
   if (loading) {
     return (

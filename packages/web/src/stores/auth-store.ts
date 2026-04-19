@@ -125,7 +125,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
-  logout: async (callbackUrl = '/pro/login') => {
+  logout: async (callbackUrl = '/pro/login?reason=logged_out') => {
     apiClient.setAccessToken(null);
 
     // Reset Zustand BEFORE navigating so any component that stays mounted

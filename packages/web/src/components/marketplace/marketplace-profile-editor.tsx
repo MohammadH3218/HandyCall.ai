@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { apiClient } from '@/lib/api-client';
 import { optimizeImageFile } from '@/lib/image-upload';
@@ -163,6 +164,13 @@ function PhotoCropModal({
   const imgRef = useRef<HTMLImageElement>(null);
   const previewSize = 240;
 
+  // Lock body scroll while modal is open
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = prev; };
+  }, []);
+
   const handleMouseDown = (e: React.MouseEvent) => {
     e.preventDefault();
     setDragging(true);
@@ -200,15 +208,12 @@ function PhotoCropModal({
     const naturalW = img.naturalWidth;
     const naturalH = img.naturalHeight;
 
-    // The display size of the image at zoom=1
     const displayW = naturalW * zoom;
     const displayH = naturalH * zoom;
 
-    // The image center in the preview container
     const cx = previewSize / 2 + offsetX;
     const cy = previewSize / 2 + offsetY;
 
-    // Map back to natural image coordinates
     const scaleX = naturalW / displayW;
     const scaleY = naturalH / displayH;
     const srcX = (cx - previewSize / 2) * scaleX * -1 + naturalW / 2 - previewSize * scaleX / 2;
@@ -219,11 +224,14 @@ function PhotoCropModal({
     onConfirm(canvas.toDataURL('image/jpeg', 0.9));
   }
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
+  const modal = (
+    <div
+      className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70"
+      onWheel={(e) => e.stopPropagation()}
+    >
       <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl">
         <h3 className="mb-1 text-base font-bold text-slate-900">Crop profile photo</h3>
-        <p className="mb-4 text-xs text-slate-500">Drag to reposition · Scroll or use slider to zoom</p>
+        <p className="mb-4 text-xs text-slate-500">Drag to reposition · Use slider to zoom</p>
 
         {/* Crop preview */}
         <div
@@ -232,6 +240,7 @@ function PhotoCropModal({
           onMouseDown={handleMouseDown}
           onWheel={(e) => {
             e.preventDefault();
+            e.stopPropagation();
             setZoom((z) => Math.max(0.5, Math.min(3, z - e.deltaY * 0.002)));
           }}
         >
@@ -288,6 +297,8 @@ function PhotoCropModal({
       </div>
     </div>
   );
+
+  return createPortal(modal, document.body);
 }
 
 // ── Searchable category dropdown ──────────────────────────────────────────────
@@ -748,7 +759,7 @@ export function MarketplaceProfileEditor({
       setSaved(true);
       if (mode === 'dashboard') return;
       setTimeout(() => {
-        router.replace('/pro/review-status');
+        router.replace('/onboarding/billing');
       }, 1200);
     } catch (e: any) {
       setError(e.message || 'Something went wrong. Please try again.');

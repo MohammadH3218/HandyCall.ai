@@ -52,6 +52,13 @@ export async function PUT(
   return handleRequest(req, params, 'PUT');
 }
 
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: { path: string[] } }
+) {
+  return handleRequest(req, params, 'PATCH');
+}
+
 export async function DELETE(
   req: NextRequest,
   { params }: { params: { path: string[] } }

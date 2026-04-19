@@ -1,14 +1,43 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Logo } from '@/components/ui/logo';
 import { MarketplaceProfileEditor } from '@/components/marketplace/marketplace-profile-editor';
+import { apiClient } from '@/lib/api-client';
+import { IconLoader2 } from '@tabler/icons-react';
 
 export default function MarketplaceProfilePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const returnToSetup = searchParams?.get('returnTo') === 'setup';
   const selectedTier = (searchParams?.get('tier') || '').toUpperCase();
+  const [checking, setChecking] = useState(true);
+
+  useEffect(() => {
+    apiClient.getMyPro()
+      .then((pro: any) => {
+        const status = pro?.status;
+        // Already submitted — send to the right place
+        if (status === 'PENDING_REVIEW' || status === 'ACTIVE' || status === 'SUSPENDED' || status === 'REJECTED') {
+          router.replace('/pro/review-status');
+          return;
+        }
+        setChecking(false);
+      })
+      .catch(() => {
+        // Can't fetch — allow through so they can complete the form
+        setChecking(false);
+      });
+  }, [router]);
+
+  if (checking) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-50">
+        <IconLoader2 className="h-7 w-7 animate-spin text-emerald-500" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50">

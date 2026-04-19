@@ -8,10 +8,9 @@ import { OnboardingProvider, useOnboarding } from '@/components/onboarding/onboa
 import { LanguageSwitcher } from '@/components/language-switcher';
 import { useMarketingLanguage } from '@/components/providers/marketing-language-provider';
 import { ONBOARDING_STEPS } from '@/constants/onboarding';
-import { normalizePlan } from '@/constants/plans';
 import { Logo } from '@/components/ui/logo';
 import { IconCircleCheck, IconCircle } from '@tabler/icons-react';
-import { SubscriptionPlan, UserRole } from '@handycall/shared';
+import { UserRole } from '@handycall/shared';
 import { useAuthStore } from '@/stores/auth-store';
 import { apiClient } from '@/lib/api-client';
 import {
@@ -35,7 +34,7 @@ export default function OnboardingLayout({ children }: { children: React.ReactNo
 function OnboardingShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { loading, isAuthenticated, userRole, status, company } = useOnboarding();
+  const { loading, isAuthenticated, userRole, status } = useOnboarding();
   const { isArabic } = useMarketingLanguage();
   const { logout } = useAuthStore();
   const { toast } = useToast();
@@ -49,24 +48,22 @@ function OnboardingShell({ children }: { children: React.ReactNode }) {
   const isSetupPage = pathname?.startsWith('/onboarding/setup') ?? false;
   const isMarketplaceProfilePage =
     pathname?.startsWith('/onboarding/marketplace-profile') ?? false;
+  const isBillingPage = pathname?.startsWith('/onboarding/billing') ?? false;
   const isLegacyStepPage =
     (pathname?.startsWith('/onboarding/') ?? false) &&
     pathname !== '/onboarding' &&
     !isSetupPage &&
-    !isMarketplaceProfilePage;
-
-  const companyPlan = normalizePlan(company?.subscription_plan as SubscriptionPlan | null | undefined);
-  const aiSetupOptional = companyPlan === SubscriptionPlan.STARTER;
+    !isMarketplaceProfilePage &&
+    !isBillingPage;
 
   const stepMap = useMemo(
     () => ({
       profile: status.profile,
       company: status.companyProfile,
       'marketplace-profile': status.marketplaceProfile,
-      calendar: status.calendar || aiSetupOptional,
       billing: status.billing,
     }),
-    [aiSetupOptional, status]
+    [status]
   );
 
   const currentStepId = (pathname?.split('/')[2] || 'billing') as keyof typeof stepMap;
@@ -93,8 +90,8 @@ function OnboardingShell({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    // Don't redirect away from the setup page — it manages its own completion flow
-    if (isSetupPage || isMarketplaceProfilePage) return;
+    // Don't redirect away from the setup or billing pages — they manage their own completion flow
+    if (isSetupPage || isMarketplaceProfilePage || isBillingPage) return;
 
     if (allComplete) {
       router.replace('/dashboard');
@@ -118,8 +115,8 @@ function OnboardingShell({ children }: { children: React.ReactNode }) {
     userRole,
   ]);
 
-  // Never replace children with a spinner on the setup page — that would unmount and restart the chat.
-  if (loading && !isSetupPage) {
+  // Never replace children with a spinner on the setup or billing pages — that would unmount and lose state.
+  if (loading && !isSetupPage && !isBillingPage) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
           <div className="text-center">
@@ -182,8 +179,8 @@ function OnboardingShell({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // Full-screen chatbot layout for the setup page
-  if (isSetupPage) {
+  // Full-screen layout for setup and billing pages
+  if (isSetupPage || isBillingPage) {
     return (
       <div className="flex h-screen flex-col bg-background" dir={isArabic ? 'rtl' : 'ltr'}>
         <header className="flex-none border-b border-border/80 bg-background/88 backdrop-blur-sm">

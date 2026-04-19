@@ -36,7 +36,10 @@ export default function ProDashboardLayout({ children }: { children: React.React
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
-      router.replace('/pro/login');
+      // Include reason=logged_out so the login page doesn't auto-redirect back
+      // if the session cookie hasn't been cleared yet (race between the Zustand
+      // state reset and NextAuth's signOut completing in the logout handler).
+      router.replace('/pro/login?reason=logged_out');
       return;
     }
     if (!isLoading && isAuthenticated) {
@@ -116,7 +119,7 @@ export default function ProDashboardLayout({ children }: { children: React.React
         <div className="border-t border-border/60 p-3">
           <button
             type="button"
-            onClick={() => logout('/pro/login')}
+            onClick={() => logout('/pro/login?reason=logged_out')}
             className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-[14px] font-medium text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-700"
           >
             <IconLogout className="h-4.5 w-4.5" stroke={1.5} />

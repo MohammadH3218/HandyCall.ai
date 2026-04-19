@@ -10,18 +10,16 @@ import { apiClient } from '@/lib/api-client';
 import {
   CustomerProfile,
   isCustomerProfileComplete,
-  sanitizeZip,
   splitFullName,
 } from '@/lib/customer-profile';
 import { useAuthStore } from '@/stores/auth-store';
 import { IconArrowRight, IconHome, IconMapPin, IconSparkles } from '@tabler/icons-react';
 
-const US_STATES = [
-  'AL', 'AK', 'AZ', 'AR', 'CA', 'CO', 'CT', 'DE', 'FL', 'GA',
-  'HI', 'ID', 'IL', 'IN', 'IA', 'KS', 'KY', 'LA', 'ME', 'MD',
-  'MA', 'MI', 'MN', 'MS', 'MO', 'MT', 'NE', 'NV', 'NH', 'NJ',
-  'NM', 'NY', 'NC', 'ND', 'OH', 'OK', 'OR', 'PA', 'RI', 'SC',
-  'SD', 'TN', 'TX', 'UT', 'VT', 'VA', 'WA', 'WV', 'WI', 'WY',
+const SAUDI_CITIES = [
+  'Riyadh', 'Jeddah', 'Mecca', 'Medina', 'Dammam', 'Khobar',
+  'Dhahran', 'Taif', 'Tabuk', 'Abha', 'Khamis Mushait', 'Hail',
+  'Najran', 'Jizan', 'Yanbu', 'Al Qatif', 'Al Jubail', 'Al Kharj',
+  'Buraidah', 'Al Ahsa',
 ];
 
 const INPUT_CLS =
@@ -38,10 +36,11 @@ function CustomerOnboardingContent() {
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState({
     name: '',
+    phone: '',
     address_line1: '',
     address_line2: '',
-    city: '',
-    state: 'TX',
+    district: '',
+    city: 'Riyadh',
     zipcode: '',
   });
 
@@ -74,11 +73,12 @@ function CustomerOnboardingContent() {
 
         setForm({
           name: profile.name || String(session?.user?.name || ''),
+          phone: (profile as any).phone || '',
           address_line1: profile.address_line1 || '',
           address_line2: profile.address_line2 || '',
-          city: profile.city || '',
-          state: profile.state || 'TX',
-          zipcode: sanitizeZip(profile.zipcode || ''),
+          district: profile.state || '',
+          city: profile.city || 'Riyadh',
+          zipcode: (profile.zipcode || '').replace(/\D/g, '').slice(0, 5),
         });
       } catch (err: any) {
         if (!mounted) return;
@@ -99,9 +99,7 @@ function CustomerOnboardingContent() {
       Boolean(
         form.name.trim() &&
           form.address_line1.trim() &&
-          form.city.trim() &&
-          form.state.trim() &&
-          form.zipcode.length === 5,
+          form.city.trim(),
       ),
     [form],
   );
@@ -116,13 +114,24 @@ function CustomerOnboardingContent() {
     setSaving(true);
     setError(null);
     try {
+      // Normalize Saudi phone: strip spaces, ensure +966 prefix
+      const rawPhone = form.phone.replace(/\s/g, '');
+      const normalizedPhone = rawPhone
+        ? rawPhone.startsWith('+966')
+          ? rawPhone
+          : rawPhone.startsWith('0')
+          ? `+966${rawPhone.slice(1)}`
+          : `+966${rawPhone}`
+        : undefined;
+
       const result = await apiClient.updateCustomerProfile({
         name: form.name.trim(),
+        phone: normalizedPhone,
         address_line1: form.address_line1.trim(),
         address_line2: form.address_line2.trim() || undefined,
         city: form.city.trim(),
-        state: form.state.trim(),
-        zipcode: form.zipcode,
+        state: form.district.trim() || undefined,  // reuse `state` field for district
+        zipcode: form.zipcode || undefined,
       });
 
       const { firstName, lastName } = splitFullName(form.name);
@@ -225,29 +234,50 @@ function CustomerOnboardingContent() {
               ) : (
                 <form onSubmit={handleSubmit} className="space-y-5">
                   <div>
-                    <label className="mb-1.5 block text-sm font-medium text-slate-700">Full name</label>
+                    <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                      Full name <span className="text-red-500">*</span>
+                    </label>
                     <input
                       type="text"
                       value={form.name}
                       onChange={(event) => set('name', event.target.value)}
-                      placeholder="Jane Smith"
+                      placeholder="Mohammed Al-Rashid"
                       className={INPUT_CLS}
+                      required
                     />
                   </div>
 
                   <div>
-                    <label className="mb-1.5 block text-sm font-medium text-slate-700">Address</label>
+                    <label className="mb-1.5 block text-sm font-medium text-slate-700">Mobile number</label>
+                    <div className="flex items-center overflow-hidden rounded-2xl border border-slate-200 bg-white/90 focus-within:border-emerald-400 focus-within:ring-4 focus-within:ring-emerald-100">
+                      <span className="border-r border-slate-200 bg-slate-50 px-3 py-3 text-sm font-medium text-slate-500 shrink-0">+966</span>
+                      <input
+                        type="tel"
+                        inputMode="tel"
+                        value={form.phone}
+                        onChange={(event) => set('phone', event.target.value)}
+                        placeholder="05XXXXXXXX"
+                        className="flex-1 bg-transparent px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                      Street address <span className="text-red-500">*</span>
+                    </label>
                     <input
                       type="text"
                       value={form.address_line1}
                       onChange={(event) => set('address_line1', event.target.value)}
-                      placeholder="123 Main St"
+                      placeholder="Building no. & street name"
                       className={INPUT_CLS}
+                      required
                     />
                   </div>
 
                   <div>
-                    <label className="mb-1.5 block text-sm font-medium text-slate-700">Apt, suite, unit</label>
+                    <label className="mb-1.5 block text-sm font-medium text-slate-700">Apt / floor / unit</label>
                     <input
                       type="text"
                       value={form.address_line2}
@@ -257,40 +287,44 @@ function CustomerOnboardingContent() {
                     />
                   </div>
 
-                  <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_110px_130px]">
+                  <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_120px]">
                     <div>
-                      <label className="mb-1.5 block text-sm font-medium text-slate-700">City</label>
+                      <label className="mb-1.5 block text-sm font-medium text-slate-700">District</label>
                       <input
                         type="text"
-                        value={form.city}
-                        onChange={(event) => set('city', event.target.value)}
-                        placeholder="Katy"
+                        value={form.district}
+                        onChange={(event) => set('district', event.target.value)}
+                        placeholder="e.g. Al Olaya"
                         className={INPUT_CLS}
                       />
                     </div>
                     <div>
-                      <label className="mb-1.5 block text-sm font-medium text-slate-700">State</label>
+                      <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                        City <span className="text-red-500">*</span>
+                      </label>
                       <select
-                        value={form.state}
-                        onChange={(event) => set('state', event.target.value)}
+                        value={form.city}
+                        onChange={(event) => set('city', event.target.value)}
                         className={INPUT_CLS}
+                        required
                       >
-                        {US_STATES.map((state) => (
-                          <option key={state} value={state}>
-                            {state}
+                        {SAUDI_CITIES.map((city) => (
+                          <option key={city} value={city}>
+                            {city}
                           </option>
                         ))}
                       </select>
                     </div>
                     <div>
-                      <label className="mb-1.5 block text-sm font-medium text-slate-700">ZIP</label>
+                      <label className="mb-1.5 block text-sm font-medium text-slate-700">Postal code</label>
                       <input
                         type="text"
                         inputMode="numeric"
                         value={form.zipcode}
-                        onChange={(event) => set('zipcode', sanitizeZip(event.target.value))}
-                        placeholder="77449"
+                        onChange={(event) => set('zipcode', event.target.value.replace(/\D/g, '').slice(0, 5))}
+                        placeholder="12345"
                         className={INPUT_CLS}
+                        maxLength={5}
                       />
                     </div>
                   </div>

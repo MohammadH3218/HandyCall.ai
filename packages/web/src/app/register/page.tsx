@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import { SiteHeader } from '@/components/marketing/site-header';
 import { SiteFooter } from '@/components/marketing/site-footer';
 import { SocialAuthButtons } from '@/components/auth/social-auth-buttons';
@@ -23,6 +24,18 @@ const BENEFITS = [
 
 export default function RegisterPage() {
   const router = useRouter();
+  const { data: session, status: sessionStatus } = useSession();
+
+  // If already logged in as a pro, go straight to dashboard
+  useEffect(() => {
+    if (sessionStatus !== 'authenticated') return;
+    const poolType = (session as any)?.poolType;
+    const hasTokens = Boolean((session as any)?.idToken || (session as any)?.accessToken);
+    if (poolType !== 'customer' && hasTokens) {
+      window.location.replace('/pro/dashboard');
+    }
+  }, [session, sessionStatus]);
+
   const [form, setForm] = useState({ name: '', email: '', password: '', confirmPassword: '' });
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -100,7 +113,7 @@ export default function RegisterPage() {
             </p>
 
             <div className="mt-6">
-              <SocialAuthButtons audience="pro" callbackUrl="/onboarding/setup" />
+              <SocialAuthButtons audience="pro" callbackUrl="/pro/after-login" />
             </div>
 
             <div className="mt-6 flex items-center gap-4 text-xs uppercase tracking-[0.2em] text-slate-300">

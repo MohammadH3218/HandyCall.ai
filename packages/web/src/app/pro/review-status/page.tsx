@@ -63,7 +63,7 @@ export default function ReviewStatusPage() {
           </Link>
           <button
             type="button"
-            onClick={() => logout('/pro/login')}
+            onClick={() => logout('/pro/login?reason=logged_out')}
             className="text-sm text-slate-500 transition hover:text-slate-700"
           >
             Sign out
@@ -131,13 +131,6 @@ function PendingState() {
         </ul>
       </div>
 
-      <button
-        type="button"
-        onClick={() => window.location.reload()}
-        className="mt-8 w-full rounded-xl border border-slate-200 py-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
-      >
-        Check status
-      </button>
     </div>
   );
 }

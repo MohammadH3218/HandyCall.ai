@@ -549,8 +549,31 @@ export const authOptions: NextAuthOptions = {
   pages: {
     signIn: '/pro/login',
   },
-  // Set the base URL for NextAuth callbacks
+  // Always use secure cookies on production; explicit sameSite:"lax" ensures the state cookie
+  // survives the full Cognito → Google → Cognito → App redirect chain.
   useSecureCookies: process.env.NODE_ENV === 'production',
+  cookies: process.env.NODE_ENV === 'production'
+    ? {
+        state: {
+          name: '__Secure-next-auth.state',
+          options: {
+            httpOnly: true,
+            sameSite: 'lax' as const,
+            path: '/',
+            secure: true,
+            maxAge: 60 * 15, // 15 minutes — enough for any social-login redirect chain
+          },
+        },
+        callbackUrl: {
+          name: '__Secure-next-auth.callback-url',
+          options: {
+            sameSite: 'lax' as const,
+            path: '/',
+            secure: true,
+          },
+        },
+      }
+    : undefined,
   debug: process.env.NEXTAUTH_DEBUG === 'true',
   logger: {
     error(code, metadata) {
