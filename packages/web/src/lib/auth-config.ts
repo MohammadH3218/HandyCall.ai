@@ -134,13 +134,14 @@ const buildCognitoProvider = (options: {
     clientId: COGNITO_CLIENT_ID,
     clientSecret: COGNITO_CLIENT_SECRET,
     issuer: COGNITO_ISSUER,
-    // PKCE is used instead of state. State comparison is vulnerable to the
-    // Google account-picker flow: the extra AccountChooser redirect hops change
-    // the "same-site" context, causing the state URL param to diverge from the
-    // cookie. PKCE avoids this entirely — the code_verifier is exchanged
-    // server-side (NextAuth → Cognito token endpoint), so no browser cookie
-    // comparison is needed at callback time.
-    checks: ["pkce"],
+    // Use state checks (standard CSRF protection). PKCE was tried but Cognito's
+    // hosted-UI federation flow (Cognito → Google → Cognito) does not properly
+    // preserve the code_challenge through the inner Google OAuth, so Cognito
+    // fails to verify the code_verifier at token exchange (invalid_grant).
+    // State check is fine as long as the state cookie is SameSite=None (see
+    // cookies config below) so it survives the cross-site Google AccountChooser
+    // redirect chain.
+    checks: ["state"],
     ...(COGNITO_AUTH_BASE_URL
       ? {
           authorization: {
@@ -559,12 +560,13 @@ export const authOptions: NextAuthOptions = {
   useSecureCookies: process.env.NODE_ENV === 'production',
   cookies: process.env.NODE_ENV === 'production'
     ? {
-        // PKCE code_verifier — must survive the full NextAuth → Cognito → Google →
-        // Cognito → NextAuth redirect chain, including Google's AccountChooser page.
-        // SameSite=None ensures the cookie is sent regardless of cross-site context.
-        // Secure=true is required when SameSite=None.
-        pkceCodeVerifier: {
-          name: '__Secure-next-auth.pkce.code_verifier',
+        // State cookie — must survive the full NextAuth → Cognito → Google →
+        // Cognito → NextAuth redirect chain, including Google's AccountChooser
+        // extra hops. SameSite=None (+ Secure=true) ensures the browser sends
+        // the cookie on any cross-site top-level navigation, so NextAuth can
+        // compare the returned state URL parameter against the stored value.
+        state: {
+          name: '__Secure-next-auth.state',
           options: {
             httpOnly: true,
             sameSite: 'none' as const,
