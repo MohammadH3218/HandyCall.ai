@@ -60,7 +60,8 @@ export default function ProDashboardLayout({ children }: { children: React.React
           setStatusLoading(false);
         });
     }
-  }, [isAuthenticated, isLoading, router]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated, isLoading]); // router intentionally omitted — stable; caused redirect loop
 
   if (isLoading || statusLoading) {
     return (

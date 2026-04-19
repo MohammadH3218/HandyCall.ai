@@ -15,7 +15,7 @@
  *   ACTIVE                                                       → /pro/dashboard
  */
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { apiClient } from '@/lib/api-client';
@@ -24,11 +24,18 @@ import { IconLoader2 } from '@tabler/icons-react';
 export default function ProAfterLoginPage() {
   const router = useRouter();
   const { status: sessionStatus } = useSession();
+  // Guard: ensure we only navigate once even if sessionStatus oscillates
+  // (NextAuth can briefly re-enter 'loading' on window focus refetch during
+  // the OAuth redirect, queuing multiple router.replace() calls that cause
+  // the browser's history.replaceState() rate-limit to be hit).
+  const hasNavigated = useRef(false);
 
   useEffect(() => {
     if (sessionStatus === 'loading') return;
+    if (hasNavigated.current) return;
 
     if (sessionStatus === 'unauthenticated') {
+      hasNavigated.current = true;
       router.replace('/pro/login');
       return;
     }
@@ -37,6 +44,8 @@ export default function ProAfterLoginPage() {
     apiClient
       .getMyPro()
       .then((pro: any) => {
+        if (hasNavigated.current) return;
+        hasNavigated.current = true;
         const status: string = pro?.status ?? '';
 
         if (status === 'ACTIVE') {
@@ -64,10 +73,14 @@ export default function ProAfterLoginPage() {
         }
       })
       .catch(() => {
+        if (hasNavigated.current) return;
+        hasNavigated.current = true;
         // No pro record yet → brand new user, start onboarding
         router.replace('/onboarding/setup');
       });
-  }, [router, sessionStatus]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionStatus]); // router is intentionally omitted — it is stable and including it
+                       // caused the effect to re-fire after router.replace(), producing a loop.
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-slate-50">

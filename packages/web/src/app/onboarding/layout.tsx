@@ -102,16 +102,19 @@ function OnboardingShell({ children }: { children: React.ReactNode }) {
     if (currentIndex === -1 || currentIndex > fallbackIndex) {
       router.replace('/onboarding/setup');
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     allComplete,
     currentIndex,
     firstIncompleteIndex,
     isAuthenticated,
+    isBillingPage,       // was missing — caused stale closure on billing page
     isLegacyStepPage,
     isMarketplaceProfilePage,
     isSetupPage,
     loading,
-    router,
+    // router intentionally omitted — it is stable; including it caused the effect
+    // to re-fire after every router.replace() call, producing a redirect loop.
     userRole,
   ]);
 
