@@ -134,7 +134,13 @@ const buildCognitoProvider = (options: {
     clientId: COGNITO_CLIENT_ID,
     clientSecret: COGNITO_CLIENT_SECRET,
     issuer: COGNITO_ISSUER,
-    checks: ["state"],
+    // PKCE is used instead of state. State comparison is vulnerable to the
+    // Google account-picker flow: the extra AccountChooser redirect hops change
+    // the "same-site" context, causing the state URL param to diverge from the
+    // cookie. PKCE avoids this entirely — the code_verifier is exchanged
+    // server-side (NextAuth → Cognito token endpoint), so no browser cookie
+    // comparison is needed at callback time.
+    checks: ["pkce"],
     ...(COGNITO_AUTH_BASE_URL
       ? {
           authorization: {
@@ -549,19 +555,22 @@ export const authOptions: NextAuthOptions = {
   pages: {
     signIn: '/pro/login',
   },
-  // Always use secure cookies on production; explicit sameSite:"lax" ensures the state cookie
-  // survives the full Cognito → Google → Cognito → App redirect chain.
+  // Always use secure cookies on production.
   useSecureCookies: process.env.NODE_ENV === 'production',
   cookies: process.env.NODE_ENV === 'production'
     ? {
-        state: {
-          name: '__Secure-next-auth.state',
+        // PKCE code_verifier — must survive the full NextAuth → Cognito → Google →
+        // Cognito → NextAuth redirect chain, including Google's AccountChooser page.
+        // SameSite=None ensures the cookie is sent regardless of cross-site context.
+        // Secure=true is required when SameSite=None.
+        pkceCodeVerifier: {
+          name: '__Secure-next-auth.pkce.code_verifier',
           options: {
             httpOnly: true,
-            sameSite: 'lax' as const,
+            sameSite: 'none' as const,
             path: '/',
             secure: true,
-            maxAge: 60 * 15, // 15 minutes — enough for any social-login redirect chain
+            maxAge: 60 * 15,
           },
         },
         callbackUrl: {
