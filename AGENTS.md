@@ -1,7 +1,8 @@
 # AGENTS.md
 
-## Purpose
-This file is the fast context handoff for coding agents working in this repo.
+See **[CLAUDE.md](./CLAUDE.md)** for the full, up-to-date agent context.
+
+This file is kept for compatibility with agents that look for AGENTS.md.
 
 ## Snapshot (2026-03-10)
 - Repo: `HandyCall.ai`
