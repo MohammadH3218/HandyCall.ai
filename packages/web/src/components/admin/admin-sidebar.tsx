@@ -11,6 +11,7 @@ import {
   MessageSquare,
   Phone,
   Settings,
+  ShieldAlert,
   Users,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -20,6 +21,7 @@ const navItems = [
   { href: '/admin/companies', label: 'Companies', icon: Building2 },
   { href: '/admin/subscriptions', label: 'Subscriptions', icon: CreditCard },
   { href: '/admin/usage', label: 'Usage', icon: BarChart3 },
+  { href: '/admin/logs', label: 'Logs', icon: ShieldAlert },
   { href: '/admin/calls', label: 'Calls', icon: Phone },
   { href: '/admin/appointments', label: 'Appointments', icon: Calendar },
   { href: '/admin/knowledge', label: 'Knowledge Base', icon: MessageSquare },

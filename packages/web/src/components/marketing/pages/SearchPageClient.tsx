@@ -7,7 +7,7 @@ import { IconArrowRight, IconMapPin, IconSearch } from '@tabler/icons-react';
 import { SiteHeader } from '@/components/marketing/site-header';
 import { SiteFooter } from '@/components/marketing/site-footer';
 import { SearchBar } from '@/components/marketing/SearchBar';
-import { SAUDI_MARKETPLACE_CITIES } from '@/constants/houston-areas';
+import { SAUDI_MARKETPLACE_CITIES } from '@/constants/riyadh-districts';
 import {
   MARKETPLACE_SERVICE_CATEGORIES,
   resolveMarketplaceSearchQuery,

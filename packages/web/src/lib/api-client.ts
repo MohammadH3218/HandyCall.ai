@@ -1448,17 +1448,17 @@ class ApiClient {
     if (category) params.set('category', category);
     if (zipcode) params.set('district', zipcode);
     const qs = params.toString() ? `?${params.toString()}` : '';
-    const res = await this.request<any>(`/marketplace/search${qs}`);
+    const res = await this.request<any>(`/marketplace/services${qs}`);
     return (res as any)?.items ?? (res as any)?.providers ?? res ?? [];
   }
 
   async getProviderCategories(): Promise<string[]> {
-    const res = await this.request<any>('/marketplace/categories');
-    return (res as any)?.categories ?? res ?? [];
+    const res = await this.request<any>('/marketplace/filters');
+    return (res as any)?.categories ?? [];
   }
 
   async getProviderBySlug(slug: string): Promise<any> {
-    const res = await this.request<any>(`/marketplace/providers/${slug}`);
+    const res = await this.request<any>(`/pros/${slug}`);
     return (res as any)?.provider ?? res;
   }
 
@@ -1468,18 +1468,36 @@ class ApiClient {
   }
 
   async getMyMarketplaceProfile(): Promise<any> {
-    const res = await this.request<any>('/marketplace/profile');
-    return (res as any)?.profile ?? res;
+    const res = await this.request<any>('/pros/me');
+    return (res as any)?.profile ?? res ?? null;
   }
 
   async updateMarketplaceProfile(data: any): Promise<any> {
-    return this.request<any>('/marketplace/profile', { method: 'PUT', body: JSON.stringify(data) });
+    if (typeof FormData !== 'undefined' && data instanceof FormData) {
+      return this.request<any>('/pros/onboarding/marketplace', { method: 'POST', body: data });
+    }
+    return this.request<any>('/pros/onboarding/marketplace', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
   }
 
   // Reviews
   async getProviderReviews(companyId: string): Promise<any[]> {
-    const res = await this.request<any>(`/reviews/provider/${companyId}`);
+    const res = await this.request<any>(`/reviews/pro/${companyId}`);
     return (res as any)?.reviews ?? res ?? [];
+  }
+
+  async getAdminAuditLogFacets(): Promise<any> {
+    return this.get('/admin/logs/facets');
+  }
+
+  async getAdminAuditLogs(params: Record<string, any> = {}): Promise<any> {
+    return this.get(`/admin/logs${this.createQueryString(params)}`);
+  }
+
+  async getAdminAuditLog(eventId: string): Promise<any> {
+    return this.get(`/admin/logs/${eventId}`);
   }
 
   async getMyReviews(): Promise<any[]> {

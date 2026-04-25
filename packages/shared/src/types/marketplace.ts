@@ -30,7 +30,7 @@ export type BookingStatus =
   | 'COMPLETED'
   | 'CANCELLED';
 
-export type PaymentStatus = 'PENDING' | 'HELD' | 'RELEASED' | 'REFUNDED';
+export type PaymentStatus = 'PENDING' | 'HELD' | 'RELEASED' | 'REFUNDED' | 'FAILED';
 export type PaymentMethod = 'MADA' | 'APPLE_PAY' | 'CREDIT_CARD';
 export type CancelledBy = 'CUSTOMER' | 'PRO' | 'PLATFORM';
 

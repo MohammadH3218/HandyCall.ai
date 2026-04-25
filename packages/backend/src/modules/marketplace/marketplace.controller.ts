@@ -1,6 +1,7 @@
 import { Controller, Get, Query } from '@nestjs/common';
 import { MarketplaceService } from './marketplace.service';
 import { Public } from '../../common/decorators/public.decorator';
+import { RateLimitPolicy } from '../../common/decorators/rate-limit.decorator';
 import { ServiceCategory } from '@handycall/shared';
 
 @Controller('marketplace')
@@ -9,6 +10,7 @@ export class MarketplaceController {
 
   /** Public: browse marketplace services */
   @Public()
+  @RateLimitPolicy('MARKETPLACE_SEARCH')
   @Get('services')
   browseServices(
     @Query('category') category?: ServiceCategory,
@@ -24,6 +26,7 @@ export class MarketplaceController {
 
   /** Public: get supported categories and districts for browse UI */
   @Public()
+  @RateLimitPolicy('MARKETPLACE_READ')
   @Get('filters')
   getFilters() {
     return this.marketplaceService.getSupportedFilters();

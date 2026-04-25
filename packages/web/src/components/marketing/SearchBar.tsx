@@ -4,7 +4,7 @@ import { useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { IconMapPin, IconSearch } from '@tabler/icons-react';
 import { SERVICE_AUTOCOMPLETE_LIST } from '@/constants/home-services';
-import { SAUDI_MARKETPLACE_CITIES } from '@/constants/houston-areas';
+import { SAUDI_MARKETPLACE_CITIES } from '@/constants/riyadh-districts';
 
 const MAX_SERVICE_SUGGESTIONS = 8;
 const MAX_LOCATION_SUGGESTIONS = 10;

@@ -435,7 +435,10 @@ export class AuthService {
 
   // ─── Forgot Password ────────────────────────────────────────────────────────
 
-  async forgotPassword(email: string, userType: UserType): Promise<{ message: string }> {
+  async forgotPassword(
+    email: string,
+    userType: UserType,
+  ): Promise<{ message: string; token?: string; first_name?: string }> {
     const table = userType === 'CUSTOMER' ? 'customers' : 'pros';
     const pkField = userType === 'CUSTOMER' ? 'customer_id' : 'pro_id';
 
@@ -468,7 +471,11 @@ export class AuthService {
     });
 
     // Email is sent by caller (AuthController injects EmailService)
-    return { message: 'If that account exists, a reset link has been sent.', token } as any;
+    return {
+      message: 'If that account exists, a reset link has been sent.',
+      token,
+      first_name: user.first_name || (userType === 'CUSTOMER' ? 'Customer' : 'Pro'),
+    };
   }
 
   // ─── Reset Password ─────────────────────────────────────────────────────────

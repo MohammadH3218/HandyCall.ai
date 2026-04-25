@@ -181,7 +181,7 @@ const SETUP_TRANSLATIONS: Record<string, string> = {
   'What you will set up here': 'ما الذي ستقوم بإعداده هنا',
   'Your public profile includes the cities you serve, services offered, starting price, trust badges, business hours, payment methods, and project photos.':
     'يتضمن ملفك العام المدن التي تخدمها والخدمات التي تقدمها والسعر الابتدائي وعناصر الثقة وساعات العمل ووسائل الدفع وصور المشاريع.',
-  'Houston service coverage': 'نطاق الخدمة داخل السعودية',
+  'Saudi service coverage': 'نطاق الخدمة داخل السعودية',
   'Thumbtack-style trust signals': 'عناصر الثقة على طريقة Thumbtack',
   'Build marketplace profile': 'أنشئ ملف السوق',
   'Change tier': 'غيّر الباقة',
@@ -212,7 +212,7 @@ const SETUP_TRANSLATIONS: Record<string, string> = {
     'مفيد أثناء اختبار الذكاء الاصطناعي قبل تحويل خطك الفعلي.',
   'Dedicated long-term number sourcing can still be configured later from your dashboard settings.':
     'لا يزال بإمكانك إعداد رقم مخصص طويل المدى لاحقًا من إعدادات لوحة التحكم.',
-  'Example: We handle AC repair in Houston Heights and Katy. Standard diagnostics start at $99 and same-day emergency visits add $75. Customers should switch the unit off if water is leaking...':
+  'Example: We handle split AC repair in Riyadh and Khobar. Standard diagnostics start at SAR 149, and same-day emergency visits add SAR 90. Customers should switch the unit off if water is leaking...':
     'مثال: نحن نقدم إصلاح المكيفات السبلت في الرياض والخبر. تبدأ رسوم المعاينة من 149 ريال، وتضاف 90 ريالًا للزيارات الطارئة في نفس اليوم. يجب على العميل إطفاء الوحدة إذا كان هناك تسرب مياه...',
   'Save number': 'حفظ الرقم',
   'What to include here': 'ما الذي ينبغي إضافته هنا',

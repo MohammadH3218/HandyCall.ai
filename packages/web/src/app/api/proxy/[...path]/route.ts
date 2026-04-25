@@ -7,28 +7,20 @@ const NEST_API_URL = process.env.NEXT_PUBLIC_API_URL || "https://api.handycall.o
 // Public paths that don't require authentication (chicken-and-egg fix)
 const PUBLIC_PATHS = [
   "auth/login",
-  "auth/register",
   "auth/customer/register",
   "auth/pro/register",
   "auth/oauth/exchange",
   "auth/verify-email",
-  "auth/confirm-signup",
   "auth/resend-confirmation",
   "auth/refresh",
   "auth/change-password", // Allow password changes without auth
-  "auth/send-phone-code",
-  "auth/verify-phone-code",
-  "auth/update-phone",
-  "auth/delete-unverified",
-  "auth/pre-login",
-  "auth/verify-login-otp",
+  "auth/forgot-password",
+  "auth/reset-password",
   // Marketplace is public — consumers browse without an account
-  "marketplace/search",
-  "marketplace/ai-search",
-  "marketplace/ai-suggestions",
-  "marketplace/categories",
-  "marketplace/providers/",
-  "marketplace/provider-by-id/",
+  "marketplace/services",
+  "marketplace/filters",
+  "pros/",
+  "reviews/pro/",
 ];
 
 export async function GET(
@@ -50,6 +42,13 @@ export async function PUT(
   { params }: { params: { path: string[] } }
 ) {
   return handleRequest(req, params, 'PUT');
+}
+
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: { path: string[] } }
+) {
+  return handleRequest(req, params, 'PATCH');
 }
 
 export async function DELETE(
@@ -86,11 +85,14 @@ async function handleRequest(
   const url = `${NEST_API_URL}/${path}${req.nextUrl.search}`;
 
   // 3. Get request body if applicable
-  let body: string | undefined;
+  let body: BodyInit | undefined;
   if (method !== "GET" && method !== "HEAD") {
     try {
-      body = await req.text();
-    } catch (error) {
+      const rawBody = await req.arrayBuffer();
+      if (rawBody.byteLength > 0) {
+        body = rawBody;
+      }
+    } catch {
       // No body, that's fine
     }
   }
@@ -98,32 +100,49 @@ async function handleRequest(
   // 4. Forward request to NestJS
   try {
     // Build headers conditionally - only add Authorization if we have a session
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json",
-    };
+    const headers = new Headers();
+    const contentType = req.headers.get("content-type");
+    const accept = req.headers.get("accept");
+    const requestId = req.headers.get("x-request-id");
+
+    if (contentType) {
+      headers.set("Content-Type", contentType);
+    } else if (body) {
+      headers.set("Content-Type", "application/json");
+    }
+
+    if (accept) {
+      headers.set("Accept", accept);
+    }
+    if (requestId) {
+      headers.set("X-Request-Id", requestId);
+    }
 
     const companyOverride = req.headers.get('x-company-id');
-    if (companyOverride) {
-      headers['x-company-id'] = companyOverride;
+    const isAdminSession =
+      (session as any)?.poolType === 'admin' || (session as any)?.userRole === 'ADMIN';
+    if (companyOverride && isAdminSession) {
+      headers.set('x-company-id', companyOverride);
     }
     
     // Only add Authorization header if we have a session (not needed for public paths)
     if (bearerToken) {
-      headers["Authorization"] = `Bearer ${bearerToken}`; // Use Cognito token (id or access) for backend auth
+      headers.set("Authorization", `Bearer ${bearerToken}`); // Use Cognito token (id or access) for backend auth
     }
     
     const response = await fetch(url, {
       method: method,
-      headers: headers,
+      headers,
       body: body,
+      cache: 'no-store',
     });
 
     // 5. Parse and return NestJS response to the frontend
-    const contentType = response.headers.get('content-type') || '';
+    const responseContentType = response.headers.get('content-type') || '';
     const raw = await response.text();
 
     // Try JSON first when content-type suggests it, otherwise fall back to raw text.
-    if (contentType.includes('application/json')) {
+    if (responseContentType.includes('application/json')) {
       try {
         const data = raw ? JSON.parse(raw) : null;
         return NextResponse.json(data, { status: response.status });

@@ -12,10 +12,14 @@ import { PaymentsModule } from './modules/payments/payments.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { MarketplaceModule } from './modules/marketplace/marketplace.module';
+import { AuditLogsModule } from './modules/audit-logs/audit-logs.module';
 import { DatabaseModule } from './infrastructure/database/database.module';
 import { StorageModule } from './infrastructure/storage/storage.module';
 import { ParameterStoreModule } from './infrastructure/config/config.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
+import { AdminCompanyOverrideAuditGuard } from './common/guards/admin-company-override-audit.guard';
+import { RolesGuard } from './common/guards/roles.guard';
+import { RateLimitGuard } from './common/guards/rate-limit.guard';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 
@@ -47,6 +51,7 @@ import { AppService } from './app.service';
     PaymentsModule,
     AdminModule,
     DashboardModule,
+    AuditLogsModule,
   ],
   controllers: [AppController],
   providers: [
@@ -54,6 +59,18 @@ import { AppService } from './app.service';
     {
       provide: APP_GUARD,
       useClass: JwtAuthGuard,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: AdminCompanyOverrideAuditGuard,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: RolesGuard,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: RateLimitGuard,
     },
   ],
 })

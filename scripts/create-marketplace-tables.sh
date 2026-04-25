@@ -254,6 +254,74 @@ create_table platform_config \
   --key-schema \
     AttributeName=config_key,KeyType=HASH
 
+# ─── 10. audit_logs ───────────────────────────────────────────────────────────
+
+create_table audit_logs \
+  --attribute-definitions \
+    AttributeName=scope,AttributeType=S \
+    AttributeName=occurred_at_event_id,AttributeType=S \
+    AttributeName=global_scope,AttributeType=S \
+    AttributeName=actor_key,AttributeType=S \
+    AttributeName=event_id,AttributeType=S \
+  --key-schema \
+    AttributeName=scope,KeyType=HASH \
+    AttributeName=occurred_at_event_id,KeyType=RANGE \
+  --global-secondary-indexes \
+    '[
+      {
+        "IndexName": "global-index",
+        "KeySchema": [
+          {"AttributeName":"global_scope","KeyType":"HASH"},
+          {"AttributeName":"occurred_at_event_id","KeyType":"RANGE"}
+        ],
+        "Projection": {"ProjectionType":"ALL"}
+      },
+      {
+        "IndexName": "actor-index",
+        "KeySchema": [
+          {"AttributeName":"actor_key","KeyType":"HASH"},
+          {"AttributeName":"occurred_at_event_id","KeyType":"RANGE"}
+        ],
+        "Projection": {"ProjectionType":"ALL"}
+      },
+      {
+        "IndexName": "event-id-index",
+        "KeySchema": [{"AttributeName":"event_id","KeyType":"HASH"}],
+        "Projection": {"ProjectionType":"ALL"}
+      }
+    ]'
+
+echo "  Enabling TTL on audit_logs..."
+$AWS update-time-to-live \
+  --table-name "${TABLE_PREFIX}audit_logs" \
+  --time-to-live-specification "Enabled=true,AttributeName=expires_at" 2>/dev/null || true
+
+# ─── 11. rate_limit_counters ──────────────────────────────────────────────────
+
+create_table rate_limit_counters \
+  --attribute-definitions \
+    AttributeName=counter_key,AttributeType=S \
+  --key-schema \
+    AttributeName=counter_key,KeyType=HASH
+
+echo "  Enabling TTL on rate_limit_counters..."
+$AWS update-time-to-live \
+  --table-name "${TABLE_PREFIX}rate_limit_counters" \
+  --time-to-live-specification "Enabled=true,AttributeName=expires_at" 2>/dev/null || true
+
+# ─── 12. webhook_receipts ─────────────────────────────────────────────────────
+
+create_table webhook_receipts \
+  --attribute-definitions \
+    AttributeName=receipt_key,AttributeType=S \
+  --key-schema \
+    AttributeName=receipt_key,KeyType=HASH
+
+echo "  Enabling TTL on webhook_receipts..."
+$AWS update-time-to-live \
+  --table-name "${TABLE_PREFIX}webhook_receipts" \
+  --time-to-live-specification "Enabled=true,AttributeName=expires_at" 2>/dev/null || true
+
 # ─── Seed platform_config ─────────────────────────────────────────────────────
 
 echo ""

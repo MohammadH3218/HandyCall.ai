@@ -22,7 +22,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { toast } from '@/hooks/use-toast';
 import { apiClient } from '@/lib/api-client';
 import { MARKETPLACE_SERVICE_CATEGORIES } from '@/constants/marketplace-service-categories';
-import { RIYADH_DISTRICT_VALUES, SAUDI_MARKETPLACE_CITIES } from '@/constants/houston-areas';
+import { RIYADH_DISTRICT_VALUES, SAUDI_MARKETPLACE_CITIES } from '@/constants/riyadh-districts';
 import { useAuthStore } from '@/stores/auth-store';
 import type { ServiceCategory } from '@/lib/shared';
 

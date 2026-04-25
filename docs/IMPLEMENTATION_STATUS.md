@@ -1,78 +1,59 @@
 # Implementation Status
 
-Last updated: 2026-03-10
+Last updated: 2026-04-25
 
-## Program Phases
+## Current Product Truth
+- HandyCall is a Riyadh home-services marketplace.
+- `master` is the deployable truth branch.
+- Production runtime:
+  - web on Vercel
+  - API on Fly.io
 
-1. Pricing Overhaul (Weekly -> Monthly): in progress
-- Shared plan limits/features added and being propagated
-- Backend usage/billing/notification period changes in progress
-- Web pricing and billing/onboarding updates in progress
-- iOS display updates in progress
+## Cleanup Program
+Completed:
+- removed legacy `_voice-ai/` subtree from the active repo path
+- removed duplicate and obviously stale marketplace/UI files
+- renamed Houston-specific district constants to Riyadh-specific naming
+- removed stale AWS EB / Amplify deployment artifacts from the active deploy path
+- tightened `.gitignore` for local agent, Vercel, and Xcode user-state clutter
 
-2. Stripe Connect + Customer Payments: in progress
-- Backend service/controller scaffolding present
-- Web payments surfaces added (`dashboard/payments`, booking payment step)
-- Billing page now supports in-place payment mode switching (`Managed in HandyCall` <-> `Self-managed`)
-- Requires environment + end-to-end validation in Stripe test mode
+In progress:
+- broader archived-doc consistency cleanup
+- a few remaining product-copy updates in older surfaces
 
-3. Dashboard Redesign: in progress
-- Backend dashboard response evolving toward business metrics
-- Web dashboard UI rewrite in progress
-- iOS dashboard parity in progress
+## Security Baseline Status
+Completed:
+- request ID propagation
+- security headers in backend bootstrap
+- route-level rate limiting with named policies
+- admin role enforcement
+- admin company-override auditing
+- webhook signature verification and replay protection
+- proxy allowlist cleanup
 
-4. Notifications Enhancement: in progress
-- Web notifications page/components added
-- Settings wiring and UX polish still required
-- Polling path exists; realtime stream optional
+Needs follow-up:
+- platform-level WAF / firewall settings in Vercel and Fly
+- secret rotation if any tracked exposure is found outside example files
 
-5. Usage Limit Enforcement: in progress
-- Usage gate service scaffold present
-- Telephony integration and user-facing limit states need full validation
+## Audit Logging Status
+Completed:
+- shared audit event types
+- backend audit-log module and admin log APIs
+- auth, admin, payments, rate-limit, and profile/security event logging
+- admin logs UI page
 
-6. Settings Reliability: in progress
-- CRM and call handling settings are being connected end-to-end
-- Must verify mode behavior and webhook deliveries with retries
+Needs follow-up:
+- broader event coverage across older dashboard paths
+- retention/export review
 
-7. Differentiators: partially implemented/in progress
-- Follow-up sequences module scaffold present
-- Widget package present
-- Review-request automation requires full completion + QA
+## Deployment Truth
+- web deploy path: Vercel via `vercel.json`
+- API deploy path: Fly.io via `packages/backend/fly.toml`
+- historical AWS docs remain archived only
 
-## Release Risks To Track
-- Plan feature gating inconsistencies across backend/web/iOS
-- Monthly period math edge cases (timezone + subscription start)
-- Stripe Connect onboarding state handling
-- Telephony fallback behavior when usage is exhausted
-- Dirty worktree risk during large merge/deploy operations
-
-## Pre-Deploy Checklist
-- Confirm Stripe monthly price IDs in environment
-- Build shared package successfully
-- Run backend and web smoke checks
-- Validate migration from weekly -> monthly labels/usages
-- Verify AWS credentials and target EB environment
-- Use the current EB Docker deploy paths:
-  - backend: `packages/backend/deploy.sh` -> app `handycall-api` / env `handycall-api-lb`
-  - web: `packages/web/deploy.sh` -> app `handycall-web` / env `handycall-web-lb`
-- Do not assume Amplify for the web deploy path; `handycall.org` is served by the web Elastic Beanstalk environment
-
-## Suggested Verification Commands
+## Validation
 ```bash
-# from repo root
 npm run -w packages/shared build
 npm run -w packages/backend build
 npm run -w packages/web build
-```
-
-```bash
-# backend deployment prerequisites
-aws sts get-caller-identity
-docker --version
-```
-
-```bash
-# current production deployment targets
-aws elasticbeanstalk describe-environments --application-name handycall-api --environment-names handycall-api-lb --region us-east-1
-aws elasticbeanstalk describe-environments --application-name handycall-web --environment-names handycall-web-lb --region us-east-1
 ```

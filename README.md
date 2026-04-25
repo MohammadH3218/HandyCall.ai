@@ -1,142 +1,57 @@
 # HandyCall
 
-**Multi-tenant AI Receptionist Platform for Local Service Businesses**
+HandyCall is a Riyadh-focused home-services marketplace with consumer discovery, pro onboarding and profile management, customer booking/payment flows, and an admin control surface.
 
-HandyCall is a production-grade SaaS platform that provides AI-powered receptionist services for local service businesses (handyman, pest control, electricians, etc.). The system handles inbound calls and texts, answers questions using business-specific knowledge, captures leads, and manages appointment scheduling.
+## Current Architecture
+- `packages/backend`: NestJS API backed by DynamoDB and S3
+- `packages/web`: Next.js frontend for marketplace, pro, customer, and admin flows
+- `packages/shared`: shared contracts and validation helpers
+- `packages/widget`: widget package placeholder
 
-## 🏗️ Architecture
+## Production Runtime
+- Web: Vercel
+- API: Fly.io
+- Domains:
+  - `handycall.org`
+  - `www.handycall.org`
+  - `admin.handycall.org`
+  - `api.handycall.org`
 
-This is a monorepo containing:
+## Product Areas
+- consumer marketplace: homepage, categories, search, provider profiles, requests
+- pro dashboard: onboarding, profile, inbox, requests, payouts/payments
+- customer dashboard: requests, bookings, inbox, payments
+- admin dashboard: approvals, platform settings, subscriptions, usage, audit logs
 
-- **Backend API** (`packages/backend`) - NestJS + TypeScript + DynamoDB — port 3000
-- **Web Dashboard** (`packages/web`) - Next.js + TypeScript + Tailwind CSS + shadcn/ui — port 3001
-- **Voice Bridge** (`packages/voice-bridge`) - Twilio Media Streams ↔ OpenAI Realtime — port 8082
-- **Realtime Controller** (`packages/realtime-controller`) - SIP session controller
-- **Mobile App** (`packages/mobile`) - React Native + Expo
-- **Shared Types** (`packages/shared`) - Common TypeScript types and utilities
+## Read First
+- `AGENTS.md`
+- `docs/IMPLEMENTATION_STATUS.md`
+- `docs/SECURITY_BASELINE.md`
+- `docs/AUDIT_LOGGING.md`
+- `docs/reference/PROJECT_CONTEXT.md`
 
-## 📚 Documentation
-
-- [PROJECT_CONTEXT.md](./docs/reference/PROJECT_CONTEXT.md) - Single source of truth for the entire project
-- [DB_SCHEMA.md](./docs/reference/DB_SCHEMA.md) - DynamoDB table designs and access patterns
-- [API_REFERENCE.md](./docs/reference/API_REFERENCE.md) - Complete API endpoint documentation
-- [docs/REALTIME_SIP_REWORK.md](./docs/REALTIME_SIP_REWORK.md) - **Realtime Voice Architecture** (Twilio Media Streams + OpenAI)
-- [docs/TWILIO_MEDIA_STREAMS_SETUP.md](./docs/TWILIO_MEDIA_STREAMS_SETUP.md) - Twilio Bridge Setup Guide
-
-## 🚀 Quick Start
-
-### Prerequisites
-
-- Node.js >= 18.0.0
-- npm >= 9.0.0
-- Docker (for DynamoDB local)
-- AWS CLI configured
-- ngrok (`brew install ngrok/ngrok/ngrok`) with auth token set
-- Twilio CLI
-
-### Installation
-
+## Local Development
 ```bash
-# Install all dependencies
 npm install
-
-# Start local infrastructure (DynamoDB)
 npm run local:start
-```
-
-### Development
-
-```bash
-# Run ALL services in one terminal (recommended)
 npm run dev
 ```
 
-This starts shared, backend, web, voice-bridge (with ngrok), and realtime-controller in parallel — color-coded, all in one terminal. `Ctrl+C` stops everything.
-
+Individual commands:
 ```bash
-# Or run individually:
-npm run backend:dev  # API server (port 3000)
-npm run web:dev      # Web dashboard (port 3001)
+npm run shared:build
+npm run backend:dev
+npm run web:dev
 ```
 
-### Voice / Twilio
-The voice bridge is on port 8082. On `npm run dev`, the startup script automatically:
-1. Starts ngrok with static domain `consuelo-harmful-cathy.ngrok-free.dev`
-2. Updates the Twilio webhook for `+18324605974` via Twilio CLI
-
-See [RUNBOOK.md](./docs/reference/RUNBOOK.md) for voice bridge details and tuning.
-
-## 🏢 Multi-Tenancy
-
-Every resource in the system is scoped by `company_id`. Data isolation is enforced at the service layer to ensure complete tenant separation.
-
-## 🔒 Security
-
-- JWT-based authentication
-- Company-scoped data access
-- RAG retrieval never crosses tenant boundaries
-- Production-ready security patterns
-
-## 📱 Platform Features
-
-### Core Capabilities
-- Automated inbound call/text handling
-- AI-powered receptionist with business disclosure
-- RAG-based knowledge retrieval (company-specific)
-- Lead capture and management
-- Appointment booking (multiple modes)
-- Call recording and transcription
-- Flagged question learning loop
-
-### For Business Owners
-- Clean, professional dashboard
-- Teach AI new answers through simple interface
-- Call replay with highlights
-- Lead and appointment management
-- Mobile-first design for field workers
-
-## 🛠️ Tech Stack
-
-- **Frontend**: Next.js, React Native (Expo), TypeScript, Tailwind CSS
-- **Backend**: NestJS, TypeScript
-- **Database**: AWS DynamoDB
-- **Storage**: AWS S3
-- **Hosting**: AWS Amplify (web), AWS infrastructure (API)
-- **AI/ML**: RAG with vector embeddings, LLM integration
-
-## 📦 Project Structure
-
-```
-HandyCall/
-├── packages/
-│   ├── backend/              # NestJS API server (port 3000)
-│   ├── web/                  # Next.js web dashboard (port 3001)
-│   ├── voice-bridge/         # Twilio ↔ OpenAI Realtime bridge (port 8082)
-│   ├── realtime-controller/  # SIP session controller
-│   ├── mobile/               # React Native mobile app
-│   └── shared/               # Shared TypeScript types
-├── docs/                     # Additional documentation
-├── scripts/
-│   └── local/                # Local dev scripts (start, stop, voice-bridge tunnel)
-└── [documentation files]
-```
-
-## 🧪 Testing
-
+## Validation
 ```bash
-npm run test
+npm run -w packages/shared build
+npm run -w packages/backend build
+npm run -w packages/web build
 ```
 
-## 🏗️ Build
-
-```bash
-npm run build
-```
-
-## 📄 License
-
-Proprietary - All rights reserved
-
-## 👥 Support
-
-For issues and questions, please refer to the documentation in the `/docs` folder.
+## Notes
+- `master` is the deployable truth branch.
+- The legacy `_voice-ai/` subtree is no longer part of the active product path.
+- Stale EB/Amplify deployment artifacts have been removed from the primary repo path.

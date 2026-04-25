@@ -125,3 +125,6 @@ test-*.json
 node_modules_corrupt_backup_*/
 **/node_modules_corrupt_backup_*/
 .vercel
+xcuserdata/
+*.xcuserstate
+tmpclaude-*
