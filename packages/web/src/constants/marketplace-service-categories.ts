@@ -1,4 +1,4 @@
-import { ServiceType } from '@handycall/shared';
+import { ServiceType } from '@/types/shared';
 import { HOME_SERVICE_GROUPS, type ServiceGroup } from '@/constants/home-services';
 
 export type MarketplaceServiceCategory = ServiceGroup & {

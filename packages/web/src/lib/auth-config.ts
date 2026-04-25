@@ -1,7 +1,7 @@
 import { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import CognitoProvider from "next-auth/providers/cognito";
-import { UserRole } from "@handycall/shared";
+import { UserRole } from "@/types/shared";
 import { decodeJWT } from "@/lib/jwt";
 import type { JWT } from "next-auth/jwt";
 

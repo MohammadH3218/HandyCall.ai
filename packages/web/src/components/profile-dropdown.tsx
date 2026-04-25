@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { LogOut, User } from 'lucide-react';
 import { useAuthStore } from '@/stores/auth-store';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { SubscriptionPlan, SubscriptionStatus, UserRole } from '@handycall/shared';
+import { SubscriptionPlan, SubscriptionStatus, UserRole } from '@/types/shared';
 import { PLAN_CATALOG, normalizePlan } from '@/constants/plans';
 import { apiClient } from '@/lib/api-client';
 import {

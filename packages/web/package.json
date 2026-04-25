@@ -11,7 +11,6 @@
   },
   "dependencies": {
     "@aws-sdk/client-cognito-identity-provider": "^3.962.0",
-    "@handycall/shared": "*",
     "@nestjs/cli": "11.0.14",
     "@radix-ui/react-avatar": "^1.0.4",
     "@radix-ui/react-dialog": "^1.0.5",

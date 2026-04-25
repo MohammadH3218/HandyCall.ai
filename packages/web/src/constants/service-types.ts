@@ -1,4 +1,4 @@
-import { ServiceType } from '@handycall/shared';
+import { ServiceType } from '@/types/shared';
 
 export const SERVICE_TYPE_OPTIONS: Array<{ value: ServiceType; label: string }> = [
   { value: ServiceType.HANDYMAN, label: 'Handyman' },

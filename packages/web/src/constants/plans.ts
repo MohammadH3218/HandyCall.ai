@@ -1,4 +1,4 @@
-import { SubscriptionPlan } from '@handycall/shared';
+import { SubscriptionPlan } from '@/types/shared';
 
 type PlanLimits = {
   minutes: number;

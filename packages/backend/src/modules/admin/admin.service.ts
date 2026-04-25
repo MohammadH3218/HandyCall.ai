@@ -6,6 +6,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { DynamoDBService } from '../../infrastructure/database/dynamodb.service';
 import { EmailService } from '../email/email.service';
+import { ProsService } from '../pros/pros.service';
 import { Pro, ProStatus, Customer } from '@handycall/shared';
 
 @Injectable()
@@ -16,6 +17,7 @@ export class AdminService {
     private db: DynamoDBService,
     private email: EmailService,
     private config: ConfigService,
+    private prosService: ProsService,
   ) {}
 
   // ─── Pros ─────────────────────────────────────────────────────────────────
@@ -142,53 +144,8 @@ export class AdminService {
   }
 
   async deletePro(proId: string): Promise<{ message: string }> {
-    const pro = await this.db.get('pros', { pro_id: proId }) as any;
-    if (!pro) throw new NotFoundException('Pro not found');
-
-    // Cascade: services
-    try {
-      const { items: services } = await this.db.query(
-        'services',
-        'pro_id = :pid',
-        { '#pid': 'pro_id' },
-        { ':pid': proId },
-        { indexName: undefined },
-      );
-      await Promise.all(services.map((s: any) =>
-        this.db.delete('services', { pro_id: proId, service_id: s.service_id }),
-      ));
-    } catch {}
-
-    // Cascade: availability
-    try {
-      const { items: avail } = await this.db.query(
-        'pro_availability',
-        'pro_id = :pid',
-        { '#pid': 'pro_id' },
-        { ':pid': proId },
-        { indexName: undefined },
-      );
-      await Promise.all(avail.map((a: any) =>
-        this.db.delete('pro_availability', { pro_id: proId, day_of_week: a.day_of_week }),
-      ));
-    } catch {}
-
-    // Cascade: reviews
-    try {
-      const { items: reviews } = await this.db.query(
-        'reviews',
-        'pro_id = :pid',
-        { '#pid': 'pro_id' },
-        { ':pid': proId },
-        { indexName: 'pro_id-index' },
-      );
-      await Promise.all(reviews.map((r: any) =>
-        this.db.delete('reviews', { review_id: r.review_id }),
-      ));
-    } catch {}
-
-    // Delete pro record
-    await this.db.delete('pros', { pro_id: proId });
+    // Delegate to ProsService.deleteAccount which handles DynamoDB, S3, and Cognito
+    await this.prosService.deleteAccount(proId);
     return { message: `Pro ${proId} and all associated data permanently deleted.` };
   }
 

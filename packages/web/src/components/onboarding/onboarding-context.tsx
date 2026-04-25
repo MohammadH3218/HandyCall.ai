@@ -3,7 +3,7 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { useAuthStore } from '@/stores/auth-store';
 import { computeOnboardingStatus } from '@/lib/setup-status';
-import { UserRole } from '@handycall/shared';
+import { UserRole } from '@/types/shared';
 
 type OnboardingStatus = {
   profile: boolean;

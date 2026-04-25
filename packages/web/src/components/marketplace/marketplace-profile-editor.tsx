@@ -727,42 +727,80 @@ export function MarketplaceProfileEditor({
 
   async function handleSave() {
     if (!validate()) {
-      // Scroll to first error section
       const firstErrorId = Object.keys(fieldErrors)[0];
       document.getElementById(`section-${firstErrorId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       return;
     }
 
     setSaving(true);
+    setSaved(false);
     setError('');
-    try {
-      await apiClient.updateMyProMarketplaceProfile({
-        marketplace_profile: { ...profile, portfolio_photos: [] },
-        service_area_cities: ['Riyadh'],
-        service_area_zipcodes: profile.service_districts,
-        service_area_completed: profile.service_districts.length > 0,
-        marketplace_profile_completed: true,
-        public_profile_enabled: true,
-      });
 
-      // Save photos separately (may be large)
+    const payload = {
+      marketplace_profile: { ...profile, portfolio_photos: [] },
+      service_area_cities: ['Riyadh'],
+      service_area_zipcodes: profile.service_districts,
+      service_area_completed: profile.service_districts.length > 0,
+      marketplace_profile_completed: true,
+      public_profile_enabled: true,
+    };
+
+    try {
+      // Primary: PATCH /pros/me/marketplace-profile
+      try {
+        await apiClient.updateMyProMarketplaceProfile(payload);
+      } catch (primaryErr: any) {
+        // Fallback: POST /pros/onboarding/profile (legacy endpoint still live in prod)
+        const isNotFound =
+          primaryErr?.status === 404 ||
+          primaryErr?.message?.includes('404') ||
+          primaryErr?.message?.toLowerCase().includes('not found');
+        if (isNotFound) {
+          await apiClient.postLegacyOnboardingProfile({
+            bio: profile.bio,
+            service_category: profile.service_category,
+            services_offered: profile.services_offered,
+            service_districts: profile.service_districts,
+            payment_methods: profile.payment_methods,
+            business_hours: profile.business_hours,
+            starting_price: profile.starting_price,
+            contact_for_price: profile.contact_for_price,
+            profile_photo: profile.profile_photo,
+            years_in_business: profile.years_in_business,
+            employees: profile.employees,
+          });
+        } else {
+          throw primaryErr;
+        }
+      }
+
+      // Save portfolio photos separately (may be large — best-effort)
       if (profile.portfolio_photos.length > 0) {
         try {
           await apiClient.updateMyProMarketplaceProfile({
             marketplace_profile: { ...profile },
           });
         } catch {
-          // Photos too large — profile already saved without them
+          // Photos too large or endpoint unavailable — profile text already saved
         }
       }
 
       setSaved(true);
-      if (mode === 'dashboard') return;
+      if (mode === 'dashboard') {
+        setTimeout(() => setSaved(false), 3000);
+        return;
+      }
       setTimeout(() => {
         router.replace('/onboarding/billing');
       }, 1200);
     } catch (e: any) {
-      setError(e.message || 'Something went wrong. Please try again.');
+      const msg = (e.message || '').toLowerCase();
+      const isAuthError =
+        msg.includes('unauthorized') ||
+        msg.includes('invalid') ||
+        msg.includes('expired') ||
+        msg.includes('401');
+      setError(isAuthError ? '__AUTH_EXPIRED__' : (e.message || 'Something went wrong. Please try again.'));
     } finally {
       setSaving(false);
     }
@@ -790,6 +828,31 @@ export function MarketplaceProfileEditor({
           onConfirm={handleCropConfirm}
           onCancel={() => setCropSrc(null)}
         />
+      )}
+
+      {/* Saving overlay */}
+      {saving && createPortal(
+        <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-white/80 backdrop-blur-sm">
+          <div className="flex flex-col items-center gap-4">
+            <div className="h-10 w-10 animate-spin rounded-full border-4 border-emerald-200 border-t-emerald-600" />
+            <p className="text-sm font-semibold text-slate-700">Saving your profile…</p>
+            <div className="h-1.5 w-48 overflow-hidden rounded-full bg-slate-100">
+              <div className="h-full animate-[progress_1.8s_ease-in-out_infinite] rounded-full bg-emerald-500" />
+            </div>
+          </div>
+          <style>{`@keyframes progress { 0%{width:0%;margin-left:0} 50%{width:70%;margin-left:15%} 100%{width:0%;margin-left:100%} }`}</style>
+        </div>,
+        document.body,
+      )}
+
+      {/* Success toast */}
+      {saved && !saving && (
+        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-3.5 shadow-lg">
+          <svg viewBox="0 0 20 20" className="h-5 w-5 shrink-0 text-emerald-600" fill="currentColor">
+            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+          </svg>
+          <span className="text-sm font-semibold text-emerald-800">Profile saved successfully</span>
+        </div>
       )}
 
       <div className="mb-2">
@@ -1431,7 +1494,20 @@ export function MarketplaceProfileEditor({
         </section>
 
         {/* ── Errors ───────────────────────────────────────────────────────── */}
-        {error ? (
+        {error === '__AUTH_EXPIRED__' ? (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 px-5 py-4">
+            <p className="text-sm font-semibold text-amber-900">Your session has expired</p>
+            <p className="mt-1 text-sm text-amber-800">
+              Sign in again to save your profile — your changes are still here.
+            </p>
+            <a
+              href={`/pro/login?callbackUrl=${encodeURIComponent('/pro/dashboard/marketplace')}`}
+              className="mt-3 inline-flex items-center rounded-lg bg-amber-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-amber-700"
+            >
+              Sign in again
+            </a>
+          </div>
+        ) : error ? (
           <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
             {error}
           </div>

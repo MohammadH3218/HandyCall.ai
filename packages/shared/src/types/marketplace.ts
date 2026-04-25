@@ -56,6 +56,10 @@ export interface Customer {
   id_verified: boolean;
   district?: string;                           // Riyadh district (حي)
   city: string;                                // default "Riyadh"
+  address_line1?: string;
+  address_line2?: string;
+  address_latitude?: number;
+  address_longitude?: number;
   preferred_language?: PreferredLanguage;
   status: CustomerStatus;
   email_verified: boolean;

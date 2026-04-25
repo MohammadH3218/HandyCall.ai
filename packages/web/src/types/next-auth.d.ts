@@ -1,5 +1,5 @@
 import "next-auth";
-import { UserRole } from "@handycall/shared";
+import { UserRole } from "@/types/shared";
 
 declare module "next-auth" {
   interface Session {

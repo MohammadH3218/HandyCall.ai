@@ -12,6 +12,8 @@ import { PaymentsModule } from './modules/payments/payments.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { MarketplaceModule } from './modules/marketplace/marketplace.module';
+import { PortalMessagingModule } from './modules/portal-messaging/portal-messaging.module';
+import { QuoteRequestsModule } from './modules/quote-requests/quote-requests.module';
 import { DatabaseModule } from './infrastructure/database/database.module';
 import { StorageModule } from './infrastructure/storage/storage.module';
 import { ParameterStoreModule } from './infrastructure/config/config.module';
@@ -42,6 +44,10 @@ import { AppService } from './app.service';
     BookingsModule,
     ReviewsModule,
     MarketplaceModule,
+
+    // Messaging & Requests
+    PortalMessagingModule,
+    QuoteRequestsModule,
 
     // Platform
     PaymentsModule,

@@ -1,8 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { apiClient } from '@/lib/api-client';
-import { IconLoader2 } from '@tabler/icons-react';
+import { IconLoader2, IconPencil } from '@tabler/icons-react';
 
 export default function ProProfilePage() {
   const [pro, setPro] = useState<any>(null);
@@ -26,11 +27,20 @@ export default function ProProfilePage() {
 
   return (
     <div className="px-8 py-10">
-      <div className="mb-6">
-        <h1 className="text-[22px] font-bold text-slate-900">My profile</h1>
-        <p className="mt-1 text-[15px] text-slate-400">
-          Your public listing as it appears to customers.
-        </p>
+      <div className="mb-6 flex items-start justify-between">
+        <div>
+          <h1 className="text-[22px] font-bold text-slate-900">My profile</h1>
+          <p className="mt-1 text-[15px] text-slate-400">
+            Your public listing as it appears to customers.
+          </p>
+        </div>
+        <Link
+          href="/pro/dashboard/marketplace"
+          className="flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700"
+        >
+          <IconPencil className="h-4 w-4" stroke={2} />
+          Edit profile
+        </Link>
       </div>
 
       {pro && (

@@ -9,7 +9,7 @@ import {
   Query,
 } from '@nestjs/common';
 import { ReviewsService } from './reviews.service';
-import { CreateReviewDto, ProReplyDto } from './dto/review.dto';
+import { CreateReviewDto, CreateFromQuoteDto, ProReplyDto } from './dto/review.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
 import { MarketplaceAuthContext } from '@handycall/shared';
@@ -26,6 +26,16 @@ export class ReviewsController {
   ) {
     if (user.user_type !== 'CUSTOMER') throw new ForbiddenException('Only customers can leave reviews');
     return this.reviewsService.create(user.user_id, dto);
+  }
+
+  /** Customer: submit a review from an accepted quote request */
+  @Post('from-quote')
+  async createFromQuote(
+    @CurrentUser() user: MarketplaceAuthContext,
+    @Body() dto: CreateFromQuoteDto,
+  ) {
+    if (user.user_type !== 'CUSTOMER') throw new ForbiddenException('Only customers can leave reviews');
+    return this.reviewsService.createFromQuote(user.user_id, dto);
   }
 
   /** Pro: add a reply to a review */

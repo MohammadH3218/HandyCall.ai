@@ -4,9 +4,10 @@ import { AdminController } from './admin.controller';
 import { AdminService } from './admin.service';
 import { AdminGuard } from './admin.guard';
 import { EmailModule } from '../email/email.module';
+import { ProsModule } from '../pros/pros.module';
 
 @Module({
-  imports: [ConfigModule, EmailModule],
+  imports: [ConfigModule, EmailModule, ProsModule],
   controllers: [AdminController],
   providers: [AdminService, AdminGuard],
 })

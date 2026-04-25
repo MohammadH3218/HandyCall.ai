@@ -10,7 +10,7 @@ import { useMarketingLanguage } from '@/components/providers/marketing-language-
 import { ONBOARDING_STEPS } from '@/constants/onboarding';
 import { Logo } from '@/components/ui/logo';
 import { IconCircleCheck, IconCircle } from '@tabler/icons-react';
-import { UserRole } from '@handycall/shared';
+import { UserRole } from '@/types/shared';
 import { useAuthStore } from '@/stores/auth-store';
 import { apiClient } from '@/lib/api-client';
 import {

@@ -1,4 +1,4 @@
-import { ServiceType } from '@handycall/shared';
+import { ServiceType } from '@/types/shared';
 
 export type ServicePricingGuide = {
   headline: string;

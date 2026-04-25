@@ -7,7 +7,7 @@ import {
   ConfirmSignUpResponse,
   ResendConfirmationRequest,
   ResendConfirmationResponse,
-} from '@handycall/shared';
+} from '@/types/shared';
 
 // BFF Pattern: Point to Next.js internal API proxy instead of external NestJS
 // The proxy handles authentication server-side using NextAuth cookies
@@ -1690,6 +1690,20 @@ class ApiClient {
     return this.request<any>(`/admin/platform-config/${key}`, {
       method: 'PATCH',
       body: JSON.stringify({ value }),
+    });
+  }
+
+  // Reviews
+  async getProReviews(proId: string): Promise<any[]> {
+    const res = await this.request<any>(`/reviews/pro/${proId}`);
+    return Array.isArray(res) ? res : (res as any)?.reviews ?? (res as any)?.data ?? [];
+  }
+
+  // Generic fallback POST for legacy onboarding endpoints
+  async postLegacyOnboardingProfile(data: Record<string, any>): Promise<any> {
+    return this.request<any>('/pros/onboarding/profile', {
+      method: 'POST',
+      body: JSON.stringify(data),
     });
   }
 }

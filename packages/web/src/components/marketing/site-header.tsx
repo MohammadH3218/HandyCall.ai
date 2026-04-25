@@ -6,7 +6,7 @@ import { useSession } from 'next-auth/react';
 import { IconMenu2, IconX, IconChevronDown } from '@tabler/icons-react';
 import { useAuthStore } from '@/stores/auth-store';
 import { Logo } from '../ui/logo';
-import type { User } from '@handycall/shared';
+import type { User } from '@/types/shared';
 
 type SiteHeaderVariant = 'default' | 'minimal' | 'pro';
 

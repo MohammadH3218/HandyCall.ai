@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { User, Company, UserRole } from '@handycall/shared';
+import { User, Company, UserRole } from '@/types/shared';
 import { apiClient } from '@/lib/api-client';
 import { extractUserRole, decodeJWT } from '@/lib/jwt';
 import { signOut } from 'next-auth/react';

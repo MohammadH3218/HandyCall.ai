@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { v4 as uuidv4 } from 'uuid';
 import { DynamoDBService } from '../../infrastructure/database/dynamodb.service';
-import { CreateReviewDto, ProReplyDto } from './dto/review.dto';
+import { CreateReviewDto, CreateFromQuoteDto, ProReplyDto } from './dto/review.dto';
 import { Review } from '@handycall/shared';
 
 @Injectable()
@@ -71,6 +71,38 @@ export class ReviewsService {
     });
 
     return result as Review;
+  }
+
+  async createFromQuote(customerId: string, dto: CreateFromQuoteDto): Promise<any> {
+    const quote = await this.db.get('quote_requests', { quote_id: dto.quote_id }) as any;
+    if (!quote) throw new NotFoundException('Quote request not found');
+    if (quote.customer_user_id !== customerId) throw new ForbiddenException();
+    if (quote.status !== 'ACCEPTED') {
+      throw new BadRequestException('You can only review after a quote has been accepted.');
+    }
+    if (quote.reviewed) {
+      throw new BadRequestException('You have already reviewed this service.');
+    }
+
+    const now = Date.now();
+    const review = {
+      review_id: uuidv4(),
+      quote_id: dto.quote_id,
+      customer_id: customerId,
+      pro_id: quote.pro_id,
+      rating: dto.rating,
+      comment: dto.comment,
+      customer_name: quote.contact_name || 'Customer',
+      is_visible: true,
+      created_at: now,
+      updated_at: now,
+    };
+
+    await this.db.put('reviews', review);
+    await this.db.update('quote_requests', { quote_id: dto.quote_id }, { reviewed: true });
+    await this.updateProRating(quote.pro_id);
+
+    return review;
   }
 
   async listByPro(proId: string, limit = 20): Promise<Review[]> {

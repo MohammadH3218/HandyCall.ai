@@ -115,9 +115,9 @@ export class MarketplaceService {
       };
     });
 
-    // 4. Filter to relevant results, sort by score then district
+    // 4. Filter to relevant results; if a district was specified, only include pros who serve it
     return scored
-      .filter((p) => p._score > 0)
+      .filter((p) => p._score > 0 && (!params.district || p._districtMatch > 0))
       .sort((a, b) => b._score - a._score || b._districtMatch - a._districtMatch)
       .map(({ _score, _districtMatch, ...pro }) => pro);
   }

@@ -1,5 +1,4 @@
 /** @type {import('next').NextConfig} */
-const path = require('path');
 const isProduction = process.env.NODE_ENV === 'production';
 
 const securityHeaders = [
@@ -49,12 +48,7 @@ const securityHeaders = [
 const nextConfig = {
   // Keep custom tracing root only for production builds.
   // In local dev, this can stall startup on large workspaces.
-  experimental: isProduction
-    ? {
-        outputFileTracingRoot: path.join(__dirname, '../../'),
-      }
-    : {},
-  transpilePackages: ['@handycall/shared'],
+  experimental: {},
   typescript: {
     // Pre-existing type errors in shared types and third-party @types packages.
     // Runtime code compiles correctly; type errors are tracked separately.

@@ -1,6 +1,6 @@
 # Implementation Status
 
-Last updated: 2026-03-10
+Last updated: 2026-04-21
 
 ## Program Phases
 
@@ -51,11 +51,15 @@ Last updated: 2026-03-10
 - Build shared package successfully
 - Run backend and web smoke checks
 - Validate migration from weekly -> monthly labels/usages
-- Verify AWS credentials and target EB environment
-- Use the current EB Docker deploy paths:
-  - backend: `packages/backend/deploy.sh` -> app `handycall-api` / env `handycall-api-lb`
-  - web: `packages/web/deploy.sh` -> app `handycall-web` / env `handycall-web-lb`
-- Do not assume Amplify for the web deploy path; `handycall.org` is served by the web Elastic Beanstalk environment
+
+## Deploy Commands
+```bash
+# Backend → Fly.io (run from repo root)
+flyctl deploy --config packages/backend/fly.toml --dockerfile packages/backend/Dockerfile
+
+# Web → Vercel (run from repo root)
+vercel --prod
+```
 
 ## Suggested Verification Commands
 ```bash
@@ -66,13 +70,7 @@ npm run -w packages/web build
 ```
 
 ```bash
-# backend deployment prerequisites
-aws sts get-caller-identity
-docker --version
-```
-
-```bash
-# current production deployment targets
-aws elasticbeanstalk describe-environments --application-name handycall-api --environment-names handycall-api-lb --region us-east-1
-aws elasticbeanstalk describe-environments --application-name handycall-web --environment-names handycall-web-lb --region us-east-1
+# health checks
+curl https://handycall-api.fly.dev/api/v1/health
+curl -I https://handycall.org
 ```

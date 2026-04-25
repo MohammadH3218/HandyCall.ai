@@ -33,7 +33,7 @@ const PAYMENT_LABELS: Record<string, string> = {
 
 const DAY_ORDER = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
-type Tab = 'about' | 'services' | 'portfolio' | 'availability';
+type Tab = 'about' | 'services' | 'portfolio' | 'availability' | 'reviews';
 
 function StarRating({ rating, count }: { rating: number; count: number }) {
   const filled = Math.floor(rating);
@@ -109,6 +109,7 @@ export function ProProfileClient({ id }: { id: string }) {
   const [showLoginGate, setShowLoginGate] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>('about');
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const [proReviews, setProReviews] = useState<any[]>([]);
 
   // Gate: only logged-in customers can view pro profiles
   useEffect(() => {
@@ -131,6 +132,14 @@ export function ProProfileClient({ id }: { id: string }) {
       })
       .catch(() => setNotFound(true))
       .finally(() => setLoading(false));
+  }, [id, isCustomer]);
+
+  useEffect(() => {
+    if (!isCustomer || !id) return;
+    apiClient
+      .getProReviews(id)
+      .then((list) => setProReviews(list))
+      .catch(() => {});
   }, [id, isCustomer]);
 
   // Show spinner for all non-customer states while redirect fires
@@ -216,6 +225,7 @@ export function ProProfileClient({ id }: { id: string }) {
     { id: 'services', label: 'Services' },
     ...(hasPortfolio ? [{ id: 'portfolio' as Tab, label: 'Portfolio' }] : []),
     ...(hasAvailability ? [{ id: 'availability' as Tab, label: 'Availability' }] : []),
+    { id: 'reviews', label: `Reviews${reviews > 0 ? ` (${reviews})` : ''}` },
   ];
 
   function handleRequestQuote() {
@@ -547,6 +557,90 @@ export function ProProfileClient({ id }: { id: string }) {
                         </div>
                       ) : (
                         <p className="text-sm text-slate-400">Hours not provided.</p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Reviews */}
+                  {activeTab === 'reviews' && (
+                    <div className="space-y-5">
+                      {/* Summary */}
+                      {reviews > 0 && (
+                        <div className="flex items-center gap-4 rounded-xl bg-slate-50 px-5 py-4">
+                          <div className="text-center">
+                            <p className="text-3xl font-extrabold text-slate-900">
+                              {Number(rating).toFixed(1)}
+                            </p>
+                            <div className="mt-1 flex justify-center gap-0.5">
+                              {Array.from({ length: 5 }, (_, i) => (
+                                <svg
+                                  key={i}
+                                  viewBox="0 0 20 20"
+                                  className={`h-3.5 w-3.5 ${i < Math.floor(rating) ? 'text-amber-400' : 'text-slate-200'}`}
+                                  fill="currentColor"
+                                >
+                                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                                </svg>
+                              ))}
+                            </div>
+                            <p className="mt-1 text-xs text-slate-400">{reviews} {reviews === 1 ? 'review' : 'reviews'}</p>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Review list */}
+                      {proReviews.length > 0 ? (
+                        <div className="space-y-4">
+                          {proReviews.map((review: any, i: number) => (
+                            <div key={review.review_id || i} className="rounded-xl border border-slate-100 bg-white p-5 shadow-sm">
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="flex items-center gap-2.5">
+                                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-sm font-bold text-emerald-700">
+                                    {(review.customer_name || review.reviewer_name || 'C').charAt(0).toUpperCase()}
+                                  </div>
+                                  <div>
+                                    <p className="text-sm font-semibold text-slate-800">
+                                      {review.customer_name || review.reviewer_name || 'Customer'}
+                                    </p>
+                                    {review.created_at && (
+                                      <p className="text-xs text-slate-400">
+                                        {new Date(review.created_at * 1000 || review.created_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+                                <div className="flex shrink-0 gap-0.5">
+                                  {Array.from({ length: 5 }, (_, i) => (
+                                    <svg
+                                      key={i}
+                                      viewBox="0 0 20 20"
+                                      className={`h-4 w-4 ${i < (review.rating || 0) ? 'text-amber-400' : 'text-slate-200'}`}
+                                      fill="currentColor"
+                                    >
+                                      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                                    </svg>
+                                  ))}
+                                </div>
+                              </div>
+                              {review.comment && (
+                                <p className="mt-3 text-sm leading-relaxed text-slate-600">{review.comment}</p>
+                              )}
+                              {review.pro_reply && (
+                                <div className="mt-3 rounded-lg bg-emerald-50 px-4 py-3 text-sm text-slate-700">
+                                  <span className="font-semibold text-emerald-700">Pro's reply: </span>
+                                  {review.pro_reply}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="rounded-xl border border-dashed border-slate-200 px-6 py-10 text-center">
+                          <p className="text-sm font-medium text-slate-500">No reviews yet</p>
+                          <p className="mt-1 text-xs text-slate-400">
+                            Be the first to leave a review after completing a job.
+                          </p>
+                        </div>
                       )}
                     </div>
                   )}

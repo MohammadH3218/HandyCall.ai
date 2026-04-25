@@ -19,7 +19,7 @@ const NAV = [
   { href: '/pro/dashboard', label: 'Overview', icon: IconLayoutDashboard, exact: true },
   { href: '/pro/dashboard/requests', label: 'Requests', icon: IconListCheck },
   { href: '/pro/dashboard/messages', label: 'Messages', icon: IconMessage },
-  { href: '/pro/dashboard/profile', label: 'My profile', icon: IconUser },
+  { href: '/pro/dashboard/marketplace', label: 'My profile', icon: IconUser },
   { href: '/pro/dashboard/settings', label: 'Settings', icon: IconSettings },
 ];
 
@@ -52,9 +52,19 @@ export default function ProDashboardLayout({ children }: { children: React.React
             router.replace('/pro/review-status');
           }
         })
-        .catch(() => {
-          // If we can't fetch status, let them through (avoids blocking on network errors)
-          setProStatus('ACTIVE');
+        .catch((err: any) => {
+          const msg = (err?.message || '').toLowerCase();
+          const isAuthError =
+            msg.includes('unauthorized') ||
+            msg.includes('invalid') ||
+            msg.includes('expired') ||
+            err?.status === 401;
+          if (isAuthError) {
+            router.replace('/pro/login?reason=session_expired');
+          } else {
+            // Network error — let them through to avoid blocking on transient failures
+            setProStatus('ACTIVE');
+          }
         })
         .finally(() => {
           setStatusLoading(false);

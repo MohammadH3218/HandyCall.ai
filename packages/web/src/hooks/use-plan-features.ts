@@ -3,7 +3,7 @@ import {
   PLAN_FEATURES,
   PlanFeatures,
   SubscriptionPlan,
-} from '@handycall/shared';
+} from '@/types/shared';
 import { normalizePlan } from '@/constants/plans';
 import { useAuthStore } from '@/stores/auth-store';
 
