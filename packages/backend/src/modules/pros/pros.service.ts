@@ -230,8 +230,24 @@ export class ProsService {
     const pro = await this.findById(proId);
     if (!pro) throw new NotFoundException('Pro not found');
 
+    // Strip any base64 data URLs from marketplace_profile.profile_photo before
+    // storing in DynamoDB — data URLs can be very large and hit item size limits.
+    // The photo should be uploaded to S3 separately; omit it here if it's a data URL.
+    const cleanData = { ...data };
+    if (
+      cleanData.marketplace_profile &&
+      typeof cleanData.marketplace_profile === 'object' &&
+      typeof cleanData.marketplace_profile.profile_photo === 'string' &&
+      cleanData.marketplace_profile.profile_photo.startsWith('data:')
+    ) {
+      cleanData.marketplace_profile = {
+        ...cleanData.marketplace_profile,
+        profile_photo: '', // Strip data URL — store empty until proper S3 upload is set up
+      };
+    }
+
     const updates: Record<string, any> = {
-      ...data,
+      ...cleanData,
       updated_at: Date.now(),
     };
 
@@ -242,9 +258,18 @@ export class ProsService {
       updates.status = 'PENDING_REVIEW';
     }
 
-    const result = await this.db.update('pros', { pro_id: proId }, updates);
-    const { password_hash: _, iban, national_id, iqama_number, id_document_s3_key, ...safe } = result as any;
-    return safe as Partial<Pro>;
+    try {
+      const result = await this.db.update('pros', { pro_id: proId }, updates);
+      if (!result) {
+        this.logger.error(`updateMarketplaceProfile[${proId}]: DynamoDB update returned no attributes`);
+        throw new Error('Profile update failed — please try again');
+      }
+      const { password_hash: _, iban, national_id, iqama_number, id_document_s3_key, ...safe } = result as any;
+      return safe as Partial<Pro>;
+    } catch (err: any) {
+      this.logger.error(`updateMarketplaceProfile[${proId}] DynamoDB error: ${err?.message || err}`, err?.stack);
+      throw err;
+    }
   }
 
   // ─── Account Deletion ─────────────────────────────────────────────────────

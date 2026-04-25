@@ -5,7 +5,6 @@ import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { apiClient } from '@/lib/api-client';
 import { optimizeImageFile } from '@/lib/image-upload';
-import { useAuthStore } from '@/stores/auth-store';
 import { useMarketingLanguage } from '@/components/providers/marketing-language-provider';
 import { RIYADH_DISTRICT_GROUPS } from '@/constants/houston-areas';
 import {
@@ -541,7 +540,6 @@ export function MarketplaceProfileEditor({
   selectedTier?: string | null;
 }) {
   const router = useRouter();
-  const { company } = useAuthStore();
   const { isArabic } = useMarketingLanguage();
   const t = (text: string) => editorText(text, isArabic);
 
@@ -550,6 +548,7 @@ export function MarketplaceProfileEditor({
   const [error, setError] = useState('');
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<SectionKey, string>>>({});
   const [customServiceInput, setCustomServiceInput] = useState('');
+  const [profileLoading, setProfileLoading] = useState(true);
 
   // Photo crop state
   const [cropSrc, setCropSrc] = useState<string | null>(null);
@@ -561,41 +560,75 @@ export function MarketplaceProfileEditor({
   const [photoUploading, setPhotoUploading] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
 
-  const existingProfile = ((company as any)?.marketplace_profile || {}) as Partial<MarketplaceProfile>;
-  const existingDistricts =
-    Array.isArray((company as any)?.service_area_zipcodes) && (company as any)?.service_area_zipcodes.length > 0
-      ? ((company as any)?.service_area_zipcodes as string[])
-      : [];
-
   const [profile, setProfile] = useState<MarketplaceProfile>({
-    profile_photo: existingProfile.profile_photo || '',
-    bio: existingProfile.bio || '',
-    years_in_business: existingProfile.years_in_business || '',
-    employees: existingProfile.employees || '',
-    license_type: existingProfile.license_type || '',
-    license_number: existingProfile.license_number || '',
-    is_licensed: Boolean(existingProfile.is_licensed),
-    is_background_checked: Boolean(existingProfile.is_background_checked),
-    service_category: existingProfile.service_category || (company as any)?.service_type || '',
-    services_offered: Array.isArray(existingProfile.services_offered) ? existingProfile.services_offered : [],
-    property_types: Array.isArray(existingProfile.property_types) ? existingProfile.property_types : [],
-    payment_methods:
-      Array.isArray(existingProfile.payment_methods) && existingProfile.payment_methods.length > 0
-        ? existingProfile.payment_methods
-        : ['cash'],
-    instagram: existingProfile.instagram || '',
-    snapchat: existingProfile.snapchat || '',
-    twitter: existingProfile.twitter || '',
-    website: existingProfile.website || '',
-    starting_price: existingProfile.starting_price || '',
-    contact_for_price: Boolean(existingProfile.contact_for_price),
-    service_districts:
-      Array.isArray(existingProfile.service_districts) && existingProfile.service_districts.length > 0
-        ? existingProfile.service_districts
-        : existingDistricts,
-    business_hours: existingProfile.business_hours || defaultHours,
-    portfolio_photos: Array.isArray(existingProfile.portfolio_photos) ? existingProfile.portfolio_photos : [],
+    profile_photo: '',
+    bio: '',
+    years_in_business: '',
+    employees: '',
+    license_type: '',
+    license_number: '',
+    is_licensed: false,
+    is_background_checked: false,
+    service_category: '',
+    services_offered: [],
+    property_types: [],
+    payment_methods: ['cash'],
+    instagram: '',
+    snapchat: '',
+    twitter: '',
+    website: '',
+    starting_price: '',
+    contact_for_price: false,
+    service_districts: [],
+    business_hours: defaultHours,
+    portfolio_photos: [],
   });
+
+  // Load existing pro profile from /pros/me on mount
+  useEffect(() => {
+    apiClient.getMyPro().then((pro: any) => {
+      if (!pro) return;
+      const mp = (pro.marketplace_profile || {}) as Partial<MarketplaceProfile>;
+      const districts =
+        Array.isArray(mp.service_districts) && mp.service_districts.length > 0
+          ? mp.service_districts
+          : Array.isArray(pro.service_area_zipcodes) && pro.service_area_zipcodes.length > 0
+            ? pro.service_area_zipcodes
+            : Array.isArray(pro.service_districts) && pro.service_districts.length > 0
+              ? pro.service_districts
+              : [];
+      setProfile({
+        profile_photo: mp.profile_photo || '',
+        bio: mp.bio || pro.bio || '',
+        years_in_business: mp.years_in_business || '',
+        employees: mp.employees || '',
+        license_type: mp.license_type || '',
+        license_number: mp.license_number || '',
+        is_licensed: Boolean(mp.is_licensed),
+        is_background_checked: Boolean(mp.is_background_checked),
+        service_category: mp.service_category || pro.service_category || '',
+        services_offered: Array.isArray(mp.services_offered) ? mp.services_offered : [],
+        property_types: Array.isArray(mp.property_types) ? mp.property_types : [],
+        payment_methods:
+          Array.isArray(mp.payment_methods) && mp.payment_methods.length > 0
+            ? mp.payment_methods
+            : ['cash'],
+        instagram: mp.instagram || '',
+        snapchat: mp.snapchat || '',
+        twitter: mp.twitter || '',
+        website: mp.website || '',
+        starting_price: mp.starting_price || '',
+        contact_for_price: Boolean(mp.contact_for_price),
+        service_districts: districts,
+        business_hours: mp.business_hours || defaultHours,
+        portfolio_photos: Array.isArray(mp.portfolio_photos) ? mp.portfolio_photos : [],
+      });
+    }).catch(() => {
+      // Profile not found yet — start with empty defaults
+    }).finally(() => {
+      setProfileLoading(false);
+    });
+  }, []);
 
   const selectedCategory = getMarketplaceCategoryByTitle(profile.service_category);
   const serviceSubtypes = getSpecificServicesForCategory(profile.service_category);
@@ -698,9 +731,6 @@ export function MarketplaceProfileEditor({
   function validate(): boolean {
     const errors: Partial<Record<SectionKey, string>> = {};
 
-    if (!profile.profile_photo) {
-      errors.photo = 'Upload a profile photo — customers trust profiles with a face.';
-    }
     if (profile.bio.trim().length < 80) {
       errors.bio = 'Your bio must be at least 80 characters. Tell customers who you are and what you specialise in.';
     }
@@ -736,8 +766,10 @@ export function MarketplaceProfileEditor({
     setSaved(false);
     setError('');
 
+    // Build payload — profile photo is uploaded separately (not stored as base64 in DB)
+    const profileWithoutPhoto = { ...profile, portfolio_photos: [], profile_photo: profile.profile_photo || '' };
     const payload = {
-      marketplace_profile: { ...profile, portfolio_photos: [] },
+      marketplace_profile: profileWithoutPhoto,
       service_area_cities: ['Riyadh'],
       service_area_zipcodes: profile.service_districts,
       service_area_completed: profile.service_districts.length > 0,
@@ -747,32 +779,49 @@ export function MarketplaceProfileEditor({
 
     try {
       // Primary: PATCH /pros/me/marketplace-profile
-      try {
-        await apiClient.updateMyProMarketplaceProfile(payload);
-      } catch (primaryErr: any) {
-        // Fallback: POST /pros/onboarding/profile (legacy endpoint still live in prod)
-        const isNotFound =
-          primaryErr?.status === 404 ||
-          primaryErr?.message?.includes('404') ||
-          primaryErr?.message?.toLowerCase().includes('not found');
-        if (isNotFound) {
-          await apiClient.postLegacyOnboardingProfile({
-            bio: profile.bio,
-            service_category: profile.service_category,
-            services_offered: profile.services_offered,
-            service_districts: profile.service_districts,
-            payment_methods: profile.payment_methods,
-            business_hours: profile.business_hours,
-            starting_price: profile.starting_price,
-            contact_for_price: profile.contact_for_price,
-            profile_photo: profile.profile_photo,
-            years_in_business: profile.years_in_business,
-            employees: profile.employees,
-          });
-        } else {
+      // Retry once on 500 (Fly.io cold start can cause timeout on first request)
+      let lastErr: any = null;
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          await apiClient.updateMyProMarketplaceProfile(payload);
+          lastErr = null;
+          break;
+        } catch (primaryErr: any) {
+          lastErr = primaryErr;
+          const isNotFound =
+            primaryErr?.status === 404 ||
+            primaryErr?.message?.includes('404') ||
+            primaryErr?.message?.toLowerCase().includes('not found');
+          if (isNotFound) {
+            await apiClient.postLegacyOnboardingProfile({
+              bio: profile.bio,
+              service_category: profile.service_category,
+              services_offered: profile.services_offered,
+              service_districts: profile.service_districts,
+              payment_methods: profile.payment_methods,
+              business_hours: profile.business_hours,
+              starting_price: profile.starting_price,
+              contact_for_price: profile.contact_for_price,
+              profile_photo: profile.profile_photo,
+              years_in_business: profile.years_in_business,
+              employees: profile.employees,
+            });
+            lastErr = null;
+            break;
+          }
+          const isServerErr =
+            primaryErr?.status === 500 ||
+            primaryErr?.message?.includes('500') ||
+            primaryErr?.message?.toLowerCase().includes('internal');
+          // On server error, wait 15s and retry once (backend may be cold-starting)
+          if (isServerErr && attempt === 0) {
+            await new Promise((resolve) => setTimeout(resolve, 15000));
+            continue;
+          }
           throw primaryErr;
         }
       }
+      if (lastErr) throw lastErr;
 
       // Save portfolio photos separately (may be large — best-effort)
       if (profile.portfolio_photos.length > 0) {
@@ -800,7 +849,17 @@ export function MarketplaceProfileEditor({
         msg.includes('invalid') ||
         msg.includes('expired') ||
         msg.includes('401');
-      setError(isAuthError ? '__AUTH_EXPIRED__' : (e.message || 'Something went wrong. Please try again.'));
+      const isServerError =
+        msg.includes('500') ||
+        msg.includes('internal server error') ||
+        msg.includes('internal');
+      setError(
+        isAuthError
+          ? '__AUTH_EXPIRED__'
+          : isServerError
+            ? 'The server is waking up — please wait 30 seconds and try saving again. This happens on first save of the day.'
+            : (e.message || 'Something went wrong. Please try again.')
+      );
     } finally {
       setSaving(false);
     }
@@ -818,6 +877,18 @@ export function MarketplaceProfileEditor({
         {fieldErrors[key]}
       </p>
     ) : null;
+
+  if (profileLoading) {
+    return (
+      <div className="space-y-4 animate-pulse">
+        <div className="h-8 w-64 rounded-xl bg-slate-100" />
+        <div className="h-4 w-96 rounded-lg bg-slate-100" />
+        <div className="h-40 rounded-2xl bg-slate-100" />
+        <div className="h-40 rounded-2xl bg-slate-100" />
+        <div className="h-40 rounded-2xl bg-slate-100" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6" dir={isArabic ? 'rtl' : 'ltr'}>
@@ -878,10 +949,10 @@ export function MarketplaceProfileEditor({
         {/* ── Profile photo ────────────────────────────────────────────────── */}
         <section id="section-photo" className={sectionCls('photo')}>
           <h2 className={sectionTitleClass}>
-            Profile photo <span className="text-red-500">*</span>
+            Profile photo
           </h2>
           <p className={sectionSubClass}>
-            A clear photo of you or your team builds trust with customers. Required to publish your profile.
+            A clear photo of you or your team builds trust with customers.
           </p>
           <div className="flex items-center gap-5">
             <div className="relative">
@@ -894,7 +965,7 @@ export function MarketplaceProfileEditor({
                 />
               ) : (
                 <div className="flex h-20 w-20 items-center justify-center rounded-full border-2 border-dashed border-slate-300 bg-slate-50 text-3xl font-bold text-slate-300">
-                  {(profile.bio || (company as any)?.company_name || '?').charAt(0).toUpperCase()}
+                  {(profile.bio || '?').charAt(0).toUpperCase()}
                 </div>
               )}
               {profilePhotoUploading && (
@@ -913,7 +984,7 @@ export function MarketplaceProfileEditor({
               </button>
               <p className="mt-1.5 text-xs text-slate-400">JPG or PNG · Max 5 MB · Crop to reposition</p>
               {!profile.profile_photo && (
-                <p className="mt-1 text-xs font-medium text-red-500">Required</p>
+                <p className="mt-1 text-xs text-slate-400">Recommended</p>
               )}
             </div>
           </div>

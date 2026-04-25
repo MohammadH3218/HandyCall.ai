@@ -349,7 +349,7 @@ export const authOptions: NextAuthOptions = {
           const resolvedUserRole =
             (data.userRole as UserRole | undefined) ||
             (isAdminUser ? UserRole.ADMIN : UserRole.OWNER);
-          const poolType =
+          const resolvedPoolType =
             poolTypeFromResponse === 'admin' || resolvedUserRole === UserRole.ADMIN
               ? 'admin'
               : poolTypeFromResponse === 'customer'
@@ -387,7 +387,7 @@ export const authOptions: NextAuthOptions = {
             idToken: accessToken,
             refreshToken: refreshToken,
             userRole: resolvedUserRole,
-            poolType: poolType,
+            poolType: resolvedPoolType,
             name: resolvedName,
             given_name: resolvedGivenName,
             family_name: resolvedFamilyName,
