@@ -3,12 +3,14 @@ import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { ConfigService } from '@nestjs/config';
 import { DynamoDBService } from '../../../infrastructure/database/dynamodb.service';
-import { MarketplaceAuthContext, UserType } from '@handycall/shared';
+import { MarketplaceAuthContext, UserRole, UserType } from '@handycall/shared';
 
 interface JwtPayload {
   user_id: string;
-  user_type: UserType;
+  user_type: UserType | 'ADMIN';
   email: string;
+  role?: UserRole;
+  company_id?: string;
 }
 
 @Injectable()
@@ -24,11 +26,21 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
     });
   }
 
-  async validate(payload: JwtPayload): Promise<MarketplaceAuthContext> {
-    const { user_id, user_type, email } = payload;
+  async validate(payload: JwtPayload): Promise<MarketplaceAuthContext | Record<string, any>> {
+    const { user_id, user_type, email, role, company_id } = payload;
 
     if (!user_id || !user_type || !email) {
       throw new UnauthorizedException('Invalid token payload');
+    }
+
+    if (user_type === 'ADMIN') {
+      return {
+        user_id,
+        user_type,
+        email,
+        role: role || UserRole.ADMIN,
+        company_id: company_id || 'platform-admin',
+      };
     }
 
     // Lightweight check — confirm user still exists and is not suspended

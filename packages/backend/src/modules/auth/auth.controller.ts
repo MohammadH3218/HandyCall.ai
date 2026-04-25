@@ -17,6 +17,7 @@ import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { OAuthExchangeDto } from './dto/oauth-exchange.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import { Public } from '../../common/decorators/public.decorator';
 import { EmailService } from '../email/email.service';
 import { UserType } from '@handycall/shared';
@@ -42,6 +43,7 @@ export class AuthController {
       token,
       result.user.first_name || 'Customer',
       'en',
+      '/customer/onboarding?callbackUrl=%2Fcustomer%2Fdashboard',
     );
     return {
       message: 'Account created. Check your email to verify your account.',
@@ -64,6 +66,7 @@ export class AuthController {
       result.user.email,
       token,
       result.user.first_name || 'Pro',
+      '/onboarding/account-setup',
     );
     return {
       message: 'Account created. Check your email to verify your account.',
@@ -78,6 +81,13 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   async login(@Body() dto: LoginDto) {
     return this.authService.login(dto);
+  }
+
+  @Public()
+  @Post('change-password')
+  @HttpCode(HttpStatus.OK)
+  async changePassword(@Body() dto: ChangePasswordDto) {
+    return this.authService.completeNewPassword(dto);
   }
 
   @Public()
@@ -99,7 +109,12 @@ export class AuthController {
   @Post('resend-confirmation')
   @HttpCode(HttpStatus.OK)
   async resendConfirmation(
-    @Body() body: { email: string; pool_type?: 'customer' | 'users' | 'admin' },
+    @Body()
+    body: {
+      email: string;
+      pool_type?: 'customer' | 'users' | 'admin';
+      callback_url?: string;
+    },
   ) {
     const userType: UserType = body.pool_type === 'customer' ? 'CUSTOMER' : 'PRO';
     const result = await this.authService.resendVerification(body.email, userType);
@@ -111,12 +126,14 @@ export class AuthController {
           result.token,
           result.first_name,
           'en',
+          body.callback_url || '/customer/onboarding?callbackUrl=%2Fcustomer%2Fdashboard',
         );
       } else {
         await this.emailService.sendProVerification(
           body.email,
           result.token,
           result.first_name,
+          body.callback_url || '/onboarding/account-setup',
         );
       }
     }

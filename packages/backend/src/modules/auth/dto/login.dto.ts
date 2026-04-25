@@ -1,5 +1,7 @@
-import { IsEmail, IsEnum, IsString, MinLength } from 'class-validator';
+import { IsEmail, IsIn, IsString, MinLength } from 'class-validator';
 import { UserType } from '@handycall/shared';
+
+type LoginUserType = UserType | 'ADMIN';
 
 export class LoginDto {
   @IsEmail()
@@ -9,6 +11,6 @@ export class LoginDto {
   @MinLength(1)
   password: string;
 
-  @IsEnum(['CUSTOMER', 'PRO'] as const)
-  user_type: UserType;
+  @IsIn(['CUSTOMER', 'PRO', 'ADMIN'] as const)
+  user_type: LoginUserType;
 }

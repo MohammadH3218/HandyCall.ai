@@ -2,7 +2,13 @@
  * JWT token decoding utilities
  */
 
-import { UserRole } from '@handycall/shared';
+import type { UserRole } from '@/lib/shared';
+
+const AUTH_USER_ROLE = {
+  ADMIN: 'ADMIN',
+  OWNER: 'OWNER',
+  STAFF: 'STAFF',
+} as const satisfies Record<string, UserRole>;
 
 interface JWTPayload {
   sub?: string;
@@ -53,25 +59,20 @@ export function extractUserRole(token: string): UserRole | null {
   // Check custom:role attribute
   if (payload['custom:role']) {
     const role = payload['custom:role'].toUpperCase();
-    if (role === 'ADMIN') return UserRole.ADMIN;
-    if (role === 'OWNER') return UserRole.OWNER;
-    if (role === 'STAFF') return UserRole.STAFF;
+    if (role === AUTH_USER_ROLE.ADMIN) return AUTH_USER_ROLE.ADMIN;
+    if (role === AUTH_USER_ROLE.OWNER) return AUTH_USER_ROLE.OWNER;
+    if (role === AUTH_USER_ROLE.STAFF) return AUTH_USER_ROLE.STAFF;
   }
 
   // Check cognito:groups
   if (payload['cognito:groups'] && Array.isArray(payload['cognito:groups'])) {
     if (payload['cognito:groups'].some((group: string) => group.toLowerCase().includes('admin'))) {
-      return UserRole.ADMIN;
+      return AUTH_USER_ROLE.ADMIN;
     }
   }
 
   // Cannot reliably determine role from token alone without poolType information
   // The backend should always provide userRole, so this should rarely be called
   // Default to OWNER as a safe fallback (prevents unauthorized admin access)
-  return UserRole.OWNER;
+  return AUTH_USER_ROLE.OWNER;
 }
-
-
-
-
-

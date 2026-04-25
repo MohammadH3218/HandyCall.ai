@@ -1,12 +1,48 @@
 import { create } from 'zustand';
-import { User, Company, UserRole } from '@handycall/shared';
+import { User, Company, UserRole } from '@/lib/shared';
 import { apiClient } from '@/lib/api-client';
 import { extractUserRole, decodeJWT } from '@/lib/jwt';
+import { normalizeAuthCallbackUrl } from '@/lib/auth-navigation';
 import { signOut } from 'next-auth/react';
+
+function normalizeLegacyProProfile(rawProfile: any) {
+  if (!rawProfile || typeof rawProfile !== 'object') return rawProfile;
+
+  const onboardingStep = Number(rawProfile.onboarding_step || 0);
+  const hasAccountSetup =
+    Boolean(String(rawProfile.phone_number || '').trim()) &&
+    Boolean(String(rawProfile.national_address || '').trim()) &&
+    Boolean(
+      String(rawProfile.id_type || '').trim() ||
+        String(rawProfile.national_id || '').trim() ||
+        String(rawProfile.iqama_number || '').trim(),
+    );
+
+  const hasMarketplaceSetup =
+    Boolean(String(rawProfile.service_category || '').trim()) ||
+    Boolean(String(rawProfile.bio || '').trim()) ||
+    (Array.isArray(rawProfile.services_offered) && rawProfile.services_offered.length > 0) ||
+    (Array.isArray(rawProfile.service_districts) && rawProfile.service_districts.length > 0) ||
+    (Array.isArray(rawProfile.work_photo_s3_keys) && rawProfile.work_photo_s3_keys.length > 0) ||
+    (Array.isArray(rawProfile.work_photo_urls) && rawProfile.work_photo_urls.length > 0) ||
+    ['PENDING_REVIEW', 'ACTIVE', 'REJECTED'].includes(String(rawProfile.status || '').toUpperCase());
+
+  const inferredStep = hasMarketplaceSetup ? 5 : hasAccountSetup ? 2 : onboardingStep;
+
+  if (!inferredStep || inferredStep <= onboardingStep) {
+    return rawProfile;
+  }
+
+  return {
+    ...rawProfile,
+    onboarding_step: inferredStep,
+  };
+}
 
 interface AuthState {
   user: User | null;
   company: Company | null;
+  proProfile: any | null;
   accessToken: string | null;
   idToken: string | null;
   refreshToken: string | null;
@@ -15,6 +51,7 @@ interface AuthState {
   isAuthenticated: boolean;
   isLoading: boolean;
   companyHydrated: boolean;
+  proHydrated: boolean;
   requiresPasswordChange: boolean;
   passwordChangeSession: string | null;
   passwordChangePoolType: 'users' | 'admin' | 'customer' | null;
@@ -22,18 +59,30 @@ interface AuthState {
   _lastAuthCheckAt: number | null;
 
   // Actions
-  login: (email: string, password: string) => Promise<{ requiresPasswordChange: boolean; userRole: UserRole | null }>;
-  changePassword: (email: string, newPassword: string, session: string, poolType?: 'users' | 'admin' | 'customer', firstName?: string, lastName?: string) => Promise<void>;
+  login: (
+    email: string,
+    password: string
+  ) => Promise<{ requiresPasswordChange: boolean; userRole: UserRole | null }>;
+  changePassword: (
+    email: string,
+    newPassword: string,
+    session: string,
+    poolType?: 'users' | 'admin' | 'customer',
+    firstName?: string,
+    lastName?: string
+  ) => Promise<void>;
   register: (data: any) => Promise<void>;
   logout: (callbackUrl?: string) => Promise<void>;
   setTokens: (accessToken: string, idToken: string, refreshToken: string) => void;
   checkAuth: () => Promise<void>;
   setCompany: (company: Company | null) => void;
+  setProProfile: (proProfile: any | null) => void;
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   company: null,
+  proProfile: null,
   accessToken: null,
   idToken: null,
   refreshToken: null,
@@ -42,6 +91,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   isAuthenticated: false,
   isLoading: true,
   companyHydrated: false,
+  proHydrated: false,
   requiresPasswordChange: false,
   passwordChangeSession: null,
   passwordChangePoolType: null,
@@ -60,12 +110,19 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     session: string,
     poolType?: 'users' | 'admin' | 'customer',
     firstName?: string,
-    lastName?: string,
+    lastName?: string
   ) => {
     try {
       // Use provided poolType or get from store
       const poolTypeToUse = poolType || get().passwordChangePoolType || 'users';
-      const response = await apiClient.changePassword(email, newPassword, session, poolTypeToUse, firstName, lastName);
+      const response = await apiClient.changePassword(
+        email,
+        newPassword,
+        session,
+        poolTypeToUse,
+        firstName,
+        lastName
+      );
 
       // Ensure response has required fields
       if (!response || !response.access_token) {
@@ -74,7 +131,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       // Extract user role - check response first, then fall back to token extraction
       let userRole: UserRole | null = null;
-      
+
       // Check if backend explicitly provided userRole
       if (response.userRole) {
         userRole = response.userRole as UserRole;
@@ -89,6 +146,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({
         user: response.user || null,
         company: response.company || null,
+        proProfile: null,
         accessToken: response.access_token,
         idToken: response.id_token,
         refreshToken: response.refresh_token,
@@ -126,6 +184,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   logout: async (callbackUrl = '/pro/login') => {
+    const safeCallbackUrl = normalizeAuthCallbackUrl(callbackUrl, '/pro/login');
     apiClient.setAccessToken(null);
 
     // Reset Zustand BEFORE navigating so any component that stays mounted
@@ -133,6 +192,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({
       user: null,
       company: null,
+      proProfile: null,
       accessToken: null,
       idToken: null,
       refreshToken: null,
@@ -141,6 +201,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       isAuthenticated: false,
       isLoading: false,
       companyHydrated: false,
+      proHydrated: false,
       _lastAuthCheckAt: null,
       requiresPasswordChange: false,
       passwordChangeSession: null,
@@ -155,10 +216,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       localStorage.removeItem('user_role');
       // Sign out without NextAuth's redirect so we control navigation.
       // This clears the server-side session cookie.
-      await signOut({ redirect: false });
+      const result = await signOut({ redirect: false, callbackUrl: safeCallbackUrl });
+      const nextUrl = normalizeAuthCallbackUrl(result?.url, safeCallbackUrl);
       // Hard redirect so the full page reloads and all React/Zustand state
       // starts fresh — prevents any stale "logged-in" UI from lingering.
-      window.location.href = callbackUrl;
+      window.location.assign(nextUrl);
     }
   },
 
@@ -206,11 +268,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const sessionRole =
         ((session as any)?.user?.role as UserRole | undefined) ||
         ((session as any)?.userRole as UserRole | undefined);
-      const sessionPoolType = (session as any)?.poolType as 'users' | 'admin' | 'customer' | undefined;
+      const sessionPoolType = (session as any)?.poolType as
+        | 'users'
+        | 'admin'
+        | 'customer'
+        | undefined;
       const derivedRole =
-        sessionRole ||
-        (sessionPoolType === 'admin' ? UserRole.ADMIN : undefined) ||
-        UserRole.OWNER;
+        sessionRole || (sessionPoolType === 'admin' ? UserRole.ADMIN : undefined) || UserRole.OWNER;
       const sessionEmail = (session as any)?.user?.email as string | undefined;
       const accessToken = (session as any)?.accessToken as string | undefined;
       const idToken = (session as any)?.idToken as string | undefined;
@@ -219,12 +283,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const firstNameFromSession = (session as any)?.user?.given_name as string | undefined;
       const lastNameFromSession = (session as any)?.user?.family_name as string | undefined;
       const decoded = idToken ? decodeJWT(idToken) : null;
-      const firstNameFromToken =
-        decoded?.given_name ||
-        decoded?.name?.split(' ')?.[0];
+      const firstNameFromToken = decoded?.given_name || decoded?.name?.split(' ')?.[0];
       const lastNameFromToken =
-        decoded?.family_name ||
-        decoded?.name?.split(' ')?.slice(1).join(' ');
+        decoded?.family_name || decoded?.name?.split(' ')?.slice(1)?.join(' ');
 
       // If no session, user is not authenticated
       if (!session || (!accessToken && !idToken)) {
@@ -241,6 +302,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           isAuthenticated: false,
           userRole: null,
           company: null,
+          proProfile: null,
           user: null,
           accessToken: null,
           idToken: null,
@@ -265,6 +327,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
         set({
           company: null,
+          proProfile: null,
           user: userObj,
           email,
           userRole: UserRole.ADMIN,
@@ -283,13 +346,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const email = sessionEmail || null;
       const userRole = derivedRole;
       const firstName =
-        firstNameFromSession ||
-        firstNameFromToken ||
-        (session?.user as any)?.name?.split(' ')?.[0];
+        firstNameFromSession || firstNameFromToken || (session?.user as any)?.name?.split(' ')?.[0];
       const lastName =
         lastNameFromSession ||
         lastNameFromToken ||
-        (session?.user as any)?.name?.split(' ')?.slice(1).join(' ');
+        (session?.user as any)?.name?.split(' ')?.slice(1)?.join(' ');
 
       const user: Partial<User> | null = session?.user
         ? {
@@ -301,6 +362,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       set({
         company: null,
+        proProfile: null,
         user: (user as User) || null,
         email,
         userRole,
@@ -315,8 +377,43 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       if (sessionPoolType === 'customer') {
         try {
-          await apiClient.getCustomerProfile();
-          set({ companyHydrated: true });
+          const profileResult = await apiClient.getCustomerProfile();
+          const profile = profileResult?.profile || {};
+
+          set((current) => ({
+            user: {
+              ...(current.user || {}),
+              email: email || current.user?.email || undefined,
+              first_name:
+                String(profile.first_name || '').trim() ||
+                current.user?.first_name ||
+                firstName ||
+                undefined,
+              last_name:
+                String(profile.last_name || '').trim() ||
+                current.user?.last_name ||
+                lastName ||
+                undefined,
+              phone_number:
+                String(profile.phone_number || '').trim() ||
+                (current.user as any)?.phone_number ||
+                undefined,
+              district:
+                String(profile.district || '').trim() ||
+                (current.user as any)?.district ||
+                undefined,
+              address_line1:
+                String(profile.address_line1 || '').trim() ||
+                (current.user as any)?.address_line1 ||
+                undefined,
+              address_line2:
+                String(profile.address_line2 || '').trim() ||
+                (current.user as any)?.address_line2 ||
+                undefined,
+            } as User,
+            companyHydrated: true,
+            proHydrated: true,
+          }));
         } catch (error: any) {
           const msg = String(error?.message || '');
           if (
@@ -328,6 +425,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             set({
               user: null,
               company: null,
+              proProfile: null,
               accessToken: null,
               idToken: null,
               refreshToken: null,
@@ -336,6 +434,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
               isAuthenticated: false,
               isLoading: false,
               companyHydrated: true,
+              proHydrated: true,
               _checkAuthInProgress: false,
               _lastAuthCheckAt: now,
             });
@@ -350,36 +449,37 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             return;
           }
 
-          set({ companyHydrated: true });
+          set({ companyHydrated: true, proHydrated: true });
         }
         return;
       }
 
-      const hydrateCompany = async () => {
+      const hydratePro = async () => {
         try {
-          const company = await apiClient.getMyCompany();
-          set({ company, companyHydrated: true });
+          const fetchedProfile = await apiClient.getMyProProfile();
+          const proProfile = normalizeLegacyProProfile(fetchedProfile);
+          set({ company: null, proProfile, companyHydrated: true, proHydrated: true });
         } catch (error: any) {
           const msg: string = error?.message || '';
           if (msg.includes('User not found in system') || msg.includes('Unauthorized')) {
             // DynamoDB record missing — Cognito account exists but backend has no user.
             // Sign out cleanly so the user can re-register.
-            set({ company: null, companyHydrated: true });
+            set({ company: null, proProfile: null, companyHydrated: true, proHydrated: true });
             try {
               await signOut({ redirect: false });
             } catch {
               // ignore
             }
             if (typeof window !== 'undefined') {
-              window.location.assign('/login?reason=account_not_found');
+              window.location.assign('/pro/login?reason=account_not_found');
             }
             return;
           }
           // Company not found / setup not complete — redirect to onboarding handled by layout
-          set({ company: null, companyHydrated: true });
+          set({ company: null, proProfile: null, companyHydrated: true, proHydrated: true });
         }
       };
-      void hydrateCompany();
+      void hydratePro();
 
       return;
     } catch (error) {
@@ -395,6 +495,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({
         user: null,
         company: null,
+        proProfile: null,
         accessToken: null,
         idToken: null,
         refreshToken: null,
@@ -409,5 +510,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
   setCompany: (company: Company | null) => {
     set({ company });
+  },
+  setProProfile: (proProfile: any | null) => {
+    set({ proProfile });
   },
 }));

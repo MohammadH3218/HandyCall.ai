@@ -1,390 +1,514 @@
 'use client';
 
-import React, { useRef, useState } from 'react';
+import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { apiClient } from '@/lib/api-client';
-import { optimizeImageFile } from '@/lib/image-upload';
-import { useAuthStore } from '@/stores/auth-store';
-import { useMarketingLanguage } from '@/components/providers/marketing-language-provider';
-import { RIYADH_DISTRICT_GROUPS } from '@/constants/houston-areas';
 import {
-  MARKETPLACE_SERVICE_CATEGORIES,
-  getMarketplaceCategoryByTitle,
-  getSpecificServicesForCategory,
-} from '@/constants/marketplace-service-categories';
+  IconAlertCircle,
+  IconArrowNarrowLeft,
+  IconArrowNarrowRight,
+  IconCheck,
+  IconChevronDown,
+  IconGripVertical,
+  IconLoader2,
+  IconPhoto,
+  IconSearch,
+  IconX,
+} from '@tabler/icons-react';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { toast } from '@/hooks/use-toast';
+import { apiClient } from '@/lib/api-client';
+import { MARKETPLACE_SERVICE_CATEGORIES } from '@/constants/marketplace-service-categories';
+import { RIYADH_DISTRICT_VALUES, SAUDI_MARKETPLACE_CITIES } from '@/constants/houston-areas';
+import { useAuthStore } from '@/stores/auth-store';
+import type { ServiceCategory } from '@/lib/shared';
 
+const EMPLOYEE_OPTIONS = ['Just me', '2-5 team members', '6-20 team members', '20+ team members'];
 const PROPERTY_TYPES = ['Villa', 'Apartment', 'Townhouse', 'Office', 'Commercial', 'Government Building'];
-const PAYMENT_METHOD_ICONS: Record<string, React.ReactNode> = {
-  cash: (
-    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={1.6}>
-      <rect x="2" y="6" width="20" height="12" rx="2" className="text-emerald-600" stroke="currentColor" />
-      <circle cx="12" cy="12" r="3" stroke="currentColor" />
-      <path d="M6 10v4M18 10v4" strokeLinecap="round" />
-    </svg>
-  ),
-  apple_pay: (
-    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor">
-      <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/>
-    </svg>
-  ),
-  card: (
-    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={1.6}>
-      <rect x="2" y="5" width="20" height="14" rx="2" />
-      <path d="M2 10h20" strokeLinecap="round" />
-      <path d="M6 15h4" strokeLinecap="round" />
-    </svg>
-  ),
-  mada: (
-    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={1.6}>
-      <rect x="3" y="5.5" width="18" height="13" rx="2" />
-      <path d="M7 10h10M7 14h5" strokeLinecap="round" />
-    </svg>
-  ),
-  bank_transfer: (
-    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={1.6}>
-      <path d="M4 10h16M6 10V7h12v3M7 10v7M12 10v7M17 10v7M4 17h16" strokeLinecap="round" />
-    </svg>
-  ),
-};
-
-const PAYMENT_METHODS = [
-  { id: 'cash', label: 'Cash' },
-  { id: 'mada', label: 'Mada' },
-  { id: 'apple_pay', label: 'Apple Pay' },
-  { id: 'card', label: 'Credit / Debit Card' },
-  { id: 'bank_transfer', label: 'Bank transfer' },
+const PAYMENT_METHODS = ['Cash', 'Mada', 'Apple Pay', 'Credit / Debit Card', 'Bank transfer'];
+const AVAILABILITY_DAYS = [
+  { key: 'SUN', label: 'Sunday' },
+  { key: 'MON', label: 'Monday' },
+  { key: 'TUE', label: 'Tuesday' },
+  { key: 'WED', label: 'Wednesday' },
+  { key: 'THU', label: 'Thursday' },
+  { key: 'FRI', label: 'Friday' },
+  { key: 'SAT', label: 'Saturday' },
+] as const;
+const TIME_HOUR_OPTIONS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'];
+const TIME_MINUTE_OPTIONS = ['00', '15', '30', '45'];
+const TIME_MERIDIEM_OPTIONS = ['AM', 'PM'] as const;
+const MAX_WORK_PHOTOS = 12;
+const SAVE_PROGRESS_STEPS = [
+  'Preparing your profile changes',
+  'Uploading photos and documents',
+  'Saving your marketplace profile',
+  'Finishing up and checking the response',
 ];
-const EMPLOYEE_OPTIONS = ['Just me (solo)', '2-5 employees', '6-20 employees', '20+ employees'];
-const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-const TIMES = ['6:00 AM', '7:00 AM', '8:00 AM', '9:00 AM', '10:00 AM', '11:00 AM', '12:00 PM', '1:00 PM', '2:00 PM', '3:00 PM', '4:00 PM', '5:00 PM', '6:00 PM', '7:00 PM', '8:00 PM', '9:00 PM', '10:00 PM', '11:00 PM'];
 
-const EDITOR_TRANSLATIONS: Record<string, string> = {
-  'House': 'منزل',
-  Apartment: 'شقة',
-  Townhouse: 'تاون هاوس',
-  Office: 'مكتب',
-  'Commercial / Warehouse': 'تجاري / مستودع',
-  'Government Building': 'مبنى حكومي',
-  Cash: 'نقدًا',
-  'Apple Pay': 'Apple Pay',
-  'Credit / Debit Card': 'بطاقة ائتمانية / خصم',
-  Zelle: 'Zelle',
-  Venmo: 'Venmo',
-  Check: 'Check',
-  'Just me (solo)': 'أنا فقط',
-  '2-5 employees': '2-5 موظفين',
-  '6-20 employees': '6-20 موظفًا',
-  '20+ employees': '20+ موظفًا',
-  Sunday: 'الأحد',
-  Monday: 'الاثنين',
-  Tuesday: 'الثلاثاء',
-  Wednesday: 'الأربعاء',
-  Thursday: 'الخميس',
-  Friday: 'الجمعة',
-  Saturday: 'السبت',
-  'Profile photo': 'صورة الملف الشخصي',
-  'A clear photo of you or your team builds trust with customers. Required to publish your profile.':
-    'صورة واضحة لك أو لفريقك تبني الثقة مع العملاء. مطلوبة لنشر ملفك.',
-  'Change photo': 'تغيير الصورة',
-  'Upload photo': 'رفع صورة',
-  'JPG or PNG · Max 5MB': 'JPG أو PNG · بحد أقصى 5MB',
-  Required: 'مطلوب',
-  'Please upload a profile photo before saving.': 'يرجى رفع صورة شخصية قبل الحفظ.',
-  'Something went wrong. Please try again.': 'حدث خطأ ما. يرجى المحاولة مرة أخرى.',
-  'Marketplace profile': 'ملف السوق',
-  'Complete your marketplace profile': 'أكمل ملفك في السوق',
-  'Customers browse this profile before deciding to contact you. Keep it complete, specific, and trustworthy.':
-    'يتصفح العملاء هذا الملف قبل أن يقرروا التواصل معك. حافظ عليه كاملًا وواضحًا ويبعث على الثقة.',
-  'This is the first setup milestone for your': 'هذه هي أول محطة إعداد لباقة',
-  selected: 'المحددة',
-  tier: 'الخاصة بك',
-  "Finish your marketplace profile first, then we'll bring you back to the rest of the setup flow.":
-    'أكمل ملفك في السوق أولًا، ثم سنعيدك إلى بقية خطوات الإعداد.',
-  'About your business': 'نبذة عن نشاطك',
-  'Tell customers who you are and why they should hire you.': 'عرّف العملاء بك ولماذا ينبغي عليهم اختيارك.',
-  'Business bio *': 'نبذة النشاط *',
-  'Licensed AC technician with 12 years of experience in Houston. We service homes, apartments, and commercial sites with same-day appointments.':
-    'فني تكييف معتمد بخبرة 12 سنة في هيوستن. نخدم المنازل والشقق والمواقع التجارية مع مواعيد في نفس اليوم.',
-  Overview: 'نظرة عامة',
-  'Key facts that appear on your profile card.': 'معلومات أساسية تظهر في بطاقة ملفك.',
-  'Years in business': 'سنوات الخبرة',
-  'e.g. 8': 'مثال: 8',
-  'Number of employees': 'عدد الموظفين',
-  'Select...': 'اختر...',
-  'I am licensed / certified in my trade': 'أنا مرخص / معتمد في مجالي',
-  'I agree to identity & background verification': 'أوافق على التحقق من الهوية والخلفية',
-  Credentials: 'الاعتمادات',
-  'License details appear as a trust badge on your public profile.':
-    'تظهر تفاصيل الترخيص كشارة ثقة في ملفك العام.',
-  'License type': 'نوع الترخيص',
-  'e.g. Electrician - Master': 'مثال: كهربائي - معلم',
-  'License / certificate number': 'رقم الترخيص / الشهادة',
-  Optional: 'اختياري',
-  'Services offered': 'الخدمات المقدمة',
-  'Choose your main category, then list the exact jobs customers should be able to find you for.':
-    'اختر الفئة الرئيسية، ثم حدد الأعمال الدقيقة التي يجب أن يتمكن العملاء من العثور عليك من خلالها.',
-  'Main category': 'الفئة الرئيسية',
-  'Select category...': 'اختر الفئة...',
-  'Help search understand what you do': 'ساعد البحث على فهم ما تقدمه',
-  'Add the exact services customers would type into search, not just the broad category name.':
-    'أضف الخدمات الدقيقة التي قد يكتبها العملاء في البحث، وليس اسم الفئة العامة فقط.',
-  'Suggested examples:': 'أمثلة مقترحة:',
-  'Specific services customers can search for': 'الخدمات الدقيقة التي يمكن للعملاء البحث عنها',
-  'Pick a category first, then add the exact services you offer below.':
-    'اختر الفئة أولًا، ثم أضف الخدمات الدقيقة التي تقدمها في الأسفل.',
-  'Add a custom specific service': 'أضف خدمة دقيقة مخصصة',
-  'Example:': 'مثال:',
-  'Add service': 'إضافة خدمة',
-  'Be specific. Customers may search exact phrases like “mesh Wi-Fi setup” or “water heater repair.”':
-    'كن دقيقًا. قد يبحث العملاء بعبارات محددة مثل "إعداد شبكة Mesh Wi‑Fi" أو "إصلاح سخان المياه".',
-  'Property types served': 'أنواع العقارات التي تخدمها',
-  'Cities you serve': 'المدن التي تخدمها',
-  'Customers search by city, so choose all areas you actively cover.':
-    'يبحث العملاء حسب المدينة، لذا اختر جميع المناطق التي تغطيها فعليًا.',
-  'Starting price': 'السعر الابتدائي',
-  'This sets customer expectations before they message you.':
-    'هذا يحدد توقعات العميل قبل أن يراسلك.',
-  'From $': 'ابتداءً من',
-  'e.g. 150': 'مثال: 150',
-  '/ service': '/ خدمة',
-  'Business hours': 'ساعات العمل',
-  'Standard work week is Mon-Fri. Update anything that differs.':
-    'أسبوع العمل الافتراضي من الاثنين إلى الجمعة. عدل أي شيء مختلف.',
-  Day: 'اليوم',
-  Open: 'مفتوح',
-  From: 'من',
-  To: 'إلى',
-  weekend: 'عطلة نهاية الأسبوع',
-  'Payment methods': 'وسائل الدفع',
-  'Tell customers how they can pay you once the job is booked.':
-    'أخبر العملاء كيف يمكنهم الدفع لك بعد حجز الخدمة.',
-  'Social media & website': 'وسائل التواصل والموقع الإلكتروني',
-  'Links shown on your profile so customers can see your work online.':
-    'روابط تظهر في ملفك حتى يتمكن العملاء من مشاهدة أعمالك عبر الإنترنت.',
-  'Instagram username': 'اسم مستخدم إنستغرام',
-  'Snapchat username': 'اسم مستخدم سناب شات',
-  'Twitter / X username': 'اسم مستخدم X / تويتر',
-  'Website URL': 'رابط الموقع الإلكتروني',
-  yourhandle: 'اسمك',
-  'https://yoursite.com': 'https://example.com',
-  'Projects & work photos': 'المشاريع وصور الأعمال',
-  'Photos improve trust and increase inquiry rates.': 'الصور تعزز الثقة وتزيد من معدل الاستفسارات.',
-  'Upload photos of your work': 'ارفع صورًا من أعمالك',
-  'Up to 10 photos · JPG, PNG · Max 5MB each': 'حتى 10 صور · JPG و PNG · بحد أقصى 5MB للصورة',
-  'Add photos': 'إضافة صور',
-  'Photo upload will be available once your account is fully set up. You can add photos from your dashboard settings.':
-    'سيصبح رفع الصور متاحًا بعد اكتمال إعداد حسابك. يمكنك إضافة الصور من إعدادات لوحة التحكم.',
-  'Describe your recent projects (optional)': 'صف مشاريعك الأخيرة (اختياري)',
-  'Installed 200+ AC units across Houston in 2025. Specialise in commercial buildings and homes.':
-    'تم تركيب أكثر من 200 وحدة تكييف في هيوستن خلال 2025. متخصصون في المباني التجارية والمنازل.',
-  'Marketplace profile updated successfully.': 'تم تحديث ملف السوق بنجاح.',
-  'Profile saved! Taking you back to setup...': 'تم حفظ الملف. جارٍ إعادتك إلى الإعداد...',
-  'Profile saved! Taking you to your dashboard...': 'تم حفظ الملف. جارٍ نقلك إلى لوحة التحكم...',
-  'Saving profile...': 'جارٍ حفظ الملف...',
-  'Detailed services win better leads': 'الخدمات المفصلة تجلب فرصًا أفضل',
-  'Customers compare pros based on specialties, exact job types, and the clarity of the services listed. The more detailed you are, the better your leads tend to be.':
-    'يقارن العملاء بين المحترفين بحسب التخصصات ونوع الأعمال الدقيقة ووضوح الخدمات المدرجة. كلما كنت أكثر تفصيلًا، كانت الفرص الواردة إليك أفضل عادةً.',
-  'Add at least 3 specific services before saving.':
-    'أضف 3 خدمات دقيقة على الأقل قبل الحفظ.',
-  'Add more detail to your business bio before saving.':
-    'أضف تفاصيل أكثر إلى نبذة نشاطك قبل الحفظ.',
-  'Save marketplace profile': 'حفظ ملف السوق',
-  'Save profile & continue setup ->': 'حفظ الملف ومتابعة الإعداد <-',
-  'Save profile & go to dashboard ->': 'حفظ الملف والانتقال إلى لوحة التحكم <-',
-  'Back to marketplace': 'العودة إلى السوق',
-  'Back to setup': 'العودة إلى الإعداد',
-  'Finish later': 'إكمال لاحقًا',
-  'You can update your marketplace profile anytime from Dashboard -> Marketplace -> Profile':
-    'يمكنك تحديث ملف السوق في أي وقت من لوحة التحكم -> السوق -> الملف الشخصي',
-  // Identity & verification section
-  'Verification & identity': 'التحقق والهوية',
-  'We use this to verify who you are and ensure customers can trust the pros on HandyCall. Your ID number is kept private and never shown publicly.':
-    'نستخدم هذه المعلومات للتحقق من هويتك وضمان ثقة العملاء بالمحترفين على HandyCall. رقم هويتك يبقى خاصًا ولن يُعرض للعامة.',
-  'I am registering as:': 'أسجّل بوصفي:',
-  'Solo / Freelancer': 'فرد / مستقل',
-  'Work under your own name': 'العمل باسمك الشخصي',
-  Company: 'شركة',
-  'Registered business or team': 'شركة مسجلة أو فريق',
-  'Government-issued ID *': 'هوية حكومية *',
-  "Driver's license or ID number": 'رقم رخصة القيادة أو الهوية',
-  'Mobile number *': 'رقم الجوال *',
-  'Mobile number': 'رقم الجوال',
-  'National address': 'العنوان الوطني',
-  'Your registered national address (optional)': 'عنوانك الوطني المسجّل (اختياري)',
-  'Company legal name *': 'الاسم القانوني للشركة *',
-  'As it appears on your commercial registration': 'كما يظهر في السجل التجاري',
-  'Commercial Registration (CR) number *': 'رقم السجل التجاري *',
-  'Business license number': 'رقم الترخيص التجاري',
-  'EIN (Employer ID)': 'EIN (رقم صاحب العمل)',
-  'EIN number (optional)': 'رقم EIN (اختياري)',
-  'Company address': 'عنوان الشركة',
-  'City, district, street': 'المدينة، الحي، الشارع',
-  'I confirm this information is accurate and I consent to identity verification as part of joining HandyCall as a Pro.':
-    'أؤكد أن هذه المعلومات دقيقة، وأوافق على التحقق من الهوية كجزء من انضمامي إلى HandyCall بوصفي محترفًا.',
+const SERVICE_CATEGORY_BY_KEY: Record<string, ServiceCategory> = {
+  'ac-hvac': 'AC_HVAC',
+  plumbing: 'PLUMBING',
+  electrical: 'ELECTRICAL',
+  painting: 'PAINTING',
+  'house-cleaning': 'CLEANING',
+  'pest-control': 'PEST_CONTROL',
+  carpentry: 'CARPENTRY',
+  moving: 'MOVING',
+  'appliance-repair': 'APPLIANCE_REPAIR',
+  landscaping: 'LANDSCAPING',
+  handyman: 'GENERAL_HANDYMAN',
 };
 
-function editorText(text: string, isArabic: boolean) {
-  return isArabic ? EDITOR_TRANSLATIONS[text] || text : text;
-}
+const CATEGORY_KEY_BY_SERVICE_CATEGORY: Partial<Record<ServiceCategory, string>> = Object.fromEntries(
+  Object.entries(SERVICE_CATEGORY_BY_KEY).map(([key, value]) => [value, key]),
+) as Partial<Record<ServiceCategory, string>>;
 
-interface BusinessHourEntry {
-  open: boolean;
-  from: string;
-  to: string;
-}
+type Mode = 'onboarding' | 'dashboard';
 
-type BusinessHoursMap = Record<string, BusinessHourEntry>;
-
-interface MarketplaceProfile {
-  // Profile
-  profile_photo: string;
+type MarketplaceForm = {
   bio: string;
-  years_in_business: string;
-  employees: string;
-  license_type: string;
-  license_number: string;
-  is_licensed: boolean;
-  is_background_checked: boolean;
+  years_experience: string;
+  employee_count_range: string;
   service_category: string;
   services_offered: string[];
   property_types: string[];
-  payment_methods: string[];
-  instagram: string;
-  snapchat: string;
-  twitter: string;
-  website: string;
-  starting_price: string;
-  contact_for_price: boolean;
   service_districts: string[];
-  business_hours: BusinessHoursMap;
-  portfolio_note: string;
-  portfolio_photos: string[];
-}
-
-const defaultHours: BusinessHoursMap = {
-  Sunday: { open: true, from: '8:00 AM', to: '6:00 PM' },
-  Monday: { open: true, from: '8:00 AM', to: '6:00 PM' },
-  Tuesday: { open: true, from: '8:00 AM', to: '6:00 PM' },
-  Wednesday: { open: true, from: '8:00 AM', to: '6:00 PM' },
-  Thursday: { open: true, from: '8:00 AM', to: '6:00 PM' },
-  Friday: { open: false, from: '8:00 AM', to: '6:00 PM' },
-  Saturday: { open: false, from: '8:00 AM', to: '6:00 PM' },
+  contact_for_price: boolean;
+  starting_price_sar: string;
+  payment_methods: string[];
+  license_type: string;
+  license_number: string;
+  cr_number: string;
+  vat_number: string;
+  speaks_arabic: boolean;
+  speaks_english: boolean;
+  speaks_urdu: boolean;
+  speaks_hindi: boolean;
+  availability: Array<{
+    day_of_week: (typeof AVAILABILITY_DAYS)[number]['key'];
+    open_time: string;
+    close_time: string;
+    is_available: boolean;
+  }>;
 };
 
-const inputClass =
-  'w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 placeholder:text-slate-400 outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 transition';
-const labelClass = 'mb-1.5 block text-sm font-semibold text-slate-700';
-const sectionClass = 'rounded-2xl border border-slate-100 bg-white p-6 shadow-sm';
-const sectionTitleClass = 'mb-1 text-base font-bold text-slate-900';
-const sectionSubClass = 'mb-5 text-xs text-slate-400';
+type SectionKey = 'photo' | 'about' | 'services' | 'districts' | 'payment' | 'availability';
 
-function toggle<T>(items: T[], item: T): T[] {
-  return items.includes(item) ? items.filter((entry) => entry !== item) : [...items, item];
+type WorkPhotoItem =
+  | {
+      id: string;
+      kind: 'existing';
+      key: string;
+      preview: string;
+    }
+  | {
+      id: string;
+      kind: 'new';
+      uploadId: string;
+      file: File;
+      preview: string;
+    };
+
+const DEFAULT_FORM: MarketplaceForm = {
+  bio: '',
+  years_experience: '',
+  employee_count_range: '',
+  service_category: '',
+  services_offered: [],
+  property_types: [],
+  service_districts: [],
+  contact_for_price: false,
+  starting_price_sar: '',
+  payment_methods: [],
+  license_type: '',
+  license_number: '',
+  cr_number: '',
+  vat_number: '',
+  speaks_arabic: true,
+  speaks_english: true,
+  speaks_urdu: false,
+  speaks_hindi: false,
+  availability: AVAILABILITY_DAYS.map((day) => ({
+    day_of_week: day.key,
+    open_time: '09:00',
+    close_time: '18:00',
+    is_available: day.key !== 'FRI' && day.key !== 'SAT',
+  })),
+};
+
+function getLegacyMarketplaceProfile(pro: any) {
+  if (!pro || typeof pro !== 'object') return {};
+  return pro.marketplace_profile && typeof pro.marketplace_profile === 'object'
+    ? pro.marketplace_profile
+    : {};
 }
 
-function DistrictSelector({
-  selected,
-  onChange,
-}: {
-  selected: string[];
-  onChange: (districts: string[]) => void;
-}) {
-  const [query, setQuery] = useState('');
-  const normalizedQuery = query.trim().toLowerCase();
+function getFirstString(...values: unknown[]) {
+  for (const value of values) {
+    if (typeof value === 'string' && value.trim()) {
+      return value.trim();
+    }
+  }
+  return '';
+}
 
-  const filteredGroups = Object.entries(RIYADH_DISTRICT_GROUPS)
-    .map(([region, districts]) => [
-      region,
-      districts.filter((district) =>
-        !normalizedQuery
-          ? true
-          : district.label.toLowerCase().includes(normalizedQuery) ||
-            district.region.toLowerCase().includes(normalizedQuery),
-      ),
-    ] as const)
-    .filter(([, districts]) => districts.length > 0);
+function getFirstArray(...values: unknown[]) {
+  for (const value of values) {
+    if (!Array.isArray(value)) continue;
+    const normalized = value
+      .map((item) => (typeof item === 'string' ? item.trim() : ''))
+      .filter(Boolean);
+    if (normalized.length > 0) {
+      return normalized;
+    }
+  }
+  return [];
+}
 
-  const toggleDistrict = (district: string) => {
-    onChange(
-      selected.includes(district)
-        ? selected.filter((item) => item !== district)
-        : [...selected, district],
-    );
-  };
+function getCategoryTitle(rawCategory: string) {
+  if (!rawCategory) return '';
 
   return (
-    <div className="space-y-4">
-      {selected.length > 0 ? (
-        <div className="flex flex-wrap gap-2">
-          {selected.map((district) => (
-            <span
-              key={district}
-              className="flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700"
-            >
-              {district}
-              <button
-                type="button"
-                onClick={() => toggleDistrict(district)}
-                className="leading-none text-emerald-400 hover:text-emerald-700"
-              >
-                ×
-              </button>
-            </span>
+    MARKETPLACE_SERVICE_CATEGORIES.find(
+      (item) => item.key === CATEGORY_KEY_BY_SERVICE_CATEGORY[rawCategory as ServiceCategory],
+    )?.title ||
+    MARKETPLACE_SERVICE_CATEGORIES.find((item) => item.title === rawCategory)?.title ||
+    rawCategory
+  );
+}
+
+function getLegacyAvailability(hours: any) {
+  if (!hours || typeof hours !== 'object') return null;
+
+  const dayMap: Record<string, string> = {
+    SUN: 'sunday',
+    MON: 'monday',
+    TUE: 'tuesday',
+    WED: 'wednesday',
+    THU: 'thursday',
+    FRI: 'friday',
+    SAT: 'saturday',
+  };
+
+  return AVAILABILITY_DAYS.map((day) => {
+    const key = dayMap[day.key];
+    const slot = hours?.[key];
+    return {
+      day_of_week: day.key,
+      open_time: normalizeTwentyFourHourTime(getFirstString(slot?.from, slot?.open_time, slot?.open) || '09:00'),
+      close_time: normalizeTwentyFourHourTime(getFirstString(slot?.to, slot?.close_time, slot?.close) || '18:00'),
+      is_available:
+        typeof slot?.open === 'boolean'
+          ? slot.open
+          : slot?.closed === true
+            ? false
+            : day.key !== 'FRI' && day.key !== 'SAT',
+    };
+  });
+}
+
+async function readFileAsDataUrl(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(reader.error || new Error('Failed to read image.'));
+    reader.onload = () => resolve(String(reader.result || ''));
+    reader.readAsDataURL(file);
+  });
+}
+
+async function loadImage(src: string) {
+  return new Promise<HTMLImageElement>((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error('Failed to load image.'));
+    image.src = src;
+  });
+}
+
+async function cropSquareImage(
+  file: File,
+  crop: { zoom: number; offsetX: number; offsetY: number },
+): Promise<{ file: File; previewUrl: string }> {
+  const source = await readFileAsDataUrl(file);
+  const image = await loadImage(source);
+  const canvas = document.createElement('canvas');
+  const size = 900;
+  canvas.width = size;
+  canvas.height = size;
+
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('Image canvas is unavailable.');
+
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, size, size);
+  ctx.save();
+  ctx.translate(size / 2 + crop.offsetX, size / 2 + crop.offsetY);
+  ctx.scale(crop.zoom, crop.zoom);
+  ctx.drawImage(image, -image.width / 2, -image.height / 2);
+  ctx.restore();
+
+  const blob = await new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob((nextBlob) => {
+      if (!nextBlob) {
+        reject(new Error('Failed to prepare the cropped image.'));
+        return;
+      }
+      resolve(nextBlob);
+    }, 'image/jpeg', 0.92);
+  });
+
+  const croppedFile = new File([blob], file.name.replace(/\.\w+$/, '') + '-cropped.jpg', {
+    type: 'image/jpeg',
+  });
+
+  return {
+    file: croppedFile,
+    previewUrl: canvas.toDataURL('image/jpeg', 0.92),
+  };
+}
+
+function normalizeTwentyFourHourTime(value?: string) {
+  if (!value || !/^\d{2}:\d{2}$/.test(value)) return '09:00';
+  return value;
+}
+
+function getTimeParts(value?: string) {
+  const normalized = normalizeTwentyFourHourTime(value);
+  const [rawHour, minute] = normalized.split(':');
+  const hour24 = Number(rawHour);
+  const meridiem: 'AM' | 'PM' = hour24 >= 12 ? 'PM' : 'AM';
+  const hour12 = hour24 % 12 === 0 ? 12 : hour24 % 12;
+  return {
+    hour: String(hour12),
+    minute,
+    meridiem,
+  };
+}
+
+function toTwentyFourHourTime(hour: string, minute: string, meridiem: 'AM' | 'PM') {
+  const parsedHour = Number(hour || '12');
+  const normalizedHour = parsedHour % 12;
+  const hour24 = meridiem === 'PM' ? normalizedHour + 12 : normalizedHour;
+  return `${String(hour24).padStart(2, '0')}:${minute}`;
+}
+
+function TimePickerField({
+  label,
+  value,
+  disabled,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  disabled?: boolean;
+  onChange: (value: string) => void;
+}) {
+  const parts = getTimeParts(value);
+
+  function handlePartChange(next: Partial<{ hour: string; minute: string; meridiem: 'AM' | 'PM' }>) {
+    const hour = next.hour ?? parts.hour;
+    const minute = next.minute ?? parts.minute;
+    const meridiem = next.meridiem ?? parts.meridiem;
+    onChange(toTwentyFourHourTime(hour, minute, meridiem));
+  }
+
+  return (
+    <div className="space-y-2">
+      <Label className="text-sm font-semibold text-slate-900">{label}</Label>
+      <div className="grid grid-cols-3 gap-2">
+        <select
+          value={parts.hour}
+          disabled={disabled}
+          onChange={(event) => handlePartChange({ hour: event.target.value })}
+          className="h-11 rounded-xl border border-slate-200 px-3 text-sm text-slate-700 outline-none focus:border-emerald-300 disabled:bg-slate-50 disabled:text-slate-400"
+        >
+          {TIME_HOUR_OPTIONS.map((option) => (
+            <option key={option} value={option}>
+              {option}
+            </option>
           ))}
-        </div>
-      ) : null}
-
-      <div>
-        <input
-          type="text"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search Riyadh districts…"
-          className="w-full rounded-lg border border-slate-200 px-3.5 py-2.5 text-sm text-slate-900 placeholder-slate-400 outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
-        />
-        <p className="mt-2 text-xs text-slate-500">
-          Choose every district you actively serve. Your public profile will still show Riyadh as your city.
-        </p>
+        </select>
+        <select
+          value={parts.minute}
+          disabled={disabled}
+          onChange={(event) => handlePartChange({ minute: event.target.value })}
+          className="h-11 rounded-xl border border-slate-200 px-3 text-sm text-slate-700 outline-none focus:border-emerald-300 disabled:bg-slate-50 disabled:text-slate-400"
+        >
+          {TIME_MINUTE_OPTIONS.map((option) => (
+            <option key={option} value={option}>
+              {option}
+            </option>
+          ))}
+        </select>
+        <select
+          value={parts.meridiem}
+          disabled={disabled}
+          onChange={(event) =>
+            handlePartChange({ meridiem: event.target.value as (typeof TIME_MERIDIEM_OPTIONS)[number] })
+          }
+          className="h-11 rounded-xl border border-slate-200 px-3 text-sm text-slate-700 outline-none focus:border-emerald-300 disabled:bg-slate-50 disabled:text-slate-400"
+        >
+          {TIME_MERIDIEM_OPTIONS.map((option) => (
+            <option key={option} value={option}>
+              {option}
+            </option>
+          ))}
+        </select>
       </div>
+    </div>
+  );
+}
 
-      <div className="max-h-[28rem] space-y-4 overflow-y-auto rounded-2xl border border-slate-200 bg-slate-50 p-4">
-        {filteredGroups.map(([region, districts]) => (
-          <div key={region}>
-            <div className="mb-2 flex items-center justify-between">
-              <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">{region}</p>
-              <p className="text-xs text-slate-400">{districts.length} districts</p>
-            </div>
-            <div className="grid gap-2 sm:grid-cols-2">
-              {districts.map((district) => {
-                const checked = selected.includes(district.label);
-                return (
-                  <label
-                    key={district.value}
-                    className={`flex cursor-pointer items-center gap-2 rounded-xl border px-3 py-2.5 transition ${
-                      checked
-                        ? 'border-emerald-300 bg-emerald-50'
-                        : 'border-slate-200 bg-white hover:border-emerald-200 hover:bg-emerald-50/40'
-                    }`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={() => toggleDistrict(district.label)}
-                      className="h-4 w-4 rounded border-slate-300 accent-emerald-600"
-                    />
-                    <span className="text-sm text-slate-700">{district.label}</span>
-                  </label>
-                );
-              })}
-            </div>
-          </div>
-        ))}
+function Section({
+  title,
+  description,
+  invalid,
+  children,
+}: {
+  title: string;
+  description: string;
+  invalid?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <section
+      className={`rounded-[28px] border bg-white p-7 shadow-sm ${
+        invalid ? 'border-rose-300 shadow-rose-100/60' : 'border-slate-200'
+      }`}
+    >
+      <div className="mb-5">
+        <h2 className="text-xl font-semibold text-slate-900">
+          {title}
+          {invalid ? <span className="ml-1 text-rose-500">*</span> : null}
+        </h2>
+        <p className="mt-1 text-sm leading-6 text-slate-500">{description}</p>
+      </div>
+      {children}
+    </section>
+  );
+}
 
-        {filteredGroups.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-slate-200 bg-white px-4 py-6 text-center text-sm text-slate-400">
-            No Riyadh districts matched your search.
+function createWorkPhotoId() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return `photo-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function SearchableSelect({
+  label,
+  placeholder,
+  value,
+  options,
+  onSelect,
+  error,
+}: {
+  label: string;
+  placeholder: string;
+  value: string;
+  options: string[];
+  onSelect: (value: string) => void;
+  error?: string;
+}) {
+  const [search, setSearch] = useState(value);
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    setSearch(value);
+  }, [value]);
+
+  const filteredOptions = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    return options.filter((option) => option.toLowerCase().includes(term)).slice(0, 8);
+  }, [options, search]);
+
+  return (
+    <div className="space-y-2">
+      <Label className="text-sm font-semibold text-slate-900">
+        {label} <span className="text-rose-500">*</span>
+      </Label>
+      <div className="relative">
+        <div className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
+          <IconSearch className="h-4 w-4" stroke={1.7} />
+        </div>
+        <Input
+          value={search}
+          onChange={(event) => {
+            setSearch(event.target.value);
+            setOpen(true);
+          }}
+          onFocus={() => setOpen(true)}
+          onBlur={() => setTimeout(() => setOpen(false), 120)}
+          placeholder={placeholder}
+          className={`pl-9 pr-10 ${error ? 'border-rose-300 focus-visible:ring-rose-200' : ''}`}
+        />
+        <IconChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" stroke={1.7} />
+        {open && filteredOptions.length > 0 ? (
+          <div className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-20 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl">
+            {filteredOptions.map((option) => (
+              <button
+                key={option}
+                type="button"
+                onMouseDown={(event) => {
+                  event.preventDefault();
+                  onSelect(option);
+                  setSearch(option);
+                  setOpen(false);
+                }}
+                className="flex w-full items-center px-4 py-3 text-left text-sm text-slate-700 transition hover:bg-emerald-50"
+              >
+                {option}
+              </button>
+            ))}
           </div>
         ) : null}
+      </div>
+      {error ? <p className="text-sm text-rose-600">{error}</p> : null}
+    </div>
+  );
+}
+
+function SavingOverlay({
+  open,
+  progress,
+  stepLabel,
+}: {
+  open: boolean;
+  progress: number;
+  stepLabel: string;
+}) {
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-sm">
+      <div className="w-full max-w-md rounded-[28px] border border-slate-200 bg-white p-6 shadow-[0_40px_120px_-40px_rgba(15,23,42,0.45)]">
+        <div className="flex items-center gap-3">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600">
+            <IconLoader2 className="h-6 w-6 animate-spin" stroke={1.9} />
+          </div>
+          <div>
+            <p className="text-base font-semibold text-slate-900">Saving marketplace profile</p>
+            <p className="text-sm text-slate-500">Please keep this tab open while we upload your changes.</p>
+          </div>
+        </div>
+
+        <div className="mt-5 space-y-3">
+          <div className="h-3 overflow-hidden rounded-full bg-slate-100">
+            <div
+              className="h-full rounded-full bg-emerald-500 transition-[width] duration-500"
+              style={{ width: `${Math.max(8, Math.min(progress, 96))}%` }}
+            />
+          </div>
+          <div className="flex items-center justify-between text-xs font-medium uppercase tracking-[0.18em] text-slate-400">
+            <span>In progress</span>
+            <span>{Math.round(progress)}%</span>
+          </div>
+          <p className="text-sm text-slate-600">{stepLabel}</p>
+        </div>
       </div>
     </div>
   );
@@ -392,934 +516,1461 @@ function DistrictSelector({
 
 export function MarketplaceProfileEditor({
   mode,
-  returnToSetup = false,
-  selectedTier,
 }: {
-  mode: 'onboarding' | 'dashboard';
-  returnToSetup?: boolean;
-  selectedTier?: string | null;
+  mode: Mode;
+  selectedTier?: string;
 }) {
   const router = useRouter();
-  const { company, setCompany } = useAuthStore();
-  const { isArabic } = useMarketingLanguage();
-  const t = (text: string) => editorText(text, isArabic);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const workPhotoInputRef = useRef<HTMLInputElement | null>(null);
+  const { setProProfile } = useAuthStore();
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
-  const [error, setError] = useState('');
-  const [customServiceInput, setCustomServiceInput] = useState('');
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const profilePhotoInputRef = useRef<HTMLInputElement>(null);
-  const [photoUploading, setPhotoUploading] = useState(false);
-  const [profilePhotoUploading, setProfilePhotoUploading] = useState(false);
-  const [isDragging, setIsDragging] = useState(false);
+  const [form, setForm] = useState<MarketplaceForm>(DEFAULT_FORM);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [sectionErrors, setSectionErrors] = useState<Partial<Record<SectionKey, string>>>({});
+  const [profilePhotoFile, setProfilePhotoFile] = useState<File | null>(null);
+  const [profilePhotoPreview, setProfilePhotoPreview] = useState('');
+  const [workPhotos, setWorkPhotos] = useState<WorkPhotoItem[]>([]);
+  const [rawPhotoFile, setRawPhotoFile] = useState<File | null>(null);
+  const [cropDialogOpen, setCropDialogOpen] = useState(false);
+  const [cropImageUrl, setCropImageUrl] = useState('');
+  const [cropState, setCropState] = useState({ zoom: 1, offsetX: 0, offsetY: 0 });
+  const [isDraggingCrop, setIsDraggingCrop] = useState(false);
+  const [serviceSearch, setServiceSearch] = useState('');
+  const [serviceSearchOpen, setServiceSearchOpen] = useState(false);
+  const [districtSearch, setDistrictSearch] = useState('');
+  const [districtSearchOpen, setDistrictSearchOpen] = useState(false);
+  const [saveProgress, setSaveProgress] = useState(0);
+  const [saveStepIndex, setSaveStepIndex] = useState(0);
+  const cropDragPointerIdRef = useRef<number | null>(null);
+  const cropDragStartRef = useRef({ x: 0, y: 0, offsetX: 0, offsetY: 0 });
+  const draggedWorkPhotoIdRef = useRef<string | null>(null);
+  const saveProgressIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const bankInfoRef = useRef({ iban: '', bank_name: '' });
+  const initialExistingWorkPhotoKeysRef = useRef<string[]>([]);
 
-  const existingProfile = ((company as any)?.marketplace_profile || {}) as Partial<MarketplaceProfile>;
-  const existingDistricts =
-    Array.isArray((company as any)?.service_area_zipcodes) && (company as any)?.service_area_zipcodes.length > 0
-      ? ((company as any)?.service_area_zipcodes as string[])
-      : [];
+  useEffect(() => {
+    let mounted = true;
 
-  const [profile, setProfile] = useState<MarketplaceProfile>({
-    profile_photo: existingProfile.profile_photo || '',
-    bio: existingProfile.bio || '',
-    years_in_business: existingProfile.years_in_business || '',
-    employees: existingProfile.employees || '',
-    license_type: existingProfile.license_type || '',
-    license_number: existingProfile.license_number || '',
-    is_licensed: Boolean(existingProfile.is_licensed),
-    is_background_checked: Boolean(existingProfile.is_background_checked),
-    service_category: existingProfile.service_category || (company as any)?.service_type || '',
-    services_offered: Array.isArray(existingProfile.services_offered) ? existingProfile.services_offered : [],
-    property_types: Array.isArray(existingProfile.property_types) ? existingProfile.property_types : [],
-    payment_methods:
-      Array.isArray(existingProfile.payment_methods) && existingProfile.payment_methods.length > 0
-        ? existingProfile.payment_methods
-        : ['cash'],
-    instagram: existingProfile.instagram || '',
-    snapchat: existingProfile.snapchat || '',
-    twitter: existingProfile.twitter || '',
-    website: existingProfile.website || '',
-    starting_price: existingProfile.starting_price || '',
-    contact_for_price: Boolean(existingProfile.contact_for_price),
-    service_districts:
-      Array.isArray(existingProfile.service_districts) && existingProfile.service_districts.length > 0
-        ? existingProfile.service_districts
-        : existingDistricts,
-    business_hours: existingProfile.business_hours || defaultHours,
-    portfolio_note: existingProfile.portfolio_note || '',
-    portfolio_photos: Array.isArray(existingProfile.portfolio_photos) ? existingProfile.portfolio_photos : [],
-  });
+    async function load() {
+      try {
+        const response = await apiClient.getMyProOnboardingStatus();
+        if (!mounted) return;
 
-  const selectedCategory = getMarketplaceCategoryByTitle(profile.service_category);
-  const serviceSubtypes = getSpecificServicesForCategory(profile.service_category);
+        const pro = response?.pro || {};
+        const legacyProfile = getLegacyMarketplaceProfile(pro);
+        const availability = Array.isArray(response?.availability) && response.availability.length > 0
+          ? AVAILABILITY_DAYS.map((day) => {
+              const existing = response.availability.find((slot: any) => slot.day_of_week === day.key);
+              return {
+                day_of_week: day.key,
+                open_time: existing?.open_time || '09:00',
+                close_time: existing?.close_time || '18:00',
+                is_available:
+                  existing?.is_available === undefined
+                    ? day.key !== 'FRI' && day.key !== 'SAT'
+                    : Boolean(existing?.is_available),
+              };
+            })
+          : getLegacyAvailability(legacyProfile.business_hours) || DEFAULT_FORM.availability;
 
-  function addCustomService() {
-    const nextService = customServiceInput.trim();
-    if (!nextService) return;
-    if (profile.services_offered.length >= 10) return;
-    const alreadyIncluded = profile.services_offered.some(
-      (service) => service.toLowerCase() === nextService.toLowerCase()
-    );
-    if (alreadyIncluded) {
-      setCustomServiceInput('');
+        const mergedStartingPrice =
+          typeof pro.starting_price_sar === 'number'
+            ? String((pro.starting_price_sar / 100).toFixed(0))
+            : typeof legacyProfile.starting_price === 'number'
+              ? String(legacyProfile.starting_price)
+              : getFirstString(legacyProfile.starting_price);
+
+        setForm({
+          bio: getFirstString(pro.bio, legacyProfile.bio),
+          years_experience:
+            typeof pro.years_experience === 'number'
+              ? String(pro.years_experience)
+              : typeof legacyProfile.years_experience === 'number'
+                ? String(legacyProfile.years_experience)
+                : typeof legacyProfile.years_in_business === 'number'
+                  ? String(legacyProfile.years_in_business)
+                  : getFirstString(legacyProfile.years_experience, legacyProfile.years_in_business),
+          employee_count_range: getFirstString(
+            pro.employee_count_range,
+            legacyProfile.employee_count_range,
+            legacyProfile.employees,
+          ),
+          service_category: getCategoryTitle(
+            getFirstString(pro.service_category, legacyProfile.service_category),
+          ),
+          services_offered: getFirstArray(pro.services_offered, legacyProfile.services_offered),
+          property_types: getFirstArray(pro.property_types, legacyProfile.property_types),
+          service_districts: getFirstArray(
+            pro.service_districts,
+            legacyProfile.service_districts,
+            legacyProfile.service_cities,
+          ),
+          contact_for_price:
+            typeof (pro as any).contact_for_price === 'boolean'
+              ? Boolean((pro as any).contact_for_price)
+              : Boolean(legacyProfile.contact_for_price),
+          starting_price_sar: mergedStartingPrice,
+          payment_methods: getFirstArray(pro.payment_methods, legacyProfile.payment_methods),
+          license_type: getFirstString(pro.license_type, legacyProfile.license_type),
+          license_number: getFirstString(pro.license_number, legacyProfile.license_number),
+          cr_number: getFirstString(pro.cr_number, legacyProfile.cr_number),
+          vat_number: getFirstString(pro.vat_number, legacyProfile.vat_number),
+          speaks_arabic:
+            typeof pro.speaks_arabic === 'boolean'
+              ? pro.speaks_arabic
+              : legacyProfile.speaks_arabic !== false,
+          speaks_english:
+            typeof pro.speaks_english === 'boolean'
+              ? pro.speaks_english
+              : legacyProfile.speaks_english !== false,
+          speaks_urdu:
+            typeof pro.speaks_urdu === 'boolean'
+              ? pro.speaks_urdu
+              : Boolean(legacyProfile.speaks_urdu),
+          speaks_hindi:
+            typeof pro.speaks_hindi === 'boolean'
+              ? pro.speaks_hindi
+              : Boolean(legacyProfile.speaks_hindi),
+          availability,
+        });
+        setProfilePhotoPreview(
+          getFirstString(pro.profile_photo_url, pro.profile_photo_s3_key, legacyProfile.profile_photo),
+        );
+        bankInfoRef.current = {
+          iban: typeof (pro as any).iban === 'string' ? (pro as any).iban : '',
+          bank_name: typeof (pro as any).bank_name === 'string' ? (pro as any).bank_name : '',
+        };
+        const nextExistingKeys = Array.isArray((pro as any).work_photo_s3_keys)
+          ? (pro as any).work_photo_s3_keys.filter(Boolean)
+          : [];
+        initialExistingWorkPhotoKeysRef.current = nextExistingKeys;
+        const nextExistingPreviews = Array.isArray((pro as any).work_photo_urls)
+          ? (pro as any).work_photo_urls.filter(Boolean)
+          : nextExistingKeys;
+        setWorkPhotos(
+          nextExistingKeys.map((key, index) => ({
+            id: createWorkPhotoId(),
+            kind: 'existing' as const,
+            key,
+            preview: nextExistingPreviews[index] || key,
+          })),
+        );
+      } catch (err: any) {
+        if (!mounted) return;
+        setError(err?.message || 'Failed to load your marketplace profile.');
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    }
+
+    void load();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const selectedCategory = useMemo(
+    () => MARKETPLACE_SERVICE_CATEGORIES.find((category) => category.title === form.service_category) || null,
+    [form.service_category],
+  );
+
+  const serviceSuggestions = useMemo(() => {
+    if (!selectedCategory) return [];
+    const term = serviceSearch.trim().toLowerCase();
+    return selectedCategory.services
+      .filter((service) => !form.services_offered.includes(service))
+      .filter((service) => !term || service.toLowerCase().includes(term))
+      .slice(0, 8);
+  }, [form.services_offered, selectedCategory, serviceSearch]);
+
+  const districtSuggestions = useMemo(() => {
+    const term = districtSearch.trim().toLowerCase();
+    return RIYADH_DISTRICT_VALUES
+      .filter((district) => !form.service_districts.includes(district))
+      .filter((district) => !term || district.toLowerCase().includes(term))
+      .slice(0, 10);
+  }, [districtSearch, form.service_districts]);
+
+  const popularDistricts = useMemo(
+    () => SAUDI_MARKETPLACE_CITIES.filter((district) => district.popular).map((district) => district.label),
+    [],
+  );
+
+  useEffect(() => {
+    return () => {
+      if (saveProgressIntervalRef.current) {
+        clearInterval(saveProgressIntervalRef.current);
+      }
+    };
+  }, []);
+
+  function setField<K extends keyof MarketplaceForm>(key: K, value: MarketplaceForm[K]) {
+    setForm((current) => ({ ...current, [key]: value }));
+  }
+
+  function toggleValue(list: string[], value: string) {
+    return list.includes(value) ? list.filter((item) => item !== value) : [...list, value];
+  }
+
+  function toggleAvailability(dayKey: (typeof AVAILABILITY_DAYS)[number]['key']) {
+    setForm((current) => ({
+      ...current,
+      availability: current.availability.map((slot) =>
+        slot.day_of_week === dayKey ? { ...slot, is_available: !slot.is_available } : slot,
+      ),
+    }));
+  }
+
+  async function handlePhotoSelected(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const imageUrl = await readFileAsDataUrl(file);
+    setRawPhotoFile(file);
+    setCropImageUrl(imageUrl);
+    setCropState({ zoom: 1, offsetX: 0, offsetY: 0 });
+    setCropDialogOpen(true);
+    event.target.value = '';
+  }
+
+  async function applyCrop() {
+    if (!rawPhotoFile) return;
+    const cropped = await cropSquareImage(rawPhotoFile, cropState);
+    setProfilePhotoFile(cropped.file);
+    setProfilePhotoPreview(cropped.previewUrl);
+    setCropDialogOpen(false);
+    setCropImageUrl('');
+    setRawPhotoFile(null);
+  }
+
+  function handleCropDialogOpenChange(nextOpen: boolean) {
+    setCropDialogOpen(nextOpen);
+    if (!nextOpen) {
+      setCropImageUrl('');
+      setRawPhotoFile(null);
+      setCropState({ zoom: 1, offsetX: 0, offsetY: 0 });
+      cropDragPointerIdRef.current = null;
+      setIsDraggingCrop(false);
+    }
+  }
+
+  function handleCropPointerDown(event: React.PointerEvent<HTMLDivElement>) {
+    if (!cropImageUrl) return;
+    cropDragPointerIdRef.current = event.pointerId;
+    cropDragStartRef.current = {
+      x: event.clientX,
+      y: event.clientY,
+      offsetX: cropState.offsetX,
+      offsetY: cropState.offsetY,
+    };
+    setIsDraggingCrop(true);
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }
+
+  function handleCropPointerMove(event: React.PointerEvent<HTMLDivElement>) {
+    if (!isDraggingCrop || cropDragPointerIdRef.current !== event.pointerId) return;
+
+    const deltaX = event.clientX - cropDragStartRef.current.x;
+    const deltaY = event.clientY - cropDragStartRef.current.y;
+
+    setCropState((current) => ({
+      ...current,
+      offsetX: cropDragStartRef.current.offsetX + deltaX,
+      offsetY: cropDragStartRef.current.offsetY + deltaY,
+    }));
+  }
+
+  function endCropDrag(event?: React.PointerEvent<HTMLDivElement>) {
+    if (event && cropDragPointerIdRef.current === event.pointerId) {
+      try {
+        event.currentTarget.releasePointerCapture(event.pointerId);
+      } catch {
+        // ignore pointer release issues
+      }
+    }
+    cropDragPointerIdRef.current = null;
+    setIsDraggingCrop(false);
+  }
+
+  async function handleWorkPhotosSelected(event: ChangeEvent<HTMLInputElement>) {
+    const incomingFiles = Array.from(event.target.files || []);
+    if (incomingFiles.length === 0) return;
+
+    const remainingSlots = MAX_WORK_PHOTOS - workPhotos.length;
+
+    if (remainingSlots <= 0) {
+      setError(`You can upload up to ${MAX_WORK_PHOTOS} work photos.`);
+      event.target.value = '';
       return;
     }
-    setProfile((current) => ({
-      ...current,
-      services_offered: [...current.services_offered, nextService],
-    }));
-    setCustomServiceInput('');
-  }
 
-  function updateHours(day: string, field: keyof BusinessHourEntry, value: string | boolean) {
-    setProfile((current) => ({
-      ...current,
-      business_hours: {
-        ...current.business_hours,
-        [day]: { ...current.business_hours[day], [field]: value },
-      },
-    }));
-  }
+    const acceptedFiles = incomingFiles.slice(0, remainingSlots);
+    const acceptedPreviews = await Promise.all(acceptedFiles.map((file) => readFileAsDataUrl(file)));
 
-  async function handlePhotoFiles(files: FileList) {
-    const remaining = 10 - profile.portfolio_photos.length;
-    if (remaining <= 0) return;
-    setPhotoUploading(true);
-    try {
-      const selected = Array.from(files).slice(0, remaining);
-      const compressed = await Promise.all(
-        selected.map(async (file) => (await optimizeImageFile(file, { maxLongEdge: 1800, quality: 0.9 })).url)
-      );
-      setProfile((current) => ({
-        ...current,
-        portfolio_photos: [...current.portfolio_photos, ...compressed],
-      }));
-    } finally {
-      setPhotoUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
+    if (acceptedFiles.length < incomingFiles.length) {
+      setError(`Only ${MAX_WORK_PHOTOS} work photos are allowed total.`);
+    } else {
+      setError(null);
     }
-  }
 
-  function removePhoto(index: number) {
-    setProfile((current) => ({
+    setWorkPhotos((current) => [
       ...current,
-      portfolio_photos: current.portfolio_photos.filter((_, i) => i !== index),
-    }));
+      ...acceptedFiles.map((file, index) => ({
+        id: createWorkPhotoId(),
+        kind: 'new' as const,
+        uploadId: createWorkPhotoId(),
+        file,
+        preview: acceptedPreviews[index],
+      })),
+    ]);
+    event.target.value = '';
   }
 
-  function movePhoto(index: number, direction: 'up' | 'down') {
-    setProfile((current) => {
-      const photos = [...current.portfolio_photos];
-      const target = direction === 'up' ? index - 1 : index + 1;
-      if (target < 0 || target >= photos.length) return current;
-      [photos[index], photos[target]] = [photos[target], photos[index]];
-      return { ...current, portfolio_photos: photos };
+  function addSpecificService(value: string) {
+    const trimmed = value.trim();
+    if (!trimmed || form.services_offered.includes(trimmed) || form.services_offered.length >= 10) {
+      return;
+    }
+    setField('services_offered', [...form.services_offered, trimmed]);
+    setServiceSearch('');
+    setServiceSearchOpen(false);
+  }
+
+  function addDistrict(value: string) {
+    const trimmed = value.trim();
+    if (!trimmed || form.service_districts.includes(trimmed)) return;
+    setField('service_districts', [...form.service_districts, trimmed]);
+    setDistrictSearch('');
+    setDistrictSearchOpen(false);
+  }
+
+  function removeWorkPhoto(photoId: string) {
+    setWorkPhotos((current) => current.filter((photo) => photo.id !== photoId));
+    setError(null);
+  }
+
+  function moveWorkPhoto(photoId: string, direction: -1 | 1) {
+    setWorkPhotos((current) => {
+      const index = current.findIndex((photo) => photo.id === photoId);
+      if (index === -1) return current;
+      const nextIndex = index + direction;
+      if (nextIndex < 0 || nextIndex >= current.length) return current;
+
+      const next = [...current];
+      const [item] = next.splice(index, 1);
+      next.splice(nextIndex, 0, item);
+      return next;
     });
   }
 
-  async function handleProfilePhotoFile(file: File) {
-    setProfilePhotoUploading(true);
+  function moveWorkPhotoToIndex(photoId: string, targetIndex: number) {
+    setWorkPhotos((current) => {
+      const index = current.findIndex((photo) => photo.id === photoId);
+      if (index === -1 || targetIndex < 0 || targetIndex >= current.length || index === targetIndex) {
+        return current;
+      }
+
+      const next = [...current];
+      const [item] = next.splice(index, 1);
+      next.splice(targetIndex, 0, item);
+      return next;
+    });
+  }
+
+  function startSavingFeedback() {
+    if (saveProgressIntervalRef.current) {
+      clearInterval(saveProgressIntervalRef.current);
+    }
+
+    setSaveProgress(12);
+    setSaveStepIndex(0);
+    saveProgressIntervalRef.current = setInterval(() => {
+      setSaveProgress((current) => {
+        const next = Math.min(current + (current < 55 ? 11 : current < 78 ? 6 : 3), 92);
+        return next;
+      });
+      setSaveStepIndex((current) => Math.min(current + 1, SAVE_PROGRESS_STEPS.length - 1));
+    }, 1400);
+  }
+
+  function stopSavingFeedback(nextProgress = 100) {
+    if (saveProgressIntervalRef.current) {
+      clearInterval(saveProgressIntervalRef.current);
+      saveProgressIntervalRef.current = null;
+    }
+    setSaveProgress(nextProgress);
+  }
+
+  function getFriendlySaveError(message: string) {
+    const normalized = message.toLowerCase();
+
+    if (normalized.includes('404') || normalized.includes('not found')) {
+      return 'Your profile could not be saved because the marketplace save endpoint is unavailable right now. Please try again in a moment or contact support if it keeps happening.';
+    }
+
+    if (normalized.includes('missing the saved payout details')) {
+      return message;
+    }
+
+    if (normalized.includes('work-photo uploads or reordering still require')) {
+      return message;
+    }
+
+    if (normalized.includes('413') || normalized.includes('payload too large')) {
+      return 'One or more photos are too large to upload. Try smaller images or fewer files and save again.';
+    }
+
+    if (normalized.includes('network') || normalized.includes('failed to fetch')) {
+      return 'Your connection was interrupted while saving. Check your internet connection and try again.';
+    }
+
+    return message || 'Failed to save your marketplace profile.';
+  }
+
+  function validateForm() {
+    const nextFieldErrors: Record<string, string> = {};
+    const nextSectionErrors: Partial<Record<SectionKey, string>> = {};
+
+    if (!profilePhotoPreview) {
+      nextFieldErrors.profile_photo = 'Profile photo is required.';
+      nextSectionErrors.photo = 'Upload and crop a clear profile photo.';
+    }
+
+    if (workPhotos.length > MAX_WORK_PHOTOS) {
+      nextFieldErrors.work_photos = `Only ${MAX_WORK_PHOTOS} work photos are allowed.`;
+      nextSectionErrors.photo = nextSectionErrors.photo || `Keep your work-photo gallery at ${MAX_WORK_PHOTOS} images or fewer.`;
+    }
+
+    if (!form.bio.trim() || form.bio.trim().length < 80) {
+      nextFieldErrors.bio = 'Add a fuller business bio with at least 80 characters.';
+      nextSectionErrors.about = 'Expand the business bio so customers understand what you do.';
+    }
+
+    if (!form.years_experience.trim()) {
+      nextFieldErrors.years_experience = 'Years in business is required.';
+      nextSectionErrors.about = nextSectionErrors.about || 'Add your experience and team size.';
+    }
+
+    if (!form.employee_count_range) {
+      nextFieldErrors.employee_count_range = 'Team size is required.';
+      nextSectionErrors.about = nextSectionErrors.about || 'Add your experience and team size.';
+    }
+
+    if (!form.service_category) {
+      nextFieldErrors.service_category = 'Main category is required.';
+      nextSectionErrors.services = 'Choose the main category customers should find you under.';
+    }
+
+    if (form.services_offered.length === 0) {
+      nextFieldErrors.services_offered = 'Add at least one specific service.';
+      nextSectionErrors.services = nextSectionErrors.services || 'Add the exact services customers should be able to search for.';
+    }
+
+    if (form.property_types.length === 0) {
+      nextFieldErrors.property_types = 'Choose at least one property type.';
+      nextSectionErrors.services = nextSectionErrors.services || 'Select the property types you serve.';
+    }
+
+    if (form.service_districts.length === 0) {
+      nextFieldErrors.service_districts = 'Choose at least one Riyadh district.';
+      nextSectionErrors.districts = 'Choose the districts you actively cover.';
+    }
+
+    if (!form.contact_for_price && !form.starting_price_sar.trim()) {
+      nextFieldErrors.starting_price_sar = 'Starting price is required.';
+      nextSectionErrors.payment = 'Set a starting price and payment methods.';
+    }
+
+    if (form.payment_methods.length === 0) {
+      nextFieldErrors.payment_methods = 'Choose at least one payment method.';
+      nextSectionErrors.payment = nextSectionErrors.payment || 'Set a starting price and payment methods.';
+    }
+
+    if (!form.availability.some((slot) => slot.is_available)) {
+      nextFieldErrors.availability = 'Open at least one business day.';
+      nextSectionErrors.availability = 'Set your working hours for at least one day.';
+    }
+
+    setFieldErrors(nextFieldErrors);
+    setSectionErrors(nextSectionErrors);
+
+    return Object.keys(nextFieldErrors).length === 0;
+  }
+
+  function hasUnsupportedLegacyPhotoChanges() {
+    const hasNewWorkPhotos = workPhotos.some((photo) => photo.kind === 'new');
+    const existingWorkPhotoOrder = workPhotos
+      .filter((photo): photo is Extract<WorkPhotoItem, { kind: 'existing' }> => photo.kind === 'existing')
+      .map((photo) => photo.key);
+
+    return (
+      hasNewWorkPhotos ||
+      existingWorkPhotoOrder.length !== initialExistingWorkPhotoKeysRef.current.length ||
+      existingWorkPhotoOrder.some((key, index) => key !== initialExistingWorkPhotoKeysRef.current[index])
+    );
+  }
+
+  async function submitMarketplaceProfileLegacy(backendCategory: ServiceCategory) {
+    if (hasUnsupportedLegacyPhotoChanges()) {
+      throw new Error(
+        'The live backend can save profile details right now, but work-photo uploads or reordering still require the newer marketplace save API. Save again without changing work photos, or wait for the backend update.',
+      );
+    }
+
+    const profilePayload = new FormData();
+    if (profilePhotoFile) {
+      profilePayload.append('profile_photo', profilePhotoFile);
+    }
+    profilePayload.append('bio', form.bio.trim());
+    profilePayload.append('years_experience', form.years_experience.trim());
+    profilePayload.append('speaks_arabic', String(form.speaks_arabic));
+    profilePayload.append('speaks_english', String(form.speaks_english));
+    profilePayload.append('speaks_urdu', String(form.speaks_urdu));
+    profilePayload.append('speaks_hindi', String(form.speaks_hindi));
+    await apiClient.submitProLegacyProfileSetup(profilePayload);
+
+    await apiClient.submitProLegacyServicesSetup({
+      services: form.services_offered.map((service) => ({
+        category: backendCategory,
+        title: service,
+        description: form.bio.trim() || undefined,
+        pricing_type: 'QUOTE' as const,
+        min_price_sar: form.starting_price_sar.trim()
+          ? Number(form.starting_price_sar.trim())
+          : undefined,
+        max_price_sar: form.starting_price_sar.trim()
+          ? Number(form.starting_price_sar.trim())
+          : undefined,
+        vat_included: true,
+        estimated_duration_minutes: 60,
+      })),
+    });
+
+    if (!bankInfoRef.current.iban || !bankInfoRef.current.bank_name) {
+      throw new Error(
+        'Your public profile details were updated, but this account is missing the saved payout details required by the live backend. Please contact support so we can finish the business-hours update safely.',
+      );
+    }
+
+    await apiClient.submitProLegacyPayoutSetup({
+      iban: bankInfoRef.current.iban,
+      bank_name: bankInfoRef.current.bank_name,
+      service_districts: form.service_districts,
+      availability: form.availability.map((slot) => ({
+        day_of_week: slot.day_of_week,
+        open_time: slot.open_time,
+        close_time: slot.close_time,
+        is_available: slot.is_available,
+      })),
+    });
+
+    return apiClient.getMyProOnboardingStatus();
+  }
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError(null);
+    setSuccess(null);
+
+    if (!validateForm()) {
+      setError('Complete the required sections marked in red before submitting.');
+      return;
+    }
+
+    if (!selectedCategory) {
+      setError('Choose a valid marketplace category.');
+      return;
+    }
+
+    const backendCategory = SERVICE_CATEGORY_BY_KEY[selectedCategory.key];
+    if (!backendCategory) {
+      setError('This category is not ready for marketplace submission yet.');
+      return;
+    }
+
     try {
-      const optimized = await optimizeImageFile(file, { maxLongEdge: 960, quality: 0.9 });
-      setProfile((prev) => ({ ...prev, profile_photo: optimized.url }));
-    } catch {
-      // ignore
+      setSaving(true);
+      startSavingFeedback();
+      const payload = new FormData();
+      const existingWorkPhotoKeys = workPhotos
+        .filter((photo): photo is Extract<WorkPhotoItem, { kind: 'existing' }> => photo.kind === 'existing')
+        .map((photo) => photo.key);
+      const newWorkPhotos = workPhotos.filter(
+        (photo): photo is Extract<WorkPhotoItem, { kind: 'new' }> => photo.kind === 'new',
+      );
+
+      if (profilePhotoFile) {
+        payload.append('profile_photo', profilePhotoFile);
+      }
+      payload.append('existing_work_photo_s3_keys', JSON.stringify(existingWorkPhotoKeys));
+      payload.append(
+        'work_photo_upload_ids',
+        JSON.stringify(newWorkPhotos.map((photo) => photo.uploadId)),
+      );
+      payload.append(
+        'work_photo_order',
+        JSON.stringify(
+          workPhotos.map((photo) =>
+            photo.kind === 'existing' ? `existing:${photo.key}` : `new:${photo.uploadId}`,
+          ),
+        ),
+      );
+      newWorkPhotos.forEach((photo) => {
+        payload.append('work_photos', photo.file);
+      });
+      payload.append('bio', form.bio.trim());
+      payload.append('years_experience', form.years_experience.trim());
+      payload.append('employee_count_range', form.employee_count_range);
+      payload.append('speaks_arabic', String(form.speaks_arabic));
+      payload.append('speaks_english', String(form.speaks_english));
+      payload.append('speaks_urdu', String(form.speaks_urdu));
+      payload.append('speaks_hindi', String(form.speaks_hindi));
+      payload.append('service_category', backendCategory);
+      payload.append('services_offered', JSON.stringify(form.services_offered));
+      payload.append('property_types', JSON.stringify(form.property_types));
+      payload.append('service_districts', JSON.stringify(form.service_districts));
+      payload.append('contact_for_price', String(form.contact_for_price));
+      if (!form.contact_for_price && form.starting_price_sar.trim()) {
+        payload.append('starting_price_sar', form.starting_price_sar.trim());
+      }
+      payload.append('payment_methods', JSON.stringify(form.payment_methods));
+      payload.append('availability', JSON.stringify(form.availability));
+      payload.append('license_type', form.license_type.trim());
+      payload.append('license_number', form.license_number.trim());
+      payload.append('cr_number', form.cr_number.trim());
+      payload.append('vat_number', form.vat_number.trim());
+
+      let result: any;
+      try {
+        result = await apiClient.submitProMarketplaceSetup(payload);
+      } catch (marketplaceError: any) {
+        const normalizedMessage = String(marketplaceError?.message || '').toLowerCase();
+        const shouldFallback =
+          normalizedMessage.includes('cannot post /api/v1/pros/onboarding/marketplace') ||
+          normalizedMessage.includes('cannot post /pros/onboarding/marketplace') ||
+          normalizedMessage.includes('404') ||
+          normalizedMessage.includes('not found');
+
+        if (!shouldFallback) {
+          throw marketplaceError;
+        }
+
+        setSaveStepIndex(2);
+        setSaveProgress((current) => Math.max(current, 62));
+        result = await submitMarketplaceProfileLegacy(backendCategory);
+      }
+
+      stopSavingFeedback(100);
+      setSaveStepIndex(SAVE_PROGRESS_STEPS.length - 1);
+      setProProfile(result?.pro || result);
+      const successMessage =
+        mode === 'dashboard'
+          ? 'Your public profile changes were saved and submitted for review.'
+          : 'Your marketplace profile has been submitted for admin review.';
+      setSuccess(successMessage);
+      toast({
+        title: 'Profile saved',
+        description: successMessage,
+      });
+      if (mode === 'dashboard') {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } else {
+        router.replace('/pro/review-status');
+      }
+    } catch (err: any) {
+      stopSavingFeedback(0);
+      const friendlyMessage = getFriendlySaveError(err?.message || 'Failed to save your marketplace profile.');
+      setError(friendlyMessage);
+      toast({
+        title: 'Could not save profile',
+        description: friendlyMessage,
+        variant: 'destructive',
+      });
     } finally {
-      setProfilePhotoUploading(false);
+      if (saveProgressIntervalRef.current) {
+        clearInterval(saveProgressIntervalRef.current);
+        saveProgressIntervalRef.current = null;
+      }
+      setSaving(false);
     }
   }
 
-  async function handleSave() {
-    setSaving(true);
-    setError('');
-    if (!profile.profile_photo) {
-      setError('Please upload a profile photo before saving.');
-      setSaving(false);
-      return;
-    }
-    if (!profile.service_category) {
-      setError(t('Pick a category first, then add the exact services you offer below.'));
-      setSaving(false);
-      return;
-    }
-    if (profile.services_offered.length < 3) {
-      setError(t('Add at least 3 specific services before saving.'));
-      setSaving(false);
-      return;
-    }
-    if (profile.bio.trim().length < 80) {
-      setError(t('Add more detail to your business bio before saving.'));
-      setSaving(false);
-      return;
-    }
-    if (profile.service_districts.length === 0) {
-      setError('Select at least one Riyadh district before saving.');
-      setSaving(false);
-      return;
-    }
-    try {
-      // Step 1: Save all profile data WITHOUT photos (always small, always succeeds)
-      const profileWithoutPhotos = { ...profile, portfolio_photos: [] };
-      await apiClient.updateMyCompany({
-        marketplace_profile: profileWithoutPhotos,
-        service_area_cities: ['Riyadh'],
-        service_area_zipcodes: profile.service_districts,
-        service_area_completed: profile.service_districts.length > 0,
-        marketplace_profile_completed: true,
-        public_profile_enabled: true,
-      } as any);
-
-      // Step 2: Save photos separately — if this fails, profile is still saved
-      if (profile.portfolio_photos.length > 0) {
-        try {
-          await apiClient.updateMyCompany({
-            marketplace_profile: { ...profile },
-          } as any);
-        } catch {
-          // Photos too large for a single request — profile saved without them.
-          // Silently ignore so the user can still proceed.
-        }
-      }
-
-      // Refresh auth store so status checks see the updated data immediately
-      try {
-        const fresh = await apiClient.getMyCompany();
-        if (fresh && company) {
-          setCompany({ ...company, ...fresh } as any);
-        }
-      } catch {
-        // Non-critical — proceed even if refresh fails
-      }
-
-      setSaved(true);
-      if (mode === 'dashboard') return;
-      setTimeout(() => {
-        router.replace(returnToSetup ? '/onboarding/setup?marketplace=done' : '/dashboard');
-      }, 1200);
-    } catch (e: any) {
-      setError(e.message || t('Something went wrong. Please try again.'));
-    } finally {
-      setSaving(false);
-    }
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <IconLoader2 className="h-8 w-8 animate-spin text-emerald-600" stroke={1.7} />
+      </div>
+    );
   }
 
   return (
-    <div className="space-y-6" dir={isArabic ? 'rtl' : 'ltr'}>
-      <div className="mb-2">
-        <h1 className="text-2xl font-extrabold text-slate-900">
-          {mode === 'dashboard' ? t('Marketplace profile') : t('Complete your marketplace profile')}
-        </h1>
-        <p className="mt-1 text-sm text-slate-500">
-          {t(
-            'Customers browse this profile before deciding to contact you. Keep it complete, specific, and trustworthy.'
-          )}
-        </p>
-        {returnToSetup ? (
-          <div className="mt-4 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
-            <p className="font-semibold">
-              {t('This is the first setup milestone for your')} {selectedTier || t('selected')} {t('tier')}.
-            </p>
-            <p className="mt-1 text-emerald-800/80">
-              {t("Finish your marketplace profile first, then we'll bring you back to the rest of the setup flow.")}
-            </p>
-          </div>
-        ) : null}
-      </div>
+    <>
+      <SavingOverlay
+        open={saving}
+        progress={saveProgress}
+        stepLabel={SAVE_PROGRESS_STEPS[saveStepIndex] || SAVE_PROGRESS_STEPS[0]}
+      />
 
-      <div className="flex flex-col gap-6">
-        {/* ── Profile photo ──────────────────────────────────────────── */}
-        <section className={sectionClass}>
-          <h2 className={sectionTitleClass}>
-            {t('Profile photo')} <span className="text-red-500">*</span>
-          </h2>
-          <p className={sectionSubClass}>
-            {t('A clear photo of you or your team builds trust with customers. Required to publish your profile.')}
-          </p>
-          <div className="flex items-center gap-5">
-            <div className="relative">
-              {profile.profile_photo ? (
-                <img
-                  src={profile.profile_photo}
-                  alt="Profile"
-                  className="h-20 w-20 rounded-2xl object-cover ring-2 ring-emerald-200"
-                />
-              ) : (
-                <div className="flex h-20 w-20 items-center justify-center rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50 text-3xl font-bold text-slate-300">
-                  {(profile.bio || company?.company_name || '?').charAt(0).toUpperCase()}
-                </div>
-              )}
-              {profilePhotoUploading && (
-                <div className="absolute inset-0 flex items-center justify-center rounded-2xl bg-white/80">
-                  <span className="text-xs text-slate-500">...</span>
-                </div>
-              )}
-            </div>
-            <div>
-              <button
-                type="button"
-                onClick={() => profilePhotoInputRef.current?.click()}
-                className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-emerald-300 hover:text-emerald-700"
-              >
-                {profile.profile_photo ? t('Change photo') : t('Upload photo')}
-              </button>
-              <p className="mt-1.5 text-xs text-slate-400">{t('JPG or PNG · Max 5MB')}</p>
-              {!profile.profile_photo && (
-                <p className="mt-1 text-xs font-medium text-red-500">{t('Required')}</p>
-              )}
-            </div>
-          </div>
-          <input
-            ref={profilePhotoInputRef}
-            type="file"
-            accept="image/jpeg,image/png,image/webp"
-            className="hidden"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) void handleProfilePhotoFile(file);
-              e.target.value = '';
-            }}
-          />
-        </section>
-
-        <section className={sectionClass}>
-          <h2 className={sectionTitleClass}>Riyadh marketplace basics</h2>
-          <p className={sectionSubClass}>
-            Set up the public details homeowners in Riyadh will actually use when deciding whether to contact you.
-          </p>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <label className={labelClass}>Business city</label>
-              <input value="Riyadh" disabled className={`${inputClass} cursor-not-allowed bg-slate-50 text-slate-500`} />
-            </div>
-            <div>
-              <label className={labelClass}>Primary service market</label>
-              <input
-                value={`${selectedTier || 'Marketplace'} plan for Riyadh`}
-                disabled
-                className={`${inputClass} cursor-not-allowed bg-slate-50 text-slate-500`}
-              />
-            </div>
-          </div>
-        </section>
-
-        {/* ── About your business ────────────────────────────────────── */}
-        <section className={sectionClass}>
-          <h2 className={sectionTitleClass}>{t('About your business')}</h2>
-          <p className={sectionSubClass}>{t('Tell customers who you are and why they should hire you.')}</p>
-          <label className={labelClass}>{t('Business bio *')}</label>
-          <textarea
-            value={profile.bio}
-            onChange={(e) => setProfile({ ...profile, bio: e.target.value })}
-            rows={4}
-            maxLength={500}
-            placeholder={t(
-              'Trusted Riyadh service pro with 12 years of experience. We cover selected districts across the city, arrive on time, and keep homeowners updated from first message to completed job.'
-            )}
-            className={`${inputClass} resize-none`}
-          />
-          <p className="mt-1 text-right text-xs text-slate-400">{profile.bio.length} / 500</p>
-        </section>
-
-        <section className={sectionClass}>
-          <h2 className={sectionTitleClass}>{t('Overview')}</h2>
-          <p className={sectionSubClass}>{t('Key facts that appear on your profile card.')}</p>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div>
-              <label className={labelClass}>{t('Years in business')}</label>
-              <input
-                type="number"
-                min={0}
-                max={100}
-                value={profile.years_in_business}
-                onChange={(e) => setProfile({ ...profile, years_in_business: e.target.value })}
-                placeholder={t('e.g. 8')}
-                className={inputClass}
-              />
-            </div>
-            <div>
-              <label className={labelClass}>{t('Number of employees')}</label>
-              <select
-                value={profile.employees}
-                onChange={(e) => setProfile({ ...profile, employees: e.target.value })}
-                className={inputClass}
-              >
-                <option value="">{t('Select...')}</option>
-                {EMPLOYEE_OPTIONS.map((option) => (
-                  <option key={option} value={option}>
-                    {t(option)}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-          <div className="mt-4 flex flex-col gap-3">
-            <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-white p-4 transition hover:border-emerald-300 hover:bg-emerald-50/30">
-              <input
-                type="checkbox"
-                checked={profile.is_licensed}
-                onChange={(e) => setProfile({ ...profile, is_licensed: e.target.checked })}
-                className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 accent-emerald-600"
-              />
-              <span className="text-sm font-medium leading-relaxed text-slate-700">
-                {t('I am licensed / certified in my trade')}
-              </span>
-            </label>
-          </div>
-        </section>
-
-        <section className={sectionClass}>
-          <h2 className={sectionTitleClass}>{t('Credentials')}</h2>
-          <p className={sectionSubClass}>{t('License details appear as a trust badge on your public profile.')}</p>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div>
-              <label className={labelClass}>{t('License type')}</label>
-              <input
-                type="text"
-                value={profile.license_type}
-                onChange={(e) => setProfile({ ...profile, license_type: e.target.value })}
-                placeholder={t('e.g. Electrician - Master')}
-                className={inputClass}
-              />
-            </div>
-            <div>
-              <label className={labelClass}>{t('License / certificate number')}</label>
-              <input
-                type="text"
-                value={profile.license_number}
-                onChange={(e) => setProfile({ ...profile, license_number: e.target.value })}
-                placeholder={t('Optional')}
-                className={inputClass}
-              />
-            </div>
-          </div>
-        </section>
-
-        <section className={sectionClass}>
-          <h2 className={sectionTitleClass}>{t('Services offered')}</h2>
-          <p className={sectionSubClass}>
-            {t(
-              'Choose your main category, then list the exact jobs customers should be able to find you for.'
-            )}
-          </p>
-          <label className={labelClass}>{t('Main category')}</label>
-          <select
-            value={profile.service_category}
-            onChange={(e) =>
-              setProfile({ ...profile, service_category: e.target.value, services_offered: [] })
-            }
-            className={`${inputClass} mb-4`}
-          >
-            <option value="">{t('Select category...')}</option>
-            {MARKETPLACE_SERVICE_CATEGORIES.map((category) => (
-              <option key={category.key} value={category.title}>
-                {isArabic ? category.titleAr : category.title}
-              </option>
-            ))}
-          </select>
-
-          <div className="mb-4 rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
-            <p className="font-semibold">{t('Help search understand what you do')}</p>
-            <p className="mt-1 text-emerald-800/80">
-              {isArabic
-                ? t('Add the exact services customers would type into search, not just the broad category name.')
-                : selectedCategory?.setupGuidance ||
-                  'Add the exact services customers would type into search, not just the broad category name.'}
-            </p>
-            {selectedCategory ? (
-              <p className="mt-2 text-xs font-medium uppercase tracking-wide text-emerald-700/90">
-                {t('Suggested examples:')} {selectedCategory.services.slice(0, 4).join(isArabic ? '، ' : ', ')}
-              </p>
-            ) : null}
-          </div>
-
-          <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
-            <p className="font-semibold">{t('Detailed services win better leads')}</p>
-            <p className="mt-1 text-slate-500">
-              {t(
-                'Customers compare pros based on specialties, exact job types, and the clarity of the services listed. The more detailed you are, the better your leads tend to be.'
-              )}
-            </p>
-          </div>
-
-          <label className={labelClass}>
-            {t('Specific services customers can search for')}
-            <span className="ml-2 text-xs font-normal text-slate-400">
-              ({profile.services_offered.length}/10)
-            </span>
-          </label>
-          {serviceSubtypes.length > 0 ? (
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-              {serviceSubtypes.map((service) => {
-                const isChecked = profile.services_offered.includes(service);
-                const atLimit = !isChecked && profile.services_offered.length >= 10;
-                return (
-                <label
-                  key={service}
-                  className={`flex cursor-pointer items-center gap-2 rounded-lg border border-slate-100 p-2.5 transition hover:border-emerald-200 hover:bg-emerald-50 ${atLimit ? 'cursor-not-allowed opacity-50' : ''}`}
-                >
-                  <input
-                    type="checkbox"
-                    checked={isChecked}
-                    disabled={atLimit}
-                    onChange={() => {
-                      if (atLimit) return;
-                      setProfile({ ...profile, services_offered: toggle(profile.services_offered, service) });
-                    }}
-                    className="h-4 w-4 rounded border-slate-300 accent-emerald-600"
-                  />
-                  <span className="text-xs font-medium text-slate-700">{service}</span>
-                </label>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="rounded-xl border border-dashed border-slate-200 px-4 py-3 text-sm text-slate-500">
-              {t('Pick a category first, then add the exact services you offer below.')}
-            </div>
-          )}
-
-          <div className="mt-4">
-            <label className={labelClass}>{t('Add a custom specific service')}</label>
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <input
-                type="text"
-                value={customServiceInput}
-                onChange={(e) => setCustomServiceInput(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addCustomService())}
-                placeholder={
-                  selectedCategory
-                    ? `${t('Example:')} ${selectedCategory.services.slice(0, 1)[0] || 'Mesh network setup'}`
-                    : isArabic
-                      ? 'مثال: إعداد شبكة Mesh، تمديد إيثرنت، إعداد الستالايت'
-                      : 'Example: Mesh network setup, ethernet cabling, satellite setup'
-                }
-                className={inputClass}
-              />
-              <button
-                type="button"
-                onClick={addCustomService}
-                className="rounded-xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-emerald-300 hover:text-emerald-700"
-              >
-                {t('Add service')}
-              </button>
-            </div>
-            <p className="mt-2 text-xs text-slate-500">
-              {t(
-                'Be specific. Customers may search exact phrases like “mesh Wi-Fi setup” or “water heater repair.”'
-              )}
-            </p>
-          </div>
-
-          {profile.services_offered.length > 0 ? (
-            <div className="mt-4 flex flex-wrap gap-2">
-              {profile.services_offered.map((service) => (
-                <button
-                  key={service}
-                  type="button"
-                  onClick={() =>
-                    setProfile({ ...profile, services_offered: profile.services_offered.filter((item) => item !== service) })
-                  }
-                  className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 transition hover:border-emerald-300"
-                >
-                  {service} ×
-                </button>
-              ))}
-            </div>
-          ) : null}
-
-          <div className="mt-5">
-            <label className={labelClass}>{t('Property types served')}</label>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-              {PROPERTY_TYPES.map((propertyType) => (
-                <label
-                  key={propertyType}
-                  className="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-100 p-2.5 transition hover:border-emerald-200 hover:bg-emerald-50"
-                >
-                  <input
-                    type="checkbox"
-                    checked={profile.property_types.includes(propertyType)}
-                    onChange={() =>
-                      setProfile({ ...profile, property_types: toggle(profile.property_types, propertyType) })
-                    }
-                    className="h-4 w-4 rounded border-slate-300 accent-emerald-600"
-                  />
-                  <span className="text-xs font-medium text-slate-700">{t(propertyType)}</span>
-                </label>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        <section className={sectionClass}>
-          <h2 className={sectionTitleClass}>Riyadh districts you serve</h2>
-          <p className={sectionSubClass}>
-            Select the neighborhoods and districts you actively cover so homeowners see accurate service availability.
-          </p>
-          <DistrictSelector
-            selected={profile.service_districts}
-            onChange={(districts) => setProfile({ ...profile, service_districts: districts })}
-          />
-        </section>
-
-        <section className={sectionClass}>
-          <h2 className={sectionTitleClass}>Starting price</h2>
-          <p className={sectionSubClass}>{t('This sets customer expectations before they message you.')}</p>
-          <label className="mb-4 flex cursor-pointer items-center gap-3 rounded-xl border border-slate-200 bg-white p-4 transition hover:border-emerald-300 hover:bg-emerald-50/30">
-            <input
-              type="checkbox"
-              checked={profile.contact_for_price}
-              onChange={(e) =>
-                setProfile({
-                  ...profile,
-                  contact_for_price: e.target.checked,
-                  starting_price: e.target.checked ? '' : profile.starting_price,
-                })
-              }
-              className="h-4 w-4 rounded border-slate-300 accent-emerald-600"
-            />
-            <span className="text-sm font-medium text-slate-700">
-              Contact me for pricing{' '}
-              <span className="text-slate-400">(hides fixed price on your profile)</span>
-            </span>
-          </label>
-          {!profile.contact_for_price && (
-            <div className="flex items-center gap-3">
-              <span className="whitespace-nowrap text-sm font-semibold text-slate-500">From SAR</span>
-              <input
-                type="number"
-                min={0}
-                value={profile.starting_price}
-                onChange={(e) => setProfile({ ...profile, starting_price: e.target.value })}
-                placeholder="e.g. 150"
-                className={`${inputClass} max-w-xs`}
-              />
-              <span className="text-sm text-slate-400">{t('/ service')}</span>
-            </div>
-          )}
-        </section>
-
-        <section className={sectionClass}>
-          <h2 className={sectionTitleClass}>{t('Business hours')}</h2>
-          <p className={sectionSubClass}>{t('Standard work week is Mon-Fri. Update anything that differs.')}</p>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-slate-100">
-                  <th className="w-28 pb-2 text-left text-xs font-semibold text-slate-400">{t('Day')}</th>
-                  <th className="w-20 pb-2 text-left text-xs font-semibold text-slate-400">{t('Open')}</th>
-                  <th className="pb-2 text-left text-xs font-semibold text-slate-400">{t('From')}</th>
-                  <th className="pb-2 text-left text-xs font-semibold text-slate-400">{t('To')}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {DAYS.map((day) => {
-                  const hours = profile.business_hours[day];
-                  const isWeekend = day === 'Friday' || day === 'Saturday';
-                  return (
-                    <tr key={day} className="border-b border-slate-50 last:border-none">
-                      <td className="py-2.5 pr-4">
-                        <span className={`text-sm font-medium ${isWeekend ? 'text-slate-400' : 'text-slate-700'}`}>
-                          {t(day)}
-                          {isWeekend ? <span className="ml-1 text-xs text-slate-300">({t('weekend')})</span> : null}
-                        </span>
-                      </td>
-                      <td className="py-2.5 pr-4">
-                        <input
-                          type="checkbox"
-                          checked={hours.open}
-                          onChange={(e) => updateHours(day, 'open', e.target.checked)}
-                          className="h-4 w-4 rounded border-slate-300 accent-emerald-600"
-                        />
-                      </td>
-                      <td className="py-2.5 pr-3">
-                        <select
-                          disabled={!hours.open}
-                          value={hours.from}
-                          onChange={(e) => updateHours(day, 'from', e.target.value)}
-                          className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-700 outline-none focus:border-emerald-400 disabled:opacity-40"
-                        >
-                          {TIMES.map((time) => (
-                            <option key={time}>{time}</option>
-                          ))}
-                        </select>
-                      </td>
-                      <td className="py-2.5">
-                        <select
-                          disabled={!hours.open}
-                          value={hours.to}
-                          onChange={(e) => updateHours(day, 'to', e.target.value)}
-                          className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-700 outline-none focus:border-emerald-400 disabled:opacity-40"
-                        >
-                          {TIMES.map((time) => (
-                            <option key={time}>{time}</option>
-                          ))}
-                        </select>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </section>
-
-        <section className={sectionClass}>
-          <h2 className={sectionTitleClass}>{t('Payment methods')}</h2>
-          <p className={sectionSubClass}>{t('Tell customers how they can pay you once the job is booked.')}</p>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-            {PAYMENT_METHODS.map((paymentMethod) => (
-              <label
-                key={paymentMethod.id}
-                className={`flex cursor-pointer items-center gap-2.5 rounded-xl border p-3 transition ${
-                  profile.payment_methods.includes(paymentMethod.id)
-                    ? 'border-emerald-300 bg-emerald-50'
-                    : 'border-slate-100 hover:border-emerald-200'
-                }`}
-              >
-                <input
-                  type="checkbox"
-                  checked={profile.payment_methods.includes(paymentMethod.id)}
-                  onChange={() =>
-                    setProfile({
-                      ...profile,
-                      payment_methods: toggle(profile.payment_methods, paymentMethod.id),
-                    })
-                  }
-                  className="h-4 w-4 rounded border-slate-300 accent-emerald-600"
-                />
-                <span className={`${profile.payment_methods.includes(paymentMethod.id) ? 'text-emerald-600' : 'text-slate-400'}`}>{PAYMENT_METHOD_ICONS[paymentMethod.id]}</span>
-                <span className="text-xs font-semibold text-slate-700">{t(paymentMethod.label)}</span>
-              </label>
-            ))}
-          </div>
-        </section>
-
-        <section className={sectionClass}>
-          <h2 className={sectionTitleClass}>{t('Social media & website')}</h2>
-          <p className={sectionSubClass}>{t('Links shown on your profile so customers can see your work online.')}</p>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div>
-              <label className={labelClass}>{t('Instagram username')}</label>
-              <div className="flex items-center overflow-hidden rounded-xl border border-slate-200 focus-within:border-emerald-400 focus-within:ring-2 focus-within:ring-emerald-100">
-                <span className="border-r border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-400">@</span>
-                <input
-                  type="text"
-                  value={profile.instagram}
-                  onChange={(e) => setProfile({ ...profile, instagram: e.target.value })}
-                  placeholder={t('yourhandle')}
-                  className="flex-1 bg-white px-3 py-3 text-sm text-slate-800 outline-none placeholder:text-slate-400"
-                />
-              </div>
-            </div>
-            <div>
-              <label className={labelClass}>{t('Snapchat username')}</label>
-              <div className="flex items-center overflow-hidden rounded-xl border border-slate-200 focus-within:border-emerald-400 focus-within:ring-2 focus-within:ring-emerald-100">
-                <span className="border-r border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-400">@</span>
-                <input
-                  type="text"
-                  value={profile.snapchat}
-                  onChange={(e) => setProfile({ ...profile, snapchat: e.target.value })}
-                  placeholder={t('yourhandle')}
-                  className="flex-1 bg-white px-3 py-3 text-sm text-slate-800 outline-none placeholder:text-slate-400"
-                />
-              </div>
-            </div>
-            <div>
-              <label className={labelClass}>{t('Twitter / X username')}</label>
-              <div className="flex items-center overflow-hidden rounded-xl border border-slate-200 focus-within:border-emerald-400 focus-within:ring-2 focus-within:ring-emerald-100">
-                <span className="border-r border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-400">@</span>
-                <input
-                  type="text"
-                  value={profile.twitter}
-                  onChange={(e) => setProfile({ ...profile, twitter: e.target.value })}
-                  placeholder={t('yourhandle')}
-                  className="flex-1 bg-white px-3 py-3 text-sm text-slate-800 outline-none placeholder:text-slate-400"
-                />
-              </div>
-            </div>
-            <div>
-              <label className={labelClass}>{t('Website URL')}</label>
-              <input
-                type="url"
-                value={profile.website}
-                onChange={(e) => setProfile({ ...profile, website: e.target.value })}
-                placeholder={t('https://yoursite.com')}
-                className={inputClass}
-              />
-            </div>
-          </div>
-        </section>
-
-        <section className={sectionClass}>
-          <h2 className={sectionTitleClass}>{t('Projects & work photos')}</h2>
-          <p className={sectionSubClass}>{t('Photos improve trust and increase inquiry rates.')}</p>
-
-          {/* Hidden file input */}
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/jpeg,image/png,image/webp"
-            multiple
-            className="hidden"
-            onChange={(e) => e.target.files && handlePhotoFiles(e.target.files)}
-          />
-
-          {/* Photo grid */}
-          {profile.portfolio_photos.length > 0 ? (
-            <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-              {profile.portfolio_photos.map((src, index) => (
-                <div key={index} className="group relative aspect-square overflow-hidden rounded-xl border border-slate-200 bg-slate-100">
-                  <img src={src} alt={`Work photo ${index + 1}`} className="h-full w-full object-cover" />
-                  {/* Overlay controls */}
-                  <div className="absolute inset-0 flex flex-col items-end justify-between bg-black/40 p-1.5 opacity-0 transition group-hover:opacity-100">
-                    <button
-                      type="button"
-                      onClick={() => removePhoto(index)}
-                      className="flex h-6 w-6 items-center justify-center rounded-full bg-red-600 text-white text-xs font-bold leading-none transition hover:bg-red-700"
-                      title="Remove"
-                    >
-                      ×
-                    </button>
-                    <div className="flex gap-1">
-                      <button
-                        type="button"
-                        onClick={() => movePhoto(index, 'up')}
-                        disabled={index === 0}
-                        className="flex h-6 w-6 items-center justify-center rounded-full bg-white/80 text-slate-700 text-xs disabled:opacity-30 hover:bg-white"
-                        title="Move left"
-                      >
-                        ‹
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => movePhoto(index, 'down')}
-                        disabled={index === profile.portfolio_photos.length - 1}
-                        className="flex h-6 w-6 items-center justify-center rounded-full bg-white/80 text-slate-700 text-xs disabled:opacity-30 hover:bg-white"
-                        title="Move right"
-                      >
-                        ›
-                      </button>
-                    </div>
-                  </div>
-                  <span className="absolute bottom-1 left-1 rounded bg-black/50 px-1.5 py-0.5 text-xs text-white">
-                    {index + 1}
-                  </span>
-                </div>
-              ))}
-            </div>
-          ) : null}
-
-          {/* Upload area with drag-and-drop */}
-          {profile.portfolio_photos.length < 10 ? (
-            <div
-              className={`flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed px-6 py-8 text-center transition ${
-                isDragging
-                  ? 'border-emerald-400 bg-emerald-50'
-                  : 'border-slate-200 bg-slate-50 hover:border-emerald-300 hover:bg-emerald-50/40'
-              }`}
-              onClick={() => fileInputRef.current?.click()}
-              onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
-              onDragEnter={(e) => { e.preventDefault(); setIsDragging(true); }}
-              onDragLeave={() => setIsDragging(false)}
-              onDrop={(e) => {
-                e.preventDefault();
-                setIsDragging(false);
-                if (e.dataTransfer.files.length) void handlePhotoFiles(e.dataTransfer.files);
-              }}
-            >
-              <div className="mb-3 text-3xl">📷</div>
-              <p className="text-sm font-semibold text-slate-700">
-                {isDragging ? 'Drop photos here' : t('Upload photos of your work')}
-              </p>
-              <p className="mt-1 text-xs text-slate-400">
-                {t('Up to 10 photos · JPG, PNG · Max 5MB each')} · {10 - profile.portfolio_photos.length} remaining
-              </p>
-              <p className="mt-0.5 text-xs text-slate-400">Drag & drop or click to browse</p>
-              <button
-                type="button"
-                disabled={photoUploading}
-                className="mt-4 rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-60"
-                onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}
-              >
-                {photoUploading ? 'Compressing...' : t('Add photos')}
-              </button>
-            </div>
-          ) : (
-            <p className="text-center text-xs text-slate-400">10 / 10 photos added. Remove one to add more.</p>
-          )}
-
-          <div className="mt-4">
-            <label className={labelClass}>{t('Describe your recent projects (optional)')}</label>
-            <textarea
-              value={profile.portfolio_note}
-              onChange={(e) => setProfile({ ...profile, portfolio_note: e.target.value })}
-              rows={3}
-              maxLength={300}
-              placeholder={t(
-                'Completed AC maintenance in Al Olaya, plumbing visits in Hittin, and same-day handyman jobs across North Riyadh during the last quarter.'
-              )}
-              className={`${inputClass} resize-none`}
-            />
-          </div>
-        </section>
-
+      <form onSubmit={handleSubmit} className="space-y-6">
         {error ? (
-          <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
             {error}
           </div>
         ) : null}
 
-        {saved ? (
-          <div className="flex flex-col items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-6 py-8 text-center">
-            <div className="text-4xl">✅</div>
-            <p className="text-base font-bold text-emerald-800">
-              {mode === 'dashboard'
-                ? t('Marketplace profile updated successfully.')
-                : returnToSetup
-                  ? t('Profile saved! Taking you back to setup...')
-                  : t('Profile saved! Taking you to your dashboard...')}
-            </p>
+        {success ? (
+          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+            {success}
           </div>
         ) : null}
 
-        <div className="flex flex-col gap-3 sm:flex-row">
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-6 py-3.5 text-sm font-bold text-white shadow-sm transition hover:bg-emerald-700 disabled:opacity-60"
-          >
-            {saving
-              ? t('Saving profile...')
-              : mode === 'dashboard'
-                ? t('Save marketplace profile')
-                : returnToSetup
-                  ? t('Save profile & continue setup ->')
-                  : t('Save profile & go to dashboard ->')}
-          </button>
-          <button
-            onClick={() =>
-              router.replace(
-                mode === 'dashboard'
-                  ? '/dashboard/marketplace/requests'
-                  : returnToSetup
-                    ? '/onboarding/setup'
-                    : '/dashboard'
-              )
-            }
-            className="rounded-xl border border-slate-200 px-6 py-3.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
-          >
-            {mode === 'dashboard'
-              ? t('Back to marketplace')
-              : returnToSetup
-                ? t('Back to setup')
-                : t('Finish later')}
-          </button>
-        </div>
+        {Object.keys(sectionErrors).length > 0 ? (
+          <section className="rounded-[28px] border border-rose-200 bg-rose-50 p-6">
+            <div className="flex items-start gap-3">
+              <IconAlertCircle className="mt-0.5 h-5 w-5 text-rose-600" stroke={1.7} />
+              <div>
+                <p className="text-sm font-semibold text-rose-700">Complete these required sections</p>
+                <ul className="mt-3 space-y-2 text-sm text-rose-700">
+                  {Object.values(sectionErrors).map((message) => (
+                    <li key={message}>{message}</li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </section>
+        ) : null}
 
-        <p className="pb-4 text-center text-xs text-slate-400">
-          {t('You can update your marketplace profile anytime from Dashboard -> Marketplace -> Profile')}
-        </p>
-      </div>
-    </div>
+        <Section
+          title={mode === 'dashboard' ? 'Edit your public profile' : 'Complete your marketplace profile'}
+          description="Customers will only see this profile after the HandyCall admin team approves it."
+          invalid={false}
+        >
+          <p className="text-sm leading-6 text-slate-600">
+            Your profile will stay private until it passes manual review. Updating it later can also send it back through review if the public details change.
+          </p>
+        </Section>
+
+        <Section
+          title="Profile photo"
+          description={`A clear headshot is required. You can also add up to ${MAX_WORK_PHOTOS} work photos customers will see on your public profile.`}
+          invalid={Boolean(sectionErrors.photo)}
+        >
+          <div className="space-y-6">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+              <div className="flex h-28 w-28 items-center justify-center overflow-hidden rounded-[28px] border border-dashed border-slate-300 bg-slate-50">
+                {profilePhotoPreview ? (
+                  <img src={profilePhotoPreview} alt="Profile preview" className="h-full w-full object-cover" />
+                ) : (
+                  <IconPhoto className="h-8 w-8 text-slate-300" stroke={1.7} />
+                )}
+              </div>
+              <div className="space-y-2">
+                <Button type="button" variant="outline" onClick={() => fileInputRef.current?.click()}>
+                  {profilePhotoPreview ? 'Change photo' : 'Upload photo'}
+                </Button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  className="hidden"
+                  onChange={handlePhotoSelected}
+                />
+                <p className="text-sm text-slate-500">JPG, PNG, or WebP. Max 5MB.</p>
+                {fieldErrors.profile_photo ? (
+                  <p className="text-sm text-rose-600">{fieldErrors.profile_photo}</p>
+                ) : null}
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-slate-900">Work photos</p>
+                  <p className="text-sm text-slate-500">
+                    {workPhotos.length} of {MAX_WORK_PHOTOS} selected
+                  </p>
+                </div>
+                <div className="space-y-2 sm:text-right">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => workPhotoInputRef.current?.click()}
+                    disabled={workPhotos.length >= MAX_WORK_PHOTOS}
+                  >
+                    Add work photos
+                  </Button>
+                  <input
+                    ref={workPhotoInputRef}
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    multiple
+                    className="hidden"
+                    onChange={handleWorkPhotosSelected}
+                  />
+                </div>
+              </div>
+
+              {workPhotos.length > 0 ? (
+                <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                  {workPhotos.map((photo, index) => (
+                    <div
+                      key={photo.id}
+                      draggable
+                      onDragStart={() => {
+                        draggedWorkPhotoIdRef.current = photo.id;
+                      }}
+                      onDragOver={(event) => {
+                        event.preventDefault();
+                      }}
+                      onDrop={(event) => {
+                        event.preventDefault();
+                        const draggedId = draggedWorkPhotoIdRef.current;
+                        if (draggedId) {
+                          moveWorkPhotoToIndex(draggedId, index);
+                        }
+                        draggedWorkPhotoIdRef.current = null;
+                      }}
+                      onDragEnd={() => {
+                        draggedWorkPhotoIdRef.current = null;
+                      }}
+                      className="group relative aspect-square overflow-hidden rounded-2xl border border-slate-200 bg-slate-50"
+                    >
+                      <img
+                        src={photo.preview}
+                        alt={`${photo.kind === 'existing' ? 'Saved' : 'New'} work photo ${index + 1}`}
+                        className="h-full w-full object-cover"
+                      />
+                      <div className="absolute inset-x-2 top-2 flex items-center justify-between gap-2 opacity-0 transition group-hover:opacity-100 group-focus-within:opacity-100">
+                        <div className="flex items-center gap-1 rounded-full bg-black/65 px-2 py-1 text-[11px] font-medium text-white">
+                          <IconGripVertical className="h-3.5 w-3.5" stroke={2} />
+                          Drag
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => removeWorkPhoto(photo.id)}
+                          className="rounded-full bg-black/65 p-1 text-white"
+                        >
+                          <IconX className="h-4 w-4" stroke={2} />
+                        </button>
+                      </div>
+                      <div className="absolute inset-x-2 bottom-2 flex items-center justify-between gap-2 opacity-0 transition group-hover:opacity-100 group-focus-within:opacity-100">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="secondary"
+                          className="h-8 rounded-full bg-white/95 px-2 text-slate-700 shadow-sm"
+                          onClick={() => moveWorkPhoto(photo.id, -1)}
+                          disabled={index === 0}
+                        >
+                          <IconArrowNarrowLeft className="h-4 w-4" stroke={2} />
+                        </Button>
+                        <span className="rounded-full bg-black/65 px-2.5 py-1 text-[11px] font-semibold text-white">
+                          {index + 1}
+                        </span>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="secondary"
+                          className="h-8 rounded-full bg-white/95 px-2 text-slate-700 shadow-sm"
+                          onClick={() => moveWorkPhoto(photo.id, 1)}
+                          disabled={index === workPhotos.length - 1}
+                        >
+                          <IconArrowNarrowRight className="h-4 w-4" stroke={2} />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">
+                  Add photos of completed jobs, workmanship, or before-and-after results.
+                </div>
+              )}
+
+              {workPhotos.length > 1 ? (
+                <p className="text-sm text-slate-500">
+                  Drag photos to reorder them, or use the left and right buttons. The first photo appears first to customers.
+                </p>
+              ) : null}
+
+              {fieldErrors.work_photos ? (
+                <p className="text-sm text-rose-600">{fieldErrors.work_photos}</p>
+              ) : null}
+            </div>
+          </div>
+        </Section>
+
+        <Section
+          title="About your business"
+          description="Everything here is required except the credentials block below."
+          invalid={Boolean(sectionErrors.about)}
+        >
+          <div className="grid gap-6 md:grid-cols-2">
+            <div className="space-y-2 md:col-span-2">
+              <Label htmlFor="bio" className="text-sm font-semibold text-slate-900">
+                Business bio <span className="text-rose-500">*</span>
+              </Label>
+              <Textarea
+                id="bio"
+                value={form.bio}
+                onChange={(event) => setField('bio', event.target.value)}
+                placeholder="Explain the kinds of jobs you take on, what makes your work reliable, and how customers can expect you to show up."
+                className={`min-h-[132px] ${fieldErrors.bio ? 'border-rose-300 focus-visible:ring-rose-200' : ''}`}
+              />
+              {fieldErrors.bio ? <p className="text-sm text-rose-600">{fieldErrors.bio}</p> : null}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="years_experience" className="text-sm font-semibold text-slate-900">
+                Years in business <span className="text-rose-500">*</span>
+              </Label>
+              <Input
+                id="years_experience"
+                type="number"
+                min={0}
+                max={60}
+                value={form.years_experience}
+                onChange={(event) => setField('years_experience', event.target.value)}
+                className={fieldErrors.years_experience ? 'border-rose-300 focus-visible:ring-rose-200' : ''}
+              />
+              {fieldErrors.years_experience ? <p className="text-sm text-rose-600">{fieldErrors.years_experience}</p> : null}
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-sm font-semibold text-slate-900">
+                Team size <span className="text-rose-500">*</span>
+              </Label>
+              <div className="grid gap-3">
+                {EMPLOYEE_OPTIONS.map((option) => (
+                  <button
+                    key={option}
+                    type="button"
+                    onClick={() => setField('employee_count_range', option)}
+                    className={`rounded-2xl border px-4 py-3 text-left text-sm transition ${
+                      form.employee_count_range === option
+                        ? 'border-emerald-300 bg-emerald-50 text-emerald-800'
+                        : 'border-slate-200 text-slate-600 hover:border-slate-300'
+                    }`}
+                  >
+                    {option}
+                  </button>
+                ))}
+              </div>
+              {fieldErrors.employee_count_range ? <p className="text-sm text-rose-600">{fieldErrors.employee_count_range}</p> : null}
+            </div>
+
+            <div className="space-y-3 md:col-span-2">
+              <Label className="text-sm font-semibold text-slate-900">Languages spoken</Label>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                {[
+                  ['speaks_arabic', 'Arabic'],
+                  ['speaks_english', 'English'],
+                  ['speaks_urdu', 'Urdu'],
+                  ['speaks_hindi', 'Hindi'],
+                ].map(([key, label]) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() =>
+                      setField(key as keyof MarketplaceForm, !Boolean(form[key as keyof MarketplaceForm]))
+                    }
+                    className={`rounded-2xl border px-4 py-3 text-left text-sm transition ${
+                      form[key as keyof MarketplaceForm]
+                        ? 'border-emerald-300 bg-emerald-50 text-emerald-800'
+                        : 'border-slate-200 text-slate-600 hover:border-slate-300'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </Section>
+
+        <Section
+          title="Services offered"
+          description="Choose the broad category customers will land in, then add the exact job phrases they might search for."
+          invalid={Boolean(sectionErrors.services)}
+        >
+          <div className="space-y-6">
+            <SearchableSelect
+              label="Main category"
+              placeholder="Search categories like pest control, plumbing, or AC repair"
+              value={form.service_category}
+              options={MARKETPLACE_SERVICE_CATEGORIES.map((category) => category.title)}
+              onSelect={(value) => {
+                setField('service_category', value);
+                setField('services_offered', []);
+              }}
+              error={fieldErrors.service_category}
+            />
+
+            <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-5 text-sm leading-6 text-emerald-800">
+              Exact specific-service matches rank ahead of broad category matches. If a customer searches for something like “rat infestation” and you added that exact service, your profile can surface before general pest-control listings.
+            </div>
+
+            <div className="space-y-3">
+              <Label className="text-sm font-semibold text-slate-900">
+                Specific services customers can search for <span className="text-rose-500">*</span>
+              </Label>
+              <div className="relative">
+                <div className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
+                  <IconSearch className="h-4 w-4" stroke={1.7} />
+                </div>
+                <Input
+                  value={serviceSearch}
+                  onChange={(event) => {
+                    setServiceSearch(event.target.value);
+                    setServiceSearchOpen(true);
+                  }}
+                  onFocus={() => setServiceSearchOpen(true)}
+                  onBlur={() => setTimeout(() => setServiceSearchOpen(false), 120)}
+                  placeholder={
+                    selectedCategory
+                      ? 'Search suggestions or type a custom specific service'
+                      : 'Pick the main category first'
+                  }
+                  disabled={!selectedCategory}
+                  className={`pl-9 ${fieldErrors.services_offered ? 'border-rose-300 focus-visible:ring-rose-200' : ''}`}
+                />
+                {serviceSearchOpen && selectedCategory && serviceSuggestions.length > 0 ? (
+                  <div className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-20 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl">
+                    {serviceSuggestions.map((service) => (
+                      <button
+                        key={service}
+                        type="button"
+                        onMouseDown={(event) => {
+                          event.preventDefault();
+                          addSpecificService(service);
+                        }}
+                        className="flex w-full items-center justify-between px-4 py-3 text-left text-sm text-slate-700 transition hover:bg-emerald-50"
+                      >
+                        <span>{service}</span>
+                        <span className="text-xs text-slate-400">Suggested</span>
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                {form.services_offered.map((service) => (
+                  <span
+                    key={service}
+                    className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-sm font-medium text-emerald-800"
+                  >
+                    {service}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setField(
+                          'services_offered',
+                          form.services_offered.filter((item) => item !== service),
+                        )
+                      }
+                    >
+                      <IconX className="h-3.5 w-3.5" stroke={1.7} />
+                    </button>
+                  </span>
+                ))}
+              </div>
+
+              <div className="flex gap-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => addSpecificService(serviceSearch)}
+                  disabled={!selectedCategory || !serviceSearch.trim()}
+                >
+                  Add service
+                </Button>
+                <p className="self-center text-sm text-slate-500">
+                  Customers can search phrases like “rat infestation”, “water heater repair”, or “split AC cleaning”.
+                </p>
+              </div>
+              {fieldErrors.services_offered ? <p className="text-sm text-rose-600">{fieldErrors.services_offered}</p> : null}
+            </div>
+
+            <div className="space-y-3">
+              <Label className="text-sm font-semibold text-slate-900">
+                Property types served <span className="text-rose-500">*</span>
+              </Label>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {PROPERTY_TYPES.map((propertyType) => {
+                  const selected = form.property_types.includes(propertyType);
+                  return (
+                    <button
+                      key={propertyType}
+                      type="button"
+                      onClick={() => setField('property_types', toggleValue(form.property_types, propertyType))}
+                      className={`rounded-2xl border px-4 py-3 text-left text-sm transition ${
+                        selected
+                          ? 'border-emerald-300 bg-emerald-50 text-emerald-800'
+                          : 'border-slate-200 text-slate-600 hover:border-slate-300'
+                      }`}
+                    >
+                      {propertyType}
+                    </button>
+                  );
+                })}
+              </div>
+              {fieldErrors.property_types ? <p className="text-sm text-rose-600">{fieldErrors.property_types}</p> : null}
+            </div>
+          </div>
+        </Section>
+
+        <Section
+          title="Districts served"
+          description="Choose the Riyadh districts you actively cover so location matching can rank nearby pros first."
+          invalid={Boolean(sectionErrors.districts)}
+        >
+          <div className="space-y-5">
+            <div className="space-y-3">
+              <Label className="text-sm font-semibold text-slate-900">
+                Districts customers can find you in <span className="text-rose-500">*</span>
+              </Label>
+              <div className="relative">
+                <div className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
+                  <IconSearch className="h-4 w-4" stroke={1.7} />
+                </div>
+                <Input
+                  value={districtSearch}
+                  onChange={(event) => {
+                    setDistrictSearch(event.target.value);
+                    setDistrictSearchOpen(true);
+                  }}
+                  onFocus={() => setDistrictSearchOpen(true)}
+                  onBlur={() => setTimeout(() => setDistrictSearchOpen(false), 120)}
+                  placeholder="Search Riyadh districts like Qortubah, Al Olaya, or Al Malqa"
+                  className={`pl-9 ${fieldErrors.service_districts ? 'border-rose-300 focus-visible:ring-rose-200' : ''}`}
+                />
+                {districtSearchOpen && districtSuggestions.length > 0 ? (
+                  <div className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-20 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl">
+                    {districtSuggestions.map((district) => (
+                      <button
+                        key={district}
+                        type="button"
+                        onMouseDown={(event) => {
+                          event.preventDefault();
+                          addDistrict(district);
+                        }}
+                        className="flex w-full items-center justify-between px-4 py-3 text-left text-sm text-slate-700 transition hover:bg-emerald-50"
+                      >
+                        <span>{district}</span>
+                        <span className="text-xs text-slate-400">District</span>
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                {form.service_districts.map((district) => (
+                  <span
+                    key={district}
+                    className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-sm font-medium text-emerald-800"
+                  >
+                    {district}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setField(
+                          'service_districts',
+                          form.service_districts.filter((item) => item !== district),
+                        )
+                      }
+                    >
+                      <IconX className="h-3.5 w-3.5" stroke={1.7} />
+                    </button>
+                  </span>
+                ))}
+              </div>
+
+              <div className="flex gap-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => addDistrict(districtSearch)}
+                  disabled={!districtSearch.trim()}
+                >
+                  Add district
+                </Button>
+                <p className="self-center text-sm text-slate-500">
+                  Search and add only the districts you actively serve.
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <Label className="text-sm font-semibold text-slate-900">Popular districts</Label>
+              <div className="flex flex-wrap gap-2">
+                {popularDistricts.map((district) => {
+                  const selected = form.service_districts.includes(district);
+                  return (
+                    <button
+                      key={district}
+                      type="button"
+                      onClick={() => setField('service_districts', toggleValue(form.service_districts, district))}
+                      className={`rounded-full border px-3 py-2 text-sm transition ${
+                        selected
+                          ? 'border-emerald-300 bg-emerald-50 text-emerald-800'
+                          : 'border-slate-200 text-slate-600 hover:border-slate-300'
+                      }`}
+                    >
+                      {district}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {fieldErrors.service_districts ? <p className="text-sm text-rose-600">{fieldErrors.service_districts}</p> : null}
+          </div>
+        </Section>
+
+        <Section
+          title="Pricing and payment"
+          description="Set customer expectations before they contact you."
+          invalid={Boolean(sectionErrors.payment)}
+        >
+          <div className="grid gap-6 md:grid-cols-2">
+            <div className="space-y-3 md:col-span-2">
+              <Label className="text-sm font-semibold text-slate-900">
+                Pricing shown on your profile <span className="text-rose-500">*</span>
+              </Label>
+              <div className="grid gap-3 md:grid-cols-2">
+                <button
+                  type="button"
+                  onClick={() => setField('contact_for_price', false)}
+                  className={`rounded-2xl border px-4 py-4 text-left transition ${
+                    !form.contact_for_price
+                      ? 'border-emerald-300 bg-emerald-50 text-emerald-800'
+                      : 'border-slate-200 text-slate-600 hover:border-slate-300'
+                  }`}
+                >
+                  <p className="text-sm font-semibold">Show a starting price</p>
+                  <p className="mt-1 text-sm leading-6 text-inherit/80">
+                    Customers will see “From SAR {form.starting_price_sar.trim() || '0'}” on your card and profile.
+                  </p>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setField('contact_for_price', true)}
+                  className={`rounded-2xl border px-4 py-4 text-left transition ${
+                    form.contact_for_price
+                      ? 'border-emerald-300 bg-emerald-50 text-emerald-800'
+                      : 'border-slate-200 text-slate-600 hover:border-slate-300'
+                  }`}
+                >
+                  <p className="text-sm font-semibold">Contact for price</p>
+                  <p className="mt-1 text-sm leading-6 text-inherit/80">
+                    Hide the number and show “Contact for price” instead.
+                  </p>
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="starting_price_sar" className="text-sm font-semibold text-slate-900">
+                Starting price (SAR){' '}
+                {!form.contact_for_price ? <span className="text-rose-500">*</span> : null}
+              </Label>
+              <Input
+                id="starting_price_sar"
+                type="number"
+                min={0}
+                max={50000}
+                value={form.starting_price_sar}
+                onChange={(event) => setField('starting_price_sar', event.target.value)}
+                disabled={form.contact_for_price}
+                placeholder={form.contact_for_price ? 'Disabled while Contact for price is on' : '250'}
+                className={fieldErrors.starting_price_sar ? 'border-rose-300 focus-visible:ring-rose-200' : ''}
+              />
+              <p className="text-sm text-slate-500">
+                {form.contact_for_price
+                  ? 'Customers will not see a number until they contact you.'
+                  : 'Use the minimum “from” price you want shown publicly.'}
+              </p>
+              {fieldErrors.starting_price_sar ? <p className="text-sm text-rose-600">{fieldErrors.starting_price_sar}</p> : null}
+            </div>
+
+            <div className="space-y-3 md:col-span-2">
+              <Label className="text-sm font-semibold text-slate-900">
+                Payment methods <span className="text-rose-500">*</span>
+              </Label>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {PAYMENT_METHODS.map((paymentMethod) => {
+                  const selected = form.payment_methods.includes(paymentMethod);
+                  return (
+                    <button
+                      key={paymentMethod}
+                      type="button"
+                      onClick={() => setField('payment_methods', toggleValue(form.payment_methods, paymentMethod))}
+                      className={`rounded-2xl border px-4 py-3 text-left text-sm transition ${
+                        selected
+                          ? 'border-emerald-300 bg-emerald-50 text-emerald-800'
+                          : 'border-slate-200 text-slate-600 hover:border-slate-300'
+                      }`}
+                    >
+                      {paymentMethod}
+                    </button>
+                  );
+                })}
+              </div>
+              {fieldErrors.payment_methods ? <p className="text-sm text-rose-600">{fieldErrors.payment_methods}</p> : null}
+            </div>
+          </div>
+        </Section>
+
+        <Section
+          title="Business hours"
+          description="Sunday through Thursday are the default working days. Friday and Saturday start as weekends, but you can turn them on any time."
+          invalid={Boolean(sectionErrors.availability)}
+        >
+          <div className="space-y-4">
+            {form.availability.map((slot) => (
+              <div
+                key={slot.day_of_week}
+                className="grid gap-3 rounded-2xl border border-slate-200 p-4 md:grid-cols-[180px,1fr,1fr]"
+              >
+                <button
+                  type="button"
+                  onClick={() => toggleAvailability(slot.day_of_week)}
+                  className={`rounded-2xl border px-4 py-3 text-left text-sm font-medium transition ${
+                    slot.is_available
+                      ? 'border-emerald-300 bg-emerald-50 text-emerald-800'
+                      : 'border-slate-200 bg-slate-50 text-slate-500'
+                  }`}
+                    >
+                  {AVAILABILITY_DAYS.find((day) => day.key === slot.day_of_week)?.label}
+                </button>
+                <TimePickerField
+                  label="From"
+                  value={slot.open_time}
+                  disabled={!slot.is_available}
+                  onChange={(value) =>
+                    setField(
+                      'availability',
+                      form.availability.map((item) =>
+                        item.day_of_week === slot.day_of_week ? { ...item, open_time: value } : item,
+                      ),
+                    )
+                  }
+                />
+                <TimePickerField
+                  label="To"
+                  value={slot.close_time}
+                  disabled={!slot.is_available}
+                  onChange={(value) =>
+                    setField(
+                      'availability',
+                      form.availability.map((item) =>
+                        item.day_of_week === slot.day_of_week ? { ...item, close_time: value } : item,
+                      ),
+                    )
+                  }
+                />
+              </div>
+            ))}
+            {fieldErrors.availability ? <p className="text-sm text-rose-600">{fieldErrors.availability}</p> : null}
+          </div>
+        </Section>
+
+        <Section
+          title="Credentials"
+          description="This section is optional, but adding it strengthens trust during admin review."
+        >
+          <div className="grid gap-6 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="license_type" className="text-sm font-semibold text-slate-900">License type</Label>
+              <Input id="license_type" value={form.license_type} onChange={(event) => setField('license_type', event.target.value)} placeholder="Electrical contractor, pest control licence, etc." />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="license_number" className="text-sm font-semibold text-slate-900">License number</Label>
+              <Input id="license_number" value={form.license_number} onChange={(event) => setField('license_number', event.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="cr_number" className="text-sm font-semibold text-slate-900">Commercial registration number</Label>
+              <Input id="cr_number" value={form.cr_number} onChange={(event) => setField('cr_number', event.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="vat_number" className="text-sm font-semibold text-slate-900">VAT number</Label>
+              <Input id="vat_number" value={form.vat_number} onChange={(event) => setField('vat_number', event.target.value)} />
+            </div>
+          </div>
+        </Section>
+
+        <div className="flex justify-end">
+          <Button type="submit" size="lg" disabled={saving} className="min-w-[260px]">
+            {saving ? <IconLoader2 className="mr-2 h-4 w-4 animate-spin" stroke={1.7} /> : <IconCheck className="mr-2 h-4 w-4" stroke={1.7} />}
+            {mode === 'dashboard' ? 'Save profile changes' : 'Submit profile for review'}
+          </Button>
+        </div>
+      </form>
+
+      <Dialog open={cropDialogOpen} onOpenChange={handleCropDialogOpenChange}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Crop profile photo</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-6">
+            <div
+              className={`relative mx-auto aspect-square max-w-md overflow-hidden rounded-[32px] bg-slate-100 select-none ${isDraggingCrop ? 'cursor-grabbing' : 'cursor-grab'}`}
+              onPointerDown={handleCropPointerDown}
+              onPointerMove={handleCropPointerMove}
+              onPointerUp={endCropDrag}
+              onPointerCancel={endCropDrag}
+              style={{ touchAction: 'none' }}
+            >
+              {cropImageUrl ? (
+                <img
+                  src={cropImageUrl}
+                  alt="Crop preview"
+                  className="absolute left-1/2 top-1/2 max-w-none pointer-events-none"
+                  style={{
+                    transform: `translate(calc(-50% + ${cropState.offsetX}px), calc(-50% + ${cropState.offsetY}px)) scale(${cropState.zoom})`,
+                  }}
+                />
+              ) : null}
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+              Drag the image to reposition it inside the frame, then use zoom if needed.
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-1">
+              <div className="space-y-2">
+                <Label className="text-sm font-semibold text-slate-900">Zoom</Label>
+                <input
+                  type="range"
+                  min="1"
+                  max="2.4"
+                  step="0.05"
+                  value={cropState.zoom}
+                  onChange={(event) =>
+                    setCropState((current) => ({ ...current, zoom: Number(event.target.value) }))
+                  }
+                  className="w-full"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3">
+              <Button type="button" variant="outline" onClick={() => handleCropDialogOpenChange(false)}>
+                Cancel
+              </Button>
+              <Button type="button" onClick={() => void applyCrop()}>
+                Use this crop
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

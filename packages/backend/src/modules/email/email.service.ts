@@ -16,7 +16,7 @@ export class EmailService {
   private isConsoleMode: boolean;
 
   constructor(private config: ConfigService) {
-    this.fromEmail = config.get<string>('SES_FROM_EMAIL') ?? 'no-reply@handycall.org';
+    this.fromEmail = config.get<string>('SES_FROM_EMAIL') ?? 'hello@handycall.org';
     this.fromName = config.get<string>('SES_FROM_NAME') ?? 'HandyCall';
     this.isConsoleMode = config.get('EMAIL_PROVIDER') === 'console';
 
@@ -32,8 +32,14 @@ export class EmailService {
     token: string,
     firstName: string,
     lang: 'ar' | 'en' = 'en',
+    callbackUrl = '/customer/onboarding?callbackUrl=%2Fcustomer%2Fdashboard',
   ) {
-    const verifyUrl = `${this.config.get<string>('FRONTEND_URL') ?? 'http://localhost:3001'}/verify-email?token=${token}&audience=customer`;
+    const verifyUrl = new URL(
+      `${this.config.get<string>('FRONTEND_URL') ?? 'http://localhost:3001'}/verify-email`,
+    );
+    verifyUrl.searchParams.set('token', token);
+    verifyUrl.searchParams.set('audience', 'customer');
+    verifyUrl.searchParams.set('callbackUrl', callbackUrl);
     const isAr = lang === 'ar';
 
     await this.send({
@@ -45,7 +51,7 @@ export class EmailService {
         body: isAr
           ? 'شكراً لتسجيلك في HandyCall. انقر على الزر أدناه للتحقق من بريدك الإلكتروني. الرابط صالح لمدة 24 ساعة.'
           : 'Thanks for signing up with HandyCall. Click the button below to verify your email. This link is valid for 24 hours.',
-        cta: { label: isAr ? 'تحقق من البريد الإلكتروني' : 'Verify Email', url: verifyUrl },
+        cta: { label: isAr ? 'تحقق من البريد الإلكتروني' : 'Verify Email', url: verifyUrl.toString() },
         footer: isAr
           ? 'إذا لم تنشئ حساباً، يمكنك تجاهل هذا البريد.'
           : "If you didn't create an account, you can safely ignore this email.",
@@ -53,8 +59,18 @@ export class EmailService {
     });
   }
 
-  async sendProVerification(email: string, token: string, firstName: string) {
-    const verifyUrl = `${this.config.get<string>('FRONTEND_URL') ?? 'http://localhost:3001'}/verify-email?token=${token}&audience=pro`;
+  async sendProVerification(
+    email: string,
+    token: string,
+    firstName: string,
+    callbackUrl = '/onboarding/account-setup',
+  ) {
+    const verifyUrl = new URL(
+      `${this.config.get<string>('FRONTEND_URL') ?? 'http://localhost:3001'}/verify-email`,
+    );
+    verifyUrl.searchParams.set('token', token);
+    verifyUrl.searchParams.set('audience', 'pro');
+    verifyUrl.searchParams.set('callbackUrl', callbackUrl);
 
     await this.send({
       to: email,
@@ -63,7 +79,7 @@ export class EmailService {
         title: 'Verify your email',
         greeting: `Hi ${firstName},`,
         body: 'Thanks for joining HandyCall. Click the button below to verify your email before completing your pro setup. This link is valid for 24 hours.',
-        cta: { label: 'Verify Email', url: verifyUrl },
+        cta: { label: 'Verify Email', url: verifyUrl.toString() },
         footer: "If you didn't create an account, you can safely ignore this email.",
       }),
     });
@@ -204,6 +220,47 @@ export class EmailService {
         title: 'تم إرسال المبلغ',
         greeting: `مرحباً ${pro.first_name}،`,
         body: `تمت معالجة دفعتك للحجز رقم ${booking.booking_id}.<br><br>المبلغ: ${(booking.pro_payout_sar / 100).toFixed(2)} ر.س<br>سيتم إيداع المبلغ في حسابك المصرفي خلال 3–5 أيام عمل.`,
+      }),
+    });
+  }
+
+  async sendProApproved(pro: Pro) {
+    const dashboardUrl = `${this.config.get('FRONTEND_URL', 'http://localhost:3001')}/dashboard`;
+
+    await this.send({
+      to: pro.email,
+      subject: 'Your HandyCall pro profile has been approved',
+      html: renderHandycallEmail({
+        title: 'You are approved',
+        greeting: `Hi ${pro.first_name},`,
+        body: 'Your HandyCall marketplace profile has been reviewed and approved. You can now access your dashboard, manage incoming requests, and appear in marketplace results.',
+        cta: {
+          label: 'Open your dashboard',
+          url: dashboardUrl,
+        },
+        footer: 'Thank you for completing your profile. We are excited to have you on HandyCall.',
+      }),
+    });
+  }
+
+  async sendProRejected(pro: Pro, reason?: string) {
+    const onboardingUrl = `${this.config.get('FRONTEND_URL', 'http://localhost:3001')}/onboarding/account-setup`;
+    const reasonCopy = reason
+      ? `<br><br><strong>Why it was not approved:</strong><br>${reason}`
+      : '';
+
+    await this.send({
+      to: pro.email,
+      subject: 'Your HandyCall pro profile needs changes before approval',
+      html: renderHandycallEmail({
+        title: 'Profile review update',
+        greeting: `Hi ${pro.first_name},`,
+        body: `We reviewed your HandyCall marketplace profile and it was not approved yet.${reasonCopy}<br><br>You can sign back in, update the required details, and submit again for review.`,
+        cta: {
+          label: 'Review your profile',
+          url: onboardingUrl,
+        },
+        footer: 'If anything is unclear, please contact the HandyCall team.',
       }),
     });
   }

@@ -1,165 +1,117 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { signOut, useSession } from 'next-auth/react';
+import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import { useAuthStore } from '@/stores/auth-store';
-import { apiClient } from '@/lib/api-client';
-import { computeOnboardingStatus } from '@/lib/setup-status';
-import { normalizePlan } from '@/constants/plans';
 import { LanguageSwitcher } from '@/components/language-switcher';
 import { Logo } from '@/components/ui/logo';
 import { ProfileDropdown } from '@/components/profile-dropdown';
 import { NotificationBell } from '@/components/notifications/notification-bell';
 import { Button } from '@/components/ui/button';
-import { usePlanFeatures } from '@/hooks/use-plan-features';
 import {
-  IconHome,
-  IconPhone,
   IconMessageCircle,
-  IconUsers,
-  IconCalendar,
-  IconMessageDots,
   IconFileText,
-  IconSettings,
-  IconChartBar,
-  IconCreditCard,
-  IconBolt,
-  IconCurrencyDollar,
-  IconChartBarPopular,
-  IconSend,
-  IconPhoneOutgoing,
   IconMenu2,
   IconX,
   IconUser,
 } from '@tabler/icons-react';
-import { SubscriptionPlan, UserRole } from '@handycall/shared';
+import { UserRole } from '@/lib/shared';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const { status } = useSession();
-  const { isAuthenticated, isLoading, checkAuth, userRole, company, companyHydrated } =
+  const { isLoading, checkAuth, userRole, company, proProfile, proHydrated } =
     useAuthStore();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const { hasFeature } = usePlanFeatures();
-  const canUseAutomation = hasFeature('follow_up_sequences');
-
-  const setupStatus = useMemo(() => {
-    return computeOnboardingStatus({
-      company,
-      userFirstName: null,
-      userLastName: null,
-      userEmail: null,
-    });
-  }, [company]);
-
-
-  const needsSetup = useMemo(() => {
-    if (!company) return false;
-    return (
-      !setupStatus.billing ||
-      !setupStatus.companyProfile ||
-      !setupStatus.marketplaceProfile ||
-      !setupStatus.serviceArea ||
-      !setupStatus.calendar
-    );
-  }, [company, setupStatus]);
-
-  const setupDataReady = true;
 
   useEffect(() => {
     if (status !== 'authenticated' || userRole === UserRole.ADMIN) return;
-    // No company at all after hydration → send straight to onboarding
-    if (companyHydrated && !company) {
-      router.replace('/onboarding');
+    if (!proHydrated) return;
+
+    const onboardingStep = proProfile?.onboarding_step || 1;
+    const proStatus = proProfile?.status;
+
+    if (onboardingStep < 2) {
+      router.replace('/onboarding/account-setup');
       return;
     }
-    // Company present but setup incomplete
-    if (setupDataReady && needsSetup) {
-      router.replace('/onboarding');
+
+    if (onboardingStep < 5) {
+      router.replace('/onboarding/marketplace-profile');
+      return;
     }
-  }, [needsSetup, router, setupDataReady, status, userRole, company, companyHydrated]);
+
+    if (proStatus === 'PENDING_REVIEW' || proStatus === 'REJECTED') {
+      router.replace('/pro/review-status');
+    }
+  }, [router, status, userRole, proHydrated, proProfile?.onboarding_step, proProfile?.status]);
 
   useEffect(() => {
     const populate = async () => {
-      if (status === 'authenticated') {
-        try {
-          // Give session a moment to stabilize before checking auth
-          await new Promise((resolve) => setTimeout(resolve, 300));
+      if (status !== 'authenticated') return;
 
-          await checkAuth();
-
-          // Wait a bit more for state to update
-          await new Promise((resolve) => setTimeout(resolve, 200));
-
-          // After checkAuth, verify we actually have valid credentials
-          const state = useAuthStore.getState();
-
-          // Only check auth if we're not still loading
-          if (state.isLoading) {
-            return; // Still loading, wait for next cycle
-          }
-
-          // For admin users, check for tokens. For customers, check for company or tokens
-          // But be lenient - if session exists, give it time
-          const hasValidAuth =
-            state.isAuthenticated &&
-            (state.accessToken ||
-              state.idToken ||
-              state.userRole === UserRole.ADMIN ||
-              state.company);
-
-          // Only sign out if we're definitely unauthenticated and not loading
-          if (!hasValidAuth && !state.isLoading) {
-            // Check session one more time before signing out
-            const sessionCheck = await fetch('/api/auth/session', { cache: 'no-store' }).catch(
-              () => null
-            );
-            const sessionData = sessionCheck?.ok ? await sessionCheck.json() : null;
-
-            if (!sessionData || (!sessionData.accessToken && !sessionData.idToken)) {
-              // No valid credentials, sign out
-              console.log('[DashboardLayout] No valid credentials after checkAuth, signing out');
-              await signOut({ redirect: false });
-              router.push('/login');
-            }
-          }
-        } catch (err) {
-          console.error('checkAuth failed, checking session before signing out', err);
-
-          // Don't immediately sign out on error - check session first
-          try {
-            const sessionCheck = await fetch('/api/auth/session', { cache: 'no-store' }).catch(
-              () => null
-            );
-            const sessionData = sessionCheck?.ok ? await sessionCheck.json() : null;
-
-            if (!sessionData || (!sessionData.accessToken && !sessionData.idToken)) {
-              // Sign out without redirect to avoid loops, then navigate manually
-              await signOut({ redirect: false });
-              router.push('/login');
-            }
-          } catch (checkErr) {
-            // If we can't check session, sign out
-            await signOut({ redirect: false });
-            router.push('/login');
-          }
-        }
+      try {
+        await checkAuth();
+      } catch (err) {
+        console.error('checkAuth failed while hydrating dashboard state', err);
       }
     };
-    populate();
-  }, [status, checkAuth, router]);
+    void populate();
+  }, [status, checkAuth]);
 
   useEffect(() => {
     if (status === 'unauthenticated') {
-      router.push('/login');
+      router.push('/pro/login');
     } else if (status === 'authenticated' && userRole === UserRole.ADMIN) {
       // Redirect admins to admin dashboard
       router.push('/admin');
     }
   }, [status, userRole, router]);
+
+  useEffect(() => {
+    if (status !== 'authenticated' || userRole === UserRole.ADMIN) return;
+    if (!proHydrated) return;
+    if (!pathname?.startsWith('/dashboard')) return;
+
+    const redirectTo = (target: string) => {
+      if (pathname !== target) {
+        router.replace(target);
+      }
+    };
+
+    if (pathname === '/dashboard' || pathname === '/dashboard/marketplace') {
+      redirectTo('/dashboard/marketplace/requests');
+      return;
+    }
+
+    const supportedPrefixes = [
+      '/dashboard/marketplace/requests',
+      '/dashboard/marketplace/inbox',
+      '/dashboard/marketplace/profile',
+    ];
+
+    if (supportedPrefixes.some((prefix) => pathname.startsWith(prefix))) {
+      return;
+    }
+
+    if (pathname.startsWith('/dashboard/messages')) {
+      redirectTo('/dashboard/marketplace/inbox');
+      return;
+    }
+
+    if (
+      pathname.startsWith('/dashboard/settings') ||
+      pathname.startsWith('/dashboard/account-settings')
+    ) {
+      redirectTo('/dashboard/marketplace/profile');
+      return;
+    }
+
+    redirectTo('/dashboard/marketplace/requests');
+  }, [pathname, proHydrated, router, status, userRole]);
 
   if (status === 'loading' || isLoading || status === 'unauthenticated') {
     return (
@@ -205,44 +157,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
         <div className="flex flex-row items-center gap-3 border-b border-border/80 px-5 py-3">
           <Logo variant="icon" width={32} height={32} />
-          {company?.company_name && (
+          {(company?.company_name || proProfile?.first_name) && (
             <p className="text-sm font-semibold leading-tight text-foreground truncate">
-              {company.company_name}
+              {company?.company_name ||
+                `${proProfile?.first_name || ''} ${proProfile?.last_name || ''}`.trim()}
             </p>
           )}
         </div>
 
         <nav className="flex-1 px-3 py-4 space-y-5 overflow-y-auto">
-          {/* Main section */}
           <div className="space-y-0.5">
-            <NavLink
-              href="/dashboard"
-              icon={<IconHome stroke={1.5} className="h-5 w-5" />}
-              active={pathname === '/dashboard'}
-              onClick={() => setSidebarOpen(false)}
-            >
-              Dashboard
-            </NavLink>
-            <NavLink
-              href="/dashboard/messages"
-              icon={<IconMessageCircle stroke={1.5} className="h-5 w-5" />}
-              active={pathname?.startsWith('/dashboard/messages')}
-              onClick={() => setSidebarOpen(false)}
-            >
-              Messages
-            </NavLink>
-            <NavLink
-              href="/dashboard/appointments"
-              icon={<IconCalendar stroke={1.5} className="h-5 w-5" />}
-              active={pathname?.startsWith('/dashboard/appointments')}
-              onClick={() => setSidebarOpen(false)}
-            >
-              Appointments
-            </NavLink>
-          </div>
-
-          {/* Marketplace */}
-          <div className="space-y-0.5 border-t border-border/80 pt-3">
             <p className="px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               Marketplace
             </p>
@@ -263,14 +187,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               Inbox
             </NavLink>
             <NavLink
-              href="/dashboard/customers"
-              icon={<IconUsers stroke={1.5} className="h-5 w-5" />}
-              active={pathname?.startsWith('/dashboard/customers')}
-              onClick={() => setSidebarOpen(false)}
-            >
-              Customers
-            </NavLink>
-            <NavLink
               href="/dashboard/marketplace/profile"
               icon={<IconUser stroke={1.5} className="h-5 w-5" />}
               active={pathname?.startsWith('/dashboard/marketplace/profile')}
@@ -279,95 +195,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               Profile
             </NavLink>
           </div>
-
-          {/* Company section */}
-          <div className="space-y-0.5 border-t border-border/80 pt-3">
-              <p className="px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Company
-              </p>
-              <NavLink
-                href="/dashboard/invoices"
-                icon={<IconFileText stroke={1.5} className="h-5 w-5" />}
-                active={pathname?.startsWith('/dashboard/invoices')}
-                onClick={() => setSidebarOpen(false)}
-              >
-                Invoices
-              </NavLink>
-              <NavLink
-                href="/dashboard/settings"
-                icon={<IconSettings stroke={1.5} className="h-5 w-5" />}
-                active={pathname?.startsWith('/dashboard/settings')}
-                onClick={() => setSidebarOpen(false)}
-              >
-                Settings
-              </NavLink>
-              <NavLink
-                href="/dashboard/payments"
-                icon={<IconCurrencyDollar stroke={1.5} className="h-5 w-5" />}
-                active={pathname?.startsWith('/dashboard/payments')}
-                onClick={() => setSidebarOpen(false)}
-              >
-                Payments
-              </NavLink>
-            </div>
-
-          {/* Account section */}
-          <div className="space-y-0.5 border-t border-border/80 pt-3">
-            <p className="px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Account
-            </p>
-            <NavLink
-              href="/dashboard/usage"
-              icon={<IconChartBar stroke={1.5} className="h-5 w-5" />}
-              active={pathname?.startsWith('/dashboard/usage')}
-              onClick={() => setSidebarOpen(false)}
-            >
-              Usage
-            </NavLink>
-            <NavLink
-              href="/dashboard/billing"
-              icon={<IconCreditCard stroke={1.5} className="h-5 w-5" />}
-              active={
-                pathname?.startsWith('/dashboard/billing') &&
-                !pathname?.startsWith('/dashboard/billing/addons')
-              }
-              onClick={() => setSidebarOpen(false)}
-            >
-              Billing
-            </NavLink>
-          </div>
-
-          {canUseAutomation && (
-            <div className="space-y-0.5 border-t border-border/80 pt-3">
-              <p className="px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Automation
-              </p>
-              <NavLink
-                href="/dashboard/analytics"
-                icon={<IconChartBarPopular stroke={1.5} className="h-5 w-5" />}
-                active={pathname?.startsWith('/dashboard/analytics')}
-                onClick={() => setSidebarOpen(false)}
-              >
-                Analytics
-              </NavLink>
-              <NavLink
-                href="/dashboard/sms-automation"
-                icon={<IconMessageDots stroke={1.5} className="h-5 w-5" />}
-                active={pathname?.startsWith('/dashboard/sms-automation')}
-                onClick={() => setSidebarOpen(false)}
-              >
-                SMS Automation
-              </NavLink>
-              <NavLink
-                href="/dashboard/follow-ups"
-                icon={<IconSend stroke={1.5} className="h-5 w-5" />}
-                active={pathname?.startsWith('/dashboard/follow-ups')}
-                onClick={() => setSidebarOpen(false)}
-              >
-                Follow-ups
-              </NavLink>
-            </div>
-          )}
         </nav>
 
         {/* Bottom user area — profile + language + notification bell */}

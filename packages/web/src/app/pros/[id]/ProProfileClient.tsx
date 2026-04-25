@@ -34,6 +34,35 @@ const DAY_ORDER = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Satu
 
 type Tab = 'about' | 'services' | 'portfolio' | 'availability';
 
+function getLegacyMarketplaceProfile(provider: any) {
+  if (!provider || typeof provider !== 'object') return {};
+  return provider.marketplace_profile && typeof provider.marketplace_profile === 'object'
+    ? provider.marketplace_profile
+    : {};
+}
+
+function getFirstString(...values: unknown[]) {
+  for (const value of values) {
+    if (typeof value === 'string' && value.trim()) {
+      return value.trim();
+    }
+  }
+  return '';
+}
+
+function getFirstArray(...values: unknown[]) {
+  for (const value of values) {
+    if (!Array.isArray(value)) continue;
+    const normalized = value
+      .map((item) => (typeof item === 'string' ? item.trim() : ''))
+      .filter(Boolean);
+    if (normalized.length > 0) {
+      return normalized;
+    }
+  }
+  return [];
+}
+
 function StarRating({ rating, count }: { rating: number; count: number }) {
   const filled = Math.floor(rating);
   return (
@@ -154,13 +183,17 @@ export function ProProfileClient({ id }: { id: string }) {
     );
   }
 
-  const mp = provider.marketplace_profile || {};
-  const name = provider.company_name || '';
-  const bio = mp.bio || provider.public_description || '';
-  const photo = mp.profile_photo || provider.profile_photo_url;
+  const mp = getLegacyMarketplaceProfile(provider);
+  const name =
+    provider.company_name ||
+    [provider.first_name, provider.last_name].filter(Boolean).join(' ') ||
+    provider.email ||
+    '';
+  const bio = getFirstString(provider.bio, mp.bio, provider.public_description);
+  const photo = getFirstString(provider.profile_photo_url, provider.profile_photo_s3_key, mp.profile_photo);
   const cities: string[] =
-    Array.isArray(mp.service_cities) && mp.service_cities.length > 0
-      ? mp.service_cities
+    getFirstArray(provider.service_districts, mp.service_districts, mp.service_cities).length > 0
+      ? getFirstArray(provider.service_districts, mp.service_districts, mp.service_cities)
       : Array.isArray(provider.service_area_cities)
       ? provider.service_area_cities
       : [];
@@ -168,24 +201,53 @@ export function ProProfileClient({ id }: { id: string }) {
   const rating = Number(provider.overall_rating || 0);
   const reviews = Number(provider.total_reviews || 0);
   const hires = Number(provider.total_hires || provider.hires_count || 0);
-  const startingPrice = mp.starting_price;
-  const contactForPrice = Boolean(mp.contact_for_price);
-  const services: string[] = Array.isArray(mp.services_offered) ? mp.services_offered : [];
-  const portfolioPhotos: string[] = Array.isArray(mp.portfolio_photos)
-    ? mp.portfolio_photos.filter((p: string) => !!p)
-    : [];
-  const paymentMethods: string[] = Array.isArray(mp.payment_methods) ? mp.payment_methods : [];
+  const startingPrice =
+    typeof provider.starting_price_sar === 'number'
+      ? Number((provider.starting_price_sar / 100).toFixed(0))
+      : mp.starting_price;
+  const contactForPrice =
+    typeof provider.contact_for_price === 'boolean'
+      ? provider.contact_for_price
+      : Boolean(mp.contact_for_price);
+  const services: string[] = Array.isArray(provider.services_offered)
+    ? provider.services_offered
+    : Array.isArray(provider.services)
+      ? provider.services.map((service: any) => service.title).filter(Boolean)
+      : Array.isArray(mp.services_offered)
+        ? mp.services_offered
+      : [];
+  const portfolioPhotos: string[] = Array.isArray(provider.work_photo_urls)
+      ? provider.work_photo_urls.filter((p: string) => !!p)
+      : Array.isArray(provider.work_photo_s3_keys)
+        ? provider.work_photo_s3_keys.filter((p: string) => !!p)
+        : Array.isArray(mp.portfolio_photos)
+          ? mp.portfolio_photos.filter((p: string) => !!p)
+        : [];
+  const paymentMethods: string[] = getFirstArray(provider.payment_methods, mp.payment_methods);
   const businessHours: Record<string, { open: boolean; from: string; to: string }> =
-    mp.business_hours || {};
-  const isLicensed = mp.is_licensed;
+    (Array.isArray(provider.availability)
+      ? provider.availability.reduce((acc: any, slot: any) => {
+          acc[slot.day_of_week] = {
+            open: Boolean(slot.is_available),
+            from: slot.open_time,
+            to: slot.close_time,
+          };
+          return acc;
+        }, {})
+      : mp.business_hours || {});
+  const isLicensed =
+    mp.is_licensed ??
+    Boolean(provider.license_number || provider.cr_number || mp.license_number || mp.cr_number);
   const isBackgroundChecked = mp.is_background_checked;
-  const yearsInBusiness = mp.years_in_business;
-  const employees = mp.employees;
-  const serviceCategory = mp.service_category || '';
-  const instagram = mp.instagram;
-  const twitter = mp.twitter;
-  const website = mp.website;
-  const propertyTypes: string[] = Array.isArray(mp.property_types) ? mp.property_types : [];
+  const yearsInBusiness =
+    provider.years_experience || mp.years_in_business || mp.years_experience;
+  const employees =
+    provider.employee_count_range || mp.employees || mp.employee_count_range;
+  const serviceCategory = getFirstString(provider.service_category, mp.service_category);
+  const instagram = getFirstString(provider.instagram_handle, mp.instagram);
+  const twitter = getFirstString(provider.twitter_handle, mp.twitter);
+  const website = getFirstString(provider.website_url, mp.website);
+  const propertyTypes: string[] = getFirstArray(provider.property_types, mp.property_types);
 
   const hasPortfolio = portfolioPhotos.length > 0;
   const hasAvailability = Object.keys(businessHours).length > 0;

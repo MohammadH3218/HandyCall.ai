@@ -7,29 +7,15 @@ import {
   ConfirmSignUpResponse,
   ResendConfirmationRequest,
   ResendConfirmationResponse,
-} from '@handycall/shared';
+} from '@/lib/shared';
 
 // BFF Pattern: Point to Next.js internal API proxy instead of external NestJS
 // The proxy handles authentication server-side using NextAuth cookies
 const API_URL = '/api/proxy';
 
-const ADMIN_PATH_PREFIX = '/admin';
-
-const getAdminCompanyId = () => {
-  if (typeof window === 'undefined') return null;
-  try {
-    const raw = window.localStorage.getItem('handycall-admin-company');
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    return parsed?.state?.companyId || parsed?.companyId || null;
-  } catch {
-    return null;
-  }
-};
-
 const isAdminRoute = () => {
   if (typeof window === 'undefined') return false;
-  return window.location.pathname.startsWith(ADMIN_PATH_PREFIX);
+  return window.location.pathname.startsWith('/admin');
 };
 
 class ApiClient {
@@ -45,20 +31,36 @@ class ApiClient {
     // Tokens are handled server-side via NextAuth cookies
   }
 
-  private async hasActiveSession(): Promise<boolean> {
-    if (typeof window === 'undefined') return false;
+  private async getSessionSnapshot(): Promise<{ hasBearer: boolean; error?: string | null }> {
+    if (typeof window === 'undefined') {
+      return { hasBearer: false, error: null };
+    }
 
     try {
       const response = await fetch('/api/auth/session', { cache: 'no-store' });
-      if (!response.ok) return false;
+      if (!response.ok) {
+        return { hasBearer: false, error: null };
+      }
       const session = await response.json();
-      return Boolean((session as any)?.idToken || (session as any)?.accessToken);
+      return {
+        hasBearer: Boolean((session as any)?.idToken || (session as any)?.accessToken),
+        error: (session as any)?.error || null,
+      };
     } catch {
-      return false;
+      return { hasBearer: false, error: null };
     }
   }
 
+  private async hasActiveSession(): Promise<boolean> {
+    const session = await this.getSessionSnapshot();
+    return session.hasBearer && session.error !== 'RefreshAccessTokenError';
+  }
+
   private isAuthFailureResponse(response: Response, data: any, message: string): boolean {
+    if (response.status < 401) {
+      return false;
+    }
+
     const text = [message, data?.error?.message, data?.message, data?.error, data?.raw]
       .filter(Boolean)
       .join(' ')
@@ -109,8 +111,13 @@ class ApiClient {
     } catch {
       // no-op
     } finally {
-      const isCustomerPath = typeof window !== 'undefined' && window.location.pathname.startsWith('/customer');
-      const loginUrl = isCustomerPath ? '/customer/login?reason=session_expired' : '/pro/login?reason=session_expired';
+      const pathname = typeof window !== 'undefined' ? window.location.pathname : '';
+      const isCustomerPath = pathname.startsWith('/customer');
+      const loginUrl = isCustomerPath
+        ? '/customer/login?reason=session_expired'
+        : isAdminRoute()
+          ? '/admin/login?reason=session_expired'
+          : '/pro/login?reason=session_expired';
       window.location.assign(loginUrl);
     }
   }
@@ -120,17 +127,11 @@ class ApiClient {
     const cleanEndpoint = endpoint.startsWith('/') ? endpoint.slice(1) : endpoint;
     const url = `${this.baseUrl}/${cleanEndpoint}`;
 
+    const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
     const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
+      ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
       ...(options.headers as Record<string, string>),
     };
-
-    if (isAdminRoute()) {
-      const adminCompanyId = getAdminCompanyId();
-      if (adminCompanyId) {
-        headers['x-company-id'] = adminCompanyId;
-      }
-    }
 
     // No need to add Authorization header here!
     // The Next.js proxy (/api/proxy/[...path]) handles authentication server-side
@@ -168,8 +169,13 @@ class ApiClient {
           `Request failed with status ${response.status}`;
 
         const isTokenAuthFailure = this.isAuthFailureResponse(response, data, errorMessage);
+        const sessionSnapshot =
+          response.status >= 401 || isTokenAuthFailure
+            ? await this.getSessionSnapshot()
+            : { hasBearer: true, error: null };
         const shouldForceLogout =
-          isTokenAuthFailure || (response.status === 401 && !(await this.hasActiveSession()));
+          (response.status === 401 || isTokenAuthFailure) &&
+          (!sessionSnapshot.hasBearer || sessionSnapshot.error === 'RefreshAccessTokenError');
 
         if (shouldForceLogout) {
           await this.forceLogoutToLogin();
@@ -216,6 +222,27 @@ class ApiClient {
       requestOptions.body = typeof body === 'string' ? body : JSON.stringify(body);
     }
     const response = await this.request<T>(endpoint, requestOptions);
+    return (response as any)?.data ?? (response as any);
+  }
+
+  async patch<T = any>(endpoint: string, body?: any, options: RequestInit = {}): Promise<T> {
+    const requestOptions: RequestInit = {
+      ...options,
+      method: 'PATCH',
+    };
+    if (body !== undefined) {
+      requestOptions.body = typeof body === 'string' ? body : JSON.stringify(body);
+    }
+    const response = await this.request<T>(endpoint, requestOptions);
+    return (response as any)?.data ?? (response as any);
+  }
+
+  async postForm<T = any>(endpoint: string, body: FormData, options: RequestInit = {}): Promise<T> {
+    const response = await this.request<T>(endpoint, {
+      ...options,
+      method: 'POST',
+      body,
+    });
     return (response as any)?.data ?? (response as any);
   }
 
@@ -394,6 +421,62 @@ class ApiClient {
     return response.data ?? response;
   }
 
+  async getMyProProfile(): Promise<any> {
+    return this.get('/pros/me');
+  }
+
+  async getMyProOnboardingStatus(): Promise<any> {
+    return this.get('/pros/onboarding/status');
+  }
+
+  async submitProAccountSetup(data: {
+    id_type: 'NATIONAL_ID' | 'IQAMA';
+    national_id?: string;
+    iqama_number?: string;
+    phone_number: string;
+    national_address: string;
+  }): Promise<any> {
+    return this.post('/pros/onboarding/account', data);
+  }
+
+  async submitProMarketplaceSetup(data: FormData): Promise<any> {
+    return this.postForm('/pros/onboarding/marketplace', data);
+  }
+
+  async submitProLegacyProfileSetup(data: FormData): Promise<any> {
+    return this.postForm('/pros/onboarding/profile', data);
+  }
+
+  async submitProLegacyServicesSetup(data: {
+    services: Array<{
+      category: string;
+      title: string;
+      description?: string;
+      pricing_type: 'QUOTE' | 'FIXED' | 'HOURLY';
+      min_price_sar?: number;
+      max_price_sar?: number;
+      price_sar?: number;
+      vat_included: boolean;
+      estimated_duration_minutes?: number;
+    }>;
+  }): Promise<any> {
+    return this.post('/pros/onboarding/services', data);
+  }
+
+  async submitProLegacyPayoutSetup(data: {
+    iban: string;
+    bank_name: string;
+    service_districts: string[];
+    availability: Array<{
+      day_of_week: string;
+      open_time: string;
+      close_time: string;
+      is_available: boolean;
+    }>;
+  }): Promise<any> {
+    return this.post('/pros/onboarding/payout', data);
+  }
+
   async getMyUser(): Promise<any> {
     const response = await this.request<any>('/users/me', { method: 'GET' });
     return response.data ?? response;
@@ -459,15 +542,22 @@ class ApiClient {
   }
 
   async getCustomerAppointments(): Promise<{ appointments: any[] }> {
-    const response = await this.request<{ appointments: any[] }>(`/customer/appointments`, {
+    const response = await this.request<any>(`/bookings`, {
       method: 'GET',
     });
-    return (response.data ?? response) as { appointments: any[] };
+    const payload = response.data ?? response;
+    return {
+      appointments: Array.isArray(payload?.appointments)
+        ? payload.appointments
+        : Array.isArray(payload)
+          ? payload
+          : [],
+    };
   }
 
   async cancelCustomerAppointment(appointmentId: string, reason?: string): Promise<any> {
-    const response = await this.request<any>(`/customer/appointments/${appointmentId}/cancel`, {
-      method: 'POST',
+    const response = await this.request<any>(`/bookings/${appointmentId}/cancel`, {
+      method: 'PATCH',
       body: JSON.stringify(reason ? { reason } : {}),
     });
     return response.data ?? response;
@@ -1056,6 +1146,152 @@ class ApiClient {
     return response.data ?? response;
   }
 
+  private createQueryString(params: Record<string, string | number | boolean | undefined | null>) {
+    const searchParams = new URLSearchParams();
+
+    for (const [key, value] of Object.entries(params)) {
+      if (value === undefined || value === null || value === '') continue;
+      searchParams.set(key, String(value));
+    }
+
+    const query = searchParams.toString();
+    return query ? `?${query}` : '';
+  }
+
+  async getAdminOverview(): Promise<any> {
+    return this.get('/admin/overview');
+  }
+
+  async getAdminPlatformStats(): Promise<any> {
+    return this.get('/admin/stats');
+  }
+
+  async getAdminAnalytics(): Promise<any> {
+    return this.get('/admin/analytics');
+  }
+
+  async listAdminPros(params: {
+    status?: string;
+    search?: string;
+    limit?: number;
+    cursor?: string;
+  } = {}): Promise<any> {
+    return this.get(`/admin/pros${this.createQueryString(params)}`);
+  }
+
+  async getAdminProDetail(proId: string): Promise<any> {
+    return this.get(`/admin/pros/${proId}`);
+  }
+
+  async approveAdminPro(proId: string): Promise<any> {
+    return this.patch(`/admin/pros/${proId}/approve`);
+  }
+
+  async rejectAdminPro(proId: string, reason?: string): Promise<any> {
+    return this.patch(`/admin/pros/${proId}/reject`, { reason });
+  }
+
+  async suspendAdminPro(proId: string, reason?: string): Promise<any> {
+    return this.patch(`/admin/pros/${proId}/suspend`, { reason });
+  }
+
+  async reactivateAdminPro(proId: string): Promise<any> {
+    return this.patch(`/admin/pros/${proId}/reactivate`);
+  }
+
+  async deleteAdminPro(proId: string): Promise<any> {
+    return this.delete(`/admin/pros/${proId}`);
+  }
+
+  async listAdminCustomers(params: {
+    status?: string;
+    search?: string;
+    limit?: number;
+    cursor?: string;
+  } = {}): Promise<any> {
+    return this.get(`/admin/customers${this.createQueryString(params)}`);
+  }
+
+  async getAdminCustomerDetail(customerId: string): Promise<any> {
+    return this.get(`/admin/customers/${customerId}`);
+  }
+
+  async suspendAdminCustomer(customerId: string, reason?: string): Promise<any> {
+    return this.patch(`/admin/customers/${customerId}/suspend`, { reason });
+  }
+
+  async reactivateAdminCustomer(customerId: string): Promise<any> {
+    return this.patch(`/admin/customers/${customerId}/reactivate`);
+  }
+
+  async deleteAdminCustomer(customerId: string): Promise<any> {
+    return this.delete(`/admin/customers/${customerId}`);
+  }
+
+  async listAdminBookings(params: {
+    status?: string;
+    payment_status?: string;
+    search?: string;
+    limit?: number;
+    cursor?: string;
+  } = {}): Promise<any> {
+    return this.get(`/admin/bookings${this.createQueryString(params)}`);
+  }
+
+  async getAdminBookingDetail(bookingId: string): Promise<any> {
+    return this.get(`/admin/bookings/${bookingId}`);
+  }
+
+  async cancelAdminBooking(bookingId: string, reason?: string): Promise<any> {
+    return this.patch(`/admin/bookings/${bookingId}/cancel`, { reason });
+  }
+
+  async listAdminReviews(params: {
+    visibility?: string;
+    search?: string;
+    limit?: number;
+    cursor?: string;
+  } = {}): Promise<any> {
+    return this.get(`/admin/reviews${this.createQueryString(params)}`);
+  }
+
+  async updateAdminReviewVisibility(reviewId: string, visible: boolean): Promise<any> {
+    return this.patch(`/admin/reviews/${reviewId}/visibility`, { visible });
+  }
+
+  async deleteAdminReview(reviewId: string): Promise<any> {
+    return this.delete(`/admin/reviews/${reviewId}`);
+  }
+
+  async listAdminPayments(params: {
+    status?: string;
+    search?: string;
+    limit?: number;
+    cursor?: string;
+  } = {}): Promise<any> {
+    return this.get(`/admin/payments${this.createQueryString(params)}`);
+  }
+
+  async getAdminPaymentDetail(bookingId: string): Promise<any> {
+    return this.get(`/admin/payments/${bookingId}`);
+  }
+
+  async releaseAdminPayment(bookingId: string): Promise<any> {
+    return this.patch(`/admin/payments/${bookingId}/release`);
+  }
+
+  async refundAdminPayment(bookingId: string, reason?: string): Promise<any> {
+    return this.patch(`/admin/payments/${bookingId}/refund`, { reason });
+  }
+
+  async getAdminPlatformConfig(): Promise<any> {
+    return this.get('/admin/platform-config');
+  }
+
+  async updateAdminPlatformConfig(key: string, value: any): Promise<any> {
+    return this.patch(`/admin/platform-config/${key}`, { value });
+  }
+
   async getMyProfile(): Promise<any> {
     const response = await this.request<any>('/users/me', { method: 'GET' });
     return response.data ?? response;
@@ -1210,10 +1446,10 @@ class ApiClient {
     const params = new URLSearchParams();
     if (query) params.set('q', query);
     if (category) params.set('category', category);
-    if (zipcode) params.set('zipcode', zipcode);
+    if (zipcode) params.set('district', zipcode);
     const qs = params.toString() ? `?${params.toString()}` : '';
     const res = await this.request<any>(`/marketplace/search${qs}`);
-    return (res as any)?.providers ?? res ?? [];
+    return (res as any)?.items ?? (res as any)?.providers ?? res ?? [];
   }
 
   async getProviderCategories(): Promise<string[]> {
@@ -1227,7 +1463,7 @@ class ApiClient {
   }
 
   async getProviderById(id: string): Promise<any> {
-    const res = await this.request<any>(`/marketplace/provider-by-id/${id}`);
+    const res = await this.request<any>(`/pros/${id}`);
     return (res as any)?.provider ?? res;
   }
 
@@ -1388,24 +1624,49 @@ class ApiClient {
   }
 
   async getCustomerProfile(): Promise<{ profile: any; is_complete: boolean }> {
-    const res = await this.request<{ profile: any; is_complete: boolean }>('/customer/profile');
-    return (res as any)?.data ?? res;
+    const res = await this.request<any>('/customers/me');
+    const profile = (res as any)?.data ?? res;
+    const is_complete = Boolean(
+      profile &&
+        String(profile.first_name || '').trim() &&
+        String(profile.last_name || '').trim() &&
+        /^\+9665\d{8}$/.test(String(profile.phone_number || '').trim()) &&
+        String(profile.district || '').trim() &&
+        String(profile.address_line1 || '').trim() &&
+        Number.isFinite(profile.address_latitude) &&
+        Number.isFinite(profile.address_longitude)
+    );
+    return { profile, is_complete };
   }
 
   async updateCustomerProfile(data: {
-    name?: string;
-    phone?: string;
+    first_name?: string;
+    last_name?: string;
+    phone_number?: string;
+    district?: string;
+    preferred_language?: 'ar' | 'en';
+    marketing_consent?: boolean;
     address_line1?: string;
     address_line2?: string;
-    city?: string;
-    state?: string;
-    zipcode?: string;
+    address_latitude?: number;
+    address_longitude?: number;
   }): Promise<{ profile: any; is_complete: boolean }> {
-    const res = await this.request<{ profile: any; is_complete: boolean }>('/customer/profile', {
-      method: 'PUT',
+    const res = await this.request<any>('/customers/me', {
+      method: 'PATCH',
       body: JSON.stringify(data),
     });
-    return (res as any)?.data ?? res;
+    const profile = (res as any)?.data ?? res;
+    const is_complete = Boolean(
+      profile &&
+        String(profile.first_name || '').trim() &&
+        String(profile.last_name || '').trim() &&
+        /^\+9665\d{8}$/.test(String(profile.phone_number || '').trim()) &&
+        String(profile.district || '').trim() &&
+        String(profile.address_line1 || '').trim() &&
+        Number.isFinite(profile.address_latitude) &&
+        Number.isFinite(profile.address_longitude)
+    );
+    return { profile, is_complete };
   }
 
   // Refunds
