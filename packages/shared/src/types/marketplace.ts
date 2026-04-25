@@ -30,7 +30,7 @@ export type BookingStatus =
   | 'COMPLETED'
   | 'CANCELLED';
 
-export type PaymentStatus = 'PENDING' | 'HELD' | 'RELEASED' | 'REFUNDED';
+export type PaymentStatus = 'PENDING' | 'HELD' | 'RELEASED' | 'REFUNDED' | 'FAILED';
 export type PaymentMethod = 'MADA' | 'APPLE_PAY' | 'CREDIT_CARD';
 export type CancelledBy = 'CUSTOMER' | 'PRO' | 'PLATFORM';
 
@@ -55,11 +55,11 @@ export interface Customer {
   id_type?: IdType;
   id_verified: boolean;
   district?: string;                           // Riyadh district (حي)
-  city: string;                                // default "Riyadh"
-  address_line1?: string;
-  address_line2?: string;
+  address_line1?: string;                      // map-selected address label
+  address_line2?: string;                      // apartment / villa / compound details
   address_latitude?: number;
   address_longitude?: number;
+  city: string;                                // default "Riyadh"
   preferred_language?: PreferredLanguage;
   status: CustomerStatus;
   email_verified: boolean;
@@ -83,16 +83,36 @@ export interface Pro {
   iqama_number?: string;
   id_type?: IdType;
   id_verified: boolean;
+  id_verification_provider?: 'NAFATH' | 'MANUAL_REVIEW';
+  id_verification_status?: 'UNVERIFIED' | 'VERIFIED' | 'PENDING' | 'MANUAL_REVIEW' | 'FAILED';
+  id_verification_reference?: string;
   id_document_s3_key?: string;                 // uploaded ID scan
   cr_number?: string;                          // Commercial Registration (optional)
   vat_number?: string;                         // if VAT-registered
+  national_address?: string;
+  national_address_verified?: boolean;
+  national_address_verification_provider?: 'SPL' | 'MANUAL_REVIEW';
+  national_address_verification_status?: 'UNVERIFIED' | 'VERIFIED' | 'PENDING' | 'MANUAL_REVIEW' | 'FAILED';
+  national_address_verification_reference?: string;
   iban?: string;                               // SA + 22 digits (total 24 chars)
   iban_verified: boolean;
   bank_name?: string;
   bio?: string;
   bio_ar?: string;
   profile_photo_s3_key?: string;
+  service_category?: ServiceCategory;
+  services_offered?: string[];
+  property_types?: string[];
+  payment_methods?: string[];
+  instagram_handle?: string;
+  snapchat_handle?: string;
+  twitter_handle?: string;
+  website_url?: string;
+  contact_for_price?: boolean;
+  starting_price_sar?: number;                 // Halalas
+  work_photo_s3_keys?: string[];
   years_experience?: number;
+  employee_count_range?: string;
   speaks_arabic: boolean;
   speaks_english: boolean;
   speaks_urdu?: boolean;
@@ -100,12 +120,14 @@ export interface Pro {
   service_districts: string[];                 // Riyadh districts covered
   city: string;
   status: ProStatus;
-  onboarding_step: number;                     // 1–5
+  onboarding_step: number;                     // 1 account setup, 2 marketplace setup in progress, 5 submitted for review
   is_available: boolean;
   average_rating: number;                      // stored as integer * 100 (e.g. 450 = 4.50★)
   total_reviews: number;
   total_bookings: number;
   completion_rate: number;                     // 0–100
+  rejection_reason?: string;
+  suspension_reason?: string;
   pdpl_consent: boolean;
   pdpl_consent_at: number;
   marketing_consent: boolean;

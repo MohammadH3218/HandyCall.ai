@@ -35,7 +35,7 @@ Set the returned IDs in backend environment:
 
 ## 3) Required backend environment variables
 
-Set these in Elastic Beanstalk app environment:
+Set these in the live backend environment or secret store (Fly.io for current production):
 
 - `STRIPE_SECRET_KEY`
 - `STRIPE_PUBLISHABLE_KEY`

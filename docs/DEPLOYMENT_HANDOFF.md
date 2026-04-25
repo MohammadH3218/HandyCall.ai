@@ -1,90 +1,42 @@
 # Deployment Handoff
 
-Last updated: 2026-03-10
+Last updated: 2026-04-25
 
-## GitHub
-- Remote: `origin`
-- URL: `https://github.com/MohammadH3218/HandyCall.ai.git`
-- Default branch currently used locally: `master`
+## Source Of Truth
+- GitHub remote: `origin`
+- branch: `master`
+- web runtime: Vercel
+- API runtime: Fly.io
 
-## Backend AWS Docker Deploy
-Primary script:
-- `packages/backend/deploy.sh`
+## Web Deploy
+Vercel reads the repo-root `vercel.json`.
 
-What it does:
-1. Builds Docker image from monorepo root using `packages/backend/Dockerfile`
-2. Logs into ECR
-3. Pushes versioned + `latest` image tags
-4. Creates `Dockerrun.aws.json`
-5. Creates zip bundle and uploads to S3
-6. Creates EB app version and updates EB environment
+Build flow:
+1. install workspace dependencies
+2. build `packages/shared`
+3. build `packages/web`
 
-Configured in script (verify before production deploy):
-- Region: `us-east-1`
-- AWS account: `982081079378`
-- ECR repo: `handycall-backend`
-- EB app: `handycall-api`
-- EB environment: `handycall-api-lb`
+## API Deploy
+Fly.io reads `packages/backend/fly.toml`.
 
-## Web AWS Docker Deploy
-Primary script:
-- `packages/web/deploy.sh`
-
-What it does:
-1. Builds Docker image from monorepo root using `packages/web/Dockerfile`
-2. Logs into ECR
-3. Pushes versioned + `latest` image tags
-4. Generates a temporary `Dockerrun.aws.json`
-5. Creates zip bundle and uploads to S3 under the web app prefix
-6. Creates EB app version and updates EB environment
-7. Waits for the EB environment update to finish
-
-Configured in script:
-- Region: `us-east-1`
-- AWS account: `982081079378`
-- ECR repo: `handycall-web`
-- EB app: `handycall-web`
-- EB environment: `handycall-web-lb`
-- Container port: `3001`
-- Version label format: `web-outbound-YYYYMMDD-HHMMSS-amd64`
-
-Live infra notes:
-- `handycall.org` and `www.handycall.org` Route53 A records alias to the load balancer behind `handycall-web-lb`
-- The web EB environment is `64bit Amazon Linux 2023 v4.9.0 running Docker`
-- The current web health check path is `/`
-- `amplify.yml` remains in the repo as legacy config and is not the live production deployment path
-
-## Required Local State Before Deploy
-- Docker engine running
-- AWS CLI installed and authenticated
-- IAM permissions for ECR, S3, Elastic Beanstalk
-
-## Minimal Deploy Run
+Typical deploy command:
 ```bash
-cd packages/backend
-bash ./deploy.sh
+fly deploy --config packages/backend/fly.toml --app handycall-api
 ```
 
+Health check:
 ```bash
-cd packages/web
-bash ./deploy.sh
+curl https://api.handycall.org/api/v1/health
 ```
 
-## Post-Deploy Checks
+## Required Checks Before Deploy
 ```bash
-aws elasticbeanstalk describe-environments \
-  --application-name handycall-api \
-  --environment-names handycall-api-lb \
-  --region us-east-1
+npm run -w packages/shared build
+npm run -w packages/backend build
+npm run -w packages/web build
 ```
 
-```bash
-aws elasticbeanstalk describe-environments \
-  --application-name handycall-web \
-  --environment-names handycall-web-lb \
-  --region us-east-1
-```
-
-```bash
-curl -I https://handycall.org
-```
+## Security Notes
+- Do not deploy from stale feature branches.
+- Keep secrets in Vercel/Fly managed env or secret stores.
+- Keep webhook secrets and rate-limit settings synchronized with the running backend environment.

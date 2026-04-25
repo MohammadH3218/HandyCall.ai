@@ -15,6 +15,7 @@ import { ProServicesService } from './pro-services.service';
 import { CreateServiceDto } from './dto/create-service.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
+import { RateLimitPolicy } from '../../common/decorators/rate-limit.decorator';
 import { MarketplaceAuthContext } from '@handycall/shared';
 
 @Controller('pro-services')
@@ -23,6 +24,7 @@ export class ProServicesController {
 
   /** Public: browse active services by category */
   @Public()
+  @RateLimitPolicy('MARKETPLACE_READ')
   @Get()
   async list(
     @Query('category') category?: string,
@@ -32,6 +34,7 @@ export class ProServicesController {
   }
 
   /** Pro: list own services */
+  @RateLimitPolicy('USER_WRITE')
   @Get('mine')
   async listMine(@CurrentUser() user: MarketplaceAuthContext) {
     if (user.user_type !== 'PRO') throw new ForbiddenException();
@@ -39,6 +42,7 @@ export class ProServicesController {
   }
 
   /** Pro: create a new service */
+  @RateLimitPolicy('USER_WRITE')
   @Post()
   async create(
     @CurrentUser() user: MarketplaceAuthContext,
@@ -49,6 +53,7 @@ export class ProServicesController {
   }
 
   /** Pro: update a service */
+  @RateLimitPolicy('USER_WRITE')
   @Patch(':service_id')
   async update(
     @CurrentUser() user: MarketplaceAuthContext,
@@ -60,6 +65,7 @@ export class ProServicesController {
   }
 
   /** Pro: deactivate a service (never hard-delete) */
+  @RateLimitPolicy('USER_WRITE')
   @Delete(':service_id')
   @HttpCode(HttpStatus.OK)
   async deactivate(

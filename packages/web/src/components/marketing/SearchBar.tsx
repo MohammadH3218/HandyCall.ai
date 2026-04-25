@@ -4,7 +4,7 @@ import { useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { IconMapPin, IconSearch } from '@tabler/icons-react';
 import { SERVICE_AUTOCOMPLETE_LIST } from '@/constants/home-services';
-import { SAUDI_MARKETPLACE_CITIES } from '@/constants/houston-areas';
+import { RIYADH_DISTRICTS } from '@/constants/riyadh-districts';
 
 const MAX_SERVICE_SUGGESTIONS = 8;
 const MAX_LOCATION_SUGGESTIONS = 10;
@@ -42,7 +42,7 @@ export function SearchBar({ className = '', size = 'default' }: SearchBarProps) 
   const locationSuggestions = useMemo(() => {
     const term = locationInput.trim().toLowerCase();
     if (!term) return [];
-    return SAUDI_MARKETPLACE_CITIES.filter((district) => {
+    return RIYADH_DISTRICTS.filter((district) => {
       return (
         district.label.toLowerCase().includes(term) ||
         district.region.toLowerCase().includes(term)

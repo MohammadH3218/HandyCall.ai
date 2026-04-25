@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { apiClient } from '@/lib/api-client';
 import { optimizeImageFile } from '@/lib/image-upload';
 import { useMarketingLanguage } from '@/components/providers/marketing-language-provider';
-import { RIYADH_DISTRICT_GROUPS } from '@/constants/houston-areas';
+import { RIYADH_DISTRICT_GROUPS } from '@/constants/riyadh-districts';
 import {
   MARKETPLACE_SERVICE_CATEGORIES,
   getMarketplaceCategoryByTitle,

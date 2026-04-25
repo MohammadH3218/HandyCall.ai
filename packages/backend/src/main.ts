@@ -3,6 +3,7 @@ import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as bodyParser from 'body-parser';
 import { Request, Response, NextFunction } from 'express';
+import { randomUUID } from 'crypto';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
@@ -20,7 +21,7 @@ async function bootstrap() {
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-Id', 'x-company-id'],
   });
 
   app.use((_req: Request, res: Response, next: NextFunction) => {
@@ -28,17 +29,27 @@ async function bootstrap() {
     res.setHeader('X-Frame-Options', 'DENY');
     res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
     res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+    res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+    res.setHeader('Cross-Origin-Resource-Policy', 'same-site');
     if (configService.get<string>('NODE_ENV') === 'production') {
       res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
     }
     next();
   });
 
+  app.use((req: Request & { requestId?: string }, res: Response, next: NextFunction) => {
+    const existingRequestId = req.header('x-request-id') || req.header('x-vercel-id');
+    const requestId = existingRequestId || randomUUID();
+    req.requestId = requestId;
+    res.setHeader('X-Request-Id', requestId);
+    next();
+  });
+
   // HyperPay/Moyasar payment webhooks need raw body for signature verification
   const apiPrefix = configService.get<string>('API_PREFIX') || 'api/v1';
-  app.use(`/${apiPrefix}/payments/webhook`, bodyParser.raw({ type: 'application/json' }));
-  app.use(bodyParser.json({ limit: '10mb' }));
-  app.use(bodyParser.urlencoded({ extended: true, limit: '10mb' }));
+  app.use(`/${apiPrefix}/payments/webhook`, bodyParser.raw({ type: 'application/json', limit: '256kb' }));
+  app.use(bodyParser.json({ limit: '1mb' }));
+  app.use(bodyParser.urlencoded({ extended: true, limit: '256kb' }));
 
   app.useGlobalPipes(
     new ValidationPipe({

@@ -5,7 +5,9 @@ import {
   DynamoDBDocumentClient,
   GetCommand,
   PutCommand,
+  PutCommandInput,
   UpdateCommand,
+  UpdateCommandInput,
   DeleteCommand,
   QueryCommand,
   ScanCommand,
@@ -60,6 +62,20 @@ export class DynamoDBService implements OnModuleInit {
     return item;
   }
 
+  async putWithCondition(
+    tableName: string,
+    item: Record<string, any>,
+    options: Omit<PutCommandInput, 'TableName' | 'Item'>,
+  ) {
+    const command = new PutCommand({
+      TableName: this.getTableName(tableName),
+      Item: item,
+      ...options,
+    });
+    await this.docClient.send(command);
+    return item;
+  }
+
   async update(
     tableName: string,
     key: Record<string, any>,
@@ -87,6 +103,18 @@ export class DynamoDBService implements OnModuleInit {
       ReturnValues: 'ALL_NEW',
     });
 
+    const result = await this.docClient.send(command);
+    return result.Attributes;
+  }
+
+  async updateRaw(
+    tableName: string,
+    options: Omit<UpdateCommandInput, 'TableName'>,
+  ) {
+    const command = new UpdateCommand({
+      TableName: this.getTableName(tableName),
+      ...options,
+    });
     const result = await this.docClient.send(command);
     return result.Attributes;
   }

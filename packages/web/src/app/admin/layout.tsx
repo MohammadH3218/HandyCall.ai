@@ -12,6 +12,7 @@ import {
   IconStar,
   IconChartBar,
   IconSettings,
+  IconShield,
   IconLogout,
 } from '@tabler/icons-react';
 
@@ -21,6 +22,7 @@ const NAV = [
   { href: '/admin/customers', label: 'Customers', icon: IconUsers },
   { href: '/admin/bookings', label: 'Bookings', icon: IconCalendar },
   { href: '/admin/reviews', label: 'Reviews', icon: IconStar },
+  { href: '/admin/logs', label: 'Logs', icon: IconShield },
   { href: '/admin/analytics', label: 'Analytics', icon: IconChartBar },
   { href: '/admin/config', label: 'Config', icon: IconSettings },
 ];

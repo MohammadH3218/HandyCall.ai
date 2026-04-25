@@ -11,7 +11,7 @@ Run `vercel --prod --yes --archive=tgz` from the **repo root** (`/`), NOT from t
 - `src/app/page.tsx` → imports `HomePageClient` — this is the landing page
 - `src/components/marketing/pages/HomePageClient.tsx` — main landing page component
 - `src/types/shared.ts` — local replacement for `@handycall/shared` (not on npm)
-- `src/constants/houston-areas.ts` — Riyadh districts (misnamed file, correct content)
+- `src/constants/riyadh-districts.ts` — Riyadh districts and grouped marketplace district data
 - `next.config.js` — do NOT add `outputFileTracingRoot` — breaks Vercel build
 
 ## Import Rules

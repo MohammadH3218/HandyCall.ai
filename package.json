@@ -2,12 +2,12 @@
   "name": "handycall",
   "version": "0.1.0",
   "private": true,
-  "description": "Multi-tenant AI Receptionist Platform for Local Service Businesses",
+  "description": "Riyadh home-services marketplace with pro, customer, and admin dashboards",
   "workspaces": [
     "packages/*"
   ],
   "scripts": {
-    "dev": "npm run shared:build && concurrently --names 'shared,backend,web,voice,realtime' --prefix-colors 'cyan,green,blue,yellow,magenta' \"npm run dev -w packages/shared\" \"npm run dev -w packages/backend\" \"npm run dev -w packages/web\" \"bash scripts/local/start-voice-bridge-dev.sh\" \"npm run dev -w packages/realtime-controller\"",
+    "dev": "npm run shared:build && concurrently --names 'shared,backend,web' --prefix-colors 'cyan,green,blue' \"npm run dev -w packages/shared\" \"npm run dev -w packages/backend\" \"npm run dev -w packages/web\"",
     "build": "npm run build --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present",
@@ -17,13 +17,10 @@
     "local:bootstrap": "./scripts/local/bootstrap-localstack.sh",
     "backend:dev": "npm run dev -w packages/backend",
     "web:dev": "npm run dev -w packages/web",
-    "mobile:dev": "npm run dev -w packages/mobile",
     "shared:build": "npm run build -w packages/shared",
     "qa:api-probe": "node scripts/qa/api-surface-probe.mjs",
     "qa:stress:web": "npx autocannon -c 25 -d 20 -p 10 http://localhost:3001/",
-    "qa:stress:api": "npx autocannon -c 40 -d 20 -p 10 http://localhost:3000/api/v1/health",
-    "finetune:export": "node packages/backend/scripts/export-finetune-dataset.js",
-    "finetune:openai": "bash scripts/openai/fine_tune.sh"
+    "qa:stress:api": "npx autocannon -c 40 -d 20 -p 10 http://localhost:3000/api/v1/health"
   },
   "devDependencies": {
     "@types/node": "^20.10.0",

@@ -276,15 +276,45 @@ export class S3Service implements OnModuleInit {
       await fs.writeFile(filePath, buffer);
       return key;
     }
+
+    const bucket = this.documentsBucket || this.recordingsBucket || this.transcriptsBucket;
+    if (!bucket) {
+      throw new Error('S3 bucket configuration is missing for document uploads.');
+    }
+
     await this.client.send(
       new PutObjectCommand({
-        Bucket: this.documentsBucket,
+        Bucket: bucket,
         Key: key,
         Body: buffer,
         ContentType: contentType,
       })
     );
     return key;
+  }
+
+  async getDocumentUrl(key: string, expiresIn = 3600): Promise<string> {
+    if (!key) return key;
+
+    if (this.localMode) {
+      return `local-file://${path.join(this.localStorageDir, 'documents', key)}`;
+    }
+
+    const bucket = this.documentsBucket || this.recordingsBucket || this.transcriptsBucket;
+    if (!bucket) {
+      throw new Error('S3 bucket configuration is missing for document uploads.');
+    }
+
+    const command = new GetObjectCommand({
+      Bucket: bucket,
+      Key: key,
+    });
+
+    return getSignedUrl(this.client, command, { expiresIn });
+  }
+
+  async getDocumentUrls(keys: string[], expiresIn = 3600): Promise<string[]> {
+    return Promise.all((keys || []).filter(Boolean).map((key) => this.getDocumentUrl(key, expiresIn)));
   }
 
   async deleteCompanyArtifacts(companyId: string): Promise<void> {
