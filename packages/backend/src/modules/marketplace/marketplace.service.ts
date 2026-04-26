@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { DynamoDBService } from '../../infrastructure/database/dynamodb.service';
+import { S3Service } from '../../infrastructure/storage/s3.service';
 import { ServiceCategory, RIYADH_DISTRICTS } from '@handycall/shared';
 
 const SERVICE_CATEGORIES: ServiceCategory[] = [
@@ -16,6 +17,7 @@ export class MarketplaceService {
   constructor(
     private db: DynamoDBService,
     private config: ConfigService,
+    private storageService: S3Service,
   ) {}
 
   /** Browse active services by category and/or district */
@@ -65,7 +67,7 @@ export class MarketplaceService {
     // 3. Score each pro
     const normalizedKeywords = keywords.map((k: string) => k.toLowerCase());
 
-    const scored = pros.map((pro: any) => {
+    const scored = await Promise.all(pros.map(async (pro: any) => {
       // Strip sensitive fields
       const {
         password_hash, iban, national_id, iqama_number,
@@ -73,8 +75,12 @@ export class MarketplaceService {
       } = pro;
 
       const mp = (pro.marketplace_profile as Record<string, any>) ?? {};
-      const servicesOffered: string[] = Array.isArray(mp.services_offered) ? mp.services_offered : [];
-      const proCategory: string = mp.service_category ?? '';
+      const servicesOffered: string[] = Array.isArray(pro.services_offered)
+        ? pro.services_offered
+        : Array.isArray(mp.services_offered)
+          ? mp.services_offered
+          : [];
+      const proCategory: string = pro.service_category ?? mp.service_category ?? '';
       const proDistricts: string[] =
         Array.isArray(pro.service_area_zipcodes) ? pro.service_area_zipcodes
         : Array.isArray(pro.service_districts) ? pro.service_districts
@@ -106,14 +112,20 @@ export class MarketplaceService {
           )
         : [];
 
-      return {
+      const decorated = await this.decorateMarketplaceMedia({
         ...safe,
+        services_offered: servicesOffered,
+        service_category: proCategory,
+      });
+
+      return {
+        ...decorated,
         _score: score,
         _districtMatch: districtMatch,
         _matchedServices: matchedServices,
         _matchType: specificMatch ? 'specific' : categoryMatch ? 'category' : 'none',
       };
-    });
+    }));
 
     // 4. Filter to relevant results; if a district was specified, only include pros who serve it
     return scored
@@ -199,5 +211,43 @@ Reply with ONLY valid JSON — no explanation, no markdown:
       districts: RIYADH_DISTRICTS,
       city: 'Riyadh',
     };
+  }
+
+  private async decorateMarketplaceMedia<T extends Record<string, any>>(pro: T): Promise<T> {
+    if (!pro || typeof pro !== 'object') return pro;
+
+    const profilePhotoKey =
+      typeof pro.profile_photo_s3_key === 'string' && pro.profile_photo_s3_key.trim()
+        ? pro.profile_photo_s3_key.trim()
+        : '';
+    const workPhotoKeys = Array.isArray(pro.work_photo_s3_keys)
+      ? pro.work_photo_s3_keys.filter((key: unknown): key is string => typeof key === 'string' && key.trim().length > 0)
+      : [];
+    const marketplaceProfile =
+      pro.marketplace_profile && typeof pro.marketplace_profile === 'object'
+        ? { ...pro.marketplace_profile }
+        : {};
+
+    try {
+      if (profilePhotoKey) {
+        const profilePhotoUrl = await this.storageService.getDocumentUrl(profilePhotoKey);
+        (pro as any).profile_photo_url = profilePhotoUrl;
+        marketplaceProfile.profile_photo = profilePhotoUrl;
+      }
+
+      if (workPhotoKeys.length > 0) {
+        const workPhotoUrls = await this.storageService.getDocumentUrls(workPhotoKeys);
+        (pro as any).work_photo_urls = workPhotoUrls;
+        marketplaceProfile.portfolio_photos = workPhotoUrls;
+      }
+    } catch (error: any) {
+      this.logger.warn(`decorateMarketplaceMedia[${pro.pro_id || 'unknown'}] failed: ${error?.message || error}`);
+    }
+
+    if (Object.keys(marketplaceProfile).length > 0) {
+      (pro as any).marketplace_profile = marketplaceProfile;
+    }
+
+    return pro;
   }
 }

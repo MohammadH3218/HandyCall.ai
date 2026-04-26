@@ -17,6 +17,7 @@ const PUBLIC_PATHS = [
   "auth/forgot-password",
   "auth/reset-password",
   // Marketplace is public — consumers browse without an account
+  "marketplace/search",
   "marketplace/services",
   "marketplace/filters",
   "pros/",

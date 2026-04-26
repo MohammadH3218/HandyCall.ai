@@ -228,7 +228,7 @@ export function ProProfileClient({ id }: { id: string }) {
       ? provider.service_area_cities
       : [];
   const primaryCity = provider.city || cities[0] || '';
-  const rating = Number(provider.overall_rating || 0);
+  const rating = Number((provider.average_rating ?? provider.overall_rating ?? 0)) / 100;
   const reviews = Number(provider.total_reviews || 0);
   const hires = Number(provider.total_hires || provider.hires_count || 0);
   const startingPrice =
@@ -321,10 +321,10 @@ export function ProProfileClient({ id }: { id: string }) {
                     <img
                       src={photo}
                       alt={name}
-                      className="h-20 w-20 shrink-0 rounded-2xl object-cover ring-2 ring-slate-100"
+                      className="h-28 w-28 shrink-0 rounded-[28px] object-cover ring-2 ring-slate-100 shadow-sm"
                     />
                   ) : (
-                    <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-2xl bg-emerald-50 text-3xl font-extrabold text-emerald-600">
+                    <div className="flex h-28 w-28 shrink-0 items-center justify-center rounded-[28px] bg-emerald-50 text-4xl font-extrabold text-emerald-600 shadow-sm">
                       {name.charAt(0)}
                     </div>
                   )}
@@ -357,6 +357,23 @@ export function ProProfileClient({ id }: { id: string }) {
                     )}
                     {bio && (
                       <p className="mt-3 text-sm leading-relaxed text-slate-600">{bio}</p>
+                    )}
+                    {services.length > 0 && (
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        {services.slice(0, 5).map((service) => (
+                          <span
+                            key={service}
+                            className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700"
+                          >
+                            {service}
+                          </span>
+                        ))}
+                        {services.length > 5 && (
+                          <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-500">
+                            +{services.length - 5} more services
+                          </span>
+                        )}
+                      </div>
                     )}
                   </div>
                 </div>

@@ -12,17 +12,24 @@ const MAX_LOCATION_SUGGESTIONS = 10;
 interface SearchBarProps {
   className?: string;
   size?: 'default' | 'lg';
+  initialQuery?: string;
+  initialLocation?: string;
 }
 
-export function SearchBar({ className = '', size = 'default' }: SearchBarProps) {
+export function SearchBar({
+  className = '',
+  size = 'default',
+  initialQuery = '',
+  initialLocation = '',
+}: SearchBarProps) {
   const router = useRouter();
   const locationRef = useRef<HTMLInputElement>(null);
   const serviceWrapperRef = useRef<HTMLDivElement>(null);
   const locationWrapperRef = useRef<HTMLDivElement>(null);
 
-  const [query, setQuery] = useState('');
-  const [locationInput, setLocationInput] = useState('');
-  const [selectedLocation, setSelectedLocation] = useState('');
+  const [query, setQuery] = useState(initialQuery);
+  const [locationInput, setLocationInput] = useState(initialLocation);
+  const [selectedLocation, setSelectedLocation] = useState(initialLocation);
   const [showServiceSuggestions, setShowServiceSuggestions] = useState(false);
   const [showLocationSuggestions, setShowLocationSuggestions] = useState(false);
 
