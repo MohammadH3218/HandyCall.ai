@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { UserRole } from '@handycall/shared';
+import { UserRole } from '@/types/shared';
 import { PageHeader } from '@/components/portal/page-header';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';

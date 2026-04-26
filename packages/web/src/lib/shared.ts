@@ -1,12 +1,17 @@
 export type {
   ApiResponse,
+  AppointmentCancellationPolicy,
+  AppointmentCancellationPolicyMode,
+  BookingStatus,
   ChangePasswordRequest,
   ChangePasswordResponse,
   Company,
   ConfirmSignUpRequest,
   ConfirmSignUpResponse,
   LoginRequest,
-  LoginResponse,
+  PaymentMethod,
+  PaymentStatus,
+  ProStatus,
   RegisterRequest,
   RegisterResponse,
   ResendConfirmationRequest,
@@ -14,15 +19,12 @@ export type {
   ReviewDto,
   ServiceCategory,
   User,
-} from '@handycall/shared';
+} from '@/types/shared';
 
 export {
-  BookingStatus,
   CompanyStatus,
-  PaymentMethod,
-  PaymentStatus,
-  ProStatus,
+  ServiceType,
   SubscriptionPlan,
   SubscriptionStatus,
   UserRole,
-} from '@handycall/shared';
+} from '@/types/shared';

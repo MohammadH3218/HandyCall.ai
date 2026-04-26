@@ -23,6 +23,25 @@ export enum SubscriptionStatus {
   UNPAID = 'UNPAID',
 }
 
+export enum CompanyStatus {
+  ACTIVE = 'ACTIVE',
+  INACTIVE = 'INACTIVE',
+  SUSPENDED = 'SUSPENDED',
+  TRIAL = 'TRIAL',
+  PAST_DUE = 'PAST_DUE',
+  CANCELED = 'CANCELED',
+}
+
+export type AppointmentCancellationPolicyMode =
+  | 'ANYTIME'
+  | 'BEFORE_HOURS'
+  | 'NO_CANCELLATIONS';
+
+export interface AppointmentCancellationPolicy {
+  mode: AppointmentCancellationPolicyMode;
+  window_hours?: number;
+}
+
 export enum CallHandlingMode {
   ALWAYS = 'ALWAYS',
   AI = 'AI',
@@ -144,6 +163,47 @@ export enum ServiceType {
   OTHER = 'OTHER',
 }
 
+export type ProStatus =
+  | 'ONBOARDING'
+  | 'PENDING_REVIEW'
+  | 'ACTIVE'
+  | 'SUSPENDED'
+  | 'REJECTED';
+
+export type ServiceCategory =
+  | 'CLEANING'
+  | 'PLUMBING'
+  | 'ELECTRICAL'
+  | 'PAINTING'
+  | 'CARPENTRY'
+  | 'AC_REPAIR'
+  | 'PEST_CONTROL'
+  | 'LANDSCAPING'
+  | 'APPLIANCE_REPAIR'
+  | 'HANDYMAN';
+
+export type BookingStatus =
+  | 'PENDING'
+  | 'CONFIRMED'
+  | 'IN_PROGRESS'
+  | 'COMPLETED'
+  | 'CANCELLED'
+  | 'DISPUTED';
+
+export type PaymentStatus = 'PENDING' | 'HELD' | 'RELEASED' | 'REFUNDED' | 'FAILED';
+export type PaymentMethod = 'MADA' | 'APPLE_PAY' | 'CREDIT_CARD';
+
+export interface ReviewDto {
+  review_id: string;
+  booking_id?: string;
+  customer_id?: string;
+  pro_id?: string;
+  rating: number;
+  comment?: string;
+  created_at?: number;
+  updated_at?: number;
+}
+
 export interface PlanFeatures {
   aiReceptionist: boolean;
   smsFollowUp: boolean;
@@ -210,6 +270,15 @@ export interface ApiResponse<T = unknown> {
 export interface LoginRequest {
   email: string;
   password: string;
+}
+
+export interface ChangePasswordRequest {
+  current_password?: string;
+  new_password: string;
+}
+
+export interface ChangePasswordResponse {
+  message?: string;
 }
 
 export interface RegisterRequest {
