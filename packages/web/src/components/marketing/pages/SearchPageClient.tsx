@@ -15,6 +15,7 @@ interface ProResult {
   pro_id: string;
   first_name: string;
   last_name: string;
+  profile_photo_url?: string;
   marketplace_profile?: {
     profile_photo?: string;
     bio?: string;
@@ -46,6 +47,7 @@ function ProCard({
   const mp = pro.marketplace_profile ?? {};
   const name = `${pro.first_name} ${pro.last_name}`;
   const initials = `${pro.first_name?.[0] ?? ''}${pro.last_name?.[0] ?? ''}`.toUpperCase();
+  const photo = pro.profile_photo_url || mp.profile_photo || '';
   const districts: string[] = pro.service_area_zipcodes ?? pro.service_districts ?? [];
   const rating = (pro.average_rating ?? 0) / 100;
   const hires = Number(pro.total_hires ?? pro.hires_count ?? 0);
@@ -65,10 +67,10 @@ function ProCard({
     <div className="flex flex-col gap-5 rounded-2xl border border-slate-100 bg-white p-6 shadow-sm transition hover:shadow-md sm:flex-row">
       {/* Avatar — larger, prominent */}
       <div className="shrink-0">
-        {mp.profile_photo ? (
+        {photo ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={mp.profile_photo}
+            src={photo}
             alt={name}
             className="h-24 w-24 rounded-2xl object-cover ring-2 ring-slate-100 shadow-sm"
           />

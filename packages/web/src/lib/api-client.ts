@@ -1335,7 +1335,7 @@ class ApiClient {
   }
 
   async getProviderById(id: string): Promise<any> {
-    const res = await this.request<any>(`/marketplace/provider-by-id/${id}`);
+    const res = await this.request<any>(`/pros/${id}`);
     return (res as any)?.provider ?? res;
   }
 
