@@ -292,7 +292,7 @@ export function ProProfileClient({ id }: { id: string }) {
 
   function handleRequestQuote() {
     if (isAuthenticated) {
-      router.push(`/request?category=${encodeURIComponent(serviceCategory)}`);
+      router.push(`/request?pro_id=${encodeURIComponent(id)}&category=${encodeURIComponent(serviceCategory)}`);
     } else {
       setShowLoginGate(true);
     }

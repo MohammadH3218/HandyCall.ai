@@ -1387,7 +1387,7 @@ class ApiClient {
 
   // Quote Requests (marketplace)
   async submitQuoteRequest(data: any): Promise<any> {
-    return this.request<any>('/quote-requests', { method: 'POST', body: JSON.stringify(data) });
+    return this.request<any>('/customer/quote-requests', { method: 'POST', body: JSON.stringify(data) });
   }
 
   async getCustomerQuoteRequests(): Promise<any[]> {
