@@ -1,5 +1,6 @@
 'use client';
 
+import 'leaflet/dist/leaflet.css';
 import { useEffect, useRef } from 'react';
 import {
   MapContainer,
@@ -8,7 +9,7 @@ import {
   useMapEvents,
 } from 'react-leaflet';
 import { type LatLngExpression } from 'leaflet';
-import { IconCurrentLocation, IconMapPin, IconZoomIn, IconZoomOut } from '@tabler/icons-react';
+import { IconCurrentLocation, IconMapPin, IconMinus, IconPlus } from '@tabler/icons-react';
 
 const DEFAULT_CENTER: [number, number] = [24.7136, 46.6753];
 
@@ -72,24 +73,24 @@ function MapToolbar({
       <div className="pointer-events-auto flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg">
         <button
           type="button"
-          onClick={() => map.zoomIn()}
+          onClick={(e) => { e.preventDefault(); e.stopPropagation(); map.zoomIn(); }}
           className="flex h-11 w-11 items-center justify-center border-b border-slate-200 text-slate-700 transition hover:bg-slate-50"
           aria-label="Zoom in"
         >
-          <IconZoomIn className="h-4 w-4" stroke={2} />
+          <IconPlus className="h-4 w-4" stroke={2} />
         </button>
         <button
           type="button"
-          onClick={() => map.zoomOut()}
+          onClick={(e) => { e.preventDefault(); e.stopPropagation(); map.zoomOut(); }}
           className="flex h-11 w-11 items-center justify-center text-slate-700 transition hover:bg-slate-50"
           aria-label="Zoom out"
         >
-          <IconZoomOut className="h-4 w-4" stroke={2} />
+          <IconMinus className="h-4 w-4" stroke={2} />
         </button>
       </div>
       <button
         type="button"
-        onClick={onLocateMe}
+        onClick={(e) => { e.preventDefault(); e.stopPropagation(); onLocateMe(); }}
         className="pointer-events-auto flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700 shadow-lg transition hover:bg-slate-50"
         aria-label="Use my current location"
       >
@@ -135,8 +136,10 @@ export default function CustomerAddressMap({
         className="h-[380px] w-full md:h-[480px]"
       >
         <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+          url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+          subdomains="abcd"
+          maxZoom={20}
         />
         <MapViewport
           center={markerPosition}

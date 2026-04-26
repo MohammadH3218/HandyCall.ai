@@ -79,13 +79,11 @@ function sanitizeSaudiLocal(value: string): string {
 }
 
 function formatSaudiLocal(digits: string): string {
-  // Display as 05X XXX XXXX
+  // Display as 5XX XXX XXX (9 digits, no leading 0 — +966 replaces it)
   const d = digits.length <= 9 ? digits : digits.slice(0, 9);
-  const padded = '0' + d;
-  if (padded.length <= 3) return padded;
-  if (padded.length <= 6) return `${padded.slice(0, 3)} ${padded.slice(3)}`;
-  if (padded.length <= 9) return `${padded.slice(0, 3)} ${padded.slice(3, 6)} ${padded.slice(6)}`;
-  return `${padded.slice(0, 3)} ${padded.slice(3, 7)} ${padded.slice(7)}`;
+  if (d.length <= 3) return d;
+  if (d.length <= 6) return `${d.slice(0, 3)} ${d.slice(3)}`;
+  return `${d.slice(0, 3)} ${d.slice(3, 6)} ${d.slice(6)}`;
 }
 
 function RequestPageContent() {
