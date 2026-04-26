@@ -95,7 +95,10 @@ function CustomerLoginInner() {
       }
 
       if (result?.ok) {
-        window.location.assign(result.url || callbackUrl);
+        // Always use the customer-specific callbackUrl, NOT result.url — NextAuth
+        // can return a stale callbackUrl from a previous pro-login cookie which
+        // would send customers to /onboarding/account-setup instead of the dashboard.
+        window.location.assign(callbackUrl);
       }
     } catch {
       setError('Something went wrong. Please try again.');
