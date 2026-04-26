@@ -27,6 +27,10 @@ export default function CustomerAddressMap({
   // Initialise map once
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
+    if (!MAPBOX_TOKEN) {
+      console.error('NEXT_PUBLIC_MAPBOX_TOKEN is not set');
+      return;
+    }
 
     mapboxgl.accessToken = MAPBOX_TOKEN;
 
