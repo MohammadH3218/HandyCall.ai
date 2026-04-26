@@ -58,6 +58,10 @@ interface ProResult {
 type RatingFilter = 'all' | '4plus' | 'new';
 type PricingFilter = 'all' | 'contact' | 'budget' | 'mid' | 'premium';
 
+function normalizeFilterValue(value: string) {
+  return value.trim().toLowerCase();
+}
+
 function getName(pro: ProResult) {
   return pro.company_name?.trim() || `${pro.first_name} ${pro.last_name}`.trim();
 }
@@ -448,7 +452,14 @@ export function SearchPageClient() {
   }, [query, districtParam, runSearch]);
 
   useEffect(() => {
-    setSelectedDistricts((current) => (districtParam && !current.includes(districtParam) ? [districtParam] : current));
+    setSelectedDistricts((current) => {
+      if (!districtParam) return current;
+      const normalizedDistrict = normalizeFilterValue(districtParam);
+      if (current.some((district) => normalizeFilterValue(district) === normalizedDistrict)) {
+        return current;
+      }
+      return [districtParam];
+    });
   }, [districtParam]);
 
   const availableDistricts = useMemo(() => {
@@ -474,7 +485,14 @@ export function SearchPageClient() {
 
       if (selectedDistricts.length > 0) {
         const districts = getDistricts(pro);
-        if (!selectedDistricts.some((district) => districts.includes(district))) return false;
+        const normalizedDistricts = districts.map(normalizeFilterValue);
+        if (
+          !selectedDistricts.some((district) =>
+            normalizedDistricts.includes(normalizeFilterValue(district)),
+          )
+        ) {
+          return false;
+        }
       }
 
       if (selectedPropertyTypes.length > 0) {
