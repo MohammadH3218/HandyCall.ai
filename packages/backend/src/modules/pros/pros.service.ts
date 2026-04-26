@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { v4 as uuidv4 } from 'uuid';
+import { extname } from 'path';
 import {
   CognitoIdentityProviderClient,
   AdminDeleteUserCommand,
@@ -18,6 +19,7 @@ import {
   DeleteObjectCommand,
 } from '@aws-sdk/client-s3';
 import { DynamoDBService } from '../../infrastructure/database/dynamodb.service';
+import { S3Service } from '../../infrastructure/storage/s3.service';
 import { OnboardingIdentityDto } from './dto/onboarding-identity.dto';
 import { OnboardingProfileDto } from './dto/onboarding-profile.dto';
 import { OnboardingServicesDto } from './dto/onboarding-services.dto';
@@ -36,6 +38,7 @@ export class ProsService {
   constructor(
     private db: DynamoDBService,
     private config: ConfigService,
+    private storageService: S3Service,
   ) {
     const awsRegion = config.get<string>('AWS_REGION') ?? 'me-central-1';
     // Cognito may live in a different region from DynamoDB/S3 (e.g. us-east-1 vs me-central-1)
@@ -56,7 +59,7 @@ export class ProsService {
     const item = await this.db.get('pros', { pro_id: proId });
     if (!item) throw new NotFoundException('Pro not found');
     const { password_hash: _, ...safe } = item as any;
-    return safe as Pro;
+    return this.decorateMediaUrls(safe as Pro);
   }
 
   async findPublicProfile(proId: string): Promise<Partial<Pro>> {
@@ -80,10 +83,11 @@ export class ProsService {
       limit: filters.limit ?? 20,
     });
 
-    return items.map((pro: any) => {
+    const sanitized = items.map((pro: any) => {
       const { password_hash, iban, national_id, iqama_number, id_document_s3_key, ...safe } = pro;
       return safe;
     });
+    return Promise.all(sanitized.map((pro) => this.decorateMediaUrls(pro as Pro)));
   }
 
   // ─── Onboarding Steps ──────────────────────────────────────────────────────
@@ -230,21 +234,7 @@ export class ProsService {
     const pro = await this.findById(proId);
     if (!pro) throw new NotFoundException('Pro not found');
 
-    // Strip any base64 data URLs from marketplace_profile.profile_photo before
-    // storing in DynamoDB — data URLs can be very large and hit item size limits.
-    // The photo should be uploaded to S3 separately; omit it here if it's a data URL.
-    const cleanData = { ...data };
-    if (
-      cleanData.marketplace_profile &&
-      typeof cleanData.marketplace_profile === 'object' &&
-      typeof cleanData.marketplace_profile.profile_photo === 'string' &&
-      cleanData.marketplace_profile.profile_photo.startsWith('data:')
-    ) {
-      cleanData.marketplace_profile = {
-        ...cleanData.marketplace_profile,
-        profile_photo: '', // Strip data URL — store empty until proper S3 upload is set up
-      };
-    }
+    const cleanData = await this.normalizeMarketplaceProfileUpdate(proId, pro, data);
 
     const updates: Record<string, any> = {
       ...cleanData,
@@ -265,11 +255,206 @@ export class ProsService {
         throw new Error('Profile update failed — please try again');
       }
       const { password_hash: _, iban, national_id, iqama_number, id_document_s3_key, ...safe } = result as any;
-      return safe as Partial<Pro>;
+      return this.decorateMediaUrls(safe as Pro);
     } catch (err: any) {
       this.logger.error(`updateMarketplaceProfile[${proId}] DynamoDB error: ${err?.message || err}`, err?.stack);
       throw err;
     }
+  }
+
+  private async decorateMediaUrls<T extends Record<string, any>>(pro: T): Promise<T> {
+    if (!pro || typeof pro !== 'object') return pro;
+
+    const profilePhotoKey =
+      typeof pro.profile_photo_s3_key === 'string' && pro.profile_photo_s3_key.trim()
+        ? pro.profile_photo_s3_key.trim()
+        : '';
+    const workPhotoKeys = Array.isArray(pro.work_photo_s3_keys)
+      ? pro.work_photo_s3_keys.filter((key: unknown): key is string => typeof key === 'string' && key.trim().length > 0)
+      : [];
+
+    const marketplaceProfile =
+      pro.marketplace_profile && typeof pro.marketplace_profile === 'object'
+        ? { ...pro.marketplace_profile }
+        : {};
+
+    try {
+      if (profilePhotoKey) {
+        const profilePhotoUrl = await this.storageService.getDocumentUrl(profilePhotoKey);
+        (pro as any).profile_photo_url = profilePhotoUrl;
+        marketplaceProfile.profile_photo = profilePhotoUrl;
+      }
+
+      if (workPhotoKeys.length > 0) {
+        const workPhotoUrls = await this.storageService.getDocumentUrls(workPhotoKeys);
+        (pro as any).work_photo_urls = workPhotoUrls;
+        marketplaceProfile.portfolio_photos = workPhotoUrls;
+      }
+    } catch (error: any) {
+      this.logger.warn(`decorateMediaUrls[${pro.pro_id || 'unknown'}] failed: ${error?.message || error}`);
+    }
+
+    if (Object.keys(marketplaceProfile).length > 0) {
+      (pro as any).marketplace_profile = marketplaceProfile;
+    }
+
+    return pro;
+  }
+
+  private async normalizeMarketplaceProfileUpdate(
+    proId: string,
+    pro: Pro,
+    data: Record<string, any>,
+  ): Promise<Record<string, any>> {
+    const cleanData = { ...data };
+    const marketplaceProfile =
+      cleanData.marketplace_profile && typeof cleanData.marketplace_profile === 'object'
+        ? { ...cleanData.marketplace_profile }
+        : {};
+
+    const existingProfilePhotoKey =
+      typeof cleanData.existing_profile_photo_s3_key === 'string' && cleanData.existing_profile_photo_s3_key.trim()
+        ? cleanData.existing_profile_photo_s3_key.trim()
+        : typeof (pro as any).profile_photo_s3_key === 'string'
+          ? (pro as any).profile_photo_s3_key
+          : '';
+    const existingWorkPhotoKeys = Array.isArray(cleanData.existing_work_photo_s3_keys)
+      ? cleanData.existing_work_photo_s3_keys.filter((key: unknown): key is string => typeof key === 'string' && key.trim().length > 0)
+      : Array.isArray((pro as any).work_photo_s3_keys)
+        ? ((pro as any).work_photo_s3_keys as string[]).filter(Boolean)
+        : [];
+
+    const nextProfilePhotoKey = await this.persistMarketplaceProfilePhoto(
+      proId,
+      marketplaceProfile.profile_photo,
+      existingProfilePhotoKey,
+    );
+    const nextWorkPhotoKeys = await this.persistMarketplaceWorkPhotos(
+      proId,
+      marketplaceProfile.portfolio_photos,
+      existingWorkPhotoKeys,
+    );
+
+    marketplaceProfile.profile_photo = '';
+    marketplaceProfile.portfolio_photos = [];
+
+    cleanData.marketplace_profile = marketplaceProfile;
+    cleanData.profile_photo_s3_key = nextProfilePhotoKey;
+    cleanData.work_photo_s3_keys = nextWorkPhotoKeys;
+
+    if (typeof marketplaceProfile.bio === 'string') cleanData.bio = marketplaceProfile.bio;
+    if (typeof marketplaceProfile.service_category === 'string') cleanData.service_category = marketplaceProfile.service_category;
+    if (Array.isArray(marketplaceProfile.services_offered)) cleanData.services_offered = marketplaceProfile.services_offered;
+    if (Array.isArray(marketplaceProfile.property_types)) cleanData.property_types = marketplaceProfile.property_types;
+    if (Array.isArray(marketplaceProfile.payment_methods)) cleanData.payment_methods = marketplaceProfile.payment_methods;
+    if (typeof marketplaceProfile.contact_for_price === 'boolean') cleanData.contact_for_price = marketplaceProfile.contact_for_price;
+    if (Array.isArray(marketplaceProfile.service_districts)) cleanData.service_districts = marketplaceProfile.service_districts;
+    if (typeof marketplaceProfile.instagram === 'string') cleanData.instagram_handle = marketplaceProfile.instagram;
+    if (typeof marketplaceProfile.snapchat === 'string') cleanData.snapchat_handle = marketplaceProfile.snapchat;
+    if (typeof marketplaceProfile.twitter === 'string') cleanData.twitter_handle = marketplaceProfile.twitter;
+    if (typeof marketplaceProfile.website === 'string') cleanData.website_url = marketplaceProfile.website;
+    if (typeof marketplaceProfile.employees === 'string') cleanData.employee_count_range = marketplaceProfile.employees;
+
+    const yearsInBusiness = Number.parseInt(String(marketplaceProfile.years_in_business ?? ''), 10);
+    if (Number.isFinite(yearsInBusiness) && yearsInBusiness >= 0) {
+      cleanData.years_experience = yearsInBusiness;
+    }
+
+    if (
+      marketplaceProfile.starting_price !== undefined &&
+      marketplaceProfile.starting_price !== null &&
+      String(marketplaceProfile.starting_price).trim() !== ''
+    ) {
+      const startingPrice = Number.parseFloat(String(marketplaceProfile.starting_price));
+      if (Number.isFinite(startingPrice) && startingPrice >= 0) {
+        cleanData.starting_price_sar = sarToHalalas(startingPrice);
+      }
+    } else if (marketplaceProfile.contact_for_price === true) {
+      cleanData.starting_price_sar = 0;
+    }
+
+    delete cleanData.existing_profile_photo_s3_key;
+    delete cleanData.existing_work_photo_s3_keys;
+
+    return cleanData;
+  }
+
+  private async persistMarketplaceProfilePhoto(
+    proId: string,
+    profilePhoto: unknown,
+    existingKey: string,
+  ): Promise<string> {
+    if (typeof profilePhoto !== 'string' || !profilePhoto.trim()) {
+      return '';
+    }
+
+    if (!this.isDataUrl(profilePhoto)) {
+      return existingKey;
+    }
+
+    const { buffer, contentType, extension } = this.decodeDataUrl(profilePhoto);
+    return this.storageService.uploadFile(
+      buffer,
+      `photos/${proId}/profile-${Date.now()}${extension}`,
+      contentType,
+    );
+  }
+
+  private async persistMarketplaceWorkPhotos(
+    proId: string,
+    portfolioPhotos: unknown,
+    existingKeys: string[],
+  ): Promise<string[]> {
+    if (!Array.isArray(portfolioPhotos) || portfolioPhotos.length === 0) {
+      return [];
+    }
+
+    const nextKeys: string[] = [];
+    for (let index = 0; index < portfolioPhotos.length; index += 1) {
+      const photo = portfolioPhotos[index];
+      if (typeof photo !== 'string' || !photo.trim()) continue;
+
+      if (!this.isDataUrl(photo)) {
+        if (existingKeys[index]) {
+          nextKeys.push(existingKeys[index]);
+        }
+        continue;
+      }
+
+      const { buffer, contentType, extension } = this.decodeDataUrl(photo);
+      const key = await this.storageService.uploadFile(
+        buffer,
+        `photos/${proId}/portfolio/${Date.now()}-${index}${extension}`,
+        contentType,
+      );
+      nextKeys.push(key);
+    }
+
+    return nextKeys;
+  }
+
+  private isDataUrl(value: string): boolean {
+    return value.startsWith('data:');
+  }
+
+  private decodeDataUrl(dataUrl: string): { buffer: Buffer; contentType: string; extension: string } {
+    const match = dataUrl.match(/^data:(.+?);base64,(.+)$/);
+    if (!match) {
+      throw new BadRequestException('Invalid image payload');
+    }
+
+    const [, contentType, base64Payload] = match;
+    const buffer = Buffer.from(base64Payload, 'base64');
+    const extension = this.extensionForMimeType(contentType);
+    return { buffer, contentType, extension };
+  }
+
+  private extensionForMimeType(contentType: string): string {
+    if (contentType.includes('png')) return '.png';
+    if (contentType.includes('webp')) return '.webp';
+    if (contentType.includes('gif')) return '.gif';
+    const directExt = extname(contentType);
+    return directExt || '.jpg';
   }
 
   // ─── Account Deletion ─────────────────────────────────────────────────────

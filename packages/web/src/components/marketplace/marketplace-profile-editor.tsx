@@ -554,11 +554,13 @@ export function MarketplaceProfileEditor({
   const [cropSrc, setCropSrc] = useState<string | null>(null);
   const profilePhotoInputRef = useRef<HTMLInputElement>(null);
   const [profilePhotoUploading, setProfilePhotoUploading] = useState(false);
+  const [existingProfilePhotoKey, setExistingProfilePhotoKey] = useState('');
 
   // Portfolio
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [photoUploading, setPhotoUploading] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [existingPortfolioPhotoKeys, setExistingPortfolioPhotoKeys] = useState<string[]>([]);
 
   const [profile, setProfile] = useState<MarketplaceProfile>({
     profile_photo: '',
@@ -584,51 +586,92 @@ export function MarketplaceProfileEditor({
     portfolio_photos: [],
   });
 
+  const hydrateFromPro = useCallback((pro: any) => {
+    if (!pro) return;
+
+    const mp = (pro.marketplace_profile || {}) as Partial<MarketplaceProfile>;
+    const districts =
+      Array.isArray(mp.service_districts) && mp.service_districts.length > 0
+        ? mp.service_districts
+        : Array.isArray(pro.service_area_zipcodes) && pro.service_area_zipcodes.length > 0
+          ? pro.service_area_zipcodes
+          : Array.isArray(pro.service_districts) && pro.service_districts.length > 0
+            ? pro.service_districts
+            : [];
+    const profilePhoto =
+      (typeof pro.profile_photo_url === 'string' && pro.profile_photo_url) ||
+      mp.profile_photo ||
+      '';
+    const portfolioPhotos =
+      Array.isArray(pro.work_photo_urls) && pro.work_photo_urls.length > 0
+        ? pro.work_photo_urls
+        : Array.isArray(mp.portfolio_photos)
+          ? mp.portfolio_photos
+          : [];
+    const portfolioPhotoKeys =
+      Array.isArray(pro.work_photo_s3_keys) && pro.work_photo_s3_keys.length > 0
+        ? pro.work_photo_s3_keys
+        : Array(portfolioPhotos.length).fill('');
+
+    setExistingProfilePhotoKey(typeof pro.profile_photo_s3_key === 'string' ? pro.profile_photo_s3_key : '');
+    setExistingPortfolioPhotoKeys(portfolioPhotoKeys);
+    setProfile({
+      profile_photo: profilePhoto,
+      bio: mp.bio || pro.bio || '',
+      years_in_business:
+        mp.years_in_business ||
+        (typeof pro.years_experience === 'number' ? String(pro.years_experience) : ''),
+      employees: mp.employees || pro.employee_count_range || '',
+      license_type: mp.license_type || '',
+      license_number: mp.license_number || '',
+      is_licensed: Boolean(mp.is_licensed),
+      is_background_checked: Boolean(mp.is_background_checked),
+      service_category: mp.service_category || pro.service_category || '',
+      services_offered:
+        Array.isArray(mp.services_offered) && mp.services_offered.length > 0
+          ? mp.services_offered
+          : Array.isArray(pro.services_offered)
+            ? pro.services_offered
+            : [],
+      property_types:
+        Array.isArray(mp.property_types) && mp.property_types.length > 0
+          ? mp.property_types
+          : Array.isArray(pro.property_types)
+            ? pro.property_types
+            : [],
+      payment_methods:
+        Array.isArray(mp.payment_methods) && mp.payment_methods.length > 0
+          ? mp.payment_methods
+          : Array.isArray(pro.payment_methods) && pro.payment_methods.length > 0
+            ? pro.payment_methods
+            : ['cash'],
+      instagram: mp.instagram || pro.instagram_handle || '',
+      snapchat: mp.snapchat || pro.snapchat_handle || '',
+      twitter: mp.twitter || pro.twitter_handle || '',
+      website: mp.website || pro.website_url || '',
+      starting_price:
+        mp.starting_price ||
+        (typeof pro.starting_price_sar === 'number' ? String(Math.round(pro.starting_price_sar / 100)) : ''),
+      contact_for_price:
+        typeof mp.contact_for_price === 'boolean'
+          ? mp.contact_for_price
+          : Boolean(pro.contact_for_price),
+      service_districts: districts,
+      business_hours: mp.business_hours || defaultHours,
+      portfolio_photos: portfolioPhotos,
+    });
+  }, []);
+
   // Load existing pro profile from /pros/me on mount
   useEffect(() => {
     apiClient.getMyPro().then((pro: any) => {
-      if (!pro) return;
-      const mp = (pro.marketplace_profile || {}) as Partial<MarketplaceProfile>;
-      const districts =
-        Array.isArray(mp.service_districts) && mp.service_districts.length > 0
-          ? mp.service_districts
-          : Array.isArray(pro.service_area_zipcodes) && pro.service_area_zipcodes.length > 0
-            ? pro.service_area_zipcodes
-            : Array.isArray(pro.service_districts) && pro.service_districts.length > 0
-              ? pro.service_districts
-              : [];
-      setProfile({
-        profile_photo: mp.profile_photo || '',
-        bio: mp.bio || pro.bio || '',
-        years_in_business: mp.years_in_business || '',
-        employees: mp.employees || '',
-        license_type: mp.license_type || '',
-        license_number: mp.license_number || '',
-        is_licensed: Boolean(mp.is_licensed),
-        is_background_checked: Boolean(mp.is_background_checked),
-        service_category: mp.service_category || pro.service_category || '',
-        services_offered: Array.isArray(mp.services_offered) ? mp.services_offered : [],
-        property_types: Array.isArray(mp.property_types) ? mp.property_types : [],
-        payment_methods:
-          Array.isArray(mp.payment_methods) && mp.payment_methods.length > 0
-            ? mp.payment_methods
-            : ['cash'],
-        instagram: mp.instagram || '',
-        snapchat: mp.snapchat || '',
-        twitter: mp.twitter || '',
-        website: mp.website || '',
-        starting_price: mp.starting_price || '',
-        contact_for_price: Boolean(mp.contact_for_price),
-        service_districts: districts,
-        business_hours: mp.business_hours || defaultHours,
-        portfolio_photos: Array.isArray(mp.portfolio_photos) ? mp.portfolio_photos : [],
-      });
+      hydrateFromPro(pro);
     }).catch(() => {
       // Profile not found yet — start with empty defaults
     }).finally(() => {
       setProfileLoading(false);
     });
-  }, []);
+  }, [hydrateFromPro]);
 
   const selectedCategory = getMarketplaceCategoryByTitle(profile.service_category);
   const serviceSubtypes = getSpecificServicesForCategory(profile.service_category);
@@ -673,6 +716,7 @@ export function MarketplaceProfileEditor({
       const compressed = await Promise.all(
         selected.map(async (file) => (await optimizeImageFile(file, { maxLongEdge: 1800, quality: 0.9 })).url)
       );
+      setExistingPortfolioPhotoKeys((current) => [...current, ...compressed.map(() => '')]);
       setProfile((current) => ({
         ...current,
         portfolio_photos: [...current.portfolio_photos, ...compressed],
@@ -684,6 +728,7 @@ export function MarketplaceProfileEditor({
   }
 
   function removePhoto(index: number) {
+    setExistingPortfolioPhotoKeys((current) => current.filter((_, i) => i !== index));
     setProfile((current) => ({
       ...current,
       portfolio_photos: current.portfolio_photos.filter((_, i) => i !== index),
@@ -691,6 +736,13 @@ export function MarketplaceProfileEditor({
   }
 
   function movePhoto(index: number, direction: 'up' | 'down') {
+    setExistingPortfolioPhotoKeys((current) => {
+      const keys = [...current];
+      const target = direction === 'up' ? index - 1 : index + 1;
+      if (target < 0 || target >= keys.length) return current;
+      [keys[index], keys[target]] = [keys[target], keys[index]];
+      return keys;
+    });
     setProfile((current) => {
       const photos = [...current.portfolio_photos];
       const target = direction === 'up' ? index - 1 : index + 1;
@@ -716,6 +768,7 @@ export function MarketplaceProfileEditor({
   }
 
   function handleCropConfirm(croppedDataUrl: string) {
+    setExistingProfilePhotoKey('');
     setProfile((prev) => ({ ...prev, profile_photo: croppedDataUrl }));
     setCropSrc(null);
     // Clear photo error if it was set
@@ -766,10 +819,10 @@ export function MarketplaceProfileEditor({
     setSaved(false);
     setError('');
 
-    // Build payload — profile photo is uploaded separately (not stored as base64 in DB)
-    const profileWithoutPhoto = { ...profile, portfolio_photos: [], profile_photo: profile.profile_photo || '' };
     const payload = {
-      marketplace_profile: profileWithoutPhoto,
+      marketplace_profile: profile,
+      existing_profile_photo_s3_key: existingProfilePhotoKey || undefined,
+      existing_work_photo_s3_keys: existingPortfolioPhotoKeys,
       service_area_cities: ['Riyadh'],
       service_area_zipcodes: profile.service_districts,
       service_area_completed: profile.service_districts.length > 0,
@@ -822,17 +875,8 @@ export function MarketplaceProfileEditor({
         }
       }
       if (lastErr) throw lastErr;
-
-      // Save portfolio photos separately (may be large — best-effort)
-      if (profile.portfolio_photos.length > 0) {
-        try {
-          await apiClient.updateMyProMarketplaceProfile({
-            marketplace_profile: { ...profile },
-          });
-        } catch {
-          // Photos too large or endpoint unavailable — profile text already saved
-        }
-      }
+      const latestPro = await apiClient.getMyPro();
+      hydrateFromPro(latestPro);
 
       setSaved(true);
       if (mode === 'dashboard') {
