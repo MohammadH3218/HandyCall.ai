@@ -45,8 +45,6 @@ export function isCustomerProfileComplete(profile?: CustomerProfile | null) {
     profile &&
       String(profile.name || '').trim() &&
       String(profile.address_line1 || '').trim() &&
-      String(profile.city || '').trim() &&
-      String(profile.state || '').trim() &&
-      String(profile.zipcode || '').trim(),
+      String(profile.city || '').trim(),
   );
 }

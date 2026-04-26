@@ -111,10 +111,19 @@ export default function CustomerDashboardLayout({ children }: { children: React.
           router.replace(`/customer/onboarding?callbackUrl=${encodeURIComponent(pathname)}`);
           return;
         }
-      } catch {
+      } catch (error) {
         if (!mounted) return;
-        router.replace(`/customer/onboarding?callbackUrl=${encodeURIComponent(pathname)}`);
-        return;
+        const message = error instanceof Error ? error.message.toLowerCase() : '';
+        const isAuthFailure =
+          message.includes('unauthorized') ||
+          message.includes('invalid') ||
+          message.includes('expired') ||
+          message.includes('account not found');
+
+        if (isAuthFailure) {
+          router.replace('/customer/login');
+          return;
+        }
       } finally {
         if (mounted) setProfileChecked(true);
       }
