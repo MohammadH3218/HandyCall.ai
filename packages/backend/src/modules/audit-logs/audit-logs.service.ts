@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { v4 as uuidv4 } from 'uuid';
 import {
@@ -41,6 +41,8 @@ const DEFAULT_RETENTION_DAYS = 180;
 
 @Injectable()
 export class AuditLogsService {
+  private readonly logger = new Logger(AuditLogsService.name);
+
   constructor(
     private readonly db: DynamoDBService,
     private readonly configService: ConfigService,
@@ -71,7 +73,13 @@ export class AuditLogsService {
       expires_at: expiresAt,
     };
 
-    await this.db.put('audit_logs', item);
+    try {
+      await this.db.put('audit_logs', item);
+    } catch (error: any) {
+      this.logger.warn(
+        `Audit log persistence unavailable; continuing without durable log write: ${this.getErrorLabel(error)}`,
+      );
+    }
 
     return {
       ...event,
@@ -106,18 +114,26 @@ export class AuditLogsService {
     const exclusiveStartKey = this.decodeCursor(filters.cursor);
 
     const queryPlan = this.resolveQueryPlan(filters);
-    const result = await this.db.query(
-      'audit_logs',
-      queryPlan.keyConditionExpression,
-      queryPlan.expressionAttributeNames,
-      queryPlan.expressionAttributeValues,
-      {
-        indexName: queryPlan.indexName,
-        limit,
-        exclusiveStartKey,
-        scanIndexForward: false,
-      },
-    );
+    let result;
+    try {
+      result = await this.db.query(
+        'audit_logs',
+        queryPlan.keyConditionExpression,
+        queryPlan.expressionAttributeNames,
+        queryPlan.expressionAttributeValues,
+        {
+          indexName: queryPlan.indexName,
+          limit,
+          exclusiveStartKey,
+          scanIndexForward: false,
+        },
+      );
+    } catch (error: any) {
+      this.logger.warn(
+        `Audit log reads unavailable; returning empty result set: ${this.getErrorLabel(error)}`,
+      );
+      return { items: [], next_cursor: null };
+    }
 
     const items = (result.items as any[]).filter((item) => this.matchesFilters(item, filters));
 
@@ -128,13 +144,21 @@ export class AuditLogsService {
   }
 
   async getLog(eventId: string): Promise<AuditLogEvent | null> {
-    const result = await this.db.query(
-      'audit_logs',
-      '#event_id = :event_id',
-      { '#event_id': 'event_id' },
-      { ':event_id': eventId },
-      { indexName: 'event-id-index', limit: 1 },
-    );
+    let result;
+    try {
+      result = await this.db.query(
+        'audit_logs',
+        '#event_id = :event_id',
+        { '#event_id': 'event_id' },
+        { ':event_id': eventId },
+        { indexName: 'event-id-index', limit: 1 },
+      );
+    } catch (error: any) {
+      this.logger.warn(
+        `Audit log detail lookup unavailable; returning null: ${this.getErrorLabel(error)}`,
+      );
+      return null;
+    }
 
     const item = result.items[0];
     return item ? this.toAuditEvent(item as Record<string, any>) : null;
@@ -363,5 +387,15 @@ export class AuditLogsService {
     } catch {
       return undefined;
     }
+  }
+
+  private getErrorLabel(error: any) {
+    if (typeof error?.name === 'string' && error.name.trim()) {
+      return error.name.trim();
+    }
+    if (typeof error?.message === 'string' && error.message.trim()) {
+      return error.message.trim();
+    }
+    return 'Unknown audit log error';
   }
 }
