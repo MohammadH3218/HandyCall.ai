@@ -293,6 +293,29 @@ export class S3Service implements OnModuleInit {
     return key;
   }
 
+  async getDocumentUploadUrl(key: string, contentType: string, expiresIn = 900): Promise<string> {
+    if (!key) {
+      throw new Error('A storage key is required for uploads.');
+    }
+
+    if (this.localMode) {
+      throw new Error('Presigned uploads are unavailable in local storage mode.');
+    }
+
+    const bucket = this.documentsBucket || this.recordingsBucket || this.transcriptsBucket;
+    if (!bucket) {
+      throw new Error('S3 bucket configuration is missing for document uploads.');
+    }
+
+    const command = new PutObjectCommand({
+      Bucket: bucket,
+      Key: key,
+      ContentType: contentType,
+    });
+
+    return getSignedUrl(this.client, command, { expiresIn });
+  }
+
   async getDocumentUrl(key: string, expiresIn = 3600): Promise<string> {
     if (!key) return key;
 

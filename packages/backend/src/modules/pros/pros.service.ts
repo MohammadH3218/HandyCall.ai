@@ -262,6 +262,36 @@ export class ProsService {
     }
   }
 
+  async createMarketplaceMediaUpload(
+    proId: string,
+    data: { kind?: 'profile_photo' | 'work_photo'; content_type?: string; file_name?: string },
+  ): Promise<{ upload_url: string; key: string }> {
+    const kind = data?.kind === 'profile_photo' ? 'profile_photo' : 'work_photo';
+    const contentType = typeof data?.content_type === 'string' ? data.content_type.trim().toLowerCase() : '';
+    const fileName = typeof data?.file_name === 'string' ? data.file_name.trim() : '';
+
+    if (!contentType.startsWith('image/')) {
+      throw new BadRequestException('Only image uploads are supported.');
+    }
+
+    const allowedTypes = new Set(['image/jpeg', 'image/png', 'image/webp']);
+    if (!allowedTypes.has(contentType)) {
+      throw new BadRequestException('Only JPG, PNG, and WebP images are supported.');
+    }
+
+    const extension = this.extensionForMimeType(contentType, fileName);
+    const key =
+      kind === 'profile_photo'
+        ? `photos/${proId}/profile-${Date.now()}${extension}`
+        : `photos/${proId}/portfolio/${Date.now()}-${uuidv4()}${extension}`;
+
+    const uploadUrl = await this.storageService.getDocumentUploadUrl(key, contentType);
+    return {
+      upload_url: uploadUrl,
+      key,
+    };
+  }
+
   private async decorateMediaUrls<T extends Record<string, any>>(pro: T): Promise<T> {
     if (!pro || typeof pro !== 'object') return pro;
 
@@ -324,16 +354,29 @@ export class ProsService {
         ? ((pro as any).work_photo_s3_keys as string[]).filter(Boolean)
         : [];
 
-    const nextProfilePhotoKey = await this.persistMarketplaceProfilePhoto(
+    const providedProfilePhotoKey =
+      typeof cleanData.profile_photo_s3_key === 'string' && cleanData.profile_photo_s3_key.trim()
+        ? cleanData.profile_photo_s3_key.trim()
+        : '';
+    const providedWorkPhotoKeys = Array.isArray(cleanData.work_photo_s3_keys)
+      ? cleanData.work_photo_s3_keys.filter((key: unknown): key is string => typeof key === 'string' && key.trim().length > 0)
+      : [];
+
+    const nextProfilePhotoKey = providedProfilePhotoKey || await this.persistMarketplaceProfilePhoto(
       proId,
       marketplaceProfile.profile_photo,
       existingProfilePhotoKey,
     );
-    const nextWorkPhotoKeys = await this.persistMarketplaceWorkPhotos(
-      proId,
-      marketplaceProfile.portfolio_photos,
-      existingWorkPhotoKeys,
-    );
+    const nextWorkPhotoKeys =
+      providedWorkPhotoKeys.length > 0 || Array.isArray(marketplaceProfile.portfolio_photos)
+        ? (providedWorkPhotoKeys.length > 0
+            ? providedWorkPhotoKeys
+            : await this.persistMarketplaceWorkPhotos(
+                proId,
+                marketplaceProfile.portfolio_photos,
+                existingWorkPhotoKeys,
+              ))
+        : existingWorkPhotoKeys;
 
     marketplaceProfile.profile_photo = '';
     marketplaceProfile.portfolio_photos = [];
@@ -449,12 +492,15 @@ export class ProsService {
     return { buffer, contentType, extension };
   }
 
-  private extensionForMimeType(contentType: string): string {
+  private extensionForMimeType(contentType: string, fileName = ''): string {
+    const fileExt = extname(fileName).toLowerCase();
+    if (['.jpg', '.jpeg', '.png', '.webp', '.gif'].includes(fileExt)) {
+      return fileExt === '.jpeg' ? '.jpg' : fileExt;
+    }
     if (contentType.includes('png')) return '.png';
     if (contentType.includes('webp')) return '.webp';
     if (contentType.includes('gif')) return '.gif';
-    const directExt = extname(contentType);
-    return directExt || '.jpg';
+    return '.jpg';
   }
 
   // ─── Account Deletion ─────────────────────────────────────────────────────

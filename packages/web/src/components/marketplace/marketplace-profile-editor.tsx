@@ -144,6 +144,31 @@ function toggle<T>(items: T[], item: T): T[] {
   return items.includes(item) ? items.filter((entry) => entry !== item) : [...items, item];
 }
 
+function isDataUrl(value: string) {
+  return value.startsWith('data:');
+}
+
+function dataUrlToBlob(dataUrl: string): Blob {
+  const match = dataUrl.match(/^data:(.+?);base64,(.+)$/);
+  if (!match) {
+    throw new Error('Invalid image data');
+  }
+
+  const [, contentType, base64Payload] = match;
+  const binary = atob(base64Payload);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+  return new Blob([bytes], { type: contentType });
+}
+
+function extensionForContentType(contentType: string) {
+  if (contentType.includes('png')) return '.png';
+  if (contentType.includes('webp')) return '.webp';
+  return '.jpg';
+}
+
 // ── Photo crop modal ─────────────────────────────────────────────────────────
 
 function PhotoCropModal({
@@ -820,9 +845,11 @@ export function MarketplaceProfileEditor({
     setError('');
 
     const payload = {
-      marketplace_profile: profile,
-      existing_profile_photo_s3_key: existingProfilePhotoKey || undefined,
-      existing_work_photo_s3_keys: existingPortfolioPhotoKeys,
+      marketplace_profile: {
+        ...profile,
+        profile_photo: '',
+        portfolio_photos: [],
+      },
       service_area_cities: ['Riyadh'],
       service_area_zipcodes: profile.service_districts,
       service_area_completed: profile.service_districts.length > 0,
@@ -831,12 +858,71 @@ export function MarketplaceProfileEditor({
     };
 
     try {
+      let profilePhotoKey = existingProfilePhotoKey || '';
+      if (profile.profile_photo && isDataUrl(profile.profile_photo)) {
+        const blob = dataUrlToBlob(profile.profile_photo);
+        const fileName = `profile${extensionForContentType(blob.type)}`;
+        const { upload_url, key } = await apiClient.createMyProMarketplaceMediaUpload({
+          kind: 'profile_photo',
+          content_type: blob.type,
+          file_name: fileName,
+        });
+        const uploadResponse = await fetch(upload_url, {
+          method: 'PUT',
+          headers: { 'Content-Type': blob.type },
+          body: blob,
+        });
+        if (!uploadResponse.ok) {
+          throw new Error('Profile photo upload failed');
+        }
+        profilePhotoKey = key;
+      } else if (!profile.profile_photo) {
+        profilePhotoKey = '';
+      }
+
+      const workPhotoKeys: string[] = [];
+      for (let index = 0; index < profile.portfolio_photos.length; index += 1) {
+        const photo = profile.portfolio_photos[index];
+        const existingKey = existingPortfolioPhotoKeys[index] || '';
+
+        if (!photo) continue;
+        if (!isDataUrl(photo)) {
+          if (existingKey) {
+            workPhotoKeys.push(existingKey);
+          }
+          continue;
+        }
+
+        const blob = dataUrlToBlob(photo);
+        const fileName = `work-photo-${index + 1}${extensionForContentType(blob.type)}`;
+        const { upload_url, key } = await apiClient.createMyProMarketplaceMediaUpload({
+          kind: 'work_photo',
+          content_type: blob.type,
+          file_name: fileName,
+        });
+        const uploadResponse = await fetch(upload_url, {
+          method: 'PUT',
+          headers: { 'Content-Type': blob.type },
+          body: blob,
+        });
+        if (!uploadResponse.ok) {
+          throw new Error(`Work photo ${index + 1} upload failed`);
+        }
+        workPhotoKeys.push(key);
+      }
+
       // Primary: PATCH /pros/me/marketplace-profile
       // Retry once on 500 (Fly.io cold start can cause timeout on first request)
       let lastErr: any = null;
       for (let attempt = 0; attempt < 2; attempt++) {
         try {
-          await apiClient.updateMyProMarketplaceProfile(payload);
+          await apiClient.updateMyProMarketplaceProfile({
+            ...payload,
+            profile_photo_s3_key: profilePhotoKey || undefined,
+            work_photo_s3_keys: workPhotoKeys,
+            existing_profile_photo_s3_key: existingProfilePhotoKey || undefined,
+            existing_work_photo_s3_keys: existingPortfolioPhotoKeys,
+          });
           lastErr = null;
           break;
         } catch (primaryErr: any) {

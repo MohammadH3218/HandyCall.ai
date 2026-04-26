@@ -80,6 +80,15 @@ export class ProsController {
     return this.prosService.updateMarketplaceProfile(user.user_id, body);
   }
 
+  @Post('me/marketplace-media/presign')
+  async createMarketplaceMediaUpload(
+    @CurrentUser() user: MarketplaceAuthContext,
+    @Body() body: { kind?: 'profile_photo' | 'work_photo'; content_type?: string; file_name?: string },
+  ) {
+    if (user.user_type !== 'PRO') throw new ForbiddenException();
+    return this.prosService.createMarketplaceMediaUpload(user.user_id, body);
+  }
+
   // ─── Onboarding Steps ────────────────────────────────────────────────────
 
   /** Account setup: ID, phone, national address */

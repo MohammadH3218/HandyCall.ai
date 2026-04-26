@@ -1157,6 +1157,18 @@ class ApiClient {
     return response.data ?? response;
   }
 
+  async createMyProMarketplaceMediaUpload(data: {
+    kind: 'profile_photo' | 'work_photo';
+    content_type: string;
+    file_name?: string;
+  }): Promise<{ upload_url: string; key: string }> {
+    const response = await this.request<{ upload_url: string; key: string }>('/pros/me/marketplace-media/presign', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    return response.data ?? response;
+  }
+
   async updateMyProfile(data: {
     first_name?: string;
     last_name?: string;
