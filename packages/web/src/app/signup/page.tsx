@@ -97,7 +97,7 @@ export default function SignUpPage() {
             </p>
 
             <div className="mt-6">
-              <SocialAuthButtons audience="customer" callbackUrl="/customer/onboarding?callbackUrl=%2Fcustomer%2Fdashboard" />
+              <SocialAuthButtons audience="customer" callbackUrl="/customer/onboarding?callbackUrl=%2Fcustomer%2Fdashboard%2Frequests" />
             </div>
 
             <div className="mt-6 flex items-center gap-4 text-xs uppercase tracking-[0.2em] text-slate-300">

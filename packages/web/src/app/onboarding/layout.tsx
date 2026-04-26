@@ -45,7 +45,10 @@ function OnboardingShell({ children }: { children: React.ReactNode }) {
 
   const t = (english: string, arabic: string) => (isArabic ? arabic : english);
 
-  const isSetupPage = pathname?.startsWith('/onboarding/setup') ?? false;
+  const isSetupPage =
+    pathname?.startsWith('/onboarding/account-setup') ||
+    pathname?.startsWith('/onboarding/setup') ||
+    false;
   const isMarketplaceProfilePage =
     pathname?.startsWith('/onboarding/marketplace-profile') ?? false;
   const isBillingPage = pathname?.startsWith('/onboarding/billing') ?? false;
@@ -86,7 +89,7 @@ function OnboardingShell({ children }: { children: React.ReactNode }) {
     }
 
     if (isLegacyStepPage) {
-      router.replace('/onboarding/setup');
+      router.replace('/onboarding/account-setup');
       return;
     }
 
@@ -100,7 +103,7 @@ function OnboardingShell({ children }: { children: React.ReactNode }) {
 
     const fallbackIndex = firstIncompleteIndex === -1 ? 0 : firstIncompleteIndex;
     if (currentIndex === -1 || currentIndex > fallbackIndex) {
-      router.replace('/onboarding/setup');
+      router.replace('/onboarding/account-setup');
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
@@ -308,7 +311,7 @@ function OnboardingShell({ children }: { children: React.ReactNode }) {
               return (
                 <Link
                   key={step.id}
-                  href={isLocked ? '#' : '/onboarding/setup'}
+                  href={isLocked ? '#' : '/onboarding/account-setup'}
                   className={`group block rounded-lg border px-4 py-3 transition ${
                     isActive
                       ? 'border-emerald-100 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/40'

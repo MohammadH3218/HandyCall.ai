@@ -13,8 +13,8 @@ function buildLoginHref(audience: string, email: string, callbackUrl?: string) {
   const resolvedCallback = callbackUrl
     ? callbackUrl
     : isCustomer
-      ? '/customer/onboarding?callbackUrl=%2Fcustomer%2Fdashboard'
-      : '/onboarding/setup';
+      ? '/customer/onboarding?callbackUrl=%2Fcustomer%2Fdashboard%2Frequests'
+      : '/onboarding/account-setup';
   const params = new URLSearchParams({ verified: '1', callbackUrl: resolvedCallback });
   if (email) params.set('email', email);
   return `${basePath}?${params.toString()}`;

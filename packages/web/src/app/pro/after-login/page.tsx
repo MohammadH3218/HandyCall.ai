@@ -6,10 +6,10 @@
  * This page is used as the `callbackUrl` for all pro social-auth (Google/Apple) sign-ins.
  * It fetches the pro's current status and does a SINGLE router.replace() to the correct
  * destination, eliminating the visible redirect chain that happened when the callback
- * went to /onboarding/setup → marketplace-profile → review-status.
+ * went to /onboarding/account-setup → marketplace-profile → review-status.
  *
  * Flow:
- *   New pro (no record / ONBOARDING + account_setup_done=false) → /onboarding/setup
+ *   New pro (no record / ONBOARDING + account_setup_done=false) → /onboarding/account-setup
  *   ONBOARDING + account_setup_done=true                        → /onboarding/marketplace-profile
  *   PENDING_REVIEW / REJECTED / SUSPENDED                       → /pro/review-status
  *   ACTIVE                                                       → /pro/dashboard
@@ -64,7 +64,7 @@ export default function ProAfterLoginPage() {
 
         // ONBOARDING status (or unknown) — route based on setup progress
         if (!pro?.account_setup_done) {
-          router.replace('/onboarding/setup');
+          router.replace('/onboarding/account-setup');
         } else if (!pro?.marketplace_profile_completed) {
           router.replace('/onboarding/marketplace-profile');
         } else {
@@ -76,7 +76,7 @@ export default function ProAfterLoginPage() {
         if (hasNavigated.current) return;
         hasNavigated.current = true;
         // No pro record yet → brand new user, start onboarding
-        router.replace('/onboarding/setup');
+        router.replace('/onboarding/account-setup');
       });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionStatus]); // router is intentionally omitted — it is stable and including it
