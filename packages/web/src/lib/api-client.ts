@@ -8,6 +8,7 @@ import {
   ResendConfirmationRequest,
   ResendConfirmationResponse,
 } from '@/types/shared';
+import { isCustomerProfileComplete, normalizeCustomerProfile } from '@/lib/customer-profile';
 
 // BFF Pattern: Point to Next.js internal API proxy instead of external NestJS
 // The proxy handles authentication server-side using NextAuth cookies
@@ -281,7 +282,7 @@ class ApiClient {
   async deleteMyCustomerAccount(): Promise<{ message: string }> {
     // Use a direct fetch here to avoid the force-logout behavior on 401.
     // The settings page handles the error and shows it in-place.
-    const url = `${this.baseUrl}/customer/account`;
+    const url = `${this.baseUrl}/customers/me`;
     const response = await fetch(url, {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
@@ -1496,24 +1497,66 @@ class ApiClient {
   }
 
   async getCustomerProfile(): Promise<{ profile: any; is_complete: boolean }> {
-    const res = await this.request<{ profile: any; is_complete: boolean }>('/customer/profile');
-    return (res as any)?.data ?? res;
+    const res = await this.request<any>('/customers/me');
+    const rawProfile = (res as any)?.data ?? res ?? {};
+    const profile = normalizeCustomerProfile(rawProfile);
+    return {
+      profile,
+      is_complete: isCustomerProfileComplete(profile),
+    };
   }
 
   async updateCustomerProfile(data: {
-    name?: string;
-    phone?: string;
+    first_name?: string;
+    last_name?: string;
+    phone_number?: string;
+    preferred_language?: 'ar' | 'en';
+    marketing_consent?: boolean;
     address_line1?: string;
     address_line2?: string;
+    district?: string;
+    address_latitude?: number;
+    address_longitude?: number;
+    // Legacy compatibility inputs
+    name?: string;
+    phone?: string;
     city?: string;
     state?: string;
     zipcode?: string;
   }): Promise<{ profile: any; is_complete: boolean }> {
-    const res = await this.request<{ profile: any; is_complete: boolean }>('/customer/profile', {
-      method: 'PUT',
-      body: JSON.stringify(data),
+    const normalizedName = String(data.name || '').trim();
+    const firstName =
+      data.first_name ||
+      (normalizedName ? normalizedName.split(/\s+/)[0] : undefined);
+    const lastName =
+      data.last_name ||
+      (normalizedName ? normalizedName.split(/\s+/).slice(1).join(' ') : undefined);
+
+    const payload = {
+      ...(firstName ? { first_name: firstName.trim() } : {}),
+      ...(lastName ? { last_name: lastName.trim() } : {}),
+      ...(data.phone_number ? { phone_number: data.phone_number } : {}),
+      ...(!data.phone_number && data.phone ? { phone_number: data.phone } : {}),
+      ...(data.address_line1 ? { address_line1: data.address_line1 } : {}),
+      ...(data.address_line2 !== undefined ? { address_line2: data.address_line2 } : {}),
+      ...(data.district ? { district: data.district } : {}),
+      ...(!data.district && data.state ? { district: data.state } : {}),
+      ...(data.address_latitude !== undefined ? { address_latitude: data.address_latitude } : {}),
+      ...(data.address_longitude !== undefined ? { address_longitude: data.address_longitude } : {}),
+      ...(data.preferred_language ? { preferred_language: data.preferred_language } : {}),
+      ...(data.marketing_consent !== undefined ? { marketing_consent: data.marketing_consent } : {}),
+    };
+
+    const res = await this.request<any>('/customers/me', {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
     });
-    return (res as any)?.data ?? res;
+    const rawProfile = (res as any)?.data ?? res ?? {};
+    const profile = normalizeCustomerProfile(rawProfile);
+    return {
+      profile,
+      is_complete: isCustomerProfileComplete(profile),
+    };
   }
 
   // Refunds

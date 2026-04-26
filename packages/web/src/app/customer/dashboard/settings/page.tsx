@@ -2,24 +2,27 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuthStore } from '@/stores/auth-store';
+import { RIYADH_DISTRICTS } from '@/constants/riyadh-districts';
 import { apiClient } from '@/lib/api-client';
 import {
-  IconUser,
-  IconBell,
-  IconShield,
-  IconMapPin,
-  IconTrash,
+  CustomerProfile,
+  normalizeCustomerProfile,
+  sanitizeSaudiPhoneLocalDigits,
+} from '@/lib/customer-profile';
+import { useAuthStore } from '@/stores/auth-store';
+import {
+  IconAlertTriangle,
   IconCheck,
+  IconChevronRight,
   IconEye,
   IconEyeOff,
-  IconChevronRight,
-  IconAlertTriangle,
   IconLoader2,
+  IconMapPin,
+  IconShield,
+  IconTrash,
+  IconUser,
   IconX,
 } from '@tabler/icons-react';
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function SaveBanner({ show, message = 'Changes saved' }: { show: boolean; message?: string }) {
   if (!show) return null;
@@ -44,67 +47,102 @@ function ErrorBanner({ message }: { message: string | null }) {
 
 const SETTING_TABS = [
   { key: 'profile', label: 'Profile', icon: IconUser },
-  { key: 'notifications', label: 'Notifications', icon: IconBell },
   { key: 'addresses', label: 'Addresses', icon: IconMapPin },
   { key: 'security', label: 'Security', icon: IconShield },
-];
+] as const;
 
 const inputClass =
   'w-full rounded-xl border border-slate-200 px-4 py-3 text-sm text-slate-800 placeholder:text-slate-400 outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 transition';
 const labelClass = 'mb-1.5 block text-xs font-semibold text-slate-700';
 
-// ── Profile tab ───────────────────────────────────────────────────────────────
+type SettingsProfile = CustomerProfile;
 
-function ProfileTab({ onSave }: { onSave: (msg?: string) => void }) {
-  const { user } = useAuthStore();
-  const [firstName, setFirstName] = useState(user?.first_name ?? '');
-  const [lastName, setLastName] = useState(user?.last_name ?? '');
-  const [email] = useState(user?.email ?? '');
-  const [phone, setPhone] = useState('');
+function updateCustomerStore(profile: SettingsProfile) {
+  useAuthStore.setState((state) => ({
+    user: state.user
+      ? {
+          ...state.user,
+          first_name: profile.first_name || state.user.first_name,
+          last_name: profile.last_name || state.user.last_name,
+          phone_number: profile.phone_number,
+          district: profile.district,
+          address_line1: profile.address_line1,
+          address_line2: profile.address_line2,
+          address_latitude: profile.address_latitude,
+          address_longitude: profile.address_longitude,
+          preferred_language: profile.preferred_language,
+          marketing_consent: profile.marketing_consent,
+        }
+      : state.user,
+  }));
+}
+
+function ProfileTab({
+  profile,
+  onSaved,
+}: {
+  profile: SettingsProfile;
+  onSaved: (profile: SettingsProfile, message?: string) => void;
+}) {
+  const [firstName, setFirstName] = useState(profile.first_name || '');
+  const [lastName, setLastName] = useState(profile.last_name || '');
+  const [phoneDigits, setPhoneDigits] = useState(
+    sanitizeSaudiPhoneLocalDigits(profile.phone_number || ''),
+  );
+  const [preferredLanguage, setPreferredLanguage] = useState<'ar' | 'en'>(
+    profile.preferred_language === 'ar' ? 'ar' : 'en',
+  );
+  const [marketingConsent, setMarketingConsent] = useState(Boolean(profile.marketing_consent));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Load phone from user object if available
   useEffect(() => {
-    const raw = (user as any)?.phone_number ?? '';
-    setPhone(raw.replace(/^\+1/, ''));
-  }, [user]);
+    setFirstName(profile.first_name || '');
+    setLastName(profile.last_name || '');
+    setPhoneDigits(sanitizeSaudiPhoneLocalDigits(profile.phone_number || ''));
+    setPreferredLanguage(profile.preferred_language === 'ar' ? 'ar' : 'en');
+    setMarketingConsent(Boolean(profile.marketing_consent));
+  }, [profile]);
 
-  const handleSave = async () => {
-    setError(null);
+  async function handleSave() {
     setSaving(true);
+    setError(null);
     try {
-      const normalizedPhone = phone.replace(/\D/g, '');
-      const phoneNumber = normalizedPhone ? `+1${normalizedPhone}` : undefined;
-      await apiClient.updateMyProfile({
+      const phone_number = phoneDigits ? `+966${phoneDigits}` : undefined;
+      const result = await apiClient.updateCustomerProfile({
         first_name: firstName.trim() || undefined,
         last_name: lastName.trim() || undefined,
-        phone_number: phoneNumber,
+        phone_number,
+        preferred_language: preferredLanguage,
+        marketing_consent: marketingConsent,
       });
-      onSave('Profile updated');
+      onSaved(normalizeCustomerProfile(result.profile), 'Profile updated');
     } catch (err: any) {
-      setError(err?.message || 'Could not save changes. Please try again.');
+      setError(err?.message || 'Could not save your profile right now.');
     } finally {
       setSaving(false);
     }
-  };
+  }
+
+  const initials =
+    firstName?.[0]?.toUpperCase() ||
+    profile.email?.[0]?.toUpperCase() ||
+    '?';
 
   return (
     <div className="space-y-5">
       <div>
         <h3 className="text-base font-bold text-slate-900">Personal Information</h3>
-        <p className="mt-1 text-sm text-slate-500">Update your name and phone number.</p>
+        <p className="mt-1 text-sm text-slate-500">
+          Keep your Riyadh account details accurate for requests and messages.
+        </p>
       </div>
 
       <ErrorBanner message={error} />
 
-      {/* Avatar */}
       <div className="flex items-center gap-4">
         <div className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-600 text-xl font-bold text-white">
-          {firstName?.[0]?.toUpperCase() ?? user?.email?.[0]?.toUpperCase() ?? '?'}
-        </div>
-        <div>
-          <p className="text-xs text-slate-400">Profile photo coming soon</p>
+          {initials}
         </div>
       </div>
 
@@ -135,29 +173,57 @@ function ProfileTab({ onSave }: { onSave: (msg?: string) => void }) {
         <label className={labelClass}>Email address</label>
         <input
           type="email"
-          value={email}
+          value={profile.email || ''}
           disabled
           className={`${inputClass} cursor-not-allowed opacity-60`}
         />
-        <p className="mt-1 text-xs text-slate-400">Email cannot be changed.</p>
+        <p className="mt-1 text-xs text-slate-400">Email cannot be changed here.</p>
       </div>
 
       <div>
-        <label className={labelClass}>Phone number</label>
+        <label className={labelClass}>Saudi phone number</label>
         <div className="flex overflow-hidden rounded-xl border border-slate-200 focus-within:border-emerald-400 focus-within:ring-2 focus-within:ring-emerald-100">
-          <span className="flex items-center bg-slate-50 px-3 text-sm font-medium text-slate-500 border-r border-slate-200 shrink-0">
-            +1
+          <span className="flex items-center border-r border-slate-200 bg-slate-50 px-3 text-sm font-medium text-slate-500">
+            +966
           </span>
           <input
             type="tel"
             inputMode="numeric"
-            value={phone}
-            onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+            value={phoneDigits}
+            onChange={(e) =>
+              setPhoneDigits(sanitizeSaudiPhoneLocalDigits(e.target.value).slice(0, 9))
+            }
             className="flex-1 bg-white px-4 py-3 text-sm text-slate-800 placeholder:text-slate-400 outline-none"
-            placeholder="(555) 123-4567"
+            placeholder="5XXXXXXXX"
           />
         </div>
       </div>
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div>
+          <label className={labelClass}>Preferred language</label>
+          <select
+            value={preferredLanguage}
+            onChange={(e) => setPreferredLanguage(e.target.value === 'ar' ? 'ar' : 'en')}
+            className={inputClass}
+          >
+            <option value="en">English</option>
+            <option value="ar">Arabic</option>
+          </select>
+        </div>
+      </div>
+
+      <label className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+        <input
+          type="checkbox"
+          checked={marketingConsent}
+          onChange={(e) => setMarketingConsent(e.target.checked)}
+          className="mt-0.5 h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+        />
+        <span className="text-sm text-slate-600">
+          Send me occasional HandyCall marketplace updates and customer offers.
+        </span>
+      </label>
 
       <button
         onClick={handleSave}
@@ -171,250 +237,128 @@ function ProfileTab({ onSave }: { onSave: (msg?: string) => void }) {
   );
 }
 
-// ── Notifications tab ─────────────────────────────────────────────────────────
-
-const NOTIFICATION_PREFS = [
-  { key: 'booking_confirmed', label: 'Booking confirmed', desc: 'When a pro accepts your booking request.' },
-  { key: 'booking_reminder', label: 'Booking reminders', desc: '24 hours and 2 hours before your appointment.' },
-  { key: 'pro_message', label: 'Pro messages', desc: 'When a pro sends you a message.' },
-  { key: 'review_request', label: 'Review requests', desc: 'After a service is completed.' },
-  { key: 'payment', label: 'Payment updates', desc: 'Receipts and payment confirmations.' },
-  { key: 'promotions', label: 'Promotions & offers', desc: 'Special deals and seasonal discounts.' },
-];
-
-const NOTIF_STORAGE_KEY = 'hc_customer_notif_prefs';
-
-function getDefaultPrefs() {
-  return Object.fromEntries(
-    NOTIFICATION_PREFS.map((p) => [
-      p.key,
-      { push: p.key !== 'promotions', email: p.key !== 'review_request' && p.key !== 'promotions' },
-    ])
-  );
-}
-
-function NotificationsTab({ onSave }: { onSave: (msg?: string) => void }) {
-  const [prefs, setPrefs] = useState<Record<string, { push: boolean; email: boolean }>>(getDefaultPrefs);
+function AddressesTab({
+  profile,
+  onSaved,
+}: {
+  profile: SettingsProfile;
+  onSaved: (profile: SettingsProfile, message?: string) => void;
+}) {
+  const [district, setDistrict] = useState(profile.district || '');
+  const [addressLine1, setAddressLine1] = useState(profile.address_line1 || '');
+  const [addressLine2, setAddressLine2] = useState(profile.address_line2 || '');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem(NOTIF_STORAGE_KEY);
-      if (stored) setPrefs(JSON.parse(stored));
-    } catch {}
-  }, []);
+    setDistrict(profile.district || '');
+    setAddressLine1(profile.address_line1 || '');
+    setAddressLine2(profile.address_line2 || '');
+  }, [profile]);
 
-  function toggle(key: string, channel: 'push' | 'email') {
-    setPrefs((prev) => ({ ...prev, [key]: { ...prev[key], [channel]: !prev[key][channel] } }));
-  }
-
-  function handleSave() {
+  async function handleSave() {
+    setSaving(true);
+    setError(null);
     try {
-      localStorage.setItem(NOTIF_STORAGE_KEY, JSON.stringify(prefs));
-    } catch {}
-    onSave('Preferences saved');
+      const result = await apiClient.updateCustomerProfile({
+        district: district || undefined,
+        address_line1: addressLine1.trim() || undefined,
+        address_line2: addressLine2.trim(),
+      });
+      onSaved(normalizeCustomerProfile(result.profile), 'Address updated');
+    } catch (err: any) {
+      setError(err?.message || 'Could not save your address right now.');
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
     <div className="space-y-5">
       <div>
-        <h3 className="text-base font-bold text-slate-900">Notification Preferences</h3>
-        <p className="mt-1 text-sm text-slate-500">Choose how you want to be notified.</p>
+        <h3 className="text-base font-bold text-slate-900">Saved Address</h3>
+        <p className="mt-1 text-sm text-slate-500">
+          This address is reused in future service requests.
+        </p>
       </div>
 
-      <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
-        <div className="grid grid-cols-[1fr_64px_64px] border-b border-slate-100 px-5 py-3">
-          <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">Notification</span>
-          <span className="text-center text-xs font-semibold uppercase tracking-wide text-slate-400">Push</span>
-          <span className="text-center text-xs font-semibold uppercase tracking-wide text-slate-400">Email</span>
-        </div>
-        {NOTIFICATION_PREFS.map((pref, i) => (
-          <div
-            key={pref.key}
-            className={`grid grid-cols-[1fr_64px_64px] items-center px-5 py-4 ${i < NOTIFICATION_PREFS.length - 1 ? 'border-b border-slate-50' : ''}`}
-          >
-            <div>
-              <p className="text-sm font-medium text-slate-800">{pref.label}</p>
-              <p className="text-xs text-slate-400">{pref.desc}</p>
-            </div>
-            {(['push', 'email'] as const).map((channel) => (
-              <div key={channel} className="flex justify-center">
-                <button
-                  onClick={() => toggle(pref.key, channel)}
-                  className={`relative h-6 w-10 rounded-full transition-colors ${prefs[pref.key]?.[channel] ? 'bg-emerald-600' : 'bg-slate-200'}`}
-                >
-                  <span
-                    className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${prefs[pref.key]?.[channel] ? 'translate-x-4' : 'translate-x-0.5'}`}
-                  />
-                </button>
-              </div>
-            ))}
-          </div>
-        ))}
+      <ErrorBanner message={error} />
+
+      <div>
+        <label className={labelClass}>Riyadh district</label>
+        <select
+          value={district}
+          onChange={(e) => setDistrict(e.target.value)}
+          className={inputClass}
+        >
+          <option value="">Select your district</option>
+          {RIYADH_DISTRICTS.map((item) => (
+            <option key={item} value={item}>
+              {item}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div>
+        <label className={labelClass}>Address line 1</label>
+        <input
+          type="text"
+          value={addressLine1}
+          onChange={(e) => setAddressLine1(e.target.value)}
+          className={inputClass}
+          placeholder="Street, building, and district label"
+        />
+      </div>
+
+      <div>
+        <label className={labelClass}>Address line 2</label>
+        <input
+          type="text"
+          value={addressLine2}
+          onChange={(e) => setAddressLine2(e.target.value)}
+          className={inputClass}
+          placeholder="Apartment, villa number, floor, landmark"
+        />
+      </div>
+
+      <div>
+        <label className={labelClass}>City</label>
+        <input
+          type="text"
+          value="Riyadh"
+          disabled
+          className={`${inputClass} cursor-not-allowed opacity-60`}
+        />
       </div>
 
       <button
         onClick={handleSave}
-        className="rounded-xl bg-emerald-600 px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700"
+        disabled={saving}
+        className="flex items-center gap-2 rounded-xl bg-emerald-600 px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-60"
       >
-        Save preferences
+        {saving && <IconLoader2 className="h-4 w-4 animate-spin" stroke={2} />}
+        {saving ? 'Saving…' : 'Save address'}
       </button>
     </div>
   );
 }
 
-// ── Addresses tab ─────────────────────────────────────────────────────────────
-
-const ADDR_STORAGE_KEY = 'hc_customer_addresses';
-type Address = { id: string; label: string; address: string; default: boolean };
-
-function AddressesTab({ onSave }: { onSave: (msg?: string) => void }) {
-  const [addresses, setAddresses] = useState<Address[]>([]);
-  const [adding, setAdding] = useState(false);
-  const [newLabel, setNewLabel] = useState('');
-  const [newAddress, setNewAddress] = useState('');
-
-  useEffect(() => {
-    try {
-      const stored = localStorage.getItem(ADDR_STORAGE_KEY);
-      if (stored) setAddresses(JSON.parse(stored));
-    } catch {}
-  }, []);
-
-  function persist(next: Address[]) {
-    setAddresses(next);
-    try { localStorage.setItem(ADDR_STORAGE_KEY, JSON.stringify(next)); } catch {}
-  }
-
-  function addAddress() {
-    if (!newAddress.trim()) return;
-    const next: Address[] = [
-      ...addresses,
-      { id: String(Date.now()), label: newLabel.trim() || 'Address', address: newAddress.trim(), default: addresses.length === 0 },
-    ];
-    persist(next);
-    setNewLabel('');
-    setNewAddress('');
-    setAdding(false);
-    onSave('Address added');
-  }
-
-  function removeAddress(id: string) {
-    const next = addresses.filter((a) => a.id !== id);
-    // If the removed was default, make first remaining default
-    if (addresses.find((a) => a.id === id)?.default && next.length > 0) {
-      next[0].default = true;
-    }
-    persist(next);
-    onSave('Address removed');
-  }
-
-  function setDefault(id: string) {
-    persist(addresses.map((a) => ({ ...a, default: a.id === id })));
-    onSave('Default address updated');
-  }
-
-  return (
-    <div className="space-y-5">
-      <div>
-        <h3 className="text-base font-bold text-slate-900">Saved Addresses</h3>
-        <p className="mt-1 text-sm text-slate-500">Addresses used for booking services.</p>
-      </div>
-
-      {addresses.length === 0 && !adding && (
-        <p className="text-sm text-slate-400">No addresses saved yet.</p>
-      )}
-
-      <ul className="space-y-3">
-        {addresses.map((addr) => (
-          <li key={addr.id} className="flex items-start gap-4 rounded-2xl border border-slate-200 bg-white p-4">
-            <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-500">
-              <IconMapPin className="h-5 w-5" stroke={1.5} />
-            </div>
-            <div className="flex-1">
-              <div className="flex items-center gap-2 flex-wrap">
-                <p className="text-sm font-semibold text-slate-800">{addr.label}</p>
-                {addr.default ? (
-                  <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">Default</span>
-                ) : (
-                  <button
-                    onClick={() => setDefault(addr.id)}
-                    className="text-[10px] text-slate-400 underline hover:text-emerald-600"
-                  >
-                    Set as default
-                  </button>
-                )}
-              </div>
-              <p className="text-xs text-slate-500">{addr.address}</p>
-            </div>
-            <button
-              onClick={() => removeAddress(addr.id)}
-              className="text-slate-300 transition hover:text-red-500"
-              title="Remove"
-            >
-              <IconTrash className="h-4 w-4" stroke={1.5} />
-            </button>
-          </li>
-        ))}
-      </ul>
-
-      {adding ? (
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 space-y-4">
-          <div>
-            <label className={labelClass}>Label</label>
-            <input
-              type="text"
-              value={newLabel}
-              onChange={(e) => setNewLabel(e.target.value)}
-              placeholder="Home, Work, Parents' house…"
-              className={inputClass}
-            />
-          </div>
-          <div>
-            <label className={labelClass}>Address</label>
-            <input
-              type="text"
-              value={newAddress}
-              onChange={(e) => setNewAddress(e.target.value)}
-              placeholder="Street, District, City"
-              className={inputClass}
-            />
-          </div>
-          <div className="flex gap-2">
-            <button
-              onClick={addAddress}
-              disabled={!newAddress.trim()}
-              className="rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
-            >
-              Add
-            </button>
-            <button
-              onClick={() => { setAdding(false); setNewLabel(''); setNewAddress(''); }}
-              className="rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50"
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      ) : (
-        <button
-          onClick={() => setAdding(true)}
-          className="flex items-center gap-2 rounded-xl border border-dashed border-slate-300 px-5 py-3 text-sm font-medium text-slate-500 transition hover:border-emerald-300 hover:text-emerald-700"
-        >
-          <IconMapPin className="h-4 w-4" stroke={1.8} />
-          Add new address
-        </button>
-      )}
-    </div>
-  );
-}
-
-// ── Delete confirmation modal ─────────────────────────────────────────────────
-
-function DeleteModal({ onConfirm, onCancel, deleting }: { onConfirm: () => void; onCancel: () => void; deleting: boolean }) {
+function DeleteModal({
+  onConfirm,
+  onCancel,
+  deleting,
+}: {
+  onConfirm: () => void;
+  onCancel: () => void;
+  deleting: boolean;
+}) {
   const [typed, setTyped] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => { inputRef.current?.focus(); }, []);
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
@@ -426,7 +370,8 @@ function DeleteModal({ onConfirm, onCancel, deleting }: { onConfirm: () => void;
           <div>
             <h3 className="text-base font-bold text-slate-900">Delete account permanently</h3>
             <p className="mt-1 text-sm text-slate-500">
-              This will permanently delete your account, all bookings, messages, and payment history. This cannot be undone.
+              This permanently removes your customer account, requests, conversations, reviews,
+              and saved address details.
             </p>
           </div>
         </div>
@@ -467,9 +412,7 @@ function DeleteModal({ onConfirm, onCancel, deleting }: { onConfirm: () => void;
   );
 }
 
-// ── Security tab ──────────────────────────────────────────────────────────────
-
-function SecurityTab({ onSave }: { onSave: (msg?: string) => void }) {
+function SecurityTab({ onSave }: { onSave: (message?: string) => void }) {
   const router = useRouter();
   const { logout } = useAuthStore();
   const [currentPw, setCurrentPw] = useState('');
@@ -479,7 +422,6 @@ function SecurityTab({ onSave }: { onSave: (msg?: string) => void }) {
   const [showNew, setShowNew] = useState(false);
   const [pwSaving, setPwSaving] = useState(false);
   const [pwError, setPwError] = useState<string | null>(null);
-
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -488,15 +430,24 @@ function SecurityTab({ onSave }: { onSave: (msg?: string) => void }) {
 
   async function handlePasswordChange() {
     setPwError(null);
-    if (newPw !== confirmPw) { setPwError('Passwords do not match.'); return; }
-    if (newPw.length < 8) { setPwError('New password must be at least 8 characters.'); return; }
+    if (newPw !== confirmPw) {
+      setPwError('Passwords do not match.');
+      return;
+    }
+    if (newPw.length < 8) {
+      setPwError('New password must be at least 8 characters.');
+      return;
+    }
+
     setPwSaving(true);
     try {
       await apiClient.updatePassword(currentPw, newPw);
-      setCurrentPw(''); setNewPw(''); setConfirmPw('');
+      setCurrentPw('');
+      setNewPw('');
+      setConfirmPw('');
       onSave('Password updated');
     } catch (err: any) {
-      setPwError(err?.message || 'Could not update password. Check your current password.');
+      setPwError(err?.message || 'Could not update your password.');
     } finally {
       setPwSaving(false);
     }
@@ -507,12 +458,14 @@ function SecurityTab({ onSave }: { onSave: (msg?: string) => void }) {
     setDeleteError(null);
     try {
       await apiClient.deleteMyCustomerAccount();
-      // Clear local data
-      try { localStorage.clear(); } catch {}
+      try {
+        localStorage.clear();
+      } catch {}
       await logout('/customer/login');
+      router.refresh();
     } catch (err: any) {
       setDeleteError(
-        err?.message || 'Could not delete account. Please try again or contact support@handycall.org.'
+        err?.message || 'Could not delete your account right now. Please contact hello@handycall.org.',
       );
       setDeleting(false);
       setShowDeleteModal(false);
@@ -523,13 +476,11 @@ function SecurityTab({ onSave }: { onSave: (msg?: string) => void }) {
     <div className="space-y-5">
       <div>
         <h3 className="text-base font-bold text-slate-900">Security</h3>
-        <p className="mt-1 text-sm text-slate-500">Manage your password and account security.</p>
+        <p className="mt-1 text-sm text-slate-500">Manage your password and account access.</p>
       </div>
 
-      {/* Change password */}
-      <div className="rounded-2xl border border-slate-200 bg-white p-5 space-y-4">
+      <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5">
         <h4 className="text-sm font-semibold text-slate-800">Change Password</h4>
-
         <ErrorBanner message={pwError} />
 
         <div>
@@ -542,8 +493,16 @@ function SecurityTab({ onSave }: { onSave: (msg?: string) => void }) {
               className={pwInputClass}
               placeholder="Current password"
             />
-            <button type="button" onClick={() => setShowCurrent((v) => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
-              {showCurrent ? <IconEyeOff className="h-4 w-4" stroke={1.8} /> : <IconEye className="h-4 w-4" stroke={1.8} />}
+            <button
+              type="button"
+              onClick={() => setShowCurrent((value) => !value)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+            >
+              {showCurrent ? (
+                <IconEyeOff className="h-4 w-4" stroke={1.8} />
+              ) : (
+                <IconEye className="h-4 w-4" stroke={1.8} />
+              )}
             </button>
           </div>
         </div>
@@ -558,8 +517,16 @@ function SecurityTab({ onSave }: { onSave: (msg?: string) => void }) {
               className={pwInputClass}
               placeholder="At least 8 characters"
             />
-            <button type="button" onClick={() => setShowNew((v) => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
-              {showNew ? <IconEyeOff className="h-4 w-4" stroke={1.8} /> : <IconEye className="h-4 w-4" stroke={1.8} />}
+            <button
+              type="button"
+              onClick={() => setShowNew((value) => !value)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+            >
+              {showNew ? (
+                <IconEyeOff className="h-4 w-4" stroke={1.8} />
+              ) : (
+                <IconEye className="h-4 w-4" stroke={1.8} />
+              )}
             </button>
           </div>
         </div>
@@ -581,15 +548,15 @@ function SecurityTab({ onSave }: { onSave: (msg?: string) => void }) {
           className="flex items-center gap-2 rounded-xl bg-emerald-600 px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-40"
         >
           {pwSaving && <IconLoader2 className="h-4 w-4 animate-spin" stroke={2} />}
-          {pwSaving ? 'Updating…' : 'Update Password'}
+          {pwSaving ? 'Updating…' : 'Update password'}
         </button>
       </div>
 
-      {/* Danger zone */}
-      <div className="rounded-2xl border border-red-100 bg-red-50 p-5 space-y-3">
+      <div className="space-y-3 rounded-2xl border border-red-100 bg-red-50 p-5">
         <h4 className="text-sm font-semibold text-red-700">Danger Zone</h4>
         <p className="text-xs text-red-500">
-          Deleting your account is permanent and cannot be undone. All your bookings, messages, payment history, and personal data will be erased immediately.
+          Deleting your account is permanent. It removes your customer profile, requests,
+          conversations, reviews, and saved details.
         </p>
         <ErrorBanner message={deleteError} />
         <button
@@ -612,14 +579,43 @@ function SecurityTab({ onSave }: { onSave: (msg?: string) => void }) {
   );
 }
 
-// ── Main ──────────────────────────────────────────────────────────────────────
-
 export default function CustomerSettingsPage() {
-  const [activeTab, setActiveTab] = useState('profile');
+  const [activeTab, setActiveTab] = useState<(typeof SETTING_TABS)[number]['key']>('profile');
   const [savedMsg, setSavedMsg] = useState<string | null>(null);
+  const [profile, setProfile] = useState<SettingsProfile | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  function handleSave(msg = 'Changes saved') {
-    setSavedMsg(msg);
+  useEffect(() => {
+    let mounted = true;
+
+    async function loadProfile() {
+      try {
+        setLoading(true);
+        setError(null);
+        const result = await apiClient.getCustomerProfile();
+        if (!mounted) return;
+        const nextProfile = normalizeCustomerProfile(result.profile);
+        setProfile(nextProfile);
+        updateCustomerStore(nextProfile);
+      } catch (err: any) {
+        if (!mounted) return;
+        setError(err?.message || 'We could not load your customer settings.');
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    }
+
+    void loadProfile();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  function handleSaved(nextProfile: SettingsProfile, message = 'Changes saved') {
+    setProfile(nextProfile);
+    updateCustomerStore(nextProfile);
+    setSavedMsg(message);
     setTimeout(() => setSavedMsg(null), 2500);
   }
 
@@ -627,45 +623,63 @@ export default function CustomerSettingsPage() {
     <div className="max-w-3xl space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-slate-900">Settings</h1>
-        <p className="mt-1 text-sm text-slate-500">Manage your account, notifications, and security.</p>
+        <p className="mt-1 text-sm text-slate-500">
+          Manage your account details and security.
+        </p>
       </div>
 
-      <div className="flex flex-col gap-6 md:flex-row">
-        {/* Sidebar tabs */}
-        <nav className="flex w-full flex-col gap-0.5 md:w-48">
-          {SETTING_TABS.map((tab) => {
-            const Icon = tab.icon;
-            const active = activeTab === tab.key;
-            return (
-              <button
-                key={tab.key}
-                onClick={() => setActiveTab(tab.key)}
-                className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium transition ${
-                  active ? 'bg-emerald-50 text-emerald-700' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-                }`}
-              >
-                <Icon
-                  className={`h-4.5 w-4.5 flex-shrink-0 ${active ? 'text-emerald-600' : 'text-slate-400'}`}
-                  stroke={active ? 2 : 1.5}
-                />
-                {tab.label}
-                <IconChevronRight
-                  className={`ml-auto h-3.5 w-3.5 text-slate-300 ${active ? 'opacity-0' : ''}`}
-                  stroke={2}
-                />
-              </button>
-            );
-          })}
-        </nav>
+      {error ? <ErrorBanner message={error} /> : null}
 
-        {/* Content */}
-        <div className="flex-1 rounded-2xl border border-slate-200 bg-white p-6">
-          {activeTab === 'profile' && <ProfileTab onSave={handleSave} />}
-          {activeTab === 'notifications' && <NotificationsTab onSave={handleSave} />}
-          {activeTab === 'addresses' && <AddressesTab onSave={handleSave} />}
-          {activeTab === 'security' && <SecurityTab onSave={handleSave} />}
+      {loading ? (
+        <div className="flex h-56 items-center justify-center rounded-2xl border border-slate-200 bg-white">
+          <IconLoader2 className="h-6 w-6 animate-spin text-emerald-600" stroke={2} />
         </div>
-      </div>
+      ) : !profile ? (
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-500">
+          We could not load your customer settings right now.
+        </div>
+      ) : (
+        <div className="flex flex-col gap-6 md:flex-row">
+          <nav className="flex w-full flex-col gap-0.5 md:w-48">
+            {SETTING_TABS.map((tab) => {
+              const Icon = tab.icon;
+              const active = activeTab === tab.key;
+              return (
+                <button
+                  key={tab.key}
+                  onClick={() => setActiveTab(tab.key)}
+                  className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium transition ${
+                    active
+                      ? 'bg-emerald-50 text-emerald-700'
+                      : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                  }`}
+                >
+                  <Icon
+                    className={`h-4.5 w-4.5 flex-shrink-0 ${
+                      active ? 'text-emerald-600' : 'text-slate-400'
+                    }`}
+                    stroke={active ? 2 : 1.5}
+                  />
+                  {tab.label}
+                  <IconChevronRight
+                    className={`ml-auto h-3.5 w-3.5 text-slate-300 ${active ? 'opacity-0' : ''}`}
+                    stroke={2}
+                  />
+                </button>
+              );
+            })}
+          </nav>
+
+          <div className="flex-1 rounded-2xl border border-slate-200 bg-white p-6">
+            {activeTab === 'profile' && <ProfileTab profile={profile} onSaved={handleSaved} />}
+            {activeTab === 'addresses' && <AddressesTab profile={profile} onSaved={handleSaved} />}
+            {activeTab === 'security' && <SecurityTab onSave={(message) => {
+              setSavedMsg(message || 'Changes saved');
+              setTimeout(() => setSavedMsg(null), 2500);
+            }} />}
+          </div>
+        </div>
+      )}
 
       <SaveBanner show={Boolean(savedMsg)} message={savedMsg ?? undefined} />
     </div>

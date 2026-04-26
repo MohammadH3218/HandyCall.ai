@@ -10,18 +10,18 @@ import { SocialAuthButtons } from '@/components/auth/social-auth-buttons';
 import { apiClient } from '@/lib/api-client';
 import { isCustomerProfileComplete } from '@/lib/customer-profile';
 import {
-  IconEye, IconEyeOff, IconSearch, IconCalendar, IconShield,
+  IconEye, IconEyeOff, IconMessageCircle, IconSearch, IconShield,
 } from '@tabler/icons-react';
 
 const BENEFITS = [
   { icon: IconSearch, title: 'Find the right pro', desc: 'Browse verified professionals in your city across 30+ home service categories.' },
-  { icon: IconCalendar, title: 'Book in minutes', desc: 'No phone tag — request a quote, compare, and confirm all in one place.' },
-  { icon: IconShield, title: 'Pay with confidence', desc: 'Card, Apple Pay, or pay on-site when available — simple and secure.' },
+  { icon: IconMessageCircle, title: 'Request in minutes', desc: 'Send one request, then keep every pro reply in one place.' },
+  { icon: IconShield, title: 'Stay in control', desc: 'Your saved details make future requests faster without re-entering everything.' },
 ];
 
 function CustomerLoginInner() {
   const searchParams = useSearchParams();
-  const callbackUrl = searchParams?.get('callbackUrl') || '/customer/dashboard';
+  const callbackUrl = searchParams?.get('callbackUrl') || '/customer/dashboard/requests';
   const reasonParam = searchParams?.get('reason');
   const verifiedParam = searchParams?.get('verified');
   const emailParam = searchParams?.get('email') || '';
@@ -109,7 +109,7 @@ function CustomerLoginInner() {
       <div>
         <h1 className="text-4xl font-extrabold leading-tight tracking-tight text-slate-900">
           Find trusted pros,<br />
-          <span className="text-emerald-600">booked in minutes.</span>
+          <span className="text-emerald-600">request help in minutes.</span>
         </h1>
         <p className="mt-4 leading-relaxed text-slate-500">
           Thousands of verified home service professionals, ready to help.

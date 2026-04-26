@@ -54,14 +54,14 @@ export class CustomersController {
   @RateLimitPolicy('USER_WRITE')
   @Delete('me')
   @HttpCode(HttpStatus.OK)
-  async requestDeletion(@Req() req: Request, @CurrentUser() user: MarketplaceAuthContext) {
+  async deleteMe(@Req() req: Request, @CurrentUser() user: MarketplaceAuthContext) {
     if (user.user_type !== 'CUSTOMER') throw new ForbiddenException();
-    const result = await this.customersService.requestDeletion(user.user_id);
+    const result = await this.customersService.deleteAccount(user.user_id);
     await this.auditLogs.logFromRequest(req, {
       category: 'ACCOUNT',
       severity: 'WARN',
       outcome: 'SUCCESS',
-      action: 'customer.deletion_requested',
+      action: 'customer.deleted',
       target_type: 'customer',
       target_id: user.user_id,
     });

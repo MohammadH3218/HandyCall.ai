@@ -11,10 +11,7 @@ import { LanguageSwitcher } from '@/components/language-switcher';
 import { Logo } from '@/components/ui/logo';
 import {
   IconClipboardText,
-  IconHome,
   IconMessageCircle,
-  IconCalendar,
-  IconCreditCard,
   IconSettings,
   IconSearch,
   IconMenu2,
@@ -26,11 +23,8 @@ import {
 
 
 const NAV_ITEMS = [
-  { href: '/customer/dashboard', label: 'Home', icon: IconHome, exact: true },
-  { href: '/customer/dashboard/requests', label: 'Requests', icon: IconClipboardText },
-  { href: '/customer/dashboard/bookings', label: 'Bookings', icon: IconCalendar },
+  { href: '/customer/dashboard/requests', label: 'Requests', icon: IconClipboardText, exact: true },
   { href: '/customer/dashboard/inbox', label: 'Inbox', icon: IconMessageCircle },
-  { href: '/customer/dashboard/payments', label: 'Payments', icon: IconCreditCard },
   { href: '/customer/dashboard/settings', label: 'Settings', icon: IconSettings },
 ];
 
@@ -158,7 +152,7 @@ export default function CustomerDashboardLayout({ children }: { children: React.
     : user?.email ?? 'Account';
 
   function isActive(item: (typeof NAV_ITEMS)[0]) {
-    if (item.exact) return pathname === item.href;
+    if (item.exact) return pathname === item.href || pathname === '/customer/dashboard';
     return pathname.startsWith(item.href);
   }
 

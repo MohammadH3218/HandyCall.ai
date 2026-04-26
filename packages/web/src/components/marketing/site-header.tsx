@@ -96,14 +96,14 @@ function ProfileMenu({ fallbackUser, isPro = false }: { fallbackUser: Partial<Us
             ) : (
               <>
                 <Link
-                  href="/customer/dashboard"
+                  href="/customer/dashboard/requests"
                   onClick={() => setOpen(false)}
                   className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-700 transition hover:bg-slate-50"
                 >
                   <svg className="h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
                   </svg>
-                  Dashboard
+                  Requests
                 </Link>
                 <Link
                   href="/customer/dashboard/inbox"
@@ -116,14 +116,15 @@ function ProfileMenu({ fallbackUser, isPro = false }: { fallbackUser: Partial<Us
                   Inbox
                 </Link>
                 <Link
-                  href="/customer/dashboard/bookings"
+                  href="/customer/dashboard/settings"
                   onClick={() => setOpen(false)}
                   className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-700 transition hover:bg-slate-50"
                 >
                   <svg className="h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.757.426 1.757 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.757-2.924 1.757-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.757-.426-1.757-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                   </svg>
-                  Bookings
+                  Settings
                 </Link>
               </>
             )}
@@ -278,29 +279,28 @@ export function SiteHeader({
         )}
         {!proLinks && !hideLogin && (
           <div className="hidden items-center gap-2 md:flex">
-            {shouldShowCustomerAuth ? (
-              <ProfileMenu fallbackUser={fallbackSessionUser} />
-            ) : shouldShowLoggedOutActions ? (
+            {shouldShowCustomerAuth ? <ProfileMenu fallbackUser={fallbackSessionUser} /> : null}
+
+            {!shouldShowCustomerAuth && shouldShowLoggedOutActions && !hideLoginLink ? (
               <>
-                {!hideLoginLink && (
-                  <>
-                    <Link
-                      href="/customer/login"
-                      className="px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:text-slate-900"
-                    >
-                      {copy.signIn}
-                    </Link>
-                    <Link
-                      href="/signup"
-                      className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-emerald-300 hover:text-emerald-700"
-                    >
-                      {copy.signUp}
-                    </Link>
-                  </>
-                )}
+                <Link
+                  href="/customer/login"
+                  className="px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:text-slate-900"
+                >
+                  {copy.signIn}
+                </Link>
+                <Link
+                  href="/signup"
+                  className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-emerald-300 hover:text-emerald-700"
+                >
+                  {copy.signUp}
+                </Link>
+              </>
+            ) : null}
 
+            {(shouldShowCustomerAuth || shouldShowLoggedOutActions) ? (
+              <>
                 <span className="mx-1 h-4 border-l border-slate-200" />
-
                 <Link
                   href="/for-pros"
                   className="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-500 transition hover:border-emerald-300 hover:text-emerald-700"
@@ -392,11 +392,11 @@ export function SiteHeader({
             ) : shouldShowCustomerAuth ? (
               <>
                 <Link
-                  href="/customer/dashboard"
+                  href="/customer/dashboard/requests"
                   className="block rounded-lg px-3 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
                   onClick={() => setMobileOpen(false)}
                 >
-                  Dashboard
+                  Requests
                 </Link>
                 <Link
                   href="/customer/dashboard/inbox"
@@ -405,6 +405,29 @@ export function SiteHeader({
                 >
                   Inbox
                 </Link>
+                <Link
+                  href="/customer/dashboard/settings"
+                  className="block rounded-lg px-3 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                  onClick={() => setMobileOpen(false)}
+                >
+                  Settings
+                </Link>
+                <Link
+                  href="/for-pros"
+                  className="block rounded-lg px-3 py-2.5 text-sm font-semibold text-slate-500 hover:bg-slate-50"
+                  onClick={() => setMobileOpen(false)}
+                >
+                  {copy.forPros}
+                </Link>
+                <button
+                  className="block w-full rounded-lg border border-slate-300 px-4 py-2.5 text-center text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                  onClick={async () => {
+                    setMobileOpen(false);
+                    await useAuthStore.getState().logout('/customer/login');
+                  }}
+                >
+                  Log out
+                </button>
               </>
             ) : shouldShowLoggedOutActions ? (
               <>

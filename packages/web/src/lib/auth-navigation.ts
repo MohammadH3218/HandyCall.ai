@@ -19,3 +19,12 @@ export function normalizeAuthCallbackUrl(
     return safeFallback;
   }
 }
+
+export function normalizeCustomerPostOnboardingCallback(candidate: string | null | undefined) {
+  return normalizeAuthCallbackUrl(candidate, '/customer/dashboard/requests');
+}
+
+export function buildCustomerOnboardingCallbackUrl(candidate: string | null | undefined) {
+  const next = normalizeCustomerPostOnboardingCallback(candidate);
+  return `/customer/onboarding?callbackUrl=${encodeURIComponent(next)}`;
+}

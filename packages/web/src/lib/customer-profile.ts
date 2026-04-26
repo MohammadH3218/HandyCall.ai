@@ -1,16 +1,26 @@
 export type CustomerProfile = {
+  customer_id?: string;
   user_id?: string;
   profile_id?: string;
   email?: string;
-  name?: string;
-  phone?: string;
+  first_name?: string;
+  last_name?: string;
+  phone_number?: string;
+  district?: string;
   address_line1?: string;
   address_line2?: string;
+  address_latitude?: number;
+  address_longitude?: number;
   city?: string;
-  state?: string;
-  zipcode?: string;
+  preferred_language?: 'ar' | 'en';
+  marketing_consent?: boolean;
   created_at?: number;
   updated_at?: number;
+  // Legacy compatibility fields still read by older customer pages.
+  name?: string;
+  phone?: string;
+  state?: string;
+  zipcode?: string;
 };
 
 export function sanitizeUsPhoneDigits(value: string) {
@@ -19,6 +29,15 @@ export function sanitizeUsPhoneDigits(value: string) {
     return digits.slice(1);
   }
   return digits.slice(0, 10);
+}
+
+export function sanitizeSaudiPhoneLocalDigits(value: string) {
+  const digits = value.replace(/\D/g, '');
+  if (!digits) return '';
+  if (digits.startsWith('966')) return digits.slice(3, 12);
+  if (digits.startsWith('05')) return digits.slice(1, 10);
+  if (digits.startsWith('5')) return digits.slice(0, 9);
+  return digits.slice(0, 9);
 }
 
 export function sanitizeZip(value: string) {
@@ -40,11 +59,35 @@ export function splitFullName(value: string) {
   };
 }
 
+export function normalizeCustomerProfile(profile?: Partial<CustomerProfile> | null): CustomerProfile {
+  const firstName = String(profile?.first_name || '').trim();
+  const lastName = String(profile?.last_name || '').trim();
+  const fullName = [firstName, lastName].filter(Boolean).join(' ').trim();
+  const phoneNumber = String(profile?.phone_number || profile?.phone || '').trim();
+  const district = String(profile?.district || profile?.state || '').trim();
+
+  return {
+    ...profile,
+    first_name: firstName,
+    last_name: lastName,
+    phone_number: phoneNumber || undefined,
+    district: district || undefined,
+    city: String(profile?.city || 'Riyadh').trim() || 'Riyadh',
+    name: String(profile?.name || fullName).trim() || undefined,
+    phone: phoneNumber || undefined,
+    state: district || undefined,
+    zipcode: String(profile?.zipcode || '').trim() || undefined,
+  };
+}
+
 export function isCustomerProfileComplete(profile?: CustomerProfile | null) {
+  const normalized = normalizeCustomerProfile(profile);
   return Boolean(
-    profile &&
-      String(profile.name || '').trim() &&
-      String(profile.address_line1 || '').trim() &&
-      String(profile.city || '').trim(),
+    normalized &&
+      (String(normalized.first_name || '').trim() || String(normalized.name || '').trim()) &&
+      String(normalized.address_line1 || '').trim() &&
+      (String(normalized.district || '').trim() ||
+        String(normalized.state || '').trim() ||
+        String(normalized.city || '').trim()),
   );
 }
