@@ -105,19 +105,20 @@ export default function CustomerDashboardLayout({ children }: { children: React.
           router.replace(`/customer/onboarding?callbackUrl=${encodeURIComponent(pathname)}`);
           return;
         }
-      } catch (error) {
+      } catch (err: any) {
         if (!mounted) return;
-        const message = error instanceof Error ? error.message.toLowerCase() : '';
-        const isAuthFailure =
-          message.includes('unauthorized') ||
-          message.includes('invalid') ||
-          message.includes('expired') ||
-          message.includes('account not found');
-
-        if (isAuthFailure) {
-          router.replace('/customer/login');
+        const msg = (err?.message || '').toLowerCase();
+        const isAuthError =
+          msg.includes('unauthorized') ||
+          msg.includes('invalid') ||
+          msg.includes('expired') ||
+          msg.includes('account not found');
+        if (isAuthError) {
+          router.replace('/customer/login?reason=session_expired');
           return;
         }
+        // Network or route error — let the user through to avoid blocking on
+        // transient failures or missing endpoints (same pattern as pro layout).
       } finally {
         if (mounted) setProfileChecked(true);
       }

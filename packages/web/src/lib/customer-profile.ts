@@ -81,13 +81,12 @@ export function normalizeCustomerProfile(profile?: Partial<CustomerProfile> | nu
 }
 
 export function isCustomerProfileComplete(profile?: CustomerProfile | null) {
-  const normalized = normalizeCustomerProfile(profile);
+  // Mirrors the required fields in the onboarding form: name, address, city.
+  // state (district) and zipcode are optional in the form so are not required here.
   return Boolean(
-    normalized &&
-      (String(normalized.first_name || '').trim() || String(normalized.name || '').trim()) &&
-      String(normalized.address_line1 || '').trim() &&
-      (String(normalized.district || '').trim() ||
-        String(normalized.state || '').trim() ||
-        String(normalized.city || '').trim()),
+    profile &&
+      String(profile.name || '').trim() &&
+      String(profile.address_line1 || '').trim() &&
+      String(profile.city || '').trim(),
   );
 }
