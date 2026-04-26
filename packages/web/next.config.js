@@ -30,6 +30,7 @@ const securityHeaders = [
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: https:",
       "font-src 'self' data:",
+      "worker-src 'self' blob:",
       "connect-src 'self' https: wss:",
       "media-src 'self' https: data: blob:",
       "frame-src https://js.stripe.com https://hooks.stripe.com https://www.google.com https://maps.google.com",
