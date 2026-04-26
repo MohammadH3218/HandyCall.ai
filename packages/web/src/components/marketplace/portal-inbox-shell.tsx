@@ -225,7 +225,41 @@ export function PortalInboxShell({
 
     return subscribeToUpdates((payload) => {
       if (payload?.type === 'heartbeat') return;
-      void refreshThreads(payload?.thread_id);
+
+      // If it's a new message on the current thread, append it without a full reload
+      if (payload?.type === 'message' && payload.thread_id && payload.message) {
+        const msg = payload.message as any;
+        const incomingId: string = msg.message_id || msg.id || '';
+
+        if (payload.thread_id === selectedIdRef.current) {
+          setMessages((current) => {
+            // Skip if already present (optimistic or previous SSE)
+            if (incomingId && current.some((m) => m.id === incomingId)) return current;
+            const newItem: InboxMessageItem = {
+              id: incomingId || `sse-${Date.now()}`,
+              body: msg.body || '',
+              isOwn: String(msg.direction || '').toUpperCase() === 'OUTBOUND',
+              createdAt: msg.created_at,
+              attachments: Array.isArray(msg.attachments) ? msg.attachments : [],
+              messageType: msg.message_type,
+              systemEvent: msg.system_event,
+            };
+            return [...current, newItem];
+          });
+        }
+
+        // Update thread last message in the sidebar
+        setThreads((current) =>
+          current.map((t) =>
+            t.id === payload.thread_id
+              ? { ...t, lastMessage: msg.body || t.lastMessage, lastAt: msg.created_at || t.lastAt }
+              : t,
+          ),
+        );
+      } else {
+        // For other events (thread created, etc.) do a full thread refresh
+        void refreshThreads(payload?.thread_id);
+      }
     });
   }, [refreshThreads, subscribeToUpdates]);
 
@@ -263,9 +297,15 @@ export function PortalInboxShell({
         message,
         attachments: optimisticMessage.attachments || [],
       });
-      const refreshedMessages = await loadMessages(selectedThread);
-      setMessages(refreshedMessages);
-      await refreshThreads(selectedThread.id);
+      // No full reload — optimistic message stays and SSE will confirm it.
+      // Just update the thread sidebar preview locally.
+      setThreads((current) =>
+        current.map((t) =>
+          t.id === selectedThread.id
+            ? { ...t, lastMessage: message || (optimisticMessage.attachments?.length ? '📎 Attachment' : ''), lastAt: Date.now() }
+            : t,
+        ),
+      );
     } catch (err: any) {
       setError(err?.message || 'Failed to send the message.');
       setMessages((current) => current.filter((item) => item.id !== optimisticMessage.id));
@@ -463,21 +503,32 @@ export function PortalInboxShell({
                                         {attachments.length > 0 ? (
                                           <div className={`mt-2 grid grid-cols-2 gap-2 ${message.isOwn ? 'max-w-sm' : 'max-w-md'}`}>
                                             {attachments.map((attachment, index) => (
-                                              <button
-                                                key={`${attachment.url}-${index}`}
-                                                type="button"
-                                                onClick={() => {
-                                                  setLightboxImages(attachments);
-                                                  setLightboxIndex(index);
-                                                }}
-                                                className="overflow-hidden rounded-2xl border border-black/5 bg-white/10"
-                                              >
-                                                <img
-                                                  src={attachment.url}
-                                                  alt={attachment.name || `Attachment ${index + 1}`}
-                                                  className="aspect-square h-full w-full object-cover"
-                                                />
-                                              </button>
+                                              attachment.is_video ? (
+                                                <div key={`${attachment.url}-${index}`} className="overflow-hidden rounded-2xl border border-black/5 bg-black/5 col-span-2">
+                                                  <video
+                                                    src={attachment.url}
+                                                    controls
+                                                    preload="metadata"
+                                                    className="w-full max-h-64 rounded-2xl"
+                                                  />
+                                                </div>
+                                              ) : (
+                                                <button
+                                                  key={`${attachment.url}-${index}`}
+                                                  type="button"
+                                                  onClick={() => {
+                                                    setLightboxImages(attachments.filter((a) => !a.is_video));
+                                                    setLightboxIndex(index);
+                                                  }}
+                                                  className="overflow-hidden rounded-2xl border border-black/5 bg-white/10"
+                                                >
+                                                  <img
+                                                    src={attachment.url}
+                                                    alt={attachment.name || `Attachment ${index + 1}`}
+                                                    className="aspect-square h-full w-full object-cover"
+                                                  />
+                                                </button>
+                                              )
                                             ))}
                                           </div>
                                         ) : null}
@@ -518,7 +569,7 @@ export function PortalInboxShell({
                         <input
                           ref={fileInputRef}
                           type="file"
-                          accept="image/*"
+                          accept="image/*,video/mp4,video/quicktime,video/webm"
                           multiple
                           className="hidden"
                           onChange={(event) => void handleAttachmentSelect(event.target.files)}
@@ -616,12 +667,14 @@ export function PortalInboxShell({
                   <IconUser className="h-4 w-4" stroke={1.8} />
                   Customer
                 </div>
-                <p className="mt-3 text-sm font-semibold text-slate-900">{selectedThread?.title}</p>
-                {selectedThread?.headerSubtitle ? (
-                  <p className="mt-1 text-sm text-slate-500">{selectedThread.headerSubtitle}</p>
+                <p className="mt-3 text-sm font-semibold text-slate-900">
+                  {requestContext.contact_name || selectedThread?.title || '—'}
+                </p>
+                {(requestContext.contact_email || selectedThread?.headerSubtitle) ? (
+                  <p className="mt-1 text-sm text-slate-500">{requestContext.contact_email || selectedThread?.headerSubtitle}</p>
                 ) : null}
-                {selectedThread?.raw?.customer_phone ? (
-                  <p className="mt-1 text-sm text-slate-500">{selectedThread.raw.customer_phone}</p>
+                {requestContext.contact_phone ? (
+                  <p className="mt-1 text-sm text-slate-500">{requestContext.contact_phone}</p>
                 ) : null}
               </div>
 
@@ -633,11 +686,11 @@ export function PortalInboxShell({
                 <p className="mt-3 text-sm font-semibold text-slate-900">
                   {requestContext.location_city || 'Location not provided'}
                 </p>
-                {requestContext.location_address_line1 ? (
-                  <p className="mt-1 text-sm text-slate-500">{requestContext.location_address_line1}</p>
+                {requestContext.address_line1 ? (
+                  <p className="mt-1 text-sm text-slate-500">{requestContext.address_line1}</p>
                 ) : null}
-                {requestContext.location_zipcode ? (
-                  <p className="mt-1 text-sm text-slate-500">{requestContext.location_zipcode}</p>
+                {requestContext.address_line2 ? (
+                  <p className="mt-1 text-sm text-slate-500">{requestContext.address_line2}</p>
                 ) : null}
               </div>
 
@@ -646,10 +699,11 @@ export function PortalInboxShell({
                   <IconClock className="h-4 w-4" stroke={1.8} />
                   Timing
                 </div>
-                <p className="mt-3 text-sm font-semibold text-slate-900">{requestContext.urgency || 'Flexible'}</p>
-                {requestContext.preferred_date ? (
-                  <p className="mt-1 text-sm text-slate-500">{requestContext.preferred_date}</p>
-                ) : null}
+                <p className="mt-3 text-sm font-semibold text-slate-900">
+                  {requestContext.urgency
+                    ? ({ emergency: 'Emergency', urgent: 'Within 1-2 days', this_week: 'This week', flexible: 'Flexible' } as Record<string, string>)[requestContext.urgency] ?? requestContext.urgency
+                    : 'Flexible'}
+                </p>
               </div>
 
               <div className="rounded-2xl bg-slate-50 p-4">
@@ -664,9 +718,9 @@ export function PortalInboxShell({
             </div>
 
             <div className="mt-4 rounded-2xl bg-slate-50 p-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Issue details</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Issue description</p>
               <p className="mt-3 whitespace-pre-wrap text-sm text-slate-700">
-                {requestContext.job_description || 'No job description provided.'}
+                {requestContext.job_description || 'No description provided.'}
               </p>
             </div>
           </div>

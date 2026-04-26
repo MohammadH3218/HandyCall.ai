@@ -7,6 +7,8 @@ import {
 import { v4 as uuidv4 } from 'uuid';
 import { DynamoDBService } from '../../infrastructure/database/dynamodb.service';
 import { PortalMessagingService } from '../portal-messaging/portal-messaging.service';
+import { EmailService } from '../email/email.service';
+import { renderHandycallEmail } from '../../common/email-templates';
 
 const QUOTE_REQUESTS_TABLE = 'quote_requests';
 
@@ -19,6 +21,7 @@ export class QuoteRequestsService {
   constructor(
     private db: DynamoDBService,
     private messaging: PortalMessagingService,
+    private email: EmailService,
   ) {}
 
   // ── Customer: submit a request to a specific pro ──────────────────────────
@@ -222,12 +225,34 @@ export class QuoteRequestsService {
       throw new BadRequestException('Request has already been responded to');
     }
 
+    // Look up pro info for emails
+    const pro = await this.db.get('pros', { pro_id: proId }).catch(() => null) as any;
+    const proName = pro
+      ? `${pro.first_name ?? ''} ${pro.last_name ?? ''}`.trim() || 'Your pro'
+      : 'Your pro';
+
     if (action === 'DECLINE') {
       const updated = await this.db.update(
         QUOTE_REQUESTS_TABLE,
         { quote_id: quoteId },
         { status: 'DECLINED', updated_at: Date.now() },
       );
+
+      // Email the customer that their request was declined
+      if (q.contact_email) {
+        this.email['send']({
+          to: q.contact_email,
+          subject: `Update on your ${q.service_category} request — HandyCall`,
+          html: renderHandycallEmail({
+            title: 'Request update',
+            greeting: `Hi ${q.contact_name || 'there'},`,
+            body: `${proName} was unable to take on your <strong>${q.service_category}</strong> request at this time.<br><br>Don't worry — you can browse other available pros on HandyCall and submit a new request.`,
+            cta: { label: 'Find another pro', url: 'https://handycall.org/search' },
+            footer: 'Questions? Contact us at hello@handycall.org',
+          }),
+        }).catch((err: Error) => this.logger.warn(`Failed to send decline email: ${err.message}`));
+      }
+
       return { quote: updated };
     }
 
@@ -238,9 +263,17 @@ export class QuoteRequestsService {
       customerEmail: q.contact_email ?? '',
       customerName: q.contact_name ?? undefined,
       quoteContext: {
+        quote_id: quoteId,
         service_category: q.service_category,
         location_city: q.district,
-        quote_id: quoteId,
+        job_description: q.job_description,
+        contact_name: q.contact_name ?? null,
+        contact_email: q.contact_email ?? null,
+        contact_phone: q.contact_phone ?? null,
+        address_line1: q.address_line1 ?? null,
+        address_line2: q.address_line2 ?? null,
+        urgency: q.urgency ?? null,
+        created_at: q.created_at,
       },
     });
 
@@ -249,7 +282,7 @@ export class QuoteRequestsService {
       threadId: thread.thread_id,
       proId,
       senderType: 'PRO',
-      body: `Request accepted! You can now message each other about the ${q.service_category} job.`,
+      body: `${proName} accepted your request! You can now message each other about the ${q.service_category} job.`,
       messageType: 'system',
       systemEvent: 'request_accepted',
       customerEmail: q.contact_email ?? '',
@@ -269,7 +302,20 @@ export class QuoteRequestsService {
       },
     );
 
-    // TODO: Record lead charge for pro billing
+    // Email the customer that their request was accepted
+    if (q.contact_email) {
+      this.email['send']({
+        to: q.contact_email,
+        subject: `${proName} accepted your ${q.service_category} request! — HandyCall`,
+        html: renderHandycallEmail({
+          title: 'Request accepted!',
+          greeting: `Hi ${q.contact_name || 'there'},`,
+          body: `Great news! <strong>${proName}</strong> has accepted your <strong>${q.service_category}</strong> request and is ready to help.<br><br>You can now message them directly through HandyCall to coordinate timing and any details.`,
+          cta: { label: 'Open chat', url: `https://handycall.org/customer/dashboard/inbox?thread_id=${thread.thread_id}` },
+          footer: 'Questions? Contact us at hello@handycall.org',
+        }),
+      }).catch((err: Error) => this.logger.warn(`Failed to send accept email: ${err.message}`));
+    }
 
     this.logger.log(`Quote ${quoteId} accepted by pro ${proId} → thread ${thread.thread_id}`);
     return { quote: updated, thread };

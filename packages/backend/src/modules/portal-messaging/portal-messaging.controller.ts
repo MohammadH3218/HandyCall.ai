@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   ForbiddenException,
@@ -12,14 +13,43 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { Response } from 'express';
+import { randomUUID } from 'crypto';
 import { PortalMessagingService } from './portal-messaging.service';
+import { S3Service } from '../../infrastructure/storage/s3.service';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { MarketplaceAuthContext } from '@handycall/shared';
 import { Public } from '../../common/decorators/public.decorator';
 
+const ALLOWED_MIME_TYPES = new Set([
+  'image/jpeg', 'image/png', 'image/webp', 'image/gif',
+  'video/mp4', 'video/quicktime', 'video/webm', 'video/x-msvideo',
+]);
+
 @Controller('portal-messaging')
 export class PortalMessagingController {
-  constructor(private readonly svc: PortalMessagingService) {}
+  constructor(
+    private readonly svc: PortalMessagingService,
+    private readonly s3: S3Service,
+  ) {}
+
+  /** Authenticated users (pro or customer) can get a presigned URL to upload chat media */
+  @Post('media/presign')
+  @HttpCode(HttpStatus.OK)
+  async presignChatMediaUpload(
+    @CurrentUser() user: MarketplaceAuthContext,
+    @Body() body: { content_type: string; file_name: string },
+  ) {
+    if (!body.content_type || !ALLOWED_MIME_TYPES.has(body.content_type)) {
+      throw new BadRequestException('Unsupported file type');
+    }
+
+    const ext = body.file_name ? body.file_name.split('.').pop() : 'bin';
+    const key = `chat-media/${user.user_id}/${randomUUID()}.${ext}`;
+    const uploadUrl = await this.s3.getDocumentUploadUrl(key, body.content_type, 300);
+    const publicUrl = await this.s3.getDocumentUrl(key, 60 * 60 * 24 * 7); // 7-day signed read URL
+
+    return { upload_url: uploadUrl, key, public_url: publicUrl };
+  }
 
   // ── Pro endpoints ──────────────────────────────────────────────────────────
 

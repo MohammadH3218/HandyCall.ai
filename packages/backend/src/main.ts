@@ -48,8 +48,8 @@ async function bootstrap() {
   // HyperPay/Moyasar payment webhooks need raw body for signature verification
   const apiPrefix = configService.get<string>('API_PREFIX') || 'api/v1';
   app.use(`/${apiPrefix}/payments/webhook`, bodyParser.raw({ type: 'application/json', limit: '256kb' }));
-  app.use(bodyParser.json({ limit: '1mb' }));
-  app.use(bodyParser.urlencoded({ extended: true, limit: '256kb' }));
+  app.use(bodyParser.json({ limit: '20mb' }));
+  app.use(bodyParser.urlencoded({ extended: true, limit: '1mb' }));
 
   app.useGlobalPipes(
     new ValidationPipe({
