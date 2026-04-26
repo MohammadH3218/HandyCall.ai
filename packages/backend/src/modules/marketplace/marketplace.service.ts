@@ -10,6 +10,35 @@ const SERVICE_CATEGORIES: ServiceCategory[] = [
   'SATELLITE_DISH', 'LANDSCAPING', 'GENERAL_HANDYMAN',
 ];
 
+// Models tried in order — if the first returns 429, the next is tried.
+const OPENROUTER_MODELS = [
+  'google/gemma-4-31b-it:free',
+  'meta-llama/llama-3.1-8b-instruct:free',
+  'mistralai/mistral-7b-instruct:free',
+];
+
+// English + Arabic stop words for smart fallback keyword extraction
+const STOP_WORDS = new Set([
+  'i','a','an','the','my','your','our','their','its','me','we','us',
+  'is','am','are','was','were','be','been','being',
+  'have','has','had','do','does','did','will','would','could','should','may','might','shall','can',
+  'in','on','at','to','for','of','with','by','from','up','down','out','into','through','about','over',
+  'this','that','these','those','it','he','she','they',
+  'and','or','but','if','so','because','when','where','how','what','which','who',
+  'not','no','any','some','there','here','just','also','very','really',
+  'get','got','need','want','like','make','go','come','see','know','think',
+  // Arabic stop words
+  'في','من','إلى','على','مع','عن','هذا','هذه','ذلك','التي','الذي','أن','لا','ما','كان',
+]);
+
+function extractKeywordsFromQuery(query: string): string[] {
+  return query
+    .toLowerCase()
+    .replace(/[^a-z\u0600-\u06ff\s]/g, ' ')
+    .split(/\s+/)
+    .filter((w) => w.length > 2 && !STOP_WORDS.has(w));
+}
+
 @Injectable()
 export class MarketplaceService {
   private readonly logger = new Logger(MarketplaceService.name);
@@ -158,7 +187,8 @@ export class MarketplaceService {
       .map(({ _score, _districtMatch, ...pro }) => pro);
   }
 
-  /** Call OpenRouter to semantically match specific service listings against the user's query */
+  /** Call OpenRouter to semantically match service listings against the user's query.
+   *  Tries each model in OPENROUTER_MODELS order; skips on 429. */
   private async matchServicesToQuery(
     query: string,
     candidateServices: string[],
@@ -180,49 +210,62 @@ Task: Identify which of the above services are relevant to what the customer is 
 Reply with ONLY valid JSON — no explanation, no markdown:
 {"matched": ["exact service name from the list above", ...]}`;
 
-    try {
-      const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-          'HTTP-Referer': 'https://handycall.org',
-          'X-Title': 'HandyCall Search',
-        },
-        body: JSON.stringify({
-          model: 'google/gemma-4-31b-it:free',
-          messages: [{ role: 'user', content: prompt }],
-          response_format: { type: 'json_object' },
-          max_tokens: 300,
-          temperature: 0.1,
-        }),
-      });
+    for (const model of OPENROUTER_MODELS) {
+      try {
+        const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            'Content-Type': 'application/json',
+            'HTTP-Referer': 'https://handycall.org',
+            'X-Title': 'HandyCall Search',
+          },
+          body: JSON.stringify({
+            model,
+            messages: [{ role: 'user', content: prompt }],
+            response_format: { type: 'json_object' },
+            max_tokens: 300,
+            temperature: 0.1,
+          }),
+        });
 
-      if (!res.ok) {
-        this.logger.warn(`OpenRouter service match error ${res.status}`);
-        return [];
+        if (res.status === 429) {
+          this.logger.warn(`matchServicesToQuery: ${model} rate-limited, trying next model`);
+          continue;
+        }
+
+        if (!res.ok) {
+          this.logger.warn(`matchServicesToQuery: ${model} error ${res.status}`);
+          continue;
+        }
+
+        const data = await res.json() as any;
+        const content: string = data?.choices?.[0]?.message?.content ?? '{}';
+        const cleaned = content.replace(/```json?\n?/g, '').replace(/```/g, '').trim();
+        const parsed = JSON.parse(cleaned);
+
+        this.logger.log(`matchServicesToQuery: used ${model}`);
+        return Array.isArray(parsed.matched) ? parsed.matched as string[] : [];
+      } catch (e: any) {
+        this.logger.warn(`matchServicesToQuery: ${model} threw: ${e?.message}`);
+        continue;
       }
-
-      const data = await res.json() as any;
-      const content: string = data?.choices?.[0]?.message?.content ?? '{}';
-      const cleaned = content.replace(/```json?\n?/g, '').replace(/```/g, '').trim();
-      const parsed = JSON.parse(cleaned);
-
-      return Array.isArray(parsed.matched) ? parsed.matched as string[] : [];
-    } catch (e: any) {
-      this.logger.warn(`matchServicesToQuery failed: ${e?.message}`);
-      return [];
     }
+
+    this.logger.warn('matchServicesToQuery: all models failed');
+    return [];
   }
 
-  /** Call OpenRouter to classify the query into a category + keywords */
+  /** Call OpenRouter to classify the query into a category + keywords.
+   *  Tries each model in OPENROUTER_MODELS order; skips on 429. */
   private async classifyQuery(
     query: string,
   ): Promise<{ category: string; keywords: string[] }> {
     const apiKey = this.config.get<string>('OPENROUTER_API_KEY') ?? '';
+    const fallbackKeywords = extractKeywordsFromQuery(query);
     if (!apiKey) {
-      this.logger.warn('OPENROUTER_API_KEY not set — falling back to keyword search');
-      return { category: 'GENERAL_HANDYMAN', keywords: [query] };
+      this.logger.warn('OPENROUTER_API_KEY not set — using keyword fallback');
+      return { category: 'GENERAL_HANDYMAN', keywords: fallbackKeywords };
     }
 
     const prompt = `You are a classification assistant for a home services marketplace in Saudi Arabia (Riyadh).
@@ -239,50 +282,61 @@ Task:
 Reply with ONLY valid JSON — no explanation, no markdown:
 {"category": "CATEGORY_NAME", "keywords": ["keyword1", "keyword2", "keyword3"]}`;
 
-    try {
-      const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-          'HTTP-Referer': 'https://handycall.org',
-          'X-Title': 'HandyCall Search',
-        },
-        body: JSON.stringify({
-          model: 'google/gemma-4-31b-it:free',
-          messages: [{ role: 'user', content: prompt }],
-          response_format: { type: 'json_object' },
-          max_tokens: 200,
-          temperature: 0.1,
-        }),
-      });
+    for (const model of OPENROUTER_MODELS) {
+      try {
+        const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            'Content-Type': 'application/json',
+            'HTTP-Referer': 'https://handycall.org',
+            'X-Title': 'HandyCall Search',
+          },
+          body: JSON.stringify({
+            model,
+            messages: [{ role: 'user', content: prompt }],
+            response_format: { type: 'json_object' },
+            max_tokens: 200,
+            temperature: 0.1,
+          }),
+        });
 
-      if (!res.ok) {
-        const errText = await res.text().catch(() => '');
-        this.logger.warn(`OpenRouter error ${res.status}: ${errText}`);
-        return { category: 'GENERAL_HANDYMAN', keywords: [query] };
+        if (res.status === 429) {
+          this.logger.warn(`classifyQuery: ${model} rate-limited, trying next model`);
+          continue;
+        }
+
+        if (!res.ok) {
+          const errText = await res.text().catch(() => '');
+          this.logger.warn(`classifyQuery: ${model} error ${res.status}: ${errText}`);
+          continue;
+        }
+
+        const data = await res.json() as any;
+        const content: string = data?.choices?.[0]?.message?.content ?? '{}';
+        const cleaned = content.replace(/```json?\n?/g, '').replace(/```/g, '').trim();
+        const parsed = JSON.parse(cleaned);
+
+        const category = (parsed.category as string ?? 'GENERAL_HANDYMAN').toUpperCase();
+        const keywords: string[] = Array.isArray(parsed.keywords)
+          ? parsed.keywords as string[]
+          : fallbackKeywords;
+
+        const validCategory = SERVICE_CATEGORIES.includes(category as ServiceCategory)
+          ? category
+          : 'GENERAL_HANDYMAN';
+
+        this.logger.log(`classifyQuery: used ${model}`);
+        return { category: validCategory, keywords };
+      } catch (e: any) {
+        this.logger.warn(`classifyQuery: ${model} threw: ${e?.message}`);
+        continue;
       }
-
-      const data = await res.json() as any;
-      const content: string = data?.choices?.[0]?.message?.content ?? '{}';
-
-      // Strip markdown code fences if model ignores the instruction
-      const cleaned = content.replace(/```json?\n?/g, '').replace(/```/g, '').trim();
-      const parsed = JSON.parse(cleaned);
-
-      const category = (parsed.category as string ?? 'GENERAL_HANDYMAN').toUpperCase();
-      const keywords = Array.isArray(parsed.keywords) ? parsed.keywords as string[] : [query];
-
-      // Validate category is known
-      const validCategory = SERVICE_CATEGORIES.includes(category as ServiceCategory)
-        ? category
-        : 'GENERAL_HANDYMAN';
-
-      return { category: validCategory, keywords };
-    } catch (e: any) {
-      this.logger.warn(`classifyQuery failed: ${e?.message}`);
-      return { category: 'GENERAL_HANDYMAN', keywords: [query] };
     }
+
+    // All models failed — use smart keyword extraction so individual words still match
+    this.logger.warn('classifyQuery: all models failed, using keyword fallback');
+    return { category: 'GENERAL_HANDYMAN', keywords: fallbackKeywords };
   }
 
   /** Get all supported categories and districts for the browse UI */
