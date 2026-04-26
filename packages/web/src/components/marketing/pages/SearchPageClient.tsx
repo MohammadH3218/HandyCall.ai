@@ -85,10 +85,14 @@ function getCategory(pro: ProResult) {
   return pro.service_category || pro.marketplace_profile?.service_category || '';
 }
 
-function getServices(pro: ProResult) {
+function getMatchedServices(pro: ProResult): string[] {
   if (Array.isArray(pro._matchedServices) && pro._matchedServices.length > 0) {
     return pro._matchedServices;
   }
+  return [];
+}
+
+function getAllServices(pro: ProResult): string[] {
   if (Array.isArray(pro.services_offered) && pro.services_offered.length > 0) {
     return pro.services_offered;
   }
@@ -96,6 +100,10 @@ function getServices(pro: ProResult) {
     return pro.marketplace_profile!.services_offered!;
   }
   return [];
+}
+
+function getServices(pro: ProResult) {
+  return getAllServices(pro);
 }
 
 function getPropertyTypes(pro: ProResult) {
@@ -234,6 +242,8 @@ function ProCard({
   const bio = getBio(pro);
   const category = getCategory(pro);
   const services = getServices(pro);
+  const matchedServices = getMatchedServices(pro);
+  const unmatchedServices = services.filter((s) => !matchedServices.includes(s));
   const districts = getDistricts(pro);
   const rating = getRating(pro);
   const reviewCount = getReviewCount(pro);
@@ -339,10 +349,20 @@ function ProCard({
 
           {services.length > 0 ? (
             <div className="mt-4 flex flex-wrap gap-2">
-              {services.slice(0, 6).map((service) => (
+              {/* Matched services in green */}
+              {matchedServices.map((service) => (
                 <span
                   key={service}
                   className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-700"
+                >
+                  {service}
+                </span>
+              ))}
+              {/* Remaining services in slate */}
+              {unmatchedServices.slice(0, Math.max(0, 6 - matchedServices.length)).map((service) => (
+                <span
+                  key={service}
+                  className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-500"
                 >
                   {service}
                 </span>

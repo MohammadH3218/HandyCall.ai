@@ -51,20 +51,38 @@ export class MarketplaceService {
 
   /** AI-powered pro search: natural language query → ranked pro list */
   async aiSearch(params: { q: string; district?: string }): Promise<any[]> {
-    // 1. Classify the query via OpenRouter
-    const { category, keywords } = await this.classifyQuery(params.q);
-    this.logger.log(`AI search: q="${params.q}" → category=${category}, keywords=${keywords.join(', ')}`);
+    // 1. In parallel: classify query + fetch all active pros
+    const [{ category, keywords }, { items: pros }] = await Promise.all([
+      this.classifyQuery(params.q),
+      this.db.scan('pros', {
+        filterExpression: '#status = :active AND marketplace_profile_completed = :done',
+        expressionAttributeNames: { '#status': 'status' },
+        expressionAttributeValues: { ':active': 'ACTIVE', ':done': true },
+      }),
+    ]);
 
-    // 2. Fetch all ACTIVE pros who have completed their profile
-    const { items: pros } = await this.db.scan('pros', {
-      filterExpression: '#status = :active AND marketplace_profile_completed = :done',
-      expressionAttributeNames: { '#status': 'status' },
-      expressionAttributeValues: { ':active': 'ACTIVE', ':done': true },
-    });
+    this.logger.log(`AI search: q="${params.q}" → category=${category}, keywords=${keywords.join(', ')}`);
 
     if (pros.length === 0) return [];
 
-    // 3. Score each pro
+    // 2. Collect all unique specific services listed by pros
+    const allServices = new Set<string>();
+    for (const pro of pros) {
+      const mp = (pro.marketplace_profile as Record<string, any>) ?? {};
+      const services: string[] = Array.isArray(pro.services_offered)
+        ? pro.services_offered
+        : Array.isArray(mp.services_offered)
+          ? mp.services_offered
+          : [];
+      services.forEach((s) => allServices.add(s));
+    }
+
+    // 3. Semantically match services to the query via a second LLM call
+    const semanticMatches = await this.matchServicesToQuery(params.q, [...allServices]);
+    const semanticMatchSet = new Set(semanticMatches.map((s) => s.toLowerCase()));
+    this.logger.log(`Semantic service matches: ${semanticMatches.join(', ') || 'none'}`);
+
+    // 4. Score each pro
     const normalizedKeywords = keywords.map((k: string) => k.toLowerCase());
 
     const scored = await Promise.all(pros.map(async (pro: any) => {
@@ -86,14 +104,19 @@ export class MarketplaceService {
         : Array.isArray(pro.service_districts) ? pro.service_districts
         : [];
 
-      // Score: 2 = specific service match, 1 = category match, 0 = no match
       const normalizedServices = servicesOffered.map((s) => s.toLowerCase());
-      const specificMatch = normalizedKeywords.some((kw) =>
+
+      // Keyword match (fast path)
+      const keywordMatch = normalizedKeywords.some((kw) =>
         normalizedServices.some((s) => s.includes(kw)),
       );
-      const categoryMatch =
-        proCategory.toUpperCase() === category.toUpperCase();
+      // Semantic match: LLM identified this service as relevant to the query
+      const aiServiceMatch = normalizedServices.some((s) => semanticMatchSet.has(s));
 
+      const specificMatch = keywordMatch || aiServiceMatch;
+      const categoryMatch = proCategory.toUpperCase() === category.toUpperCase();
+
+      // Score: 2 = specific service match, 1 = category match, 0 = no match
       const score = specificMatch ? 2 : categoryMatch ? 1 : 0;
 
       // District match bonus for tiebreaking
@@ -105,10 +128,11 @@ export class MarketplaceService {
           ? 1
           : 0;
 
-      // Highlight which services matched
+      // Highlight which services matched (keyword or semantic)
       const matchedServices = specificMatch
         ? servicesOffered.filter((s) =>
-            normalizedKeywords.some((kw) => s.toLowerCase().includes(kw)),
+            normalizedKeywords.some((kw) => s.toLowerCase().includes(kw)) ||
+            semanticMatchSet.has(s.toLowerCase()),
           )
         : [];
 
@@ -127,11 +151,68 @@ export class MarketplaceService {
       };
     }));
 
-    // 4. Filter to relevant results; if a district was specified, only include pros who serve it
+    // 5. Filter to relevant results; if a district was specified, only include pros who serve it
     return scored
       .filter((p) => p._score > 0 && (!params.district || p._districtMatch > 0))
       .sort((a, b) => b._score - a._score || b._districtMatch - a._districtMatch)
       .map(({ _score, _districtMatch, ...pro }) => pro);
+  }
+
+  /** Call OpenRouter to semantically match specific service listings against the user's query */
+  private async matchServicesToQuery(
+    query: string,
+    candidateServices: string[],
+  ): Promise<string[]> {
+    if (candidateServices.length === 0) return [];
+
+    const apiKey = this.config.get<string>('OPENROUTER_API_KEY') ?? '';
+    if (!apiKey) return [];
+
+    const prompt = `You are a matching assistant for a home services marketplace in Saudi Arabia (Riyadh).
+
+Customer query: "${query}"
+
+Services listed by professionals on the platform:
+${candidateServices.map((s, i) => `${i + 1}. "${s}"`).join('\n')}
+
+Task: Identify which of the above services are relevant to what the customer is asking for. Consider synonyms, related problems, and implied needs. For example, "I have a leak in my sprinkler system in my grass" should match "Sprinkler Leak Detection & Repair".
+
+Reply with ONLY valid JSON — no explanation, no markdown:
+{"matched": ["exact service name from the list above", ...]}`;
+
+    try {
+      const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+          'HTTP-Referer': 'https://handycall.org',
+          'X-Title': 'HandyCall Search',
+        },
+        body: JSON.stringify({
+          model: 'google/gemma-4-31b-it:free',
+          messages: [{ role: 'user', content: prompt }],
+          response_format: { type: 'json_object' },
+          max_tokens: 300,
+          temperature: 0.1,
+        }),
+      });
+
+      if (!res.ok) {
+        this.logger.warn(`OpenRouter service match error ${res.status}`);
+        return [];
+      }
+
+      const data = await res.json() as any;
+      const content: string = data?.choices?.[0]?.message?.content ?? '{}';
+      const cleaned = content.replace(/```json?\n?/g, '').replace(/```/g, '').trim();
+      const parsed = JSON.parse(cleaned);
+
+      return Array.isArray(parsed.matched) ? parsed.matched as string[] : [];
+    } catch (e: any) {
+      this.logger.warn(`matchServicesToQuery failed: ${e?.message}`);
+      return [];
+    }
   }
 
   /** Call OpenRouter to classify the query into a category + keywords */
