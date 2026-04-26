@@ -18,10 +18,10 @@ import {
   IconSend,
 } from '@tabler/icons-react';
 
-// Dynamically imported because react-leaflet requires the browser environment
+// Dynamically imported — Mapbox GL requires the browser environment
 const CustomerAddressMap = dynamic(
   () => import('@/components/customer/customer-address-map'),
-  { ssr: false, loading: () => <div className="h-[320px] animate-pulse rounded-[20px] bg-slate-100" /> },
+  { ssr: false, loading: () => <div className="h-[380px] animate-pulse rounded-[28px] bg-slate-100 md:h-[480px]" /> },
 );
 
 const URGENCY_OPTIONS = [

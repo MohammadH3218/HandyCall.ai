@@ -1,104 +1,14 @@
 'use client';
 
-import 'leaflet/dist/leaflet.css';
-import { useEffect, useRef } from 'react';
-import {
-  MapContainer,
-  TileLayer,
-  useMap,
-  useMapEvents,
-} from 'react-leaflet';
-import { type LatLngExpression } from 'leaflet';
-import { IconCurrentLocation, IconMapPin, IconMinus, IconPlus } from '@tabler/icons-react';
+import 'mapbox-gl/dist/mapbox-gl.css';
+import mapboxgl from 'mapbox-gl';
+import { useEffect, useRef, useState } from 'react';
+import { IconCurrentLocation, IconMinus, IconPlus } from '@tabler/icons-react';
 
-const DEFAULT_CENTER: [number, number] = [24.7136, 46.6753];
+const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? '';
 
-function MapViewport({
-  center,
-  hasPinnedLocation,
-}: {
-  center: LatLngExpression;
-  hasPinnedLocation: boolean;
-}) {
-  const map = useMap();
-
-  useEffect(() => {
-    map.setView(center, hasPinnedLocation ? Math.max(map.getZoom(), 16) : Math.max(map.getZoom(), 12), {
-      animate: true,
-    });
-  }, [center, hasPinnedLocation, map]);
-
-  return null;
-}
-
-function MapInteractionHandler({
-  onPositionChange,
-}: {
-  onPositionChange: (position: { lat: number; lng: number }) => void;
-}) {
-  const hasMountedRef = useRef(false);
-  const map = useMapEvents({
-    click(event) {
-      map.flyTo(event.latlng, Math.max(map.getZoom(), 17), { animate: true, duration: 0.35 });
-      onPositionChange({
-        lat: event.latlng.lat,
-        lng: event.latlng.lng,
-      });
-    },
-    moveend() {
-      if (!hasMountedRef.current) {
-        hasMountedRef.current = true;
-        return;
-      }
-      const center = map.getCenter();
-      onPositionChange({
-        lat: center.lat,
-        lng: center.lng,
-      });
-    },
-  });
-
-  return null;
-}
-
-function MapToolbar({
-  onLocateMe,
-}: {
-  onLocateMe: () => void;
-}) {
-  const map = useMap();
-
-  return (
-    <div className="pointer-events-none absolute bottom-4 right-4 z-[500] flex flex-col gap-2">
-      <div className="pointer-events-auto flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg">
-        <button
-          type="button"
-          onClick={(e) => { e.preventDefault(); e.stopPropagation(); map.zoomIn(); }}
-          className="flex h-11 w-11 items-center justify-center border-b border-slate-200 text-slate-700 transition hover:bg-slate-50"
-          aria-label="Zoom in"
-        >
-          <IconPlus className="h-4 w-4" stroke={2} />
-        </button>
-        <button
-          type="button"
-          onClick={(e) => { e.preventDefault(); e.stopPropagation(); map.zoomOut(); }}
-          className="flex h-11 w-11 items-center justify-center text-slate-700 transition hover:bg-slate-50"
-          aria-label="Zoom out"
-        >
-          <IconMinus className="h-4 w-4" stroke={2} />
-        </button>
-      </div>
-      <button
-        type="button"
-        onClick={(e) => { e.preventDefault(); e.stopPropagation(); onLocateMe(); }}
-        className="pointer-events-auto flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700 shadow-lg transition hover:bg-slate-50"
-        aria-label="Use my current location"
-      >
-        <IconCurrentLocation className="h-4 w-4" stroke={2} />
-      </button>
-    </div>
-  );
-}
+// Riyadh city centre
+const DEFAULT_CENTER: [number, number] = [46.6753, 24.7136]; // [lng, lat] for Mapbox
 
 export default function CustomerAddressMap({
   latitude,
@@ -109,56 +19,134 @@ export default function CustomerAddressMap({
   longitude: number | null;
   onPositionChange: (position: { lat: number; lng: number }) => void;
 }) {
-  const markerPosition: [number, number] =
-    latitude !== null && longitude !== null ? [latitude, longitude] : DEFAULT_CENTER;
+  const containerRef = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<mapboxgl.Map | null>(null);
+  const markerRef = useRef<mapboxgl.Marker | null>(null);
+  const [ready, setReady] = useState(false);
+
+  // Initialise map once
+  useEffect(() => {
+    if (!containerRef.current || mapRef.current) return;
+
+    mapboxgl.accessToken = MAPBOX_TOKEN;
+
+    const initialCenter: [number, number] =
+      longitude !== null && latitude !== null
+        ? [longitude, latitude]
+        : DEFAULT_CENTER;
+
+    const map = new mapboxgl.Map({
+      container: containerRef.current,
+      style: 'mapbox://styles/mapbox/streets-v12',
+      center: initialCenter,
+      zoom: longitude !== null && latitude !== null ? 16 : 12,
+      attributionControl: false,
+    });
+
+    // Custom compact attribution
+    map.addControl(new mapboxgl.AttributionControl({ compact: true }), 'bottom-left');
+
+    // Draggable pin marker
+    const el = document.createElement('div');
+    el.className = 'mapbox-custom-pin';
+    el.innerHTML = `
+      <div style="display:flex;flex-direction:column;align-items:center;transform:translateY(-100%)">
+        <div style="background:#059669;border-radius:50%;padding:10px;color:#fff;box-shadow:0 8px 24px rgba(5,150,105,0.4)">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M20 10c0 6-8 13-8 13s-8-7-8-13a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/>
+          </svg>
+        </div>
+        <div style="width:4px;height:14px;background:#047857;border-radius:0 0 4px 4px;margin-top:-2px"></div>
+      </div>
+    `;
+
+    const marker = new mapboxgl.Marker({ element: el, draggable: true, anchor: 'bottom' })
+      .setLngLat(initialCenter)
+      .addTo(map);
+
+    markerRef.current = marker;
+
+    // Report position when marker drag ends
+    marker.on('dragend', () => {
+      const lngLat = marker.getLngLat();
+      onPositionChange({ lat: lngLat.lat, lng: lngLat.lng });
+    });
+
+    // Click on map moves the marker
+    map.on('click', (e) => {
+      marker.setLngLat(e.lngLat);
+      map.flyTo({ center: e.lngLat, zoom: Math.max(map.getZoom(), 16), duration: 350 });
+      onPositionChange({ lat: e.lngLat.lat, lng: e.lngLat.lng });
+    });
+
+    map.on('load', () => setReady(true));
+
+    mapRef.current = map;
+
+    return () => {
+      map.remove();
+      mapRef.current = null;
+      markerRef.current = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Sync external lat/lng changes to the marker (e.g. profile prefill)
+  useEffect(() => {
+    if (!mapRef.current || !markerRef.current) return;
+    if (latitude === null || longitude === null) return;
+
+    const lngLat: [number, number] = [longitude, latitude];
+    markerRef.current.setLngLat(lngLat);
+    mapRef.current.flyTo({ center: lngLat, zoom: Math.max(mapRef.current.getZoom(), 16), duration: 500 });
+  }, [latitude, longitude]);
 
   const handleLocateMe = () => {
     if (typeof navigator === 'undefined' || !navigator.geolocation) return;
     navigator.geolocation.getCurrentPosition(
-      (position) => {
-        onPositionChange({
-          lat: position.coords.latitude,
-          lng: position.coords.longitude,
-        });
+      (pos) => {
+        onPositionChange({ lat: pos.coords.latitude, lng: pos.coords.longitude });
       },
       () => undefined,
-      { enableHighAccuracy: true, timeout: 10000 }
+      { enableHighAccuracy: true, timeout: 10000 },
     );
   };
 
   return (
     <div className="relative overflow-hidden rounded-[28px] border border-slate-200 bg-slate-100 shadow-sm">
-      <MapContainer
-        center={markerPosition}
-        zoom={latitude !== null && longitude !== null ? 16 : 12}
-        zoomControl={false}
-        scrollWheelZoom
-        className="h-[380px] w-full md:h-[480px]"
-      >
-        <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
-          url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
-          subdomains="abcd"
-          maxZoom={20}
-        />
-        <MapViewport
-          center={markerPosition}
-          hasPinnedLocation={latitude !== null && longitude !== null}
-        />
-        <MapInteractionHandler onPositionChange={onPositionChange} />
-        <MapToolbar onLocateMe={handleLocateMe} />
-      </MapContainer>
+      <div ref={containerRef} className="h-[380px] w-full md:h-[480px]" />
 
-      <div className="pointer-events-none absolute left-1/2 top-1/2 z-[450] -translate-x-1/2 -translate-y-full">
-        <div className="flex flex-col items-center">
-          <div className="rounded-full bg-emerald-600 p-3 text-white shadow-[0_12px_30px_rgba(5,150,105,0.35)]">
-            <IconMapPin className="h-5 w-5" stroke={2.2} />
+      {/* Zoom + locate toolbar */}
+      {ready && (
+        <div className="pointer-events-none absolute bottom-4 right-4 z-10 flex flex-col gap-2">
+          <div className="pointer-events-auto flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg">
+            <button
+              type="button"
+              onClick={() => mapRef.current?.zoomIn()}
+              className="flex h-11 w-11 items-center justify-center border-b border-slate-200 text-slate-700 transition hover:bg-slate-50"
+              aria-label="Zoom in"
+            >
+              <IconPlus className="h-4 w-4" stroke={2} />
+            </button>
+            <button
+              type="button"
+              onClick={() => mapRef.current?.zoomOut()}
+              className="flex h-11 w-11 items-center justify-center text-slate-700 transition hover:bg-slate-50"
+              aria-label="Zoom out"
+            >
+              <IconMinus className="h-4 w-4" stroke={2} />
+            </button>
           </div>
-          <div className="-mt-1.5 h-4 w-1 rounded-b-full bg-emerald-700" />
+          <button
+            type="button"
+            onClick={handleLocateMe}
+            className="pointer-events-auto flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700 shadow-lg transition hover:bg-slate-50"
+            aria-label="Use my current location"
+          >
+            <IconCurrentLocation className="h-4 w-4" stroke={2} />
+          </button>
         </div>
-      </div>
-
-      <div className="pointer-events-none absolute left-1/2 top-1/2 z-[430] h-8 w-8 -translate-x-1/2 -translate-y-1/2 rounded-full border border-emerald-300/60 bg-emerald-200/15" />
+      )}
     </div>
   );
 }

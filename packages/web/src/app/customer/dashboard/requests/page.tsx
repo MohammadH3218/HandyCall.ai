@@ -4,9 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import {
   IconCalendar,
-  IconCheck,
   IconClock,
-  IconEdit,
   IconMapPin,
   IconMessageCircle,
   IconPhone,
@@ -38,22 +36,6 @@ type CustomerRequest = {
   responses?: Array<{ response_id: string; responded_at?: number; company_id?: string; status?: string }>;
 };
 
-type EditDraft = {
-  job_description: string;
-  location_address_line1: string;
-  location_address_line2: string;
-  location_city: string;
-  location_state: string;
-  location_zipcode: string;
-  contact_name: string;
-  contact_email: string;
-  contact_phone: string;
-  urgency: string;
-};
-
-const INPUT_CLS =
-  'w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-900 placeholder-slate-400 outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100';
-
 function isPastRequest(request: CustomerRequest) {
   const status = String(request.status || '').toUpperCase();
   return ['CLOSED', 'CANCELLED', 'COMPLETED'].includes(status);
@@ -82,21 +64,6 @@ function formatUrgency(value?: string) {
   }
 }
 
-function buildDraft(request: CustomerRequest): EditDraft {
-  return {
-    job_description: request.job_description || '',
-    location_address_line1: request.location_address_line1 || '',
-    location_address_line2: request.location_address_line2 || '',
-    location_city: request.location_city || '',
-    location_state: request.location_state || 'TX',
-    location_zipcode: request.location_zipcode || '',
-    contact_name: request.contact_name || '',
-    contact_email: request.contact_email || '',
-    contact_phone: request.contact_phone || '',
-    urgency: request.urgency || 'flexible',
-  };
-}
-
 export default function CustomerRequestsPage() {
   const searchParams = useSearchParams();
   const [tab, setTab] = useState<RequestTab>('active');
@@ -104,12 +71,9 @@ export default function CustomerRequestsPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(
-    searchParams.get('submitted') === '1' ? 'Request sent. You can edit it here any time.' : null
+  const [notice] = useState<string | null>(
+    searchParams.get('submitted') === '1' ? 'Request sent successfully.' : null
   );
-  const [editing, setEditing] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [draft, setDraft] = useState<EditDraft | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -150,53 +114,12 @@ export default function CustomerRequestsPage() {
     visibleRequests[0] ||
     null;
 
-  useEffect(() => {
-    if (!selectedRequest) {
-      setDraft(null);
-      return;
-    }
-    setDraft(buildDraft(selectedRequest));
-  }, [selectedRequest]);
-
-  const handleEditToggle = () => {
-    if (!selectedRequest) return;
-    setEditing((current) => {
-      const next = !current;
-      if (!next) {
-        setDraft(buildDraft(selectedRequest));
-      }
-      return next;
-    });
-  };
-
-  const handleSave = async () => {
-    if (!selectedRequest || !draft) return;
-    setSaving(true);
-    setError(null);
-    setNotice(null);
-
-    try {
-      const updated = await apiClient.updateCustomerQuoteRequest(selectedRequest.quote_id, draft);
-      setRequests((current) =>
-        current
-          .map((request) => (request.quote_id === selectedRequest.quote_id ? { ...request, ...updated } : request))
-          .sort((a, b) => Number(b.updated_at || b.created_at || 0) - Number(a.updated_at || a.created_at || 0))
-      );
-      setEditing(false);
-      setNotice('Request updated. Pros will now see the latest details.');
-    } catch (err: any) {
-      setError(err?.message || 'Could not save your updates.');
-    } finally {
-      setSaving(false);
-    }
-  };
-
   return (
     <div className="max-w-6xl space-y-5">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Requests</h1>
-          <p className="mt-1 text-sm text-slate-500">Active requests stay at the top, and you can update the details any time.</p>
+          <p className="mt-1 text-sm text-slate-500">Track your active and past service requests.</p>
         </div>
         <Link
           href="/request"
@@ -251,10 +174,7 @@ export default function CustomerRequestsPage() {
             {visibleRequests.map((request) => (
               <button
                 key={request.quote_id}
-                onClick={() => {
-                  setSelectedId(request.quote_id);
-                  setEditing(false);
-                }}
+                onClick={() => setSelectedId(request.quote_id)}
                 className={`w-full rounded-2xl border p-4 text-left transition ${
                   selectedRequest?.quote_id === request.quote_id
                     ? 'border-emerald-400 bg-emerald-50'
@@ -284,34 +204,13 @@ export default function CustomerRequestsPage() {
             ))}
           </div>
 
-          {selectedRequest && draft ? (
+          {selectedRequest ? (
             <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <h2 className="text-2xl font-bold text-slate-900">{selectedRequest.service_category}</h2>
-                  <p className="mt-1 text-sm text-slate-500">
-                    Submitted {selectedRequest.created_at ? new Date(selectedRequest.created_at).toLocaleString() : 'recently'}
-                  </p>
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={handleEditToggle}
-                    className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300"
-                  >
-                    <IconEdit className="h-4 w-4" stroke={1.8} />
-                    {editing ? 'Cancel' : 'Edit'}
-                  </button>
-                  {editing ? (
-                    <button
-                      onClick={() => void handleSave()}
-                      disabled={saving}
-                      className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-60"
-                    >
-                      <IconCheck className="h-4 w-4" stroke={1.8} />
-                      {saving ? 'Saving...' : 'Save'}
-                    </button>
-                  ) : null}
-                </div>
+              <div>
+                <h2 className="text-2xl font-bold text-slate-900">{selectedRequest.service_category}</h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  Submitted {selectedRequest.created_at ? new Date(selectedRequest.created_at).toLocaleString() : 'recently'}
+                </p>
               </div>
 
               <div className="mt-6 grid gap-4 md:grid-cols-3">
@@ -353,105 +252,10 @@ export default function CustomerRequestsPage() {
                 </div>
               </div>
 
-              {editing ? (
-                <div className="mt-6 space-y-4 rounded-2xl border border-slate-200 bg-slate-50 p-5">
-                  <div>
-                    <label className="mb-1.5 block text-sm font-medium text-slate-700">Job description</label>
-                    <textarea
-                      rows={5}
-                      className={`${INPUT_CLS} resize-none`}
-                      value={draft.job_description}
-                      onChange={(e) => setDraft((current) => current ? { ...current, job_description: e.target.value } : current)}
-                    />
-                  </div>
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <div>
-                      <label className="mb-1.5 block text-sm font-medium text-slate-700">Address</label>
-                      <input
-                        className={INPUT_CLS}
-                        value={draft.location_address_line1}
-                        onChange={(e) => setDraft((current) => current ? { ...current, location_address_line1: e.target.value } : current)}
-                      />
-                    </div>
-                    <div>
-                      <label className="mb-1.5 block text-sm font-medium text-slate-700">Unit</label>
-                      <input
-                        className={INPUT_CLS}
-                        value={draft.location_address_line2}
-                        onChange={(e) => setDraft((current) => current ? { ...current, location_address_line2: e.target.value } : current)}
-                      />
-                    </div>
-                    <div>
-                      <label className="mb-1.5 block text-sm font-medium text-slate-700">City</label>
-                      <input
-                        className={INPUT_CLS}
-                        value={draft.location_city}
-                        onChange={(e) => setDraft((current) => current ? { ...current, location_city: e.target.value } : current)}
-                      />
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="mb-1.5 block text-sm font-medium text-slate-700">State</label>
-                        <input
-                          className={INPUT_CLS}
-                          value={draft.location_state}
-                          onChange={(e) => setDraft((current) => current ? { ...current, location_state: e.target.value.toUpperCase().slice(0, 2) } : current)}
-                        />
-                      </div>
-                      <div>
-                        <label className="mb-1.5 block text-sm font-medium text-slate-700">ZIP</label>
-                        <input
-                          className={INPUT_CLS}
-                          value={draft.location_zipcode}
-                          onChange={(e) => setDraft((current) => current ? { ...current, location_zipcode: e.target.value.replace(/\D/g, '').slice(0, 5) } : current)}
-                        />
-                      </div>
-                    </div>
-                    <div>
-                      <label className="mb-1.5 block text-sm font-medium text-slate-700">Full name</label>
-                      <input
-                        className={INPUT_CLS}
-                        value={draft.contact_name}
-                        onChange={(e) => setDraft((current) => current ? { ...current, contact_name: e.target.value } : current)}
-                      />
-                    </div>
-                    <div>
-                      <label className="mb-1.5 block text-sm font-medium text-slate-700">Email</label>
-                      <input
-                        className={INPUT_CLS}
-                        value={draft.contact_email}
-                        onChange={(e) => setDraft((current) => current ? { ...current, contact_email: e.target.value } : current)}
-                      />
-                    </div>
-                    <div>
-                      <label className="mb-1.5 block text-sm font-medium text-slate-700">Phone</label>
-                      <input
-                        className={INPUT_CLS}
-                        value={draft.contact_phone}
-                        onChange={(e) => setDraft((current) => current ? { ...current, contact_phone: e.target.value } : current)}
-                      />
-                    </div>
-                    <div>
-                      <label className="mb-1.5 block text-sm font-medium text-slate-700">Urgency</label>
-                      <select
-                        className={INPUT_CLS}
-                        value={draft.urgency}
-                        onChange={(e) => setDraft((current) => current ? { ...current, urgency: e.target.value } : current)}
-                      >
-                        <option value="emergency">Emergency</option>
-                        <option value="urgent">Within 1-2 days</option>
-                        <option value="this_week">This week</option>
-                        <option value="flexible">Flexible</option>
-                      </select>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-5">
-                  <p className="text-sm font-semibold text-slate-900">Request details</p>
-                  <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-600">{selectedRequest.job_description}</p>
-                </div>
-              )}
+              <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-5">
+                <p className="text-sm font-semibold text-slate-900">Job description</p>
+                <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-600">{selectedRequest.job_description}</p>
+              </div>
             </div>
           ) : null}
         </div>
