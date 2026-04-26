@@ -19,7 +19,7 @@ import {
 const NAV = [
   { href: '/pro/dashboard', label: 'Overview', icon: IconLayoutDashboard, exact: true },
   { href: '/pro/dashboard/requests', label: 'Requests', icon: IconListCheck },
-  { href: '/pro/dashboard/messages', label: 'Messages', icon: IconMessage },
+  { href: '/pro/dashboard/messages', label: 'Inbox', icon: IconMessage },
   { href: '/pro/dashboard/marketplace', label: 'My profile', icon: IconUser },
   { href: '/pro/dashboard/settings', label: 'Settings', icon: IconSettings },
 ];

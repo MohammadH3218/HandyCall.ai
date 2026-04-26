@@ -64,37 +64,31 @@ export function ImageLightbox({
           </button>
         ) : null}
 
-        <div className="w-full overflow-hidden rounded-[28px] bg-white p-3 shadow-2xl">
-          <div className="relative flex min-h-[60vh] items-center justify-center rounded-[22px] bg-slate-100">
-            <img
-              src={activeImage.src}
-              alt={activeImage.alt || `Image ${current + 1}`}
-              className="max-h-[80vh] w-full rounded-[22px] object-contain"
-            />
-          </div>
+        <div className="flex flex-col items-center gap-3">
+          {/* Image — no card wrapper, no padding, no background */}
+          <img
+            src={activeImage.src}
+            alt={activeImage.alt || `Image ${current + 1}`}
+            className="max-h-[85vh] max-w-full rounded-2xl object-contain shadow-2xl"
+          />
 
-          <div className="flex flex-col gap-3 px-2 pb-1 pt-3 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-sm font-medium text-slate-700">
-              Image {current + 1} of {images.length}
-            </p>
-
-            {hasMultiple ? (
-              <div className="flex flex-wrap gap-1.5">
-                {images.slice(0, 10).map((image, index) => (
-                  <button
-                    key={`${image.src}-${index}`}
-                    onClick={() => setCurrent(index)}
-                    className={`h-12 w-12 overflow-hidden rounded-xl border transition ${
-                      index === current ? 'border-slate-900' : 'border-slate-200'
-                    }`}
-                    aria-label={`View image ${index + 1}`}
-                  >
-                    <img src={image.src} alt={image.alt || `Thumbnail ${index + 1}`} className="h-full w-full object-cover" />
-                  </button>
-                ))}
-              </div>
-            ) : null}
-          </div>
+          {/* Caption / thumbnails row */}
+          {hasMultiple ? (
+            <div className="flex flex-wrap justify-center gap-1.5">
+              {images.slice(0, 10).map((image, index) => (
+                <button
+                  key={`${image.src}-${index}`}
+                  onClick={() => setCurrent(index)}
+                  className={`h-12 w-12 overflow-hidden rounded-xl border-2 transition ${
+                    index === current ? 'border-white' : 'border-white/30'
+                  }`}
+                  aria-label={`View image ${index + 1}`}
+                >
+                  <img src={image.src} alt={image.alt || `Thumbnail ${index + 1}`} className="h-full w-full object-cover" />
+                </button>
+              ))}
+            </div>
+          ) : null}
         </div>
 
         {hasMultiple ? (

@@ -490,50 +490,82 @@ export function PortalInboxShell({
                                     <p className="px-3 text-center text-xs font-medium text-slate-400">{message.body}</p>
                                   ) : null}
                                   {(message.body || attachments.length > 0) ? (
-                                    !isSystemMessage ? (
-                                      <div
-                                        className={`rounded-[22px] px-4 py-3 text-sm shadow-sm ${
-                                          message.isOwn
-                                            ? 'rounded-br-md bg-emerald-600 text-white'
-                                            : 'rounded-bl-md bg-slate-200 text-slate-900'
-                                        }`}
-                                      >
-                                        {message.body ? <p className="whitespace-pre-wrap break-words">{message.body}</p> : null}
+                                    !isSystemMessage ? (() => {
+                                      const hasText = Boolean(message.body);
+                                      const imageAttachments = attachments.filter((a) => !a.is_video);
+                                      const videoAttachments = attachments.filter((a) => a.is_video);
 
-                                        {attachments.length > 0 ? (
-                                          <div className={`mt-2 grid grid-cols-2 gap-2 ${message.isOwn ? 'max-w-sm' : 'max-w-md'}`}>
-                                            {attachments.map((attachment, index) => (
-                                              attachment.is_video ? (
-                                                <div key={`${attachment.url}-${index}`} className="overflow-hidden rounded-2xl border border-black/5 bg-black/5 col-span-2">
-                                                  <video
-                                                    src={attachment.url}
-                                                    controls
-                                                    preload="metadata"
-                                                    className="w-full max-h-64 rounded-2xl"
-                                                  />
-                                                </div>
-                                              ) : (
-                                                <button
-                                                  key={`${attachment.url}-${index}`}
-                                                  type="button"
-                                                  onClick={() => {
-                                                    setLightboxImages(attachments.filter((a) => !a.is_video));
-                                                    setLightboxIndex(index);
-                                                  }}
-                                                  className="overflow-hidden rounded-2xl border border-black/5 bg-white/10"
-                                                >
-                                                  <img
-                                                    src={attachment.url}
-                                                    alt={attachment.name || `Attachment ${index + 1}`}
-                                                    className="aspect-square h-full w-full object-cover"
-                                                  />
-                                                </button>
-                                              )
-                                            ))}
+                                      const imageGrid = imageAttachments.length > 0 ? (
+                                        <div className={`grid gap-0.5 ${imageAttachments.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
+                                          {imageAttachments.map((attachment, index) => (
+                                            <button
+                                              key={`${attachment.url}-${index}`}
+                                              type="button"
+                                              onClick={() => {
+                                                setLightboxImages(imageAttachments);
+                                                setLightboxIndex(index);
+                                              }}
+                                              className="block overflow-hidden"
+                                            >
+                                              <img
+                                                src={attachment.url}
+                                                alt={attachment.name || `Attachment ${index + 1}`}
+                                                className="aspect-square w-full object-cover"
+                                              />
+                                            </button>
+                                          ))}
+                                        </div>
+                                      ) : null;
+
+                                      const videoGrid = videoAttachments.length > 0 ? (
+                                        <div className="space-y-0.5">
+                                          {videoAttachments.map((attachment, index) => (
+                                            <video
+                                              key={`${attachment.url}-${index}`}
+                                              src={attachment.url}
+                                              controls
+                                              preload="metadata"
+                                              className="w-full max-h-64 rounded-none"
+                                            />
+                                          ))}
+                                        </div>
+                                      ) : null;
+
+                                      // Images-only: no bubble, no padding — just the image grid
+                                      if (!hasText && imageAttachments.length > 0 && videoAttachments.length === 0) {
+                                        return (
+                                          <div className={`overflow-hidden rounded-[22px] shadow-sm ${message.isOwn ? 'rounded-br-md' : 'rounded-bl-md'} max-w-[280px]`}>
+                                            {imageGrid}
                                           </div>
-                                        ) : null}
-                                      </div>
-                                    ) : null
+                                        );
+                                      }
+
+                                      // Video-only: minimal container
+                                      if (!hasText && videoAttachments.length > 0 && imageAttachments.length === 0) {
+                                        return (
+                                          <div className={`overflow-hidden rounded-[22px] shadow-sm ${message.isOwn ? 'rounded-br-md' : 'rounded-bl-md'} max-w-xs`}>
+                                            {videoGrid}
+                                          </div>
+                                        );
+                                      }
+
+                                      // Text (+ optional media): standard bubble
+                                      return (
+                                        <div className={`rounded-[22px] px-4 py-3 text-sm shadow-sm ${message.isOwn ? 'rounded-br-md bg-emerald-600 text-white' : 'rounded-bl-md bg-slate-200 text-slate-900'}`}>
+                                          {hasText ? <p className="whitespace-pre-wrap break-words">{message.body}</p> : null}
+                                          {imageAttachments.length > 0 ? (
+                                            <div className={`${hasText ? 'mt-2' : ''} overflow-hidden rounded-xl`}>
+                                              {imageGrid}
+                                            </div>
+                                          ) : null}
+                                          {videoAttachments.length > 0 ? (
+                                            <div className={`${hasText ? 'mt-2' : ''} overflow-hidden rounded-xl`}>
+                                              {videoGrid}
+                                            </div>
+                                          ) : null}
+                                        </div>
+                                      );
+                                    })() : null
                                   ) : null}
 
                                   <p className={`px-1 text-[11px] text-slate-400 ${isSystemMessage ? 'text-center' : ''}`}>
@@ -678,21 +710,61 @@ export function PortalInboxShell({
                 ) : null}
               </div>
 
-              <div className="rounded-2xl bg-slate-50 p-4">
-                <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  <IconMapPin className="h-4 w-4" stroke={1.8} />
-                  Location
-                </div>
-                <p className="mt-3 text-sm font-semibold text-slate-900">
-                  {requestContext.location_city || 'Location not provided'}
-                </p>
-                {requestContext.address_line1 ? (
-                  <p className="mt-1 text-sm text-slate-500">{requestContext.address_line1}</p>
-                ) : null}
-                {requestContext.address_line2 ? (
-                  <p className="mt-1 text-sm text-slate-500">{requestContext.address_line2}</p>
-                ) : null}
-              </div>
+              {(() => {
+                const addressParts = [
+                  requestContext.address_line1,
+                  requestContext.address_line2,
+                  requestContext.location_city || 'Riyadh',
+                  'Saudi Arabia',
+                ].filter(Boolean);
+                const addressQuery = encodeURIComponent(addressParts.join(', '));
+                const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${addressQuery}`;
+                const embedUrl = `https://maps.google.com/maps?q=${addressQuery}&output=embed`;
+
+                return (
+                  <div className="rounded-2xl bg-slate-50 p-4">
+                    <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500 mb-3">
+                      <IconMapPin className="h-4 w-4" stroke={1.8} />
+                      Location
+                    </div>
+                    {/* Clickable map embed */}
+                    <a
+                      href={mapsUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="block overflow-hidden rounded-xl border border-slate-200 hover:opacity-90 transition"
+                    >
+                      <iframe
+                        src={embedUrl}
+                        width="100%"
+                        height="160"
+                        loading="lazy"
+                        className="pointer-events-none block border-0"
+                        title="Job location map"
+                      />
+                    </a>
+                    <div className="mt-2">
+                      <p className="text-sm font-semibold text-slate-900">
+                        {requestContext.location_city || 'Riyadh'}
+                      </p>
+                      {requestContext.address_line1 ? (
+                        <p className="mt-0.5 text-sm text-slate-500">{requestContext.address_line1}</p>
+                      ) : null}
+                      {requestContext.address_line2 ? (
+                        <p className="mt-0.5 text-sm text-slate-500">{requestContext.address_line2}</p>
+                      ) : null}
+                      <a
+                        href={mapsUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="mt-1.5 inline-flex items-center gap-1 text-xs font-medium text-emerald-600 hover:underline"
+                      >
+                        Open in Google Maps →
+                      </a>
+                    </div>
+                  </div>
+                );
+              })()}
 
               <div className="rounded-2xl bg-slate-50 p-4">
                 <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
@@ -702,7 +774,7 @@ export function PortalInboxShell({
                 <p className="mt-3 text-sm font-semibold text-slate-900">
                   {requestContext.urgency
                     ? ({ emergency: 'Emergency', urgent: 'Within 1-2 days', this_week: 'This week', flexible: 'Flexible' } as Record<string, string>)[requestContext.urgency] ?? requestContext.urgency
-                    : 'Flexible'}
+                    : '—'}
                 </p>
               </div>
 

@@ -237,6 +237,7 @@ function RequestPageContent() {
         pro_id: form.pro_id || undefined,
         service_category: form.selected_service,
         job_description: form.job_description.trim(),
+        urgency: form.urgency,
         district: form.location_district,
         contact_name: form.contact_name.trim(),
         contact_email: form.contact_email.trim(),
@@ -410,6 +411,17 @@ function RequestPageContent() {
                         onPositionChange={(pos) => {
                           set('location_lat', pos.lat);
                           set('location_lng', pos.lng);
+                        }}
+                        onAddressResolved={({ addressLine1, neighborhood }) => {
+                          if (addressLine1) set('location_address_line1', addressLine1);
+                          if (neighborhood) {
+                            // Try to match the returned neighborhood to a known district label
+                            const norm = neighborhood.toLowerCase();
+                            const match = RIYADH_DISTRICT_VALUES.find(
+                              (d) => d.toLowerCase().includes(norm) || norm.includes(d.toLowerCase()),
+                            );
+                            set('location_district', match || neighborhood);
+                          }
                         }}
                       />
                     </div>

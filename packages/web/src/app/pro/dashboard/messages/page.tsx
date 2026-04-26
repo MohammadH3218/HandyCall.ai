@@ -71,8 +71,9 @@ function ProMessagesContent() {
   }, []);
 
   return (
+    <div className="p-5 md:p-8">
     <PortalInboxShell
-      title="Messages"
+      title="Inbox"
       subtitle="Chat with customers, share photos, and manage jobs without leaving HandyCall."
       searchPlaceholder="Search conversations..."
       composerPlaceholder="Type a message..."
@@ -84,6 +85,7 @@ function ProMessagesContent() {
       sendMessage={sendMessage}
       subscribeToUpdates={subscribeToUpdates}
     />
+    </div>
   );
 }
 

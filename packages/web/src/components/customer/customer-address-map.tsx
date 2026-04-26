@@ -10,14 +10,37 @@ const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? '';
 // Riyadh city centre
 const DEFAULT_CENTER: [number, number] = [46.6753, 24.7136]; // [lng, lat] for Mapbox
 
+async function reverseGeocode(lng: number, lat: number): Promise<{ addressLine1: string; neighborhood: string }> {
+  if (!MAPBOX_TOKEN) return { addressLine1: '', neighborhood: '' };
+  try {
+    const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?types=address,neighborhood,locality&language=en&access_token=${MAPBOX_TOKEN}`;
+    const res = await fetch(url);
+    if (!res.ok) return { addressLine1: '', neighborhood: '' };
+    const data = await res.json();
+    const feature = data.features?.[0];
+    if (!feature) return { addressLine1: '', neighborhood: '' };
+
+    const addressLine1 = feature.place_name?.split(',')[0] || feature.text || '';
+    // Extract neighborhood/district from context
+    const context: any[] = feature.context || [];
+    const neighborhoodCtx = context.find((c: any) => c.id?.startsWith('neighborhood') || c.id?.startsWith('locality') || c.id?.startsWith('district'));
+    const neighborhood = neighborhoodCtx?.text || '';
+    return { addressLine1, neighborhood };
+  } catch {
+    return { addressLine1: '', neighborhood: '' };
+  }
+}
+
 export default function CustomerAddressMap({
   latitude,
   longitude,
   onPositionChange,
+  onAddressResolved,
 }: {
   latitude: number | null;
   longitude: number | null;
   onPositionChange: (position: { lat: number; lng: number }) => void;
+  onAddressResolved?: (data: { addressLine1: string; neighborhood: string }) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
@@ -53,8 +76,10 @@ export default function CustomerAddressMap({
     // Draggable pin marker
     const el = document.createElement('div');
     el.className = 'mapbox-custom-pin';
+    // No translateY — with anchor:'bottom' the element's bottom edge sits exactly at the coordinate,
+    // so the needle tip (bottom of stem) maps precisely to the dropped position.
     el.innerHTML = `
-      <div style="display:flex;flex-direction:column;align-items:center;transform:translateY(-100%)">
+      <div style="display:flex;flex-direction:column;align-items:center">
         <div style="background:#059669;border-radius:50%;padding:10px;color:#fff;box-shadow:0 8px 24px rgba(5,150,105,0.4)">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M20 10c0 6-8 13-8 13s-8-7-8-13a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/>
@@ -70,17 +95,23 @@ export default function CustomerAddressMap({
 
     markerRef.current = marker;
 
-    // Report position when marker drag ends
+    // Report position when marker drag ends + reverse geocode
     marker.on('dragend', () => {
       const lngLat = marker.getLngLat();
       onPositionChange({ lat: lngLat.lat, lng: lngLat.lng });
+      if (onAddressResolved) {
+        void reverseGeocode(lngLat.lng, lngLat.lat).then(onAddressResolved);
+      }
     });
 
-    // Click on map moves the marker
+    // Click on map moves the marker + reverse geocode
     map.on('click', (e) => {
       marker.setLngLat(e.lngLat);
       map.flyTo({ center: e.lngLat, zoom: Math.max(map.getZoom(), 16), duration: 350 });
       onPositionChange({ lat: e.lngLat.lat, lng: e.lngLat.lng });
+      if (onAddressResolved) {
+        void reverseGeocode(e.lngLat.lng, e.lngLat.lat).then(onAddressResolved);
+      }
     });
 
     map.on('load', () => setReady(true));
