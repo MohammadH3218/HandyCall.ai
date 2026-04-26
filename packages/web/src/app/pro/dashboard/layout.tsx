@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
+import { signOut, useSession } from 'next-auth/react';
 import { Logo } from '@/components/ui/logo';
 import { useAuthStore } from '@/stores/auth-store';
 import { apiClient } from '@/lib/api-client';
@@ -26,59 +27,140 @@ const NAV = [
 export default function ProDashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
+  const { status } = useSession();
   const { isAuthenticated, isLoading, checkAuth, logout } = useAuthStore();
   const [proStatus, setProStatus] = useState<string | null>(null);
   const [statusLoading, setStatusLoading] = useState(true);
+  const [authReady, setAuthReady] = useState(false);
 
   useEffect(() => {
-    checkAuth();
-  }, [checkAuth]);
+    let mounted = true;
+
+    const settleAuth = async () => {
+      if (status === 'loading') {
+        if (mounted) setAuthReady(false);
+        return;
+      }
+
+      if (status === 'unauthenticated') {
+        await signOut({ redirect: false }).catch(() => undefined);
+        if (mounted) {
+          setAuthReady(false);
+          router.replace('/pro/login?reason=session_expired');
+        }
+        return;
+      }
+
+      try {
+        // Fresh reloads can briefly render before the NextAuth session has
+        // fully repopulated client-side state. Give it a beat, then retry once
+        // or twice before treating it like a real logout.
+        await new Promise((resolve) => setTimeout(resolve, 300));
+        await checkAuth();
+        await new Promise((resolve) => setTimeout(resolve, 200));
+
+        let state = useAuthStore.getState();
+        if (state.isAuthenticated) {
+          if (mounted) setAuthReady(true);
+          return;
+        }
+
+        for (let attempt = 0; attempt < 3; attempt += 1) {
+          const sessionCheck = await fetch('/api/auth/session', { cache: 'no-store' }).catch(() => null);
+          const sessionData = sessionCheck?.ok ? await sessionCheck.json() : null;
+          const hasTokens = Boolean(sessionData?.accessToken || sessionData?.idToken);
+          const isProPool = !sessionData?.poolType || sessionData?.poolType === 'users';
+
+          if (hasTokens && isProPool) {
+            await new Promise((resolve) => setTimeout(resolve, 150));
+            await checkAuth();
+            state = useAuthStore.getState();
+
+            if (state.isAuthenticated) {
+              if (mounted) setAuthReady(true);
+              return;
+            }
+          }
+
+          await new Promise((resolve) => setTimeout(resolve, 200));
+        }
+
+        await signOut({ redirect: false }).catch(() => undefined);
+        if (mounted) {
+          setAuthReady(false);
+          router.replace('/pro/login?reason=session_expired');
+        }
+      } catch {
+        const sessionCheck = await fetch('/api/auth/session', { cache: 'no-store' }).catch(() => null);
+        const sessionData = sessionCheck?.ok ? await sessionCheck.json() : null;
+        const hasTokens = Boolean(sessionData?.accessToken || sessionData?.idToken);
+        const isProPool = !sessionData?.poolType || sessionData?.poolType === 'users';
+
+        if (hasTokens && isProPool) {
+          if (mounted) setAuthReady(true);
+          return;
+        }
+
+        await signOut({ redirect: false }).catch(() => undefined);
+        if (mounted) {
+          setAuthReady(false);
+          router.replace('/pro/login?reason=session_expired');
+        }
+      }
+    };
+
+    void settleAuth();
+
+    return () => {
+      mounted = false;
+    };
+  }, [checkAuth, router, status]);
 
   useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
-      // Include reason=logged_out so the login page doesn't auto-redirect back
-      // if the session cookie hasn't been cleared yet (race between the Zustand
-      // state reset and NextAuth's signOut completing in the logout handler).
-      router.replace('/pro/login?reason=logged_out');
+    if (status !== 'authenticated' || !authReady || !isAuthenticated) {
       return;
     }
-    if (!isLoading && isAuthenticated) {
-      // Check pro approval status — only ACTIVE pros can access the dashboard
-      apiClient.getMyPro()
-        .then((pro: any) => {
-          const status: string = pro?.status ?? 'UNKNOWN';
-          setProStatus(status);
-          if (status !== 'ACTIVE') {
-            router.replace('/pro/review-status');
-          }
-        })
-        .catch((err: any) => {
-          const msg = (err?.message || '').toLowerCase();
-          const isAuthError =
-            msg.includes('unauthorized') ||
-            msg.includes('invalid') ||
-            msg.includes('expired') ||
-            err?.status === 401;
-          if (isAuthError) {
-            router.replace('/pro/login?reason=session_expired');
-          } else {
-            // Network error — let them through to avoid blocking on transient failures
-            setProStatus('ACTIVE');
-          }
-        })
-        .finally(() => {
-          setStatusLoading(false);
-        });
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAuthenticated, isLoading]); // router intentionally omitted — stable; caused redirect loop
 
-  if (isLoading || statusLoading) {
+    setStatusLoading(true);
+
+    // Check pro approval status — only ACTIVE pros can access the dashboard
+    apiClient.getMyPro()
+      .then((pro: any) => {
+        const nextStatus: string = pro?.status ?? 'UNKNOWN';
+        setProStatus(nextStatus);
+        if (nextStatus !== 'ACTIVE') {
+          router.replace('/pro/review-status');
+        }
+      })
+      .catch((err: any) => {
+        const msg = (err?.message || '').toLowerCase();
+        const isAuthError =
+          msg.includes('unauthorized') ||
+          msg.includes('invalid') ||
+          msg.includes('expired') ||
+          err?.status === 401;
+        if (isAuthError) {
+          router.replace('/pro/login?reason=session_expired');
+        } else {
+          // Network error — let them through to avoid blocking on transient failures
+          setProStatus('ACTIVE');
+        }
+      })
+      .finally(() => {
+        setStatusLoading(false);
+      });
+  }, [authReady, isAuthenticated, router, status]);
+
+  if (status === 'loading' || isLoading || !authReady || statusLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <div className="h-8 w-8 animate-spin rounded-full border-4 border-emerald-600 border-t-transparent" />
       </div>
     );
+  }
+
+  if (status === 'unauthenticated' || !isAuthenticated) {
+    return null;
   }
 
   // If status check finished but not ACTIVE, don't render the dashboard shell
