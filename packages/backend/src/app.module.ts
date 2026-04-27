@@ -15,6 +15,7 @@ import { MarketplaceModule } from './modules/marketplace/marketplace.module';
 import { AuditLogsModule } from './modules/audit-logs/audit-logs.module';
 import { PortalMessagingModule } from './modules/portal-messaging/portal-messaging.module';
 import { QuoteRequestsModule } from './modules/quote-requests/quote-requests.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
 import { DatabaseModule } from './infrastructure/database/database.module';
 import { StorageModule } from './infrastructure/storage/storage.module';
 import { ParameterStoreModule } from './infrastructure/config/config.module';
@@ -50,9 +51,10 @@ import { AppService } from './app.service';
     MarketplaceModule,
     AuditLogsModule,
 
-    // Messaging & Requests
+    // Messaging, Requests & Notifications
     PortalMessagingModule,
     QuoteRequestsModule,
+    NotificationsModule,
 
     // Platform
     PaymentsModule,

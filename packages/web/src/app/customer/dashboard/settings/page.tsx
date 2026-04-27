@@ -12,17 +12,20 @@ import {
 import { useAuthStore } from '@/stores/auth-store';
 import {
   IconAlertTriangle,
+  IconBell,
   IconCheck,
   IconChevronRight,
   IconEye,
   IconEyeOff,
   IconLoader2,
   IconMapPin,
+  IconMessage,
   IconShield,
   IconTrash,
   IconUser,
   IconX,
 } from '@tabler/icons-react';
+import { useNotificationStore } from '@/stores/notification-store';
 
 function SaveBanner({ show, message = 'Changes saved' }: { show: boolean; message?: string }) {
   if (!show) return null;
@@ -49,6 +52,7 @@ const SETTING_TABS = [
   { key: 'profile', label: 'Profile', icon: IconUser },
   { key: 'addresses', label: 'Addresses', icon: IconMapPin },
   { key: 'security', label: 'Security', icon: IconShield },
+  { key: 'notifications', label: 'Notifications', icon: IconBell },
 ] as const;
 
 const inputClass =
@@ -579,6 +583,99 @@ function SecurityTab({ onSave }: { onSave: (message?: string) => void }) {
   );
 }
 
+function ToggleRow({
+  label,
+  description,
+  checked,
+  onChange,
+  icon: Icon,
+}: {
+  label: string;
+  description: string;
+  checked: boolean;
+  onChange: (v: boolean) => void;
+  icon: React.ElementType;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-4 rounded-xl border border-slate-200 bg-white px-4 py-4">
+      <div className="flex items-start gap-3">
+        <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-50">
+          <Icon className="h-4 w-4 text-slate-500" stroke={1.8} />
+        </div>
+        <div>
+          <p className="text-sm font-semibold text-slate-800">{label}</p>
+          <p className="mt-0.5 text-xs text-slate-400">{description}</p>
+        </div>
+      </div>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        onClick={() => onChange(!checked)}
+        className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${
+          checked ? 'bg-emerald-500' : 'bg-slate-200'
+        }`}
+      >
+        <span
+          className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow ring-0 transition-transform duration-200 ${
+            checked ? 'translate-x-5' : 'translate-x-0'
+          }`}
+        />
+      </button>
+    </div>
+  );
+}
+
+function NotificationsTab() {
+  const { preferences, setPreference, notifications, clearAll } = useNotificationStore();
+
+  return (
+    <div className="space-y-5">
+      <div>
+        <h3 className="text-base font-bold text-slate-900">Notification Preferences</h3>
+        <p className="mt-1 text-sm text-slate-500">
+          Choose which in-app notifications you receive while using HandyCall.
+        </p>
+      </div>
+
+      <div className="space-y-3">
+        <ToggleRow
+          icon={IconMessage}
+          label="Messages"
+          description="Get notified when a pro sends you a new message."
+          checked={preferences.messages}
+          onChange={(v) => setPreference('messages', v)}
+        />
+        <ToggleRow
+          icon={IconCheck}
+          label="Request updates"
+          description="Get notified when a pro accepts or declines your request."
+          checked={preferences.request_updates}
+          onChange={(v) => setPreference('request_updates', v)}
+        />
+      </div>
+
+      {notifications.length > 0 && (
+        <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-5">
+          <div className="flex items-center justify-between">
+            <div>
+              <h4 className="text-sm font-semibold text-slate-800">Notification history</h4>
+              <p className="mt-0.5 text-xs text-slate-400">{notifications.length} recent notification{notifications.length !== 1 ? 's' : ''}</p>
+            </div>
+            <button
+              onClick={clearAll}
+              className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-500 transition hover:bg-slate-50 hover:text-slate-700"
+            >
+              <IconTrash className="h-3.5 w-3.5" stroke={1.8} />
+              Clear all
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function CustomerSettingsPage() {
   const [activeTab, setActiveTab] = useState<(typeof SETTING_TABS)[number]['key']>('profile');
   const [savedMsg, setSavedMsg] = useState<string | null>(null);
@@ -620,6 +717,7 @@ export default function CustomerSettingsPage() {
   }
 
   return (
+    <div className="p-6 lg:p-8">
     <div className="max-w-3xl space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-slate-900">Settings</h1>
@@ -677,11 +775,13 @@ export default function CustomerSettingsPage() {
               setSavedMsg(message || 'Changes saved');
               setTimeout(() => setSavedMsg(null), 2500);
             }} />}
+            {activeTab === 'notifications' && <NotificationsTab />}
           </div>
         </div>
       )}
 
       <SaveBanner show={Boolean(savedMsg)} message={savedMsg ?? undefined} />
+    </div>
     </div>
   );
 }

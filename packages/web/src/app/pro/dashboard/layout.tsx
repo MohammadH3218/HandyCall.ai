@@ -15,6 +15,7 @@ import {
   IconSettings,
   IconLogout,
 } from '@tabler/icons-react';
+import { NotificationBell } from '@/components/ui/notification-bell';
 
 const NAV = [
   { href: '/pro/dashboard', label: 'Overview', icon: IconLayoutDashboard, exact: true },
@@ -209,7 +210,10 @@ export default function ProDashboardLayout({ children }: { children: React.React
           </ul>
         </nav>
 
-        <div className="border-t border-border/60 p-3">
+        <div className="border-t border-border/60 p-3 space-y-1">
+          <div className="flex items-center px-3 py-1">
+            <NotificationBell />
+          </div>
           <button
             type="button"
             onClick={() => logout('/pro/login?reason=logged_out')}

@@ -7,20 +7,15 @@ import { signOut, useSession } from 'next-auth/react';
 import { useAuthStore } from '@/stores/auth-store';
 import { apiClient } from '@/lib/api-client';
 import { isCustomerProfileComplete } from '@/lib/customer-profile';
-import { LanguageSwitcher } from '@/components/language-switcher';
 import { Logo } from '@/components/ui/logo';
 import {
   IconClipboardText,
   IconMessageCircle,
   IconSettings,
   IconSearch,
-  IconMenu2,
-  IconX,
-  IconBell,
-  IconChevronDown,
   IconLogout,
 } from '@tabler/icons-react';
-
+import { NotificationBell } from '@/components/ui/notification-bell';
 
 const NAV_ITEMS = [
   { href: '/customer/dashboard/requests', label: 'Requests', icon: IconClipboardText, exact: true },
@@ -33,8 +28,6 @@ export default function CustomerDashboardLayout({ children }: { children: React.
   const pathname = usePathname();
   const { data: session, status } = useSession();
   const { isAuthenticated, isLoading, checkAuth, user, logout } = useAuthStore();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [profileOpen, setProfileOpen] = useState(false);
   const [profileChecked, setProfileChecked] = useState(false);
 
   useEffect(() => {
@@ -42,8 +35,6 @@ export default function CustomerDashboardLayout({ children }: { children: React.
       if (status !== 'authenticated') return;
 
       try {
-        // Fresh sign-ins can land here before the NextAuth session cookie is
-        // readable on the first dashboard pass.
         await new Promise((resolve) => setTimeout(resolve, 300));
         await checkAuth();
         await new Promise((resolve) => setTimeout(resolve, 200));
@@ -117,8 +108,6 @@ export default function CustomerDashboardLayout({ children }: { children: React.
           router.replace('/customer/login?reason=session_expired');
           return;
         }
-        // Network or route error — let the user through to avoid blocking on
-        // transient failures or missing endpoints (same pattern as pro layout).
       } finally {
         if (mounted) setProfileChecked(true);
       }
@@ -133,7 +122,7 @@ export default function CustomerDashboardLayout({ children }: { children: React.
   if (status === 'loading' || isLoading || !profileChecked) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-50">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-emerald-600 border-t-transparent" />
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-emerald-600 border-t-transparent" />
       </div>
     );
   }
@@ -159,53 +148,33 @@ export default function CustomerDashboardLayout({ children }: { children: React.
 
   return (
     <div className="flex min-h-screen bg-slate-50">
-      {/* ── Sidebar ─────────────────────────────────────────────────────────── */}
-      {/* Mobile overlay */}
-      {sidebarOpen && (
-        <div
-          className="fixed inset-0 z-40 bg-black/30 md:hidden"
-          onClick={() => setSidebarOpen(false)}
-        />
-      )}
-
-      {/* Sidebar panel */}
-      <aside
-        className={`fixed inset-y-0 left-0 z-50 flex w-60 flex-col border-r border-slate-100 bg-white transition-transform duration-200 md:static md:translate-x-0 ${
-          sidebarOpen ? 'translate-x-0' : '-translate-x-full'
-        }`}
-      >
+      {/* Sidebar */}
+      <aside className="flex w-60 flex-col border-r border-border/80 bg-white">
         {/* Logo */}
-        <div className="flex h-14 items-center justify-between px-4">
-          <Link href="/" className="flex items-center">
-            <Logo width={110} height={28} />
+        <div className="flex h-16 items-center border-b border-border/60 px-5">
+          <Link href="/">
+            <Logo width={120} height={30} />
           </Link>
-          <button
-            className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 md:hidden"
-            onClick={() => setSidebarOpen(false)}
-          >
-            <IconX className="h-5 w-5" stroke={1.5} />
-          </button>
         </div>
 
         {/* Nav */}
-        <nav className="flex-1 overflow-y-auto px-2 py-3">
-          <ul className="space-y-0.5">
+        <nav className="flex-1 px-3 py-4">
+          <ul className="space-y-1">
             {NAV_ITEMS.map((item) => {
-              const active = isActive(item);
               const Icon = item.icon;
+              const active = isActive(item);
               return (
                 <li key={item.href}>
                   <Link
                     href={item.href}
-                    onClick={() => setSidebarOpen(false)}
-                    className={`flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors ${
+                    className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-[14px] font-medium transition-colors ${
                       active
-                        ? 'bg-slate-100 font-medium text-slate-900'
-                        : 'font-normal text-slate-500 hover:bg-slate-50 hover:text-slate-800'
+                        ? 'bg-emerald-50 text-emerald-700'
+                        : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
                     }`}
                   >
                     <Icon
-                      className={`h-4 w-4 flex-shrink-0 ${active ? 'text-slate-700' : 'text-slate-400'}`}
+                      className={`h-4.5 w-4.5 ${active ? 'text-emerald-600' : 'text-slate-400'}`}
                       stroke={active ? 2 : 1.5}
                     />
                     {item.label}
@@ -215,92 +184,47 @@ export default function CustomerDashboardLayout({ children }: { children: React.
             })}
           </ul>
 
-          <div className="mt-6 border-t border-slate-100 pt-4">
+          {/* Find a Pro */}
+          <div className="mt-6 border-t border-border/40 pt-4">
             <Link
               href="/search"
-              className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-normal text-slate-500 transition hover:bg-slate-50 hover:text-slate-800"
+              className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-[14px] font-medium text-slate-600 transition-colors hover:bg-slate-50 hover:text-slate-900"
             >
-              <IconSearch className="h-4 w-4 text-slate-400" stroke={1.5} />
+              <IconSearch className="h-4.5 w-4.5 text-slate-400" stroke={1.5} />
               Find a Pro
             </Link>
           </div>
         </nav>
 
-      </aside>
-
-      {/* ── Main ────────────────────────────────────────────────────────────── */}
-      <div className="flex flex-1 flex-col overflow-hidden">
-        {/* Top bar */}
-        <header className="flex h-14 items-center justify-between border-b border-slate-100 bg-white px-4 md:px-6">
-          <div className="flex items-center gap-3">
-            <button
-              className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 md:hidden"
-              onClick={() => setSidebarOpen(true)}
-            >
-              <IconMenu2 className="h-5 w-5" stroke={1.5} />
-            </button>
-            <span className="text-sm font-medium text-slate-600">
-              {NAV_ITEMS.find((n) => isActive(n))?.label ?? 'Dashboard'}
-            </span>
+        {/* User + Notifications + Sign out */}
+        <div className="border-t border-border/60 p-3 space-y-1">
+          <div className="flex items-center px-3 py-1">
+            <NotificationBell />
           </div>
-
-          <div className="flex items-center gap-1">
-            <LanguageSwitcher />
-            <button className="rounded-lg p-2 text-slate-400 hover:bg-slate-100">
-              <IconBell className="h-4.5 w-4.5" stroke={1.5} />
-            </button>
-
-            {/* Profile */}
-            <div className="relative ml-1">
-              <button
-                onClick={() => setProfileOpen((v) => !v)}
-                className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm text-slate-600 transition hover:bg-slate-100"
-              >
-                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-800 text-[11px] font-semibold text-white">
-                  {initials}
-                </span>
-                <span className="hidden max-w-[100px] truncate text-sm font-medium text-slate-700 sm:block">
-                  {displayName}
-                </span>
-                <IconChevronDown
-                  className={`h-3.5 w-3.5 text-slate-400 transition-transform ${profileOpen ? 'rotate-180' : ''}`}
-                  stroke={2}
-                />
-              </button>
-              {profileOpen && (
-                <div className="absolute right-0 top-full z-50 mt-1.5 w-52 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg">
-                  <div className="border-b border-slate-100 px-4 py-3">
-                    <p className="truncate text-xs font-semibold text-slate-800">{displayName}</p>
-                    <p className="truncate text-xs text-slate-400">{user?.email}</p>
-                  </div>
-                  <Link
-                    href="/customer/dashboard/settings"
-                    className="flex items-center gap-2 px-4 py-2.5 text-sm text-slate-600 hover:bg-slate-50"
-                    onClick={() => setProfileOpen(false)}
-                  >
-                    <IconSettings className="h-4 w-4 text-slate-400" stroke={1.5} />
-                    Settings
-                  </Link>
-                  <button
-                    onClick={() => { setProfileOpen(false); logout('/customer/login'); }}
-                    className="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-red-500 hover:bg-slate-50"
-                  >
-                    <IconLogout className="h-4 w-4" stroke={1.5} />
-                    Sign out
-                  </button>
-                </div>
-              )}
+          <div className="flex items-center gap-3 rounded-lg px-3 py-2.5">
+            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-800 text-[11px] font-semibold text-white">
+              {initials}
+            </span>
+            <div className="min-w-0">
+              <p className="truncate text-[13px] font-semibold text-slate-800">{displayName}</p>
+              <p className="truncate text-[11px] text-slate-400">{user?.email}</p>
             </div>
           </div>
-        </header>
+          <button
+            type="button"
+            onClick={() => logout('/customer/login?reason=logged_out')}
+            className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-[14px] font-medium text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-700"
+          >
+            <IconLogout className="h-4.5 w-4.5" stroke={1.5} />
+            Sign out
+          </button>
+        </div>
+      </aside>
 
-        {/* Page content */}
-        <main className="flex-1 overflow-y-auto p-5 md:p-8">
-          {children}
-        </main>
-      </div>
-
-      {/* Phone collection modal */}
+      {/* Main content */}
+      <main className="flex-1 overflow-y-auto">
+        {children}
+      </main>
     </div>
   );
 }

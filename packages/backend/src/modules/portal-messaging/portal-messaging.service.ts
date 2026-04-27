@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { EventEmitter } from 'events';
 import { v4 as uuidv4 } from 'uuid';
 import { DynamoDBService } from '../../infrastructure/database/dynamodb.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 const THREADS_TABLE = 'threads';
 const MESSAGES_TABLE = 'messages';
@@ -14,7 +15,10 @@ messageBus.setMaxListeners(500);
 export class PortalMessagingService {
   private readonly logger = new Logger(PortalMessagingService.name);
 
-  constructor(private db: DynamoDBService) {}
+  constructor(
+    private db: DynamoDBService,
+    private notifications: NotificationsService,
+  ) {}
 
   // ── Thread helpers ──────────────────────────────────────────────────────────
 
@@ -210,6 +214,35 @@ export class PortalMessagingService {
       messageBus.emit(`customer:${threadCustomerId}`, { type: 'message', thread_id: params.threadId, message });
     } else if (threadCustomerEmail) {
       messageBus.emit(`customer_email:${threadCustomerEmail}`, { type: 'message', thread_id: params.threadId, message });
+    }
+
+    // Push real-time notification to the recipient (skip system messages)
+    if (params.messageType !== 'system' && params.body?.trim()) {
+      const preview = params.body.trim();
+      if (params.senderType === 'CUSTOMER' && threadProId) {
+        const senderName = params.customerName || 'A customer';
+        this.notifications.newMessage({
+          recipientId: threadProId,
+          senderName,
+          preview,
+          threadId: params.threadId,
+        });
+      } else if (params.senderType === 'PRO' && threadCustomerId) {
+        // Look up pro name asynchronously — don't block the response
+        this.db.get('pros', { pro_id: threadProId }).then((pro: any) => {
+          const senderName = pro
+            ? `${pro.first_name ?? ''} ${pro.last_name ?? ''}`.trim() || 'Your pro'
+            : 'Your pro';
+          this.notifications.newMessage({
+            recipientId: threadCustomerId!,
+            senderName,
+            preview,
+            threadId: params.threadId,
+          });
+        }).catch(() => {
+          // Non-critical; skip notification on lookup failure
+        });
+      }
     }
 
     return message;

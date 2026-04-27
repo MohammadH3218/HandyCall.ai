@@ -87,6 +87,7 @@ export default function CustomerInboxPage() {
   }, []);
 
   return (
+    <div className="p-5 md:p-8">
     <PortalInboxShell
       title="Inbox"
       subtitle="Chat with pros, share photos, and keep the job moving without leaving HandyCall."
@@ -99,5 +100,6 @@ export default function CustomerInboxPage() {
       sendMessage={sendMessage}
       subscribeToUpdates={subscribeToUpdates}
     />
+    </div>
   );
 }

@@ -8,6 +8,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { DynamoDBService } from '../../infrastructure/database/dynamodb.service';
 import { PortalMessagingService } from '../portal-messaging/portal-messaging.service';
 import { EmailService } from '../email/email.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { renderHandycallEmail } from '../../common/email-templates';
 
 const QUOTE_REQUESTS_TABLE = 'quote_requests';
@@ -22,6 +23,7 @@ export class QuoteRequestsService {
     private db: DynamoDBService,
     private messaging: PortalMessagingService,
     private email: EmailService,
+    private notifications: NotificationsService,
   ) {}
 
   // ── Customer: submit a request to a specific pro ──────────────────────────
@@ -66,6 +68,14 @@ export class QuoteRequestsService {
     };
 
     await this.db.put(QUOTE_REQUESTS_TABLE, quote);
+
+    // Notify the pro in real-time
+    this.notifications.newQuoteRequest({
+      proId: data.pro_id,
+      serviceCategory: data.service_category,
+      district: data.district,
+      quoteId: quote.quote_id,
+    });
 
     this.logger.log(`Quote ${quote.quote_id} submitted by customer ${customerId} to pro ${data.pro_id}`);
     return quote;
@@ -238,6 +248,16 @@ export class QuoteRequestsService {
         { status: 'DECLINED', updated_at: Date.now() },
       );
 
+      // Notify the customer in real-time (if they have a user_id)
+      if (q.customer_user_id) {
+        this.notifications.requestDeclined({
+          customerId: q.customer_user_id,
+          proName,
+          serviceCategory: q.service_category,
+          quoteId: quoteId,
+        });
+      }
+
       // Email the customer that their request was declined
       if (q.contact_email) {
         this.email['send']({
@@ -301,6 +321,17 @@ export class QuoteRequestsService {
         updated_at: Date.now(),
       },
     );
+
+    // Notify the customer in real-time (if they have a user_id)
+    if (q.customer_user_id) {
+      this.notifications.requestAccepted({
+        customerId: q.customer_user_id,
+        proName,
+        serviceCategory: q.service_category,
+        threadId: thread.thread_id,
+        quoteId: quoteId,
+      });
+    }
 
     // Email the customer that their request was accepted
     if (q.contact_email) {
