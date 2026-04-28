@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import {
@@ -8,6 +9,7 @@ import {
   IconArrowRight,
   IconBriefcase,
   IconCheck,
+  IconClipboardText,
   IconLoader2,
   IconMapPin,
   IconSearch,
@@ -574,11 +576,32 @@ export function SearchPageClient() {
         </div>
 
         <SearchBar
-          className="mb-10"
+          className="shadow-sm"
           size="lg"
           initialQuery={query}
           initialLocation={districtParam}
         />
+
+        <div className="mb-10 mt-4 flex flex-col gap-3 rounded-2xl border border-emerald-100 bg-emerald-50/70 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+          <div className="flex items-start gap-3">
+            <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-emerald-600 shadow-sm">
+              <IconClipboardText className="h-5 w-5" stroke={1.8} />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-slate-900">Can&apos;t find the right pro?</p>
+              <p className="mt-0.5 text-sm leading-6 text-slate-600">
+                Post a custom job request and available Riyadh pros can claim it and message you directly.
+              </p>
+            </div>
+          </div>
+          <Link
+            href="/customer/dashboard/post-job"
+            className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700"
+          >
+            Start custom request
+            <IconArrowRight className="h-4 w-4" stroke={2} />
+          </Link>
+        </div>
 
         {loading ? (
           <div className="flex flex-col items-center gap-3 py-20 text-slate-400">

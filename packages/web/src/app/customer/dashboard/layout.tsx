@@ -10,6 +10,7 @@ import { isCustomerProfileComplete } from '@/lib/customer-profile';
 import { Logo } from '@/components/ui/logo';
 import {
   IconClipboardText,
+  IconBriefcase,
   IconMessageCircle,
   IconSettings,
   IconSearch,
@@ -19,6 +20,7 @@ import { NotificationBell } from '@/components/ui/notification-bell';
 
 const NAV_ITEMS = [
   { href: '/customer/dashboard/requests', label: 'Requests', icon: IconClipboardText, exact: true },
+  { href: '/customer/dashboard/post-job', label: 'Post a Job', icon: IconBriefcase },
   { href: '/customer/dashboard/inbox', label: 'Inbox', icon: IconMessageCircle },
   { href: '/customer/dashboard/settings', label: 'Settings', icon: IconSettings },
 ];
