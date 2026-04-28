@@ -1,40 +1,57 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { signOut, useSession } from 'next-auth/react';
-import { Logo } from '@/components/ui/logo';
 import { useAuthStore } from '@/stores/auth-store';
 import { apiClient } from '@/lib/api-client';
+import { DashboardSidebar, type DashboardNavSection } from '@/components/dashboard/dashboard-sidebar';
 import {
   IconLayoutDashboard,
   IconListCheck,
   IconMessage,
   IconUser,
   IconSettings,
-  IconLogout,
   IconBriefcase,
   IconReceipt,
+  IconCreditCard,
 } from '@tabler/icons-react';
-import { NotificationBell } from '@/components/notifications/notification-bell';
 
-const NAV = [
-  { href: '/pro/dashboard', label: 'Overview', icon: IconLayoutDashboard, exact: true },
-  { href: '/pro/dashboard/jobs-board', label: 'Jobs Board', icon: IconBriefcase },
-  { href: '/pro/dashboard/requests', label: 'Direct Requests', icon: IconListCheck },
-  { href: '/pro/dashboard/messages', label: 'Inbox', icon: IconMessage },
-  { href: '/pro/dashboard/marketplace', label: 'My profile', icon: IconUser },
-  { href: '/pro/dashboard/settings', label: 'Settings', icon: IconSettings },
-  { href: '/pro/dashboard/billing', label: 'Lead Fees & Billing', icon: IconReceipt },
+const NAV_SECTIONS: DashboardNavSection[] = [
+  {
+    items: [{ href: '/pro/dashboard', label: 'Overview', icon: IconLayoutDashboard, exact: true }],
+  },
+  {
+    label: 'Work',
+    items: [
+      { href: '/pro/dashboard/jobs-board', label: 'Jobs Board', icon: IconBriefcase },
+      { href: '/pro/dashboard/requests', label: 'Direct Requests', icon: IconListCheck },
+      { href: '/pro/dashboard/messages', label: 'Inbox', icon: IconMessage },
+    ],
+  },
+  {
+    label: 'Billing',
+    items: [
+      { href: '/pro/dashboard/billing/leads', label: 'Lead fees', icon: IconReceipt },
+      { href: '/pro/dashboard/billing', label: 'Billing', icon: IconCreditCard, exact: true },
+    ],
+  },
+  {
+    label: 'Account',
+    items: [
+      { href: '/pro/dashboard/marketplace', label: 'My profile', icon: IconUser },
+      { href: '/pro/dashboard/settings', label: 'Settings', icon: IconSettings },
+    ],
+  },
 ];
 
 export default function ProDashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const { status } = useSession();
-  const { isAuthenticated, isLoading, checkAuth, logout } = useAuthStore();
+  const { isAuthenticated, isLoading, checkAuth, logout, user } = useAuthStore();
   const [proStatus, setProStatus] = useState<string | null>(null);
+  const [proProfile, setProProfile] = useState<any | null>(null);
   const [statusLoading, setStatusLoading] = useState(true);
   const [authReady, setAuthReady] = useState(false);
 
@@ -133,6 +150,7 @@ export default function ProDashboardLayout({ children }: { children: React.React
       .then((pro: any) => {
         const nextStatus: string = pro?.status ?? 'UNKNOWN';
         setProStatus(nextStatus);
+        setProProfile(pro);
         if (nextStatus !== 'ACTIVE') {
           router.replace('/pro/review-status');
         }
@@ -174,61 +192,38 @@ export default function ProDashboardLayout({ children }: { children: React.React
     return null;
   }
 
-  const isActive = (item: (typeof NAV)[number]) =>
-    item.exact ? pathname === item.href : pathname?.startsWith(item.href);
+  const displayName =
+    [proProfile?.first_name || user?.first_name, proProfile?.last_name || user?.last_name]
+      .filter(Boolean)
+      .join(' ')
+      .trim() ||
+    proProfile?.business_name ||
+    user?.email ||
+    'Pro account';
+  const email = proProfile?.email || user?.email || null;
+  const initials =
+    displayName
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0])
+      .join('')
+      .toUpperCase() || email?.[0]?.toUpperCase() || 'P';
 
   return (
     <div className="flex min-h-screen bg-slate-50">
-      {/* Sidebar */}
-      <aside className="flex w-60 flex-col border-r border-border/80 bg-white">
-        <div className="flex h-16 items-center border-b border-border/60 px-5">
-          <Link href="/">
-            <Logo width={120} height={30} />
-          </Link>
-        </div>
-
-        <nav className="flex-1 px-3 py-4">
-          <ul className="space-y-1">
-            {NAV.map((item) => {
-              const Icon = item.icon;
-              const active = isActive(item);
-              return (
-                <li key={item.href}>
-                  <Link
-                    href={item.href}
-                    className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-[14px] font-medium transition-colors ${
-                      active
-                        ? 'bg-emerald-50 text-emerald-700'
-                        : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                    }`}
-                  >
-                    <Icon
-                      className={`h-4.5 w-4.5 ${active ? 'text-emerald-600' : 'text-slate-400'}`}
-                      stroke={active ? 2 : 1.5}
-                    />
-                    {item.label}
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
-        </nav>
-
-        <div className="border-t border-border/60 p-3 space-y-1">
-          <div className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-[14px] font-medium text-slate-500">
-            <NotificationBell side="right" align="end" />
-            <span className="text-[14px]">Notifications</span>
-          </div>
-          <button
-            type="button"
-            onClick={() => logout('/pro/login?reason=logged_out')}
-            className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-[14px] font-medium text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-700"
-          >
-            <IconLogout className="h-4.5 w-4.5" stroke={1.5} />
-            Sign out
-          </button>
-        </div>
-      </aside>
+      <DashboardSidebar
+        sections={NAV_SECTIONS}
+        pathname={pathname || '/pro/dashboard'}
+        account={{
+          name: displayName,
+          email,
+          initials,
+          detail: email || 'Active pro',
+        }}
+        onSignOut={() => void logout('/pro/login?reason=logged_out')}
+        notificationHref="/pro/dashboard/settings"
+      />
 
       {/* Main content */}
       <main className="flex-1 overflow-y-auto">

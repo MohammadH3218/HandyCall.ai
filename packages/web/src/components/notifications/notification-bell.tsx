@@ -37,9 +37,11 @@ function formatRelative(ts?: number) {
 export function NotificationBell({
   side = 'top',
   align = 'end',
+  viewAllHref = '/dashboard/notifications',
 }: {
   side?: 'top' | 'right' | 'bottom' | 'left';
   align?: 'start' | 'center' | 'end';
+  viewAllHref?: string;
 } = {}) {
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -169,7 +171,7 @@ export function NotificationBell({
         <DropdownMenuSeparator />
         <div className="p-2">
           <Button asChild variant="outline" className="w-full">
-            <Link href="/dashboard/notifications">View all</Link>
+            <Link href={viewAllHref}>View all</Link>
           </Button>
         </div>
       </DropdownMenuContent>
