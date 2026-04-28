@@ -1,0 +1,198 @@
+export type IdType = 'NATIONAL_ID' | 'IQAMA';
+export type PreferredLanguage = 'ar' | 'en';
+export type CustomerStatus = 'ACTIVE' | 'SUSPENDED' | 'PENDING_VERIFICATION';
+export type ProStatus = 'PENDING_REVIEW' | 'ACTIVE' | 'SUSPENDED' | 'REJECTED';
+export type UserType = 'CUSTOMER' | 'PRO';
+export type ServiceCategory = 'AC_HVAC' | 'PLUMBING' | 'ELECTRICAL' | 'PAINTING' | 'CLEANING' | 'PEST_CONTROL' | 'CARPENTRY' | 'MOVING' | 'APPLIANCE_REPAIR' | 'SATELLITE_DISH' | 'LANDSCAPING' | 'GENERAL_HANDYMAN';
+export type PricingType = 'FIXED' | 'HOURLY' | 'QUOTE';
+export type BookingStatus = 'PENDING_CONFIRMATION' | 'CONFIRMED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
+export type PaymentStatus = 'PENDING' | 'HELD' | 'RELEASED' | 'REFUNDED';
+export type PaymentMethod = 'MADA' | 'APPLE_PAY' | 'CREDIT_CARD';
+export type CancelledBy = 'CUSTOMER' | 'PRO' | 'PLATFORM';
+export interface MarketplaceAuthContext {
+    user_id: string;
+    user_type: UserType;
+    email: string;
+}
+export interface Customer {
+    customer_id: string;
+    email: string;
+    first_name: string;
+    last_name: string;
+    phone_number?: string;
+    national_id?: string;
+    iqama_number?: string;
+    id_type?: IdType;
+    id_verified: boolean;
+    district?: string;
+    address_line1?: string;
+    address_line2?: string;
+    address_latitude?: number;
+    address_longitude?: number;
+    city: string;
+    preferred_language?: PreferredLanguage;
+    status: CustomerStatus;
+    email_verified: boolean;
+    pdpl_consent: boolean;
+    pdpl_consent_at: number;
+    marketing_consent: boolean;
+    created_at: number;
+    updated_at: number;
+    last_login_at?: number;
+}
+export interface Pro {
+    pro_id: string;
+    email: string;
+    first_name: string;
+    last_name: string;
+    phone_number?: string;
+    national_id?: string;
+    iqama_number?: string;
+    id_type?: IdType;
+    id_verified: boolean;
+    id_verification_provider?: 'NAFATH' | 'MANUAL_REVIEW';
+    id_verification_status?: 'UNVERIFIED' | 'VERIFIED' | 'PENDING' | 'MANUAL_REVIEW' | 'FAILED';
+    id_verification_reference?: string;
+    id_document_s3_key?: string;
+    cr_number?: string;
+    vat_number?: string;
+    national_address?: string;
+    national_address_verified?: boolean;
+    national_address_verification_provider?: 'SPL' | 'MANUAL_REVIEW';
+    national_address_verification_status?: 'UNVERIFIED' | 'VERIFIED' | 'PENDING' | 'MANUAL_REVIEW' | 'FAILED';
+    national_address_verification_reference?: string;
+    iban?: string;
+    iban_verified: boolean;
+    bank_name?: string;
+    bio?: string;
+    bio_ar?: string;
+    profile_photo_s3_key?: string;
+    service_category?: ServiceCategory;
+    services_offered?: string[];
+    property_types?: string[];
+    payment_methods?: string[];
+    instagram_handle?: string;
+    snapchat_handle?: string;
+    twitter_handle?: string;
+    website_url?: string;
+    contact_for_price?: boolean;
+    starting_price_sar?: number;
+    work_photo_s3_keys?: string[];
+    years_experience?: number;
+    employee_count_range?: string;
+    speaks_arabic: boolean;
+    speaks_english: boolean;
+    speaks_urdu?: boolean;
+    speaks_hindi?: boolean;
+    service_districts: string[];
+    city: string;
+    status: ProStatus;
+    onboarding_step: number;
+    is_available: boolean;
+    average_rating: number;
+    total_reviews: number;
+    total_bookings: number;
+    completion_rate: number;
+    rejection_reason?: string;
+    suspension_reason?: string;
+    pdpl_consent: boolean;
+    pdpl_consent_at: number;
+    marketing_consent: boolean;
+    email_verified: boolean;
+    created_at: number;
+    updated_at: number;
+    last_login_at?: number;
+}
+export interface ProService {
+    pro_id: string;
+    service_id: string;
+    category: ServiceCategory;
+    title: string;
+    title_ar?: string;
+    description?: string;
+    description_ar?: string;
+    pricing_type: PricingType;
+    price_sar?: number;
+    min_price_sar?: number;
+    max_price_sar?: number;
+    vat_included: boolean;
+    estimated_duration_minutes?: number;
+    photos_s3_keys: string[];
+    is_active: boolean;
+    created_at: number;
+    updated_at: number;
+}
+export interface Booking {
+    booking_id: string;
+    customer_id: string;
+    pro_id: string;
+    service_id: string;
+    scheduled_start: number;
+    scheduled_end: number;
+    address_district: string;
+    address_detail?: string;
+    address_notes?: string;
+    city: string;
+    status: BookingStatus;
+    cancellation_reason?: string;
+    cancelled_by?: CancelledBy;
+    cancelled_at?: number;
+    service_price_sar: number;
+    vat_amount_sar: number;
+    platform_fee_sar: number;
+    pro_payout_sar: number;
+    payment_status: PaymentStatus;
+    payment_method?: PaymentMethod;
+    payment_reference?: string;
+    started_at?: number;
+    completed_at?: number;
+    pro_notes?: string;
+    created_at: number;
+    updated_at: number;
+}
+export interface Review {
+    review_id: string;
+    booking_id: string;
+    customer_id: string;
+    pro_id: string;
+    service_id: string;
+    rating: number;
+    comment?: string;
+    comment_ar?: string;
+    is_visible: boolean;
+    pro_reply?: string;
+    pro_reply_at?: number;
+    created_at: number;
+    updated_at: number;
+}
+export type DayOfWeek = 'SAT' | 'SUN' | 'MON' | 'TUE' | 'WED' | 'THU';
+export interface ProAvailability {
+    pro_id: string;
+    day_of_week: DayOfWeek;
+    open_time: string;
+    close_time: string;
+    is_available: boolean;
+    updated_at: number;
+}
+export interface PlatformConfig {
+    config_key: string;
+    config_value: string;
+    updated_at: number;
+    updated_by: string;
+}
+export declare const SAUDI_PHONE_REGEX: RegExp;
+export declare const NATIONAL_ID_REGEX: RegExp;
+export declare const IBAN_REGEX: RegExp;
+export declare const PASSWORD_REGEX: RegExp;
+export declare function sarToHalalas(sar: number): number;
+export declare function halalaToSar(halalas: number): number;
+export declare function calculateBookingFinancials(servicePriceHalalas: number): {
+    service_price_sar: number;
+    vat_amount_sar: number;
+    platform_fee_sar: number;
+    pro_payout_sar: number;
+    customer_total_sar: number;
+};
+export declare const RIYADH_DISTRICTS: readonly ["Al Olaya", "Al Malaz", "Al Murabbah", "Al Rawdah", "Al Sulaymaniyah", "Al Nakheel", "Al Hamra", "Al Sahafa", "Al Shuhada", "Al Wizarat", "Al Madinah", "Al Aziziyah", "Al Batha", "Al Dirah", "Al Faisaliyah", "Al Ghadir", "Al Jazirah", "Al Malqa", "Al Mansourah", "Al Murabba", "Al Naseem", "Al Qirawan", "Al Rabwah", "Al Uraija", "Al Yasmin", "Hittin", "Ishbiliyah", "King Fahd", "Qurtubah", "Salam"];
+export type RiyadhDistrict = typeof RIYADH_DISTRICTS[number];
+//# sourceMappingURL=marketplace.d.ts.map
