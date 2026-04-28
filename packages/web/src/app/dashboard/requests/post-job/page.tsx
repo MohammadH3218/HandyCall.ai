@@ -11,10 +11,13 @@ import { ServiceCategoryCombobox } from '@/components/marketplace/service-catego
 import { IconBriefcase, IconCheck, IconChevronRight } from '@tabler/icons-react';
 
 const MIN_DESCRIPTION_LENGTH = 50;
+const MAX_TITLE_LENGTH = 80;
+const MAX_TITLE_WORDS = 12;
 
 export default function PostJobPage() {
   const router = useRouter();
   const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [title, setTitle] = useState('');
   const [category, setCategory] = useState('');
   const [description, setDescription] = useState('');
   const [district, setDistrict] = useState('');
@@ -22,6 +25,11 @@ export default function PostJobPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
+  const titleWords = title.trim().split(/\s+/).filter(Boolean).length;
+  const titleValid =
+    title.trim().length > 0 &&
+    title.trim().length <= MAX_TITLE_LENGTH &&
+    titleWords <= MAX_TITLE_WORDS;
   const descriptionValid = description.trim().length >= MIN_DESCRIPTION_LENGTH;
   const charsRemaining = Math.max(0, MIN_DESCRIPTION_LENGTH - description.trim().length);
 
@@ -30,6 +38,7 @@ export default function PostJobPage() {
     setError(null);
     try {
       await apiClient.postOpenJob({
+        job_title: title.trim(),
         service_category: category,
         job_description: description.trim(),
         district,
@@ -69,6 +78,7 @@ export default function PostJobPage() {
             onClick={() => {
               setSuccess(false);
               setStep(1);
+              setTitle('');
               setCategory('');
               setDescription('');
               setDistrict('');
@@ -152,6 +162,28 @@ export default function PostJobPage() {
           </div>
 
           <div>
+            <div className="flex items-center justify-between gap-3">
+              <label className="mb-1.5 block text-sm font-medium text-slate-700">Job title</label>
+              <span
+                className={`text-xs ${titleValid || !title ? 'text-slate-400' : 'text-red-500'}`}
+              >
+                {Math.max(0, MAX_TITLE_LENGTH - title.length)} characters left
+              </span>
+            </div>
+            <input
+              value={title}
+              onChange={(e) => setTitle(e.target.value.slice(0, MAX_TITLE_LENGTH))}
+              placeholder="e.g. Install bathroom plumbing"
+              className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm text-slate-700 outline-none focus:ring-2 focus:ring-ring"
+            />
+            <p
+              className={`mt-1.5 text-xs ${titleWords > MAX_TITLE_WORDS ? 'text-red-500' : 'text-slate-400'}`}
+            >
+              Keep it short: {MAX_TITLE_WORDS} words max.
+            </p>
+          </div>
+
+          <div>
             <Textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
@@ -190,7 +222,7 @@ export default function PostJobPage() {
             </Button>
             <Button
               onClick={() => setStep(3)}
-              disabled={!descriptionValid || !district}
+              disabled={!titleValid || !descriptionValid || !district}
               className="flex-1 gap-2 bg-emerald-600 text-white hover:bg-emerald-700"
             >
               Continue
@@ -218,6 +250,10 @@ export default function PostJobPage() {
               <div className="flex justify-between">
                 <span className="text-slate-500">Category</span>
                 <span className="font-medium text-slate-800">{category}</span>
+              </div>
+              <div className="flex justify-between gap-4">
+                <span className="text-slate-500">Title</span>
+                <span className="text-right font-medium text-slate-800">{title}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-500">District</span>

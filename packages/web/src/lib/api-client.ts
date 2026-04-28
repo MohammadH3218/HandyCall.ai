@@ -1484,6 +1484,7 @@ class ApiClient {
   }
 
   async postOpenJob(data: {
+    job_title: string;
     service_category: string;
     job_description: string;
     district: string;

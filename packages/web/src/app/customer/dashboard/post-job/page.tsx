@@ -9,9 +9,12 @@ import { SAUDI_MARKETPLACE_CITIES } from '@/constants/houston-areas';
 import { ServiceCategoryCombobox } from '@/components/marketplace/service-category-combobox';
 
 const MIN_DESCRIPTION_LENGTH = 50;
+const MAX_TITLE_LENGTH = 80;
+const MAX_TITLE_WORDS = 12;
 
 export default function CustomerPostJobPage() {
   const router = useRouter();
+  const [title, setTitle] = useState('');
   const [category, setCategory] = useState('');
   const [description, setDescription] = useState('');
   const [district, setDistrict] = useState('');
@@ -19,8 +22,13 @@ export default function CustomerPostJobPage() {
   const [error, setError] = useState<string | null>(null);
   const [posted, setPosted] = useState(false);
 
+  const titleWords = title.trim().split(/\s+/).filter(Boolean).length;
+  const titleValid =
+    title.trim().length > 0 &&
+    title.trim().length <= MAX_TITLE_LENGTH &&
+    titleWords <= MAX_TITLE_WORDS;
   const descriptionValid = description.trim().length >= MIN_DESCRIPTION_LENGTH;
-  const canSubmit = Boolean(category && district && descriptionValid && !submitting);
+  const canSubmit = Boolean(titleValid && category && district && descriptionValid && !submitting);
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -30,6 +38,7 @@ export default function CustomerPostJobPage() {
       setSubmitting(true);
       setError(null);
       await apiClient.postOpenJob({
+        job_title: title.trim(),
         service_category: category,
         job_description: description.trim(),
         district,
@@ -65,6 +74,7 @@ export default function CustomerPostJobPage() {
               type="button"
               onClick={() => {
                 setPosted(false);
+                setTitle('');
                 setCategory('');
                 setDescription('');
                 setDistrict('');
@@ -116,6 +126,28 @@ export default function CustomerPostJobPage() {
           />
 
           <div>
+            <div className="flex items-center justify-between gap-3">
+              <label className="text-sm font-semibold text-slate-900">Job title</label>
+              <span
+                className={`text-xs ${titleValid || !title ? 'text-slate-400' : 'text-red-500'}`}
+              >
+                {Math.max(0, MAX_TITLE_LENGTH - title.length)} characters left
+              </span>
+            </div>
+            <input
+              value={title}
+              onChange={(event) => setTitle(event.target.value.slice(0, MAX_TITLE_LENGTH))}
+              placeholder="e.g. Install bathroom plumbing"
+              className="mt-2 h-11 w-full rounded-xl border border-slate-200 px-4 text-sm text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-emerald-300 focus:ring-2 focus:ring-emerald-100"
+            />
+            <p
+              className={`mt-1.5 text-xs ${titleWords > MAX_TITLE_WORDS ? 'text-red-500' : 'text-slate-400'}`}
+            >
+              Keep it short: {MAX_TITLE_WORDS} words max.
+            </p>
+          </div>
+
+          <div>
             <label className="text-sm font-semibold text-slate-900">Job details</label>
             <textarea
               value={description}
@@ -162,8 +194,8 @@ export default function CustomerPostJobPage() {
                 stroke={1.8}
               />
               <p className="text-sm leading-6 text-slate-600">
-                Pros see the category, district, and job details. Your account contact info is only
-                shared after a pro claims the job.
+                Pros first see your title and job details. Your account contact info and location
+                are only shared after a pro claims the job.
               </p>
             </div>
             <button

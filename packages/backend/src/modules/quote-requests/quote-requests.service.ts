@@ -88,12 +88,20 @@ export class QuoteRequestsService {
   async postOpenJob(
     customerId: string,
     data: {
+      job_title: string;
       service_category: string;
       job_description: string;
       district: string;
       photos?: string[];
     }
   ) {
+    const jobTitle = data.job_title?.trim();
+    if (!jobTitle) throw new BadRequestException('job_title is required');
+    if (jobTitle.length > 80)
+      throw new BadRequestException('job_title must be 80 characters or fewer');
+    if (jobTitle.split(/\s+/).filter(Boolean).length > 12) {
+      throw new BadRequestException('job_title must be 12 words or fewer');
+    }
     if (!data.service_category?.trim())
       throw new BadRequestException('service_category is required');
     if (!data.district?.trim()) throw new BadRequestException('district is required');
@@ -113,6 +121,7 @@ export class QuoteRequestsService {
       quote_id: uuidv4(),
       request_type: 'OPEN' as RequestType,
       customer_user_id: customerId,
+      job_title: jobTitle,
       service_category: data.service_category,
       job_description: data.job_description.trim(),
       district: data.district,
@@ -280,9 +289,9 @@ export class QuoteRequestsService {
       .sort((a, b) => b.created_at - a.created_at)
       .map((q) => ({
         quote_id: q.quote_id,
+        job_title: q.job_title ?? q.service_category,
         service_category: q.service_category,
         job_description: q.job_description,
-        district: q.district,
         status: q.status,
         lead_fee_halalas: q.lead_fee_halalas,
         lead_fee_sar: halalasToSar(q.lead_fee_halalas),
@@ -313,6 +322,7 @@ export class QuoteRequestsService {
 
     return items.map((q: any) => ({
       quote_id: q.quote_id,
+      job_title: q.job_title ?? q.service_category,
       service_category: q.service_category,
       job_description: q.job_description,
       district: q.district,
@@ -341,6 +351,7 @@ export class QuoteRequestsService {
 
     return items.map((q: any) => ({
       quote_id: q.quote_id,
+      job_title: q.job_title ?? q.service_category,
       service_category: q.service_category,
       job_description: q.job_description,
       district: q.district,
@@ -370,6 +381,7 @@ export class QuoteRequestsService {
 
     return {
       quote_id: q.quote_id,
+      job_title: q.job_title ?? q.service_category,
       service_category: q.service_category,
       job_description: q.job_description,
       district: q.district,
@@ -455,6 +467,7 @@ export class QuoteRequestsService {
       customerName: q.contact_name ?? undefined,
       quoteContext: {
         quote_id: quoteId,
+        job_title: q.job_title ?? q.service_category,
         service_category: q.service_category,
         location_city: q.district,
         job_description: q.job_description,

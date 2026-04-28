@@ -7,10 +7,8 @@ import {
   IconCheck,
   IconClock,
   IconCoin,
-  IconMapPin,
   IconRefresh,
   IconSearch,
-  IconTag,
   IconX,
 } from '@tabler/icons-react';
 import { apiClient } from '@/lib/api-client';
@@ -37,9 +35,9 @@ function displayCategory(category: string) {
 
 type OpenJob = {
   quote_id: string;
+  job_title: string;
   service_category: string;
   job_description: string;
-  district: string;
   status: string;
   lead_fee_halalas: number;
   lead_fee_sar: number;
@@ -74,23 +72,19 @@ function ClaimModal({
         <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-50">
           <IconBriefcase className="h-6 w-6 text-emerald-600" stroke={1.5} />
         </div>
-        <h2 className="mt-4 text-lg font-bold text-slate-900">Claim this job?</h2>
+        <h2 className="mt-4 text-lg font-bold text-slate-900">{job.job_title}</h2>
         <p className="mt-1 text-sm leading-6 text-slate-500">
-          The lead fee is charged immediately, then a chat opens with the customer. First pro to
-          claim gets the job.
+          Review the job details, then accept the lead if it is a good fit. The lead fee is charged
+          immediately.
         </p>
 
-        <div className="mt-5 space-y-2.5 rounded-xl bg-slate-50 p-4 text-sm">
-          <div className="flex justify-between gap-4">
-            <span className="text-slate-500">Category</span>
-            <span className="text-right font-medium text-slate-800">
-              {displayCategory(job.service_category)}
-            </span>
-          </div>
-          <div className="flex justify-between gap-4">
-            <span className="text-slate-500">District</span>
-            <span className="text-right font-medium text-slate-800">{job.district}</span>
-          </div>
+        <div className="mt-5 rounded-xl border border-slate-200 bg-white p-4">
+          <p className="whitespace-pre-wrap text-sm leading-6 text-slate-700">
+            {job.job_description}
+          </p>
+        </div>
+
+        <div className="mt-4 space-y-2.5 rounded-xl bg-slate-50 p-4 text-sm">
           <div className="flex justify-between gap-4">
             <span className="text-slate-500">Expires</span>
             <span className="text-right font-medium text-amber-700">
@@ -114,7 +108,7 @@ function ClaimModal({
             disabled={loading}
             className="flex-1 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-50"
           >
-            {loading ? 'Claiming...' : `Claim - SAR ${job.lead_fee_sar.toFixed(2)}`}
+            {loading ? 'Claiming...' : `Accept lead - SAR ${job.lead_fee_sar.toFixed(2)}`}
           </button>
           <button
             type="button"
@@ -140,7 +134,6 @@ export default function ProJobsBoardPage() {
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
-  const [districtFilter, setDistrictFilter] = useState('');
 
   const loadJobs = useCallback(async () => {
     try {
@@ -148,7 +141,6 @@ export default function ProJobsBoardPage() {
       setError(null);
       const data = await apiClient.getJobsBoard({
         category: categoryFilter || undefined,
-        district: districtFilter || undefined,
       });
       setJobs(Array.isArray(data) ? data : []);
     } catch (err: any) {
@@ -156,7 +148,7 @@ export default function ProJobsBoardPage() {
     } finally {
       setLoading(false);
     }
-  }, [categoryFilter, districtFilter]);
+  }, [categoryFilter]);
 
   useEffect(() => {
     void loadJobs();
@@ -166,7 +158,9 @@ export default function ProJobsBoardPage() {
     const query = search.trim().toLowerCase();
     if (!query) return jobs;
     return jobs.filter((job) =>
-      `${job.service_category} ${job.job_description} ${job.district}`.toLowerCase().includes(query)
+      `${job.job_title} ${job.service_category} ${job.job_description}`
+        .toLowerCase()
+        .includes(query)
     );
   }, [jobs, search]);
 
@@ -174,8 +168,6 @@ export default function ProJobsBoardPage() {
     () => [...new Set(jobs.map((job) => job.service_category))].sort(),
     [jobs]
   );
-  const districts = useMemo(() => [...new Set(jobs.map((job) => job.district))].sort(), [jobs]);
-
   const handleClaim = async (job: OpenJob) => {
     setClaimingId(job.quote_id);
     setConfirmJob(null);
@@ -217,8 +209,8 @@ export default function ProJobsBoardPage() {
           <div>
             <h1 className="text-2xl font-bold text-slate-900">Jobs Board</h1>
             <p className="mt-1 text-sm text-slate-500">
-              Browse open customer jobs in your categories and districts. Claiming charges the
-              displayed lead fee.
+              Browse open customer jobs that match your profile. Claiming charges the displayed lead
+              fee and reveals the customer contact details.
             </p>
           </div>
 
@@ -269,18 +261,6 @@ export default function ProJobsBoardPage() {
               </option>
             ))}
           </select>
-          <select
-            value={districtFilter}
-            onChange={(event) => setDistrictFilter(event.target.value)}
-            className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none transition focus:border-emerald-300 focus:ring-2 focus:ring-emerald-100"
-          >
-            <option value="">All districts</option>
-            {districts.map((district) => (
-              <option key={district} value={district}>
-                {district}
-              </option>
-            ))}
-          </select>
         </div>
 
         {loading ? (
@@ -305,29 +285,32 @@ export default function ProJobsBoardPage() {
               return (
                 <div
                   key={job.quote_id}
-                  className="flex flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-emerald-200 hover:shadow-md"
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => setConfirmJob(job)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      setConfirmJob(job);
+                    }
+                  }}
+                  className="flex flex-col rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:border-emerald-200 hover:shadow-md"
                 >
                   <div className="flex items-start justify-between gap-2">
-                    <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
-                      <IconTag className="h-3 w-3" stroke={2} />
-                      {displayCategory(job.service_category)}
-                    </span>
+                    <h2 className="line-clamp-2 text-base font-bold text-slate-900">
+                      {job.job_title}
+                    </h2>
                     <span
-                      className={`inline-flex items-center gap-1 text-xs font-medium ${urgent ? 'text-red-600' : 'text-amber-600'}`}
+                      className={`inline-flex shrink-0 items-center gap-1 text-xs font-medium ${urgent ? 'text-red-600' : 'text-amber-600'}`}
                     >
                       <IconClock className="h-3 w-3" stroke={2} />
                       {formatTimeRemaining(job.time_remaining_ms)}
                     </span>
                   </div>
 
-                  <p className="mt-3 line-clamp-3 flex-1 text-sm leading-6 text-slate-700">
+                  <p className="mt-3 line-clamp-3 flex-1 text-sm leading-6 text-slate-600">
                     {job.job_description}
                   </p>
-
-                  <div className="mt-3 flex items-center gap-1 text-xs text-slate-400">
-                    <IconMapPin className="h-3.5 w-3.5" stroke={1.5} />
-                    {job.district}
-                  </div>
 
                   <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-4">
                     <div>
@@ -339,12 +322,15 @@ export default function ProJobsBoardPage() {
                     </div>
                     <button
                       type="button"
-                      onClick={() => setConfirmJob(job)}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setConfirmJob(job);
+                      }}
                       disabled={Boolean(claimingId)}
                       className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-50"
                     >
                       <IconCheck className="h-3.5 w-3.5" stroke={2.5} />
-                      Claim Job
+                      View details
                     </button>
                   </div>
                 </div>
