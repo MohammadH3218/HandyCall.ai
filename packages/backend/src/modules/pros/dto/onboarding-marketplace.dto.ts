@@ -118,20 +118,8 @@ export class OnboardingMarketplaceDto {
   @Transform(({ value, obj, key }) => parseBoolean(value, obj?.[key]))
   speaks_hindi?: boolean;
 
-  @IsEnum([
-    'AC_HVAC',
-    'PLUMBING',
-    'ELECTRICAL',
-    'PAINTING',
-    'CLEANING',
-    'PEST_CONTROL',
-    'CARPENTRY',
-    'MOVING',
-    'APPLIANCE_REPAIR',
-    'SATELLITE_DISH',
-    'LANDSCAPING',
-    'GENERAL_HANDYMAN',
-  ] as const)
+  @IsString()
+  @MaxLength(120)
   service_category: ServiceCategory;
 
   @IsArray()

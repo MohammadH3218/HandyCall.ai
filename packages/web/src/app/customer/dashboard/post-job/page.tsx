@@ -3,31 +3,10 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import {
-  IconBriefcase,
-  IconCheck,
-  IconChevronRight,
-  IconClipboardText,
-  IconMapPin,
-} from '@tabler/icons-react';
+import { IconCheck, IconChevronRight, IconClipboardText, IconMapPin } from '@tabler/icons-react';
 import { apiClient } from '@/lib/api-client';
 import { SAUDI_MARKETPLACE_CITIES } from '@/constants/houston-areas';
-
-const SERVICE_CATEGORIES = [
-  { value: 'AC_HVAC', label: 'AC & HVAC' },
-  { value: 'ELECTRICAL', label: 'Electrical' },
-  { value: 'PLUMBING', label: 'Plumbing' },
-  { value: 'APPLIANCE_REPAIR', label: 'Appliance Repair' },
-  { value: 'PEST_CONTROL', label: 'Pest Control' },
-  { value: 'MOVING', label: 'Moving' },
-  { value: 'GENERAL_HANDYMAN', label: 'General Handyman' },
-  { value: 'PAINTING', label: 'Painting' },
-  { value: 'CLEANING', label: 'Cleaning' },
-  { value: 'CARPENTRY', label: 'Carpentry' },
-  { value: 'SATELLITE_DISH', label: 'Satellite & Dish' },
-  { value: 'LANDSCAPING', label: 'Landscaping' },
-  { value: 'OTHER', label: 'Other / Not sure' },
-] as const;
+import { ServiceCategoryCombobox } from '@/components/marketplace/service-category-combobox';
 
 const MIN_DESCRIPTION_LENGTH = 50;
 
@@ -76,7 +55,8 @@ export default function CustomerPostJobPage() {
           </div>
           <h1 className="mt-5 text-2xl font-bold text-slate-900">Your job is posted</h1>
           <p className="mt-2 max-w-md text-sm leading-6 text-slate-500">
-            Available pros in your district can now claim the job. Once a pro accepts, a chat will open so you can coordinate the details.
+            Available pros in your district can now claim the job. Once a pro accepts, a chat will
+            open so you can coordinate the details.
           </p>
           <div className="mt-7 flex flex-wrap justify-center gap-3">
             <Link
@@ -112,7 +92,8 @@ export default function CustomerPostJobPage() {
           <div>
             <h1 className="text-2xl font-bold text-slate-900">Post a Job</h1>
             <p className="mt-1 text-sm text-slate-500">
-              Tell Riyadh pros what you need. Posting is free, and only the first available pro connects with you.
+              Tell Riyadh pros what you need. Posting is free, and only the first available pro
+              connects with you.
             </p>
           </div>
           <Link
@@ -125,30 +106,20 @@ export default function CustomerPostJobPage() {
         </div>
 
         {error ? (
-          <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
+          <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {error}
+          </div>
         ) : null}
 
-        <form onSubmit={handleSubmit} className="space-y-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div>
-            <label className="text-sm font-semibold text-slate-900">Service category</label>
-            <div className="mt-3 grid gap-2 sm:grid-cols-2">
-              {SERVICE_CATEGORIES.map((item) => (
-                <button
-                  key={item.value}
-                  type="button"
-                  onClick={() => setCategory(item.value)}
-                  className={`flex items-center gap-2 rounded-xl border px-4 py-3 text-left text-sm font-medium transition ${
-                    category === item.value
-                      ? 'border-emerald-400 bg-emerald-50 text-emerald-800'
-                      : 'border-slate-200 text-slate-700 hover:border-slate-300 hover:bg-slate-50'
-                  }`}
-                >
-                  <IconBriefcase className="h-4 w-4 shrink-0" stroke={1.8} />
-                  {item.label}
-                </button>
-              ))}
-            </div>
-          </div>
+        <form
+          onSubmit={handleSubmit}
+          className="space-y-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
+        >
+          <ServiceCategoryCombobox
+            value={category}
+            onChange={setCategory}
+            helperText="Search by category or niche service, like locksmith, tank cleaning, upholstery, or smart home."
+          />
 
           <div>
             <label className="text-sm font-semibold text-slate-900">Job details</label>
@@ -159,7 +130,9 @@ export default function CustomerPostJobPage() {
               placeholder="Describe what you need, what is broken, timing, and any details that help the pro understand the job."
               className="mt-2 w-full resize-none rounded-xl border border-slate-200 px-4 py-3 text-sm leading-6 text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-emerald-300 focus:ring-2 focus:ring-emerald-100"
             />
-            <p className={`mt-1.5 text-xs ${descriptionValid ? 'text-emerald-600' : 'text-slate-400'}`}>
+            <p
+              className={`mt-1.5 text-xs ${descriptionValid ? 'text-emerald-600' : 'text-slate-400'}`}
+            >
               {descriptionValid
                 ? 'Good detail'
                 : `${Math.max(0, MIN_DESCRIPTION_LENGTH - description.trim().length)} more characters needed`}
@@ -169,7 +142,10 @@ export default function CustomerPostJobPage() {
           <div>
             <label className="text-sm font-semibold text-slate-900">District</label>
             <div className="relative mt-2">
-              <IconMapPin className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" stroke={1.8} />
+              <IconMapPin
+                className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+                stroke={1.8}
+              />
               <select
                 value={district}
                 onChange={(event) => setDistrict(event.target.value)}
@@ -209,9 +185,13 @@ export default function CustomerPostJobPage() {
 
           <div className="flex flex-col gap-3 rounded-xl bg-slate-50 p-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-start gap-3">
-              <IconClipboardText className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" stroke={1.8} />
+              <IconClipboardText
+                className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600"
+                stroke={1.8}
+              />
               <p className="text-sm leading-6 text-slate-600">
-                Pros see the category, district, and job details. Your contact info is only shared after a pro claims the job.
+                Pros see the category, district, and job details. Your contact info is only shared
+                after a pro claims the job.
               </p>
             </div>
             <button

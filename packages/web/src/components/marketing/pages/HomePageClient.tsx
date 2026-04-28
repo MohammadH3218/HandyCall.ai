@@ -2,12 +2,7 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
-import {
-  IconChecklist,
-  IconMapPin,
-  IconShieldCheck,
-  IconStar,
-} from '@tabler/icons-react';
+import { IconChecklist, IconMapPin, IconShieldCheck, IconStar } from '@tabler/icons-react';
 import { SiteHeader } from '@/components/marketing/site-header';
 import { SiteFooter } from '@/components/marketing/site-footer';
 import { FadeIn } from '@/components/marketing/fade-in';
@@ -19,18 +14,28 @@ import { FEATURED_MARKETPLACE_CATEGORIES } from '@/constants/marketplace-service
  * Using direct photo IDs for stable, reliable URLs.
  */
 const CATEGORY_PHOTOS: Record<string, string> = {
-  'ac-repair':       'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400&h=260&q=82&fit=crop&auto=format',
-  'plumbing':        'https://images.unsplash.com/photo-1607472586893-edb57bdc0e39?w=400&h=260&q=82&fit=crop&auto=format',
-  'electrical':      'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=400&h=260&q=82&fit=crop&auto=format',
-  'cleaning':        'https://images.unsplash.com/photo-1581578731548-c64695cc6952?w=400&h=260&q=82&fit=crop&auto=format',
-  'painting':        '/images/categories/painting.avif',
-  'carpentry':       'https://images.unsplash.com/photo-1504148455328-c376907d081c?w=400&h=260&q=82&fit=crop&auto=format',
-  'pest-control':    '/images/categories/pest-control.webp',
-  'landscaping':     'https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=400&h=260&q=82&fit=crop&auto=format',
-  'appliance-repair':'https://images.unsplash.com/photo-1567016432779-094069958ea5?w=400&h=260&q=82&fit=crop&auto=format',
-  'moving':          'https://images.unsplash.com/photo-1600518464441-9154a4dea21b?w=400&h=260&q=82&fit=crop&auto=format',
-  'handyman':        'https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=400&h=260&q=82&fit=crop&auto=format',
-  'network-it':      'https://images.unsplash.com/photo-1558494949-ef010cbdcc31?w=400&h=260&q=82&fit=crop&auto=format',
+  'ac-repair':
+    'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400&h=260&q=82&fit=crop&auto=format',
+  plumbing:
+    'https://images.unsplash.com/photo-1607472586893-edb57bdc0e39?w=400&h=260&q=82&fit=crop&auto=format',
+  electrical:
+    'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=400&h=260&q=82&fit=crop&auto=format',
+  cleaning:
+    'https://images.unsplash.com/photo-1581578731548-c64695cc6952?w=400&h=260&q=82&fit=crop&auto=format',
+  painting: '/images/categories/painting.avif',
+  carpentry:
+    'https://images.unsplash.com/photo-1504148455328-c376907d081c?w=400&h=260&q=82&fit=crop&auto=format',
+  'pest-control': '/images/categories/pest-control.webp',
+  landscaping:
+    'https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=400&h=260&q=82&fit=crop&auto=format',
+  'appliance-repair':
+    'https://images.unsplash.com/photo-1567016432779-094069958ea5?w=400&h=260&q=82&fit=crop&auto=format',
+  moving:
+    'https://images.unsplash.com/photo-1600518464441-9154a4dea21b?w=400&h=260&q=82&fit=crop&auto=format',
+  handyman:
+    'https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=400&h=260&q=82&fit=crop&auto=format',
+  'network-it':
+    'https://images.unsplash.com/photo-1558494949-ef010cbdcc31?w=400&h=260&q=82&fit=crop&auto=format',
 };
 
 const STEPS = [
@@ -195,7 +200,8 @@ export function HomePageClient() {
                 Services homeowners use every week
               </h2>
               <p className="mt-3 text-slate-500">
-                Browse the most requested categories first, then narrow by district on the search page.
+                Browse the most requested categories first, then narrow by district on the search
+                page.
               </p>
             </div>
           </FadeIn>
@@ -206,10 +212,10 @@ export function HomePageClient() {
 
           <div className="mt-8 text-center">
             <Link
-              href="/categories"
+              href="/search"
               className="inline-flex items-center gap-2 rounded-xl border border-emerald-200 px-6 py-3 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-50"
             >
-              Browse all categories
+              Search services
             </Link>
           </div>
         </div>
@@ -237,9 +243,7 @@ export function HomePageClient() {
                     {step.num}
                   </span>
                   <h3 className="mt-3 text-lg font-bold text-slate-900">{step.title}</h3>
-                  <p className="mt-3 text-sm leading-relaxed text-slate-500">
-                    {step.description}
-                  </p>
+                  <p className="mt-3 text-sm leading-relaxed text-slate-500">{step.description}</p>
                 </div>
               </FadeIn>
             ))}
@@ -264,9 +268,7 @@ export function HomePageClient() {
                 <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
                   <item.icon className="h-7 w-7 text-emerald-600" stroke={1.8} />
                   <h3 className="mt-4 font-bold text-slate-900">{item.title}</h3>
-                  <p className="mt-2 text-sm leading-relaxed text-slate-500">
-                    {item.description}
-                  </p>
+                  <p className="mt-2 text-sm leading-relaxed text-slate-500">{item.description}</p>
                 </div>
               </FadeIn>
             ))}
@@ -281,7 +283,8 @@ export function HomePageClient() {
             <div className="mx-auto flex max-w-3xl flex-wrap items-center justify-center gap-3 rounded-2xl bg-white px-6 py-4 shadow-lg">
               <IconChecklist className="h-5 w-5 text-emerald-600" stroke={1.8} />
               <span className="text-sm font-semibold text-slate-700">
-                Browse categories, search by district, and sign up only when you want to save progress.
+                Browse categories, search by district, and sign up only when you want to save
+                progress.
               </span>
             </div>
 
@@ -289,7 +292,8 @@ export function HomePageClient() {
               Looking to grow your service business?
             </h2>
             <p className="mx-auto mt-4 max-w-2xl text-base text-emerald-100">
-              Visit the For Pros page to see how HandyCall helps providers get discovered, manage requests, and turn marketplace traffic into booked jobs.
+              Visit the For Pros page to see how HandyCall helps providers get discovered, manage
+              requests, and turn marketplace traffic into booked jobs.
             </p>
 
             <div className="mt-8 flex flex-wrap items-center justify-center gap-4">

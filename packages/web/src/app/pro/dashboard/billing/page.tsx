@@ -1,12 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import {
-  IconCoin,
-  IconReceipt,
-  IconTrendingUp,
-  IconWallet,
-} from '@tabler/icons-react';
+import { IconCoin, IconReceipt, IconTrendingUp, IconWallet } from '@tabler/icons-react';
 import { apiClient } from '@/lib/api-client';
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -36,9 +31,10 @@ type LeadFeeTransaction = {
 };
 
 function extractCategory(description: string): string {
-  const match = description.match(/Lead fee [-\u2014] ([A-Z_]+)/);
+  const match = description.match(/Lead fee [-\u2014] (.+?)(?: job in|$)/);
   if (!match?.[1]) return 'Other';
-  return CATEGORY_LABELS[match[1]] ?? match[1];
+  const category = match[1].trim();
+  return CATEGORY_LABELS[category] ?? category;
 }
 
 function formatDate(ts?: number) {
@@ -78,7 +74,7 @@ export default function ProBillingPage() {
 
   const charges = useMemo(
     () => transactions.filter((transaction) => transaction.transaction_type === 'CHARGE'),
-    [transactions],
+    [transactions]
   );
 
   const thisMonthSar = useMemo(() => {
@@ -109,7 +105,9 @@ export default function ProBillingPage() {
         </div>
 
         {error ? (
-          <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
+          <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {error}
+          </div>
         ) : null}
 
         {loading ? (
@@ -136,7 +134,11 @@ export default function ProBillingPage() {
               icon={<IconCoin className="h-4 w-4" stroke={1.5} />}
               label="Top category"
               value={categoryBreakdown[0]?.[0] || 'None yet'}
-              detail={categoryBreakdown[0] ? `SAR ${categoryBreakdown[0][1].toFixed(2)}` : 'No claimed jobs'}
+              detail={
+                categoryBreakdown[0]
+                  ? `SAR ${categoryBreakdown[0][1].toFixed(2)}`
+                  : 'No claimed jobs'
+              }
             />
           </div>
         )}
@@ -154,7 +156,10 @@ export default function ProBillingPage() {
                       <span className="font-medium text-slate-800">SAR {amount.toFixed(2)}</span>
                     </div>
                     <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-slate-100">
-                      <div className="h-full rounded-full bg-emerald-500" style={{ width: `${width}%` }} />
+                      <div
+                        className="h-full rounded-full bg-emerald-500"
+                        style={{ width: `${width}%` }}
+                      />
                     </div>
                   </div>
                 );
@@ -190,7 +195,10 @@ export default function ProBillingPage() {
               {transactions.map((transaction) => {
                 const isCharge = transaction.transaction_type === 'CHARGE';
                 return (
-                  <div key={transaction.transaction_id} className="flex items-center justify-between gap-4 px-5 py-4">
+                  <div
+                    key={transaction.transaction_id}
+                    className="flex items-center justify-between gap-4 px-5 py-4"
+                  >
                     <div className="flex min-w-0 items-center gap-3">
                       <div
                         className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${
@@ -200,12 +208,18 @@ export default function ProBillingPage() {
                         <IconCoin className="h-4 w-4" stroke={1.6} />
                       </div>
                       <div className="min-w-0">
-                        <p className="truncate text-sm font-medium text-slate-800">{transaction.description}</p>
-                        <p className="mt-0.5 text-xs text-slate-400">{formatDate(transaction.created_at)}</p>
+                        <p className="truncate text-sm font-medium text-slate-800">
+                          {transaction.description}
+                        </p>
+                        <p className="mt-0.5 text-xs text-slate-400">
+                          {formatDate(transaction.created_at)}
+                        </p>
                       </div>
                     </div>
                     <div className="shrink-0 text-right">
-                      <p className={`text-sm font-semibold ${isCharge ? 'text-red-600' : 'text-emerald-600'}`}>
+                      <p
+                        className={`text-sm font-semibold ${isCharge ? 'text-red-600' : 'text-emerald-600'}`}
+                      >
                         {isCharge ? '-' : '+'}SAR {Number(transaction.amount_sar || 0).toFixed(2)}
                       </p>
                       <p className="mt-0.5 text-[11px] font-medium uppercase tracking-wide text-slate-300">

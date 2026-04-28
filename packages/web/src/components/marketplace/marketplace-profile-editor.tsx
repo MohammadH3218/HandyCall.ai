@@ -13,10 +13,23 @@ import {
   getSpecificServicesForCategory,
 } from '@/constants/marketplace-service-categories';
 
-const PROPERTY_TYPES = ['Villa', 'Apartment', 'Townhouse', 'Office', 'Commercial', 'Government Building'];
+const PROPERTY_TYPES = [
+  'Villa',
+  'Apartment',
+  'Townhouse',
+  'Office',
+  'Commercial',
+  'Government Building',
+];
 const PAYMENT_METHOD_ICONS: Record<string, React.ReactNode> = {
   cash: (
-    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={1.6}>
+    <svg
+      viewBox="0 0 24 24"
+      className="h-5 w-5"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.6}
+    >
       <rect x="2" y="6" width="20" height="12" rx="2" stroke="currentColor" />
       <circle cx="12" cy="12" r="3" stroke="currentColor" />
       <path d="M6 10v4M18 10v4" strokeLinecap="round" />
@@ -24,24 +37,42 @@ const PAYMENT_METHOD_ICONS: Record<string, React.ReactNode> = {
   ),
   apple_pay: (
     <svg viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor">
-      <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/>
+      <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z" />
     </svg>
   ),
   card: (
-    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={1.6}>
+    <svg
+      viewBox="0 0 24 24"
+      className="h-5 w-5"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.6}
+    >
       <rect x="2" y="5" width="20" height="14" rx="2" />
       <path d="M2 10h20" strokeLinecap="round" />
       <path d="M6 15h4" strokeLinecap="round" />
     </svg>
   ),
   mada: (
-    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={1.6}>
+    <svg
+      viewBox="0 0 24 24"
+      className="h-5 w-5"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.6}
+    >
       <rect x="3" y="5.5" width="18" height="13" rx="2" />
       <path d="M7 10h10M7 14h5" strokeLinecap="round" />
     </svg>
   ),
   bank_transfer: (
-    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={1.6}>
+    <svg
+      viewBox="0 0 24 24"
+      className="h-5 w-5"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.6}
+    >
       <path d="M4 10h16M6 10V7h12v3M7 10v7M12 10v7M17 10v7M4 17h16" strokeLinecap="round" />
     </svg>
   ),
@@ -56,13 +87,32 @@ const PAYMENT_METHODS = [
 ];
 const EMPLOYEE_OPTIONS = ['Just me (solo)', '2-5 employees', '6-20 employees', '20+ employees'];
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-const TIMES = ['6:00 AM', '7:00 AM', '8:00 AM', '9:00 AM', '10:00 AM', '11:00 AM', '12:00 PM', '1:00 PM', '2:00 PM', '3:00 PM', '4:00 PM', '5:00 PM', '6:00 PM', '7:00 PM', '8:00 PM', '9:00 PM', '10:00 PM', '11:00 PM'];
+const TIMES = [
+  '6:00 AM',
+  '7:00 AM',
+  '8:00 AM',
+  '9:00 AM',
+  '10:00 AM',
+  '11:00 AM',
+  '12:00 PM',
+  '1:00 PM',
+  '2:00 PM',
+  '3:00 PM',
+  '4:00 PM',
+  '5:00 PM',
+  '6:00 PM',
+  '7:00 PM',
+  '8:00 PM',
+  '9:00 PM',
+  '10:00 PM',
+  '11:00 PM',
+];
 
 const EDITOR_TRANSLATIONS: Record<string, string> = {
   Apartment: 'شقة',
   Townhouse: 'تاون هاوس',
   Office: 'مكتب',
-  'Commercial': 'تجاري',
+  Commercial: 'تجاري',
   'Government Building': 'مبنى حكومي',
   Cash: 'نقدًا',
   'Apple Pay': 'Apple Pay',
@@ -192,7 +242,9 @@ function PhotoCropModal({
   useEffect(() => {
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = prev; };
+    return () => {
+      document.body.style.overflow = prev;
+    };
   }, []);
 
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -201,11 +253,14 @@ function PhotoCropModal({
     dragStart.current = { x: e.clientX, y: e.clientY, ox: offsetX, oy: offsetY };
   };
 
-  const handleMouseMove = useCallback((e: MouseEvent) => {
-    if (!dragging || !dragStart.current) return;
-    setOffsetX(dragStart.current.ox + (e.clientX - dragStart.current.x));
-    setOffsetY(dragStart.current.oy + (e.clientY - dragStart.current.y));
-  }, [dragging]);
+  const handleMouseMove = useCallback(
+    (e: MouseEvent) => {
+      if (!dragging || !dragStart.current) return;
+      setOffsetX(dragStart.current.ox + (e.clientX - dragStart.current.x));
+      setOffsetY(dragStart.current.oy + (e.clientY - dragStart.current.y));
+    },
+    [dragging]
+  );
 
   const handleMouseUp = useCallback(() => {
     setDragging(false);
@@ -240,10 +295,20 @@ function PhotoCropModal({
 
     const scaleX = naturalW / displayW;
     const scaleY = naturalH / displayH;
-    const srcX = (cx - previewSize / 2) * scaleX * -1 + naturalW / 2 - previewSize * scaleX / 2;
-    const srcY = (cy - previewSize / 2) * scaleY * -1 + naturalH / 2 - previewSize * scaleY / 2;
+    const srcX = (cx - previewSize / 2) * scaleX * -1 + naturalW / 2 - (previewSize * scaleX) / 2;
+    const srcY = (cy - previewSize / 2) * scaleY * -1 + naturalH / 2 - (previewSize * scaleY) / 2;
 
-    ctx.drawImage(img, srcX, srcY, previewSize * scaleX, previewSize * scaleY, 0, 0, previewSize, previewSize);
+    ctx.drawImage(
+      img,
+      srcX,
+      srcY,
+      previewSize * scaleX,
+      previewSize * scaleY,
+      0,
+      0,
+      previewSize,
+      previewSize
+    );
 
     onConfirm(canvas.toDataURL('image/jpeg', 0.9));
   }
@@ -260,7 +325,11 @@ function PhotoCropModal({
         {/* Crop preview */}
         <div
           className="relative mx-auto overflow-hidden rounded-full border-4 border-emerald-200 bg-slate-100"
-          style={{ width: previewSize, height: previewSize, cursor: dragging ? 'grabbing' : 'grab' }}
+          style={{
+            width: previewSize,
+            height: previewSize,
+            cursor: dragging ? 'grabbing' : 'grab',
+          }}
           onMouseDown={handleMouseDown}
           onWheel={(e) => {
             e.preventDefault();
@@ -343,14 +412,16 @@ function CategorySearch({
   const ref = useRef<HTMLDivElement>(null);
 
   const selectedCat = MARKETPLACE_SERVICE_CATEGORIES.find(
-    (c) => c.title === value || c.key === value,
+    (c) => c.title === value || c.key === value
   );
 
   const filtered = query.trim()
     ? MARKETPLACE_SERVICE_CATEGORIES.filter(
         (c) =>
           c.title.toLowerCase().includes(query.toLowerCase()) ||
-          (c.titleAr && c.titleAr.includes(query)),
+          (c.titleAr && c.titleAr.includes(query)) ||
+          c.services.some((service) => service.toLowerCase().includes(query.toLowerCase())) ||
+          c.searchKeywords.some((keyword) => keyword.toLowerCase().includes(query.toLowerCase()))
       )
     : MARKETPLACE_SERVICE_CATEGORIES;
 
@@ -369,7 +440,10 @@ function CategorySearch({
     <div ref={ref} className="relative mb-4">
       <button
         type="button"
-        onClick={() => { setOpen((v) => !v); setQuery(''); }}
+        onClick={() => {
+          setOpen((v) => !v);
+          setQuery('');
+        }}
         className={`flex w-full items-center justify-between rounded-xl border px-4 py-3 text-sm transition outline-none ${
           hasError
             ? 'border-red-300 bg-red-50/30'
@@ -380,11 +454,21 @@ function CategorySearch({
       >
         <span className={selectedCat ? 'text-slate-800' : 'text-slate-400'}>
           {selectedCat
-            ? (isArabic ? selectedCat.titleAr || selectedCat.title : selectedCat.title)
-            : (isArabic ? 'اختر الفئة...' : 'Select category...')}
+            ? isArabic
+              ? selectedCat.titleAr || selectedCat.title
+              : selectedCat.title
+            : isArabic
+              ? 'اختر الفئة...'
+              : 'Select category...'}
         </span>
         <svg className="h-4 w-4 shrink-0 text-slate-400" viewBox="0 0 16 16" fill="none">
-          <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          <path
+            d="M4 6l4 4 4-4"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
         </svg>
       </button>
 
@@ -393,7 +477,12 @@ function CategorySearch({
           <div className="flex items-center gap-2 border-b border-slate-100 px-3 py-2.5">
             <svg className="h-4 w-4 shrink-0 text-slate-400" viewBox="0 0 20 20" fill="none">
               <circle cx="9" cy="9" r="6" stroke="currentColor" strokeWidth="1.5" />
-              <path d="M13.5 13.5L17 17" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+              <path
+                d="M13.5 13.5L17 17"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+              />
             </svg>
             <input
               autoFocus
@@ -412,7 +501,11 @@ function CategorySearch({
                 <li key={c.key}>
                   <button
                     type="button"
-                    onClick={() => { onChange(c.title); setOpen(false); setQuery(''); }}
+                    onClick={() => {
+                      onChange(c.title);
+                      setOpen(false);
+                      setQuery('');
+                    }}
                     className={`flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm transition-colors ${
                       value === c.title || value === c.key
                         ? 'bg-emerald-50 font-semibold text-emerald-700'
@@ -420,13 +513,25 @@ function CategorySearch({
                     }`}
                   >
                     {(value === c.title || value === c.key) && (
-                      <svg className="h-3.5 w-3.5 shrink-0 text-emerald-600" viewBox="0 0 12 10" fill="none">
-                        <path d="M1 5l3 3 7-7" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                      <svg
+                        className="h-3.5 w-3.5 shrink-0 text-emerald-600"
+                        viewBox="0 0 12 10"
+                        fill="none"
+                      >
+                        <path
+                          d="M1 5l3 3 7-7"
+                          stroke="currentColor"
+                          strokeWidth="1.8"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
                       </svg>
                     )}
                     <span>
                       {isArabic ? c.titleAr || c.title : c.title}
-                      {!isArabic && c.titleAr && <span className="ml-1.5 text-slate-400">{c.titleAr}</span>}
+                      {!isArabic && c.titleAr && (
+                        <span className="ml-1.5 text-slate-400">{c.titleAr}</span>
+                      )}
                     </span>
                   </button>
                 </li>
@@ -454,22 +559,25 @@ function DistrictSelector({
   const normalizedQuery = query.trim().toLowerCase();
 
   const filteredGroups = Object.entries(RIYADH_DISTRICT_GROUPS)
-    .map(([region, districts]) => [
-      region,
-      districts.filter((district) =>
-        !normalizedQuery
-          ? true
-          : district.label.toLowerCase().includes(normalizedQuery) ||
-            district.region.toLowerCase().includes(normalizedQuery),
-      ),
-    ] as const)
+    .map(
+      ([region, districts]) =>
+        [
+          region,
+          districts.filter((district) =>
+            !normalizedQuery
+              ? true
+              : district.label.toLowerCase().includes(normalizedQuery) ||
+                district.region.toLowerCase().includes(normalizedQuery)
+          ),
+        ] as const
+    )
     .filter(([, districts]) => districts.length > 0);
 
   const toggleDistrict = (district: string) => {
     onChange(
       selected.includes(district)
         ? selected.filter((item) => item !== district)
-        : [...selected, district],
+        : [...selected, district]
     );
   };
 
@@ -505,16 +613,16 @@ function DistrictSelector({
             hasError ? 'border-red-300 bg-red-50/30' : 'border-slate-200'
           }`}
         />
-        <p className="mt-2 text-xs text-slate-500">
-          Choose every district you actively serve.
-        </p>
+        <p className="mt-2 text-xs text-slate-500">Choose every district you actively serve.</p>
       </div>
 
       <div className="max-h-[28rem] space-y-4 overflow-y-auto rounded-2xl border border-slate-200 bg-slate-50 p-4">
         {filteredGroups.map(([region, districts]) => (
           <div key={region}>
             <div className="mb-2 flex items-center justify-between">
-              <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">{region}</p>
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
+                {region}
+              </p>
               <p className="text-xs text-slate-400">{districts.length} districts</p>
             </div>
             <div className="grid gap-2 sm:grid-cols-2">
@@ -638,7 +746,9 @@ export function MarketplaceProfileEditor({
         ? pro.work_photo_s3_keys
         : Array(portfolioPhotos.length).fill('');
 
-    setExistingProfilePhotoKey(typeof pro.profile_photo_s3_key === 'string' ? pro.profile_photo_s3_key : '');
+    setExistingProfilePhotoKey(
+      typeof pro.profile_photo_s3_key === 'string' ? pro.profile_photo_s3_key : ''
+    );
     setExistingPortfolioPhotoKeys(portfolioPhotoKeys);
     setProfile({
       profile_photo: profilePhoto,
@@ -676,7 +786,9 @@ export function MarketplaceProfileEditor({
       website: mp.website || pro.website_url || '',
       starting_price:
         mp.starting_price ||
-        (typeof pro.starting_price_sar === 'number' ? String(Math.round(pro.starting_price_sar / 100)) : ''),
+        (typeof pro.starting_price_sar === 'number'
+          ? String(Math.round(pro.starting_price_sar / 100))
+          : ''),
       contact_for_price:
         typeof mp.contact_for_price === 'boolean'
           ? mp.contact_for_price
@@ -689,13 +801,17 @@ export function MarketplaceProfileEditor({
 
   // Load existing pro profile from /pros/me on mount
   useEffect(() => {
-    apiClient.getMyPro().then((pro: any) => {
-      hydrateFromPro(pro);
-    }).catch(() => {
-      // Profile not found yet — start with empty defaults
-    }).finally(() => {
-      setProfileLoading(false);
-    });
+    apiClient
+      .getMyPro()
+      .then((pro: any) => {
+        hydrateFromPro(pro);
+      })
+      .catch(() => {
+        // Profile not found yet — start with empty defaults
+      })
+      .finally(() => {
+        setProfileLoading(false);
+      });
   }, [hydrateFromPro]);
 
   const selectedCategory = getMarketplaceCategoryByTitle(profile.service_category);
@@ -739,7 +855,9 @@ export function MarketplaceProfileEditor({
     try {
       const selected = Array.from(files).slice(0, remaining);
       const compressed = await Promise.all(
-        selected.map(async (file) => (await optimizeImageFile(file, { maxLongEdge: 1800, quality: 0.9 })).url)
+        selected.map(
+          async (file) => (await optimizeImageFile(file, { maxLongEdge: 1800, quality: 0.9 })).url
+        )
       );
       setExistingPortfolioPhotoKeys((current) => [...current, ...compressed.map(() => '')]);
       setProfile((current) => ({
@@ -810,7 +928,8 @@ export function MarketplaceProfileEditor({
     const errors: Partial<Record<SectionKey, string>> = {};
 
     if (profile.bio.trim().length < 80) {
-      errors.bio = 'Your bio must be at least 80 characters. Tell customers who you are and what you specialise in.';
+      errors.bio =
+        'Your bio must be at least 80 characters. Tell customers who you are and what you specialise in.';
     }
     if (!profile.years_in_business || !profile.employees) {
       errors.overview = 'Years in business and team size are required.';
@@ -836,7 +955,9 @@ export function MarketplaceProfileEditor({
   async function handleSave() {
     if (!validate()) {
       const firstErrorId = Object.keys(fieldErrors)[0];
-      document.getElementById(`section-${firstErrorId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      document
+        .getElementById(`section-${firstErrorId}`)
+        ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       return;
     }
 
@@ -980,15 +1101,13 @@ export function MarketplaceProfileEditor({
         msg.includes('expired') ||
         msg.includes('401');
       const isServerError =
-        msg.includes('500') ||
-        msg.includes('internal server error') ||
-        msg.includes('internal');
+        msg.includes('500') || msg.includes('internal server error') || msg.includes('internal');
       setError(
         isAuthError
           ? '__AUTH_EXPIRED__'
           : isServerError
             ? 'The server is waking up — please wait 30 seconds and try saving again. This happens on first save of the day.'
-            : (e.message || 'Something went wrong. Please try again.')
+            : e.message || 'Something went wrong. Please try again.'
       );
     } finally {
       setSaving(false);
@@ -1002,7 +1121,10 @@ export function MarketplaceProfileEditor({
     fieldErrors[key] ? (
       <p className="mt-2 flex items-center gap-1.5 text-xs font-medium text-red-600">
         <svg className="h-3.5 w-3.5 shrink-0" viewBox="0 0 16 16" fill="currentColor">
-          <path fillRule="evenodd" d="M8 1a7 7 0 100 14A7 7 0 008 1zm0 4a.75.75 0 01.75.75v3a.75.75 0 01-1.5 0v-3A.75.75 0 018 5zm0 6.5a.875.875 0 100-1.75.875.875 0 000 1.75z" />
+          <path
+            fillRule="evenodd"
+            d="M8 1a7 7 0 100 14A7 7 0 008 1zm0 4a.75.75 0 01.75.75v3a.75.75 0 01-1.5 0v-3A.75.75 0 018 5zm0 6.5a.875.875 0 100-1.75.875.875 0 000 1.75z"
+          />
         </svg>
         {fieldErrors[key]}
       </p>
@@ -1032,25 +1154,34 @@ export function MarketplaceProfileEditor({
       )}
 
       {/* Saving overlay */}
-      {saving && createPortal(
-        <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-white/80 backdrop-blur-sm">
-          <div className="flex flex-col items-center gap-4">
-            <div className="h-10 w-10 animate-spin rounded-full border-4 border-emerald-200 border-t-emerald-600" />
-            <p className="text-sm font-semibold text-slate-700">Saving your profile…</p>
-            <div className="h-1.5 w-48 overflow-hidden rounded-full bg-slate-100">
-              <div className="h-full animate-[progress_1.8s_ease-in-out_infinite] rounded-full bg-emerald-500" />
+      {saving &&
+        createPortal(
+          <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-white/80 backdrop-blur-sm">
+            <div className="flex flex-col items-center gap-4">
+              <div className="h-10 w-10 animate-spin rounded-full border-4 border-emerald-200 border-t-emerald-600" />
+              <p className="text-sm font-semibold text-slate-700">Saving your profile…</p>
+              <div className="h-1.5 w-48 overflow-hidden rounded-full bg-slate-100">
+                <div className="h-full animate-[progress_1.8s_ease-in-out_infinite] rounded-full bg-emerald-500" />
+              </div>
             </div>
-          </div>
-          <style>{`@keyframes progress { 0%{width:0%;margin-left:0} 50%{width:70%;margin-left:15%} 100%{width:0%;margin-left:100%} }`}</style>
-        </div>,
-        document.body,
-      )}
+            <style>{`@keyframes progress { 0%{width:0%;margin-left:0} 50%{width:70%;margin-left:15%} 100%{width:0%;margin-left:100%} }`}</style>
+          </div>,
+          document.body
+        )}
 
       {/* Success toast */}
       {saved && !saving && (
         <div className="fixed bottom-6 right-6 z-50 flex items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-3.5 shadow-lg">
-          <svg viewBox="0 0 20 20" className="h-5 w-5 shrink-0 text-emerald-600" fill="currentColor">
-            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+          <svg
+            viewBox="0 0 20 20"
+            className="h-5 w-5 shrink-0 text-emerald-600"
+            fill="currentColor"
+          >
+            <path
+              fillRule="evenodd"
+              d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+              clipRule="evenodd"
+            />
           </svg>
           <span className="text-sm font-semibold text-emerald-800">Profile saved successfully</span>
         </div>
@@ -1061,7 +1192,8 @@ export function MarketplaceProfileEditor({
           {mode === 'dashboard' ? 'Marketplace profile' : 'Complete your marketplace profile'}
         </h1>
         <p className="mt-1 text-sm text-slate-500">
-          Customers browse this profile before deciding to contact you. Keep it complete, specific, and trustworthy.
+          Customers browse this profile before deciding to contact you. Keep it complete, specific,
+          and trustworthy.
         </p>
         {returnToSetup ? (
           <div className="mt-4 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
@@ -1069,7 +1201,8 @@ export function MarketplaceProfileEditor({
               This is the first setup milestone for your {selectedTier || 'selected'} tier.
             </p>
             <p className="mt-1 text-emerald-800/80">
-              Finish your marketplace profile first, then we'll bring you back to the rest of the setup flow.
+              Finish your marketplace profile first, then we'll bring you back to the rest of the
+              setup flow.
             </p>
           </div>
         ) : null}
@@ -1078,9 +1211,7 @@ export function MarketplaceProfileEditor({
       <div className="flex flex-col gap-6">
         {/* ── Profile photo ────────────────────────────────────────────────── */}
         <section id="section-photo" className={sectionCls('photo')}>
-          <h2 className={sectionTitleClass}>
-            Profile photo
-          </h2>
+          <h2 className={sectionTitleClass}>Profile photo</h2>
           <p className={sectionSubClass}>
             A clear photo of you or your team builds trust with customers.
           </p>
@@ -1112,10 +1243,10 @@ export function MarketplaceProfileEditor({
               >
                 {profile.profile_photo ? 'Change photo' : 'Upload photo'}
               </button>
-              <p className="mt-1.5 text-xs text-slate-400">JPG or PNG · Max 5 MB · Crop to reposition</p>
-              {!profile.profile_photo && (
-                <p className="mt-1 text-xs text-slate-400">Recommended</p>
-              )}
+              <p className="mt-1.5 text-xs text-slate-400">
+                JPG or PNG · Max 5 MB · Crop to reposition
+              </p>
+              {!profile.profile_photo && <p className="mt-1 text-xs text-slate-400">Recommended</p>}
             </div>
           </div>
           {errorTag('photo')}
@@ -1136,7 +1267,9 @@ export function MarketplaceProfileEditor({
           <h2 className={sectionTitleClass}>
             About your business <span className="text-red-500">*</span>
           </h2>
-          <p className={sectionSubClass}>Tell customers who you are and why they should hire you.</p>
+          <p className={sectionSubClass}>
+            Tell customers who you are and why they should hire you.
+          </p>
           <label className={labelClass}>
             Business bio <span className="text-red-500">*</span>
           </label>
@@ -1145,7 +1278,11 @@ export function MarketplaceProfileEditor({
             onChange={(e) => {
               setProfile({ ...profile, bio: e.target.value });
               if (e.target.value.trim().length >= 80) {
-                setFieldErrors((prev) => { const n = { ...prev }; delete n.bio; return n; });
+                setFieldErrors((prev) => {
+                  const n = { ...prev };
+                  delete n.bio;
+                  return n;
+                });
               }
             }}
             rows={4}
@@ -1153,7 +1290,9 @@ export function MarketplaceProfileEditor({
             placeholder="Trusted Riyadh service pro with 12 years of experience. We cover selected districts across the city, arrive on time, and keep homeowners updated from first message to completed job."
             className={`${fieldErrors.bio ? inputErrorClass : inputClass} resize-none`}
           />
-          <p className="mt-1 text-right text-xs text-slate-400">{profile.bio.length} / 500 (min 80)</p>
+          <p className="mt-1 text-right text-xs text-slate-400">
+            {profile.bio.length} / 500 (min 80)
+          </p>
           {errorTag('bio')}
         </section>
 
@@ -1176,11 +1315,17 @@ export function MarketplaceProfileEditor({
                 onChange={(e) => {
                   setProfile({ ...profile, years_in_business: e.target.value });
                   if (e.target.value && profile.employees) {
-                    setFieldErrors((prev) => { const n = { ...prev }; delete n.overview; return n; });
+                    setFieldErrors((prev) => {
+                      const n = { ...prev };
+                      delete n.overview;
+                      return n;
+                    });
                   }
                 }}
                 placeholder="e.g. 8"
-                className={fieldErrors.overview && !profile.years_in_business ? inputErrorClass : inputClass}
+                className={
+                  fieldErrors.overview && !profile.years_in_business ? inputErrorClass : inputClass
+                }
               />
             </div>
             <div>
@@ -1192,10 +1337,16 @@ export function MarketplaceProfileEditor({
                 onChange={(e) => {
                   setProfile({ ...profile, employees: e.target.value });
                   if (e.target.value && profile.years_in_business) {
-                    setFieldErrors((prev) => { const n = { ...prev }; delete n.overview; return n; });
+                    setFieldErrors((prev) => {
+                      const n = { ...prev };
+                      delete n.overview;
+                      return n;
+                    });
                   }
                 }}
-                className={fieldErrors.overview && !profile.employees ? inputErrorClass : inputClass}
+                className={
+                  fieldErrors.overview && !profile.employees ? inputErrorClass : inputClass
+                }
               >
                 <option value="">Select...</option>
                 {EMPLOYEE_OPTIONS.map((option) => (
@@ -1226,7 +1377,8 @@ export function MarketplaceProfileEditor({
         <section className={sectionClass}>
           <h2 className={sectionTitleClass}>Credentials</h2>
           <p className={sectionSubClass}>
-            License details appear as a trust badge on your public profile. <em className="text-slate-400">(Optional)</em>
+            License details appear as a trust badge on your public profile.{' '}
+            <em className="text-slate-400">(Optional)</em>
           </p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
@@ -1258,7 +1410,8 @@ export function MarketplaceProfileEditor({
             Services offered <span className="text-red-500">*</span>
           </h2>
           <p className={sectionSubClass}>
-            Choose your main category, then list the exact jobs customers should be able to find you for.
+            Choose your main category, then list the exact jobs customers should be able to find you
+            for.
           </p>
           <label className={labelClass}>
             Main category <span className="text-red-500">*</span>
@@ -1268,7 +1421,11 @@ export function MarketplaceProfileEditor({
             value={profile.service_category}
             onChange={(v) => {
               setProfile({ ...profile, service_category: v, services_offered: [] });
-              setFieldErrors((prev) => { const n = { ...prev }; delete n.services; return n; });
+              setFieldErrors((prev) => {
+                const n = { ...prev };
+                delete n.services;
+                return n;
+              });
             }}
             isArabic={isArabic}
             hasError={Boolean(fieldErrors.services && !profile.service_category)}
@@ -1312,7 +1469,11 @@ export function MarketplaceProfileEditor({
                         const next = toggle(profile.services_offered, service);
                         setProfile({ ...profile, services_offered: next });
                         if (next.length >= 3) {
-                          setFieldErrors((prev) => { const n = { ...prev }; delete n.services; return n; });
+                          setFieldErrors((prev) => {
+                            const n = { ...prev };
+                            delete n.services;
+                            return n;
+                          });
                         }
                       }}
                       className="h-4 w-4 rounded border-slate-300 accent-emerald-600"
@@ -1352,7 +1513,8 @@ export function MarketplaceProfileEditor({
               </button>
             </div>
             <p className="mt-2 text-xs text-slate-500">
-              Be specific. Customers may search exact phrases like "mesh Wi-Fi setup" or "rat infestation treatment."
+              Be specific. Customers may search exact phrases like "mesh Wi-Fi setup" or "rat
+              infestation treatment."
             </p>
           </div>
 
@@ -1363,7 +1525,10 @@ export function MarketplaceProfileEditor({
                   key={service}
                   type="button"
                   onClick={() =>
-                    setProfile({ ...profile, services_offered: profile.services_offered.filter((item) => item !== service) })
+                    setProfile({
+                      ...profile,
+                      services_offered: profile.services_offered.filter((item) => item !== service),
+                    })
                   }
                   className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 transition hover:border-emerald-300"
                 >
@@ -1385,7 +1550,10 @@ export function MarketplaceProfileEditor({
                     type="checkbox"
                     checked={profile.property_types.includes(propertyType)}
                     onChange={() =>
-                      setProfile({ ...profile, property_types: toggle(profile.property_types, propertyType) })
+                      setProfile({
+                        ...profile,
+                        property_types: toggle(profile.property_types, propertyType),
+                      })
                     }
                     className="h-4 w-4 rounded border-slate-300 accent-emerald-600"
                   />
@@ -1410,7 +1578,11 @@ export function MarketplaceProfileEditor({
             onChange={(districts) => {
               setProfile({ ...profile, service_districts: districts });
               if (districts.length > 0) {
-                setFieldErrors((prev) => { const n = { ...prev }; delete n.districts; return n; });
+                setFieldErrors((prev) => {
+                  const n = { ...prev };
+                  delete n.districts;
+                  return n;
+                });
               }
             }}
             hasError={Boolean(fieldErrors.districts)}
@@ -1421,7 +1593,9 @@ export function MarketplaceProfileEditor({
         {/* ── Starting price ────────────────────────────────────────────────── */}
         <section className={sectionClass}>
           <h2 className={sectionTitleClass}>Starting price</h2>
-          <p className={sectionSubClass}>This sets customer expectations before they message you.</p>
+          <p className={sectionSubClass}>
+            This sets customer expectations before they message you.
+          </p>
           <label className="mb-4 flex cursor-pointer items-center gap-3 rounded-xl border border-slate-200 bg-white p-4 transition hover:border-emerald-300 hover:bg-emerald-50/30">
             <input
               type="checkbox"
@@ -1442,7 +1616,9 @@ export function MarketplaceProfileEditor({
           </label>
           {!profile.contact_for_price && (
             <div className="flex items-center gap-3">
-              <span className="whitespace-nowrap text-sm font-semibold text-slate-500">From SAR</span>
+              <span className="whitespace-nowrap text-sm font-semibold text-slate-500">
+                From SAR
+              </span>
               <input
                 type="number"
                 min={0}
@@ -1459,7 +1635,9 @@ export function MarketplaceProfileEditor({
         {/* ── Business hours ────────────────────────────────────────────────── */}
         <section className={sectionClass}>
           <h2 className={sectionTitleClass}>Business hours</h2>
-          <p className={sectionSubClass}>Standard work week is Sun–Thu. Update anything that differs.</p>
+          <p className={sectionSubClass}>
+            Standard work week is Sun–Thu. Update anything that differs.
+          </p>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -1472,14 +1650,22 @@ export function MarketplaceProfileEditor({
               </thead>
               <tbody>
                 {DAYS.map((day) => {
-                  const hours = profile.business_hours[day] ?? { open: false, from: '8:00 AM', to: '6:00 PM' };
+                  const hours = profile.business_hours[day] ?? {
+                    open: false,
+                    from: '8:00 AM',
+                    to: '6:00 PM',
+                  };
                   const isWeekend = day === 'Friday' || day === 'Saturday';
                   return (
                     <tr key={day} className="border-b border-slate-50 last:border-none">
                       <td className="py-2.5 pr-4">
-                        <span className={`text-sm font-medium ${isWeekend ? 'text-slate-400' : 'text-slate-700'}`}>
+                        <span
+                          className={`text-sm font-medium ${isWeekend ? 'text-slate-400' : 'text-slate-700'}`}
+                        >
                           {t(day)}
-                          {isWeekend ? <span className="ml-1 text-xs text-slate-300">({t('weekend')})</span> : null}
+                          {isWeekend ? (
+                            <span className="ml-1 text-xs text-slate-300">({t('weekend')})</span>
+                          ) : null}
                         </span>
                       </td>
                       <td className="py-2.5 pr-4">
@@ -1527,7 +1713,9 @@ export function MarketplaceProfileEditor({
           <h2 className={sectionTitleClass}>
             Payment methods <span className="text-red-500">*</span>
           </h2>
-          <p className={sectionSubClass}>Tell customers how they can pay you once the job is booked.</p>
+          <p className={sectionSubClass}>
+            Tell customers how they can pay you once the job is booked.
+          </p>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
             {PAYMENT_METHODS.map((paymentMethod) => (
               <label
@@ -1545,12 +1733,22 @@ export function MarketplaceProfileEditor({
                     const next = toggle(profile.payment_methods, paymentMethod.id);
                     setProfile({ ...profile, payment_methods: next });
                     if (next.length > 0) {
-                      setFieldErrors((prev) => { const n = { ...prev }; delete n.payment; return n; });
+                      setFieldErrors((prev) => {
+                        const n = { ...prev };
+                        delete n.payment;
+                        return n;
+                      });
                     }
                   }}
                   className="h-4 w-4 rounded border-slate-300 accent-emerald-600"
                 />
-                <span className={profile.payment_methods.includes(paymentMethod.id) ? 'text-emerald-600' : 'text-slate-400'}>
+                <span
+                  className={
+                    profile.payment_methods.includes(paymentMethod.id)
+                      ? 'text-emerald-600'
+                      : 'text-slate-400'
+                  }
+                >
                   {PAYMENT_METHOD_ICONS[paymentMethod.id]}
                 </span>
                 <span className="text-xs font-semibold text-slate-700">{paymentMethod.label}</span>
@@ -1563,7 +1761,9 @@ export function MarketplaceProfileEditor({
         {/* ── Social media ──────────────────────────────────────────────────── */}
         <section className={sectionClass}>
           <h2 className={sectionTitleClass}>Social media & website</h2>
-          <p className={sectionSubClass}>Links shown on your profile so customers can see your work online.</p>
+          <p className={sectionSubClass}>
+            Links shown on your profile so customers can see your work online.
+          </p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             {[
               { key: 'instagram', label: 'Instagram username' },
@@ -1573,7 +1773,9 @@ export function MarketplaceProfileEditor({
               <div key={key}>
                 <label className={labelClass}>{label}</label>
                 <div className="flex items-center overflow-hidden rounded-xl border border-slate-200 focus-within:border-emerald-400 focus-within:ring-2 focus-within:ring-emerald-100">
-                  <span className="border-r border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-400">@</span>
+                  <span className="border-r border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-400">
+                    @
+                  </span>
                   <input
                     type="text"
                     value={(profile as any)[key]}
@@ -1614,9 +1816,16 @@ export function MarketplaceProfileEditor({
           {profile.portfolio_photos.length > 0 ? (
             <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
               {profile.portfolio_photos.map((src, index) => (
-                <div key={index} className="group relative aspect-square overflow-hidden rounded-xl border border-slate-200 bg-slate-100">
+                <div
+                  key={index}
+                  className="group relative aspect-square overflow-hidden rounded-xl border border-slate-200 bg-slate-100"
+                >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={src} alt={`Work photo ${index + 1}`} className="h-full w-full object-cover" />
+                  <img
+                    src={src}
+                    alt={`Work photo ${index + 1}`}
+                    className="h-full w-full object-cover"
+                  />
                   <div className="absolute inset-0 flex flex-col items-end justify-between bg-black/40 p-1.5 opacity-0 transition group-hover:opacity-100">
                     <button
                       type="button"
@@ -1663,8 +1872,14 @@ export function MarketplaceProfileEditor({
                   : 'border-slate-200 bg-slate-50 hover:border-emerald-300 hover:bg-emerald-50/40'
               }`}
               onClick={() => fileInputRef.current?.click()}
-              onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
-              onDragEnter={(e) => { e.preventDefault(); setIsDragging(true); }}
+              onDragOver={(e) => {
+                e.preventDefault();
+                setIsDragging(true);
+              }}
+              onDragEnter={(e) => {
+                e.preventDefault();
+                setIsDragging(true);
+              }}
               onDragLeave={() => setIsDragging(false)}
               onDrop={(e) => {
                 e.preventDefault();
@@ -1677,20 +1892,26 @@ export function MarketplaceProfileEditor({
                 {isDragging ? 'Drop photos here' : 'Upload photos of your work'}
               </p>
               <p className="mt-1 text-xs text-slate-400">
-                Up to 10 photos · JPG, PNG · Max 5 MB each · {10 - profile.portfolio_photos.length} remaining
+                Up to 10 photos · JPG, PNG · Max 5 MB each · {10 - profile.portfolio_photos.length}{' '}
+                remaining
               </p>
               <p className="mt-0.5 text-xs text-slate-400">Drag & drop or click to browse</p>
               <button
                 type="button"
                 disabled={photoUploading}
                 className="mt-4 rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-60"
-                onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  fileInputRef.current?.click();
+                }}
               >
                 {photoUploading ? 'Compressing...' : 'Add photos'}
               </button>
             </div>
           ) : (
-            <p className="text-center text-xs text-slate-400">10 / 10 photos added. Remove one to add more.</p>
+            <p className="text-center text-xs text-slate-400">
+              10 / 10 photos added. Remove one to add more.
+            </p>
           )}
         </section>
 

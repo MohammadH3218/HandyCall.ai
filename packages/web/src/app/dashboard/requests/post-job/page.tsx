@@ -8,29 +8,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { PageHeader } from '@/components/portal/page-header';
 import { apiClient } from '@/lib/api-client';
 import { SAUDI_MARKETPLACE_CITIES } from '@/constants/houston-areas';
-import {
-  IconBriefcase,
-  IconCheck,
-  IconChevronRight,
-  IconCoin,
-  IconInfoCircle,
-} from '@tabler/icons-react';
-
-const SERVICE_CATEGORIES = [
-  { value: 'AC_HVAC', label: 'AC & HVAC', fee: 25 },
-  { value: 'ELECTRICAL', label: 'Electrical', fee: 25 },
-  { value: 'PLUMBING', label: 'Plumbing', fee: 20 },
-  { value: 'APPLIANCE_REPAIR', label: 'Appliance Repair', fee: 20 },
-  { value: 'PEST_CONTROL', label: 'Pest Control', fee: 20 },
-  { value: 'MOVING', label: 'Moving', fee: 20 },
-  { value: 'GENERAL_HANDYMAN', label: 'General Handyman', fee: 20 },
-  { value: 'PAINTING', label: 'Painting', fee: 15 },
-  { value: 'CLEANING', label: 'Cleaning', fee: 15 },
-  { value: 'CARPENTRY', label: 'Carpentry', fee: 15 },
-  { value: 'SATELLITE_DISH', label: 'Satellite & Dish', fee: 15 },
-  { value: 'LANDSCAPING', label: 'Landscaping', fee: 15 },
-  { value: 'OTHER', label: 'Other / Not sure', fee: 20 },
-] as const;
+import { ServiceCategoryCombobox } from '@/components/marketplace/service-category-combobox';
+import { IconBriefcase, IconCheck, IconChevronRight } from '@tabler/icons-react';
 
 const MIN_DESCRIPTION_LENGTH = 50;
 
@@ -46,7 +25,6 @@ export default function PostJobPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
-  const selectedCategory = SERVICE_CATEGORIES.find((c) => c.value === category);
   const descriptionValid = description.trim().length >= MIN_DESCRIPTION_LENGTH;
   const charsRemaining = Math.max(0, MIN_DESCRIPTION_LENGTH - description.trim().length);
 
@@ -77,15 +55,32 @@ export default function PostJobPage() {
         </div>
         <h2 className="mt-6 text-2xl font-bold text-slate-900">Job posted!</h2>
         <p className="mt-3 max-w-sm text-slate-500">
-          Your job post is now live on the board. Pros in your area will see it and the first to accept will be
-          connected with you directly. You&apos;ll get notified when someone claims it.
+          Your job post is now live on the board. Pros in your area will see it and the first to
+          accept will be connected with you directly. You&apos;ll get notified when someone claims
+          it.
         </p>
-        <p className="mt-2 text-sm text-slate-400">Posts expire after 48 hours if no pro accepts.</p>
+        <p className="mt-2 text-sm text-slate-400">
+          Posts expire after 48 hours if no pro accepts.
+        </p>
         <div className="mt-8 flex gap-3">
-          <Button onClick={() => router.push('/dashboard/requests')} className="bg-emerald-600 text-white hover:bg-emerald-700">
+          <Button
+            onClick={() => router.push('/dashboard/requests')}
+            className="bg-emerald-600 text-white hover:bg-emerald-700"
+          >
             View my posts
           </Button>
-          <Button variant="outline" onClick={() => { setSuccess(false); setStep(1); setCategory(''); setDescription(''); setDistrict(''); setContactName(''); setContactPhone(''); }}>
+          <Button
+            variant="outline"
+            onClick={() => {
+              setSuccess(false);
+              setStep(1);
+              setCategory('');
+              setDescription('');
+              setDistrict('');
+              setContactName('');
+              setContactPhone('');
+            }}
+          >
             Post another job
           </Button>
         </div>
@@ -110,13 +105,15 @@ export default function PostJobPage() {
                 step > s
                   ? 'bg-emerald-600 text-white'
                   : step === s
-                  ? 'bg-emerald-600 text-white ring-4 ring-emerald-100'
-                  : 'bg-slate-100 text-slate-400'
+                    ? 'bg-emerald-600 text-white ring-4 ring-emerald-100'
+                    : 'bg-slate-100 text-slate-400'
               }`}
             >
               {step > s ? <IconCheck className="h-4 w-4" stroke={2.5} /> : s}
             </div>
-            <span className={`text-xs font-medium ${step === s ? 'text-slate-800' : 'text-slate-400'}`}>
+            <span
+              className={`text-xs font-medium ${step === s ? 'text-slate-800' : 'text-slate-400'}`}
+            >
               {['Service', 'Details', 'Contact'][idx]}
             </span>
             {idx < 2 && <div className="h-px w-8 bg-slate-200" />}
@@ -125,46 +122,19 @@ export default function PostJobPage() {
       </div>
 
       {error ? (
-        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {error}
+        </div>
       ) : null}
 
       {/* Step 1: Category */}
       {step === 1 && (
         <div className="space-y-4">
-          <div>
-            <h3 className="text-base font-semibold text-slate-900">What type of service do you need?</h3>
-            <p className="mt-1 text-sm text-slate-500">
-              Select the closest match. This determines which pros see your post.
-            </p>
-          </div>
-
-          <div className="grid gap-2 sm:grid-cols-2">
-            {SERVICE_CATEGORIES.map((cat) => (
-              <button
-                key={cat.value}
-                type="button"
-                onClick={() => setCategory(cat.value)}
-                className={`flex items-center justify-between rounded-xl border p-4 text-left transition ${
-                  category === cat.value
-                    ? 'border-emerald-500 bg-emerald-50'
-                    : 'border-border hover:border-slate-300 hover:bg-slate-50'
-                }`}
-              >
-                <span className="text-sm font-medium text-slate-800">{cat.label}</span>
-                <span className="text-xs text-slate-400">SAR {cat.fee} lead fee</span>
-              </button>
-            ))}
-          </div>
-
-          {selectedCategory ? (
-            <div className="flex items-start gap-2 rounded-xl border border-blue-100 bg-blue-50 p-3 text-xs text-blue-700">
-              <IconInfoCircle className="mt-0.5 h-4 w-4 shrink-0" stroke={1.5} />
-              <p>
-                Pros pay a <strong>SAR {selectedCategory.fee}</strong> lead fee to connect with you for{' '}
-                <strong>{selectedCategory.label}</strong> jobs. This keeps spam away — only motivated pros will accept.
-              </p>
-            </div>
-          ) : null}
+          <ServiceCategoryCombobox
+            value={category}
+            onChange={setCategory}
+            helperText="Search every category and niche service so the right pros see your job."
+          />
 
           <Button
             onClick={() => setStep(2)}
@@ -183,8 +153,8 @@ export default function PostJobPage() {
           <div>
             <h3 className="text-base font-semibold text-slate-900">Describe the job</h3>
             <p className="mt-1 text-sm text-slate-500">
-              Be specific — what&apos;s broken, how long it&apos;s been a problem, any relevant details. Better
-              descriptions get faster responses.
+              Be specific — what&apos;s broken, how long it&apos;s been a problem, any relevant
+              details. Better descriptions get faster responses.
             </p>
           </div>
 
@@ -196,8 +166,12 @@ export default function PostJobPage() {
               rows={5}
               className="resize-none"
             />
-            <p className={`mt-1.5 text-xs ${descriptionValid ? 'text-emerald-600' : 'text-slate-400'}`}>
-              {descriptionValid ? '✓ Good description' : `${charsRemaining} more character${charsRemaining !== 1 ? 's' : ''} needed`}
+            <p
+              className={`mt-1.5 text-xs ${descriptionValid ? 'text-emerald-600' : 'text-slate-400'}`}
+            >
+              {descriptionValid
+                ? '✓ Good description'
+                : `${charsRemaining} more character${charsRemaining !== 1 ? 's' : ''} needed`}
             </p>
           </div>
 
@@ -253,7 +227,9 @@ export default function PostJobPage() {
               />
             </div>
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-slate-700">Phone number</label>
+              <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                Phone number
+              </label>
               <Input
                 value={contactPhone}
                 onChange={(e) => setContactPhone(e.target.value)}
@@ -269,7 +245,7 @@ export default function PostJobPage() {
             <div className="space-y-2.5 text-sm">
               <div className="flex justify-between">
                 <span className="text-slate-500">Category</span>
-                <span className="font-medium text-slate-800">{selectedCategory?.label}</span>
+                <span className="font-medium text-slate-800">{category}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-500">District</span>
@@ -281,14 +257,16 @@ export default function PostJobPage() {
               </div>
             </div>
             <p className="border-t border-slate-200 pt-3 text-xs text-slate-500">
-              {description.trim().slice(0, 120)}{description.trim().length > 120 ? '…' : ''}
+              {description.trim().slice(0, 120)}
+              {description.trim().length > 120 ? '…' : ''}
             </p>
           </div>
 
           <div className="flex items-center gap-2 rounded-xl border border-emerald-100 bg-emerald-50 p-3 text-xs text-emerald-700">
-            <IconCoin className="h-4 w-4 shrink-0" stroke={1.5} />
+            <IconBriefcase className="h-4 w-4 shrink-0" stroke={1.5} />
             <p>
-              Posting is <strong>free</strong>. The pro pays SAR {selectedCategory?.fee} when they accept your job.
+              Posting is <strong>free</strong>. The pro pays the lead fee only when they accept your
+              job.
             </p>
           </div>
 

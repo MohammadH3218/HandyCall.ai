@@ -12,11 +12,8 @@ import {
 import { ServiceCategory, PricingType } from '@handycall/shared';
 
 export class CreateServiceDto {
-  @IsEnum([
-    'AC_HVAC','PLUMBING','ELECTRICAL','PAINTING','CLEANING',
-    'PEST_CONTROL','CARPENTRY','MOVING','APPLIANCE_REPAIR',
-    'SATELLITE_DISH','LANDSCAPING','GENERAL_HANDYMAN',
-  ] as const)
+  @IsString()
+  @MaxLength(120)
   category: ServiceCategory;
 
   @IsString()

@@ -5,9 +5,52 @@ import { S3Service } from '../../infrastructure/storage/s3.service';
 import { ServiceCategory, RIYADH_DISTRICTS } from '@handycall/shared';
 
 const SERVICE_CATEGORIES: ServiceCategory[] = [
-  'AC_HVAC', 'PLUMBING', 'ELECTRICAL', 'PAINTING', 'CLEANING',
-  'PEST_CONTROL', 'CARPENTRY', 'MOVING', 'APPLIANCE_REPAIR',
-  'SATELLITE_DISH', 'LANDSCAPING', 'GENERAL_HANDYMAN',
+  'AC & HVAC',
+  'Plumbing',
+  'Electrical',
+  'House Cleaning',
+  'Painting',
+  'Carpentry',
+  'Pest Control',
+  'Landscaping',
+  'Car Washing & Detailing',
+  'Appliance Repair',
+  'Moving & Delivery',
+  'Tile & Flooring',
+  'Security Systems',
+  'Doors & Windows',
+  'Bathroom Renovation',
+  'Handyman',
+  'Pool & Water Features',
+  'Roofing & Waterproofing',
+  'Curtains & Blinds',
+  'Tank & Sanitation',
+  'Nanny & Childcare',
+  'Private Tutoring',
+  'Driver Services',
+  'Network & IT Setup',
+  'Healthcare at Home',
+  'Laundry & Ironing',
+  'Photography & Video',
+  'Personal Training',
+  'Locksmith & Keys',
+  'Garage Doors & Gates',
+  'Kitchen Renovation',
+  'Masonry & Concrete',
+  'Metalwork & Welding',
+  'Glass & Mirrors',
+  'Upholstery & Furniture Repair',
+  'Smart Home & Automation',
+  'Solar & Energy',
+  'Gas Services',
+  'Disinfection & Odor Removal',
+  'Pressure Washing',
+  'Fencing, Awnings & Shades',
+  'Decor & Wall Panels',
+  'Pet Care at Home',
+  'Beauty at Home',
+  'Event Home Services',
+  'Home Organization',
 ];
 
 // Models tried in order — if the first returns 429, the next is tried.
@@ -19,16 +62,113 @@ const OPENROUTER_MODELS = [
 
 // English + Arabic stop words for smart fallback keyword extraction
 const STOP_WORDS = new Set([
-  'i','a','an','the','my','your','our','their','its','me','we','us',
-  'is','am','are','was','were','be','been','being',
-  'have','has','had','do','does','did','will','would','could','should','may','might','shall','can',
-  'in','on','at','to','for','of','with','by','from','up','down','out','into','through','about','over',
-  'this','that','these','those','it','he','she','they',
-  'and','or','but','if','so','because','when','where','how','what','which','who',
-  'not','no','any','some','there','here','just','also','very','really',
-  'get','got','need','want','like','make','go','come','see','know','think',
+  'i',
+  'a',
+  'an',
+  'the',
+  'my',
+  'your',
+  'our',
+  'their',
+  'its',
+  'me',
+  'we',
+  'us',
+  'is',
+  'am',
+  'are',
+  'was',
+  'were',
+  'be',
+  'been',
+  'being',
+  'have',
+  'has',
+  'had',
+  'do',
+  'does',
+  'did',
+  'will',
+  'would',
+  'could',
+  'should',
+  'may',
+  'might',
+  'shall',
+  'can',
+  'in',
+  'on',
+  'at',
+  'to',
+  'for',
+  'of',
+  'with',
+  'by',
+  'from',
+  'up',
+  'down',
+  'out',
+  'into',
+  'through',
+  'about',
+  'over',
+  'this',
+  'that',
+  'these',
+  'those',
+  'it',
+  'he',
+  'she',
+  'they',
+  'and',
+  'or',
+  'but',
+  'if',
+  'so',
+  'because',
+  'when',
+  'where',
+  'how',
+  'what',
+  'which',
+  'who',
+  'not',
+  'no',
+  'any',
+  'some',
+  'there',
+  'here',
+  'just',
+  'also',
+  'very',
+  'really',
+  'get',
+  'got',
+  'need',
+  'want',
+  'like',
+  'make',
+  'go',
+  'come',
+  'see',
+  'know',
+  'think',
   // Arabic stop words
-  'في','من','إلى','على','مع','عن','هذا','هذه','ذلك','التي','الذي','أن','لا','ما','كان',
+  'في',
+  'من',
+  'إلى',
+  'على',
+  'مع',
+  'عن',
+  'هذا',
+  'هذه',
+  'ذلك',
+  'التي',
+  'الذي',
+  'أن',
+  'لا',
+  'ما',
+  'كان',
 ]);
 
 function extractKeywordsFromQuery(query: string): string[] {
@@ -46,15 +186,11 @@ export class MarketplaceService {
   constructor(
     private db: DynamoDBService,
     private config: ConfigService,
-    private storageService: S3Service,
+    private storageService: S3Service
   ) {}
 
   /** Browse active services by category and/or district */
-  async browseServices(params: {
-    category?: ServiceCategory;
-    district?: string;
-    limit?: number;
-  }) {
+  async browseServices(params: { category?: ServiceCategory; district?: string; limit?: number }) {
     let services: any[] = [];
 
     if (params.category) {
@@ -63,7 +199,7 @@ export class MarketplaceService {
         '#cat = :cat AND begins_with(is_active_created, :active)',
         { '#cat': 'category' },
         { ':cat': params.category, ':active': '1#' },
-        { indexName: 'category-active-index', limit: params.limit ?? 20 },
+        { indexName: 'category-active-index', limit: params.limit ?? 20 }
       );
       services = items;
     } else {
@@ -90,7 +226,9 @@ export class MarketplaceService {
       }),
     ]);
 
-    this.logger.log(`AI search: q="${params.q}" → category=${category}, keywords=${keywords.join(', ')}`);
+    this.logger.log(
+      `AI search: q="${params.q}" → category=${category}, keywords=${keywords.join(', ')}`
+    );
 
     if (pros.length === 0) return [];
 
@@ -114,71 +252,78 @@ export class MarketplaceService {
     // 4. Score each pro
     const normalizedKeywords = keywords.map((k: string) => k.toLowerCase());
 
-    const scored = await Promise.all(pros.map(async (pro: any) => {
-      // Strip sensitive fields
-      const {
-        password_hash, iban, national_id, iqama_number,
-        id_document_s3_key, id_number, ...safe
-      } = pro;
+    const scored = await Promise.all(
+      pros.map(async (pro: any) => {
+        // Strip sensitive fields
+        const {
+          password_hash,
+          iban,
+          national_id,
+          iqama_number,
+          id_document_s3_key,
+          id_number,
+          ...safe
+        } = pro;
 
-      const mp = (pro.marketplace_profile as Record<string, any>) ?? {};
-      const servicesOffered: string[] = Array.isArray(pro.services_offered)
-        ? pro.services_offered
-        : Array.isArray(mp.services_offered)
-          ? mp.services_offered
+        const mp = (pro.marketplace_profile as Record<string, any>) ?? {};
+        const servicesOffered: string[] = Array.isArray(pro.services_offered)
+          ? pro.services_offered
+          : Array.isArray(mp.services_offered)
+            ? mp.services_offered
+            : [];
+        const proCategory: string = pro.service_category ?? mp.service_category ?? '';
+        const proDistricts: string[] = Array.isArray(pro.service_area_zipcodes)
+          ? pro.service_area_zipcodes
+          : Array.isArray(pro.service_districts)
+            ? pro.service_districts
+            : [];
+
+        const normalizedServices = servicesOffered.map((s) => s.toLowerCase());
+
+        // Keyword match (fast path)
+        const keywordMatch = normalizedKeywords.some((kw) =>
+          normalizedServices.some((s) => s.includes(kw))
+        );
+        // Semantic match: LLM identified this service as relevant to the query
+        const aiServiceMatch = normalizedServices.some((s) => semanticMatchSet.has(s));
+
+        const specificMatch = keywordMatch || aiServiceMatch;
+        const categoryMatch = proCategory.toUpperCase() === category.toUpperCase();
+
+        // Score: 2 = specific service match, 1 = category match, 0 = no match
+        const score = specificMatch ? 2 : categoryMatch ? 1 : 0;
+
+        // District match bonus for tiebreaking
+        const districtMatch =
+          params.district &&
+          proDistricts.some((d) => d.toLowerCase() === (params.district ?? '').toLowerCase())
+            ? 1
+            : 0;
+
+        // Highlight which services matched (keyword or semantic)
+        const matchedServices = specificMatch
+          ? servicesOffered.filter(
+              (s) =>
+                normalizedKeywords.some((kw) => s.toLowerCase().includes(kw)) ||
+                semanticMatchSet.has(s.toLowerCase())
+            )
           : [];
-      const proCategory: string = pro.service_category ?? mp.service_category ?? '';
-      const proDistricts: string[] =
-        Array.isArray(pro.service_area_zipcodes) ? pro.service_area_zipcodes
-        : Array.isArray(pro.service_districts) ? pro.service_districts
-        : [];
 
-      const normalizedServices = servicesOffered.map((s) => s.toLowerCase());
+        const decorated = await this.decorateMarketplaceMedia({
+          ...safe,
+          services_offered: servicesOffered,
+          service_category: proCategory,
+        });
 
-      // Keyword match (fast path)
-      const keywordMatch = normalizedKeywords.some((kw) =>
-        normalizedServices.some((s) => s.includes(kw)),
-      );
-      // Semantic match: LLM identified this service as relevant to the query
-      const aiServiceMatch = normalizedServices.some((s) => semanticMatchSet.has(s));
-
-      const specificMatch = keywordMatch || aiServiceMatch;
-      const categoryMatch = proCategory.toUpperCase() === category.toUpperCase();
-
-      // Score: 2 = specific service match, 1 = category match, 0 = no match
-      const score = specificMatch ? 2 : categoryMatch ? 1 : 0;
-
-      // District match bonus for tiebreaking
-      const districtMatch =
-        params.district &&
-        proDistricts.some(
-          (d) => d.toLowerCase() === (params.district ?? '').toLowerCase(),
-        )
-          ? 1
-          : 0;
-
-      // Highlight which services matched (keyword or semantic)
-      const matchedServices = specificMatch
-        ? servicesOffered.filter((s) =>
-            normalizedKeywords.some((kw) => s.toLowerCase().includes(kw)) ||
-            semanticMatchSet.has(s.toLowerCase()),
-          )
-        : [];
-
-      const decorated = await this.decorateMarketplaceMedia({
-        ...safe,
-        services_offered: servicesOffered,
-        service_category: proCategory,
-      });
-
-      return {
-        ...decorated,
-        _score: score,
-        _districtMatch: districtMatch,
-        _matchedServices: matchedServices,
-        _matchType: specificMatch ? 'specific' : categoryMatch ? 'category' : 'none',
-      };
-    }));
+        return {
+          ...decorated,
+          _score: score,
+          _districtMatch: districtMatch,
+          _matchedServices: matchedServices,
+          _matchType: specificMatch ? 'specific' : categoryMatch ? 'category' : 'none',
+        };
+      })
+    );
 
     // 5. Filter to relevant results; if a district was specified, only include pros who serve it
     return scored
@@ -191,7 +336,7 @@ export class MarketplaceService {
    *  Tries each model in OPENROUTER_MODELS order; skips on 429. */
   private async matchServicesToQuery(
     query: string,
-    candidateServices: string[],
+    candidateServices: string[]
   ): Promise<string[]> {
     if (candidateServices.length === 0) return [];
 
@@ -239,13 +384,16 @@ Reply with ONLY valid JSON — no explanation, no markdown:
           continue;
         }
 
-        const data = await res.json() as any;
+        const data = (await res.json()) as any;
         const content: string = data?.choices?.[0]?.message?.content ?? '{}';
-        const cleaned = content.replace(/```json?\n?/g, '').replace(/```/g, '').trim();
+        const cleaned = content
+          .replace(/```json?\n?/g, '')
+          .replace(/```/g, '')
+          .trim();
         const parsed = JSON.parse(cleaned);
 
         this.logger.log(`matchServicesToQuery: used ${model}`);
-        return Array.isArray(parsed.matched) ? parsed.matched as string[] : [];
+        return Array.isArray(parsed.matched) ? (parsed.matched as string[]) : [];
       } catch (e: any) {
         this.logger.warn(`matchServicesToQuery: ${model} threw: ${e?.message}`);
         continue;
@@ -258,14 +406,12 @@ Reply with ONLY valid JSON — no explanation, no markdown:
 
   /** Call OpenRouter to classify the query into a category + keywords.
    *  Tries each model in OPENROUTER_MODELS order; skips on 429. */
-  private async classifyQuery(
-    query: string,
-  ): Promise<{ category: string; keywords: string[] }> {
+  private async classifyQuery(query: string): Promise<{ category: string; keywords: string[] }> {
     const apiKey = this.config.get<string>('OPENROUTER_API_KEY') ?? '';
     const fallbackKeywords = extractKeywordsFromQuery(query);
     if (!apiKey) {
       this.logger.warn('OPENROUTER_API_KEY not set — using keyword fallback');
-      return { category: 'GENERAL_HANDYMAN', keywords: fallbackKeywords };
+      return { category: 'Handyman', keywords: fallbackKeywords };
     }
 
     const prompt = `You are a classification assistant for a home services marketplace in Saudi Arabia (Riyadh).
@@ -312,19 +458,22 @@ Reply with ONLY valid JSON — no explanation, no markdown:
           continue;
         }
 
-        const data = await res.json() as any;
+        const data = (await res.json()) as any;
         const content: string = data?.choices?.[0]?.message?.content ?? '{}';
-        const cleaned = content.replace(/```json?\n?/g, '').replace(/```/g, '').trim();
+        const cleaned = content
+          .replace(/```json?\n?/g, '')
+          .replace(/```/g, '')
+          .trim();
         const parsed = JSON.parse(cleaned);
 
-        const category = (parsed.category as string ?? 'GENERAL_HANDYMAN').toUpperCase();
+        const category = String(parsed.category ?? 'Handyman').trim();
         const keywords: string[] = Array.isArray(parsed.keywords)
-          ? parsed.keywords as string[]
+          ? (parsed.keywords as string[])
           : fallbackKeywords;
 
-        const validCategory = SERVICE_CATEGORIES.includes(category as ServiceCategory)
-          ? category
-          : 'GENERAL_HANDYMAN';
+        const validCategory =
+          SERVICE_CATEGORIES.find((item) => item.toLowerCase() === category.toLowerCase()) ||
+          'Handyman';
 
         this.logger.log(`classifyQuery: used ${model}`);
         return { category: validCategory, keywords };
@@ -336,7 +485,7 @@ Reply with ONLY valid JSON — no explanation, no markdown:
 
     // All models failed — use smart keyword extraction so individual words still match
     this.logger.warn('classifyQuery: all models failed, using keyword fallback');
-    return { category: 'GENERAL_HANDYMAN', keywords: fallbackKeywords };
+    return { category: 'Handyman', keywords: fallbackKeywords };
   }
 
   /** Get all supported categories and districts for the browse UI */
@@ -356,7 +505,9 @@ Reply with ONLY valid JSON — no explanation, no markdown:
         ? pro.profile_photo_s3_key.trim()
         : '';
     const workPhotoKeys = Array.isArray(pro.work_photo_s3_keys)
-      ? pro.work_photo_s3_keys.filter((key: unknown): key is string => typeof key === 'string' && key.trim().length > 0)
+      ? pro.work_photo_s3_keys.filter(
+          (key: unknown): key is string => typeof key === 'string' && key.trim().length > 0
+        )
       : [];
     const marketplaceProfile =
       pro.marketplace_profile && typeof pro.marketplace_profile === 'object'
@@ -376,7 +527,9 @@ Reply with ONLY valid JSON — no explanation, no markdown:
         marketplaceProfile.portfolio_photos = workPhotoUrls;
       }
     } catch (error: any) {
-      this.logger.warn(`decorateMarketplaceMedia[${pro.pro_id || 'unknown'}] failed: ${error?.message || error}`);
+      this.logger.warn(
+        `decorateMarketplaceMedia[${pro.pro_id || 'unknown'}] failed: ${error?.message || error}`
+      );
     }
 
     if (Object.keys(marketplaceProfile).length > 0) {

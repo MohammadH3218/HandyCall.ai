@@ -7,19 +7,7 @@ export type CustomerStatus = 'ACTIVE' | 'SUSPENDED' | 'PENDING_VERIFICATION';
 export type ProStatus = 'PENDING_REVIEW' | 'ACTIVE' | 'SUSPENDED' | 'REJECTED';
 export type UserType = 'CUSTOMER' | 'PRO';
 
-export type ServiceCategory =
-  | 'AC_HVAC'
-  | 'PLUMBING'
-  | 'ELECTRICAL'
-  | 'PAINTING'
-  | 'CLEANING'
-  | 'PEST_CONTROL'
-  | 'CARPENTRY'
-  | 'MOVING'
-  | 'APPLIANCE_REPAIR'
-  | 'SATELLITE_DISH'
-  | 'LANDSCAPING'
-  | 'GENERAL_HANDYMAN';
+export type ServiceCategory = string;
 
 export type PricingType = 'FIXED' | 'HOURLY' | 'QUOTE';
 
@@ -49,19 +37,19 @@ export interface Customer {
   email: string;
   first_name: string;
   last_name: string;
-  phone_number?: string;                       // +966XXXXXXXXX
-  national_id?: string;                        // 10 digits, Saudi citizens
-  iqama_number?: string;                       // 10 digits, expat residents
+  phone_number?: string; // +966XXXXXXXXX
+  national_id?: string; // 10 digits, Saudi citizens
+  iqama_number?: string; // 10 digits, expat residents
   id_type?: IdType;
   id_verified: boolean;
-  district?: string;                           // Riyadh district (حي)
-  city: string;                                // default "Riyadh"
+  district?: string; // Riyadh district (حي)
+  city: string; // default "Riyadh"
   preferred_language?: PreferredLanguage;
   status: CustomerStatus;
   email_verified: boolean;
   pdpl_consent: boolean;
-  pdpl_consent_at: number;                     // Unix ms — PDPL Royal Decree M/19
-  marketing_consent: boolean;                  // separate from pdpl_consent
+  pdpl_consent_at: number; // Unix ms — PDPL Royal Decree M/19
+  marketing_consent: boolean; // separate from pdpl_consent
   created_at: number;
   updated_at: number;
   last_login_at?: number;
@@ -79,10 +67,10 @@ export interface Pro {
   iqama_number?: string;
   id_type?: IdType;
   id_verified: boolean;
-  id_document_s3_key?: string;                 // uploaded ID scan
-  cr_number?: string;                          // Commercial Registration (optional)
-  vat_number?: string;                         // if VAT-registered
-  iban?: string;                               // SA + 22 digits (total 24 chars)
+  id_document_s3_key?: string; // uploaded ID scan
+  cr_number?: string; // Commercial Registration (optional)
+  vat_number?: string; // if VAT-registered
+  iban?: string; // SA + 22 digits (total 24 chars)
   iban_verified: boolean;
   bank_name?: string;
   bio?: string;
@@ -93,15 +81,15 @@ export interface Pro {
   speaks_english: boolean;
   speaks_urdu?: boolean;
   speaks_hindi?: boolean;
-  service_districts: string[];                 // Riyadh districts covered
+  service_districts: string[]; // Riyadh districts covered
   city: string;
   status: ProStatus;
-  onboarding_step: number;                     // 1–5
+  onboarding_step: number; // 1–5
   is_available: boolean;
-  average_rating: number;                      // stored as integer * 100 (e.g. 450 = 4.50★)
+  average_rating: number; // stored as integer * 100 (e.g. 450 = 4.50★)
   total_reviews: number;
   total_bookings: number;
-  completion_rate: number;                     // 0–100
+  completion_rate: number; // 0–100
   pdpl_consent: boolean;
   pdpl_consent_at: number;
   marketing_consent: boolean;
@@ -122,9 +110,9 @@ export interface ProService {
   description?: string;
   description_ar?: string;
   pricing_type: PricingType;
-  price_sar?: number;                          // Halalas (1 SAR = 100 Halalas)
-  min_price_sar?: number;                      // Halalas — for QUOTE type
-  max_price_sar?: number;                      // Halalas — for QUOTE type
+  price_sar?: number; // Halalas (1 SAR = 100 Halalas)
+  min_price_sar?: number; // Halalas — for QUOTE type
+  max_price_sar?: number; // Halalas — for QUOTE type
   vat_included: boolean;
   estimated_duration_minutes?: number;
   photos_s3_keys: string[];
@@ -140,8 +128,8 @@ export interface Booking {
   customer_id: string;
   pro_id: string;
   service_id: string;
-  scheduled_start: number;                     // Unix ms
-  scheduled_end: number;                       // Unix ms
+  scheduled_start: number; // Unix ms
+  scheduled_end: number; // Unix ms
   address_district: string;
   address_detail?: string;
   address_notes?: string;
@@ -152,15 +140,15 @@ export interface Booking {
   cancelled_at?: number;
 
   // All financial amounts in Halalas (integers) — never floats
-  service_price_sar: number;                   // price locked at booking time
-  vat_amount_sar: number;                      // 15% of service_price_sar
-  platform_fee_sar: number;                    // 15% commission
-  pro_payout_sar: number;                      // service_price_sar - platform_fee_sar
+  service_price_sar: number; // price locked at booking time
+  vat_amount_sar: number; // 15% of service_price_sar
+  platform_fee_sar: number; // 15% commission
+  pro_payout_sar: number; // service_price_sar - platform_fee_sar
   // Customer pays: service_price_sar + vat_amount_sar
 
   payment_status: PaymentStatus;
   payment_method?: PaymentMethod;
-  payment_reference?: string;                  // HyperPay / Moyasar reference
+  payment_reference?: string; // HyperPay / Moyasar reference
   started_at?: number;
   completed_at?: number;
   pro_notes?: string;
@@ -172,11 +160,11 @@ export interface Booking {
 
 export interface Review {
   review_id: string;
-  booking_id: string;                          // unique — one review per booking
+  booking_id: string; // unique — one review per booking
   customer_id: string;
   pro_id: string;
   service_id: string;
-  rating: number;                              // 1–5 integer
+  rating: number; // 1–5 integer
   comment?: string;
   comment_ar?: string;
   is_visible: boolean;
@@ -194,8 +182,8 @@ export type DayOfWeek = 'SAT' | 'SUN' | 'MON' | 'TUE' | 'WED' | 'THU';
 export interface ProAvailability {
   pro_id: string;
   day_of_week: DayOfWeek;
-  open_time: string;                           // 'HH:MM' e.g. '09:00'
-  close_time: string;                          // 'HH:MM' e.g. '18:00'
+  open_time: string; // 'HH:MM' e.g. '09:00'
+  close_time: string; // 'HH:MM' e.g. '18:00'
   is_available: boolean;
   updated_at: number;
 }
@@ -204,7 +192,7 @@ export interface ProAvailability {
 
 export interface PlatformConfig {
   config_key: string;
-  config_value: string;                        // JSON-serialized
+  config_value: string; // JSON-serialized
   updated_at: number;
   updated_by: string;
 }
@@ -282,4 +270,4 @@ export const RIYADH_DISTRICTS = [
   'Salam',
 ] as const;
 
-export type RiyadhDistrict = typeof RIYADH_DISTRICTS[number];
+export type RiyadhDistrict = (typeof RIYADH_DISTRICTS)[number];

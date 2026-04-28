@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { Logo } from '@/components/ui/logo';
+import { ServiceCategoryCombobox } from '@/components/marketplace/service-category-combobox';
 import { apiClient } from '@/lib/api-client';
 import { isCustomerProfileComplete } from '@/lib/customer-profile';
 import { RIYADH_DISTRICT_VALUES } from '@/constants/riyadh-districts';
@@ -19,22 +20,18 @@ import {
 } from '@tabler/icons-react';
 
 // Dynamically imported — Mapbox GL requires the browser environment
-const CustomerAddressMap = dynamic(
-  () => import('@/components/customer/customer-address-map'),
-  { ssr: false, loading: () => <div className="h-[380px] animate-pulse rounded-[28px] bg-slate-100 md:h-[480px]" /> },
-);
+const CustomerAddressMap = dynamic(() => import('@/components/customer/customer-address-map'), {
+  ssr: false,
+  loading: () => (
+    <div className="h-[380px] animate-pulse rounded-[28px] bg-slate-100 md:h-[480px]" />
+  ),
+});
 
 const URGENCY_OPTIONS = [
   { value: 'emergency', label: 'Emergency', description: 'Need help within hours' },
   { value: 'urgent', label: 'Within 1-2 days', description: 'Need it done soon' },
   { value: 'this_week', label: 'This week', description: 'Flexible but soon' },
   { value: 'flexible', label: "I'm flexible", description: 'No rush, just get it done' },
-];
-
-// Generic categories as fallback when no pro is selected
-const GENERIC_CATEGORIES = [
-  'Plumbing', 'HVAC', 'Electrical', 'Cleaning', 'Landscaping', 'Handyman',
-  'Pest Control', 'Painting', 'Moving', 'Appliance Repair', 'Carpentry', 'Other',
 ];
 
 type Step = 1 | 2 | 3 | 4;
@@ -145,7 +142,9 @@ function RequestPageContent() {
       }
     };
     void fetchPro();
-    return () => { mounted = false; };
+    return () => {
+      mounted = false;
+    };
   }, [proIdParam]);
 
   // Hydrate customer profile into form
@@ -183,7 +182,8 @@ function RequestPageContent() {
             profile.name ||
             [profile.first_name, profile.last_name].filter(Boolean).join(' ') ||
             String(session?.user?.name || ''),
-          contact_email: current.contact_email || String(session?.user?.email || profile.email || ''),
+          contact_email:
+            current.contact_email || String(session?.user?.email || profile.email || ''),
           contact_phone_digits: current.contact_phone_digits || phoneSaudi,
         }));
       } catch (err: any) {
@@ -195,8 +195,17 @@ function RequestPageContent() {
     };
 
     void hydrateProfile();
-    return () => { mounted = false; };
-  }, [isSignedInCustomer, pathname, router, searchParams, session?.user?.email, session?.user?.name]);
+    return () => {
+      mounted = false;
+    };
+  }, [
+    isSignedInCustomer,
+    pathname,
+    router,
+    searchParams,
+    session?.user?.email,
+    session?.user?.name,
+  ]);
 
   // Determine services available for step 1
   const proServices: string[] = useMemo(() => {
@@ -210,8 +219,6 @@ function RequestPageContent() {
     return services.filter(Boolean);
   }, [proData]);
 
-  const serviceOptions = proServices.length > 0 ? proServices : GENERIC_CATEGORIES;
-
   const canAdvance = (): boolean => {
     if (step === 1) return !!form.selected_service;
     if (step === 2) return form.job_description.trim().length >= 20 && !!form.urgency;
@@ -221,8 +228,8 @@ function RequestPageContent() {
     if (step === 4) {
       return Boolean(
         form.contact_name.trim() &&
-          form.contact_email.trim() &&
-          form.contact_phone_digits.length === 9,
+        form.contact_email.trim() &&
+        form.contact_phone_digits.length === 9
       );
     }
     return false;
@@ -285,7 +292,9 @@ function RequestPageContent() {
                   >
                     {s}
                   </div>
-                  <span className={`text-xs font-medium ${s === step ? 'text-slate-900' : 'text-slate-400'}`}>
+                  <span
+                    className={`text-xs font-medium ${s === step ? 'text-slate-900' : 'text-slate-400'}`}
+                  >
                     {STEP_LABELS[s]}
                   </span>
                 </div>
@@ -311,28 +320,39 @@ function RequestPageContent() {
                   <div>
                     <div className="mb-1 flex items-center gap-2">
                       <IconTool className="h-5 w-5 text-slate-600" stroke={1.5} />
-                      <h2 className="text-xl font-bold text-slate-900">What service do you need?</h2>
+                      <h2 className="text-xl font-bold text-slate-900">
+                        What service do you need?
+                      </h2>
                     </div>
                     <p className="mb-5 text-sm text-slate-500">
                       {proServices.length > 0
                         ? 'Select from the services this pro offers.'
                         : 'Select the category that best describes your job.'}
                     </p>
-                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                      {serviceOptions.map((service) => (
-                        <button
-                          key={service}
-                          onClick={() => set('selected_service', service)}
-                          className={`rounded-lg border px-4 py-3 text-left text-sm font-medium transition-colors ${
-                            form.selected_service === service
-                              ? 'border-slate-900 bg-slate-900 text-white'
-                              : 'border-slate-200 bg-white text-slate-700 hover:border-slate-400'
-                          }`}
-                        >
-                          {service}
-                        </button>
-                      ))}
-                    </div>
+                    {proServices.length > 0 ? (
+                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                        {proServices.map((service) => (
+                          <button
+                            key={service}
+                            onClick={() => set('selected_service', service)}
+                            className={`rounded-lg border px-4 py-3 text-left text-sm font-medium transition-colors ${
+                              form.selected_service === service
+                                ? 'border-slate-900 bg-slate-900 text-white'
+                                : 'border-slate-200 bg-white text-slate-700 hover:border-slate-400'
+                            }`}
+                          >
+                            {service}
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <ServiceCategoryCombobox
+                        value={form.selected_service}
+                        onChange={(value) => set('selected_service', value)}
+                        label=""
+                        helperText="Search the full category list, including niche home services."
+                      />
+                    )}
                   </div>
                 )}
 
@@ -344,7 +364,8 @@ function RequestPageContent() {
                       <h2 className="text-xl font-bold text-slate-900">Describe your job</h2>
                     </div>
                     <p className="mb-1 text-sm text-slate-500">
-                      Describe the problem clearly. Don&apos;t include your contact info here — you&apos;ll add that in the last step.
+                      Describe the problem clearly. Don&apos;t include your contact info here —
+                      you&apos;ll add that in the last step.
                     </p>
 
                     <div className="space-y-5">
@@ -359,7 +380,9 @@ function RequestPageContent() {
                           value={form.job_description}
                           onChange={(e) => set('job_description', e.target.value)}
                         />
-                        <p className={`text-xs ${form.job_description.length < 20 ? 'text-slate-400' : 'text-emerald-600'}`}>
+                        <p
+                          className={`text-xs ${form.job_description.length < 20 ? 'text-slate-400' : 'text-emerald-600'}`}
+                        >
                           {form.job_description.length}/20 characters minimum
                         </p>
                       </div>
@@ -380,7 +403,9 @@ function RequestPageContent() {
                               }`}
                             >
                               <p className="text-sm font-semibold">{opt.label}</p>
-                              <p className={`mt-0.5 text-xs ${form.urgency === opt.value ? 'text-slate-300' : 'text-slate-400'}`}>
+                              <p
+                                className={`mt-0.5 text-xs ${form.urgency === opt.value ? 'text-slate-300' : 'text-slate-400'}`}
+                              >
                                 {opt.description}
                               </p>
                             </button>
@@ -418,7 +443,8 @@ function RequestPageContent() {
                             // Try to match the returned neighborhood to a known district label
                             const norm = neighborhood.toLowerCase();
                             const match = RIYADH_DISTRICT_VALUES.find(
-                              (d) => d.toLowerCase().includes(norm) || norm.includes(d.toLowerCase()),
+                              (d) =>
+                                d.toLowerCase().includes(norm) || norm.includes(d.toLowerCase())
                             );
                             set('location_district', match || neighborhood);
                           }
@@ -465,7 +491,9 @@ function RequestPageContent() {
                         >
                           <option value="">Select district…</option>
                           {RIYADH_DISTRICT_VALUES.map((d) => (
-                            <option key={d} value={d}>{d}</option>
+                            <option key={d} value={d}>
+                              {d}
+                            </option>
                           ))}
                         </select>
                       </div>
@@ -528,10 +556,14 @@ function RequestPageContent() {
                             className="w-full px-3.5 py-2.5 text-sm text-slate-900 placeholder-slate-400 outline-none"
                             placeholder="05X XXX XXXX"
                             value={formatSaudiLocal(form.contact_phone_digits)}
-                            onChange={(e) => set('contact_phone_digits', sanitizeSaudiLocal(e.target.value))}
+                            onChange={(e) =>
+                              set('contact_phone_digits', sanitizeSaudiLocal(e.target.value))
+                            }
                           />
                         </div>
-                        <p className="text-xs text-slate-400">Saudi mobile number — 9 digits starting with 5.</p>
+                        <p className="text-xs text-slate-400">
+                          Saudi mobile number — 9 digits starting with 5.
+                        </p>
                       </div>
                     </div>
 
@@ -540,7 +572,9 @@ function RequestPageContent() {
                       <p className="mb-2 font-semibold text-slate-700">Your Request Summary</p>
                       <div className="flex justify-between gap-4">
                         <span className="text-slate-500">Service</span>
-                        <span className="text-right font-medium text-slate-800">{form.selected_service}</span>
+                        <span className="text-right font-medium text-slate-800">
+                          {form.selected_service}
+                        </span>
                       </div>
                       <div className="flex justify-between gap-4">
                         <span className="text-slate-500">Urgency</span>
@@ -609,9 +643,14 @@ function RequestPageContent() {
 
           <p className="mt-4 text-center text-xs text-slate-400">
             By submitting, you agree to our{' '}
-            <Link href="/terms" className="underline hover:text-slate-600">Terms</Link>{' '}
+            <Link href="/terms" className="underline hover:text-slate-600">
+              Terms
+            </Link>{' '}
             and{' '}
-            <Link href="/privacy-policy" className="underline hover:text-slate-600">Privacy Policy</Link>.
+            <Link href="/privacy-policy" className="underline hover:text-slate-600">
+              Privacy Policy
+            </Link>
+            .
           </p>
         </div>
       </main>

@@ -5,12 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/portal/empty-state';
 import { PageHeader } from '@/components/portal/page-header';
 import { apiClient } from '@/lib/api-client';
-import {
-  IconArrowUpRight,
-  IconCoin,
-  IconReceipt,
-  IconTrendingUp,
-} from '@tabler/icons-react';
+import { IconArrowUpRight, IconCoin, IconReceipt, IconTrendingUp } from '@tabler/icons-react';
 
 const CATEGORY_LABELS: Record<string, string> = {
   AC_HVAC: 'AC & HVAC',
@@ -40,9 +35,12 @@ type LeadFeeTransaction = {
 };
 
 function extractCategory(description: string): string {
-  const match = description.match(/Lead fee — ([A-Z_]+)/);
-  if (match?.[1]) return CATEGORY_LABELS[match[1]] ?? match[1];
-  return '—';
+  const match = description.match(/Lead fee [-\u2014] (.+?)(?: job in|$)/);
+  if (match?.[1]) {
+    const category = match[1].trim();
+    return CATEGORY_LABELS[category] ?? category;
+  }
+  return '-';
 }
 
 export default function BillingPage() {
@@ -94,7 +92,9 @@ export default function BillingPage() {
       />
 
       {error ? (
-        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {error}
+        </div>
       ) : null}
 
       {/* Summary cards */}
@@ -105,10 +105,11 @@ export default function BillingPage() {
               <IconCoin className="h-4 w-4" stroke={1.5} />
               Total spend
             </div>
-            <p className="mt-3 text-3xl font-bold text-slate-900">
-              SAR {totalSar.toFixed(2)}
+            <p className="mt-3 text-3xl font-bold text-slate-900">SAR {totalSar.toFixed(2)}</p>
+            <p className="mt-1 text-xs text-slate-400">
+              All time · {transactions.filter((t) => t.transaction_type === 'CHARGE').length} jobs
+              claimed
             </p>
-            <p className="mt-1 text-xs text-slate-400">All time · {transactions.filter((t) => t.transaction_type === 'CHARGE').length} jobs claimed</p>
           </div>
 
           <div className="rounded-2xl border border-border bg-card p-6">
@@ -116,10 +117,10 @@ export default function BillingPage() {
               <IconTrendingUp className="h-4 w-4" stroke={1.5} />
               This month
             </div>
-            <p className="mt-3 text-3xl font-bold text-slate-900">
-              SAR {thisMonthSar.toFixed(2)}
+            <p className="mt-3 text-3xl font-bold text-slate-900">SAR {thisMonthSar.toFixed(2)}</p>
+            <p className="mt-1 text-xs text-slate-400">
+              {new Date().toLocaleString('default', { month: 'long', year: 'numeric' })}
             </p>
-            <p className="mt-1 text-xs text-slate-400">{new Date().toLocaleString('default', { month: 'long', year: 'numeric' })}</p>
           </div>
 
           <div className="rounded-2xl border border-border bg-card p-6">
@@ -131,7 +132,9 @@ export default function BillingPage() {
               {categoryBreakdown[0]?.[0] ?? '—'}
             </p>
             {categoryBreakdown[0] ? (
-              <p className="mt-1 text-xs text-slate-400">SAR {categoryBreakdown[0][1].toFixed(2)} in lead fees</p>
+              <p className="mt-1 text-xs text-slate-400">
+                SAR {categoryBreakdown[0][1].toFixed(2)} in lead fees
+              </p>
             ) : (
               <p className="mt-1 text-xs text-slate-400">No jobs claimed yet</p>
             )}

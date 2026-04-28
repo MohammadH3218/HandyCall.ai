@@ -15,7 +15,14 @@ import { getLeadFeeHalalas, halalasToSar, OPEN_JOB_TTL_MS } from './lead-fee-tie
 const QUOTE_REQUESTS_TABLE = 'quote_requests';
 const LEAD_FEE_TRANSACTIONS_TABLE = 'lead_fee_transactions';
 
-export type QuoteStatus = 'PENDING' | 'ACCEPTED' | 'DECLINED' | 'CLOSED' | 'OPEN' | 'CLAIMED' | 'EXPIRED';
+export type QuoteStatus =
+  | 'PENDING'
+  | 'ACCEPTED'
+  | 'DECLINED'
+  | 'CLOSED'
+  | 'OPEN'
+  | 'CLAIMED'
+  | 'EXPIRED';
 export type RequestType = 'DIRECT' | 'OPEN';
 
 @Injectable()
@@ -25,7 +32,7 @@ export class QuoteRequestsService {
   constructor(
     private db: DynamoDBService,
     private messaging: PortalMessagingService,
-    private email: EmailService,
+    private email: EmailService
   ) {}
 
   // ── Customer: submit a direct request to a specific pro ───────────────────
@@ -42,7 +49,7 @@ export class QuoteRequestsService {
       contact_phone?: string;
       address_line1?: string;
       address_line2?: string;
-    },
+    }
   ) {
     if (!data.pro_id) throw new BadRequestException('pro_id is required');
     if (!data.job_description?.trim()) throw new BadRequestException('job_description is required');
@@ -70,7 +77,9 @@ export class QuoteRequestsService {
     };
 
     await this.db.put(QUOTE_REQUESTS_TABLE, quote);
-    this.logger.log(`Direct quote ${quote.quote_id} submitted by customer ${customerId} to pro ${data.pro_id}`);
+    this.logger.log(
+      `Direct quote ${quote.quote_id} submitted by customer ${customerId} to pro ${data.pro_id}`
+    );
     return quote;
   }
 
@@ -86,9 +95,10 @@ export class QuoteRequestsService {
       contact_email?: string;
       contact_phone?: string;
       photos?: string[];
-    },
+    }
   ) {
-    if (!data.service_category?.trim()) throw new BadRequestException('service_category is required');
+    if (!data.service_category?.trim())
+      throw new BadRequestException('service_category is required');
     if (!data.district?.trim()) throw new BadRequestException('district is required');
     if (!data.job_description?.trim() || data.job_description.trim().length < 50) {
       throw new BadRequestException('job_description must be at least 50 characters');
@@ -118,20 +128,24 @@ export class QuoteRequestsService {
     };
 
     await this.db.put(QUOTE_REQUESTS_TABLE, quote);
-    this.logger.log(`Open job ${quote.quote_id} posted by customer ${customerId} — lead fee SAR ${halalasToSar(leadFeeHalalas)}`);
+    this.logger.log(
+      `Open job ${quote.quote_id} posted by customer ${customerId} — lead fee SAR ${halalasToSar(leadFeeHalalas)}`
+    );
     return quote;
   }
 
   // ── Customer: list own requests ────────────────────────────────────────────
 
   async listCustomerRequests(customerId: string): Promise<any[]> {
-    const { items } = await this.db.query(
-      QUOTE_REQUESTS_TABLE,
-      '#customer_user_id = :cuid',
-      { '#customer_user_id': 'customer_user_id' },
-      { ':cuid': customerId },
-      { indexName: 'customer-quotes-index', scanIndexForward: false, limit: 50 },
-    ).catch(() => ({ items: [] }));
+    const { items } = await this.db
+      .query(
+        QUOTE_REQUESTS_TABLE,
+        '#customer_user_id = :cuid',
+        { '#customer_user_id': 'customer_user_id' },
+        { ':cuid': customerId },
+        { indexName: 'customer-quotes-index', scanIndexForward: false, limit: 50 }
+      )
+      .catch(() => ({ items: [] }));
 
     const enriched = await Promise.all(
       items.map(async (q: any) => {
@@ -145,7 +159,9 @@ export class QuoteRequestsService {
               pro_photo: (pro as any).marketplace_profile?.profile_photo ?? null,
             };
           }
-        } catch { /* ignore */ }
+        } catch {
+          /* ignore */
+        }
         return q;
       })
     );
@@ -156,18 +172,20 @@ export class QuoteRequestsService {
   // ── Customer: list own open job posts ─────────────────────────────────────
 
   async listCustomerOpenJobs(customerId: string): Promise<any[]> {
-    const { items } = await this.db.query(
-      QUOTE_REQUESTS_TABLE,
-      '#customer_user_id = :cuid',
-      { '#customer_user_id': 'customer_user_id', '#rtype': 'request_type' },
-      { ':cuid': customerId, ':open_type': 'OPEN' },
-      {
-        indexName: 'customer-quotes-index',
-        filterExpression: '#rtype = :open_type',
-        scanIndexForward: false,
-        limit: 50,
-      },
-    ).catch(() => ({ items: [] }));
+    const { items } = await this.db
+      .query(
+        QUOTE_REQUESTS_TABLE,
+        '#customer_user_id = :cuid',
+        { '#customer_user_id': 'customer_user_id', '#rtype': 'request_type' },
+        { ':cuid': customerId, ':open_type': 'OPEN' },
+        {
+          indexName: 'customer-quotes-index',
+          filterExpression: '#rtype = :open_type',
+          scanIndexForward: false,
+          limit: 50,
+        }
+      )
+      .catch(() => ({ items: [] }));
 
     const now = Date.now();
     return items
@@ -190,41 +208,65 @@ export class QuoteRequestsService {
       contact_name: string;
       contact_email: string;
       contact_phone: string;
-    }>,
+    }>
   ) {
-    const existing = await this.db.get(QUOTE_REQUESTS_TABLE, { quote_id: quoteId }) as any;
+    const existing = (await this.db.get(QUOTE_REQUESTS_TABLE, { quote_id: quoteId })) as any;
     if (!existing) throw new NotFoundException('Request not found');
     if (existing.customer_user_id !== customerId) throw new NotFoundException('Request not found');
-    if (existing.status !== 'PENDING') throw new BadRequestException('Only pending requests can be updated');
-    return this.db.update(QUOTE_REQUESTS_TABLE, { quote_id: quoteId }, { ...data, updated_at: Date.now() });
+    if (existing.status !== 'PENDING')
+      throw new BadRequestException('Only pending requests can be updated');
+    return this.db.update(
+      QUOTE_REQUESTS_TABLE,
+      { quote_id: quoteId },
+      { ...data, updated_at: Date.now() }
+    );
   }
 
   // ── Pro: browse jobs board (filtered by their categories/districts) ────────
 
-  async listJobsBoard(proId: string, filters?: { category?: string; district?: string }): Promise<any[]> {
-    const pro = await this.db.get('pros', { pro_id: proId }) as any;
-    const proCategories: string[] = pro?.service_categories ?? pro?.marketplace_profile?.service_categories ?? [];
-    const proDistricts: string[] = pro?.service_districts ?? pro?.marketplace_profile?.service_districts ?? [];
+  async listJobsBoard(
+    proId: string,
+    filters?: { category?: string; district?: string }
+  ): Promise<any[]> {
+    const pro = (await this.db.get('pros', { pro_id: proId })) as any;
+    const proCategories: string[] = [
+      ...(Array.isArray(pro?.service_categories) ? pro.service_categories : []),
+      ...(Array.isArray(pro?.marketplace_profile?.service_categories)
+        ? pro.marketplace_profile.service_categories
+        : []),
+      ...(pro?.service_category ? [pro.service_category] : []),
+      ...(pro?.marketplace_profile?.service_category
+        ? [pro.marketplace_profile.service_category]
+        : []),
+    ];
+    const proDistricts: string[] =
+      pro?.service_districts ?? pro?.marketplace_profile?.service_districts ?? [];
 
     const now = Date.now();
-    const { items } = await this.db.scan(QUOTE_REQUESTS_TABLE, {
-      filterExpression: '#qstatus = :open AND #rtype = :rtype AND #expires_at > :now',
-      expressionAttributeNames: {
-        '#qstatus': 'status',
-        '#rtype': 'request_type',
-        '#expires_at': 'expires_at',
-      },
-      expressionAttributeValues: {
-        ':open': 'OPEN',
-        ':rtype': 'OPEN',
-        ':now': now,
-      },
-    }).catch(() => ({ items: [] }));
+    const { items } = await this.db
+      .scan(QUOTE_REQUESTS_TABLE, {
+        filterExpression: '#qstatus = :open AND #rtype = :rtype AND #expires_at > :now',
+        expressionAttributeNames: {
+          '#qstatus': 'status',
+          '#rtype': 'request_type',
+          '#expires_at': 'expires_at',
+        },
+        expressionAttributeValues: {
+          ':open': 'OPEN',
+          ':rtype': 'OPEN',
+          ':now': now,
+        },
+      })
+      .catch(() => ({ items: [] }));
 
     let results = items as any[];
 
     if (proCategories.length > 0) {
-      results = results.filter((q) => proCategories.includes(q.service_category));
+      results = results.filter((q) =>
+        proCategories.some(
+          (category) => String(category).toLowerCase() === String(q.service_category).toLowerCase()
+        )
+      );
     }
     if (proDistricts.length > 0) {
       results = results.filter((q) => proDistricts.includes(q.district));
@@ -253,18 +295,20 @@ export class QuoteRequestsService {
   // ── Pro: list incoming pending direct requests ─────────────────────────────
 
   async listProAvailableRequests(proId: string): Promise<any[]> {
-    const { items } = await this.db.query(
-      QUOTE_REQUESTS_TABLE,
-      '#pro_id = :pid',
-      { '#pro_id': 'pro_id', '#qstatus': 'status' },
-      { ':pid': proId, ':pending': 'PENDING' },
-      {
-        indexName: 'pro-quotes-index',
-        filterExpression: '#qstatus = :pending',
-        scanIndexForward: false,
-        limit: 50,
-      },
-    ).catch(() => ({ items: [] }));
+    const { items } = await this.db
+      .query(
+        QUOTE_REQUESTS_TABLE,
+        '#pro_id = :pid',
+        { '#pro_id': 'pro_id', '#qstatus': 'status' },
+        { ':pid': proId, ':pending': 'PENDING' },
+        {
+          indexName: 'pro-quotes-index',
+          filterExpression: '#qstatus = :pending',
+          scanIndexForward: false,
+          limit: 50,
+        }
+      )
+      .catch(() => ({ items: [] }));
 
     return items.map((q: any) => ({
       quote_id: q.quote_id,
@@ -279,18 +323,20 @@ export class QuoteRequestsService {
   // ── Pro: list past direct requests ────────────────────────────────────────
 
   async listProPastRequests(proId: string): Promise<any[]> {
-    const { items } = await this.db.query(
-      QUOTE_REQUESTS_TABLE,
-      '#pro_id = :pid',
-      { '#pro_id': 'pro_id', '#qstatus': 'status' },
-      { ':pid': proId, ':pending': 'PENDING' },
-      {
-        indexName: 'pro-quotes-index',
-        filterExpression: '#qstatus <> :pending',
-        scanIndexForward: false,
-        limit: 50,
-      },
-    ).catch(() => ({ items: [] }));
+    const { items } = await this.db
+      .query(
+        QUOTE_REQUESTS_TABLE,
+        '#pro_id = :pid',
+        { '#pro_id': 'pro_id', '#qstatus': 'status' },
+        { ':pid': proId, ':pending': 'PENDING' },
+        {
+          indexName: 'pro-quotes-index',
+          filterExpression: '#qstatus <> :pending',
+          scanIndexForward: false,
+          limit: 50,
+        }
+      )
+      .catch(() => ({ items: [] }));
 
     return items.map((q: any) => ({
       quote_id: q.quote_id,
@@ -303,20 +349,22 @@ export class QuoteRequestsService {
       lead_fee_sar: q.lead_fee_halalas ? halalasToSar(q.lead_fee_halalas) : null,
       created_at: q.created_at,
       thread_id: q.thread_id ?? null,
-      ...((q.status === 'ACCEPTED' || q.status === 'CLAIMED') ? {
-        contact_name: q.contact_name,
-        contact_email: q.contact_email,
-        contact_phone: q.contact_phone,
-        address_line1: q.address_line1,
-        address_line2: q.address_line2,
-      } : {}),
+      ...(q.status === 'ACCEPTED' || q.status === 'CLAIMED'
+        ? {
+            contact_name: q.contact_name,
+            contact_email: q.contact_email,
+            contact_phone: q.contact_phone,
+            address_line1: q.address_line1,
+            address_line2: q.address_line2,
+          }
+        : {}),
     }));
   }
 
   // ── Pro: get single direct request ────────────────────────────────────────
 
   async getProRequest(proId: string, quoteId: string): Promise<any> {
-    const q = await this.db.get(QUOTE_REQUESTS_TABLE, { quote_id: quoteId }) as any;
+    const q = (await this.db.get(QUOTE_REQUESTS_TABLE, { quote_id: quoteId })) as any;
     if (!q || q.pro_id !== proId) throw new NotFoundException('Request not found');
 
     return {
@@ -327,33 +375,37 @@ export class QuoteRequestsService {
       status: q.status,
       created_at: q.created_at,
       thread_id: q.thread_id ?? null,
-      ...(q.status !== 'PENDING' ? {
-        contact_name: q.contact_name,
-        contact_email: q.contact_email,
-        contact_phone: q.contact_phone,
-        address_line1: q.address_line1,
-        address_line2: q.address_line2,
-      } : {}),
+      ...(q.status !== 'PENDING'
+        ? {
+            contact_name: q.contact_name,
+            contact_email: q.contact_email,
+            contact_phone: q.contact_phone,
+            address_line1: q.address_line1,
+            address_line2: q.address_line2,
+          }
+        : {}),
     };
   }
 
   // ── Pro: claim an open job (first-come-first-served, atomic) ──────────────
 
   async claimOpenJob(proId: string, quoteId: string): Promise<{ quote: any; thread: any }> {
-    const q = await this.db.get(QUOTE_REQUESTS_TABLE, { quote_id: quoteId }) as any;
+    const q = (await this.db.get(QUOTE_REQUESTS_TABLE, { quote_id: quoteId })) as any;
     if (!q) throw new NotFoundException('Job not found');
     if (q.request_type !== 'OPEN') throw new BadRequestException('This is not an open job post');
     if (q.status === 'EXPIRED' || (q.expires_at && q.expires_at < Date.now())) {
       throw new BadRequestException('This job post has expired');
     }
-    if (q.status === 'CLAIMED') throw new ConflictException('This job was already claimed by another pro');
+    if (q.status === 'CLAIMED')
+      throw new ConflictException('This job was already claimed by another pro');
     if (q.status !== 'OPEN') throw new BadRequestException('Job is not available');
 
     // Atomic conditional update — only one pro wins
     try {
       await this.db.updateRaw(QUOTE_REQUESTS_TABLE, {
         Key: { quote_id: quoteId },
-        UpdateExpression: 'SET #status = :claimed, #pro_id = :proId, #updated_at = :now, claimed_at = :now',
+        UpdateExpression:
+          'SET #status = :claimed, #pro_id = :proId, #updated_at = :now, claimed_at = :now',
         ConditionExpression: '#status = :open',
         ExpressionAttributeNames: {
           '#status': 'status',
@@ -369,12 +421,14 @@ export class QuoteRequestsService {
       });
     } catch (err: any) {
       if (err.name === 'ConditionalCheckFailedException') {
-        throw new ConflictException('Another pro claimed this job first — please refresh the board');
+        throw new ConflictException(
+          'Another pro claimed this job first — please refresh the board'
+        );
       }
       throw err;
     }
 
-    const updated = await this.db.get(QUOTE_REQUESTS_TABLE, { quote_id: quoteId }) as any;
+    const updated = (await this.db.get(QUOTE_REQUESTS_TABLE, { quote_id: quoteId })) as any;
 
     // Record lead fee transaction
     const leadFeeHalalas = q.lead_fee_halalas ?? getLeadFeeHalalas(q.service_category);
@@ -388,7 +442,7 @@ export class QuoteRequestsService {
       created_at: Date.now(),
     });
 
-    const pro = await this.db.get('pros', { pro_id: proId }).catch(() => null) as any;
+    const pro = (await this.db.get('pros', { pro_id: proId }).catch(() => null)) as any;
     const proName = pro
       ? `${pro.first_name ?? ''} ${pro.last_name ?? ''}`.trim() || 'Your pro'
       : 'Your pro';
@@ -425,7 +479,11 @@ export class QuoteRequestsService {
       customerName: q.contact_name ?? undefined,
     });
 
-    await this.db.update(QUOTE_REQUESTS_TABLE, { quote_id: quoteId }, { thread_id: thread.thread_id });
+    await this.db.update(
+      QUOTE_REQUESTS_TABLE,
+      { quote_id: quoteId },
+      { thread_id: thread.thread_id }
+    );
 
     if (q.contact_email) {
       this.email['send']({
@@ -441,7 +499,9 @@ export class QuoteRequestsService {
       }).catch((err: Error) => this.logger.warn(`Failed to send claim email: ${err.message}`));
     }
 
-    this.logger.log(`Open job ${quoteId} claimed by pro ${proId} — ${leadFeeHalalas} halalas charged`);
+    this.logger.log(
+      `Open job ${quoteId} claimed by pro ${proId} — ${leadFeeHalalas} halalas charged`
+    );
     return { quote: updated, thread };
   }
 
@@ -450,14 +510,15 @@ export class QuoteRequestsService {
   async respondToRequest(
     proId: string,
     quoteId: string,
-    action: 'ACCEPT' | 'DECLINE',
+    action: 'ACCEPT' | 'DECLINE'
   ): Promise<{ quote: any; thread?: any }> {
-    const q = await this.db.get(QUOTE_REQUESTS_TABLE, { quote_id: quoteId }) as any;
+    const q = (await this.db.get(QUOTE_REQUESTS_TABLE, { quote_id: quoteId })) as any;
     if (!q) throw new NotFoundException('Request not found');
     if (q.pro_id !== proId) throw new NotFoundException('Request not found');
-    if (q.status !== 'PENDING') throw new BadRequestException('Request has already been responded to');
+    if (q.status !== 'PENDING')
+      throw new BadRequestException('Request has already been responded to');
 
-    const pro = await this.db.get('pros', { pro_id: proId }).catch(() => null) as any;
+    const pro = (await this.db.get('pros', { pro_id: proId }).catch(() => null)) as any;
     const proName = pro
       ? `${pro.first_name ?? ''} ${pro.last_name ?? ''}`.trim() || 'Your pro'
       : 'Your pro';
@@ -466,7 +527,7 @@ export class QuoteRequestsService {
       const updated = await this.db.update(
         QUOTE_REQUESTS_TABLE,
         { quote_id: quoteId },
-        { status: 'DECLINED', updated_at: Date.now() },
+        { status: 'DECLINED', updated_at: Date.now() }
       );
 
       if (q.contact_email) {
@@ -521,7 +582,12 @@ export class QuoteRequestsService {
     const updated = await this.db.update(
       QUOTE_REQUESTS_TABLE,
       { quote_id: quoteId },
-      { status: 'ACCEPTED', thread_id: thread.thread_id, accepted_at: Date.now(), updated_at: Date.now() },
+      {
+        status: 'ACCEPTED',
+        thread_id: thread.thread_id,
+        accepted_at: Date.now(),
+        updated_at: Date.now(),
+      }
     );
 
     if (q.contact_email) {
@@ -532,13 +598,18 @@ export class QuoteRequestsService {
           title: 'Request accepted!',
           greeting: `Hi ${q.contact_name || 'there'},`,
           body: `Great news! <strong>${proName}</strong> has accepted your <strong>${q.service_category}</strong> request and is ready to help.`,
-          cta: { label: 'Open chat', url: `https://handycall.org/customer/dashboard/inbox?thread_id=${thread.thread_id}` },
+          cta: {
+            label: 'Open chat',
+            url: `https://handycall.org/customer/dashboard/inbox?thread_id=${thread.thread_id}`,
+          },
           footer: 'Questions? Contact us at hello@handycall.org',
         }),
       }).catch((err: Error) => this.logger.warn(`Failed to send accept email: ${err.message}`));
     }
 
-    this.logger.log(`Direct quote ${quoteId} accepted by pro ${proId} → thread ${thread.thread_id}`);
+    this.logger.log(
+      `Direct quote ${quoteId} accepted by pro ${proId} → thread ${thread.thread_id}`
+    );
     return { quote: updated, thread };
   }
 
@@ -549,21 +620,28 @@ export class QuoteRequestsService {
     total_charged_halalas: number;
     total_charged_sar: number;
   }> {
-    const { items } = await this.db.query(
-      LEAD_FEE_TRANSACTIONS_TABLE,
-      '#pro_id = :pid',
-      { '#pro_id': 'pro_id' },
-      { ':pid': proId },
-      { indexName: 'pro-transactions-index', scanIndexForward: false, limit: 100 },
-    ).catch(() => ({ items: [] }));
+    const { items } = await this.db
+      .query(
+        LEAD_FEE_TRANSACTIONS_TABLE,
+        '#pro_id = :pid',
+        { '#pro_id': 'pro_id' },
+        { ':pid': proId },
+        { indexName: 'pro-transactions-index', scanIndexForward: false, limit: 100 }
+      )
+      .catch(() => ({ items: [] }));
     const transactions = items as any[];
 
     const totalHalalas = transactions.reduce((sum: number, t: any) => {
-      return t.transaction_type === 'CHARGE' ? sum + (t.amount_halalas ?? 0) : sum - (t.amount_halalas ?? 0);
+      return t.transaction_type === 'CHARGE'
+        ? sum + (t.amount_halalas ?? 0)
+        : sum - (t.amount_halalas ?? 0);
     }, 0);
 
     return {
-      transactions: transactions.map((t: any) => ({ ...t, amount_sar: halalasToSar(t.amount_halalas) })),
+      transactions: transactions.map((t: any) => ({
+        ...t,
+        amount_sar: halalasToSar(t.amount_halalas),
+      })),
       total_charged_halalas: totalHalalas,
       total_charged_sar: halalasToSar(totalHalalas),
     };

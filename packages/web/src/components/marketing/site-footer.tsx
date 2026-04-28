@@ -14,7 +14,8 @@ export function SiteFooter() {
             <span className="text-xl font-bold text-white">HandyCall</span>
           </Link>
           <p className="mt-3 max-w-md text-sm text-slate-400">
-            Helping homeowners discover the right service categories and helping pros turn that demand into booked work.
+            Helping homeowners discover the right service categories and helping pros turn that
+            demand into booked work.
           </p>
         </div>
 
@@ -24,10 +25,38 @@ export function SiteFooter() {
               Find Services
             </h4>
             <ul className="space-y-2.5">
-              <li><Link href="/search" className="text-sm text-slate-400 transition-colors hover:text-white">Search</Link></li>
-              <li><Link href="/categories" className="text-sm text-slate-400 transition-colors hover:text-white">Categories</Link></li>
-              <li><Link href="/#how-it-works" className="text-sm text-slate-400 transition-colors hover:text-white">How It Works</Link></li>
-              <li><Link href="/signup" className="text-sm text-slate-400 transition-colors hover:text-white">Sign Up</Link></li>
+              <li>
+                <Link
+                  href="/search"
+                  className="text-sm text-slate-400 transition-colors hover:text-white"
+                >
+                  Search
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/customer/dashboard/post-job"
+                  className="text-sm text-slate-400 transition-colors hover:text-white"
+                >
+                  Post a Job
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/#how-it-works"
+                  className="text-sm text-slate-400 transition-colors hover:text-white"
+                >
+                  How It Works
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/signup"
+                  className="text-sm text-slate-400 transition-colors hover:text-white"
+                >
+                  Sign Up
+                </Link>
+              </li>
             </ul>
           </div>
 
@@ -36,10 +65,38 @@ export function SiteFooter() {
               For Pros
             </h4>
             <ul className="space-y-2.5">
-              <li><Link href="/for-pros" className="text-sm text-slate-400 transition-colors hover:text-white">For Pros</Link></li>
-              <li><Link href="/for-pros#pricing" className="text-sm text-slate-400 transition-colors hover:text-white">Pricing</Link></li>
-              <li><Link href="/register" className="text-sm text-slate-400 transition-colors hover:text-white">Pro Sign Up</Link></li>
-              <li><Link href="/pro/login" className="text-sm text-slate-400 transition-colors hover:text-white">Pro Login</Link></li>
+              <li>
+                <Link
+                  href="/for-pros"
+                  className="text-sm text-slate-400 transition-colors hover:text-white"
+                >
+                  For Pros
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/for-pros#pricing"
+                  className="text-sm text-slate-400 transition-colors hover:text-white"
+                >
+                  Pricing
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/register"
+                  className="text-sm text-slate-400 transition-colors hover:text-white"
+                >
+                  Pro Sign Up
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/pro/login"
+                  className="text-sm text-slate-400 transition-colors hover:text-white"
+                >
+                  Pro Login
+                </Link>
+              </li>
             </ul>
           </div>
 
@@ -48,8 +105,22 @@ export function SiteFooter() {
               Company
             </h4>
             <ul className="space-y-2.5">
-              <li><Link href="/contact" className="text-sm text-slate-400 transition-colors hover:text-white">Contact</Link></li>
-              <li><Link href="mailto:hello@handycall.org" className="text-sm text-slate-400 transition-colors hover:text-white">hello@handycall.org</Link></li>
+              <li>
+                <Link
+                  href="/contact"
+                  className="text-sm text-slate-400 transition-colors hover:text-white"
+                >
+                  Contact
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="mailto:hello@handycall.org"
+                  className="text-sm text-slate-400 transition-colors hover:text-white"
+                >
+                  hello@handycall.org
+                </Link>
+              </li>
             </ul>
           </div>
 
@@ -58,8 +129,22 @@ export function SiteFooter() {
               Legal
             </h4>
             <ul className="space-y-2.5">
-              <li><Link href="/terms" className="text-sm text-slate-400 transition-colors hover:text-white">Terms</Link></li>
-              <li><Link href="/privacy-policy" className="text-sm text-slate-400 transition-colors hover:text-white">Privacy</Link></li>
+              <li>
+                <Link
+                  href="/terms"
+                  className="text-sm text-slate-400 transition-colors hover:text-white"
+                >
+                  Terms
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/privacy-policy"
+                  className="text-sm text-slate-400 transition-colors hover:text-white"
+                >
+                  Privacy
+                </Link>
+              </li>
             </ul>
           </div>
         </div>

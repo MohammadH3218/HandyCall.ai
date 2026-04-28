@@ -32,10 +32,7 @@ export enum CompanyStatus {
   CANCELED = 'CANCELED',
 }
 
-export type AppointmentCancellationPolicyMode =
-  | 'ANYTIME'
-  | 'BEFORE_HOURS'
-  | 'NO_CANCELLATIONS';
+export type AppointmentCancellationPolicyMode = 'ANYTIME' | 'BEFORE_HOURS' | 'NO_CANCELLATIONS';
 
 export interface AppointmentCancellationPolicy {
   mode: AppointmentCancellationPolicyMode;
@@ -163,24 +160,9 @@ export enum ServiceType {
   OTHER = 'OTHER',
 }
 
-export type ProStatus =
-  | 'ONBOARDING'
-  | 'PENDING_REVIEW'
-  | 'ACTIVE'
-  | 'SUSPENDED'
-  | 'REJECTED';
+export type ProStatus = 'ONBOARDING' | 'PENDING_REVIEW' | 'ACTIVE' | 'SUSPENDED' | 'REJECTED';
 
-export type ServiceCategory =
-  | 'CLEANING'
-  | 'PLUMBING'
-  | 'ELECTRICAL'
-  | 'PAINTING'
-  | 'CARPENTRY'
-  | 'AC_REPAIR'
-  | 'PEST_CONTROL'
-  | 'LANDSCAPING'
-  | 'APPLIANCE_REPAIR'
-  | 'HANDYMAN';
+export type ServiceCategory = string;
 
 export type BookingStatus =
   | 'PENDING'

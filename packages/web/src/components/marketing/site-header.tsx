@@ -19,11 +19,17 @@ type SiteHeaderProps = {
 
 const NAV_BASE = [
   { path: '/search', label: 'Find Services' },
-  { path: '/categories', label: 'Categories' },
+  { path: '/contact', label: 'Contact' },
   { path: '/#how-it-works', label: 'How It Works' },
 ];
 
-function ProfileMenu({ fallbackUser, isPro = false }: { fallbackUser: Partial<User> | null; isPro?: boolean }) {
+function ProfileMenu({
+  fallbackUser,
+  isPro = false,
+}: {
+  fallbackUser: Partial<User> | null;
+  isPro?: boolean;
+}) {
   const { user, logout } = useAuthStore();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -42,11 +48,11 @@ function ProfileMenu({ fallbackUser, isPro = false }: { fallbackUser: Partial<Us
       ? `${profile.first_name[0]}${profile.last_name[0]}`.toUpperCase()
       : profile?.first_name
         ? profile.first_name[0].toUpperCase()
-        : profile?.email?.[0]?.toUpperCase() ?? '?';
+        : (profile?.email?.[0]?.toUpperCase() ?? '?');
 
   const displayName = profile?.first_name
     ? `${profile.first_name}${profile.last_name ? ' ' + profile.last_name : ''}`
-    : profile?.email ?? 'Account';
+    : (profile?.email ?? 'Account');
 
   const logoutHref = isPro ? '/pro/login?reason=logged_out' : '/customer/login';
 
@@ -65,7 +71,10 @@ function ProfileMenu({ fallbackUser, isPro = false }: { fallbackUser: Partial<Us
           </span>
         )}
         <span className="max-w-[120px] truncate">{displayName}</span>
-        <IconChevronDown className={`h-3.5 w-3.5 text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`} stroke={2} />
+        <IconChevronDown
+          className={`h-3.5 w-3.5 text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`}
+          stroke={2}
+        />
       </button>
 
       {open && (
@@ -88,8 +97,18 @@ function ProfileMenu({ fallbackUser, isPro = false }: { fallbackUser: Partial<Us
                 onClick={() => setOpen(false)}
                 className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-700 transition hover:bg-slate-50"
               >
-                <svg className="h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                <svg
+                  className="h-4 w-4 text-slate-400"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={1.8}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
+                  />
                 </svg>
                 Dashboard
               </Link>
@@ -100,8 +119,18 @@ function ProfileMenu({ fallbackUser, isPro = false }: { fallbackUser: Partial<Us
                   onClick={() => setOpen(false)}
                   className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-700 transition hover:bg-slate-50"
                 >
-                  <svg className="h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                  <svg
+                    className="h-4 w-4 text-slate-400"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={1.8}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
+                    />
                   </svg>
                   Requests
                 </Link>
@@ -110,8 +139,18 @@ function ProfileMenu({ fallbackUser, isPro = false }: { fallbackUser: Partial<Us
                   onClick={() => setOpen(false)}
                   className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-700 transition hover:bg-slate-50"
                 >
-                  <svg className="h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                  <svg
+                    className="h-4 w-4 text-slate-400"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={1.8}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"
+                    />
                   </svg>
                   Inbox
                 </Link>
@@ -120,9 +159,23 @@ function ProfileMenu({ fallbackUser, isPro = false }: { fallbackUser: Partial<Us
                   onClick={() => setOpen(false)}
                   className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-700 transition hover:bg-slate-50"
                 >
-                  <svg className="h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.757.426 1.757 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.757-2.924 1.757-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.757-.426-1.757-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  <svg
+                    className="h-4 w-4 text-slate-400"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={1.8}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.757.426 1.757 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.757-2.924 1.757-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.757-.426-1.757-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+                    />
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                    />
                   </svg>
                   Settings
                 </Link>
@@ -131,11 +184,24 @@ function ProfileMenu({ fallbackUser, isPro = false }: { fallbackUser: Partial<Us
           </div>
           <div className="border-t border-slate-100 py-1">
             <button
-              onClick={() => { setOpen(false); logout(logoutHref); }}
+              onClick={() => {
+                setOpen(false);
+                logout(logoutHref);
+              }}
               className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm text-red-600 transition hover:bg-red-50"
             >
-              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+              <svg
+                className="h-4 w-4"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={1.8}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
+                />
               </svg>
               Log out
             </button>
@@ -174,9 +240,7 @@ export function SiteHeader({
 
     const name = session?.user?.name?.trim() || '';
     const firstName =
-      session?.user?.given_name?.trim() ||
-      (name ? name.split(' ')[0] : '') ||
-      undefined;
+      session?.user?.given_name?.trim() || (name ? name.split(' ')[0] : '') || undefined;
     const lastName =
       session?.user?.family_name?.trim() ||
       (name ? name.split(' ').slice(1).join(' ') : '') ||
@@ -189,7 +253,6 @@ export function SiteHeader({
     };
   }, [session, status]);
 
-
   useEffect(() => {
     if (!isCustomerSession) return;
     if (user?.email) return;
@@ -199,10 +262,7 @@ export function SiteHeader({
   const hasConfirmedCustomerIdentity = Boolean(user?.email || fallbackSessionUser?.email);
   // Pro profile only appears on pro-facing pages (proLinks=true). On public pages treat pro session as logged-out.
   const shouldShowProAuth = isProSession && proLinks;
-  const shouldShowCustomerAuth =
-    !isProSession &&
-    isCustomerSession &&
-    hasConfirmedCustomerIdentity;
+  const shouldShowCustomerAuth = !isProSession && isCustomerSession && hasConfirmedCustomerIdentity;
   const shouldShowLoggedOutActions = !shouldShowCustomerAuth && !shouldShowProAuth;
 
   const copy = {
@@ -298,7 +358,7 @@ export function SiteHeader({
               </>
             ) : null}
 
-            {(shouldShowCustomerAuth || shouldShowLoggedOutActions) ? (
+            {shouldShowCustomerAuth || shouldShowLoggedOutActions ? (
               <>
                 <span className="mx-1 h-4 border-l border-slate-200" />
                 <Link
@@ -442,9 +502,9 @@ export function SiteHeader({
                 {!hideLogin && (
                   <>
                     {!hideLoginLink && (
-                    <Link
-                      href="/customer/login"
-                      className="block w-full rounded-lg border border-slate-300 px-4 py-2.5 text-center text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                      <Link
+                        href="/customer/login"
+                        className="block w-full rounded-lg border border-slate-300 px-4 py-2.5 text-center text-sm font-semibold text-slate-700 hover:bg-slate-50"
                         onClick={() => setMobileOpen(false)}
                       >
                         {copy.signIn}

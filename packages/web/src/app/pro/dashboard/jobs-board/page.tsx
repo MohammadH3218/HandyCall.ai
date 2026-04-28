@@ -31,6 +31,10 @@ const CATEGORY_LABELS: Record<string, string> = {
   OTHER: 'Other',
 };
 
+function displayCategory(category: string) {
+  return CATEGORY_LABELS[category] ?? category;
+}
+
 type OpenJob = {
   quote_id: string;
   service_category: string;
@@ -72,14 +76,15 @@ function ClaimModal({
         </div>
         <h2 className="mt-4 text-lg font-bold text-slate-900">Claim this job?</h2>
         <p className="mt-1 text-sm leading-6 text-slate-500">
-          The lead fee is charged immediately, then a chat opens with the customer. First pro to claim gets the job.
+          The lead fee is charged immediately, then a chat opens with the customer. First pro to
+          claim gets the job.
         </p>
 
         <div className="mt-5 space-y-2.5 rounded-xl bg-slate-50 p-4 text-sm">
           <div className="flex justify-between gap-4">
             <span className="text-slate-500">Category</span>
             <span className="text-right font-medium text-slate-800">
-              {CATEGORY_LABELS[job.service_category] ?? job.service_category}
+              {displayCategory(job.service_category)}
             </span>
           </div>
           <div className="flex justify-between gap-4">
@@ -95,7 +100,9 @@ function ClaimModal({
           <div className="border-t border-slate-200 pt-2.5">
             <div className="flex justify-between gap-4">
               <span className="font-semibold text-slate-700">Lead fee charged</span>
-              <span className="text-lg font-bold text-emerald-700">SAR {job.lead_fee_sar.toFixed(2)}</span>
+              <span className="text-lg font-bold text-emerald-700">
+                SAR {job.lead_fee_sar.toFixed(2)}
+              </span>
             </div>
           </div>
         </div>
@@ -159,11 +166,14 @@ export default function ProJobsBoardPage() {
     const query = search.trim().toLowerCase();
     if (!query) return jobs;
     return jobs.filter((job) =>
-      `${job.service_category} ${job.job_description} ${job.district}`.toLowerCase().includes(query),
+      `${job.service_category} ${job.job_description} ${job.district}`.toLowerCase().includes(query)
     );
   }, [jobs, search]);
 
-  const categories = useMemo(() => [...new Set(jobs.map((job) => job.service_category))].sort(), [jobs]);
+  const categories = useMemo(
+    () => [...new Set(jobs.map((job) => job.service_category))].sort(),
+    [jobs]
+  );
   const districts = useMemo(() => [...new Set(jobs.map((job) => job.district))].sort(), [jobs]);
 
   const handleClaim = async (job: OpenJob) => {
@@ -175,7 +185,9 @@ export default function ProJobsBoardPage() {
       const result = await apiClient.claimJob(job.quote_id);
       const threadId = result?.thread?.thread_id;
       setJobs((current) => current.filter((item) => item.quote_id !== job.quote_id));
-      router.push(threadId ? `/pro/dashboard/messages?thread_id=${threadId}` : '/pro/dashboard/messages');
+      router.push(
+        threadId ? `/pro/dashboard/messages?thread_id=${threadId}` : '/pro/dashboard/messages'
+      );
     } catch (err: any) {
       const message = err?.message || '';
       if (message.includes('claimed') || message.includes('expired')) {
@@ -205,7 +217,8 @@ export default function ProJobsBoardPage() {
           <div>
             <h1 className="text-2xl font-bold text-slate-900">Jobs Board</h1>
             <p className="mt-1 text-sm text-slate-500">
-              Browse open customer jobs in your categories and districts. Claiming charges the displayed lead fee.
+              Browse open customer jobs in your categories and districts. Claiming charges the
+              displayed lead fee.
             </p>
           </div>
 
@@ -226,12 +239,17 @@ export default function ProJobsBoardPage() {
         </div>
 
         {error ? (
-          <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
+          <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {error}
+          </div>
         ) : null}
 
         <div className="flex flex-wrap gap-3">
           <div className="relative min-w-[220px] flex-1">
-            <IconSearch className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" stroke={1.8} />
+            <IconSearch
+              className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+              stroke={1.8}
+            />
             <input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
@@ -247,7 +265,7 @@ export default function ProJobsBoardPage() {
             <option value="">All categories</option>
             {categories.map((category) => (
               <option key={category} value={category}>
-                {CATEGORY_LABELS[category] ?? category}
+                {displayCategory(category)}
               </option>
             ))}
           </select>
@@ -292,9 +310,11 @@ export default function ProJobsBoardPage() {
                   <div className="flex items-start justify-between gap-2">
                     <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
                       <IconTag className="h-3 w-3" stroke={2} />
-                      {CATEGORY_LABELS[job.service_category] ?? job.service_category}
+                      {displayCategory(job.service_category)}
                     </span>
-                    <span className={`inline-flex items-center gap-1 text-xs font-medium ${urgent ? 'text-red-600' : 'text-amber-600'}`}>
+                    <span
+                      className={`inline-flex items-center gap-1 text-xs font-medium ${urgent ? 'text-red-600' : 'text-amber-600'}`}
+                    >
                       <IconClock className="h-3 w-3" stroke={2} />
                       {formatTimeRemaining(job.time_remaining_ms)}
                     </span>

@@ -36,6 +36,10 @@ const CATEGORY_LABELS: Record<string, string> = {
   OTHER: 'Other',
 };
 
+function displayCategory(category: string) {
+  return CATEGORY_LABELS[category] ?? category;
+}
+
 type OpenJob = {
   quote_id: string;
   service_category: string;
@@ -78,13 +82,16 @@ function ClaimModal({
 
         <h2 className="mt-5 text-xl font-bold text-slate-900">Claim this job?</h2>
         <p className="mt-2 text-sm text-slate-500">
-          You&apos;ll be charged the lead fee and connected with the customer immediately. First come, first served.
+          You&apos;ll be charged the lead fee and connected with the customer immediately. First
+          come, first served.
         </p>
 
         <div className="mt-6 space-y-3 rounded-2xl bg-slate-50 p-4">
           <div className="flex justify-between text-sm">
             <span className="text-slate-500">Category</span>
-            <span className="font-medium text-slate-800">{CATEGORY_LABELS[job.service_category] ?? job.service_category}</span>
+            <span className="font-medium text-slate-800">
+              {displayCategory(job.service_category)}
+            </span>
           </div>
           <div className="flex justify-between text-sm">
             <span className="text-slate-500">District</span>
@@ -92,12 +99,16 @@ function ClaimModal({
           </div>
           <div className="flex justify-between text-sm">
             <span className="text-slate-500">Expires</span>
-            <span className="font-medium text-amber-700">{formatTimeRemaining(job.time_remaining_ms)}</span>
+            <span className="font-medium text-amber-700">
+              {formatTimeRemaining(job.time_remaining_ms)}
+            </span>
           </div>
           <div className="border-t border-slate-200 pt-3">
             <div className="flex justify-between">
               <span className="text-sm font-semibold text-slate-700">Lead fee</span>
-              <span className="text-lg font-bold text-emerald-700">SAR {job.lead_fee_sar.toFixed(2)}</span>
+              <span className="text-lg font-bold text-emerald-700">
+                SAR {job.lead_fee_sar.toFixed(2)}
+              </span>
             </div>
           </div>
         </div>
@@ -164,10 +175,7 @@ export default function JobsBoardPage() {
     () => [...new Set(jobs.map((j) => j.service_category))].sort(),
     [jobs]
   );
-  const uniqueDistricts = useMemo(
-    () => [...new Set(jobs.map((j) => j.district))].sort(),
-    [jobs]
-  );
+  const uniqueDistricts = useMemo(() => [...new Set(jobs.map((j) => j.district))].sort(), [jobs]);
 
   const handleClaim = async (job: OpenJob) => {
     setClaimingId(job.quote_id);
@@ -255,7 +263,7 @@ export default function JobsBoardPage() {
             <option value="">All categories</option>
             {uniqueCategories.map((cat) => (
               <option key={cat} value={cat}>
-                {CATEGORY_LABELS[cat] ?? cat}
+                {displayCategory(cat)}
               </option>
             ))}
           </select>
@@ -276,7 +284,9 @@ export default function JobsBoardPage() {
       </div>
 
       {error ? (
-        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {error}
+        </div>
       ) : null}
 
       {loading ? (
@@ -309,7 +319,7 @@ export default function JobsBoardPage() {
                     <div className="flex items-center gap-2">
                       <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
                         <IconTag className="h-3 w-3" stroke={1.8} />
-                        {CATEGORY_LABELS[job.service_category] ?? job.service_category}
+                        {displayCategory(job.service_category)}
                       </span>
                     </div>
                     <span

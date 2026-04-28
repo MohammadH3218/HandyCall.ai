@@ -1,5 +1,5 @@
-import { CategoriesPageClient } from '@/components/marketing/pages/CategoriesPageClient';
+import { redirect } from 'next/navigation';
 
-export default function CategoriesPage() {
-  return <CategoriesPageClient />;
+export default function CategoriesRedirectPage() {
+  redirect('/contact');
 }
