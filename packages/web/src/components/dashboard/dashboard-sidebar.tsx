@@ -53,7 +53,7 @@ export function DashboardSidebar({
     item.exact ? pathname === item.href : pathname?.startsWith(item.href);
 
   return (
-    <aside className="flex w-60 flex-col border-r border-border/80 bg-white">
+    <aside className="flex w-60 shrink-0 flex-col border-r border-border/80 bg-white overflow-y-auto">
       <div className="flex h-16 items-center border-b border-border/60 px-5">
         <Link href="/">
           <Logo width={120} height={30} />

@@ -153,7 +153,7 @@ export default function CustomerDashboardLayout({ children }: { children: React.
     : user?.email ?? 'Account';
 
   return (
-    <div className="flex min-h-screen bg-slate-50">
+    <div className="flex h-screen bg-slate-50">
       <DashboardSidebar
         sections={NAV_SECTIONS}
         pathname={pathname || '/customer/dashboard/requests'}
