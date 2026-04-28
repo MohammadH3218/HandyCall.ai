@@ -34,7 +34,13 @@ function formatRelative(ts?: number) {
   return `${days}d ago`;
 }
 
-export function NotificationBell() {
+export function NotificationBell({
+  side = 'top',
+  align = 'end',
+}: {
+  side?: 'top' | 'right' | 'bottom' | 'left';
+  align?: 'start' | 'center' | 'end';
+} = {}) {
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [open, setOpen] = useState(false);
@@ -96,7 +102,7 @@ export function NotificationBell() {
           )}
         </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent side="top" align="end" className="w-[360px] p-0">
+      <DropdownMenuContent side={side} align={align} className="w-[360px] p-0">
         <div className="flex items-center justify-between px-3 py-2">
           <DropdownMenuLabel className="p-0 text-sm font-semibold">Notifications</DropdownMenuLabel>
           <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={markAllRead}>

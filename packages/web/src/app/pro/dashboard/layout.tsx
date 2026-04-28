@@ -14,15 +14,19 @@ import {
   IconUser,
   IconSettings,
   IconLogout,
+  IconBriefcase,
+  IconReceipt,
 } from '@tabler/icons-react';
-import { NotificationBell } from '@/components/ui/notification-bell';
+import { NotificationBell } from '@/components/notifications/notification-bell';
 
 const NAV = [
   { href: '/pro/dashboard', label: 'Overview', icon: IconLayoutDashboard, exact: true },
-  { href: '/pro/dashboard/requests', label: 'Requests', icon: IconListCheck },
+  { href: '/pro/dashboard/jobs-board', label: 'Jobs Board', icon: IconBriefcase },
+  { href: '/pro/dashboard/requests', label: 'Direct Requests', icon: IconListCheck },
   { href: '/pro/dashboard/messages', label: 'Inbox', icon: IconMessage },
   { href: '/pro/dashboard/marketplace', label: 'My profile', icon: IconUser },
   { href: '/pro/dashboard/settings', label: 'Settings', icon: IconSettings },
+  { href: '/pro/dashboard/billing', label: 'Lead Fees & Billing', icon: IconReceipt },
 ];
 
 export default function ProDashboardLayout({ children }: { children: React.ReactNode }) {
@@ -211,8 +215,9 @@ export default function ProDashboardLayout({ children }: { children: React.React
         </nav>
 
         <div className="border-t border-border/60 p-3 space-y-1">
-          <div className="flex items-center px-3 py-1">
-            <NotificationBell />
+          <div className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-[14px] font-medium text-slate-500">
+            <NotificationBell side="right" align="end" />
+            <span className="text-[14px]">Notifications</span>
           </div>
           <button
             type="button"

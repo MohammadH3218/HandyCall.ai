@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { apiClient } from '@/lib/api-client';
-import { IconArrowRight, IconListCheck, IconMessage, IconUser, IconClock } from '@tabler/icons-react';
+import { IconArrowRight, IconListCheck, IconMessage, IconUser, IconClock, IconBriefcase } from '@tabler/icons-react';
 
 export default function ProDashboardPage() {
   const [pro, setPro] = useState<any>(null);
@@ -50,12 +50,19 @@ export default function ProDashboardPage() {
       )}
 
       {/* Quick links */}
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <QuickCard
+          href="/pro/dashboard/jobs-board"
+          icon={IconBriefcase}
+          title="Jobs Board"
+          description="Browse open job posts from customers in your area"
+          highlight
+        />
         <QuickCard
           href="/pro/dashboard/requests"
           icon={IconListCheck}
-          title="Job requests"
-          description="View and respond to customer requests"
+          title="Direct requests"
+          description="View and respond to requests sent to you"
         />
         <QuickCard
           href="/pro/dashboard/messages"
@@ -79,18 +86,24 @@ function QuickCard({
   icon: Icon,
   title,
   description,
+  highlight = false,
 }: {
   href: string;
   icon: React.ElementType;
   title: string;
   description: string;
+  highlight?: boolean;
 }) {
   return (
     <Link
       href={href}
-      className="group flex flex-col gap-3 rounded-2xl border border-border/80 bg-white p-5 shadow-sm transition hover:border-emerald-200 hover:shadow-md"
+      className={`group flex flex-col gap-3 rounded-2xl border p-5 shadow-sm transition hover:shadow-md ${
+        highlight
+          ? 'border-emerald-200 bg-emerald-50 hover:border-emerald-400'
+          : 'border-border/80 bg-white hover:border-emerald-200'
+      }`}
     >
-      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50">
+      <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${highlight ? 'bg-emerald-100' : 'bg-emerald-50'}`}>
         <Icon className="h-5 w-5 text-emerald-600" stroke={1.5} />
       </div>
       <div className="flex-1">
