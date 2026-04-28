@@ -1434,6 +1434,44 @@ class ApiClient {
     });
   }
 
+  // Jobs Board
+  async getJobsBoard(filters?: { category?: string; district?: string }): Promise<any[]> {
+    const params = new URLSearchParams();
+    if (filters?.category) params.set('category', filters.category);
+    if (filters?.district) params.set('district', filters.district);
+    const query = params.toString() ? `?${params.toString()}` : '';
+    const res = await this.request<any>(`/quote-requests/pro/jobs-board${query}`);
+    return (res as any)?.jobs ?? res ?? [];
+  }
+
+  async claimJob(quoteId: string): Promise<any> {
+    return this.request<any>(`/quote-requests/${quoteId}/claim`, { method: 'POST' });
+  }
+
+  async getProLeadFees(): Promise<any> {
+    return this.request<any>('/quote-requests/pro/lead-fees');
+  }
+
+  async postOpenJob(data: {
+    service_category: string;
+    job_description: string;
+    district: string;
+    contact_name?: string;
+    contact_email?: string;
+    contact_phone?: string;
+    photos?: string[];
+  }): Promise<any> {
+    return this.request<any>('/customer/quote-requests/open', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getCustomerOpenJobs(): Promise<any[]> {
+    const res = await this.request<any>('/customer/quote-requests/open');
+    return (res as any)?.quotes ?? res ?? [];
+  }
+
   // Portal Messaging
   async getProThreads(): Promise<any[]> {
     const res = await this.request<any>('/portal-messaging/pro/threads');

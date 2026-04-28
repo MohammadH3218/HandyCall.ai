@@ -16,6 +16,8 @@ import {
   IconMenu2,
   IconX,
   IconUser,
+  IconBriefcase,
+  IconReceipt,
 } from '@tabler/icons-react';
 import { UserRole } from '@/lib/shared';
 
@@ -171,12 +173,20 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               Marketplace
             </p>
             <NavLink
+              href="/dashboard/marketplace/jobs-board"
+              icon={<IconBriefcase stroke={1.5} className="h-5 w-5" />}
+              active={pathname?.startsWith('/dashboard/marketplace/jobs-board')}
+              onClick={() => setSidebarOpen(false)}
+            >
+              Jobs Board
+            </NavLink>
+            <NavLink
               href="/dashboard/marketplace/requests"
               icon={<IconFileText stroke={1.5} className="h-5 w-5" />}
               active={pathname?.startsWith('/dashboard/marketplace/requests')}
               onClick={() => setSidebarOpen(false)}
             >
-              Requests
+              Direct Requests
             </NavLink>
             <NavLink
               href="/dashboard/marketplace/inbox"
@@ -193,6 +203,20 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               onClick={() => setSidebarOpen(false)}
             >
               Profile
+            </NavLink>
+          </div>
+
+          <div className="space-y-0.5">
+            <p className="px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Account
+            </p>
+            <NavLink
+              href="/dashboard/billing"
+              icon={<IconReceipt stroke={1.5} className="h-5 w-5" />}
+              active={pathname?.startsWith('/dashboard/billing')}
+              onClick={() => setSidebarOpen(false)}
+            >
+              Lead Fees &amp; Billing
             </NavLink>
           </div>
         </nav>
