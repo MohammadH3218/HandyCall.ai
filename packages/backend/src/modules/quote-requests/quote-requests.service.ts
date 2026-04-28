@@ -556,13 +556,14 @@ export class QuoteRequestsService {
       { ':pid': proId },
       { indexName: 'pro-transactions-index', scanIndexForward: false, limit: 100 },
     ).catch(() => ({ items: [] }));
+    const transactions = items as any[];
 
-    const totalHalalas = items.reduce((sum: number, t: any) => {
+    const totalHalalas = transactions.reduce((sum: number, t: any) => {
       return t.transaction_type === 'CHARGE' ? sum + (t.amount_halalas ?? 0) : sum - (t.amount_halalas ?? 0);
     }, 0);
 
     return {
-      transactions: items.map((t: any) => ({ ...t, amount_sar: halalasToSar(t.amount_halalas) })),
+      transactions: transactions.map((t: any) => ({ ...t, amount_sar: halalasToSar(t.amount_halalas) })),
       total_charged_halalas: totalHalalas,
       total_charged_sar: halalasToSar(totalHalalas),
     };
