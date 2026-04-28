@@ -25,7 +25,8 @@ export class QuoteRequestsController {
   @HttpCode(HttpStatus.CREATED)
   async submitRequest(
     @CurrentUser() user: MarketplaceAuthContext,
-    @Body() body: {
+    @Body()
+    body: {
       pro_id: string;
       service_category: string;
       job_description: string;
@@ -35,7 +36,7 @@ export class QuoteRequestsController {
       contact_phone?: string;
       address_line1?: string;
       address_line2?: string;
-    },
+    }
   ) {
     if (user.user_type !== 'CUSTOMER') throw new ForbiddenException();
     const quote = await this.svc.submitRequest(user.user_id, body);
@@ -47,15 +48,13 @@ export class QuoteRequestsController {
   @HttpCode(HttpStatus.CREATED)
   async postOpenJob(
     @CurrentUser() user: MarketplaceAuthContext,
-    @Body() body: {
+    @Body()
+    body: {
       service_category: string;
       job_description: string;
       district: string;
-      contact_name?: string;
-      contact_email?: string;
-      contact_phone?: string;
       photos?: string[];
-    },
+    }
   ) {
     if (user.user_type !== 'CUSTOMER') throw new ForbiddenException();
     const quote = await this.svc.postOpenJob(user.user_id, body);
@@ -83,7 +82,7 @@ export class QuoteRequestsController {
   async updateCustomerRequest(
     @CurrentUser() user: MarketplaceAuthContext,
     @Param('quoteId') quoteId: string,
-    @Body() body: any,
+    @Body() body: any
   ) {
     if (user.user_type !== 'CUSTOMER') throw new ForbiddenException();
     const quote = await this.svc.updateCustomerRequest(user.user_id, quoteId, body);
@@ -97,7 +96,7 @@ export class QuoteRequestsController {
   async listJobsBoard(
     @CurrentUser() user: MarketplaceAuthContext,
     @Query('category') category?: string,
-    @Query('district') district?: string,
+    @Query('district') district?: string
   ) {
     if (user.user_type !== 'PRO') throw new ForbiddenException();
     const jobs = await this.svc.listJobsBoard(user.user_id, { category, district });
@@ -107,10 +106,7 @@ export class QuoteRequestsController {
   /** Pro: claim an open job (first-come-first-served) */
   @Post('quote-requests/:quoteId/claim')
   @HttpCode(HttpStatus.OK)
-  async claimJob(
-    @CurrentUser() user: MarketplaceAuthContext,
-    @Param('quoteId') quoteId: string,
-  ) {
+  async claimJob(@CurrentUser() user: MarketplaceAuthContext, @Param('quoteId') quoteId: string) {
     if (user.user_type !== 'PRO') throw new ForbiddenException();
     const result = await this.svc.claimOpenJob(user.user_id, quoteId);
     return result;
@@ -136,7 +132,7 @@ export class QuoteRequestsController {
   @Get('quote-requests/:quoteId/pro')
   async getProRequest(
     @CurrentUser() user: MarketplaceAuthContext,
-    @Param('quoteId') quoteId: string,
+    @Param('quoteId') quoteId: string
   ) {
     if (user.user_type !== 'PRO') throw new ForbiddenException();
     const quote = await this.svc.getProRequest(user.user_id, quoteId);
@@ -149,7 +145,7 @@ export class QuoteRequestsController {
   async respond(
     @CurrentUser() user: MarketplaceAuthContext,
     @Param('quoteId') quoteId: string,
-    @Body() body: { action: 'ACCEPT' | 'DECLINE' },
+    @Body() body: { action: 'ACCEPT' | 'DECLINE' }
   ) {
     if (user.user_type !== 'PRO') throw new ForbiddenException();
     const result = await this.svc.respondToRequest(user.user_id, quoteId, body.action);

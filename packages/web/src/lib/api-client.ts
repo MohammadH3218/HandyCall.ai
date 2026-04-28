@@ -115,8 +115,11 @@ class ApiClient {
     } catch {
       // no-op
     } finally {
-      const isCustomerPath = typeof window !== 'undefined' && window.location.pathname.startsWith('/customer');
-      const loginUrl = isCustomerPath ? '/customer/login?reason=session_expired' : '/pro/login?reason=session_expired';
+      const isCustomerPath =
+        typeof window !== 'undefined' && window.location.pathname.startsWith('/customer');
+      const loginUrl = isCustomerPath
+        ? '/customer/login?reason=session_expired'
+        : '/pro/login?reason=session_expired';
       window.location.assign(loginUrl);
     }
   }
@@ -262,7 +265,7 @@ class ApiClient {
       `/auth/verify-email?token=${encodeURIComponent(token)}`,
       {
         method: 'GET',
-      },
+      }
     );
     return ((response as any).data ?? response) as { message: string };
   }
@@ -288,7 +291,11 @@ class ApiClient {
       headers: { 'Content-Type': 'application/json' },
     });
     let data: any;
-    try { data = await response.json(); } catch { data = {}; }
+    try {
+      data = await response.json();
+    } catch {
+      data = {};
+    }
     if (!response.ok) {
       const msg =
         (Array.isArray(data?.message) ? data.message.join(', ') : data?.message) ||
@@ -300,19 +307,37 @@ class ApiClient {
     return data?.data ?? data;
   }
 
-  async sendPhoneCode(email: string, poolType: 'users' | 'customer'): Promise<{ ok: boolean; phone_hint: string }> {
+  async sendPhoneCode(
+    email: string,
+    poolType: 'users' | 'customer'
+  ): Promise<{ ok: boolean; phone_hint: string }> {
     return this.post('/auth/send-phone-code', { email, pool_type: poolType });
   }
 
-  async verifyPhoneCode(email: string, code: string, poolType: 'users' | 'customer'): Promise<{ ok: boolean }> {
+  async verifyPhoneCode(
+    email: string,
+    code: string,
+    poolType: 'users' | 'customer'
+  ): Promise<{ ok: boolean }> {
     return this.post('/auth/verify-phone-code', { email, code, pool_type: poolType });
   }
 
-  async updatePhone(email: string, phoneNumber: string, poolType: 'users' | 'customer'): Promise<{ ok: boolean; phone_hint: string }> {
-    return this.post('/auth/update-phone', { email, phone_number: phoneNumber, pool_type: poolType });
+  async updatePhone(
+    email: string,
+    phoneNumber: string,
+    poolType: 'users' | 'customer'
+  ): Promise<{ ok: boolean; phone_hint: string }> {
+    return this.post('/auth/update-phone', {
+      email,
+      phone_number: phoneNumber,
+      pool_type: poolType,
+    });
   }
 
-  async deleteUnverifiedAccount(email: string, poolType: 'users' | 'customer'): Promise<{ ok: boolean }> {
+  async deleteUnverifiedAccount(
+    email: string,
+    poolType: 'users' | 'customer'
+  ): Promise<{ ok: boolean }> {
     const response = await this.request<{ ok: boolean }>('/auth/delete-unverified', {
       method: 'DELETE',
       body: JSON.stringify({ email, pool_type: poolType }),
@@ -1147,7 +1172,7 @@ class ApiClient {
       method: 'GET',
     });
     const data = response.data ?? response;
-    return Array.isArray(data) ? data : (data as any)?.results ?? [];
+    return Array.isArray(data) ? data : ((data as any)?.results ?? []);
   }
 
   async updateMyProMarketplaceProfile(data: Record<string, any>): Promise<any> {
@@ -1163,10 +1188,13 @@ class ApiClient {
     content_type: string;
     file_name?: string;
   }): Promise<{ upload_url: string; key: string }> {
-    const response = await this.request<{ upload_url: string; key: string }>('/pros/me/marketplace-media/presign', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
+    const response = await this.request<{ upload_url: string; key: string }>(
+      '/pros/me/marketplace-media/presign',
+      {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }
+    );
     return response.data ?? response;
   }
 
@@ -1387,7 +1415,10 @@ class ApiClient {
 
   // Quote Requests (marketplace)
   async submitQuoteRequest(data: any): Promise<any> {
-    return this.request<any>('/customer/quote-requests', { method: 'POST', body: JSON.stringify(data) });
+    return this.request<any>('/customer/quote-requests', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
   }
 
   async getCustomerQuoteRequests(): Promise<any[]> {
@@ -1456,9 +1487,6 @@ class ApiClient {
     service_category: string;
     job_description: string;
     district: string;
-    contact_name?: string;
-    contact_email?: string;
-    contact_phone?: string;
     photos?: string[];
   }): Promise<any> {
     return this.request<any>('/customer/quote-requests/open', {
@@ -1521,9 +1549,7 @@ class ApiClient {
     const params = new URLSearchParams();
     if (identity.email) params.set('email', identity.email);
     if (identity.userId) params.set('user_id', identity.userId);
-    const res = await this.request<any>(
-      `/portal-messaging/customer/threads?${params.toString()}`
-    );
+    const res = await this.request<any>(`/portal-messaging/customer/threads?${params.toString()}`);
     return (res as any)?.threads ?? res ?? [];
   }
 
@@ -1564,8 +1590,7 @@ class ApiClient {
   }): Promise<{ profile: any; is_complete: boolean }> {
     const normalizedName = String(data.name || '').trim();
     const firstName =
-      data.first_name ||
-      (normalizedName ? normalizedName.split(/\s+/)[0] : undefined);
+      data.first_name || (normalizedName ? normalizedName.split(/\s+/)[0] : undefined);
     const lastName =
       data.last_name ||
       (normalizedName ? normalizedName.split(/\s+/).slice(1).join(' ') : undefined);
@@ -1580,9 +1605,13 @@ class ApiClient {
       ...(data.district ? { district: data.district } : {}),
       ...(!data.district && data.state ? { district: data.state } : {}),
       ...(data.address_latitude !== undefined ? { address_latitude: data.address_latitude } : {}),
-      ...(data.address_longitude !== undefined ? { address_longitude: data.address_longitude } : {}),
+      ...(data.address_longitude !== undefined
+        ? { address_longitude: data.address_longitude }
+        : {}),
       ...(data.preferred_language ? { preferred_language: data.preferred_language } : {}),
-      ...(data.marketing_consent !== undefined ? { marketing_consent: data.marketing_consent } : {}),
+      ...(data.marketing_consent !== undefined
+        ? { marketing_consent: data.marketing_consent }
+        : {}),
     };
 
     const res = await this.request<any>('/customers/me', {
@@ -1789,7 +1818,7 @@ class ApiClient {
   // Reviews
   async getProReviews(proId: string): Promise<any[]> {
     const res = await this.request<any>(`/reviews/pro/${proId}`);
-    return Array.isArray(res) ? res : (res as any)?.reviews ?? (res as any)?.data ?? [];
+    return Array.isArray(res) ? res : ((res as any)?.reviews ?? (res as any)?.data ?? []);
   }
 
   // Generic fallback POST for legacy onboarding endpoints

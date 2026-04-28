@@ -91,9 +91,6 @@ export class QuoteRequestsService {
       service_category: string;
       job_description: string;
       district: string;
-      contact_name?: string;
-      contact_email?: string;
-      contact_phone?: string;
       photos?: string[];
     }
   ) {
@@ -106,12 +103,16 @@ export class QuoteRequestsService {
 
     const leadFeeHalalas = getLeadFeeHalalas(data.service_category);
     const now = Date.now();
+    const customer = (await this.db
+      .get('customers', { customer_id: customerId })
+      .catch(() => null)) as any | null;
+    const contactName =
+      [customer?.first_name, customer?.last_name].filter(Boolean).join(' ').trim() || null;
 
     const quote: Record<string, any> = {
       quote_id: uuidv4(),
       request_type: 'OPEN' as RequestType,
       customer_user_id: customerId,
-      pro_id: null,
       service_category: data.service_category,
       job_description: data.job_description.trim(),
       district: data.district,
@@ -119,9 +120,9 @@ export class QuoteRequestsService {
       lead_fee_halalas: leadFeeHalalas,
       expires_at: now + OPEN_JOB_TTL_MS,
       photos: data.photos ?? [],
-      contact_name: data.contact_name ?? null,
-      contact_email: data.contact_email ?? null,
-      contact_phone: data.contact_phone ?? null,
+      contact_name: contactName,
+      contact_email: customer?.email ?? null,
+      contact_phone: customer?.phone_number ?? null,
       thread_id: null,
       created_at: now,
       updated_at: now,

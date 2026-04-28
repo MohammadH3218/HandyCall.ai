@@ -15,8 +15,6 @@ export default function CustomerPostJobPage() {
   const [category, setCategory] = useState('');
   const [description, setDescription] = useState('');
   const [district, setDistrict] = useState('');
-  const [contactName, setContactName] = useState('');
-  const [contactPhone, setContactPhone] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [posted, setPosted] = useState(false);
@@ -35,8 +33,6 @@ export default function CustomerPostJobPage() {
         service_category: category,
         job_description: description.trim(),
         district,
-        contact_name: contactName.trim() || undefined,
-        contact_phone: contactPhone.trim() || undefined,
       });
       setPosted(true);
     } catch (err: any) {
@@ -72,8 +68,6 @@ export default function CustomerPostJobPage() {
                 setCategory('');
                 setDescription('');
                 setDistrict('');
-                setContactName('');
-                setContactPhone('');
               }}
               className="rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
             >
@@ -161,28 +155,6 @@ export default function CustomerPostJobPage() {
             </div>
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <label className="text-sm font-semibold text-slate-900">Name</label>
-              <input
-                value={contactName}
-                onChange={(event) => setContactName(event.target.value)}
-                placeholder="Optional"
-                className="mt-2 h-11 w-full rounded-xl border border-slate-200 px-4 text-sm text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-emerald-300 focus:ring-2 focus:ring-emerald-100"
-              />
-            </div>
-            <div>
-              <label className="text-sm font-semibold text-slate-900">Phone</label>
-              <input
-                value={contactPhone}
-                onChange={(event) => setContactPhone(event.target.value)}
-                placeholder="Optional"
-                type="tel"
-                className="mt-2 h-11 w-full rounded-xl border border-slate-200 px-4 text-sm text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-emerald-300 focus:ring-2 focus:ring-emerald-100"
-              />
-            </div>
-          </div>
-
           <div className="flex flex-col gap-3 rounded-xl bg-slate-50 p-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-start gap-3">
               <IconClipboardText
@@ -190,8 +162,8 @@ export default function CustomerPostJobPage() {
                 stroke={1.8}
               />
               <p className="text-sm leading-6 text-slate-600">
-                Pros see the category, district, and job details. Your contact info is only shared
-                after a pro claims the job.
+                Pros see the category, district, and job details. Your account contact info is only
+                shared after a pro claims the job.
               </p>
             </div>
             <button

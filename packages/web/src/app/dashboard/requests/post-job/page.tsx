@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { PageHeader } from '@/components/portal/page-header';
 import { apiClient } from '@/lib/api-client';
@@ -19,8 +18,6 @@ export default function PostJobPage() {
   const [category, setCategory] = useState('');
   const [description, setDescription] = useState('');
   const [district, setDistrict] = useState('');
-  const [contactName, setContactName] = useState('');
-  const [contactPhone, setContactPhone] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -36,8 +33,6 @@ export default function PostJobPage() {
         service_category: category,
         job_description: description.trim(),
         district,
-        contact_name: contactName.trim() || undefined,
-        contact_phone: contactPhone.trim() || undefined,
       });
       setSuccess(true);
     } catch (err: any) {
@@ -77,8 +72,6 @@ export default function PostJobPage() {
               setCategory('');
               setDescription('');
               setDistrict('');
-              setContactName('');
-              setContactPhone('');
             }}
           >
             Post another job
@@ -114,7 +107,7 @@ export default function PostJobPage() {
             <span
               className={`text-xs font-medium ${step === s ? 'text-slate-800' : 'text-slate-400'}`}
             >
-              {['Service', 'Details', 'Contact'][idx]}
+              {['Service', 'Details', 'Review'][idx]}
             </span>
             {idx < 2 && <div className="h-px w-8 bg-slate-200" />}
           </div>
@@ -207,36 +200,15 @@ export default function PostJobPage() {
         </div>
       )}
 
-      {/* Step 3: Contact + Review */}
+      {/* Step 3: Review */}
       {step === 3 && (
         <div className="space-y-5">
           <div>
-            <h3 className="text-base font-semibold text-slate-900">Contact info (optional)</h3>
+            <h3 className="text-base font-semibold text-slate-900">Review your post</h3>
             <p className="mt-1 text-sm text-slate-500">
-              Only shared with the pro after they claim your job. You can also just use in-app chat.
+              Your saved account contact info is only shared after a pro claims your job. You can
+              also coordinate through in-app chat.
             </p>
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <label className="mb-1.5 block text-sm font-medium text-slate-700">Your name</label>
-              <Input
-                value={contactName}
-                onChange={(e) => setContactName(e.target.value)}
-                placeholder="e.g. Mohammed"
-              />
-            </div>
-            <div>
-              <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                Phone number
-              </label>
-              <Input
-                value={contactPhone}
-                onChange={(e) => setContactPhone(e.target.value)}
-                placeholder="+966 5X XXX XXXX"
-                type="tel"
-              />
-            </div>
           </div>
 
           {/* Summary */}
