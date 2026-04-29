@@ -385,6 +385,27 @@ create_table pro_payment_methods \
       }
     ]'
 
+# ─── 16. pro_credit_transactions ─────────────────────────────────────────────
+
+create_table pro_credit_transactions \
+  --attribute-definitions \
+    AttributeName=transaction_id,AttributeType=S \
+    AttributeName=pro_id,AttributeType=S \
+    AttributeName=created_at,AttributeType=N \
+  --key-schema \
+    AttributeName=transaction_id,KeyType=HASH \
+  --global-secondary-indexes \
+    '[
+      {
+        "IndexName": "pro-credit-transactions-index",
+        "KeySchema": [
+          {"AttributeName":"pro_id","KeyType":"HASH"},
+          {"AttributeName":"created_at","KeyType":"RANGE"}
+        ],
+        "Projection": {"ProjectionType":"ALL"}
+      }
+    ]'
+
 # ─── Seed platform_config ─────────────────────────────────────────────────────
 
 echo ""

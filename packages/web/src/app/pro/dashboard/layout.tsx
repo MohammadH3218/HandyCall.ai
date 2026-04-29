@@ -13,7 +13,6 @@ import {
   IconUser,
   IconSettings,
   IconBriefcase,
-  IconReceipt,
   IconCreditCard,
 } from '@tabler/icons-react';
 
@@ -31,10 +30,7 @@ const NAV_SECTIONS: DashboardNavSection[] = [
   },
   {
     label: 'Billing',
-    items: [
-      { href: '/pro/dashboard/billing/leads', label: 'Lead fees', icon: IconReceipt },
-      { href: '/pro/dashboard/billing', label: 'Billing', icon: IconCreditCard, exact: true },
-    ],
+    items: [{ href: '/pro/dashboard/billing', label: 'Billing', icon: IconCreditCard }],
   },
   {
     label: 'Account',
@@ -206,7 +202,7 @@ export default function ProDashboardLayout({ children }: { children: React.React
       .split(/\s+/)
       .filter(Boolean)
       .slice(0, 2)
-      .map((part) => part[0])
+      .map((part: string) => part[0])
       .join('')
       .toUpperCase() || email?.[0]?.toUpperCase() || 'P';
 

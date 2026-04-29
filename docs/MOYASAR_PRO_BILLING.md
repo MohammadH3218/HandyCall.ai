@@ -1,6 +1,6 @@
 # Moyasar Pro Billing
 
-HandyCall Pro billing uses Moyasar for monthly lead-fee balance collection.
+HandyCall Pro billing uses Moyasar for prepaid Pro credit purchases. Pros buy credits in SAR, lead fees debit that credit balance, and optional auto recharge uses a saved Moyasar token.
 
 ## Runtime Config
 
@@ -15,24 +15,24 @@ Never commit live or test key values.
 
 ## Flow
 
-1. Lead-fee transactions are recorded when a Pro claims an open job or accepts a direct customer request.
-2. The Pro billing dashboard totals unpaid lead fees into the current balance.
-3. `POST /billing/invoices/current` creates or reuses an open Moyasar invoice for that balance.
-4. The Pro billing page mounts Moyasar's embedded card form with the invoice id and `credit_card.save_card`.
-5. Moyasar redirects back to `/pro/dashboard/billing`; the page verifies the returned payment id with the backend.
-6. Moyasar also sends `payment_paid`, `payment_failed`, and `payment_refunded` webhooks to `/payments/webhook`.
-7. Successful payments mark the billing invoice and included lead-fee transactions paid.
-8. If Moyasar returns a source token, HandyCall stores only the token plus masked card metadata for future balance payments.
+1. `POST /billing/credits/top-up` prepares a local credit purchase invoice for at least SAR 20 and at most a SAR 5,000 credit balance.
+2. The Pro billing page mounts Moyasar's embedded payment form inside HandyCall with card and enabled wallet methods.
+3. Moyasar redirects back to `/pro/dashboard/billing`; the page verifies the returned payment id with the backend.
+4. Moyasar also sends `payment_paid`, `payment_failed`, and `payment_refunded` webhooks to `/payments/webhook`.
+5. Successful credit purchases create `pro_credit_transactions` ledger credits.
+6. Lead-fee purchases debit the credit ledger when a Pro claims an open job or accepts a direct customer request.
+7. Auto recharge charges the default saved Moyasar token when the credit balance reaches the configured threshold.
+8. If Moyasar returns a source token, HandyCall stores only the token plus masked card metadata.
 
 ## Admin Surfaces
 
 - `/admin/payments`: global lead-fee and invoice activity, with refund action for paid invoices.
-- `/admin/pros/:id`: individual Pro billing summary, recent invoices, balance, and payment-method count.
-- `/admin/logs`: metadata-only audit trail for invoice creation, webhook processing, and refunds.
+- `/admin/pros/:id`: individual Pro billing summary, credit ledger, invoices, lead fees, and payment-method count.
+- `/admin/logs`: metadata-only audit trail for credit top-up preparation, webhook processing, auto recharge, and refunds.
 
 ## Security Notes
 
 - Moyasar secret keys stay backend-only.
-- Card data is collected by Moyasar hosted checkout; HandyCall stores no raw card numbers or CVCs.
+- Payment details are collected by Moyasar's embedded form; HandyCall stores no raw card numbers or CVCs.
 - Webhook replay protection uses `webhook_receipts`.
 - Webhook payloads are not logged; audit entries keep metadata only.

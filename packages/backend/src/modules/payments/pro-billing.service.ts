@@ -19,7 +19,10 @@ type MoyasarPayment = Record<string, any>;
 const LEAD_FEE_TRANSACTIONS_TABLE = 'lead_fee_transactions';
 const PRO_BILLING_INVOICES_TABLE = 'pro_billing_invoices';
 const PRO_PAYMENT_METHODS_TABLE = 'pro_payment_methods';
+const PRO_CREDIT_TRANSACTIONS_TABLE = 'pro_credit_transactions';
 const MOYASAR_BASE_URL = 'https://api.moyasar.com/v1';
+const MIN_CREDIT_TOP_UP_HALALAS = 2_000;
+const MAX_CREDIT_BALANCE_HALALAS = 500_000;
 
 @Injectable()
 export class ProBillingService {
@@ -32,33 +35,203 @@ export class ProBillingService {
   ) {}
 
   getConfig() {
+    const samsungPayServiceId = this.config.get<string>('MOYASAR_SAMSUNG_PAY_SERVICE_ID')?.trim() || null;
+    const applePayValidateUrl =
+      this.config.get<string>('MOYASAR_APPLE_PAY_VALIDATE_URL')?.trim() ||
+      'https://api.moyasar.com/v1/applepay/initiate';
     return {
       provider: 'moyasar',
       publishable_key: this.config.get<string>('MOYASAR_PUBLISHABLE_KEY') || null,
       currency: 'SAR',
+      minimum_credit_top_up_halalas: MIN_CREDIT_TOP_UP_HALALAS,
+      maximum_credit_balance_halalas: MAX_CREDIT_BALANCE_HALALAS,
+      supported_methods: {
+        creditcard: true,
+        applepay: true,
+        samsungpay: Boolean(samsungPayServiceId),
+        stcpay: true,
+      },
+      wallet_config: {
+        apple_pay: {
+          country: 'SA',
+          label: 'HandyCall',
+          validate_merchant_url: applePayValidateUrl,
+          save_card: true,
+        },
+        samsung_pay: samsungPayServiceId
+          ? {
+              service_id: samsungPayServiceId,
+              country: 'SA',
+              environment: this.config.get<string>('MOYASAR_SAMSUNG_PAY_ENVIRONMENT') || 'PRODUCTION',
+              label: 'HandyCall',
+              save_card: true,
+            }
+          : null,
+      },
     };
   }
 
   async getProBillingOverview(proId: string) {
-    const [leadFees, invoices, methods] = await Promise.all([
+    const [leadFees, invoices, methods, creditLedger, autoRecharge] = await Promise.all([
       this.getLeadFeeBalance(proId),
       this.listInvoices(proId),
       this.listPaymentMethods(proId),
+      this.getCreditLedger(proId),
+      this.getAutoRechargeSettings(proId),
     ]);
 
     return {
       provider: 'moyasar',
-      subscription_plan: 'LEAD_FEES_MONTHLY',
-      subscription_status: leadFees.balance_halalas > 0 ? 'BALANCE_DUE' : 'CURRENT',
+      subscription_plan: 'PREPAID_CREDITS',
+      subscription_status: creditLedger.balance_halalas > 0 ? 'CREDITS_ACTIVE' : 'NO_CREDITS',
       current_period_start: leadFees.current_period_start,
       current_period_end: leadFees.current_period_end,
-      balance_halalas: leadFees.balance_halalas,
-      balance_sar: this.halalasToSar(leadFees.balance_halalas),
-      unpaid_lead_count: leadFees.unpaid_transactions.length,
+      credit_balance_halalas: creditLedger.balance_halalas,
+      credit_balance_sar: this.halalasToSar(creditLedger.balance_halalas),
+      balance_halalas: creditLedger.balance_halalas,
+      balance_sar: this.halalasToSar(creditLedger.balance_halalas),
+      unpaid_lead_count: 0,
       next_billing_date: leadFees.current_period_end,
       default_payment_method: methods.find((method) => method.is_default) || methods[0] || null,
       recent_invoice: invoices[0] || null,
+      auto_recharge: autoRecharge,
+      recent_credit_transactions: creditLedger.transactions.slice(0, 10),
     };
+  }
+
+  async getCreditLedger(proId: string) {
+    const { items } = await this.db
+      .query(
+        PRO_CREDIT_TRANSACTIONS_TABLE,
+        '#pro_id = :pid',
+        { '#pro_id': 'pro_id' },
+        { ':pid': proId },
+        { indexName: 'pro-credit-transactions-index', scanIndexForward: false, limit: 250 },
+      )
+      .catch(() => ({ items: [] }));
+
+    const transactions = (items as any[]).sort((a, b) => Number(b.created_at || 0) - Number(a.created_at || 0));
+    const balanceHalalas = transactions.reduce((sum, item) => {
+      const amount = Number(item.amount_halalas || 0);
+      return this.isCreditTransaction(item.transaction_type) ? sum + amount : sum - amount;
+    }, 0);
+
+    return {
+      balance_halalas: Math.max(0, balanceHalalas),
+      balance_sar: this.halalasToSar(balanceHalalas),
+      transactions: transactions.map((item) => ({
+        ...item,
+        amount_sar: this.halalasToSar(item.amount_halalas),
+        direction: this.isCreditTransaction(item.transaction_type) ? 'CREDIT' : 'DEBIT',
+      })),
+    };
+  }
+
+  async prepareCreditTopUp(request: RequestLike, proId: string, amountHalalas: number) {
+    const amount = this.validateCreditAmount(amountHalalas);
+    await this.ensureCreditLimit(proId, amount);
+
+    const now = Date.now();
+    const invoice = {
+      invoice_id: uuidv4(),
+      pro_id: proId,
+      provider: 'moyasar',
+      status: 'INITIATED',
+      billing_purpose: 'CREDIT_TOP_UP',
+      amount_halalas: amount,
+      amount_due: amount,
+      amount_paid: 0,
+      currency: 'SAR',
+      description: 'HandyCall credit top-up',
+      hosted_invoice_url: null,
+      created_at: now,
+      updated_at: now,
+    };
+
+    await this.db.put(PRO_BILLING_INVOICES_TABLE, invoice);
+    await this.auditLogs.logFromRequest(request, {
+      category: 'PAYMENT',
+      severity: 'INFO',
+      outcome: 'SUCCESS',
+      action: 'billing.credit_topup_prepared',
+      target_type: 'pro',
+      target_id: proId,
+      metadata: {
+        provider: 'moyasar',
+        invoice_id: invoice.invoice_id,
+        amount_halalas: amount,
+      },
+    });
+
+    return { invoice: this.normalizeInvoice(invoice) };
+  }
+
+  async updateAutoRecharge(request: RequestLike, proId: string, input: Record<string, any>) {
+    const enabled = Boolean(input?.enabled);
+    const threshold = this.validateCreditAmount(input?.threshold_halalas ?? MIN_CREDIT_TOP_UP_HALALAS);
+    const amount = this.validateCreditAmount(input?.recharge_amount_halalas ?? MIN_CREDIT_TOP_UP_HALALAS);
+
+    await this.db.update('pros', { pro_id: proId }, {
+      billing_auto_recharge_enabled: enabled,
+      billing_auto_recharge_threshold_halalas: threshold,
+      billing_auto_recharge_amount_halalas: amount,
+      updated_at: Date.now(),
+    });
+
+    await this.auditLogs.logFromRequest(request, {
+      category: 'PAYMENT',
+      severity: 'INFO',
+      outcome: 'SUCCESS',
+      action: 'billing.auto_recharge_updated',
+      target_type: 'pro',
+      target_id: proId,
+      metadata: {
+        enabled,
+        threshold_halalas: threshold,
+        recharge_amount_halalas: amount,
+      },
+    });
+
+    return { auto_recharge: { enabled, threshold_halalas: threshold, recharge_amount_halalas: amount } };
+  }
+
+  async recordLeadFeeCharge(proId: string, quoteId: string, amountHalalas: number, description: string) {
+    const amount = Math.max(Number(amountHalalas || 0), 0);
+    if (amount < 1) throw new BadRequestException('Lead fee amount is invalid.');
+
+    const ledger = await this.getCreditLedger(proId);
+    if (ledger.balance_halalas < amount) {
+      throw new BadRequestException('Add credits before buying this lead.');
+    }
+
+    const now = Date.now();
+    const leadFee = {
+      transaction_id: uuidv4(),
+      pro_id: proId,
+      quote_id: quoteId,
+      amount_halalas: amount,
+      transaction_type: 'CHARGE',
+      billing_status: 'PAID_WITH_CREDITS',
+      description,
+      created_at: now,
+      updated_at: now,
+    };
+
+    await this.db.put(LEAD_FEE_TRANSACTIONS_TABLE, leadFee);
+    await this.db.put(PRO_CREDIT_TRANSACTIONS_TABLE, {
+      transaction_id: uuidv4(),
+      pro_id: proId,
+      transaction_type: 'LEAD_FEE_DEBIT',
+      amount_halalas: amount,
+      description,
+      quote_id: quoteId,
+      lead_fee_transaction_id: leadFee.transaction_id,
+      created_at: now,
+      updated_at: now,
+    });
+
+    await this.maybeAutoRecharge(proId, ledger.balance_halalas - amount);
+    return leadFee;
   }
 
   async listInvoices(proId: string) {
@@ -279,6 +452,64 @@ export class ProBillingService {
     return { invoice: this.normalizeInvoice(invoice), payment_status: payment.status };
   }
 
+  async rechargeCreditsWithDefaultMethod(request: RequestLike, proId: string, amountHalalas: number) {
+    const amount = this.validateCreditAmount(amountHalalas);
+    await this.ensureCreditLimit(proId, amount);
+
+    const methods = await this.listPaymentMethods(proId);
+    const method = methods.find((item) => item.is_default) || methods[0];
+    if (!method) {
+      throw new BadRequestException('No saved Moyasar payment method is available.');
+    }
+
+    const stored = (await this.db.get(PRO_PAYMENT_METHODS_TABLE, { method_id: method.method_id })) as any;
+    if (!stored?.moyasar_token) {
+      throw new BadRequestException('Saved payment method is missing a Moyasar token.');
+    }
+
+    const invoice = await this.createLocalCreditInvoice(proId, amount, 'AUTO_RECHARGE', 'HandyCall credit recharge');
+    const payment = await this.createMoyasarTokenPayment({
+      amount,
+      token: stored.moyasar_token,
+      proId,
+      period: 'credits',
+      description: 'HandyCall credit recharge',
+      purpose: 'pro_credit_top_up',
+      invoiceId: invoice.invoice_id,
+    });
+
+    const status = this.normalizeMoyasarStatus(payment.status);
+    const updates: Record<string, any> = {
+      status,
+      moyasar_payment_id: payment.id,
+      amount_paid: status === 'PAID' ? amount : 0,
+      provider_payload: this.compactMoyasarInvoice(payment),
+      updated_at: Date.now(),
+    };
+    if (status === 'PAID') updates.paid_at = Date.now();
+    await this.db.update(PRO_BILLING_INVOICES_TABLE, { invoice_id: invoice.invoice_id }, updates);
+    if (status === 'PAID') {
+      await this.markInvoicePaid({ ...invoice, ...updates }, payment);
+    }
+
+    await this.auditLogs.logFromRequest(request, {
+      category: 'PAYMENT',
+      severity: status === 'PAID' ? 'INFO' : 'WARN',
+      outcome: status === 'PAID' ? 'SUCCESS' : 'FAILURE',
+      action: 'billing.credit_recharge_attempted',
+      target_type: 'pro',
+      target_id: proId,
+      metadata: {
+        provider: 'moyasar',
+        invoice_id: invoice.invoice_id,
+        amount_halalas: amount,
+        status,
+      },
+    });
+
+    return { invoice: this.normalizeInvoice({ ...invoice, ...updates }), payment_status: status };
+  }
+
   async verifyProPayment(request: RequestLike, proId: string, paymentId: string) {
     const normalizedPaymentId = String(paymentId || '').trim();
     if (!normalizedPaymentId) {
@@ -381,9 +612,10 @@ export class ProBillingService {
 
   async listAdminPayments(filters: { status?: string; search?: string; limit?: number }) {
     const limit = Math.min(Math.max(filters.limit ?? 80, 1), 200);
-    const [invoiceResult, leadFeeResult] = await Promise.all([
+    const [invoiceResult, leadFeeResult, creditResult] = await Promise.all([
       this.db.scan(PRO_BILLING_INVOICES_TABLE, { limit }).catch(() => ({ items: [] })),
       this.db.scan(LEAD_FEE_TRANSACTIONS_TABLE, { limit }).catch(() => ({ items: [] })),
+      this.db.scan(PRO_CREDIT_TRANSACTIONS_TABLE, { limit }).catch(() => ({ items: [] })),
     ]);
 
     const invoices: any[] = (invoiceResult.items as any[]).map((item) => ({
@@ -403,9 +635,23 @@ export class ProBillingService {
       updated_at: item.updated_at,
       transaction_type: item.transaction_type,
     }));
+    const credits: any[] = (creditResult.items as any[]).map((item) => ({
+      record_type: 'CREDIT',
+      transaction_id: item.transaction_id,
+      pro_id: item.pro_id,
+      status: item.transaction_type,
+      amount_halalas: item.amount_halalas,
+      amount_sar: this.halalasToSar(item.amount_halalas),
+      description: item.description,
+      source_invoice_id: item.source_invoice_id,
+      created_at: item.created_at,
+      updated_at: item.updated_at,
+      transaction_type: item.transaction_type,
+      direction: this.isCreditTransaction(item.transaction_type) ? 'CREDIT' : 'DEBIT',
+    }));
 
     const search = String(filters.search || '').trim().toLowerCase();
-    const records: any[] = [...invoices, ...leadFees]
+    const records: any[] = [...invoices, ...leadFees, ...credits]
       .filter((item) => !filters.status || filters.status === 'ALL' || item.status === filters.status)
       .filter((item) => {
         if (!search) return true;
@@ -413,6 +659,7 @@ export class ProBillingService {
           pro_id: item.pro_id,
           invoice_id: item.invoice_id,
           transaction_id: item.transaction_id,
+          source_invoice_id: item.source_invoice_id,
           quote_id: item.quote_id,
           description: item.description,
           status: item.status,
@@ -429,11 +676,12 @@ export class ProBillingService {
   async getAdminProBilling(proId: string) {
     const pro = (await this.db.get('pros', { pro_id: proId })) as any;
     if (!pro) throw new NotFoundException('Pro not found');
-    const [overview, invoices, methods, leadFees] = await Promise.all([
+    const [overview, invoices, methods, leadFees, credits] = await Promise.all([
       this.getProBillingOverview(proId),
       this.listInvoices(proId),
       this.listPaymentMethods(proId),
       this.getLeadFeeBalance(proId),
+      this.getCreditLedger(proId),
     ]);
 
     return {
@@ -451,6 +699,7 @@ export class ProBillingService {
         balance_halalas: leadFees.balance_halalas,
         balance_sar: this.halalasToSar(leadFees.balance_halalas),
       },
+      credits,
     };
   }
 
@@ -479,18 +728,31 @@ export class ProBillingService {
       updated_at: Date.now(),
     });
 
-    await this.db.put(LEAD_FEE_TRANSACTIONS_TABLE, {
-      transaction_id: uuidv4(),
-      pro_id: invoice.pro_id,
-      quote_id: invoice.invoice_id,
-      amount_halalas: refundAmount,
-      transaction_type: 'REFUND',
-      billing_status: 'REFUNDED',
-      billing_invoice_id: invoice.invoice_id,
-      description: reason || `Refund for invoice ${invoice.invoice_id}`,
-      created_at: Date.now(),
-      updated_at: Date.now(),
-    });
+    if (['CREDIT_TOP_UP', 'AUTO_RECHARGE'].includes(String(invoice.billing_purpose || ''))) {
+      await this.db.put(PRO_CREDIT_TRANSACTIONS_TABLE, {
+        transaction_id: uuidv4(),
+        pro_id: invoice.pro_id,
+        transaction_type: 'REFUND_DEBIT',
+        amount_halalas: refundAmount,
+        source_invoice_id: invoice.invoice_id,
+        description: reason || `Refund for credit purchase ${invoice.invoice_id}`,
+        created_at: Date.now(),
+        updated_at: Date.now(),
+      });
+    } else {
+      await this.db.put(LEAD_FEE_TRANSACTIONS_TABLE, {
+        transaction_id: uuidv4(),
+        pro_id: invoice.pro_id,
+        quote_id: invoice.invoice_id,
+        amount_halalas: refundAmount,
+        transaction_type: 'REFUND',
+        billing_status: 'REFUNDED',
+        billing_invoice_id: invoice.invoice_id,
+        description: reason || `Refund for invoice ${invoice.invoice_id}`,
+        created_at: Date.now(),
+        updated_at: Date.now(),
+      });
+    }
 
     await this.auditLogs.logFromRequest(request, {
       category: 'PAYMENT',
@@ -525,7 +787,7 @@ export class ProBillingService {
     );
     const unpaidTransactions = transactions.filter((item) => {
       if (item.transaction_type !== 'CHARGE') return false;
-      return !['PAID', 'REFUNDED'].includes(String(item.billing_status || 'UNBILLED'));
+      return !['PAID', 'PAID_WITH_CREDITS', 'REFUNDED'].includes(String(item.billing_status || 'UNBILLED'));
     });
     const refundHalalas = transactions
       .filter((item) => item.transaction_type === 'REFUND' && !item.applied_to_invoice_id)
@@ -604,6 +866,11 @@ export class ProBillingService {
     if (payment?.id) updates.moyasar_payment_id = payment.id;
     await this.db.update(PRO_BILLING_INVOICES_TABLE, { invoice_id: invoice.invoice_id }, updates);
 
+    if (['CREDIT_TOP_UP', 'AUTO_RECHARGE'].includes(String(invoice.billing_purpose || ''))) {
+      await this.applyCreditForPaidInvoice({ ...invoice, ...updates }, payment);
+      return;
+    }
+
     await Promise.all(
       (invoice.included_transaction_ids || []).map((transactionId: string) =>
         this.db
@@ -620,6 +887,131 @@ export class ProBillingService {
     );
 
     await this.upsertPaymentMethodFromPayment(invoice.pro_id, payment);
+  }
+
+  private async applyCreditForPaidInvoice(invoice: Record<string, any>, payment?: MoyasarPayment | null) {
+    const existing = await this.db
+      .scan(PRO_CREDIT_TRANSACTIONS_TABLE, {
+        filterExpression: '#invoice_id = :invoice_id',
+        expressionAttributeNames: { '#invoice_id': 'source_invoice_id' },
+        expressionAttributeValues: { ':invoice_id': invoice.invoice_id },
+        limit: 1,
+      })
+      .catch(() => ({ items: [] }));
+
+    if (!existing.items[0]) {
+      await this.ensureCreditLimit(invoice.pro_id, Number(invoice.amount_halalas || 0));
+      await this.db.put(PRO_CREDIT_TRANSACTIONS_TABLE, {
+        transaction_id: uuidv4(),
+        pro_id: invoice.pro_id,
+        transaction_type: invoice.billing_purpose === 'AUTO_RECHARGE' ? 'AUTO_RECHARGE' : 'CREDIT_TOP_UP',
+        amount_halalas: Number(invoice.amount_halalas || 0),
+        description: invoice.description || 'HandyCall credit top-up',
+        source_invoice_id: invoice.invoice_id,
+        moyasar_payment_id: payment?.id || invoice.moyasar_payment_id || null,
+        created_at: Date.now(),
+        updated_at: Date.now(),
+      });
+    }
+
+    await this.upsertPaymentMethodFromPayment(invoice.pro_id, payment);
+  }
+
+  private async createLocalCreditInvoice(
+    proId: string,
+    amountHalalas: number,
+    purpose: 'CREDIT_TOP_UP' | 'AUTO_RECHARGE',
+    description: string,
+  ) {
+    const now = Date.now();
+    const invoice = {
+      invoice_id: uuidv4(),
+      pro_id: proId,
+      provider: 'moyasar',
+      status: 'INITIATED',
+      billing_purpose: purpose,
+      amount_halalas: amountHalalas,
+      amount_due: amountHalalas,
+      amount_paid: 0,
+      currency: 'SAR',
+      description,
+      hosted_invoice_url: null,
+      created_at: now,
+      updated_at: now,
+    };
+    await this.db.put(PRO_BILLING_INVOICES_TABLE, invoice);
+    return invoice;
+  }
+
+  private async getAutoRechargeSettings(proId: string) {
+    const pro = (await this.db.get('pros', { pro_id: proId }).catch(() => null)) as any;
+    return {
+      enabled: Boolean(pro?.billing_auto_recharge_enabled),
+      threshold_halalas: Number(pro?.billing_auto_recharge_threshold_halalas || MIN_CREDIT_TOP_UP_HALALAS),
+      threshold_sar: this.halalasToSar(pro?.billing_auto_recharge_threshold_halalas || MIN_CREDIT_TOP_UP_HALALAS),
+      recharge_amount_halalas: Number(pro?.billing_auto_recharge_amount_halalas || MIN_CREDIT_TOP_UP_HALALAS),
+      recharge_amount_sar: this.halalasToSar(pro?.billing_auto_recharge_amount_halalas || MIN_CREDIT_TOP_UP_HALALAS),
+      maximum_balance_halalas: MAX_CREDIT_BALANCE_HALALAS,
+      minimum_recharge_halalas: MIN_CREDIT_TOP_UP_HALALAS,
+    };
+  }
+
+  private async maybeAutoRecharge(proId: string, remainingBalanceHalalas: number) {
+    const settings = await this.getAutoRechargeSettings(proId);
+    if (!settings.enabled || remainingBalanceHalalas > settings.threshold_halalas) return;
+
+    const methods = await this.listPaymentMethods(proId);
+    const method = methods.find((item) => item.is_default) || methods[0];
+    if (!method) return;
+
+    const stored = (await this.db.get(PRO_PAYMENT_METHODS_TABLE, { method_id: method.method_id }).catch(() => null)) as any;
+    if (!stored?.moyasar_token) return;
+
+    try {
+      await this.ensureCreditLimit(proId, settings.recharge_amount_halalas);
+      const invoice = await this.createLocalCreditInvoice(
+        proId,
+        settings.recharge_amount_halalas,
+        'AUTO_RECHARGE',
+        'HandyCall automatic credit recharge',
+      );
+      const payment = await this.createMoyasarTokenPayment({
+        amount: settings.recharge_amount_halalas,
+        token: stored.moyasar_token,
+        proId,
+        period: 'credits',
+        description: 'HandyCall automatic credit recharge',
+        purpose: 'pro_auto_recharge',
+        invoiceId: invoice.invoice_id,
+      });
+      if (this.normalizeMoyasarStatus(payment.status) === 'PAID') {
+        await this.markInvoicePaid(invoice, payment);
+      }
+    } catch (error: any) {
+      this.logger.warn(`Auto recharge failed for pro ${proId}: ${error?.message || error}`);
+    }
+  }
+
+  private validateCreditAmount(amountHalalas: number) {
+    const amount = Math.round(Number(amountHalalas || 0));
+    if (!Number.isFinite(amount) || amount < MIN_CREDIT_TOP_UP_HALALAS) {
+      throw new BadRequestException('Minimum credit purchase is SAR 20.');
+    }
+    if (amount > MAX_CREDIT_BALANCE_HALALAS) {
+      throw new BadRequestException('Credit purchase cannot exceed SAR 5,000.');
+    }
+    return amount;
+  }
+
+  private async ensureCreditLimit(proId: string, additionalHalalas: number) {
+    const ledger = await this.getCreditLedger(proId);
+    if (ledger.balance_halalas + Number(additionalHalalas || 0) > MAX_CREDIT_BALANCE_HALALAS) {
+      throw new BadRequestException('Credit balance cannot exceed SAR 5,000.');
+    }
+  }
+
+  private isCreditTransaction(type: unknown) {
+    return ['CREDIT_TOP_UP', 'AUTO_RECHARGE', 'ADMIN_CREDIT', 'REFUND_CREDIT'].includes(String(type || ''));
   }
 
   private async upsertPaymentMethodFromPayment(proId: string, payment?: MoyasarPayment | null) {
@@ -688,6 +1080,9 @@ export class ProBillingService {
     token: string;
     proId: string;
     period: string;
+    description?: string;
+    purpose?: string;
+    invoiceId?: string;
   }) {
     return this.moyasarRequest('/payments', {
       method: 'POST',
@@ -695,7 +1090,7 @@ export class ProBillingService {
         given_id: uuidv4(),
         amount: input.amount,
         currency: 'SAR',
-        description: `HandyCall lead fees ${input.period}`,
+        description: input.description || `HandyCall lead fees ${input.period}`,
         callback_url: this.frontendUrl('/pro/dashboard/billing'),
         source: {
           type: 'token',
@@ -704,7 +1099,8 @@ export class ProBillingService {
         metadata: {
           pro_id: input.proId,
           billing_period: input.period,
-          purpose: 'pro_lead_fees',
+          purpose: input.purpose || 'pro_lead_fees',
+          pro_billing_invoice_id: input.invoiceId,
         },
       },
     });

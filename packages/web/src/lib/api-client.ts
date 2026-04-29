@@ -699,11 +699,11 @@ class ApiClient {
     return (response.data ?? response) as { client_secret: string };
   }
 
-  async getBillingConfig(): Promise<{ publishable_key: string | null }> {
-    const response = await this.request<{ publishable_key: string | null }>('/billing/config', {
+  async getBillingConfig(): Promise<any> {
+    const response = await this.request<any>('/billing/config', {
       method: 'GET',
     });
-    return (response.data ?? response) as { publishable_key: string | null };
+    return response.data ?? response;
   }
 
   async createSubscription(data: { plan: string; payment_method_id: string }): Promise<any> {
@@ -760,6 +760,41 @@ class ApiClient {
     });
     if (Array.isArray(response)) return response;
     return (response as any)?.data || [];
+  }
+
+  async getBillingCredits(): Promise<any> {
+    const response = await this.request<any>('/billing/credits', {
+      method: 'GET',
+    });
+    return response.data ?? response;
+  }
+
+  async prepareCreditTopUp(amountHalalas: number): Promise<any> {
+    const response = await this.request<any>('/billing/credits/top-up', {
+      method: 'POST',
+      body: JSON.stringify({ amount_halalas: amountHalalas }),
+    });
+    return response.data ?? response;
+  }
+
+  async rechargeCreditsWithDefaultMethod(amountHalalas: number): Promise<any> {
+    const response = await this.request<any>('/billing/credits/recharge-default', {
+      method: 'POST',
+      body: JSON.stringify({ amount_halalas: amountHalalas }),
+    });
+    return response.data ?? response;
+  }
+
+  async updateAutoRecharge(data: {
+    enabled: boolean;
+    threshold_halalas: number;
+    recharge_amount_halalas: number;
+  }): Promise<any> {
+    const response = await this.request<any>('/billing/auto-recharge', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+    return response.data ?? response;
   }
 
   async createCurrentBillingInvoice(): Promise<any> {

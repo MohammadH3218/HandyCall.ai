@@ -8,6 +8,7 @@ import {
   HttpStatus,
   Param,
   Post,
+  Put,
   Query,
   Req,
   UseGuards,
@@ -34,6 +35,48 @@ export class ProBillingController {
   getSubscription(@CurrentUser() user: MarketplaceAuthContext) {
     this.assertPro(user);
     return this.proBilling.getProBillingOverview(user.user_id);
+  }
+
+  @RateLimitPolicy('USER_WRITE')
+  @Get('credits')
+  getCredits(@CurrentUser() user: MarketplaceAuthContext) {
+    this.assertPro(user);
+    return this.proBilling.getCreditLedger(user.user_id);
+  }
+
+  @RateLimitPolicy('USER_WRITE')
+  @Post('credits/top-up')
+  @HttpCode(HttpStatus.OK)
+  prepareCreditTopUp(
+    @Req() req: Request,
+    @CurrentUser() user: MarketplaceAuthContext,
+    @Body('amount_halalas') amountHalalas: number,
+  ) {
+    this.assertPro(user);
+    return this.proBilling.prepareCreditTopUp(req as Request, user.user_id, amountHalalas);
+  }
+
+  @RateLimitPolicy('USER_WRITE')
+  @Post('credits/recharge-default')
+  @HttpCode(HttpStatus.OK)
+  rechargeCreditsWithDefaultMethod(
+    @Req() req: Request,
+    @CurrentUser() user: MarketplaceAuthContext,
+    @Body('amount_halalas') amountHalalas: number,
+  ) {
+    this.assertPro(user);
+    return this.proBilling.rechargeCreditsWithDefaultMethod(req as Request, user.user_id, amountHalalas);
+  }
+
+  @RateLimitPolicy('USER_WRITE')
+  @Put('auto-recharge')
+  updateAutoRecharge(
+    @Req() req: Request,
+    @CurrentUser() user: MarketplaceAuthContext,
+    @Body() body: { enabled?: boolean; threshold_halalas?: number; recharge_amount_halalas?: number },
+  ) {
+    this.assertPro(user);
+    return this.proBilling.updateAutoRecharge(req as Request, user.user_id, body || {});
   }
 
   @RateLimitPolicy('USER_WRITE')

@@ -11,6 +11,7 @@ import { PortalMessagingService } from '../portal-messaging/portal-messaging.ser
 import { EmailService } from '../email/email.service';
 import { renderHandycallEmail } from '../../common/email-templates';
 import { getLeadFeeHalalas, halalasToSar, OPEN_JOB_TTL_MS } from './lead-fee-tiers';
+import { ProBillingService } from '../payments/pro-billing.service';
 
 const QUOTE_REQUESTS_TABLE = 'quote_requests';
 const LEAD_FEE_TRANSACTIONS_TABLE = 'lead_fee_transactions';
@@ -32,7 +33,8 @@ export class QuoteRequestsService {
   constructor(
     private db: DynamoDBService,
     private messaging: PortalMessagingService,
-    private email: EmailService
+    private email: EmailService,
+    private proBilling: ProBillingService,
   ) {}
 
   // ── Customer: submit a direct request to a specific pro ───────────────────
@@ -413,6 +415,12 @@ export class QuoteRequestsService {
       throw new ConflictException('This job was already claimed by another pro');
     if (q.status !== 'OPEN') throw new BadRequestException('Job is not available');
 
+    const leadFeeHalalas = q.lead_fee_halalas ?? getLeadFeeHalalas(q.service_category);
+    const creditLedger = await this.proBilling.getCreditLedger(proId);
+    if (creditLedger.balance_halalas < leadFeeHalalas) {
+      throw new BadRequestException('Add credits before buying this lead.');
+    }
+
     // Atomic conditional update — only one pro wins
     try {
       await this.db.updateRaw(QUOTE_REQUESTS_TABLE, {
@@ -444,18 +452,21 @@ export class QuoteRequestsService {
     const updated = (await this.db.get(QUOTE_REQUESTS_TABLE, { quote_id: quoteId })) as any;
 
     // Record lead fee transaction
-    const leadFeeHalalas = q.lead_fee_halalas ?? getLeadFeeHalalas(q.service_category);
-    await this.db.put(LEAD_FEE_TRANSACTIONS_TABLE, {
-      transaction_id: uuidv4(),
-      pro_id: proId,
-      quote_id: quoteId,
-      amount_halalas: leadFeeHalalas,
-      transaction_type: 'CHARGE',
-      billing_status: 'UNBILLED',
-      description: `Lead fee — ${q.service_category} job in ${q.district}`,
-      created_at: Date.now(),
-      updated_at: Date.now(),
-    });
+    try {
+      await this.proBilling.recordLeadFeeCharge(
+        proId,
+        quoteId,
+        leadFeeHalalas,
+        `Lead fee — ${q.service_category} job in ${q.district}`,
+      );
+    } catch (err) {
+      await this.db.update(
+        QUOTE_REQUESTS_TABLE,
+        { quote_id: quoteId },
+        { status: 'OPEN', pro_id: null, claimed_at: null, updated_at: Date.now() },
+      ).catch(() => null);
+      throw err;
+    }
 
     const pro = (await this.db.get('pros', { pro_id: proId }).catch(() => null)) as any;
     const proName = pro
@@ -563,6 +574,12 @@ export class QuoteRequestsService {
       return { quote: updated };
     }
 
+    const directLeadFeeHalalas = q.lead_fee_halalas ?? getLeadFeeHalalas(q.service_category);
+    const creditLedger = await this.proBilling.getCreditLedger(proId);
+    if (creditLedger.balance_halalas < directLeadFeeHalalas) {
+      throw new BadRequestException('Add credits before buying this lead.');
+    }
+
     const thread = await this.messaging.getOrCreateThread({
       proId,
       customerUserId: q.customer_user_id,
@@ -606,18 +623,12 @@ export class QuoteRequestsService {
       }
     );
 
-    const directLeadFeeHalalas = q.lead_fee_halalas ?? getLeadFeeHalalas(q.service_category);
-    await this.db.put(LEAD_FEE_TRANSACTIONS_TABLE, {
-      transaction_id: uuidv4(),
-      pro_id: proId,
-      quote_id: quoteId,
-      amount_halalas: directLeadFeeHalalas,
-      transaction_type: 'CHARGE',
-      billing_status: 'UNBILLED',
-      description: `Lead fee — direct ${q.service_category} request in ${q.district}`,
-      created_at: Date.now(),
-      updated_at: Date.now(),
-    });
+    await this.proBilling.recordLeadFeeCharge(
+      proId,
+      quoteId,
+      directLeadFeeHalalas,
+      `Lead fee — direct ${q.service_category} request in ${q.district}`,
+    );
 
     if (q.contact_email) {
       this.email['send']({
