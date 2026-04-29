@@ -23,6 +23,7 @@ declare global {
 
 type BillingTab = 'overview' | 'payment-methods' | 'history' | 'lead-fees';
 type PaymentMethodKey = 'creditcard' | 'applepay' | 'samsungpay' | 'stcpay';
+type CardBrandKey = 'mada' | 'visa' | 'mastercard' | 'amex' | 'unknown';
 
 const MOYASAR_FORM_JS = 'https://cdn.moyasar.com/mpf/1.14.0/moyasar.js';
 const MOYASAR_FORM_CSS = 'https://cdn.moyasar.com/mpf/1.14.0/moyasar.css';
@@ -35,6 +36,60 @@ const METHOD_LABELS: Record<PaymentMethodKey, string> = {
   applepay: 'Apple Pay',
   samsungpay: 'Samsung Pay',
   stcpay: 'STC Pay',
+};
+const CARD_NUMBER_MAX_LENGTH = 19;
+const CARDHOLDER_MAX_LENGTH = 64;
+
+const MADA_PREFIXES = [
+  '588845',
+  '440647',
+  '440795',
+  '446404',
+  '457865',
+  '417633',
+  '468540',
+  '468541',
+  '468542',
+  '468543',
+  '968201',
+  '968202',
+  '968203',
+  '968204',
+  '968205',
+  '968206',
+  '968207',
+  '968208',
+  '968209',
+  '968210',
+  '968211',
+];
+
+const CARD_BRANDS: Record<CardBrandKey, { label: string; shortLabel: string; className: string }> = {
+  mada: {
+    label: 'mada',
+    shortLabel: 'mada',
+    className: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+  },
+  visa: {
+    label: 'Visa',
+    shortLabel: 'VISA',
+    className: 'border-blue-200 bg-blue-50 text-blue-700',
+  },
+  mastercard: {
+    label: 'Mastercard',
+    shortLabel: 'MC',
+    className: 'border-amber-200 bg-amber-50 text-amber-700',
+  },
+  amex: {
+    label: 'American Express',
+    shortLabel: 'AMEX',
+    className: 'border-cyan-200 bg-cyan-50 text-cyan-700',
+  },
+  unknown: {
+    label: 'Card',
+    shortLabel: 'CARD',
+    className: 'border-slate-200 bg-slate-50 text-slate-500',
+  },
 };
 
 function formatSarHalalas(amount?: number) {
@@ -53,6 +108,42 @@ function formatDate(ts?: number) {
 function normalizeTab(raw: string | null): BillingTab {
   if (raw === 'payment-methods' || raw === 'history' || raw === 'lead-fees') return raw;
   return 'overview';
+}
+
+function onlyDigits(value: string, maxLength = Number.MAX_SAFE_INTEGER) {
+  return value.replace(/\D/g, '').slice(0, maxLength);
+}
+
+function formatCardNumber(value: string) {
+  return onlyDigits(value, CARD_NUMBER_MAX_LENGTH)
+    .replace(/(.{4})/g, '$1 ')
+    .trim();
+}
+
+function detectCardBrand(value: string): CardBrandKey {
+  const digits = onlyDigits(value, CARD_NUMBER_MAX_LENGTH);
+  if (MADA_PREFIXES.some((prefix) => digits.startsWith(prefix))) return 'mada';
+  if (/^4/.test(digits)) return 'visa';
+  if (/^(5[1-5]|2[2-7])/.test(digits)) return 'mastercard';
+  if (/^3[47]/.test(digits)) return 'amex';
+  return 'unknown';
+}
+
+function cardNumberMaxForBrand(brand: CardBrandKey) {
+  return brand === 'amex' ? 15 : CARD_NUMBER_MAX_LENGTH;
+}
+
+function cardCvcMaxForBrand(brand: CardBrandKey) {
+  return brand === 'amex' ? 4 : 3;
+}
+
+function normalizeCardBrandName(value?: string): CardBrandKey {
+  const brand = String(value || '').toLowerCase();
+  if (brand.includes('mada')) return 'mada';
+  if (brand.includes('visa')) return 'visa';
+  if (brand.includes('master')) return 'mastercard';
+  if (brand.includes('amex') || brand.includes('american')) return 'amex';
+  return 'unknown';
 }
 
 export default function ProBillingPage() {
@@ -344,11 +435,19 @@ export default function ProBillingPage() {
   }
 
   return (
-    <div className="p-6 lg:p-8">
+    <div className="min-h-screen bg-slate-50/70 p-6 lg:p-8">
       <div className="mx-auto max-w-5xl">
-        <div className="rounded-lg border border-slate-200 bg-white shadow-sm">
-          <div className="border-b border-slate-200 px-6 py-5">
-            <h1 className="text-xl font-semibold text-slate-950">Billing</h1>
+        <div className="overflow-hidden rounded-2xl border border-emerald-100 bg-white shadow-sm shadow-emerald-950/5">
+          <div className="border-b border-emerald-100 bg-gradient-to-r from-emerald-50 via-white to-teal-50 px-6 py-5">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-emerald-600">Pro wallet</p>
+                <h1 className="mt-1 text-2xl font-bold text-slate-950">Billing</h1>
+              </div>
+              <div className="rounded-full border border-emerald-200 bg-white px-3 py-1 text-xs font-semibold text-emerald-700 shadow-sm">
+                SAR credits
+              </div>
+            </div>
             <div className="mt-5 flex gap-6 overflow-x-auto">
               {[
                 ['overview', 'Overview'],
@@ -362,7 +461,7 @@ export default function ProBillingPage() {
                   onClick={() => setActiveTab(key as BillingTab)}
                   className={`border-b-2 pb-3 text-sm font-medium transition ${
                     activeTab === key
-                      ? 'border-slate-950 text-slate-950'
+                      ? 'border-emerald-600 text-emerald-700'
                       : 'border-transparent text-slate-500 hover:text-slate-900'
                   }`}
                 >
@@ -510,22 +609,32 @@ function OverviewTab({
   return (
     <div className="mx-auto max-w-3xl space-y-8">
       <section>
-        <h2 className="text-lg font-semibold text-slate-950">Pay as you go</h2>
-        <div className="mt-5">
-          <p className="text-sm font-medium text-slate-700">Credit balance</p>
-          <p className="mt-2 text-4xl font-semibold text-slate-950">{formatSarHalalas(creditBalance)}</p>
-        </div>
-        <div className="mt-6 flex flex-wrap gap-2">
-          <button className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800" onClick={onTopUp}>
-            Add to credit balance
-          </button>
-          <button className="rounded-lg bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-200" onClick={onAutoRecharge}>
-            Auto recharge settings
-          </button>
+        <div className="rounded-2xl border border-emerald-100 bg-gradient-to-br from-white via-emerald-50/60 to-teal-50 p-5 shadow-sm shadow-emerald-950/5">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <h2 className="text-lg font-semibold text-slate-950">Pay as you go</h2>
+              <p className="mt-1 text-sm text-slate-500">Use credits to buy marketplace leads across Riyadh.</p>
+            </div>
+            <div className="rounded-full border border-emerald-200 bg-white px-3 py-1 text-xs font-semibold text-emerald-700">
+              Active wallet
+            </div>
+          </div>
+          <div className="mt-5">
+            <p className="text-sm font-medium text-slate-700">Credit balance</p>
+            <p className="mt-2 text-4xl font-bold text-emerald-700">{formatSarHalalas(creditBalance)}</p>
+          </div>
+          <div className="mt-6 flex flex-wrap gap-2">
+            <button className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm shadow-emerald-900/10 transition hover:bg-emerald-700" onClick={onTopUp}>
+              Add to credit balance
+            </button>
+            <button className="rounded-xl border border-emerald-100 bg-white px-4 py-2 text-sm font-semibold text-slate-900 transition hover:border-emerald-200 hover:bg-emerald-50" onClick={onAutoRecharge}>
+              Auto recharge settings
+            </button>
+          </div>
         </div>
 
         <div
-          className={`mt-5 flex items-center justify-between gap-4 rounded-lg border px-4 py-3 ${
+          className={`mt-5 flex items-center justify-between gap-4 rounded-2xl border px-4 py-3 ${
             autoRecharge?.enabled
               ? 'border-emerald-600/30 bg-emerald-50 text-emerald-800'
               : 'border-slate-200 bg-slate-50 text-slate-600'
@@ -539,7 +648,7 @@ function OverviewTab({
                 : 'Auto recharge is off.'}
             </p>
           </div>
-          <button className="rounded-lg bg-white px-3 py-1.5 text-sm font-semibold text-slate-900 shadow-sm ring-1 ring-slate-200" onClick={onAutoRecharge}>
+          <button className="rounded-xl bg-white px-3 py-1.5 text-sm font-semibold text-slate-900 shadow-sm ring-1 ring-slate-200" onClick={onAutoRecharge}>
             Modify
           </button>
         </div>
@@ -596,10 +705,13 @@ function TopUpDialog({
   }, [activeInvoice, moyasarReady, onRenderForm, publishableKey, usingSavedMethod]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center bg-slate-950/30 px-4 py-10">
-      <div className="w-full max-w-xl rounded-lg bg-white shadow-xl">
-        <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
-          <h2 className="text-base font-semibold text-slate-950">Add credits</h2>
+    <div className="fixed inset-0 z-50 flex items-start justify-center bg-slate-950/40 px-4 py-10 backdrop-blur-sm">
+      <div className="w-full max-w-xl overflow-hidden rounded-2xl bg-white shadow-xl shadow-slate-950/15">
+        <div className="flex items-center justify-between border-b border-emerald-100 bg-gradient-to-r from-emerald-50 to-white px-5 py-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-600">Wallet top-up</p>
+            <h2 className="mt-1 text-base font-semibold text-slate-950">Add credits</h2>
+          </div>
           <button className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100" onClick={onClose} aria-label="Close">
             <IconX className="h-5 w-5" />
           </button>
@@ -607,7 +719,7 @@ function TopUpDialog({
         <div className="space-y-5 p-5">
           <div>
             <label className="text-sm font-medium text-slate-700">Amount</label>
-            <div className="mt-2 flex items-center rounded-lg border border-slate-300 bg-white px-3 py-2">
+            <div className="mt-2 flex items-center rounded-xl border border-slate-200 bg-white px-3 py-2 transition focus-within:border-emerald-400 focus-within:ring-4 focus-within:ring-emerald-100">
               <span className="text-sm font-semibold text-slate-500">SAR</span>
               <input
                 className="ml-3 w-full border-0 text-lg font-semibold text-slate-950 outline-none"
@@ -623,8 +735,8 @@ function TopUpDialog({
                 <button
                   key={amount}
                   type="button"
-                  className={`rounded-lg px-3 py-1.5 text-sm font-medium ring-1 ${
-                    amountSar === amount ? 'bg-slate-900 text-white ring-slate-900' : 'bg-white text-slate-700 ring-slate-200 hover:bg-slate-50'
+                  className={`rounded-xl px-3 py-1.5 text-sm font-medium ring-1 transition ${
+                    amountSar === amount ? 'bg-emerald-600 text-white ring-emerald-600' : 'bg-white text-slate-700 ring-slate-200 hover:bg-emerald-50 hover:text-emerald-700'
                   }`}
                   onClick={() => onAmount(amount)}
                 >
@@ -643,10 +755,10 @@ function TopUpDialog({
                   return (
                     <label
                       key={methodId}
-                      className={`flex cursor-pointer items-center justify-between gap-3 rounded-lg border px-3 py-2 ${
+                      className={`flex cursor-pointer items-center justify-between gap-3 rounded-xl border px-3 py-2 transition ${
                         selectedSavedMethodId === methodId
-                          ? 'border-slate-950 bg-slate-50'
-                          : 'border-slate-200 bg-white hover:bg-slate-50'
+                          ? 'border-emerald-400 bg-emerald-50'
+                          : 'border-slate-200 bg-white hover:bg-emerald-50/60'
                       }`}
                     >
                       <span className="flex min-w-0 items-center gap-3">
@@ -671,10 +783,10 @@ function TopUpDialog({
                   );
                 })}
                 <label
-                  className={`flex cursor-pointer items-center gap-3 rounded-lg border px-3 py-2 ${
+                  className={`flex cursor-pointer items-center gap-3 rounded-xl border px-3 py-2 transition ${
                     selectedSavedMethodId === NEW_PAYMENT_METHOD_ID
-                      ? 'border-slate-950 bg-slate-50'
-                      : 'border-slate-200 bg-white hover:bg-slate-50'
+                      ? 'border-emerald-400 bg-emerald-50'
+                      : 'border-slate-200 bg-white hover:bg-emerald-50/60'
                   }`}
                 >
                   <input
@@ -699,10 +811,10 @@ function TopUpDialog({
                       onSavedMethod(NEW_PAYMENT_METHOD_ID);
                       onSelectedMethod(method);
                     }}
-                    className={`rounded-lg border px-3 py-2 text-sm font-semibold transition ${
+                    className={`rounded-xl border px-3 py-2 text-sm font-semibold transition ${
                       selectedMethod === method && !usingSavedMethod
-                        ? 'border-slate-950 bg-slate-950 text-white'
-                        : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                        ? 'border-emerald-600 bg-emerald-600 text-white'
+                        : 'border-slate-200 bg-white text-slate-700 hover:bg-emerald-50 hover:text-emerald-700'
                     } disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-300`}
                   >
                     {METHOD_LABELS[method]}
@@ -714,7 +826,7 @@ function TopUpDialog({
 
           {!activeInvoice ? (
             <button
-              className="w-full rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+              className="w-full rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-emerald-900/10 transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none"
               disabled={actionLoading || amountSar < 20 || amountSar > 5000}
               onClick={onPrepare}
             >
@@ -753,6 +865,44 @@ function AddPaymentMethodDialog({
   });
   const [localError, setLocalError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const cardNumberRef = useRef<HTMLInputElement>(null);
+  const monthRef = useRef<HTMLInputElement>(null);
+  const yearRef = useRef<HTMLInputElement>(null);
+  const cvcRef = useRef<HTMLInputElement>(null);
+  const detectedBrand = detectCardBrand(form.number);
+  const cardNumberMax = cardNumberMaxForBrand(detectedBrand);
+  const cvcMax = cardCvcMaxForBrand(detectedBrand);
+
+  function updateCardNumber(value: string) {
+    const nextBrand = detectCardBrand(value);
+    const nextMax = cardNumberMaxForBrand(nextBrand);
+    const nextCvcMax = cardCvcMaxForBrand(nextBrand);
+    const next = onlyDigits(value, nextMax);
+    setForm((prev) => ({ ...prev, number: next, cvc: prev.cvc.slice(0, nextCvcMax) }));
+    if (next.length >= nextMax) {
+      monthRef.current?.focus();
+    }
+  }
+
+  function updateMonth(value: string) {
+    const next = onlyDigits(value, 2);
+    setForm((prev) => ({ ...prev, month: next }));
+    if (next.length === 2) {
+      yearRef.current?.focus();
+    }
+  }
+
+  function updateYear(value: string) {
+    const next = onlyDigits(value, 4);
+    setForm((prev) => ({ ...prev, year: next }));
+    if (next.length === 4) {
+      cvcRef.current?.focus();
+    }
+  }
+
+  function updateCvc(value: string) {
+    setForm((prev) => ({ ...prev, cvc: onlyDigits(value, cvcMax) }));
+  }
 
   async function createToken() {
     if (!publishableKey) {
@@ -770,7 +920,7 @@ function AddPaymentMethodDialog({
           publishable_api_key: publishableKey,
           save_only: true,
           name: form.name.trim(),
-          number: form.number.replace(/\s+/g, ''),
+          number: form.number,
           month: form.month.padStart(2, '0'),
           year: form.year,
           cvc: form.cvc,
@@ -795,37 +945,56 @@ function AddPaymentMethodDialog({
     actionLoading ||
     submitting ||
     !form.name.trim() ||
-    form.number.replace(/\s+/g, '').length < 12 ||
-    !form.month ||
-    !form.year ||
+    form.number.length < 12 ||
+    form.number.length > cardNumberMax ||
+    form.month.length !== 2 ||
+    Number(form.month) < 1 ||
+    Number(form.month) > 12 ||
+    form.year.length !== 4 ||
     form.cvc.length < 3;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center bg-slate-950/30 px-4 py-10">
-      <div className="w-full max-w-md rounded-lg bg-white shadow-xl">
-        <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
-          <h2 className="text-base font-semibold text-slate-950">Add payment method</h2>
+    <div className="fixed inset-0 z-50 flex items-start justify-center bg-slate-950/40 px-4 py-10 backdrop-blur-sm">
+      <div className="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-xl shadow-slate-950/15">
+        <div className="flex items-center justify-between border-b border-emerald-100 bg-gradient-to-r from-emerald-50 to-white px-5 py-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-600">Secure card</p>
+            <h2 className="mt-1 text-base font-semibold text-slate-950">Add payment method</h2>
+          </div>
           <button className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100" onClick={onClose} aria-label="Close">
             <IconX className="h-5 w-5" />
           </button>
         </div>
         <div className="space-y-4 p-5">
           {localError ? <Alert tone="red">{localError}</Alert> : null}
-          <TextField label="Cardholder name" value={form.name} onChange={(value) => setForm((prev) => ({ ...prev, name: value }))} />
+          <TextField
+            label="Cardholder name"
+            value={form.name}
+            maxLength={CARDHOLDER_MAX_LENGTH}
+            autoComplete="cc-name"
+            onChange={(value) => setForm((prev) => ({ ...prev, name: value.slice(0, CARDHOLDER_MAX_LENGTH) }))}
+          />
           <TextField
             label="Card number"
-            value={form.number}
+            value={formatCardNumber(form.number)}
+            inputRef={cardNumberRef}
             inputMode="numeric"
             autoComplete="cc-number"
-            onChange={(value) => setForm((prev) => ({ ...prev, number: value }))}
+            maxLength={formatCardNumber('9'.repeat(cardNumberMax)).length}
+            rightAdornment={<CardBrandBadge brand={detectedBrand} compact />}
+            onChange={updateCardNumber}
           />
           <div className="grid grid-cols-3 gap-3">
-            <TextField label="MM" value={form.month} inputMode="numeric" autoComplete="cc-exp-month" onChange={(value) => setForm((prev) => ({ ...prev, month: value.slice(0, 2) }))} />
-            <TextField label="YYYY" value={form.year} inputMode="numeric" autoComplete="cc-exp-year" onChange={(value) => setForm((prev) => ({ ...prev, year: value.slice(0, 4) }))} />
-            <TextField label="CVC" value={form.cvc} inputMode="numeric" autoComplete="cc-csc" onChange={(value) => setForm((prev) => ({ ...prev, cvc: value.slice(0, 4) }))} />
+            <TextField label="MM" value={form.month} inputRef={monthRef} inputMode="numeric" autoComplete="cc-exp-month" maxLength={2} onChange={updateMonth} />
+            <TextField label="YYYY" value={form.year} inputRef={yearRef} inputMode="numeric" autoComplete="cc-exp-year" maxLength={4} onChange={updateYear} />
+            <TextField label="CVC" value={form.cvc} inputRef={cvcRef} inputMode="numeric" autoComplete="cc-csc" maxLength={cvcMax} onChange={updateCvc} />
+          </div>
+          <div className="flex items-center justify-between rounded-xl border border-emerald-100 bg-emerald-50/70 px-3 py-2 text-xs text-emerald-800">
+            <span>Detected network</span>
+            <CardBrandBadge brand={detectedBrand} />
           </div>
           <button
-            className="w-full rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+            className="w-full rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-emerald-900/10 transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none"
             disabled={disabled}
             onClick={() => void createToken()}
           >
@@ -855,24 +1024,27 @@ function AutoRechargeDialog({
   const [rechargeSar, setRechargeSar] = useState(Number(defaultValues?.recharge_amount_halalas || 2000) / 100);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center bg-slate-950/30 px-4 py-10">
-      <div className="w-full max-w-md rounded-lg bg-white shadow-xl">
-        <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
-          <h2 className="text-base font-semibold text-slate-950">Auto recharge</h2>
+    <div className="fixed inset-0 z-50 flex items-start justify-center bg-slate-950/40 px-4 py-10 backdrop-blur-sm">
+      <div className="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-xl shadow-slate-950/15">
+        <div className="flex items-center justify-between border-b border-emerald-100 bg-gradient-to-r from-emerald-50 to-white px-5 py-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-600">Credit safety net</p>
+            <h2 className="mt-1 text-base font-semibold text-slate-950">Auto recharge</h2>
+          </div>
           <button className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100" onClick={onClose} aria-label="Close">
             <IconX className="h-5 w-5" />
           </button>
         </div>
         <div className="space-y-4 p-5">
           {!hasDefaultMethod ? <Alert tone="red">Save a payment method before turning on auto recharge.</Alert> : null}
-          <label className="flex items-center justify-between rounded-lg border border-slate-200 px-4 py-3">
+          <label className="flex items-center justify-between rounded-xl border border-emerald-100 bg-emerald-50/50 px-4 py-3">
             <span className="text-sm font-medium text-slate-900">Enable auto recharge</span>
-            <input type="checkbox" checked={enabled} onChange={(event) => setEnabled(event.target.checked)} />
+            <input className="h-4 w-4 accent-emerald-600" type="checkbox" checked={enabled} onChange={(event) => setEnabled(event.target.checked)} />
           </label>
           <NumberField label="Recharge when balance reaches" value={thresholdSar} onChange={setThresholdSar} />
           <NumberField label="Recharge amount" value={rechargeSar} onChange={setRechargeSar} />
           <button
-            className="w-full rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+            className="w-full rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-emerald-900/10 transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none"
             disabled={actionLoading || (enabled && !hasDefaultMethod) || thresholdSar < 20 || rechargeSar < 20 || rechargeSar > 5000}
             onClick={() => onSave(enabled, thresholdSar, rechargeSar)}
           >
@@ -892,36 +1064,37 @@ function PaymentMethodsTab({ methods, onAdd, onDefault, onRemove, actionLoading 
           <h2 className="text-lg font-semibold text-slate-950">Payment methods</h2>
           <p className="mt-1 text-sm text-slate-500">Choose a preferred saved card for top-ups and auto recharge.</p>
         </div>
-        <button className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800" onClick={onAdd}>
+        <button className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700" onClick={onAdd}>
           Add method
         </button>
       </div>
       {methods.length === 0 ? (
         <EmptyState icon={<IconCreditCard />} title="No payment method" detail="Add a card to use it for top-ups and auto recharge." />
       ) : (
-        <div className="divide-y divide-slate-100 rounded-lg border border-slate-200">
+        <div className="divide-y divide-emerald-50 rounded-2xl border border-emerald-100 bg-white shadow-sm shadow-emerald-950/5">
           {methods.map((method: any) => {
             const methodId = method.method_id || method.id;
             return (
               <div key={methodId} className="flex items-center justify-between gap-4 px-4 py-4">
                 <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-100 text-slate-600">
-                    <IconCreditCard className="h-5 w-5" />
-                  </div>
+                  <CardIcon brand={normalizeCardBrandName(method.card?.brand)} />
                   <div>
-                    <p className="text-sm font-semibold text-slate-950">
-                      {method.card?.brand || 'Card'} ending {method.card?.last4 || '----'}
-                    </p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="text-sm font-semibold text-slate-950">
+                        {method.card?.brand || 'Card'} ending {method.card?.last4 || '----'}
+                      </p>
+                      <CardBrandBadge brand={normalizeCardBrandName(method.card?.brand)} />
+                    </div>
                     <p className="text-xs text-slate-500">{method.is_default || method.is_preferred ? 'Preferred for auto recharge' : `Added ${formatDate(method.created_at)}`}</p>
                   </div>
                 </div>
                 <div className="flex gap-2">
                   {!method.is_default && !method.is_preferred ? (
-                    <button className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-semibold text-slate-700" disabled={actionLoading} onClick={() => onDefault(methodId)}>
+                    <button className="rounded-xl border border-emerald-100 px-3 py-1.5 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-50" disabled={actionLoading} onClick={() => onDefault(methodId)}>
                       Make preferred
                     </button>
                   ) : null}
-                  <button className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-semibold text-slate-500" disabled={actionLoading} onClick={() => onRemove(methodId)}>
+                  <button className="rounded-xl border border-slate-200 px-3 py-1.5 text-sm font-semibold text-slate-500 transition hover:bg-slate-50" disabled={actionLoading} onClick={() => onRemove(methodId)}>
                     Remove
                   </button>
                 </div>
@@ -998,8 +1171,8 @@ function Table({ rows }: { rows: Array<{ id: string; title: string; detail: stri
 
 function QuickLink({ icon, title, detail, onClick }: any) {
   return (
-    <button className="flex items-center gap-4 rounded-lg p-2 text-left hover:bg-slate-50" onClick={onClick}>
-      <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-600">
+    <button className="flex items-center gap-4 rounded-2xl border border-transparent p-3 text-left transition hover:border-emerald-100 hover:bg-emerald-50/60" onClick={onClick}>
+      <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
         {icon}
       </span>
       <span>
@@ -1010,11 +1183,29 @@ function QuickLink({ icon, title, detail, onClick }: any) {
   );
 }
 
+function CardBrandBadge({ brand, compact = false }: { brand: CardBrandKey; compact?: boolean }) {
+  const config = CARD_BRANDS[brand];
+  return (
+    <span className={`inline-flex h-6 items-center rounded-md border px-2 text-[10px] font-black tracking-[0.12em] ${config.className}`}>
+      {compact ? config.shortLabel : config.label}
+    </span>
+  );
+}
+
+function CardIcon({ brand }: { brand: CardBrandKey }) {
+  const config = CARD_BRANDS[brand];
+  return (
+    <div className={`flex h-11 w-14 shrink-0 items-center justify-center rounded-xl border text-[10px] font-black tracking-[0.1em] ${config.className}`}>
+      {config.shortLabel}
+    </div>
+  );
+}
+
 function NumberField({ label, value, onChange }: { label: string; value: number; onChange: (value: number) => void }) {
   return (
     <label className="block">
       <span className="text-sm font-medium text-slate-700">{label}</span>
-      <div className="mt-1 flex items-center rounded-lg border border-slate-300 px-3 py-2">
+      <div className="mt-1 flex items-center rounded-xl border border-slate-200 px-3 py-2 transition focus-within:border-emerald-400 focus-within:ring-4 focus-within:ring-emerald-100">
         <span className="text-sm font-semibold text-slate-500">SAR</span>
         <input className="ml-3 w-full border-0 text-sm font-semibold outline-none" min={20} max={5000} type="number" value={value} onChange={(event) => onChange(Number(event.target.value))} />
       </div>
@@ -1028,23 +1219,34 @@ function TextField({
   onChange,
   inputMode,
   autoComplete,
+  inputRef,
+  maxLength,
+  rightAdornment,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   inputMode?: React.HTMLAttributes<HTMLInputElement>['inputMode'];
   autoComplete?: string;
+  inputRef?: React.Ref<HTMLInputElement>;
+  maxLength?: number;
+  rightAdornment?: React.ReactNode;
 }) {
   return (
     <label className="block">
       <span className="text-sm font-medium text-slate-700">{label}</span>
-      <input
-        className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-950 outline-none focus:border-slate-500"
-        value={value}
-        inputMode={inputMode}
-        autoComplete={autoComplete}
-        onChange={(event) => onChange(event.target.value)}
-      />
+      <div className="mt-1 flex items-center rounded-xl border border-slate-200 bg-white px-3 py-2 transition focus-within:border-emerald-400 focus-within:ring-4 focus-within:ring-emerald-100">
+        <input
+          ref={inputRef}
+          className="min-w-0 flex-1 border-0 bg-transparent text-sm font-medium text-slate-950 outline-none placeholder:text-slate-400"
+          value={value}
+          inputMode={inputMode}
+          autoComplete={autoComplete}
+          maxLength={maxLength}
+          onChange={(event) => onChange(event.target.value)}
+        />
+        {rightAdornment ? <span className="ml-2 shrink-0">{rightAdornment}</span> : null}
+      </div>
     </label>
   );
 }
