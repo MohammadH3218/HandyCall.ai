@@ -277,7 +277,7 @@ export function SiteHeader({
 
   return (
     <header
-      className={`sticky top-0 z-20 transition-all duration-300 ${
+      className={`sticky top-0 z-[100] transition-all duration-300 ${
         scrolled ? 'border-b-0 bg-transparent px-4 py-2' : 'border-b border-slate-200 bg-white'
       }`}
     >

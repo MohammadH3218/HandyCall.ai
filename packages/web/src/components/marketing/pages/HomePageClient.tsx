@@ -164,7 +164,7 @@ export function HomePageClient() {
       <SiteHeader />
 
       {/* ── Hero ── */}
-      <section className="bg-white px-4 pb-24 pt-20">
+      <section className="relative z-10 bg-white px-4 pb-24 pt-20">
         <div className="mx-auto max-w-3xl text-center">
           <FadeIn direction="up" duration={700}>
             <h1 className="text-5xl font-extrabold tracking-tight text-slate-900 sm:text-6xl lg:text-[4.5rem]">
