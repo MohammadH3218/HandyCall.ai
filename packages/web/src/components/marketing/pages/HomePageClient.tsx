@@ -2,13 +2,7 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
-import {
-  IconArrowRight,
-  IconChecklist,
-  IconMapPin,
-  IconShieldCheck,
-  IconStar,
-} from '@tabler/icons-react';
+import { IconArrowRight, IconChecklist } from '@tabler/icons-react';
 import { SiteHeader } from '@/components/marketing/site-header';
 import { SiteFooter } from '@/components/marketing/site-footer';
 import { FadeIn } from '@/components/marketing/fade-in';
@@ -61,21 +55,27 @@ const STEPS = [
   },
 ];
 
-const TRUST_POINTS = [
+const TRUST_FEATURES = [
   {
-    icon: IconShieldCheck,
+    image:
+      'https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=800&h=540&q=85&fit=crop&auto=format',
     title: 'Built for real home-service jobs',
-    description: 'Structured specifically for the work Riyadh homeowners search for most.',
+    description:
+      'Structured specifically for the work Riyadh homeowners search for most — from AC repair and plumbing to painting and pest control.',
   },
   {
-    icon: IconMapPin,
+    image:
+      'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?w=800&h=540&q=85&fit=crop&auto=format',
     title: 'Focused on Riyadh districts',
-    description: 'Search by neighborhood instead of broad city-level results.',
+    description:
+      'Search by neighborhood instead of broad city-level results. Find providers who actually work in your area.',
   },
   {
-    icon: IconStar,
+    image:
+      'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=800&h=540&q=85&fit=crop&auto=format',
     title: 'Clear categories, cleaner browsing',
-    description: 'A simpler path to the service you need without fake listings or filler.',
+    description:
+      'A simpler path to the service you need — without fake listings, inflated reviews, or filler content.',
   },
 ];
 
@@ -124,7 +124,6 @@ function CategoryCarousel() {
                 ) : (
                   <div className="h-full w-full bg-slate-100" />
                 )}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
               </div>
               <div className="px-3 py-2.5">
                 <p className="text-xs font-semibold leading-snug text-slate-700 transition-colors duration-200 group-hover:text-emerald-700">
@@ -160,38 +159,19 @@ export function HomePageClient() {
           from { transform: translateX(0); }
           to   { transform: translateX(-50%); }
         }
-        .hero-grid {
-          background-image:
-            linear-gradient(rgba(16,185,129,0.055) 1px, transparent 1px),
-            linear-gradient(90deg, rgba(16,185,129,0.055) 1px, transparent 1px);
-          background-size: 40px 40px;
-        }
       `}</style>
 
       <SiteHeader />
 
       {/* ── Hero ── */}
-      <section className="hero-grid relative z-10 overflow-hidden bg-white px-4 pb-28 pt-20">
-        {/* Ambient glow */}
-        <div className="pointer-events-none absolute -right-32 -top-32 h-[480px] w-[480px] rounded-full bg-emerald-400/10 blur-3xl" />
-        <div className="pointer-events-none absolute -left-20 bottom-0 h-[320px] w-[320px] rounded-full bg-emerald-300/8 blur-3xl" />
-
-        <div className="relative mx-auto max-w-3xl text-center">
+      <section className="bg-white px-4 pb-24 pt-20">
+        <div className="mx-auto max-w-3xl text-center">
           <FadeIn direction="up" duration={700}>
-            {/* Eyebrow */}
-            <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-4 py-1.5">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-              <span className="text-xs font-semibold tracking-wide text-emerald-700">
-                Riyadh's home services marketplace
-              </span>
-            </div>
-
-            <h1 className="font-serif text-5xl font-bold italic leading-[1.1] tracking-tight text-slate-900 sm:text-6xl lg:text-[4.5rem]">
+            <h1 className="text-5xl font-extrabold tracking-tight text-slate-900 sm:text-6xl lg:text-[4.5rem]">
               Find home services,
               <br />
-              <span className="hc-shimmer-text not-italic">faster.</span>
+              <span className="hc-shimmer-text">faster.</span>
             </h1>
-
             <p className="mt-6 text-lg leading-relaxed text-slate-500 sm:text-xl">
               Search by service and Riyadh district to find the right provider faster.
             </p>
@@ -199,27 +179,21 @@ export function HomePageClient() {
 
           <FadeIn direction="up" delay={150} duration={700}>
             <div className="mt-10">
-              <SearchBar className="shadow-lg shadow-slate-200/60" size="lg" />
+              <SearchBar className="shadow-md" size="lg" />
             </div>
-            <p className="mt-4 text-xs text-slate-400">
-              Free to browse · No account needed to search
-            </p>
           </FadeIn>
         </div>
       </section>
 
       {/* ── Categories carousel ── */}
-      <section className="border-t border-slate-100 bg-slate-50/70 px-4 py-20">
+      <section className="border-t border-slate-100 bg-slate-50 px-4 py-20">
         <div className="mx-auto max-w-6xl">
           <FadeIn direction="up">
-            <div className="mb-10 flex flex-col items-center gap-3 text-center">
-              <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-3.5 py-1 text-[11px] font-bold uppercase tracking-widest text-emerald-700">
-                Browse Categories
-              </span>
-              <h2 className="font-serif text-3xl font-bold italic text-slate-900 sm:text-4xl">
+            <div className="mb-10 text-center">
+              <h2 className="text-3xl font-extrabold tracking-tight text-slate-900 sm:text-4xl">
                 Services homeowners use every week
               </h2>
-              <p className="max-w-md text-sm text-slate-500">
+              <p className="mt-3 text-sm text-slate-500">
                 Browse the most requested categories, then narrow by district on the search page.
               </p>
             </div>
@@ -245,11 +219,8 @@ export function HomePageClient() {
       <section id="how-it-works" className="border-t border-slate-100 bg-white px-4 py-24">
         <div className="mx-auto max-w-5xl">
           <FadeIn direction="up">
-            <div className="mb-16 flex flex-col items-center gap-3 text-center">
-              <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-3.5 py-1 text-[11px] font-bold uppercase tracking-widest text-emerald-700">
-                How It Works
-              </span>
-              <h2 className="font-serif text-3xl font-bold italic text-slate-900 sm:text-4xl">
+            <div className="mb-16 text-center">
+              <h2 className="text-3xl font-extrabold tracking-tight text-slate-900 sm:text-4xl">
                 A cleaner way to find services in Riyadh
               </h2>
             </div>
@@ -257,13 +228,12 @@ export function HomePageClient() {
 
           <div className="relative grid grid-cols-1 gap-0 sm:grid-cols-3">
             {/* Connector line on desktop */}
-            <div className="pointer-events-none absolute left-[16.67%] right-[16.67%] top-[2.25rem] hidden h-px bg-gradient-to-r from-transparent via-emerald-200 to-transparent sm:block" />
+            <div className="pointer-events-none absolute left-[16.67%] right-[16.67%] top-[2.25rem] hidden h-px bg-slate-200 sm:block" />
 
             {STEPS.map((step, index) => (
               <FadeIn key={step.num} direction="up" delay={index * 100}>
                 <div className="group relative flex flex-col items-start px-6 py-8 sm:items-center sm:text-center">
-                  {/* Step circle */}
-                  <div className="relative mb-5 flex h-[4.5rem] w-[4.5rem] shrink-0 items-center justify-center rounded-full border-2 border-emerald-100 bg-white shadow-sm transition-all duration-300 group-hover:border-emerald-300 group-hover:shadow-md">
+                  <div className="relative mb-5 flex h-[4.5rem] w-[4.5rem] shrink-0 items-center justify-center rounded-full border-2 border-slate-200 bg-white shadow-sm transition-all duration-300 group-hover:border-emerald-300">
                     <span className="font-mono text-sm font-bold text-emerald-600">{step.num}</span>
                   </div>
                   <h3 className="text-base font-bold leading-snug text-slate-900">{step.title}</h3>
@@ -275,26 +245,37 @@ export function HomePageClient() {
         </div>
       </section>
 
-      {/* ── Why HandyCall ── */}
-      <section className="border-t border-slate-100 bg-slate-50/70 px-4 py-20">
+      {/* ── Why HandyCall — image grid ── */}
+      <section className="border-t border-slate-100 bg-slate-50 px-4 py-20">
         <div className="mx-auto max-w-5xl">
           <FadeIn direction="up">
-            <div className="mb-12 flex flex-col items-center gap-3 text-center">
-              <h2 className="font-serif text-3xl font-bold italic text-slate-900 sm:text-4xl">
+            <div className="mb-12 text-center">
+              <h2 className="text-3xl font-extrabold tracking-tight text-slate-900 sm:text-4xl">
                 Why homeowners choose HandyCall
               </h2>
             </div>
           </FadeIn>
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            {TRUST_POINTS.map((item, index) => (
-              <FadeIn key={item.title} direction="up" delay={index * 80}>
-                <div className="group rounded-2xl border border-slate-200/80 bg-white p-7 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:border-emerald-200 hover:shadow-md">
-                  <div className="mb-5 inline-flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-50 transition-colors duration-300 group-hover:bg-emerald-100">
-                    <item.icon className="h-5 w-5 text-emerald-600" stroke={1.8} />
+          <div className="grid grid-cols-1 gap-10 sm:grid-cols-3">
+            {TRUST_FEATURES.map((feature, index) => (
+              <FadeIn key={feature.title} direction="up" delay={index * 80}>
+                <div className="flex flex-col">
+                  <div className="relative aspect-[4/3] w-full overflow-hidden rounded-xl bg-slate-200">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={feature.image}
+                      alt={feature.title}
+                      className="h-full w-full object-cover transition-transform duration-500 hover:scale-105"
+                      loading="lazy"
+                      decoding="async"
+                    />
                   </div>
-                  <h3 className="font-bold leading-snug text-slate-900">{item.title}</h3>
-                  <p className="mt-2 text-sm leading-relaxed text-slate-500">{item.description}</p>
+                  <div className="mt-5">
+                    <h3 className="font-bold text-slate-900">{feature.title}</h3>
+                    <p className="mt-2 text-sm leading-relaxed text-slate-500">
+                      {feature.description}
+                    </p>
+                  </div>
                 </div>
               </FadeIn>
             ))}
@@ -303,22 +284,10 @@ export function HomePageClient() {
       </section>
 
       {/* ── For Pros CTA ── */}
-      <section className="relative overflow-hidden border-t border-slate-200 bg-slate-950 px-4 py-24">
-        {/* Background accent */}
-        <div className="pointer-events-none absolute right-0 top-0 h-full w-1/2 bg-gradient-to-l from-emerald-950/40 to-transparent" />
-        <div className="pointer-events-none absolute -bottom-24 left-1/2 h-64 w-64 -translate-x-1/2 rounded-full bg-emerald-500/10 blur-3xl" />
-
-        <div className="relative mx-auto max-w-3xl text-center">
+      <section className="border-t border-slate-200 bg-slate-950 px-4 py-24">
+        <div className="mx-auto max-w-3xl text-center">
           <FadeIn direction="up">
-            {/* Info chip */}
-            <div className="mx-auto mb-8 inline-flex flex-wrap items-center justify-center gap-2.5 rounded-2xl border border-white/10 bg-white/5 px-5 py-3 backdrop-blur-sm">
-              <IconChecklist className="h-4 w-4 text-emerald-400" stroke={1.8} />
-              <span className="text-sm text-slate-300">
-                Browse categories, search by district, and sign up only when you&apos;re ready.
-              </span>
-            </div>
-
-            <h2 className="font-serif text-4xl font-bold italic text-white sm:text-5xl">
+            <h2 className="text-4xl font-extrabold tracking-tight text-white sm:text-5xl">
               Looking to grow your service business?
             </h2>
             <p className="mx-auto mt-5 max-w-xl text-base leading-relaxed text-slate-400">
@@ -329,14 +298,14 @@ export function HomePageClient() {
             <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
               <Link
                 href="/for-pros"
-                className="inline-flex items-center gap-2 rounded-xl bg-emerald-500 px-7 py-3.5 text-sm font-bold text-white shadow-lg shadow-emerald-900/40 transition hover:bg-emerald-400"
+                className="inline-flex items-center gap-2 rounded-xl bg-emerald-500 px-7 py-3.5 text-sm font-bold text-white transition hover:bg-emerald-400"
               >
                 Explore For Pros
                 <IconArrowRight className="h-4 w-4" stroke={2} />
               </Link>
               <Link
                 href="/signup"
-                className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-7 py-3.5 text-sm font-semibold text-white backdrop-blur-sm transition hover:bg-white/10"
+                className="inline-flex items-center gap-2 rounded-xl border border-white/20 px-7 py-3.5 text-sm font-semibold text-white transition hover:bg-white/10"
               >
                 Sign Up Free
               </Link>
