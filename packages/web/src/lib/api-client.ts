@@ -777,10 +777,13 @@ class ApiClient {
     return response.data ?? response;
   }
 
-  async rechargeCreditsWithDefaultMethod(amountHalalas: number): Promise<any> {
+  async rechargeCreditsWithDefaultMethod(amountHalalas: number, paymentMethodId?: string): Promise<any> {
     const response = await this.request<any>('/billing/credits/recharge-default', {
       method: 'POST',
-      body: JSON.stringify({ amount_halalas: amountHalalas }),
+      body: JSON.stringify({
+        amount_halalas: amountHalalas,
+        ...(paymentMethodId ? { payment_method_id: paymentMethodId } : {}),
+      }),
     });
     return response.data ?? response;
   }
@@ -837,6 +840,14 @@ class ApiClient {
     const response = await this.request<any>('/billing/payment-methods/default', {
       method: 'POST',
       body: JSON.stringify({ payment_method_id: paymentMethodId }),
+    });
+    return response.data ?? response;
+  }
+
+  async savePaymentMethodToken(token: string): Promise<any> {
+    const response = await this.request<any>('/billing/payment-methods/token', {
+      method: 'POST',
+      body: JSON.stringify({ token }),
     });
     return response.data ?? response;
   }

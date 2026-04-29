@@ -266,6 +266,7 @@ export class ProBillingService {
         method_id: method.method_id,
         provider: 'moyasar',
         is_default: Boolean(method.is_default),
+        is_preferred: Boolean(method.is_default),
         card: {
           brand: method.card_brand || 'Card',
           last4: method.card_last4 || '',
@@ -294,6 +295,33 @@ export class ProBillingService {
     );
 
     return { message: 'Default payment method updated.' };
+  }
+
+  async savePaymentMethodToken(request: RequestLike, proId: string, token: string) {
+    const normalizedToken = String(token || '').trim();
+    if (!normalizedToken) {
+      throw new BadRequestException('Payment method token is required.');
+    }
+
+    const tokenDetails = await this.fetchMoyasarToken(normalizedToken);
+    const method = await this.upsertPaymentMethodFromToken(proId, tokenDetails);
+
+    await this.auditLogs.logFromRequest(request, {
+      category: 'PAYMENT',
+      severity: 'INFO',
+      outcome: 'SUCCESS',
+      action: 'billing.payment_method_saved',
+      target_type: 'pro',
+      target_id: proId,
+      metadata: {
+        provider: 'moyasar',
+        payment_method_id: method.method_id,
+        card_brand: method.card_brand,
+        card_last4: method.card_last4,
+      },
+    });
+
+    return { payment_method: this.normalizePaymentMethod(method) };
   }
 
   async deletePaymentMethod(proId: string, methodId: string) {
@@ -452,25 +480,28 @@ export class ProBillingService {
     return { invoice: this.normalizeInvoice(invoice), payment_status: payment.status };
   }
 
-  async rechargeCreditsWithDefaultMethod(request: RequestLike, proId: string, amountHalalas: number) {
+  async rechargeCreditsWithDefaultMethod(
+    request: RequestLike,
+    proId: string,
+    amountHalalas: number,
+    paymentMethodId?: string,
+  ) {
     const amount = this.validateCreditAmount(amountHalalas);
     await this.ensureCreditLimit(proId, amount);
 
-    const methods = await this.listPaymentMethods(proId);
-    const method = methods.find((item) => item.is_default) || methods[0];
+    const method = await this.resolveStoredPaymentMethod(proId, paymentMethodId);
     if (!method) {
       throw new BadRequestException('No saved Moyasar payment method is available.');
     }
 
-    const stored = (await this.db.get(PRO_PAYMENT_METHODS_TABLE, { method_id: method.method_id })) as any;
-    if (!stored?.moyasar_token) {
+    if (!method.moyasar_token) {
       throw new BadRequestException('Saved payment method is missing a Moyasar token.');
     }
 
     const invoice = await this.createLocalCreditInvoice(proId, amount, 'AUTO_RECHARGE', 'HandyCall credit recharge');
     const payment = await this.createMoyasarTokenPayment({
       amount,
-      token: stored.moyasar_token,
+      token: method.moyasar_token,
       proId,
       period: 'credits',
       description: 'HandyCall credit recharge',
@@ -502,12 +533,17 @@ export class ProBillingService {
       metadata: {
         provider: 'moyasar',
         invoice_id: invoice.invoice_id,
+        payment_method_id: method.method_id,
         amount_halalas: amount,
         status,
       },
     });
 
-    return { invoice: this.normalizeInvoice({ ...invoice, ...updates }), payment_status: status };
+    return {
+      invoice: this.normalizeInvoice({ ...invoice, ...updates }),
+      payment_status: status,
+      action_url: this.getPaymentActionUrl(payment),
+    };
   }
 
   async verifyProPayment(request: RequestLike, proId: string, paymentId: string) {
@@ -960,12 +996,10 @@ export class ProBillingService {
     const settings = await this.getAutoRechargeSettings(proId);
     if (!settings.enabled || remainingBalanceHalalas > settings.threshold_halalas) return;
 
-    const methods = await this.listPaymentMethods(proId);
-    const method = methods.find((item) => item.is_default) || methods[0];
+    const method = await this.resolveStoredPaymentMethod(proId);
     if (!method) return;
 
-    const stored = (await this.db.get(PRO_PAYMENT_METHODS_TABLE, { method_id: method.method_id }).catch(() => null)) as any;
-    if (!stored?.moyasar_token) return;
+    if (!method.moyasar_token) return;
 
     try {
       await this.ensureCreditLimit(proId, settings.recharge_amount_halalas);
@@ -977,7 +1011,7 @@ export class ProBillingService {
       );
       const payment = await this.createMoyasarTokenPayment({
         amount: settings.recharge_amount_halalas,
-        token: stored.moyasar_token,
+        token: method.moyasar_token,
         proId,
         period: 'credits',
         description: 'HandyCall automatic credit recharge',
@@ -1019,6 +1053,42 @@ export class ProBillingService {
     const token = source?.token;
     if (!token) return;
 
+    await this.upsertPaymentMethodRecord(proId, {
+      token,
+      brand: source.company || 'Card',
+      last4: this.last4(source.number),
+      masked: source.number || null,
+    });
+  }
+
+  private async upsertPaymentMethodFromToken(proId: string, tokenDetails: Record<string, any>) {
+    const token = String(tokenDetails.id || tokenDetails.token || '').trim();
+    if (!token) {
+      throw new BadRequestException('Moyasar token response did not include a token id.');
+    }
+
+    const status = String(tokenDetails.status || '').toLowerCase();
+    if (status && status !== 'active') {
+      throw new BadRequestException('Moyasar token is not active.');
+    }
+
+    return this.upsertPaymentMethodRecord(proId, {
+      token,
+      brand: tokenDetails.brand || tokenDetails.company || 'Card',
+      last4: tokenDetails.last_four || tokenDetails.last4 || this.last4(tokenDetails.number),
+      masked: tokenDetails.number || null,
+    });
+  }
+
+  private async upsertPaymentMethodRecord(
+    proId: string,
+    input: { token: string; brand: string; last4: string; masked?: string | null },
+  ) {
+    const token = String(input.token || '').trim();
+    if (!token) {
+      throw new BadRequestException('Payment method token is required.');
+    }
+
     const existing = await this.db
       .scan(PRO_PAYMENT_METHODS_TABLE, {
         filterExpression: '#pro_id = :pid AND #token = :token',
@@ -1029,32 +1099,60 @@ export class ProBillingService {
       .catch(() => ({ items: [] }));
 
     const now = Date.now();
+    const methods = await this.listPaymentMethods(proId);
+    const hasPreferredMethod = methods.some((method) => method.is_default);
+    const shouldBePreferred = Boolean(existing.items[0]?.is_default) || !hasPreferredMethod;
     const item = {
       method_id: existing.items[0]?.method_id || uuidv4(),
       pro_id: proId,
       provider: 'moyasar',
       moyasar_token: token,
-      card_brand: source.company || 'Card',
-      card_last4: this.last4(source.number),
-      card_masked: source.number || null,
+      card_brand: input.brand || 'Card',
+      card_last4: input.last4 || '',
+      card_masked: input.masked || null,
       status: 'ACTIVE',
-      is_default: true,
+      is_default: shouldBePreferred,
       created_at: existing.items[0]?.created_at || now,
       updated_at: now,
     };
 
+    if (shouldBePreferred) {
+      await this.clearPreferredPaymentMethods(proId, now, item.method_id);
+    }
+    await this.db.put(PRO_PAYMENT_METHODS_TABLE, item);
+    return item;
+  }
+
+  private async clearPreferredPaymentMethods(proId: string, now = Date.now(), exceptMethodId?: string) {
     const methods = await this.listPaymentMethods(proId);
     await Promise.all(
-      methods.map((method) =>
-        this.db
-          .update(PRO_PAYMENT_METHODS_TABLE, { method_id: method.method_id }, {
-            is_default: false,
-            updated_at: now,
-          })
-          .catch(() => null),
-      ),
+      methods
+        .filter((method) => method.method_id !== exceptMethodId)
+        .map((method) =>
+          this.db
+            .update(PRO_PAYMENT_METHODS_TABLE, { method_id: method.method_id }, {
+              is_default: false,
+              updated_at: now,
+            })
+            .catch(() => null),
+        ),
     );
-    await this.db.put(PRO_PAYMENT_METHODS_TABLE, item);
+  }
+
+  private async resolveStoredPaymentMethod(proId: string, paymentMethodId?: string) {
+    const normalizedMethodId = String(paymentMethodId || '').trim();
+    if (normalizedMethodId) {
+      const method = (await this.db.get(PRO_PAYMENT_METHODS_TABLE, { method_id: normalizedMethodId })) as any;
+      if (!method || method.pro_id !== proId || method.status === 'DELETED') {
+        throw new NotFoundException('Payment method not found');
+      }
+      return method;
+    }
+
+    const methods = await this.listPaymentMethods(proId);
+    const method = methods.find((item) => item.is_default) || methods[0];
+    if (!method) return null;
+    return this.db.get(PRO_PAYMENT_METHODS_TABLE, { method_id: method.method_id }) as Promise<any>;
   }
 
   private async createMoyasarInvoice(input: {
@@ -1119,6 +1217,12 @@ export class ProBillingService {
     });
   }
 
+  private async fetchMoyasarToken(token: string) {
+    return this.moyasarRequest(`/tokens/${encodeURIComponent(token)}`, {
+      method: 'GET',
+    });
+  }
+
   private async moyasarRequest(path: string, options: { method: string; body?: Record<string, any> }) {
     const secretKey = this.config.get<string>('MOYASAR_SECRET_KEY')?.trim();
     if (!secretKey) {
@@ -1154,6 +1258,22 @@ export class ProBillingService {
       hosted_invoice_url: invoice.hosted_invoice_url || invoice.url || null,
       moyasar_invoice_id: invoice.moyasar_invoice_id || null,
       moyasar_payment_id: invoice.moyasar_payment_id || null,
+    };
+  }
+
+  private normalizePaymentMethod(method: Record<string, any>): any {
+    return {
+      id: method.method_id,
+      method_id: method.method_id,
+      provider: 'moyasar',
+      is_default: Boolean(method.is_default),
+      is_preferred: Boolean(method.is_default),
+      card: {
+        brand: method.card_brand || 'Card',
+        last4: method.card_last4 || '',
+      },
+      created_at: method.created_at,
+      updated_at: method.updated_at,
     };
   }
 
@@ -1203,6 +1323,10 @@ export class ProBillingService {
           }))
         : undefined,
     };
+  }
+
+  private getPaymentActionUrl(payment?: Record<string, any> | null) {
+    return payment?.source?.transaction_url || payment?.transaction_url || payment?.url || null;
   }
 
   private backendUrl(path: string) {

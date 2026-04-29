@@ -27,7 +27,9 @@ type PaymentMethodKey = 'creditcard' | 'applepay' | 'samsungpay' | 'stcpay';
 const MOYASAR_FORM_JS = 'https://cdn.moyasar.com/mpf/1.14.0/moyasar.js';
 const MOYASAR_FORM_CSS = 'https://cdn.moyasar.com/mpf/1.14.0/moyasar.css';
 const MOYASAR_FORM_ID = 'moyasar-credit-top-up-form';
-const TOP_UP_OPTIONS = [20, 50, 100, 250, 500];
+const TOP_UP_OPTIONS = [100, 250, 500, 20, 50];
+const NEW_PAYMENT_METHOD_ID = 'new';
+const MOYASAR_TOKENS_URL = 'https://api.moyasar.com/v1/tokens';
 const METHOD_LABELS: Record<PaymentMethodKey, string> = {
   creditcard: 'Card',
   applepay: 'Apple Pay',
@@ -66,8 +68,10 @@ export default function ProBillingPage() {
   const [actionLoading, setActionLoading] = useState(false);
   const [showTopUp, setShowTopUp] = useState(false);
   const [showAutoRecharge, setShowAutoRecharge] = useState(false);
-  const [topUpSar, setTopUpSar] = useState(20);
+  const [showAddMethod, setShowAddMethod] = useState(false);
+  const [topUpSar, setTopUpSar] = useState(100);
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethodKey>('creditcard');
+  const [selectedSavedMethodId, setSelectedSavedMethodId] = useState<string>(NEW_PAYMENT_METHOD_ID);
   const [activeInvoice, setActiveInvoice] = useState<any | null>(null);
   const [moyasarReady, setMoyasarReady] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -148,8 +152,15 @@ export default function ProBillingPage() {
 
     const existing = document.querySelector<HTMLScriptElement>(`script[src="${MOYASAR_FORM_JS}"]`);
     if (existing) {
+      const startedAt = Date.now();
+      const timer = window.setInterval(() => {
+        if (window.Moyasar || Date.now() - startedAt > 8000) {
+          window.clearInterval(timer);
+          setMoyasarReady(Boolean(window.Moyasar));
+        }
+      }, 100);
       existing.addEventListener('load', () => setMoyasarReady(true), { once: true });
-      return;
+      return () => window.clearInterval(timer);
     }
 
     const script = document.createElement('script');
@@ -177,6 +188,21 @@ export default function ProBillingPage() {
   const creditInvoices = invoices.filter((invoice) =>
     ['CREDIT_TOP_UP', 'AUTO_RECHARGE'].includes(String(invoice.billing_purpose || '')),
   );
+
+  useEffect(() => {
+    if (paymentMethods.length === 0) {
+      setSelectedSavedMethodId(NEW_PAYMENT_METHOD_ID);
+      return;
+    }
+
+    if (selectedSavedMethodId === NEW_PAYMENT_METHOD_ID) return;
+
+    const selectedExists = paymentMethods.some((method) => (method.method_id || method.id) === selectedSavedMethodId);
+    if (!selectedExists) {
+      const preferred = paymentMethods.find((method) => method.is_default || method.is_preferred) || paymentMethods[0];
+      setSelectedSavedMethodId(preferred.method_id || preferred.id || NEW_PAYMENT_METHOD_ID);
+    }
+  }, [paymentMethods, selectedSavedMethodId]);
 
   const renderMoyasarForm = useCallback(
     (invoice: any) => {
@@ -217,17 +243,29 @@ export default function ProBillingPage() {
     [config, publishableKey, selectedMethod],
   );
 
-  useEffect(() => {
-    if (!activeInvoice || !moyasarReady || !publishableKey) return;
-    renderMoyasarForm(activeInvoice);
-  }, [activeInvoice, moyasarReady, publishableKey, renderMoyasarForm]);
-
   async function prepareTopUp() {
     try {
       setActionLoading(true);
       setError(null);
       setNotice(null);
       const amountHalalas = Math.round(Number(topUpSar || 0) * 100);
+      if (selectedSavedMethodId !== NEW_PAYMENT_METHOD_ID) {
+        const result = await apiClient.rechargeCreditsWithDefaultMethod(amountHalalas, selectedSavedMethodId);
+        if (result?.action_url) {
+          window.location.href = result.action_url;
+          return;
+        }
+        if (result?.payment_status !== 'PAID') {
+          setNotice('Payment started. Your credits will update after Moyasar confirms the charge.');
+        } else {
+          setNotice('Credits added to your balance.');
+        }
+        setShowTopUp(false);
+        setActiveInvoice(null);
+        await load();
+        return;
+      }
+
       const result = await apiClient.prepareCreditTopUp(amountHalalas);
       setActiveInvoice(result?.invoice || result);
     } catch (err: any) {
@@ -256,6 +294,22 @@ export default function ProBillingPage() {
     }
   }
 
+  async function savePaymentMethod(token: string) {
+    try {
+      setActionLoading(true);
+      setError(null);
+      setNotice(null);
+      await apiClient.savePaymentMethodToken(token);
+      setNotice('Payment method saved.');
+      setShowAddMethod(false);
+      await load();
+    } catch (err: any) {
+      setError(err?.message || 'Unable to save payment method.');
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
   async function setDefault(methodId: string) {
     try {
       setActionLoading(true);
@@ -278,6 +332,15 @@ export default function ProBillingPage() {
     } finally {
       setActionLoading(false);
     }
+  }
+
+  function openTopUp() {
+    const preferred = paymentMethods.find((method) => method.is_default || method.is_preferred) || paymentMethods[0];
+    setTopUpSar(100);
+    setSelectedSavedMethodId(preferred?.method_id || preferred?.id || NEW_PAYMENT_METHOD_ID);
+    setSelectedMethod('creditcard');
+    setActiveInvoice(null);
+    setShowTopUp(true);
   }
 
   return (
@@ -326,7 +389,7 @@ export default function ProBillingPage() {
                     creditBalance={creditBalance}
                     defaultMethod={defaultMethod}
                     onAutoRecharge={() => setShowAutoRecharge(true)}
-                    onTopUp={() => setShowTopUp(true)}
+                    onTopUp={openTopUp}
                     onView={(tab) => setActiveTab(tab)}
                   />
                 ) : null}
@@ -334,10 +397,7 @@ export default function ProBillingPage() {
                 {activeTab === 'payment-methods' ? (
                   <PaymentMethodsTab
                     methods={paymentMethods}
-                    onAdd={() => {
-                      setTopUpSar(20);
-                      setShowTopUp(true);
-                    }}
+                    onAdd={() => setShowAddMethod(true)}
                     onDefault={setDefault}
                     onRemove={removeMethod}
                     actionLoading={actionLoading}
@@ -368,9 +428,28 @@ export default function ProBillingPage() {
             setActiveInvoice(null);
           }}
           onPrepare={() => void prepareTopUp()}
-          onSelectedMethod={setSelectedMethod}
+          onRenderForm={renderMoyasarForm}
+          onSelectedMethod={(method) => {
+            setSelectedMethod(method);
+            setActiveInvoice(null);
+          }}
+          onSavedMethod={(methodId) => {
+            setSelectedSavedMethodId(methodId);
+            setActiveInvoice(null);
+          }}
+          paymentMethods={paymentMethods}
           selectedMethod={selectedMethod}
+          selectedSavedMethodId={selectedSavedMethodId}
           publishableKey={publishableKey}
+        />
+      ) : null}
+
+      {showAddMethod ? (
+        <AddPaymentMethodDialog
+          actionLoading={actionLoading}
+          publishableKey={publishableKey}
+          onClose={() => setShowAddMethod(false)}
+          onSave={(token) => void savePaymentMethod(token)}
         />
       ) : null}
 
@@ -485,8 +564,12 @@ function TopUpDialog({
   onAmount,
   onClose,
   onPrepare,
+  onRenderForm,
   onSelectedMethod,
+  onSavedMethod,
+  paymentMethods,
   selectedMethod,
+  selectedSavedMethodId,
   publishableKey,
 }: {
   activeInvoice: any;
@@ -497,10 +580,21 @@ function TopUpDialog({
   onAmount: (amount: number) => void;
   onClose: () => void;
   onPrepare: () => void;
+  onRenderForm: (invoice: any) => void;
   onSelectedMethod: (method: PaymentMethodKey) => void;
+  onSavedMethod: (methodId: string) => void;
+  paymentMethods: any[];
   selectedMethod: PaymentMethodKey;
+  selectedSavedMethodId: string;
   publishableKey: string | null;
 }) {
+  const usingSavedMethod = selectedSavedMethodId !== NEW_PAYMENT_METHOD_ID;
+
+  useEffect(() => {
+    if (!activeInvoice || !moyasarReady || !publishableKey || usingSavedMethod) return;
+    onRenderForm(activeInvoice);
+  }, [activeInvoice, moyasarReady, onRenderForm, publishableKey, usingSavedMethod]);
+
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center bg-slate-950/30 px-4 py-10">
       <div className="w-full max-w-xl rounded-lg bg-white shadow-xl">
@@ -542,6 +636,57 @@ function TopUpDialog({
 
           <div>
             <p className="text-sm font-medium text-slate-700">Payment method</p>
+            {paymentMethods.length > 0 ? (
+              <div className="mt-2 space-y-2">
+                {paymentMethods.map((method) => {
+                  const methodId = method.method_id || method.id;
+                  return (
+                    <label
+                      key={methodId}
+                      className={`flex cursor-pointer items-center justify-between gap-3 rounded-lg border px-3 py-2 ${
+                        selectedSavedMethodId === methodId
+                          ? 'border-slate-950 bg-slate-50'
+                          : 'border-slate-200 bg-white hover:bg-slate-50'
+                      }`}
+                    >
+                      <span className="flex min-w-0 items-center gap-3">
+                        <input
+                          type="radio"
+                          name="top-up-payment-method"
+                          checked={selectedSavedMethodId === methodId}
+                          onChange={() => {
+                            onSavedMethod(methodId);
+                          }}
+                        />
+                        <span className="min-w-0">
+                          <span className="block text-sm font-semibold text-slate-950">
+                            {method.card?.brand || 'Card'} ending {method.card?.last4 || '----'}
+                          </span>
+                          <span className="block text-xs text-slate-500">
+                            {method.is_default || method.is_preferred ? 'Preferred for auto recharge' : 'Saved card'}
+                          </span>
+                        </span>
+                      </span>
+                    </label>
+                  );
+                })}
+                <label
+                  className={`flex cursor-pointer items-center gap-3 rounded-lg border px-3 py-2 ${
+                    selectedSavedMethodId === NEW_PAYMENT_METHOD_ID
+                      ? 'border-slate-950 bg-slate-50'
+                      : 'border-slate-200 bg-white hover:bg-slate-50'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="top-up-payment-method"
+                    checked={selectedSavedMethodId === NEW_PAYMENT_METHOD_ID}
+                    onChange={() => onSavedMethod(NEW_PAYMENT_METHOD_ID)}
+                  />
+                  <span className="text-sm font-semibold text-slate-950">Use a new payment method</span>
+                </label>
+              </div>
+            ) : null}
             <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
               {(Object.keys(METHOD_LABELS) as PaymentMethodKey[]).map((method) => {
                 const enabled = method === 'creditcard' || Boolean(methods?.[method]);
@@ -549,10 +694,13 @@ function TopUpDialog({
                   <button
                     key={method}
                     type="button"
-                    disabled={!enabled}
-                    onClick={() => onSelectedMethod(method)}
+                    disabled={!enabled || usingSavedMethod}
+                    onClick={() => {
+                      onSavedMethod(NEW_PAYMENT_METHOD_ID);
+                      onSelectedMethod(method);
+                    }}
                     className={`rounded-lg border px-3 py-2 text-sm font-semibold transition ${
-                      selectedMethod === method
+                      selectedMethod === method && !usingSavedMethod
                         ? 'border-slate-950 bg-slate-950 text-white'
                         : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
                     } disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-300`}
@@ -579,6 +727,110 @@ function TopUpDialog({
           ) : (
             <div id={MOYASAR_FORM_ID} className="moyasar-embedded-form min-h-[260px]" />
           )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AddPaymentMethodDialog({
+  actionLoading,
+  publishableKey,
+  onClose,
+  onSave,
+}: {
+  actionLoading: boolean;
+  publishableKey: string | null;
+  onClose: () => void;
+  onSave: (token: string) => void;
+}) {
+  const [form, setForm] = useState({
+    name: '',
+    number: '',
+    month: '',
+    year: '',
+    cvc: '',
+  });
+  const [localError, setLocalError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  async function createToken() {
+    if (!publishableKey) {
+      setLocalError('Moyasar publishable key is not configured.');
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+      setLocalError(null);
+      const response = await fetch(MOYASAR_TOKENS_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          publishable_api_key: publishableKey,
+          save_only: true,
+          name: form.name.trim(),
+          number: form.number.replace(/\s+/g, ''),
+          month: form.month.padStart(2, '0'),
+          year: form.year,
+          cvc: form.cvc,
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data?.message || data?.errors || 'Unable to tokenize this card.');
+      }
+
+      const token = data?.id || data?.token;
+      if (!token) throw new Error('Moyasar did not return a card token.');
+      onSave(token);
+    } catch (err: any) {
+      setLocalError(err?.message || 'Unable to save payment method.');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  const disabled =
+    actionLoading ||
+    submitting ||
+    !form.name.trim() ||
+    form.number.replace(/\s+/g, '').length < 12 ||
+    !form.month ||
+    !form.year ||
+    form.cvc.length < 3;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-start justify-center bg-slate-950/30 px-4 py-10">
+      <div className="w-full max-w-md rounded-lg bg-white shadow-xl">
+        <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+          <h2 className="text-base font-semibold text-slate-950">Add payment method</h2>
+          <button className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100" onClick={onClose} aria-label="Close">
+            <IconX className="h-5 w-5" />
+          </button>
+        </div>
+        <div className="space-y-4 p-5">
+          {localError ? <Alert tone="red">{localError}</Alert> : null}
+          <TextField label="Cardholder name" value={form.name} onChange={(value) => setForm((prev) => ({ ...prev, name: value }))} />
+          <TextField
+            label="Card number"
+            value={form.number}
+            inputMode="numeric"
+            autoComplete="cc-number"
+            onChange={(value) => setForm((prev) => ({ ...prev, number: value }))}
+          />
+          <div className="grid grid-cols-3 gap-3">
+            <TextField label="MM" value={form.month} inputMode="numeric" autoComplete="cc-exp-month" onChange={(value) => setForm((prev) => ({ ...prev, month: value.slice(0, 2) }))} />
+            <TextField label="YYYY" value={form.year} inputMode="numeric" autoComplete="cc-exp-year" onChange={(value) => setForm((prev) => ({ ...prev, year: value.slice(0, 4) }))} />
+            <TextField label="CVC" value={form.cvc} inputMode="numeric" autoComplete="cc-csc" onChange={(value) => setForm((prev) => ({ ...prev, cvc: value.slice(0, 4) }))} />
+          </div>
+          <button
+            className="w-full rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={disabled}
+            onClick={() => void createToken()}
+          >
+            {submitting || actionLoading ? 'Saving...' : 'Save payment method'}
+          </button>
         </div>
       </div>
     </div>
@@ -638,14 +890,14 @@ function PaymentMethodsTab({ methods, onAdd, onDefault, onRemove, actionLoading 
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-lg font-semibold text-slate-950">Payment methods</h2>
-          <p className="mt-1 text-sm text-slate-500">Saved Moyasar tokens are used for auto recharge.</p>
+          <p className="mt-1 text-sm text-slate-500">Choose a preferred saved card for top-ups and auto recharge.</p>
         </div>
         <button className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800" onClick={onAdd}>
           Add method
         </button>
       </div>
       {methods.length === 0 ? (
-        <EmptyState icon={<IconCreditCard />} title="No payment method" detail="Top up with card and Moyasar will return a saved token when available." />
+        <EmptyState icon={<IconCreditCard />} title="No payment method" detail="Add a card to use it for top-ups and auto recharge." />
       ) : (
         <div className="divide-y divide-slate-100 rounded-lg border border-slate-200">
           {methods.map((method: any) => {
@@ -660,13 +912,13 @@ function PaymentMethodsTab({ methods, onAdd, onDefault, onRemove, actionLoading 
                     <p className="text-sm font-semibold text-slate-950">
                       {method.card?.brand || 'Card'} ending {method.card?.last4 || '----'}
                     </p>
-                    <p className="text-xs text-slate-500">{method.is_default ? 'Default' : `Added ${formatDate(method.created_at)}`}</p>
+                    <p className="text-xs text-slate-500">{method.is_default || method.is_preferred ? 'Preferred for auto recharge' : `Added ${formatDate(method.created_at)}`}</p>
                   </div>
                 </div>
                 <div className="flex gap-2">
-                  {!method.is_default ? (
+                  {!method.is_default && !method.is_preferred ? (
                     <button className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-semibold text-slate-700" disabled={actionLoading} onClick={() => onDefault(methodId)}>
-                      Set default
+                      Make preferred
                     </button>
                   ) : null}
                   <button className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-semibold text-slate-500" disabled={actionLoading} onClick={() => onRemove(methodId)}>
@@ -766,6 +1018,33 @@ function NumberField({ label, value, onChange }: { label: string; value: number;
         <span className="text-sm font-semibold text-slate-500">SAR</span>
         <input className="ml-3 w-full border-0 text-sm font-semibold outline-none" min={20} max={5000} type="number" value={value} onChange={(event) => onChange(Number(event.target.value))} />
       </div>
+    </label>
+  );
+}
+
+function TextField({
+  label,
+  value,
+  onChange,
+  inputMode,
+  autoComplete,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  inputMode?: React.HTMLAttributes<HTMLInputElement>['inputMode'];
+  autoComplete?: string;
+}) {
+  return (
+    <label className="block">
+      <span className="text-sm font-medium text-slate-700">{label}</span>
+      <input
+        className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-950 outline-none focus:border-slate-500"
+        value={value}
+        inputMode={inputMode}
+        autoComplete={autoComplete}
+        onChange={(event) => onChange(event.target.value)}
+      />
     </label>
   );
 }

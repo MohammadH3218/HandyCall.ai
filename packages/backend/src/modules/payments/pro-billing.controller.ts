@@ -63,9 +63,10 @@ export class ProBillingController {
     @Req() req: Request,
     @CurrentUser() user: MarketplaceAuthContext,
     @Body('amount_halalas') amountHalalas: number,
+    @Body('payment_method_id') paymentMethodId?: string,
   ) {
     this.assertPro(user);
-    return this.proBilling.rechargeCreditsWithDefaultMethod(req as Request, user.user_id, amountHalalas);
+    return this.proBilling.rechargeCreditsWithDefaultMethod(req as Request, user.user_id, amountHalalas, paymentMethodId);
   }
 
   @RateLimitPolicy('USER_WRITE')
@@ -130,6 +131,18 @@ export class ProBillingController {
   ) {
     this.assertPro(user);
     return this.proBilling.setDefaultPaymentMethod(user.user_id, paymentMethodId);
+  }
+
+  @RateLimitPolicy('USER_WRITE')
+  @Post('payment-methods/token')
+  @HttpCode(HttpStatus.OK)
+  savePaymentMethodToken(
+    @Req() req: Request,
+    @CurrentUser() user: MarketplaceAuthContext,
+    @Body('token') token: string,
+  ) {
+    this.assertPro(user);
+    return this.proBilling.savePaymentMethodToken(req as Request, user.user_id, token);
   }
 
   @RateLimitPolicy('USER_WRITE')
