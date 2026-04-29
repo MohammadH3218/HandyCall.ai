@@ -53,10 +53,7 @@ export default function ForProsPage() {
         <section className="border-b border-slate-100 bg-white px-4 pb-24 pt-24">
           <div className="mx-auto grid max-w-6xl gap-12 lg:grid-cols-[1.15fr_0.85fr] lg:items-center">
             <div>
-              <span className="inline-flex rounded-full bg-emerald-50 px-4 py-1.5 text-xs font-bold uppercase tracking-widest text-emerald-700">
-                For Service Professionals
-              </span>
-              <h1 className="mt-5 text-5xl font-extrabold tracking-tight text-slate-900 sm:text-6xl">
+              <h1 className="text-5xl font-extrabold tracking-tight text-slate-900 sm:text-6xl">
                 Turn Riyadh search demand into booked work.
               </h1>
               <p className="mt-5 max-w-2xl text-lg leading-relaxed text-slate-500">
@@ -97,10 +94,7 @@ export default function ForProsPage() {
         <section className="px-4 py-24">
           <div className="mx-auto max-w-6xl">
             <div className="mb-12 text-center">
-              <span className="inline-flex rounded-full bg-emerald-50 px-4 py-1.5 text-xs font-bold uppercase tracking-widest text-emerald-700">
-                Why Pros Join
-              </span>
-              <h2 className="mt-4 text-4xl font-extrabold tracking-tight text-slate-900">
+              <h2 className="text-4xl font-extrabold tracking-tight text-slate-900">
                 Built for businesses that want better local visibility
               </h2>
             </div>
@@ -137,10 +131,7 @@ export default function ForProsPage() {
         <section className="border-t border-slate-100 bg-slate-50 px-4 py-24">
           <div className="mx-auto max-w-6xl">
             <div className="mb-14 text-center">
-              <span className="inline-flex rounded-full bg-emerald-50 px-4 py-1.5 text-xs font-bold uppercase tracking-widest text-emerald-700">
-                Direct from customers
-              </span>
-              <h2 className="mt-4 text-4xl font-extrabold tracking-tight text-slate-900">
+              <h2 className="text-4xl font-extrabold tracking-tight text-slate-900">
                 Customers can send you job requests directly
               </h2>
               <p className="mt-3 max-w-2xl mx-auto text-slate-500 text-base leading-relaxed">
@@ -180,7 +171,7 @@ export default function ForProsPage() {
               </div>
             </div>
 
-            <div className="mt-10 rounded-3xl border border-emerald-200 bg-emerald-50 p-8 text-center">
+            <div className="mt-10 rounded-3xl border border-slate-200 bg-slate-50 p-8 text-center">
               <p className="text-lg font-bold text-slate-900">Only pay for the leads you want</p>
               <p className="mt-2 text-sm leading-relaxed text-slate-500 max-w-xl mx-auto">
                 There&apos;s no monthly subscription fee. A lead fee is charged only when you choose to accept a customer job request. You are always in control.
@@ -198,10 +189,7 @@ export default function ForProsPage() {
         {/* Simple pricing model */}
         <section id="pricing" className="border-t border-slate-100 bg-white px-4 py-24">
           <div className="mx-auto max-w-3xl text-center">
-            <span className="inline-flex rounded-full bg-emerald-50 px-4 py-1.5 text-xs font-bold uppercase tracking-widest text-emerald-700">
-              Pricing
-            </span>
-            <h2 className="mt-4 text-4xl font-extrabold tracking-tight text-slate-900">
+            <h2 className="text-4xl font-extrabold tracking-tight text-slate-900">
               Free to join. Pay only when you win.
             </h2>
             <p className="mt-4 text-base leading-relaxed text-slate-500">

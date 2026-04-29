@@ -77,8 +77,7 @@ export default function RegisterPage() {
         {/* Left panel — benefits */}
         <div className="hidden lg:flex lg:w-1/2 flex-col justify-center bg-slate-50 border-r border-slate-100 px-16 py-20">
           <div>
-            <span className="text-xs font-bold uppercase tracking-widest text-emerald-700">Join as a Pro</span>
-            <h2 className="mt-3 text-3xl font-extrabold text-slate-900 leading-tight">
+            <h2 className="text-3xl font-extrabold text-slate-900 leading-tight">
               Start reaching more customers<br />in your local market.
             </h2>
             <p className="mt-4 text-slate-500 text-base leading-relaxed max-w-sm">

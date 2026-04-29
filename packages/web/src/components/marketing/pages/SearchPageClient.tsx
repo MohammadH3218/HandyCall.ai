@@ -9,7 +9,6 @@ import {
   IconArrowRight,
   IconBriefcase,
   IconCheck,
-  IconClipboardText,
   IconLoader2,
   IconMapPin,
   IconSearch,
@@ -568,8 +567,7 @@ export function SearchPageClient() {
 
       <main className="mx-auto w-full max-w-7xl px-4 py-12 lg:py-16">
         <div className="mb-10 max-w-3xl">
-          <p className="text-xs font-bold uppercase tracking-widest text-emerald-600">Find Services</p>
-          <h1 className="mt-3 text-4xl font-extrabold tracking-tight text-slate-900">Search Riyadh services</h1>
+          <h1 className="text-4xl font-extrabold tracking-tight text-slate-900">Search Riyadh services</h1>
           <p className="mt-3 text-lg leading-8 text-slate-500">
             Describe the job, narrow the results, and compare real marketplace profiles before you reach out.
           </p>
@@ -582,17 +580,12 @@ export function SearchPageClient() {
           initialLocation={districtParam}
         />
 
-        <div className="mb-10 mt-4 flex flex-col gap-3 rounded-2xl border border-emerald-100 bg-emerald-50/70 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
-          <div className="flex items-start gap-3">
-            <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-emerald-600 shadow-sm">
-              <IconClipboardText className="h-5 w-5" stroke={1.8} />
-            </div>
-            <div>
-              <p className="text-sm font-semibold text-slate-900">Can&apos;t find the right pro?</p>
-              <p className="mt-0.5 text-sm leading-6 text-slate-600">
-                Post a custom job request and available Riyadh pros can claim it and message you directly.
-              </p>
-            </div>
+        <div className="mb-10 mt-4 flex flex-col gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+          <div>
+            <p className="text-sm font-semibold text-slate-900">Can&apos;t find the right pro?</p>
+            <p className="mt-0.5 text-sm leading-6 text-slate-500">
+              Post a custom job request and available Riyadh pros can claim it and message you directly.
+            </p>
           </div>
           <Link
             href="/customer/dashboard/post-job"
@@ -725,8 +718,7 @@ export function SearchPageClient() {
             <section className="min-w-0">
               <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <p className="text-xs font-bold uppercase tracking-widest text-emerald-700">Search results</p>
-                  <h2 className="mt-1 text-2xl font-extrabold text-slate-900">
+                  <h2 className="text-2xl font-extrabold text-slate-900">
                     {filteredResults.length} {filteredResults.length === 1 ? 'pro' : 'pros'} for “{query}”
                   </h2>
                   {districtParam ? (

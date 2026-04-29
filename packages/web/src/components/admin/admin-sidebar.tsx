@@ -8,7 +8,6 @@ import {
   IconCalendarEvent,
   IconHome2,
   IconMessageCircleStar,
-  IconShieldCheck,
   IconUsers,
   IconUserCheck,
   IconLogout,
@@ -50,23 +49,11 @@ export function AdminSidebar({ pathname, onNavigate, onLogout, email }: AdminSid
         </div>
       </div>
 
-      <div className="px-4 pt-4">
-        <div className="rounded-2xl border border-emerald-100 bg-emerald-50/70 px-4 py-3">
-          <div className="flex items-center gap-3">
-            <div className="rounded-xl bg-emerald-600 p-2 text-white">
-              <IconShieldCheck className="h-4 w-4" stroke={1.7} />
-            </div>
-            <div className="min-w-0">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">
-                Access
-              </p>
-              <p className="truncate text-sm font-medium text-emerald-900">
-                {email || 'Platform administrator'}
-              </p>
-            </div>
-          </div>
+      {email ? (
+        <div className="border-b border-border/80 px-5 py-3">
+          <p className="truncate text-xs text-muted-foreground">{email}</p>
         </div>
-      </div>
+      ) : null}
 
       <nav className="flex-1 space-y-1 px-3 py-5">
         {navItems.map((item) => {

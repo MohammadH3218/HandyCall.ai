@@ -62,8 +62,7 @@ export default function OnboardingBillingPage() {
           <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-100">
             <IconCoin className="h-8 w-8 text-emerald-600" stroke={1.8} />
           </div>
-          <p className="text-xs font-bold uppercase tracking-widest text-emerald-600">Final step</p>
-          <h1 className="mt-2 text-3xl font-extrabold tracking-tight text-slate-900">
+          <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">
             How lead fees work
           </h1>
           <p className="mt-3 text-base leading-relaxed text-slate-500">

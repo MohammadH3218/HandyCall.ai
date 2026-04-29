@@ -56,13 +56,10 @@ export default function ContactPage() {
       <SiteHeader />
 
       <main>
-        <section className="border-b border-slate-100 bg-gradient-to-b from-white to-slate-50/70">
+        <section className="border-b border-slate-100 bg-white">
           <div className="mx-auto max-w-6xl px-4 py-16 lg:py-20">
             <div className="max-w-3xl">
-              <span className="inline-flex rounded-full bg-emerald-50 px-4 py-1.5 text-xs font-bold uppercase tracking-widest text-emerald-700">
-                Contact HandyCall
-              </span>
-              <h1 className="mt-5 text-4xl font-extrabold tracking-tight text-slate-950 md:text-5xl">
+              <h1 className="text-4xl font-extrabold tracking-tight text-slate-950 md:text-5xl">
                 The right inbox for the right kind of help.
               </h1>
               <p className="mt-4 max-w-2xl text-lg leading-8 text-slate-500">
@@ -124,7 +121,7 @@ export default function ContactPage() {
             })}
           </div>
 
-          <div className="mt-10 rounded-3xl border border-emerald-100 bg-emerald-50/70 p-6">
+          <div className="mt-10 rounded-3xl border border-slate-200 bg-slate-50 p-6">
             <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
               <div>
                 <p className="text-sm font-bold text-slate-900">
