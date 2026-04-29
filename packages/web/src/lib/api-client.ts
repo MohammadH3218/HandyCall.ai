@@ -776,6 +776,13 @@ class ApiClient {
     return response.data ?? response;
   }
 
+  async verifyBillingPayment(paymentId: string): Promise<any> {
+    const response = await this.request<any>(`/billing/payments/${paymentId}/verify`, {
+      method: 'POST',
+    });
+    return response.data ?? response;
+  }
+
   async updatePaymentMethod(paymentMethodId: string): Promise<any> {
     const response = await this.request<any>('/billing/payment-method', {
       method: 'PUT',

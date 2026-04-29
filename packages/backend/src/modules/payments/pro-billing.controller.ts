@@ -60,6 +60,18 @@ export class ProBillingController {
   }
 
   @RateLimitPolicy('USER_WRITE')
+  @Post('payments/:payment_id/verify')
+  @HttpCode(HttpStatus.OK)
+  verifyPayment(
+    @Req() req: Request,
+    @CurrentUser() user: MarketplaceAuthContext,
+    @Param('payment_id') paymentId: string,
+  ) {
+    this.assertPro(user);
+    return this.proBilling.verifyProPayment(req as Request, user.user_id, paymentId);
+  }
+
+  @RateLimitPolicy('USER_WRITE')
   @Get('payment-methods')
   async getPaymentMethods(@CurrentUser() user: MarketplaceAuthContext) {
     this.assertPro(user);

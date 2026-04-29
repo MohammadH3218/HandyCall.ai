@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import {
   IconCalendarDollar,
@@ -25,6 +25,18 @@ type Invoice = {
   created_at?: number;
 };
 
+declare global {
+  interface Window {
+    Moyasar?: {
+      init: (config: Record<string, any>) => void;
+    };
+  }
+}
+
+const MOYASAR_FORM_JS = 'https://cdn.moyasar.com/mpf/1.14.0/moyasar.js';
+const MOYASAR_FORM_CSS = 'https://cdn.moyasar.com/mpf/1.14.0/moyasar.css';
+const MOYASAR_FORM_ID = 'moyasar-pro-billing-form';
+
 function formatSar(amount?: number) {
   const value = Number(amount || 0) / 100;
   return `SAR ${value.toFixed(2)}`;
@@ -43,19 +55,25 @@ export default function ProBillingManagementPage() {
   const [overview, setOverview] = useState<any | null>(null);
   const [paymentMethods, setPaymentMethods] = useState<any[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [publishableKey, setPublishableKey] = useState<string | null>(null);
+  const [activeInvoice, setActiveInvoice] = useState<Invoice | null>(null);
+  const [moyasarReady, setMoyasarReady] = useState(false);
+  const [formPreparing, setFormPreparing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const verifiedPaymentRef = useRef<string | null>(null);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
-      const [overviewResult, methodsResult, invoicesResult] = await Promise.allSettled([
+      const [overviewResult, methodsResult, invoicesResult, configResult] = await Promise.allSettled([
         apiClient.getMySubscription(),
         apiClient.getPaymentMethods(),
         apiClient.getBillingInvoices(),
+        apiClient.getBillingConfig(),
       ]);
 
       if (overviewResult.status === 'fulfilled') setOverview(overviewResult.value);
@@ -66,15 +84,62 @@ export default function ProBillingManagementPage() {
       if (invoicesResult.status === 'fulfilled') {
         setInvoices(Array.isArray(invoicesResult.value) ? invoicesResult.value : []);
       }
+      if (configResult.status === 'fulfilled') {
+        setPublishableKey(configResult.value?.publishable_key || null);
+      }
     } catch (err: any) {
       setError(err?.message || 'Failed to load billing details.');
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     void load();
+  }, [load]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const paymentId = params.get('id') || params.get('payment_id');
+    if (!paymentId || verifiedPaymentRef.current === paymentId) return;
+    verifiedPaymentRef.current = paymentId;
+
+    apiClient
+      .verifyBillingPayment(paymentId)
+      .then(() => {
+        setNotice('Payment received. Your billing balance is being updated.');
+        void load();
+        window.history.replaceState({}, '', window.location.pathname);
+      })
+      .catch((err: any) => {
+        setError(err?.message || 'Unable to verify Moyasar payment.');
+      });
+  }, [load]);
+
+  useEffect(() => {
+    if (document.querySelector(`link[href="${MOYASAR_FORM_CSS}"]`)) return;
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = MOYASAR_FORM_CSS;
+    document.head.appendChild(link);
+  }, []);
+
+  useEffect(() => {
+    if (window.Moyasar) {
+      setMoyasarReady(true);
+      return;
+    }
+    const existing = document.querySelector<HTMLScriptElement>(`script[src="${MOYASAR_FORM_JS}"]`);
+    if (existing) {
+      existing.addEventListener('load', () => setMoyasarReady(true), { once: true });
+      return;
+    }
+    const script = document.createElement('script');
+    script.src = MOYASAR_FORM_JS;
+    script.async = true;
+    script.onload = () => setMoyasarReady(true);
+    script.onerror = () => setError('Unable to load the secure Moyasar payment form.');
+    document.body.appendChild(script);
   }, []);
 
   const defaultPaymentMethod = useMemo(
@@ -86,22 +151,55 @@ export default function ProBillingManagementPage() {
   const cardLast4 = defaultPaymentMethod?.card?.last4;
   const balanceHalalas = Number(overview?.balance_halalas || 0);
 
-  async function createInvoice() {
+  const renderMoyasarForm = useCallback(
+    (invoice: Invoice) => {
+      const mount = document.getElementById(MOYASAR_FORM_ID);
+      if (!mount || !window.Moyasar || !publishableKey) return;
+
+      mount.innerHTML = '';
+      window.Moyasar.init({
+        element: `#${MOYASAR_FORM_ID}`,
+        amount: invoice.amount_due || invoice.total || balanceHalalas,
+        currency: invoice.currency || 'SAR',
+        description: 'HandyCall monthly lead-fee balance',
+        publishable_api_key: publishableKey,
+        callback_url: `${window.location.origin}/pro/dashboard/billing`,
+        methods: ['creditcard'],
+        fixed_width: false,
+        metadata: {
+          pro_billing_invoice_id: invoice.invoice_id,
+          purpose: 'pro_lead_fees',
+        },
+        invoice_id: (invoice as any).moyasar_invoice_id,
+        credit_card: {
+          save_card: true,
+        },
+      });
+    },
+    [balanceHalalas, publishableKey],
+  );
+
+  useEffect(() => {
+    if (!activeInvoice || !moyasarReady || !publishableKey) return;
+    renderMoyasarForm(activeInvoice);
+  }, [activeInvoice, moyasarReady, publishableKey, renderMoyasarForm]);
+
+  async function prepareInlinePayment() {
     try {
       setActionLoading(true);
+      setFormPreparing(true);
       setError(null);
       setNotice(null);
       const result = await apiClient.createCurrentBillingInvoice();
       const invoice = result?.invoice || result;
-      if (invoice?.hosted_invoice_url) {
-        window.open(invoice.hosted_invoice_url, '_blank', 'noopener,noreferrer');
-      }
-      setNotice(result?.reused ? 'Existing open Moyasar invoice opened.' : 'Moyasar invoice created.');
+      setActiveInvoice(invoice);
+      setNotice(result?.reused ? 'Secure payment form is ready.' : 'Moyasar invoice prepared.');
       await load();
     } catch (err: any) {
-      setError(err?.message || 'Unable to create Moyasar invoice.');
+      setError(err?.message || 'Unable to prepare Moyasar payment.');
     } finally {
       setActionLoading(false);
+      setFormPreparing(false);
     }
   }
 
@@ -189,19 +287,18 @@ export default function ProBillingManagementPage() {
               </p>
               <p className="mt-2 text-3xl font-bold text-slate-900">{formatSar(balanceHalalas)}</p>
               <p className="mt-1 text-sm text-slate-500">
-                Pay this balance with a secure Moyasar invoice link.
+                Pay this balance securely without leaving HandyCall.
               </p>
             </div>
 
             <div className="mt-5 flex flex-wrap gap-3">
               <button
                 type="button"
-                onClick={() => void createInvoice()}
+                onClick={() => void prepareInlinePayment()}
                 disabled={actionLoading || balanceHalalas < 100}
-                className="inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+                className="inline-flex items-center justify-center rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                <IconExternalLink className="h-4 w-4" stroke={1.8} />
-                {actionLoading ? 'Preparing...' : 'Pay with Moyasar'}
+                {actionLoading ? 'Preparing...' : activeInvoice ? 'Refresh payment form' : 'Pay now'}
               </button>
               <button
                 type="button"
@@ -217,6 +314,39 @@ export default function ProBillingManagementPage() {
               >
                 View lead fees
               </Link>
+            </div>
+
+            <div className="mt-5 rounded-lg border border-slate-200 bg-white p-4">
+              <div className="mb-4 flex items-start justify-between gap-4">
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-900">Secure card payment</h3>
+                  <p className="mt-1 text-sm leading-6 text-slate-500">
+                    Card details are sent directly to Moyasar. HandyCall only receives the payment
+                    result and masked card metadata.
+                  </p>
+                </div>
+                <IconShieldCheck className="h-5 w-5 shrink-0 text-emerald-600" stroke={1.7} />
+              </div>
+
+              {!publishableKey ? (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                  Moyasar publishable key is not configured.
+                </div>
+              ) : !activeInvoice ? (
+                <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center">
+                  <p className="text-sm font-semibold text-slate-900">Ready when you are</p>
+                  <p className="mx-auto mt-1 max-w-md text-sm leading-6 text-slate-500">
+                    Start payment to create this month&apos;s invoice and show the secure card form here.
+                  </p>
+                </div>
+              ) : formPreparing || !moyasarReady ? (
+                <div className="h-48 animate-pulse rounded-lg bg-slate-100" />
+              ) : (
+                <div
+                  id={MOYASAR_FORM_ID}
+                  className="moyasar-embedded-form min-h-[280px]"
+                />
+              )}
             </div>
           </section>
 
@@ -310,6 +440,43 @@ export default function ProBillingManagementPage() {
           )}
         </section>
       </div>
+
+      <style jsx global>{`
+        .moyasar-embedded-form .mysr-form {
+          width: 100% !important;
+          max-width: none !important;
+          padding: 0 !important;
+          box-shadow: none !important;
+          border: 0 !important;
+          background: transparent !important;
+        }
+
+        .moyasar-embedded-form .mysr-form input,
+        .moyasar-embedded-form .mysr-form button {
+          border-radius: 8px !important;
+          font-family: inherit !important;
+        }
+
+        .moyasar-embedded-form .mysr-form button[type='submit'],
+        .moyasar-embedded-form .mysr-form .mysr-submit {
+          background: #059669 !important;
+          border-color: #059669 !important;
+          box-shadow: none !important;
+          min-height: 44px !important;
+          font-weight: 700 !important;
+        }
+
+        .moyasar-embedded-form .mysr-form button[type='submit']:hover,
+        .moyasar-embedded-form .mysr-form .mysr-submit:hover {
+          background: #047857 !important;
+          border-color: #047857 !important;
+        }
+
+        .moyasar-embedded-form .mysr-form .mysr-form-footer,
+        .moyasar-embedded-form .mysr-form .mysr-powered-by {
+          color: #94a3b8 !important;
+        }
+      `}</style>
     </div>
   );
 }

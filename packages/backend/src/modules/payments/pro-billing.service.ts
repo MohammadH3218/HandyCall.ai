@@ -279,6 +279,52 @@ export class ProBillingService {
     return { invoice: this.normalizeInvoice(invoice), payment_status: payment.status };
   }
 
+  async verifyProPayment(request: RequestLike, proId: string, paymentId: string) {
+    const normalizedPaymentId = String(paymentId || '').trim();
+    if (!normalizedPaymentId) {
+      throw new BadRequestException('payment_id is required.');
+    }
+
+    const payment = await this.fetchMoyasarPayment(normalizedPaymentId);
+    const invoice = await this.findInvoiceForMoyasarObject(normalizedPaymentId, payment);
+    if (!invoice || invoice.pro_id !== proId) {
+      throw new NotFoundException('Payment invoice not found.');
+    }
+
+    const status = this.normalizeMoyasarStatus(payment.status);
+    const updates: Record<string, any> = {
+      status,
+      moyasar_payment_id: payment.id,
+      provider_payload: this.compactMoyasarInvoice(payment),
+      updated_at: Date.now(),
+    };
+    if (status === 'PAID') {
+      updates.amount_paid = invoice.amount_halalas;
+      updates.paid_at = Date.now();
+    }
+
+    await this.db.update(PRO_BILLING_INVOICES_TABLE, { invoice_id: invoice.invoice_id }, updates);
+    if (status === 'PAID') {
+      await this.markInvoicePaid({ ...invoice, ...updates }, payment);
+    }
+
+    await this.auditLogs.logFromRequest(request, {
+      category: 'PAYMENT',
+      severity: status === 'PAID' ? 'INFO' : 'WARN',
+      outcome: status === 'PAID' ? 'SUCCESS' : 'FAILURE',
+      action: 'billing.pro_payment_verified',
+      target_type: 'pro_billing_invoice',
+      target_id: invoice.invoice_id,
+      metadata: {
+        provider: 'moyasar',
+        payment_id: normalizedPaymentId,
+        status,
+      },
+    });
+
+    return { invoice: this.normalizeInvoice({ ...invoice, ...updates }), payment_status: status };
+  }
+
   async handleMoyasarWebhook(request: RequestLike, payload: Record<string, any>) {
     const configuredSecret = this.config.get<string>('PAYMENTS_WEBHOOK_SECRET')?.trim();
     const payloadSecret = String(payload.secret_token || '').trim();
@@ -526,6 +572,14 @@ export class ProBillingService {
     if (byInvoice.items[0]) return byInvoice.items[0] as any;
 
     const invoiceId = String(object.invoice_id || '').trim();
+    const metadataInvoiceId = String(object.metadata?.pro_billing_invoice_id || '').trim();
+    if (metadataInvoiceId) {
+      const localInvoice = await this.db
+        .get(PRO_BILLING_INVOICES_TABLE, { invoice_id: metadataInvoiceId })
+        .catch(() => null);
+      if (localInvoice) return localInvoice as any;
+    }
+
     if (!invoiceId) return null;
     const byPaymentInvoice = await this.db
       .scan(PRO_BILLING_INVOICES_TABLE, {
@@ -660,6 +714,12 @@ export class ProBillingService {
     return this.moyasarRequest(`/payments/${encodeURIComponent(paymentId)}/refund`, {
       method: 'POST',
       body: { amount },
+    });
+  }
+
+  private async fetchMoyasarPayment(paymentId: string) {
+    return this.moyasarRequest(`/payments/${encodeURIComponent(paymentId)}`, {
+      method: 'GET',
     });
   }
 

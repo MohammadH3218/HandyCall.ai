@@ -18,9 +18,11 @@ Never commit live or test key values.
 1. Lead-fee transactions are recorded when a Pro claims an open job or accepts a direct customer request.
 2. The Pro billing dashboard totals unpaid lead fees into the current balance.
 3. `POST /billing/invoices/current` creates or reuses an open Moyasar invoice for that balance.
-4. Moyasar sends `payment_paid`, `payment_failed`, and `payment_refunded` webhooks to `/payments/webhook`.
-5. Successful payments mark the billing invoice and included lead-fee transactions paid.
-6. If Moyasar returns a source token, HandyCall stores only the token plus masked card metadata for future balance payments.
+4. The Pro billing page mounts Moyasar's embedded card form with the invoice id and `credit_card.save_card`.
+5. Moyasar redirects back to `/pro/dashboard/billing`; the page verifies the returned payment id with the backend.
+6. Moyasar also sends `payment_paid`, `payment_failed`, and `payment_refunded` webhooks to `/payments/webhook`.
+7. Successful payments mark the billing invoice and included lead-fee transactions paid.
+8. If Moyasar returns a source token, HandyCall stores only the token plus masked card metadata for future balance payments.
 
 ## Admin Surfaces
 
