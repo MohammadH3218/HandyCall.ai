@@ -256,10 +256,6 @@ function ProCard({
 
   function handleViewProfile(e: React.MouseEvent) {
     e.preventDefault();
-    if (!isCustomer) {
-      router.push(`/customer/login?callbackUrl=${encodeURIComponent(`/pros/${pro.pro_id}`)}`);
-      return;
-    }
     router.push(`/pros/${pro.pro_id}`);
   }
 
@@ -395,7 +391,7 @@ function ProCard({
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-400">Pricing</p>
             <p className="mt-2 text-xl font-bold text-slate-900">{price}</p>
             {!isCustomer ? (
-              <p className="mt-2 text-xs text-slate-400">Sign in to view the full profile and request a quote.</p>
+              <p className="mt-2 text-xs text-slate-400">Sign in as a customer to request a quote.</p>
             ) : null}
           </div>
 

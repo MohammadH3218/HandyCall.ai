@@ -17,7 +17,6 @@ import { SiteHeader } from '@/components/marketing/site-header';
 import { SiteFooter } from '@/components/marketing/site-footer';
 import { apiClient } from '@/lib/api-client';
 import { ImageLightbox } from '@/components/ui/image-lightbox';
-import { useAuthStore } from '@/stores/auth-store';
 
 const PAYMENT_LABELS: Record<string, string> = {
   cash: 'Cash',
@@ -128,7 +127,6 @@ function LoginGateModal({ proId, onClose }: { proId: string; onClose: () => void
 }
 
 export function ProProfileClient({ id }: { id: string }) {
-  const { isAuthenticated } = useAuthStore();
   const { data: session, status: sessionStatus } = useSession();
   const isCustomer = (session as any)?.poolType === 'customer';
   const router = useRouter();
@@ -140,16 +138,7 @@ export function ProProfileClient({ id }: { id: string }) {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [proReviews, setProReviews] = useState<any[]>([]);
 
-  // Gate: only logged-in customers can view pro profiles
   useEffect(() => {
-    if (sessionStatus === 'loading') return;
-    if (!isCustomer) {
-      router.replace(`/customer/login?callbackUrl=${encodeURIComponent(`/pros/${id}`)}`);
-    }
-  }, [id, isCustomer, router, sessionStatus]);
-
-  useEffect(() => {
-    if (!isCustomer) return;
     apiClient
       .getProviderById(id)
       .then((data) => {
@@ -161,18 +150,17 @@ export function ProProfileClient({ id }: { id: string }) {
       })
       .catch(() => setNotFound(true))
       .finally(() => setLoading(false));
-  }, [id, isCustomer]);
+  }, [id]);
 
   useEffect(() => {
-    if (!isCustomer || !id) return;
+    if (!id) return;
     apiClient
       .getProReviews(id)
       .then((list) => setProReviews(list))
       .catch(() => {});
-  }, [id, isCustomer]);
+  }, [id]);
 
-  // Show spinner for all non-customer states while redirect fires
-  if (sessionStatus === 'loading' || !isCustomer) {
+  if (sessionStatus === 'loading') {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-50">
         <div className="h-10 w-10 animate-spin rounded-full border-4 border-emerald-200 border-t-emerald-600" />
@@ -291,7 +279,7 @@ export function ProProfileClient({ id }: { id: string }) {
   ];
 
   function handleRequestQuote() {
-    if (isAuthenticated) {
+    if (isCustomer) {
       router.push(`/request?pro_id=${encodeURIComponent(id)}&category=${encodeURIComponent(serviceCategory)}`);
     } else {
       setShowLoginGate(true);
