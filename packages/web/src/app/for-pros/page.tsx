@@ -5,8 +5,10 @@ import {
   IconChartBar,
   IconCheck,
   IconChecklist,
-  IconCreditCard,
+  IconCoin,
+  IconFileText,
   IconMapPin,
+  IconMessage,
   IconUsers,
 } from '@tabler/icons-react';
 import { SiteHeader } from '@/components/marketing/site-header';
@@ -30,65 +32,14 @@ const BENEFITS = [
     description: 'Keep your requests, bookings, and account activity organized without juggling multiple tools.',
   },
   {
-    icon: IconCreditCard,
-    title: 'Monetize with clearer pricing',
-    description: 'Present your services more clearly and upgrade into the business tools that fit your stage.',
+    icon: IconCoin,
+    title: 'Only pay when you win work',
+    description: 'No monthly subscription. A lead fee applies only when you accept a customer request — you decide.',
   },
   {
     icon: IconChartBar,
     title: 'Build a stronger local presence',
     description: 'Give your business a cleaner digital storefront inside a focused Riyadh marketplace.',
-  },
-];
-
-const PLANS = [
-  {
-    name: 'Starter',
-    badge: null,
-    price: { monthly: 'Free', annual: 'Free' },
-    note: 'For new providers testing the marketplace',
-    features: [
-      'Create your pro listing',
-      'Appear in service & district search',
-      'Up to 5 service categories',
-      'Basic profile with contact form',
-      'District-level visibility',
-    ],
-    cta: 'Get started free',
-    style: 'default' as const,
-  },
-  {
-    name: 'Pro',
-    badge: 'Most Popular',
-    price: { monthly: 'SAR 149', annual: 'SAR 124' },
-    note: 'For established solo operators',
-    features: [
-      'Everything in Starter',
-      'Priority placement in search results',
-      'Unlimited service categories',
-      'Lead management inbox',
-      'Booking request workflow',
-      'Customer reviews & ratings',
-      'Business analytics overview',
-    ],
-    cta: 'Start Pro',
-    style: 'featured' as const,
-  },
-  {
-    name: 'Teams',
-    badge: null,
-    price: { monthly: 'SAR 349', annual: 'SAR 290' },
-    note: 'For growing multi-person operations',
-    features: [
-      'Everything in Pro',
-      'Up to 5 team member accounts',
-      'Advanced analytics dashboard',
-      'Featured placement in categories',
-      'Custom service area targeting',
-      'Priority customer support',
-    ],
-    cta: 'Start Teams',
-    style: 'default' as const,
   },
 ];
 
@@ -98,6 +49,7 @@ export default function ForProsPage() {
       <SiteHeader proLinks />
 
       <main>
+        {/* Hero */}
         <section className="border-b border-slate-100 bg-white px-4 pb-24 pt-24">
           <div className="mx-auto grid max-w-6xl gap-12 lg:grid-cols-[1.15fr_0.85fr] lg:items-center">
             <div>
@@ -116,7 +68,7 @@ export default function ForProsPage() {
                   href="/register"
                   className="rounded-xl bg-emerald-600 px-7 py-3.5 text-sm font-bold text-white transition hover:bg-emerald-700"
                 >
-                  Pro Sign Up
+                  Pro Sign Up — Free
                 </Link>
                 <Link
                   href="/pro/login"
@@ -129,7 +81,7 @@ export default function ForProsPage() {
 
             <div className="rounded-[28px] border border-slate-200 bg-slate-50 p-8 shadow-sm">
               <div className="grid gap-5 sm:grid-cols-2">
-                {BENEFITS.slice(0, 4).map((benefit) => (
+                {BENEFITS.map((benefit) => (
                   <div key={benefit.title} className="rounded-2xl bg-white p-5 shadow-sm">
                     <benefit.icon className="h-6 w-6 text-emerald-600" stroke={1.8} />
                     <h2 className="mt-4 text-base font-bold text-slate-900">{benefit.title}</h2>
@@ -141,6 +93,7 @@ export default function ForProsPage() {
           </div>
         </section>
 
+        {/* Why Pros Join */}
         <section className="px-4 py-24">
           <div className="mx-auto max-w-6xl">
             <div className="mb-12 text-center">
@@ -180,98 +133,117 @@ export default function ForProsPage() {
           </div>
         </section>
 
-        <section id="pricing" className="border-t border-slate-100 bg-slate-50 px-4 py-24">
+        {/* Job Requests feature section */}
+        <section className="border-t border-slate-100 bg-slate-50 px-4 py-24">
           <div className="mx-auto max-w-6xl">
             <div className="mb-14 text-center">
               <span className="inline-flex rounded-full bg-emerald-50 px-4 py-1.5 text-xs font-bold uppercase tracking-widest text-emerald-700">
-                Pricing
+                Direct from customers
               </span>
               <h2 className="mt-4 text-4xl font-extrabold tracking-tight text-slate-900">
-                Choose the plan that fits your stage
+                Customers can send you job requests directly
               </h2>
-              <p className="mt-3 text-slate-500">All plans include a 14-day free trial. No credit card required.</p>
+              <p className="mt-3 max-w-2xl mx-auto text-slate-500 text-base leading-relaxed">
+                Homeowners describe their job, share their location, and send a request straight to pros in their area. You review the details, then decide whether to accept.
+              </p>
+            </div>
 
-              {/* Billing toggle */}
-              <div className="mt-8 inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
-                <span className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Monthly</span>
-                <span className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-slate-500">
-                  Annual
-                  <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-bold text-emerald-700">Save 17%</span>
-                </span>
+            <div className="grid gap-6 md:grid-cols-3">
+              <div className="rounded-3xl bg-white border border-slate-200 p-7 shadow-sm">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50">
+                  <IconFileText className="h-6 w-6 text-emerald-600" stroke={1.8} />
+                </div>
+                <h3 className="mt-5 text-lg font-bold text-slate-900">Customer describes the job</h3>
+                <p className="mt-3 text-sm leading-relaxed text-slate-500">
+                  Customers fill in a short request — what they need, where they are, and when works for them. No vague calls, just structured intent.
+                </p>
+              </div>
+
+              <div className="rounded-3xl bg-white border border-slate-200 p-7 shadow-sm">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50">
+                  <IconChecklist className="h-6 w-6 text-emerald-600" stroke={1.8} />
+                </div>
+                <h3 className="mt-5 text-lg font-bold text-slate-900">You review and decide</h3>
+                <p className="mt-3 text-sm leading-relaxed text-slate-500">
+                  The request lands in your Direct Requests inbox. You see the job description and district before making a decision — no commitment required.
+                </p>
+              </div>
+
+              <div className="rounded-3xl bg-white border border-slate-200 p-7 shadow-sm">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50">
+                  <IconMessage className="h-6 w-6 text-emerald-600" stroke={1.8} />
+                </div>
+                <h3 className="mt-5 text-lg font-bold text-slate-900">Accept to connect</h3>
+                <p className="mt-3 text-sm leading-relaxed text-slate-500">
+                  Accepting a request reveals the customer&apos;s full contact details and opens a direct chat — a lead fee applies when you accept. Decline at no cost.
+                </p>
               </div>
             </div>
 
-            <div className="grid items-start gap-6 lg:grid-cols-3">
-              {PLANS.map((plan) => {
-                const isFeatured = plan.style === 'featured';
-                return (
-                  <div
-                    key={plan.name}
-                    className={`group relative flex flex-col rounded-3xl p-8 transition-all duration-300 hover:-translate-y-1.5 ${
-                      isFeatured
-                        ? 'bg-slate-900 shadow-2xl shadow-slate-900/20 hover:shadow-slate-900/30'
-                        : 'border border-slate-200 bg-white shadow-sm hover:border-slate-300 hover:shadow-md'
-                    }`}
-                  >
-                    {/* Popular badge */}
-                    {plan.badge && (
-                      <div className="absolute -top-3.5 left-1/2 -translate-x-1/2">
-                        <span className="rounded-full bg-emerald-500 px-4 py-1 text-xs font-bold text-white shadow-md">
-                          {plan.badge}
-                        </span>
-                      </div>
-                    )}
+            <div className="mt-10 rounded-3xl border border-emerald-200 bg-emerald-50 p-8 text-center">
+              <p className="text-lg font-bold text-slate-900">Only pay for the leads you want</p>
+              <p className="mt-2 text-sm leading-relaxed text-slate-500 max-w-xl mx-auto">
+                There&apos;s no monthly subscription fee. A lead fee is charged only when you choose to accept a customer job request. You are always in control.
+              </p>
+              <Link
+                href="/register"
+                className="mt-6 inline-block rounded-xl bg-emerald-600 px-8 py-3.5 text-sm font-bold text-white transition hover:bg-emerald-700"
+              >
+                Join HandyCall — Free
+              </Link>
+            </div>
+          </div>
+        </section>
 
+        {/* Simple pricing model */}
+        <section id="pricing" className="border-t border-slate-100 bg-white px-4 py-24">
+          <div className="mx-auto max-w-3xl text-center">
+            <span className="inline-flex rounded-full bg-emerald-50 px-4 py-1.5 text-xs font-bold uppercase tracking-widest text-emerald-700">
+              Pricing
+            </span>
+            <h2 className="mt-4 text-4xl font-extrabold tracking-tight text-slate-900">
+              Free to join. Pay only when you win.
+            </h2>
+            <p className="mt-4 text-base leading-relaxed text-slate-500">
+              Creating your HandyCall pro profile is completely free. There are no monthly fees or subscriptions. A lead fee is charged only when you accept a customer&apos;s job request — so you only pay for opportunities you actually want to pursue.
+            </p>
+
+            <div className="mt-12 rounded-3xl border border-slate-200 bg-slate-50 p-8 text-left shadow-sm">
+              <ul className="space-y-5">
+                {[
+                  { label: 'Create your pro profile', sub: 'Set up your listing, service categories, and district coverage at no cost.' },
+                  { label: 'Appear in search results', sub: 'Customers searching in your area can find and browse your profile for free.' },
+                  { label: 'Review incoming job requests', sub: 'See the job description and location before you commit — reviewing is always free.' },
+                  { label: 'Accept to reveal contact details', sub: 'When you accept a request, a lead fee applies and you gain full access to the customer\'s details and a direct chat.' },
+                  { label: 'Decline at no cost', sub: 'Not the right fit? Decline the request for free — no charge ever.' },
+                ].map((item) => (
+                  <li key={item.label} className="flex items-start gap-4">
+                    <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-100">
+                      <IconCheck className="h-3.5 w-3.5 text-emerald-600" stroke={2.5} />
+                    </span>
                     <div>
-                      <p className={`text-xs font-bold uppercase tracking-widest ${isFeatured ? 'text-emerald-400' : 'text-emerald-600'}`}>
-                        {plan.name}
-                      </p>
-                      <div className="mt-4 flex items-end gap-1">
-                        <span className={`text-4xl font-extrabold tracking-tight ${isFeatured ? 'text-white' : 'text-slate-900'}`}>
-                          {plan.price.monthly}
-                        </span>
-                        {plan.price.monthly !== 'Free' && (
-                          <span className={`mb-1 text-sm ${isFeatured ? 'text-slate-400' : 'text-slate-400'}`}>/month</span>
-                        )}
-                      </div>
-                      <p className={`mt-2 text-sm ${isFeatured ? 'text-slate-400' : 'text-slate-500'}`}>{plan.note}</p>
+                      <p className="text-sm font-semibold text-slate-900">{item.label}</p>
+                      <p className="mt-0.5 text-sm text-slate-500">{item.sub}</p>
                     </div>
-
-                    <div className={`my-7 h-px ${isFeatured ? 'bg-slate-700' : 'bg-slate-100'}`} />
-
-                    <ul className="flex-1 space-y-3.5">
-                      {plan.features.map((feature) => (
-                        <li key={feature} className="flex items-start gap-3">
-                          <span className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${
-                            isFeatured ? 'bg-emerald-500/20' : 'bg-emerald-50'
-                          }`}>
-                            <IconCheck className={`h-3 w-3 ${isFeatured ? 'text-emerald-400' : 'text-emerald-600'}`} stroke={2.5} />
-                          </span>
-                          <span className={`text-sm leading-relaxed ${isFeatured ? 'text-slate-300' : 'text-slate-600'}`}>
-                            {feature}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-
-                    <Link
-                      href="/register"
-                      className={`mt-8 flex w-full items-center justify-center rounded-xl px-6 py-3.5 text-sm font-semibold transition-all duration-200 ${
-                        isFeatured
-                          ? 'bg-emerald-500 text-white hover:bg-emerald-400'
-                          : 'border border-slate-200 bg-white text-slate-800 hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700 group-hover:border-emerald-200'
-                      }`}
-                    >
-                      {plan.cta}
-                    </Link>
-                  </div>
-                );
-              })}
+                  </li>
+                ))}
+              </ul>
             </div>
 
-            <p className="mt-10 text-center text-sm text-slate-400">
-              All prices in Saudi Riyal (SAR) — billed monthly. Annual billing saves you 2 months.
-            </p>
+            <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
+              <Link
+                href="/register"
+                className="rounded-xl bg-emerald-600 px-8 py-3.5 text-sm font-bold text-white transition hover:bg-emerald-700"
+              >
+                Create your free profile
+              </Link>
+              <Link
+                href="/pro/login"
+                className="rounded-xl border border-slate-300 px-8 py-3.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              >
+                Pro Login
+              </Link>
+            </div>
           </div>
         </section>
       </main>

@@ -34,9 +34,9 @@ export const ONBOARDING_STEPS: Array<{
   },
   {
     id: 'billing',
-    label: 'Billing',
-    labelAr: 'الفوترة',
-    description: 'Activate Starter or add billing for Pro/Max.',
-    descriptionAr: 'فعّل Starter أو أضف الفوترة لخطتي Pro و Max.',
+    label: 'Lead fees',
+    labelAr: 'رسوم العملاء',
+    description: 'Understand how lead fees work before you go live.',
+    descriptionAr: 'تعرّف على كيفية عمل رسوم العملاء قبل البدء.',
   },
 ];
