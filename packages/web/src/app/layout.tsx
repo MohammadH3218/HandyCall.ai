@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { Manrope, Space_Grotesk } from 'next/font/google';
+import { Manrope, Space_Grotesk, Lora, IBM_Plex_Mono } from 'next/font/google';
 import './globals.css';
 import { SessionProvider } from '@/components/providers/session-provider';
 import { ThemeProvider } from '@/components/providers/theme-provider';
@@ -14,6 +14,17 @@ const manrope = Manrope({
 const spaceGrotesk = Space_Grotesk({
   subsets: ['latin'],
   variable: '--font-display',
+  display: 'swap',
+});
+const lora = Lora({
+  subsets: ['latin'],
+  variable: '--font-serif',
+  display: 'swap',
+});
+const ibmPlexMono = IBM_Plex_Mono({
+  subsets: ['latin'],
+  weight: ['400', '500', '600'],
+  variable: '--font-mono',
   display: 'swap',
 });
 
@@ -81,7 +92,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     // suppressHydrationWarning prevents React mismatch warnings when the locale layout
     // updates the attributes after SSR.
     <html suppressHydrationWarning>
-      <body className={`${manrope.variable} ${spaceGrotesk.variable} font-sans antialiased`}>
+      <body className={`${manrope.variable} ${spaceGrotesk.variable} ${lora.variable} ${ibmPlexMono.variable} font-sans antialiased`}>
         <SessionProvider>
           <ThemeProvider>
             <MarketingLanguageProvider>
