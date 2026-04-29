@@ -68,7 +68,7 @@ const CARD_BRANDS: Record<CardBrandKey, { label: string; shortLabel: string; cla
   mada: {
     label: 'mada',
     shortLabel: 'mada',
-    className: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+    className: 'border-emerald-200 bg-white text-emerald-700',
   },
   visa: {
     label: 'Visa',
@@ -435,16 +435,16 @@ export default function ProBillingPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50/70 p-6 lg:p-8">
+    <div className="min-h-screen bg-slate-50 p-6 lg:p-8">
       <div className="mx-auto max-w-5xl">
-        <div className="overflow-hidden rounded-2xl border border-emerald-100 bg-white shadow-sm shadow-emerald-950/5">
-          <div className="border-b border-emerald-100 bg-gradient-to-r from-emerald-50 via-white to-teal-50 px-6 py-5">
+        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div className="border-b border-slate-200 bg-white px-6 py-5">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.22em] text-emerald-600">Pro wallet</p>
                 <h1 className="mt-1 text-2xl font-bold text-slate-950">Billing</h1>
               </div>
-              <div className="rounded-full border border-emerald-200 bg-white px-3 py-1 text-xs font-semibold text-emerald-700 shadow-sm">
+              <div className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm">
                 SAR credits
               </div>
             </div>
@@ -609,13 +609,13 @@ function OverviewTab({
   return (
     <div className="mx-auto max-w-3xl space-y-8">
       <section>
-        <div className="rounded-2xl border border-emerald-100 bg-gradient-to-br from-white via-emerald-50/60 to-teal-50 p-5 shadow-sm shadow-emerald-950/5">
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <h2 className="text-lg font-semibold text-slate-950">Pay as you go</h2>
               <p className="mt-1 text-sm text-slate-500">Use credits to buy marketplace leads across Riyadh.</p>
             </div>
-            <div className="rounded-full border border-emerald-200 bg-white px-3 py-1 text-xs font-semibold text-emerald-700">
+            <div className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700">
               Active wallet
             </div>
           </div>
@@ -624,10 +624,10 @@ function OverviewTab({
             <p className="mt-2 text-4xl font-bold text-emerald-700">{formatSarHalalas(creditBalance)}</p>
           </div>
           <div className="mt-6 flex flex-wrap gap-2">
-            <button className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm shadow-emerald-900/10 transition hover:bg-emerald-700" onClick={onTopUp}>
+            <button className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700" onClick={onTopUp}>
               Add to credit balance
             </button>
-            <button className="rounded-xl border border-emerald-100 bg-white px-4 py-2 text-sm font-semibold text-slate-900 transition hover:border-emerald-200 hover:bg-emerald-50" onClick={onAutoRecharge}>
+            <button className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-900 transition hover:border-slate-300 hover:bg-slate-50" onClick={onAutoRecharge}>
               Auto recharge settings
             </button>
           </div>
@@ -636,7 +636,7 @@ function OverviewTab({
         <div
           className={`mt-5 flex items-center justify-between gap-4 rounded-2xl border px-4 py-3 ${
             autoRecharge?.enabled
-              ? 'border-emerald-600/30 bg-emerald-50 text-emerald-800'
+              ? 'border-emerald-200 bg-white text-emerald-800'
               : 'border-slate-200 bg-slate-50 text-slate-600'
           }`}
         >
@@ -707,7 +707,7 @@ function TopUpDialog({
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center bg-slate-950/40 px-4 py-10 backdrop-blur-sm">
       <div className="w-full max-w-xl overflow-hidden rounded-2xl bg-white shadow-xl shadow-slate-950/15">
-        <div className="flex items-center justify-between border-b border-emerald-100 bg-gradient-to-r from-emerald-50 to-white px-5 py-4">
+        <div className="flex items-center justify-between border-b border-slate-200 bg-white px-5 py-4">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-600">Wallet top-up</p>
             <h2 className="mt-1 text-base font-semibold text-slate-950">Add credits</h2>
@@ -736,7 +736,7 @@ function TopUpDialog({
                   key={amount}
                   type="button"
                   className={`rounded-xl px-3 py-1.5 text-sm font-medium ring-1 transition ${
-                    amountSar === amount ? 'bg-emerald-600 text-white ring-emerald-600' : 'bg-white text-slate-700 ring-slate-200 hover:bg-emerald-50 hover:text-emerald-700'
+                    amountSar === amount ? 'bg-emerald-600 text-white ring-emerald-600' : 'bg-white text-slate-700 ring-slate-200 hover:bg-slate-50 hover:text-slate-900'
                   }`}
                   onClick={() => onAmount(amount)}
                 >
@@ -757,8 +757,8 @@ function TopUpDialog({
                       key={methodId}
                       className={`flex cursor-pointer items-center justify-between gap-3 rounded-xl border px-3 py-2 transition ${
                         selectedSavedMethodId === methodId
-                          ? 'border-emerald-400 bg-emerald-50'
-                          : 'border-slate-200 bg-white hover:bg-emerald-50/60'
+                          ? 'border-emerald-400 bg-white'
+                          : 'border-slate-200 bg-white hover:bg-slate-50'
                       }`}
                     >
                       <span className="flex min-w-0 items-center gap-3">
@@ -785,8 +785,8 @@ function TopUpDialog({
                 <label
                   className={`flex cursor-pointer items-center gap-3 rounded-xl border px-3 py-2 transition ${
                     selectedSavedMethodId === NEW_PAYMENT_METHOD_ID
-                      ? 'border-emerald-400 bg-emerald-50'
-                      : 'border-slate-200 bg-white hover:bg-emerald-50/60'
+                      ? 'border-emerald-400 bg-white'
+                      : 'border-slate-200 bg-white hover:bg-slate-50'
                   }`}
                 >
                   <input
@@ -814,7 +814,7 @@ function TopUpDialog({
                     className={`rounded-xl border px-3 py-2 text-sm font-semibold transition ${
                       selectedMethod === method && !usingSavedMethod
                         ? 'border-emerald-600 bg-emerald-600 text-white'
-                        : 'border-slate-200 bg-white text-slate-700 hover:bg-emerald-50 hover:text-emerald-700'
+                        : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:text-slate-900'
                     } disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-300`}
                   >
                     {METHOD_LABELS[method]}
@@ -826,7 +826,7 @@ function TopUpDialog({
 
           {!activeInvoice ? (
             <button
-              className="w-full rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-emerald-900/10 transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none"
+              className="w-full rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none"
               disabled={actionLoading || amountSar < 20 || amountSar > 5000}
               onClick={onPrepare}
             >
@@ -956,7 +956,7 @@ function AddPaymentMethodDialog({
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center bg-slate-950/40 px-4 py-10 backdrop-blur-sm">
       <div className="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-xl shadow-slate-950/15">
-        <div className="flex items-center justify-between border-b border-emerald-100 bg-gradient-to-r from-emerald-50 to-white px-5 py-4">
+        <div className="flex items-center justify-between border-b border-slate-200 bg-white px-5 py-4">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-600">Secure card</p>
             <h2 className="mt-1 text-base font-semibold text-slate-950">Add payment method</h2>
@@ -989,12 +989,12 @@ function AddPaymentMethodDialog({
             <TextField label="YYYY" value={form.year} inputRef={yearRef} inputMode="numeric" autoComplete="cc-exp-year" maxLength={4} onChange={updateYear} />
             <TextField label="CVC" value={form.cvc} inputRef={cvcRef} inputMode="numeric" autoComplete="cc-csc" maxLength={cvcMax} onChange={updateCvc} />
           </div>
-          <div className="flex items-center justify-between rounded-xl border border-emerald-100 bg-emerald-50/70 px-3 py-2 text-xs text-emerald-800">
+          <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700">
             <span>Detected network</span>
             <CardBrandBadge brand={detectedBrand} />
           </div>
           <button
-            className="w-full rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-emerald-900/10 transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none"
+            className="w-full rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none"
             disabled={disabled}
             onClick={() => void createToken()}
           >
@@ -1026,7 +1026,7 @@ function AutoRechargeDialog({
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center bg-slate-950/40 px-4 py-10 backdrop-blur-sm">
       <div className="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-xl shadow-slate-950/15">
-        <div className="flex items-center justify-between border-b border-emerald-100 bg-gradient-to-r from-emerald-50 to-white px-5 py-4">
+        <div className="flex items-center justify-between border-b border-slate-200 bg-white px-5 py-4">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-600">Credit safety net</p>
             <h2 className="mt-1 text-base font-semibold text-slate-950">Auto recharge</h2>
@@ -1037,14 +1037,14 @@ function AutoRechargeDialog({
         </div>
         <div className="space-y-4 p-5">
           {!hasDefaultMethod ? <Alert tone="red">Save a payment method before turning on auto recharge.</Alert> : null}
-          <label className="flex items-center justify-between rounded-xl border border-emerald-100 bg-emerald-50/50 px-4 py-3">
+          <label className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3">
             <span className="text-sm font-medium text-slate-900">Enable auto recharge</span>
             <input className="h-4 w-4 accent-emerald-600" type="checkbox" checked={enabled} onChange={(event) => setEnabled(event.target.checked)} />
           </label>
           <NumberField label="Recharge when balance reaches" value={thresholdSar} onChange={setThresholdSar} />
           <NumberField label="Recharge amount" value={rechargeSar} onChange={setRechargeSar} />
           <button
-            className="w-full rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-emerald-900/10 transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none"
+            className="w-full rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none"
             disabled={actionLoading || (enabled && !hasDefaultMethod) || thresholdSar < 20 || rechargeSar < 20 || rechargeSar > 5000}
             onClick={() => onSave(enabled, thresholdSar, rechargeSar)}
           >
@@ -1071,7 +1071,7 @@ function PaymentMethodsTab({ methods, onAdd, onDefault, onRemove, actionLoading 
       {methods.length === 0 ? (
         <EmptyState icon={<IconCreditCard />} title="No payment method" detail="Add a card to use it for top-ups and auto recharge." />
       ) : (
-        <div className="divide-y divide-emerald-50 rounded-2xl border border-emerald-100 bg-white shadow-sm shadow-emerald-950/5">
+        <div className="divide-y divide-slate-100 rounded-2xl border border-slate-200 bg-white shadow-sm">
           {methods.map((method: any) => {
             const methodId = method.method_id || method.id;
             return (
@@ -1090,7 +1090,7 @@ function PaymentMethodsTab({ methods, onAdd, onDefault, onRemove, actionLoading 
                 </div>
                 <div className="flex gap-2">
                   {!method.is_default && !method.is_preferred ? (
-                    <button className="rounded-xl border border-emerald-100 px-3 py-1.5 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-50" disabled={actionLoading} onClick={() => onDefault(methodId)}>
+                    <button className="rounded-xl border border-slate-200 px-3 py-1.5 text-sm font-semibold text-emerald-700 transition hover:bg-slate-50" disabled={actionLoading} onClick={() => onDefault(methodId)}>
                       Make preferred
                     </button>
                   ) : null}
@@ -1171,8 +1171,8 @@ function Table({ rows }: { rows: Array<{ id: string; title: string; detail: stri
 
 function QuickLink({ icon, title, detail, onClick }: any) {
   return (
-    <button className="flex items-center gap-4 rounded-2xl border border-transparent p-3 text-left transition hover:border-emerald-100 hover:bg-emerald-50/60" onClick={onClick}>
-      <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
+    <button className="flex items-center gap-4 rounded-2xl border border-transparent p-3 text-left transition hover:border-slate-200 hover:bg-slate-50" onClick={onClick}>
+      <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-emerald-700">
         {icon}
       </span>
       <span>
@@ -1252,7 +1252,7 @@ function TextField({
 }
 
 function Alert({ children, tone }: { children: React.ReactNode; tone: 'green' | 'red' }) {
-  const color = tone === 'green' ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-red-200 bg-red-50 text-red-700';
+  const color = tone === 'green' ? 'border-emerald-200 bg-white text-emerald-800' : 'border-red-200 bg-red-50 text-red-700';
   return <div className={`mb-4 rounded-lg border px-4 py-3 text-sm ${color}`}>{children}</div>;
 }
 
