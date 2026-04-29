@@ -5,17 +5,25 @@ import { useParams, useRouter } from 'next/navigation';
 import { apiClient } from '@/lib/api-client';
 import { StatusBadge } from '@/components/admin/status-badge';
 import { ConfirmDialog } from '@/components/admin/confirm-dialog';
-import { IconLoader2, IconArrowLeft } from '@tabler/icons-react';
+import { IconLoader2, IconArrowLeft, IconExternalLink } from '@tabler/icons-react';
 
 export default function ProDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const [pro, setPro] = useState<any>(null);
+  const [billing, setBilling] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [confirm, setConfirm] = useState<{ action: string; label: string } | null>(null);
 
   const load = async () => {
-    try { setPro(await apiClient.adminGetPro(id)); } catch {}
+    try {
+      const [proResult, billingResult] = await Promise.allSettled([
+        apiClient.adminGetPro(id),
+        apiClient.getAdminProBilling(id),
+      ]);
+      if (proResult.status === 'fulfilled') setPro(proResult.value);
+      if (billingResult.status === 'fulfilled') setBilling(billingResult.value);
+    } catch {}
     setLoading(false);
   };
 
@@ -83,6 +91,40 @@ export default function ProDetailPage() {
           <Row label="IBAN" value={pro.iban} />
           <Row label="Bank" value={pro.bank_name} />
           <Row label="ID Type" value={pro.id_type} />
+        </Section>
+
+        <Section title="Billing">
+          <Row
+            label="Balance"
+            value={`SAR ${((billing?.overview?.balance_halalas || 0) / 100).toFixed(2)}`}
+          />
+          <Row label="Status" value={billing?.overview?.subscription_status} />
+          <Row label="Payment methods" value={billing?.payment_methods?.length || 0} />
+          <Row label="Invoices" value={billing?.invoices?.length || 0} />
+          {billing?.invoices?.slice(0, 3).map((invoice: any) => (
+            <div
+              key={invoice.invoice_id}
+              className="flex items-center justify-between gap-3 rounded-lg border border-border/60 p-3 text-[13px]"
+            >
+              <div>
+                <p className="font-medium text-slate-900">{invoice.number || invoice.invoice_id}</p>
+                <p className="text-[12px] text-slate-400">
+                  {invoice.status} · SAR {((invoice.amount_halalas || 0) / 100).toFixed(2)}
+                </p>
+              </div>
+              {invoice.hosted_invoice_url ? (
+                <a
+                  href={invoice.hosted_invoice_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="rounded-lg border border-border/70 p-2 text-slate-500 hover:bg-slate-50"
+                  aria-label="Open invoice"
+                >
+                  <IconExternalLink className="h-4 w-4" stroke={1.8} />
+                </a>
+              ) : null}
+            </div>
+          ))}
         </Section>
 
         {/* Services */}

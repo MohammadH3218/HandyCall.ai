@@ -1032,6 +1032,96 @@ fi
 # =============================================================================
 # 35. DELETED ACCOUNTS TABLE
 # =============================================================================
+TABLE_NAME="${TABLE_PREFIX}lead_fee_transactions"
+if [ -n "$(table_exists $TABLE_NAME)" ]; then
+  echo "⚠️  Table $TABLE_NAME already exists, skipping..."
+else
+  echo "📦 Creating table: $TABLE_NAME"
+  aws dynamodb create-table \
+    --table-name "$TABLE_NAME" \
+    --region "$REGION" \
+    --billing-mode "$BILLING_MODE" \
+    --attribute-definitions \
+      AttributeName=transaction_id,AttributeType=S \
+      AttributeName=pro_id,AttributeType=S \
+      AttributeName=created_at,AttributeType=N \
+    --key-schema \
+      AttributeName=transaction_id,KeyType=HASH \
+    --global-secondary-indexes \
+      "[
+        {
+          \"IndexName\": \"pro-transactions-index\",
+          \"KeySchema\": [
+            {\"AttributeName\":\"pro_id\",\"KeyType\":\"HASH\"},
+            {\"AttributeName\":\"created_at\",\"KeyType\":\"RANGE\"}
+          ],
+          \"Projection\": {\"ProjectionType\":\"ALL\"}
+        }
+      ]" \
+    --tags Key=Environment,Value="$ENV" Key=Project,Value=HandyCall
+  wait_for_table "$TABLE_NAME"
+fi
+
+TABLE_NAME="${TABLE_PREFIX}pro_billing_invoices"
+if [ -n "$(table_exists $TABLE_NAME)" ]; then
+  echo "⚠️  Table $TABLE_NAME already exists, skipping..."
+else
+  echo "📦 Creating table: $TABLE_NAME"
+  aws dynamodb create-table \
+    --table-name "$TABLE_NAME" \
+    --region "$REGION" \
+    --billing-mode "$BILLING_MODE" \
+    --attribute-definitions \
+      AttributeName=invoice_id,AttributeType=S \
+      AttributeName=pro_id,AttributeType=S \
+      AttributeName=created_at,AttributeType=N \
+    --key-schema \
+      AttributeName=invoice_id,KeyType=HASH \
+    --global-secondary-indexes \
+      "[
+        {
+          \"IndexName\": \"pro-invoices-index\",
+          \"KeySchema\": [
+            {\"AttributeName\":\"pro_id\",\"KeyType\":\"HASH\"},
+            {\"AttributeName\":\"created_at\",\"KeyType\":\"RANGE\"}
+          ],
+          \"Projection\": {\"ProjectionType\":\"ALL\"}
+        }
+      ]" \
+    --tags Key=Environment,Value="$ENV" Key=Project,Value=HandyCall
+  wait_for_table "$TABLE_NAME"
+fi
+
+TABLE_NAME="${TABLE_PREFIX}pro_payment_methods"
+if [ -n "$(table_exists $TABLE_NAME)" ]; then
+  echo "⚠️  Table $TABLE_NAME already exists, skipping..."
+else
+  echo "📦 Creating table: $TABLE_NAME"
+  aws dynamodb create-table \
+    --table-name "$TABLE_NAME" \
+    --region "$REGION" \
+    --billing-mode "$BILLING_MODE" \
+    --attribute-definitions \
+      AttributeName=method_id,AttributeType=S \
+      AttributeName=pro_id,AttributeType=S \
+      AttributeName=created_at,AttributeType=N \
+    --key-schema \
+      AttributeName=method_id,KeyType=HASH \
+    --global-secondary-indexes \
+      "[
+        {
+          \"IndexName\": \"pro-payment-methods-index\",
+          \"KeySchema\": [
+            {\"AttributeName\":\"pro_id\",\"KeyType\":\"HASH\"},
+            {\"AttributeName\":\"created_at\",\"KeyType\":\"RANGE\"}
+          ],
+          \"Projection\": {\"ProjectionType\":\"ALL\"}
+        }
+      ]" \
+    --tags Key=Environment,Value="$ENV" Key=Project,Value=HandyCall
+  wait_for_table "$TABLE_NAME"
+fi
+
 TABLE_NAME="${TABLE_PREFIX}deleted_accounts"
 if [ -n "$(table_exists $TABLE_NAME)" ]; then
   echo "⚠️  Table $TABLE_NAME already exists, skipping..."

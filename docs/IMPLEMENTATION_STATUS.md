@@ -30,6 +30,7 @@ Completed:
 - admin company-override auditing
 - webhook signature verification and replay protection
 - proxy allowlist cleanup
+- Moyasar Pro lead-fee billing with shared-secret webhook processing and admin audit events
 
 Needs follow-up:
 - platform-level WAF / firewall settings in Vercel and Fly
@@ -41,6 +42,7 @@ Completed:
 - backend audit-log module and admin log APIs
 - auth, admin, payments, rate-limit, and profile/security event logging
 - admin logs UI page
+- Moyasar Pro invoice creation, webhook outcomes, and refund actions
 
 Needs follow-up:
 - broader event coverage across older dashboard paths

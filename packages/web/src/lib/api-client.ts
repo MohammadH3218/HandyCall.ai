@@ -762,6 +762,20 @@ class ApiClient {
     return (response as any)?.data || [];
   }
 
+  async createCurrentBillingInvoice(): Promise<any> {
+    const response = await this.request<any>('/billing/invoices/current', {
+      method: 'POST',
+    });
+    return response.data ?? response;
+  }
+
+  async payCurrentBillingBalance(): Promise<any> {
+    const response = await this.request<any>('/billing/pay-current', {
+      method: 'POST',
+    });
+    return response.data ?? response;
+  }
+
   async updatePaymentMethod(paymentMethodId: string): Promise<any> {
     const response = await this.request<any>('/billing/payment-method', {
       method: 'PUT',
@@ -1048,6 +1062,39 @@ class ApiClient {
   async getAdminRevenueMetrics(): Promise<any> {
     const response = await this.request<any>('/billing/admin/revenue', {
       method: 'GET',
+    });
+    return response.data ?? response;
+  }
+
+  async listAdminPayments(params?: {
+    status?: string;
+    search?: string;
+    limit?: number;
+  }): Promise<any> {
+    const qs = new URLSearchParams();
+    if (params?.status) qs.set('status', params.status);
+    if (params?.search) qs.set('search', params.search);
+    if (params?.limit) qs.set('limit', String(params.limit));
+    const response = await this.request<any>(`/billing/admin/payments${qs.toString() ? `?${qs}` : ''}`, {
+      method: 'GET',
+    });
+    return response.data ?? response;
+  }
+
+  async getAdminProBilling(proId: string): Promise<any> {
+    const response = await this.request<any>(`/billing/admin/pro/${proId}`, {
+      method: 'GET',
+    });
+    return response.data ?? response;
+  }
+
+  async refundAdminBillingInvoice(
+    invoiceId: string,
+    data?: { amount_halalas?: number; reason?: string }
+  ): Promise<any> {
+    const response = await this.request<any>(`/billing/admin/invoices/${invoiceId}/refund`, {
+      method: 'POST',
+      body: JSON.stringify(data || {}),
     });
     return response.data ?? response;
   }

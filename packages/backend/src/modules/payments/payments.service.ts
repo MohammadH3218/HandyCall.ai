@@ -14,6 +14,7 @@ import { Request } from 'express';
 import { MarketplaceAuthContext, PaymentMethod, PaymentStatus } from '@handycall/shared';
 import { DynamoDBService } from '../../infrastructure/database/dynamodb.service';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
+import { ProBillingService } from './pro-billing.service';
 
 type WebhookPayload = Record<string, any>;
 type MutableRequest = Request & { requestId?: string; body?: any };
@@ -26,6 +27,7 @@ export class PaymentsService {
     private readonly db: DynamoDBService,
     private readonly config: ConfigService,
     private readonly auditLogs: AuditLogsService,
+    private readonly proBilling: ProBillingService,
   ) {}
 
   async createPaymentIntent(
@@ -101,6 +103,61 @@ export class PaymentsService {
   }
 
   async handleWebhook(request: MutableRequest) {
+    const rawBody = this.getRawBody(request.body);
+    let parsedPayload: WebhookPayload | null = null;
+    try {
+      parsedPayload = JSON.parse(rawBody || '{}');
+    } catch {
+      throw new BadRequestException('Webhook payload must be valid JSON.');
+    }
+
+    if (this.isMoyasarPayload(parsedPayload)) {
+      const moyasarPayload = parsedPayload as WebhookPayload;
+      const eventId = String(
+        moyasarPayload.id ||
+          moyasarPayload.data?.id ||
+          moyasarPayload.data?.invoice_id ||
+          moyasarPayload.reference ||
+          '',
+      ).trim();
+      if (!eventId) {
+        throw new BadRequestException('Moyasar webhook payload is missing an event id.');
+      }
+
+      const receiptKey = `moyasar:${eventId}`;
+      try {
+        await this.db.putWithCondition(
+          'webhook_receipts',
+          {
+            receipt_key: receiptKey,
+            provider: 'moyasar',
+            event_id: eventId,
+            created_at: Date.now(),
+            expires_at: Math.floor((Date.now() + 30 * 24 * 60 * 60 * 1000) / 1000),
+          },
+          {
+            ConditionExpression: 'attribute_not_exists(receipt_key)',
+          },
+        );
+      } catch (error: any) {
+        if (error?.name === 'ConditionalCheckFailedException') {
+          await this.auditLogs.logFromRequest(request, {
+            category: 'SECURITY',
+            severity: 'WARN',
+            outcome: 'DENIED',
+            action: 'security.payment_webhook_replay_rejected',
+            target_type: 'webhook',
+            target_id: receiptKey,
+            metadata: { provider: 'moyasar', event_id: eventId },
+          });
+          return { received: true, duplicate: true };
+        }
+        throw error;
+      }
+
+      return this.proBilling.handleMoyasarWebhook(request, moyasarPayload);
+    }
+
     const secret = this.config.get<string>('PAYMENTS_WEBHOOK_SECRET')?.trim();
     if (!secret) {
       await this.auditLogs.logFromRequest(request, {
@@ -113,7 +170,6 @@ export class PaymentsService {
       throw new ServiceUnavailableException('Payment webhook secret is not configured.');
     }
 
-    const rawBody = this.getRawBody(request.body);
     const signature = this.extractSignature(
       request.headers as Record<string, string | string[] | undefined>,
     );
@@ -138,12 +194,7 @@ export class PaymentsService {
       throw new UnauthorizedException('Invalid webhook signature.');
     }
 
-    let payload: WebhookPayload;
-    try {
-      payload = JSON.parse(rawBody || '{}');
-    } catch {
-      throw new BadRequestException('Webhook payload must be valid JSON.');
-    }
+    const payload = parsedPayload || {};
 
     const provider = String(payload.provider || payload.gateway || 'payment-gateway').slice(0, 64);
     const eventId = String(
@@ -306,6 +357,19 @@ export class PaymentsService {
     if (['refunded', 'refund'].includes(normalized)) return 'REFUNDED';
     if (['failed', 'declined', 'error'].includes(normalized)) return 'FAILED';
     return undefined;
+  }
+
+  private isMoyasarPayload(payload: WebhookPayload | null) {
+    if (!payload || typeof payload !== 'object') return false;
+    const type = String(payload.type || '').toLowerCase();
+    return Boolean(
+      payload.secret_token ||
+        type.startsWith('payment_') ||
+        type.startsWith('invoice_') ||
+        payload.data?.source ||
+        payload.data?.payments ||
+        payload.url,
+    );
   }
 
   private getRawBody(body: unknown) {

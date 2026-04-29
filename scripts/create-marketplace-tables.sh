@@ -322,6 +322,69 @@ $AWS update-time-to-live \
   --table-name "${TABLE_PREFIX}webhook_receipts" \
   --time-to-live-specification "Enabled=true,AttributeName=expires_at" 2>/dev/null || true
 
+# ─── 13. lead_fee_transactions ────────────────────────────────────────────────
+
+create_table lead_fee_transactions \
+  --attribute-definitions \
+    AttributeName=transaction_id,AttributeType=S \
+    AttributeName=pro_id,AttributeType=S \
+    AttributeName=created_at,AttributeType=N \
+  --key-schema \
+    AttributeName=transaction_id,KeyType=HASH \
+  --global-secondary-indexes \
+    '[
+      {
+        "IndexName": "pro-transactions-index",
+        "KeySchema": [
+          {"AttributeName":"pro_id","KeyType":"HASH"},
+          {"AttributeName":"created_at","KeyType":"RANGE"}
+        ],
+        "Projection": {"ProjectionType":"ALL"}
+      }
+    ]'
+
+# ─── 14. pro_billing_invoices ─────────────────────────────────────────────────
+
+create_table pro_billing_invoices \
+  --attribute-definitions \
+    AttributeName=invoice_id,AttributeType=S \
+    AttributeName=pro_id,AttributeType=S \
+    AttributeName=created_at,AttributeType=N \
+  --key-schema \
+    AttributeName=invoice_id,KeyType=HASH \
+  --global-secondary-indexes \
+    '[
+      {
+        "IndexName": "pro-invoices-index",
+        "KeySchema": [
+          {"AttributeName":"pro_id","KeyType":"HASH"},
+          {"AttributeName":"created_at","KeyType":"RANGE"}
+        ],
+        "Projection": {"ProjectionType":"ALL"}
+      }
+    ]'
+
+# ─── 15. pro_payment_methods ──────────────────────────────────────────────────
+
+create_table pro_payment_methods \
+  --attribute-definitions \
+    AttributeName=method_id,AttributeType=S \
+    AttributeName=pro_id,AttributeType=S \
+    AttributeName=created_at,AttributeType=N \
+  --key-schema \
+    AttributeName=method_id,KeyType=HASH \
+  --global-secondary-indexes \
+    '[
+      {
+        "IndexName": "pro-payment-methods-index",
+        "KeySchema": [
+          {"AttributeName":"pro_id","KeyType":"HASH"},
+          {"AttributeName":"created_at","KeyType":"RANGE"}
+        ],
+        "Projection": {"ProjectionType":"ALL"}
+      }
+    ]'
+
 # ─── Seed platform_config ─────────────────────────────────────────────────────
 
 echo ""

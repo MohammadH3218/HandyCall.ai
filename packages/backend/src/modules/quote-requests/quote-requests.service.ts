@@ -451,8 +451,10 @@ export class QuoteRequestsService {
       quote_id: quoteId,
       amount_halalas: leadFeeHalalas,
       transaction_type: 'CHARGE',
+      billing_status: 'UNBILLED',
       description: `Lead fee — ${q.service_category} job in ${q.district}`,
       created_at: Date.now(),
+      updated_at: Date.now(),
     });
 
     const pro = (await this.db.get('pros', { pro_id: proId }).catch(() => null)) as any;
@@ -604,6 +606,19 @@ export class QuoteRequestsService {
       }
     );
 
+    const directLeadFeeHalalas = q.lead_fee_halalas ?? getLeadFeeHalalas(q.service_category);
+    await this.db.put(LEAD_FEE_TRANSACTIONS_TABLE, {
+      transaction_id: uuidv4(),
+      pro_id: proId,
+      quote_id: quoteId,
+      amount_halalas: directLeadFeeHalalas,
+      transaction_type: 'CHARGE',
+      billing_status: 'UNBILLED',
+      description: `Lead fee — direct ${q.service_category} request in ${q.district}`,
+      created_at: Date.now(),
+      updated_at: Date.now(),
+    });
+
     if (q.contact_email) {
       this.email['send']({
         to: q.contact_email,
@@ -622,7 +637,7 @@ export class QuoteRequestsService {
     }
 
     this.logger.log(
-      `Direct quote ${quoteId} accepted by pro ${proId} → thread ${thread.thread_id}`
+      `Direct quote ${quoteId} accepted by pro ${proId} → thread ${thread.thread_id}; ${directLeadFeeHalalas} halalas charged`
     );
     return { quote: updated, thread };
   }

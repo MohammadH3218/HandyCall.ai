@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { IconRefresh, IconSearch } from '@tabler/icons-react';
+import { IconExternalLink, IconRefresh, IconSearch } from '@tabler/icons-react';
 import { PageHeader } from '@/components/portal/page-header';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,13 +10,9 @@ import { DataTable } from '@/components/admin/data-table';
 import { StatusBadge } from '@/components/admin/status-badge';
 import { ConfirmActionDialog } from '@/components/admin/confirm-action-dialog';
 import { apiClient } from '@/lib/api-client';
-import {
-  formatDateTime,
-  formatHalalaAsSar,
-  formatPersonName,
-} from '@/lib/admin-format';
+import { formatDateTime, formatHalalaAsSar } from '@/lib/admin-format';
 
-const FILTERS = ['ALL', 'PENDING', 'HELD', 'RELEASED', 'REFUNDED'];
+const FILTERS = ['ALL', 'UNBILLED', 'INVOICED', 'INITIATED', 'PAID', 'REFUNDED', 'FAILED'];
 
 export default function AdminPaymentsPage() {
   const [status, setStatus] = useState('ALL');
@@ -32,7 +28,7 @@ export default function AdminPaymentsPage() {
       const response = await apiClient.listAdminPayments({
         status: status === 'ALL' ? undefined : status,
         search: search || undefined,
-        limit: 60,
+        limit: 100,
       });
       setPayments(response.items || []);
     } catch (err: any) {
@@ -46,13 +42,10 @@ export default function AdminPaymentsPage() {
     void load();
   }, [status]);
 
-  const release = async (bookingId: string) => {
-    await apiClient.releaseAdminPayment(bookingId);
-    await load();
-  };
-
-  const refund = async (bookingId: string) => {
-    await apiClient.refundAdminPayment(bookingId, 'Refund recorded by admin');
+  const refund = async (invoiceId: string) => {
+    await apiClient.refundAdminBillingInvoice(invoiceId, {
+      reason: 'Refund issued by HandyCall admin',
+    });
     await load();
   };
 
@@ -61,7 +54,7 @@ export default function AdminPaymentsPage() {
       <PageHeader
         eyebrow="Admin"
         title="Payments"
-        subtitle="Monitor booking payment state, release held payouts, and record refunds where the current payment flow allows."
+        subtitle="Track pro lead-fee charges, Moyasar invoices, saved-card billing, and refund outcomes."
         actions={
           <Button variant="outline" onClick={() => void load()}>
             <IconRefresh className="mr-2 h-4 w-4" stroke={1.6} />
@@ -83,12 +76,12 @@ export default function AdminPaymentsPage() {
         ))}
       </div>
 
-      <div className="flex flex-col gap-3 rounded-2xl border border-border/80 bg-white p-4 shadow-sm md:flex-row">
+      <div className="flex flex-col gap-3 rounded-lg border border-border/80 bg-white p-4 shadow-sm md:flex-row">
         <div className="relative flex-1">
           <IconSearch className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" stroke={1.7} />
           <Input
             className="pl-9"
-            placeholder="Search by booking id, names, email, or payment reference"
+            placeholder="Search by pro, invoice, quote, transaction, status, or description"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
           />
@@ -97,7 +90,7 @@ export default function AdminPaymentsPage() {
       </div>
 
       {error ? (
-        <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+        <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
           {error}
         </div>
       ) : null}
@@ -105,48 +98,62 @@ export default function AdminPaymentsPage() {
       <DataTable
         loading={loading}
         rows={payments}
-        rowKey={(item) => item.booking_id}
-        emptyTitle="No payments found"
-        emptyDescription="Payment activity matching the current filter will appear here."
+        rowKey={(item) => item.invoice_id || item.transaction_id}
+        emptyTitle="No payment records found"
+        emptyDescription="Pro lead-fee charges and Moyasar invoices matching the current filter will appear here."
         columns={[
           {
-            key: 'booking',
-            header: 'Booking',
+            key: 'record',
+            header: 'Record',
             render: (item) => (
               <div>
-                <Link href={`/admin/bookings/${item.booking_id}`} className="font-semibold text-slate-900 hover:text-emerald-700">
-                  {item.booking_id.slice(0, 8)}
-                </Link>
-                <p className="text-xs text-muted-foreground">{item.payment_reference || 'No reference yet'}</p>
-              </div>
-            ),
-          },
-          {
-            key: 'participants',
-            header: 'Participants',
-            render: (item) => (
-              <div>
-                <p>{formatPersonName(item.customer)}</p>
-                <p className="text-xs text-muted-foreground">{formatPersonName(item.pro)}</p>
-              </div>
-            ),
-          },
-          {
-            key: 'amount',
-            header: 'Amounts',
-            render: (item) => (
-              <div>
-                <p>{formatHalalaAsSar(item.service_price_sar)}</p>
+                <p className="font-semibold text-slate-900">
+                  {item.record_type === 'INVOICE' ? 'Moyasar invoice' : 'Lead fee'}
+                </p>
                 <p className="text-xs text-muted-foreground">
-                  payout {formatHalalaAsSar(item.pro_payout_sar)}
+                  {item.invoice_id || item.transaction_id}
                 </p>
               </div>
             ),
           },
           {
+            key: 'pro',
+            header: 'Pro',
+            render: (item) => (
+              <Link href={`/admin/pros/${item.pro_id}`} className="font-medium text-slate-900 hover:text-emerald-700">
+                {item.pro_id?.slice(0, 8) || 'Unknown'}
+              </Link>
+            ),
+          },
+          {
+            key: 'description',
+            header: 'Description',
+            render: (item) => (
+              <div>
+                <p>{item.description || item.period_label || 'Monthly lead fees'}</p>
+                {item.hosted_invoice_url ? (
+                  <a
+                    href={item.hosted_invoice_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-emerald-700"
+                  >
+                    Open Moyasar invoice
+                    <IconExternalLink className="h-3 w-3" stroke={1.8} />
+                  </a>
+                ) : null}
+              </div>
+            ),
+          },
+          {
+            key: 'amount',
+            header: 'Amount',
+            render: (item) => formatHalalaAsSar(item.amount_halalas || item.total),
+          },
+          {
             key: 'status',
-            header: 'Payment',
-            render: (item) => <StatusBadge status={item.payment_status} />,
+            header: 'Status',
+            render: (item) => <StatusBadge status={item.status || item.billing_status} />,
           },
           {
             key: 'created',
@@ -158,22 +165,17 @@ export default function AdminPaymentsPage() {
             header: 'Actions',
             render: (item) => (
               <div className="flex flex-wrap gap-2">
-                {item.payment_status === 'HELD' ? (
-                  <Button size="sm" onClick={() => void release(item.booking_id)}>
-                    Release payout
-                  </Button>
-                ) : null}
-                {item.payment_status !== 'REFUNDED' ? (
+                {item.record_type === 'INVOICE' && item.status === 'PAID' ? (
                   <ConfirmActionDialog
                     trigger={
                       <Button size="sm" variant="outline">
                         Refund
                       </Button>
                     }
-                    title="Record refund?"
-                    description="This records a refund state in the platform. Gateway-side automation is still limited by the current payments implementation."
-                    confirmLabel="Record refund"
-                    onConfirm={() => refund(item.booking_id)}
+                    title="Refund invoice?"
+                    description="This records the refund in HandyCall and asks Moyasar to refund the captured payment when a payment id is available."
+                    confirmLabel="Refund"
+                    onConfirm={() => refund(item.invoice_id)}
                   />
                 ) : null}
               </div>
